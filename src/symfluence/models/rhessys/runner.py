@@ -158,6 +158,7 @@ class RHESSysRunner(BaseModelRunner):
                 cmd,
                 cwd=str(self.output_dir),
                 env=env,
+                stdin=subprocess.DEVNULL,  # Prevent hangs if RHESSys prompts for input
                 capture_output=True,
                 text=True,
                 timeout=7200  # 2 hour timeout
@@ -212,10 +213,16 @@ class RHESSysRunner(BaseModelRunner):
         """
         cmd = [str(rhessys_exe)]
 
-        # World file
+        # World file and header
         world_file = self.worldfiles_dir / f"{self.config.domain.name}.world"
+        header_file = self.worldfiles_dir / f"{self.config.domain.name}.world.hdr"
         if world_file.exists():
             cmd.extend(["-w", str(world_file)])
+            # Explicitly specify header file - RHESSys doesn't always auto-detect
+            if header_file.exists():
+                cmd.extend(["-whdr", str(header_file)])
+            else:
+                logger.warning(f"Header file not found: {header_file}")
         else:
             logger.warning(f"Worldfile not found: {world_file}")
 
@@ -248,8 +255,11 @@ class RHESSysRunner(BaseModelRunner):
 
         # Note: Default files are specified in worldfile header, no -d flag needed
 
-        # Output flags - enable legacy basin output (required for streamflow)
+        # Output flags
         # -b enables basin daily output (streamflow, ET, etc.)
+        # -g enables grow (carbon cycling) mode for full Penman-Monteith transpiration
+        # -l enables longwave radiation in canopy energy balance (evap_use_longwave_flag)
+        #    Without -l, Lstar_canopy=0 which zeroes out potential evaporation
         cmd.extend(["-b"])
 
         # Fire spread if WMFire is enabled
@@ -276,5 +286,16 @@ class RHESSysRunner(BaseModelRunner):
         routing_file = self.rhessys_input_dir / "routing" / f"{self.config.domain.name}.routing"
         if routing_file.exists():
             cmd.extend(["-r", str(routing_file)])
+
+        # Subgrid variability for lumped mode (-stdev enables variance-based return flow)
+        # This uses normal distribution around mean sat_deficit to generate partial saturation
+        # The std_scale multiplies the patch-level std value from the worldfile
+        std_scale = self._get_config_value(
+            lambda: self.config.model.rhessys.std_scale,
+            default=1.0  # Default to 1.0 to enable subgrid variability
+        )
+        if std_scale > 0:
+            cmd.extend(["-stdev", str(std_scale)])
+            logger.info(f"Subgrid variability enabled with std_scale={std_scale}")
 
         return cmd

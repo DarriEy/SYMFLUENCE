@@ -355,7 +355,7 @@ class ObservationLoaderMixin:
             if catchment_path and catchment_path.exists():
                 catchment_gdf = gpd.read_file(catchment_path)
                 area_km2 = calculate_catchment_area_km2(catchment_gdf, logger=self.logger)
-                self.logger.info(f"Using estimated catchment area: {area_km2:.2f} km2")
+                self.logger.debug(f"Using estimated catchment area: {area_km2:.2f} km2")
                 return area_km2
 
         except Exception as e:

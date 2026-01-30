@@ -104,7 +104,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             import platform
             use_geojson = getattr(self, "_use_geojson_catchments", False)
             if platform.system() == "Darwin":
-                self.logger.info("Forcing GeoJSON catchments on macOS for stability")
+                self.logger.debug("Forcing GeoJSON catchments on macOS for stability")
                 use_geojson = True
 
             if use_geojson:
@@ -241,12 +241,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 # Run t-route routing if configured
                 if self.config_dict.get('NGEN_RUN_TROUTE', True):  # Default to True
-                    self.logger.info("Starting t-route routing...")
+                    self.logger.debug("Starting t-route routing...")
                     troute_success = self._run_troute_routing(output_dir)
                     if not troute_success:
-                        self.logger.warning("T-Route routing failed or not available. Continuing with NGEN outputs only.")
+                        self.logger.debug("T-Route routing not available. Using NGEN nexus outputs directly.")
                 else:
-                    self.logger.info("T-Route routing disabled in config")
+                    self.logger.debug("T-Route routing disabled in config")
 
                 return True
 
@@ -370,9 +370,10 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                                                 candidates = list(target_dir.glob("cat-*"))
                                                 if candidates:
                                                     # Use the actual file name pattern from the first matching file
-                                                    # For files like "cat-1_pet_config.txt", we want to replace {{id}} with "cat-1"
+                                                    # For files like "cat-1_pet_config.txt" or "cat-1.input", extract "cat-1"
                                                     first_file = candidates[0].name
-                                                    match = re.search(r'(cat-[a-zA-Z0-9_-]+?)(?=_)', first_file)
+                                                    # Match cat-ID followed by underscore, dot, or end of string
+                                                    match = re.search(r'(cat-[a-zA-Z0-9_-]+?)(?=[._]|$)', first_file)
                                                     if match:
                                                         filename = filename.replace('{{id}}', match.group(1))
                                         # Use the setup dir for THIS runner (might be isolated)
@@ -411,7 +412,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             if changed:
                 with open(realization_file, 'w') as f:
                     json.dump(data, f, indent=2)
-                self.logger.info("Patched absolute paths in realization config copy")
+                self.logger.debug("Patched absolute paths in realization config copy")
         except Exception as e:
             self.logger.warning(f"Failed to patch realization libraries: {e}")
 
@@ -475,7 +476,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             # Check if ngen_routing is available
             from ngen_routing.ngen_main import ngen_main
         except ImportError:
-            self.logger.info("T-Route (ngen_routing) not installed. Skipping routing.")
+            self.logger.debug("T-Route (ngen_routing) not installed. Skipping routing.")
             return False
 
         # Find t-route config

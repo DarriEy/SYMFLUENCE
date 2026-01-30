@@ -23,15 +23,15 @@ class APIClient:
     Client for making API calls to OpenAI-compatible endpoints.
 
     Supports configuration via environment variables with auto-fallback:
-    1. OPENAI_API_KEY: OpenAI or custom endpoint (highest priority)
-    2. GROQ_API_KEY: Free Groq service (fallback)
+    1. GROQ_API_KEY: Free Groq service (highest priority)
+    2. OPENAI_API_KEY: OpenAI or custom endpoint (fallback)
     3. Error with setup instructions if neither is set
 
     Configuration variables:
+    - GROQ_API_KEY: API authentication key for Groq (free, highest priority)
     - OPENAI_API_KEY: API authentication key for OpenAI/custom endpoint
     - OPENAI_API_BASE: Base URL for API (optional, default: https://api.openai.com/v1)
-    - OPENAI_MODEL: Model name to use (optional, default: gpt-4-turbo-preview for OpenAI, llama-3.3-70b-versatile for Groq)
-    - GROQ_API_KEY: API authentication key for Groq (free, used if OPENAI_API_KEY not set)
+    - OPENAI_MODEL: Model name to use (optional, default: llama-3.3-70b-versatile for Groq, gpt-4o for OpenAI)
     - OPENAI_TIMEOUT: Request timeout in seconds (optional, default: 60)
     - OPENAI_MAX_RETRIES: Maximum retry attempts (optional, default: 2)
     """
@@ -41,8 +41,8 @@ class APIClient:
         Initialize the API client with auto-fallback.
 
         Priority order:
-        1. OPENAI_API_KEY (OpenAI or custom endpoint)
-        2. GROQ_API_KEY (free Groq service)
+        1. GROQ_API_KEY (free Groq service)
+        2. OPENAI_API_KEY (OpenAI or custom endpoint)
         3. Ollama (free local LLM if running)
         4. Error with setup instructions
 
@@ -55,21 +55,21 @@ class APIClient:
         self.verbose = verbose
 
         # Check for API keys in priority order
-        openai_key = os.getenv("OPENAI_API_KEY")
         groq_key = os.getenv("GROQ_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
 
-        if openai_key:
-            # User provided OpenAI key or custom endpoint configuration
-            self.api_key = openai_key
-            self.api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-            self.model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-            self.provider = "OpenAI/Custom"
-        elif groq_key:
-            # Use free Groq service
+        if groq_key:
+            # Use free Groq service (highest priority)
             self.api_key = groq_key
             self.api_base = "https://api.groq.com/openai/v1"
             self.model = os.getenv("OPENAI_MODEL", "llama-3.3-70b-versatile")
             self.provider = "Groq"
+        elif openai_key:
+            # User provided OpenAI key or custom endpoint configuration
+            self.api_key = openai_key
+            self.api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            self.model = os.getenv("OPENAI_MODEL", "gpt-4o")
+            self.provider = "OpenAI/Custom"
         elif self._is_ollama_available():
             # Use local Ollama if available
             self.api_key = "ollama"  # Dummy key, Ollama doesn't require authentication

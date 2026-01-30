@@ -199,16 +199,16 @@ class BaseParameterManager(ConfigMixin, ABC):
         This is the SHARED ALGORITHM - identical across all managers.
         Eliminates ~50 lines of duplication per manager.
 
+        Supports log-space normalization for parameters spanning multiple
+        orders of magnitude. When transform='log', normalization uses:
+            normalized = (log(value) - log(min)) / (log(max) - log(min))
+
         Args:
             params: Dictionary of denormalized parameter values (model-native format).
                    May contain floats, ints, or numpy arrays.
 
         Returns:
             Normalized array in [0, 1] range, one value per parameter.
-
-        Algorithm:
-            normalized[i] = (value - min) / (max - min)
-            clipped to [0, 1] for safety
 
         Missing parameters default to 0.5 with a warning.
         """
@@ -223,15 +223,25 @@ class BaseParameterManager(ConfigMixin, ABC):
 
             bounds = self.param_bounds[param_name]
             value = self._extract_scalar_value(params[param_name])
+            transform = bounds.get('transform', 'linear')
 
-            # Normalize to [0, 1]: (value - min) / (max - min)
-            range_size = bounds['max'] - bounds['min']
-            if range_size == 0:
-                # Handle edge case: min == max (constant parameter)
-                self.logger.warning(f"Parameter {param_name} has zero range, setting to 0.5")
-                normalized[i] = 0.5
+            if transform == 'log' and bounds['min'] > 0 and bounds['max'] > 0:
+                # Log-space normalization: uniform in log-space
+                log_min = np.log(bounds['min'])
+                log_max = np.log(bounds['max'])
+                log_range = log_max - log_min
+                if log_range == 0:
+                    normalized[i] = 0.5
+                else:
+                    normalized[i] = (np.log(max(value, bounds['min'])) - log_min) / log_range
             else:
-                normalized[i] = (value - bounds['min']) / range_size
+                # Linear normalization: (value - min) / (max - min)
+                range_size = bounds['max'] - bounds['min']
+                if range_size == 0:
+                    self.logger.warning(f"Parameter {param_name} has zero range, setting to 0.5")
+                    normalized[i] = 0.5
+                else:
+                    normalized[i] = (value - bounds['min']) / range_size
 
         # Clip to [0, 1] for safety (handles out-of-bounds values)
         return np.clip(normalized, 0.0, 1.0)
@@ -243,15 +253,15 @@ class BaseParameterManager(ConfigMixin, ABC):
         This is the SHARED ALGORITHM - identical across all managers.
         Eliminates ~40 lines of duplication per manager.
 
+        Supports log-space denormalization for parameters spanning multiple
+        orders of magnitude. When transform='log', denormalization uses:
+            value = exp(log(min) + normalized * (log(max) - log(min)))
+
         Args:
             normalized_array: Normalized parameter array in [0, 1] range.
 
         Returns:
             Dictionary of denormalized parameter values in model-native format.
-
-        Algorithm:
-            denorm = min + normalized * (max - min)
-            clipped to [min, max] for safety
 
         Calls _format_parameter_value hook for model-specific formatting
         (e.g., SUMMA returns np.ndarray, others return float).
@@ -264,11 +274,23 @@ class BaseParameterManager(ConfigMixin, ABC):
                 continue
 
             bounds = self.param_bounds[param_name]
+            transform = bounds.get('transform', 'linear')
 
-            # Denormalize: min + normalized * (max - min)
-            denorm_value = bounds['min'] + normalized_array[i] * (bounds['max'] - bounds['min'])
+            if transform == 'log' and bounds['min'] > 0 and bounds['max'] > 0:
+                # Log-space denormalization: exp(log_min + norm * (log_max - log_min))
+                log_min = np.log(bounds['min'])
+                log_max = np.log(bounds['max'])
+                denorm_value = np.exp(log_min + normalized_array[i] * (log_max - log_min))
+            else:
+                # Linear denormalization: min + normalized * (max - min)
+                denorm_value = bounds['min'] + normalized_array[i] * (bounds['max'] - bounds['min'])
 
-            # Clip to bounds for safety
+            # Clip to bounds for safety and log if clipping occurs
+            if denorm_value < bounds['min'] or denorm_value > bounds['max']:
+                self.logger.debug(
+                    f"Parameter {param_name}={denorm_value:.6g} clipped to bounds "
+                    f"[{bounds['min']}, {bounds['max']}]"
+                )
             denorm_value = np.clip(denorm_value, bounds['min'], bounds['max'])
 
             # Format based on model-specific needs (hook for subclasses)

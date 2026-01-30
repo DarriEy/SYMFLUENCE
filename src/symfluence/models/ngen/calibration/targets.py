@@ -26,6 +26,20 @@ class NgenStreamflowTarget(StreamflowEvaluator):
     def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
         self.station_id = config.get('STATION_ID', None)
+        # Cache for nexus areas to avoid repeated file reads during calibration
+        self._nexus_areas_cache: Optional[Dict[str, float]] = None
+        # Get configurable timestep (default 3600s = 1 hour)
+        self._timestep_seconds = self._get_config_value(
+            lambda: self.config.forcing.time_step_size,
+            default=3600,
+            dict_key='FORCING_TIME_STEP_SIZE'
+        )
+        # Get warm-up period in days (default 30 days for model spin-up)
+        self._warmup_days = self._get_config_value(
+            lambda: self.config.calibration.warmup_days,
+            default=30,
+            dict_key='CALIBRATION_WARMUP_DAYS'
+        )
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """
@@ -73,8 +87,8 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 return files
 
         # If no CALIBRATION_NEXUS_ID specified, sum all nexuses
-        self.logger.info(f"No CALIBRATION_NEXUS_ID specified. Summing all {len(files)} nexus outputs")
-        self.logger.info("Note: For proper routed flow, enable t-route routing in config")
+        self.logger.debug(f"No CALIBRATION_NEXUS_ID specified. Summing all {len(files)} nexus outputs")
+        self.logger.debug("Note: For proper routed flow, enable t-route routing in config")
         return files
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
@@ -84,6 +98,8 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         Handles both:
         - T-Route routed outputs (NetCDF/Parquet format)
         - Raw NGEN nexus outputs (CSV format)
+
+        Applies warm-up period filtering if configured.
         """
         if not sim_files:
             return pd.Series(dtype=float)
@@ -91,9 +107,28 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         # Check if we have t-route outputs (NetCDF or Parquet)
         first_file = sim_files[0]
         if first_file.suffix in ['.nc', '.parquet']:
-            return self._extract_troute_data(sim_files)
+            flow_series = self._extract_troute_data(sim_files)
         else:
-            return self._extract_nexus_data(sim_files)
+            flow_series = self._extract_nexus_data(sim_files)
+
+        # Apply warm-up period filter to exclude model spin-up from calibration
+        if self._warmup_days > 0 and not flow_series.empty:
+            warmup_timesteps = int((self._warmup_days * 24 * 3600) / self._timestep_seconds)
+            if len(flow_series) > warmup_timesteps:
+                original_len = len(flow_series)
+                flow_series = flow_series.iloc[warmup_timesteps:]
+                self.logger.debug(
+                    f"Applied {self._warmup_days}-day warm-up filter: "
+                    f"{original_len} -> {len(flow_series)} timesteps"
+                )
+            else:
+                self.logger.warning(
+                    f"Warm-up period ({self._warmup_days} days = {warmup_timesteps} timesteps) "
+                    f"exceeds simulation length ({len(flow_series)} timesteps). "
+                    f"No warm-up filtering applied."
+                )
+
+        return flow_series
 
     def _extract_troute_data(self, troute_files: List[Path]) -> pd.Series:
         """Extract routed streamflow from t-route NetCDF/Parquet outputs."""
@@ -143,7 +178,11 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         return pd.Series(dtype=float)
 
     def _get_nexus_areas(self) -> Dict[str, float]:
-        """Load catchment areas mapped to nexus IDs from GeoJSON."""
+        """Load catchment areas mapped to nexus IDs from GeoJSON (cached)."""
+        # Return cached areas if available (avoids repeated file reads during calibration)
+        if self._nexus_areas_cache is not None:
+            return self._nexus_areas_cache
+
         try:
             import json
 
@@ -153,6 +192,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
             if not geojson_files:
                 self.logger.warning("No catchments GeoJSON found for area conversion")
+                self._nexus_areas_cache = {}
                 return {}
 
             geojson_path = geojson_files[0]
@@ -169,23 +209,31 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 toid = props.get('toid', '')  # This is the nexus ID
                 area_km2 = props.get('areasqkm', 0)
 
-                if toid and area_km2 > 0:
-                    # Normalize nexus ID (ensure it has nex- prefix)
-                    if not toid.startswith('nex-'):
-                        toid = f'nex-{toid}'
-                    nexus_areas[toid] = area_km2
+                # Validate area data
+                if not toid:
+                    continue
+                if area_km2 is None or not pd.notna(area_km2) or area_km2 <= 0:
+                    self.logger.debug(f"Invalid or missing area for {toid}: {area_km2}")
+                    continue
 
-            self.logger.info(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
+                # Normalize nexus ID (ensure it has nex- prefix)
+                if not toid.startswith('nex-'):
+                    toid = f'nex-{toid}'
+                nexus_areas[toid] = float(area_km2)
+
+            self.logger.debug(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
+            self._nexus_areas_cache = nexus_areas
             return nexus_areas
         except Exception as e:
             self.logger.warning(f"Error loading catchment areas: {e}")
+            self._nexus_areas_cache = {}
             return {}
 
     def _extract_nexus_data(self, nexus_files: List[Path]) -> pd.Series:
         """Extract streamflow from raw NGEN nexus CSV outputs."""
         all_streamflow = []
         nexus_areas = self._get_nexus_areas()
-        timestep_seconds = 3600  # Standard 1-hour timestep
+        timestep_seconds = self._timestep_seconds  # Use configurable timestep
 
         for nexus_file in nexus_files:
             try:
@@ -253,10 +301,9 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     # 1. Converted values are extremely large (> 100,000 m³/s), OR
                     # 2. Conversion multiplies values by more than 100x (likely already in flow units)
                     if mean_converted > 100000 or conversion_factor > 100:
-                        self.logger.warning(
-                            f"Unit conversion for {nexus_id} appears unnecessary. "
-                            f"Raw mean: {mean_raw:.4f}, Converted mean: {mean_converted:.2f} (factor: {conversion_factor:.1f}x). "
-                            f"Assuming output is ALREADY flow (m³/s) and skipping conversion."
+                        self.logger.debug(
+                            f"Unit conversion for {nexus_id} skipped (output already in m³/s). "
+                            f"Raw mean: {mean_raw:.4f}, factor: {conversion_factor:.1f}x"
                         )
                         # Don't convert
                     else:

@@ -75,8 +75,33 @@ class NgenWorker(BaseWorker):
                 ngen_dir = settings_dir / 'NGEN'
 
             if not ngen_dir.exists():
-                self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
-                return False
+                # Attempt to recover by re-copying from source settings
+                config = kwargs.get('config', self.config)
+                if config:
+                    import shutil
+                    data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                    domain_name = config.get('DOMAIN_NAME', '')
+                    source_ngen = data_dir / f"domain_{domain_name}" / 'settings' / 'NGEN'
+                    if source_ngen.exists():
+                        self.logger.warning(
+                            f"NGEN settings directory missing at {ngen_dir}, "
+                            f"recovering from {source_ngen}"
+                        )
+                        ngen_dir.mkdir(parents=True, exist_ok=True)
+                        for item in source_ngen.iterdir():
+                            dest = ngen_dir / item.name
+                            if item.is_file():
+                                shutil.copy2(item, dest)
+                            elif item.is_dir():
+                                if dest.exists():
+                                    shutil.rmtree(dest)
+                                shutil.copytree(item, dest)
+                    else:
+                        self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
+                        return False
+                else:
+                    self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
+                    return False
 
             # Use NgenParameterManager to update files
             # It handles CFE, NOAH (namelists and TBLs), and PET

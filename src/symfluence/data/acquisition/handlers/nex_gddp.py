@@ -17,6 +17,7 @@ from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
 @AcquisitionRegistry.register('NEX-GDDP-CMIP6')
+@AcquisitionRegistry.register('NEX-GDDP')
 class NEXGDDPCHandler(BaseAcquisitionHandler):
     """
     Acquires NEX-GDDP-CMIP6 downscaled climate projection data via THREDDS.
@@ -40,11 +41,22 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
         variables = self._get_config_value(lambda: self.config.forcing.nex.variables, default=["hurs", "huss", "pr", "rlds", "rsds", "sfcWind", "tas", "tasmax", "tasmin"], dict_key='NEX_VARIABLES')
         cfg_members = self._get_config_value(lambda: self.config.forcing.nex.ensembles, default=["r1i1p1f1"], dict_key='NEX_ENSEMBLES')
         if not cfg_models: raise ValueError("NEX_MODELS must be set.")
+
+        # Grid label mapping for different models (CMIP6 models use different grid labels)
+        grid_labels = {
+            "GFDL-ESM4": "gr1",
+            "GFDL-CM4": "gr1",
+            # Most other models use 'gn' for native grid
+        }
+
         ncss_base = "https://ds.nccs.nasa.gov/thredds/ncss/grid"
         cache_root = output_dir / "_nex_ncss_cache"
         cache_root.mkdir(parents=True, exist_ok=True)
         ensemble_datasets: list[Any] = []
         for model_name in cfg_models:
+            # Get the grid label for this model, default to 'gn' (native grid)
+            grid_label = grid_labels.get(model_name, "gn")
+
             for scenario_name in cfg_scenarios:
                 scenario_end_dt = min(end_dt, dt.date(2014, 12, 31)) if scenario_name == "historical" else end_dt
                 if start_dt > scenario_end_dt: continue
@@ -57,7 +69,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
                             chunk_start = max(start_dt, dt.date(year, 1, 1))
                             chunk_end = min(scenario_end_dt, dt.date(year, 12, 31))
                             if chunk_start > chunk_end: continue
-                            fname = f"{var}_day_{model_name}_{scenario_name}_{member}_gn_{year}_v2.0.nc"
+                            fname = f"{var}_day_{model_name}_{scenario_name}_{member}_{grid_label}_{year}_v2.0.nc"
                             dataset_path = f"AMES/NEX/GDDP-CMIP6/{model_name}/{scenario_name}/{member}/{var}/{fname}"
                             out_nc = var_cache_dir / f"{fname.replace('.nc', '')}_{chunk_start:%Y%m%d}-{chunk_end:%Y%m%d}.nc"
                             if out_nc.exists():
@@ -70,7 +82,10 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
                                     with open(out_nc, "wb") as f:
                                         for chunk in resp.iter_content(chunk_size=1024*1024): f.write(chunk)
                                     all_nc_files_for_ens.append(str(out_nc))
-                            except Exception as e: self.logger.warning(f"NCSS failed: {e}")
+                                else:
+                                    self.logger.warning(f"NCSS request failed with status {resp.status_code} for {var} {year}: {resp.text[:500]}")
+                            except Exception as e:
+                                self.logger.warning(f"NCSS failed for {var} {year}: {e}")
                     if all_nc_files_for_ens:
                         ds_ens = xr.open_mfdataset(all_nc_files_for_ens, engine="netcdf4", combine="by_coords", parallel=False).chunk({"time": -1})
                         ds_ens = ds_ens.expand_dims(ensemble=[len(ensemble_datasets)]).assign_coords(model=("ensemble", [model_name]), scenario=("ensemble", [scenario_name]), member=("ensemble", [member]))
@@ -79,7 +94,14 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
             if cache_root.exists(): shutil.rmtree(cache_root)
             raise RuntimeError("NEX-GDDP-CMIP6: no data written.")
         ds_all = xr.concat(ensemble_datasets, dim="ensemble")
-        time_vals = pd.to_datetime(ds_all["time"].values)
+        # Handle cftime objects (e.g., DatetimeNoLeap from noleap calendar)
+        # Convert to pandas datetime and reassign to dataset for consistent slicing
+        time_raw = ds_all["time"].values
+        if hasattr(time_raw[0], 'strftime'):
+            time_vals = pd.to_datetime([t.strftime('%Y-%m-%d %H:%M:%S') for t in time_raw])
+        else:
+            time_vals = pd.to_datetime(time_raw)
+        ds_all = ds_all.assign_coords(time=time_vals)
         month_starts = pd.date_range(time_vals[0].replace(day=1), time_vals[-1], freq="MS")
         for ms in month_starts:
             me = (ms + pd.offsets.MonthEnd(0))

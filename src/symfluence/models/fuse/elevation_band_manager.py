@@ -131,19 +131,28 @@ class FuseElevationBandManager(ConfigMixin):
             catchment = gpd.read_file(self.catchment_path)
 
             # Get elevation statistics from shapefile or use defaults
-            if 'elev_mean' in catchment.columns and 'elev_range' in catchment.columns:
-                elev_mean = catchment['elev_mean'].iloc[0]
-                elev_range = catchment['elev_range'].iloc[0]
-                elev_min = elev_mean - (elev_range / 2)
-                elev_max = elev_mean + (elev_range / 2)
-                self.logger.info(f"Using shapefile elevation stats: mean={elev_mean}m, range={elev_range}m")
+            # Priority: elev_mean+elev_range > elev_mean alone > defaults
+            if 'elev_mean' in catchment.columns:
+                elev_mean = float(catchment['elev_mean'].iloc[0])
+                if 'elev_range' in catchment.columns:
+                    elev_range = float(catchment['elev_range'].iloc[0])
+                    elev_min = elev_mean - (elev_range / 2)
+                    elev_max = elev_mean + (elev_range / 2)
+                    self.logger.info(f"Using shapefile elevation stats: mean={elev_mean:.0f}m, range={elev_range:.0f}m")
+                else:
+                    # Have elev_mean but no elev_range - estimate range as 20% of mean elevation
+                    # or use a reasonable default range for mountain catchments
+                    elev_range = max(500.0, elev_mean * 0.3)  # At least 500m or 30% of mean
+                    elev_min = elev_mean - (elev_range / 2)
+                    elev_max = elev_mean + (elev_range / 2)
+                    self.logger.info(f"Using shapefile elev_mean={elev_mean:.0f}m with estimated range={elev_range:.0f}m (elev_range column missing)")
             else:
-                # Use default values if elevation data not in shapefile
+                # No elevation data - use generic defaults with warning
                 elev_mean = 1000.0
                 elev_range = 500.0
                 elev_min = 750.0
                 elev_max = 1250.0
-                self.logger.warning(f"Elevation data not found in shapefile, using defaults: mean={elev_mean}m, range={elev_range}m")
+                self.logger.warning(f"Elevation data not found in shapefile (no elev_mean column), using defaults: mean={elev_mean}m")
 
             # Prefer spatial info from forcing file to match FUSE expectations
             spatial_info = self._get_forcing_spatial_info()
@@ -158,7 +167,6 @@ class FuseElevationBandManager(ConfigMixin):
                     'longitude': np.array([float(mean_lon)])
                 }
 
-            # Create simple elevation bands (e.g., 5 bands)
             n_bands = self._get_config_value(lambda: self.config.model.fuse.n_elevation_bands, default=5, dict_key='FUSE_N_ELEVATION_BANDS')
             elevations = np.linspace(elev_min, elev_max, n_bands)
 
@@ -180,9 +188,12 @@ class FuseElevationBandManager(ConfigMixin):
             xr.DataArray(area_fractions, dims=['elevation_band'])
             xr.DataArray(elevations, dims=['elevation_band'])
 
-            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
-            band_dims = ['elevation_band'] + spatial_dims
-            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
+            # FUSE (Fortran) reads data with nf90_get_var using count=(/nSpat1,nSpat2,n_bands/)
+            # which expects NetCDF dimension order to be (latitude, longitude, elevation_band)
+            # The last dimension in NetCDF is fastest-varying, matching Fortran's first array index
+            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
+            band_dims = spatial_dims + ['elevation_band']
+            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
 
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
@@ -316,9 +327,12 @@ class FuseElevationBandManager(ConfigMixin):
                 'n_bands': n_bands
             })
 
-            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
-            band_dims = ['elevation_band'] + spatial_dims
-            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
+            # FUSE (Fortran) reads data with nf90_get_var using count=(/nSpat1,nSpat2,n_bands/)
+            # which expects NetCDF dimension order to be (latitude, longitude, elevation_band)
+            # The last dimension in NetCDF is fastest-varying, matching Fortran's first array index
+            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
+            band_dims = spatial_dims + ['elevation_band']
+            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
 
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),

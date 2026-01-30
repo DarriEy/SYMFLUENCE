@@ -1005,6 +1005,12 @@ class BaseWorker(ABC):
             config.get('CALIBRATION_METRIC', 'KGE')
         )
 
+        # Debug log to trace metric configuration
+        self.logger.debug(
+            f"Primary metric extraction: OPTIMIZATION_METRIC={config.get('OPTIMIZATION_METRIC')}, "
+            f"CALIBRATION_METRIC={config.get('CALIBRATION_METRIC')}, using metric_name={metric_name}"
+        )
+
         raw_value = None
 
         # Check for exact match first
@@ -1049,6 +1055,13 @@ class BaseWorker(ABC):
         # This ensures RMSE, MAE, PBIAS etc. are properly handled
         transformed_score = MetricTransformer.transform_for_maximization(
             metric_name, raw_value
+        )
+
+        # Debug: trace score transformation to identify any sign issues
+        self.logger.debug(
+            f"Score extraction: metric={metric_name}, raw={raw_value:.4f}, "
+            f"direction={MetricTransformer.get_direction(metric_name)}, "
+            f"transformed={transformed_score:.4f}"
         )
 
         return transformed_score if transformed_score is not None else self.penalty_score

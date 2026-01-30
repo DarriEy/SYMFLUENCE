@@ -344,7 +344,12 @@ class DomainPlotter(BasePlotter):
         import geopandas as gpd  # type: ignore
         river_name = self._get_config_value(lambda: self.config.paths.river_network_name, dict_key=ConfigKeys.RIVER_NETWORK_SHP_NAME)
         if river_name == 'default':
-            river_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_riverNetwork_delineate.shp"
+            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
+            domain_def_method = self._get_config_value(
+                lambda: self.config.domain.definition_method,
+                dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
+            )
+            river_name = f"{domain_name}_riverNetwork_{domain_def_method}.shp"
         river_path = self._get_file_path(
             'RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network', river_name
         )
@@ -369,10 +374,44 @@ class DomainPlotter(BasePlotter):
             catchment_name = (
                 f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_HRUs_{discretization_method}.shp"
             )
-        catchment_path = self._get_file_path(
-            'CATCHMENT_PATH', 'shapefiles/catchment', catchment_name
-        )
+        catchment_path = self._get_hru_file_path(catchment_name)
         return gpd.read_file(catchment_path)
+
+    def _get_hru_file_path(self, file_name: str) -> Path:
+        """
+        Get HRU shapefile path with backward compatibility.
+
+        The new path structure includes domain_definition_method and experiment_id:
+            shapefiles/catchment/{domain_definition_method}/{experiment_id}/
+
+        For backward compatibility:
+            - If the file exists at the old path (shapefiles/catchment/),
+              returns the old path
+            - Otherwise returns the new organized path
+        """
+        # Check if explicit path is set in config
+        catchment_path_config = self.config.get('CATCHMENT_PATH')
+        if catchment_path_config and catchment_path_config != 'default':
+            return Path(catchment_path_config) / file_name
+
+        # Get config values for new path structure
+        domain_def_method = self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
+        )
+        experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id,
+            dict_key=ConfigKeys.EXPERIMENT_ID
+        )
+
+        old_path = self.project_dir / 'shapefiles' / 'catchment' / file_name
+        new_path = self.project_dir / 'shapefiles' / 'catchment' / domain_def_method / experiment_id / file_name
+
+        # Check old path first for backward compatibility
+        if old_path.exists():
+            return old_path
+
+        return new_path
 
     def _get_file_path(self, file_type: str, file_def_path: str, file_name: str) -> Path:
         """Get file path from config or use default."""
@@ -495,6 +534,7 @@ class DomainPlotter(BasePlotter):
             'soilclass': {'col': 'soilClass', 'title': 'Soil Classes', 'cm': 'Set3'},
             'landclass': {'col': 'landClass', 'title': 'Land Use Classes', 'cm': 'Set2'},
             'radiation': {'col': 'radiationClass', 'title': 'Radiation Classes', 'cm': 'YlOrRd'},
+            'grus': {'col': 'GRU_ID', 'title': 'GRU Units', 'cm': 'viridis'},
             'default': {'col': 'HRU_ID', 'title': 'HRU Classes', 'cm': 'tab20'}
         }
 
@@ -523,11 +563,15 @@ class DomainPlotter(BasePlotter):
         else:
             legend_labels = [f'Class {i}' for i in unique_classes]
 
-        # Get colors
+        # Get colors - use continuous colormap for large number of classes
         base_cmap = plt.get_cmap(mapping['cm'])
 
-        if n_classes > base_cmap.N:
-            # Need more colors
+        # For large datasets (e.g., GRUs), always use continuous colormap
+        if n_classes > 100 or discretization_method.lower() == 'grus':
+            # Use continuous colormap that can handle any number of classes
+            colors = [base_cmap(i / n_classes) for i in range(n_classes)]
+        elif n_classes > base_cmap.N:
+            # Need more colors from discrete colormaps
             additional_cmaps = ['Set3', 'Set2', 'Set1', 'Paired', 'tab20']
             all_colors = []
 

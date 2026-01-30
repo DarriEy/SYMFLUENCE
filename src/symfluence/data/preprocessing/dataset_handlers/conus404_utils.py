@@ -193,6 +193,32 @@ class CONUS404Handler(BaseDatasetHandler):
         ds = ds.rename(rename_map)
 
         # ============================
+        # Quality control: detect and interpolate corrupt values in core variables
+        # ============================
+        # CONUS404 source data occasionally contains near-zero fill values
+        # (e.g., airpres ≈ 0 Pa) that are physically impossible.
+        # Replace these with time-interpolated values before further processing.
+        qc_ranges = {
+            'airpres': (20000.0, 120000.0),   # Pa - wide range to catch only clearly bad values
+            'airtemp': (150.0, 370.0),         # K
+            'spechum': (0.0, 0.2),             # kg/kg
+        }
+        for var, (qc_min, qc_max) in qc_ranges.items():
+            if var not in ds:
+                continue
+            bad_mask = (ds[var] < qc_min) | (ds[var] > qc_max)
+            n_bad = int(bad_mask.sum())
+            if n_bad > 0:
+                total = int(ds[var].size)
+                self.logger.warning(
+                    f"CONUS404 QC: {var} has {n_bad}/{total} values outside "
+                    f"[{qc_min}, {qc_max}]. Replacing with time-interpolated values."
+                )
+                ds[var] = ds[var].where(~bad_mask).interpolate_na(
+                    dim='time', method='linear', fill_value='extrapolate'
+                )
+
+        # ============================
         # Shortwave radiation → SWRadAtm
         # ============================
         # Handle accumulated radiation variables (may already be renamed by acquirer)

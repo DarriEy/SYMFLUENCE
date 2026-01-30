@@ -114,6 +114,13 @@ class RHESSysClimateGenerator:
         kdown = self._process_radiation(ds, swrad_var, dates, 'shortwave')
         ldown = self._process_radiation(ds, lwrad_var, dates, 'longwave')
 
+        # Compute rain duration from hourly precip data BEFORE daily aggregation
+        # daytime_rain_duration = hours per day with precipitation > 0
+        # RHESSys reads this in hours and converts to seconds internally
+        rain_duration_hourly = None
+        if precip is not None:
+            rain_duration_hourly = (precip > 0).astype(float)
+
         # Aggregate to daily
         df = pd.DataFrame({
             'precip': precip,
@@ -123,16 +130,21 @@ class RHESSysClimateGenerator:
             'wind': wind,
             'rh': rh,
             'kdown': kdown,
-            'ldown': ldown
+            'ldown': ldown,
         }, index=dates)
+        if rain_duration_hourly is not None:
+            df['rain_duration'] = rain_duration_hourly
 
         daily_df = self._aggregate_to_daily(df)
 
-        # Write files
+        # Write climate files first (before base station file, which checks for their existence)
         base_name = f"{self.domain_name}_base"
-        self._write_base_station_file(base_name, 1, daily_df.index[0], catchment_path)
 
-        self._write_climate_file(f"{base_name}.rain", daily_df.index, daily_df['precip'].values)
+        # RHESSys expects precipitation in METERS/day in climate files
+        # RHESSys internally multiplies by 1000 to convert to mm
+        # Daily aggregation produces mm/day, so divide by 1000 to get m/day
+        precip_m_day = daily_df['precip'].values / 1000.0
+        self._write_climate_file(f"{base_name}.rain", daily_df.index, precip_m_day)
         self._write_climate_file(f"{base_name}.tmax", daily_df.index, daily_df['tmax'].values)
         self._write_climate_file(f"{base_name}.tmin", daily_df.index, daily_df['tmin'].values)
         self._write_climate_file(f"{base_name}.tavg", daily_df.index, daily_df['temp'].values)
@@ -143,9 +155,31 @@ class RHESSysClimateGenerator:
         if rh is not None and not np.all(np.isnan(daily_df['rh'])):
             self._write_climate_file(f"{base_name}.relative_humidity", daily_df.index, daily_df['rh'].values)
         if kdown is not None and not np.all(np.isnan(daily_df['kdown'])):
-            self._write_climate_file(f"{base_name}.Kdown_direct", daily_df.index, daily_df['kdown'].values)
+            # Split total shortwave radiation into direct (60%) and diffuse (40%)
+            # This partitioning is needed for RHESSys canopy radiation calculations
+            # Convert from W/m² (daily mean) to kJ/(m²*day) as required by RHESSys
+            # 1 W/m² = 86.4 kJ/(m²*day) [1 W = 1 J/s, * 86400 s/day / 1000 J/kJ]
+            kdown_total_kj = daily_df['kdown'].values * 86.4
+            self._write_climate_file(f"{base_name}.Kdown_direct", daily_df.index, kdown_total_kj * 0.6)
+            self._write_climate_file(f"{base_name}.Kdown_diffuse", daily_df.index, kdown_total_kj * 0.4)
         if ldown is not None and not np.all(np.isnan(daily_df['ldown'])):
-            self._write_climate_file(f"{base_name}.Ldown", daily_df.index, daily_df['ldown'].values)
+            # Convert from W/m² to kJ/(m²*day) as required by RHESSys
+            ldown_kj = daily_df['ldown'].values * 86.4
+            self._write_climate_file(f"{base_name}.Ldown", daily_df.index, ldown_kj)
+
+        # Write rain duration (hours/day with precipitation > 0)
+        # RHESSys reads daytime_rain_duration in hours, converts to seconds internally
+        # Without this, RHESSys defaults to 86400s (full day) on rainy days,
+        # leaving zero time for transpiration
+        if 'rain_duration' in daily_df.columns:
+            self._write_climate_file(
+                f"{base_name}.daytime_rain_duration",
+                daily_df.index,
+                daily_df['rain_duration'].values
+            )
+
+        # Write base station file AFTER climate files so it can detect which ones exist
+        self._write_base_station_file(base_name, 1, daily_df.index[0], catchment_path)
 
         ds.close()
         self.logger.info(f"Climate files written to {self.climate_dir}")
@@ -219,8 +253,8 @@ class RHESSysClimateGenerator:
         """
         Process precipitation variable.
 
-        Converts all source units to meters per timestep (hour) so that
-        daily aggregation (sum) results in meters per day, which is what
+        Converts all source units to mm per timestep (hour) so that
+        daily aggregation (sum) results in mm per day, which is what
         RHESSys expects in climate station files.
         """
         if precip_var:
@@ -237,32 +271,33 @@ class RHESSysClimateGenerator:
                     self.logger.info(
                         f"Interpreting '{units}' as mm/s (treating 'm s-1' as 'mm s-1' per convention)"
                     )
-                    # Convert mm/s to m/hour (3600 s/hr / 1000 mm/m)
-                    precip = precip * 3.6
+                    # Convert mm/s to mm/hour (3600 s/hr)
+                    # After daily aggregation (sum of 24 hourly values), result is mm/day
+                    precip = precip * 3600.0
                 else:
                     # Assume other rates are also mm/s for safety
-                    precip = precip * 3.6
+                    precip = precip * 3600.0
 
                 # Sanity check: verify precipitation magnitude after conversion
                 mean_precip = float(np.nanmean(precip))
-                if mean_precip > 0.01:  # 0.01 m/hour = 10 mm/hour is extremely high as a mean
+                if mean_precip > 10.0:  # 10 mm/hour is extremely high as a mean
                     self.logger.warning(
-                        f"Precipitation mean ({mean_precip:.6f} m/hour) seems high. "
+                        f"Precipitation mean ({mean_precip:.4f} mm/hour) seems high. "
                         f"Original units were '{units}'. Verify unit interpretation."
                     )
-                if mean_precip > 0.1:  # 0.1 m/hour = 100 mm/hour is physically impossible as mean
+                if mean_precip > 100.0:  # 100 mm/hour is physically impossible as mean
                     raise ValueError(
-                        f"Precipitation rate {mean_precip:.4f} m/hour is physically impossible. "
+                        f"Precipitation rate {mean_precip:.4f} mm/hour is physically impossible. "
                         f"Check if units '{units}' should be interpreted differently."
                     )
-            # If it's already a depth per timestep (e.g. ERA5 'm')
+            # If it's already a depth per timestep (e.g. ERA5 'm' accumulated)
             elif 'm' in units:
                 if 'mm' in units:
-                    # Convert mm to m
-                    precip = precip / 1000.0
-                else:
-                    # Assume m (already correct for hourly accumulation)
+                    # Already in mm per timestep - no conversion needed
                     pass
+                else:
+                    # Assume m per timestep - convert to mm
+                    precip = precip * 1000.0
 
             return precip
         else:
@@ -294,7 +329,12 @@ class RHESSysClimateGenerator:
             if np.nanmean(tmax) > 100:
                 tmax = tmax - 273.15
         else:
-            tmax = temp + 5
+            # No tmax variable: use hourly temp directly.
+            # Daily aggregation (max) will extract the diurnal maximum.
+            # Previously this added +5C to each hourly value, which inflated
+            # daily tmax by ~5C above the actual diurnal peak (double-counting
+            # since hourly data already captures the diurnal cycle).
+            tmax = temp.copy()
 
         # Get tmin
         if tmin_var:
@@ -302,7 +342,9 @@ class RHESSysClimateGenerator:
             if np.nanmean(tmin) > 100:
                 tmin = tmin - 273.15
         else:
-            tmin = temp - 5
+            # No tmin variable: use hourly temp directly.
+            # Daily aggregation (min) will extract the diurnal minimum.
+            tmin = temp.copy()
 
         return temp, tmax, tmin
 
@@ -343,9 +385,10 @@ class RHESSysClimateGenerator:
                 # q = 0.622 * e / (p - 0.378 * e)
                 e = q * p / (0.622 + 0.378 * q)
 
-                # Relative humidity
-                rh = 100 * e / es
-                rh = np.clip(rh, 0, 100)
+                # Relative humidity as decimal (0-1) for RHESSys
+                # RHESSys expects decimal format, not percentage
+                rh = e / es
+                rh = np.clip(rh, 0, 1)
 
                 return rh
             except Exception as e:
@@ -371,7 +414,7 @@ class RHESSysClimateGenerator:
 
     def _aggregate_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:
         """Aggregate sub-daily data to daily values."""
-        daily = df.resample('D').agg({
+        agg_dict = {
             'precip': 'sum',  # Sum precipitation
             'temp': 'mean',   # Mean temperature
             'tmax': 'max',    # Max of max temps
@@ -380,7 +423,10 @@ class RHESSysClimateGenerator:
             'rh': 'mean',     # Mean relative humidity
             'kdown': 'mean',  # Mean radiation
             'ldown': 'mean',
-        })
+        }
+        if 'rain_duration' in df.columns:
+            agg_dict['rain_duration'] = 'sum'  # Sum of hourly flags = hours with rain
+        daily = df.resample('D').agg(agg_dict)
         return daily
 
     def _write_base_station_file(
@@ -394,13 +440,16 @@ class RHESSysClimateGenerator:
         base_file = self.climate_dir / f"{base_name}"
 
         # Get centroid coordinates from basin shapefile
+        # Set base station elevation = zone elevation (elev_mean) so no temperature
+        # lapse is applied. For lumped mode, forcing data already represents
+        # basin-average conditions.
         lon, lat, elev = -115.0, 51.0, 1500.0
         if catchment_path and catchment_path.exists():
             try:
                 gdf = gpd.read_file(catchment_path)
                 centroid = gdf.geometry.centroid.iloc[0]
                 lon, lat = centroid.x, centroid.y
-                elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
+                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
             except (FileNotFoundError, KeyError, IndexError, ValueError):
                 pass
 
@@ -409,7 +458,7 @@ class RHESSysClimateGenerator:
 
         # Build list of non-critical daily sequences
         non_critical_sequences = []
-        for suffix in ['wind', 'relative_humidity', 'Kdown_direct', 'Ldown', 'tavg']:
+        for suffix in ['wind', 'relative_humidity', 'Kdown_direct', 'Kdown_diffuse', 'Ldown', 'tavg', 'daytime_rain_duration']:
             if (self.climate_dir / f"{base_name}.{suffix}").exists():
                 non_critical_sequences.append(suffix)
 

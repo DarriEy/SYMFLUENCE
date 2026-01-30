@@ -67,6 +67,10 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
 
         # Note: experiment_id and forcing_dataset are inherited as properties from ShapefileAccessMixin
 
+        # Initialize worldfile initial conditions with configurable values
+        # These can be overridden via config: RHESSYS_INIT_SAT_DEFICIT, RHESSYS_INIT_GW_STORAGE, etc.
+        self._init_worldfile_conditions()
+
     def _check_wmfire_enabled(self) -> bool:
         """Check if WMFire fire spread is enabled (supports both new and legacy config names)."""
         try:
@@ -79,6 +83,61 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         except AttributeError:
             pass
         return False
+
+    def _init_worldfile_conditions(self) -> None:
+        """
+        Initialize worldfile state variables with configurable defaults.
+
+        These values control the initial hydrological state at model start.
+        For mountain catchments with snowmelt-dominated hydrology, starting
+        near saturation (low sat_deficit) reduces spinup time significantly.
+
+        Config options (all in meters):
+            RHESSYS_INIT_SAT_DEFICIT: Initial saturation deficit [m]. Default 0.05.
+                Lower = wetter soil, faster spinup. Range: 0.0 - 2.0
+            RHESSYS_INIT_GW_STORAGE: Initial groundwater storage [m]. Default 0.5.
+                Higher = more baseflow at start. Range: 0.1 - 2.0
+            RHESSYS_INIT_RZ_STORAGE: Initial root zone storage [m]. Default 0.1.
+            RHESSYS_INIT_UNSAT_STORAGE: Initial unsaturated zone storage [m]. Default 0.05.
+        """
+        # Get config values with sensible defaults for mountain catchments
+        # Moderate sat_deficit (0.3m) allows saturation excess runoff while
+        # preventing excessive water loss. With the RHESSys temperature fix
+        # (no soil evap at T<0C), we can use wetter initial conditions.
+        try:
+            self.init_sat_deficit = float(getattr(
+                self.config.model.rhessys, 'init_sat_deficit', 0.3
+            ))
+        except (AttributeError, TypeError):
+            self.init_sat_deficit = 0.3
+
+        try:
+            self.init_gw_storage = float(getattr(
+                self.config.model.rhessys, 'init_gw_storage', 0.3
+            ))
+        except (AttributeError, TypeError):
+            self.init_gw_storage = 0.3
+
+        # Moderate initial storage for typical late-season conditions
+        try:
+            self.init_rz_storage = float(getattr(
+                self.config.model.rhessys, 'init_rz_storage', 0.15
+            ))
+        except (AttributeError, TypeError):
+            self.init_rz_storage = 0.15
+
+        try:
+            self.init_unsat_storage = float(getattr(
+                self.config.model.rhessys, 'init_unsat_storage', 0.15
+            ))
+        except (AttributeError, TypeError):
+            self.init_unsat_storage = 0.15
+
+        logger.info(
+            f"RHESSys worldfile initial conditions: "
+            f"sat_deficit={self.init_sat_deficit}m, gw_storage={self.init_gw_storage}m, "
+            f"rz_storage={self.init_rz_storage}m, unsat_storage={self.init_unsat_storage}m"
+        )
 
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
@@ -252,14 +311,17 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         base_file = self.climate_dir / f"{base_name}"
 
         # Get centroid coordinates from basin shapefile
+        # IMPORTANT: Set base station elevation = zone elevation so no temperature
+        # lapse is applied. For lumped simulations, the forcing data (e.g., ERA5)
+        # already represents basin-average conditions, so lapse correction would
+        # create artificially cold temperatures at the centroid elevation.
         try:
             basin_path = self.get_catchment_path()
             if basin_path.exists():
                 gdf = gpd.read_file(basin_path)
                 centroid = gdf.geometry.centroid.iloc[0]
                 lon, lat = centroid.x, centroid.y
-                # Get elevation (rough estimate)
-                elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
+                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
             else:
                 lon, lat, elev = -115.0, 51.0, 1500.0
         except (FileNotFoundError, KeyError, IndexError, ValueError):
@@ -283,6 +345,8 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
             non_critical_sequences.append("Ldown")
         if (self.climate_dir / f"{base_name}.tavg").exists():
             non_critical_sequences.append("tavg")
+        if (self.climate_dir / f"{base_name}.daytime_rain_duration").exists():
+            non_critical_sequences.append("daytime_rain_duration")
 
         # Build sequence section
         num_sequences = len(non_critical_sequences)
@@ -385,38 +449,60 @@ none\thourly_climate_prefix
         # Get domain properties from shapefile
         try:
             catchment_path = self.get_catchment_path()
-            if catchment_path.exists():
-                gdf = gpd.read_file(catchment_path)
 
-                # Get centroid in original CRS (geographic)
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
+            # If catchment path doesn't exist, search other experiment dirs
+            if not catchment_path.exists():
+                catchment_dir = self.project_dir / 'shapefiles' / 'catchment'
+                if catchment_dir.exists():
+                    for shp_file in catchment_dir.rglob('*.shp'):
+                        if self.domain_name in shp_file.name:
+                            catchment_path = shp_file
+                            logger.info(f"Found catchment shapefile in alternate location: {shp_file}")
+                            break
 
-                # Project to UTM for accurate area calculation
-                # Estimate UTM zone from longitude
-                utm_zone = int((lon + 180) / 6) + 1
-                hemisphere = 'north' if lat >= 0 else 'south'
-                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
-                area_m2 = gdf_proj.geometry.area.sum()
+            if not catchment_path.exists():
+                raise FileNotFoundError(
+                    f"Catchment shapefile not found at {catchment_path} or any alternate location. "
+                    f"Searched: {self.project_dir / 'shapefiles' / 'catchment'}. "
+                    f"Cannot determine basin area - this would cause incorrect unit conversions. "
+                    f"Run geospatial preprocessing first or verify shapefile paths."
+                )
 
-                logger.info(f"Catchment area: {area_m2:.0f} m² ({area_m2/1e6:.2f} km²)")
+            gdf = gpd.read_file(catchment_path)
 
-                # Try to get elevation stats
-                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
-                slope_deg = float(gdf.get('slope_mean', [10.0])[0]) if 'slope_mean' in gdf.columns else 10.0
-                # Convert slope from degrees to fraction (tan) for RHESSys
-                slope = np.tan(np.radians(slope_deg))
-                slope = max(0.01, min(slope, 2.0))
-            else:
-                area_m2 = 1e8  # 100 km2
-                lon, lat = -115.0, 51.0
-                elev, slope = 1500.0, 0.176  # ~10 degrees
+            # Get centroid in original CRS (geographic)
+            centroid = gdf.geometry.centroid.iloc[0]
+            lon, lat = centroid.x, centroid.y
+
+            # Project to UTM for accurate area calculation
+            # Estimate UTM zone from longitude
+            utm_zone = int((lon + 180) / 6) + 1
+            hemisphere = 'north' if lat >= 0 else 'south'
+            utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
+            gdf_proj = gdf.to_crs(utm_crs)
+            area_m2 = gdf_proj.geometry.area.sum()
+
+            if area_m2 <= 0:
+                raise ValueError(
+                    f"Catchment area computed as {area_m2} m² from {catchment_path}. "
+                    f"Area must be positive. Check shapefile geometry."
+                )
+
+            logger.info(f"Catchment area: {area_m2:.0f} m² ({area_m2/1e6:.2f} km²)")
+
+            # Try to get elevation stats
+            elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
+            slope_deg = float(gdf.get('slope_mean', [10.0])[0]) if 'slope_mean' in gdf.columns else 10.0
+            # Convert slope from degrees to fraction (tan) for RHESSys
+            slope = np.tan(np.radians(slope_deg))
+            slope = max(0.01, min(slope, 2.0))
+        except (FileNotFoundError, ValueError):
+            raise  # Re-raise area-related errors - these must not be silently ignored
         except Exception as e:
-            logger.warning(f"Could not read catchment properties: {e}")
-            area_m2 = 1e8
-            lon, lat = -115.0, 51.0
-            elev, slope = 1500.0, 0.1
+            raise RuntimeError(
+                f"Failed to read catchment properties from shapefile: {e}. "
+                f"Cannot determine basin area for RHESSys worldfile generation."
+            ) from e
 
         # IDs
         world_id = 1
@@ -441,6 +527,12 @@ none\thourly_climate_prefix
 
         logger.info(f"Calculated lna (TWI) = {lna:.2f} for area={area_m2/1e6:.1f} km², slope={slope:.3f}")
 
+        # Use configurable initial conditions for faster spinup
+        init_sat_deficit = self.init_sat_deficit
+        init_gw_storage = self.init_gw_storage
+        init_rz_storage = self.init_rz_storage
+        init_unsat_storage = self.init_unsat_storage
+
         # Build worldfile content (simplified single-patch world)
         # When using a separate .hdr header file, the worldfile should NOT include
         # num_world_base_stations or dates - those come from header and command line
@@ -460,7 +552,7 @@ none\thourly_climate_prefix
       {lat:.8f}    y
       {elev:.8f}    z
       1    hill_parm_ID
-      0.10000000    gw.storage
+      {init_gw_storage:.8f}    gw.storage
       0.00000000    gw.NO3
       0    hillslope_n_basestations
       1    num_zones
@@ -489,14 +581,14 @@ none\thourly_climate_prefix
             {lna:.8f}    lna
             1.00000000    Ksat_vertical
             0.00000000    mpar
-            0.10000000    rz_storage
-            0.05000000    unsat_storage
-            0.50000000    sat_deficit
-            0.00000000    snowpack.water_equivalent_depth
+            {init_rz_storage:.8f}    rz_storage
+            {init_unsat_storage:.8f}    unsat_storage
+            {init_sat_deficit:.8f}    sat_deficit
+            0.15000000    snowpack.water_equivalent_depth
             0.00000000    snowpack.water_depth
-            -10.00000000    snowpack.T
-            0.00000000    snowpack.surface_age
-            500.00000000    snowpack.energy_deficit
+            -5.00000000    snowpack.T
+            30.00000000    snowpack.surface_age
+            -200.00000000    snowpack.energy_deficit
             1.00000000    litter.cover_fraction
             0.00100000    litter.rain_stored
             0.03000000    litter_cs.litr1c
@@ -518,19 +610,19 @@ none\thourly_climate_prefix
                0.00000000    gap_fraction
                2.00000000    rootzone.depth
                0.00000000    snow_stored
-               0.02000000    cs.stem_density
+               0.50000000    cs.stem_density
                0.00200000    rain_stored
-               20.00000000    cs.cpool
-               8.00000000    cs.leafc
-               1.00000000    cs.dead_leafc
-               5.00000000    cs.live_stemc
-               10.00000000    cs.dead_stemc
+               2.00000000    cs.cpool
+               0.60000000    cs.leafc
+               0.10000000    cs.dead_leafc
+               2.00000000    cs.live_stemc
+               1.00000000    cs.dead_stemc
                2.00000000    cs.live_crootc
                5.00000000    cs.dead_crootc
                1.00000000    cs.frootc
                0.50000000    cs.cwdc
                0.50000000    ns.npool
-               0.01000000    ns.leafn
+               0.01300000    ns.leafn
                0.03000000    ns.dead_leafn
                0.10000000    ns.live_stemn
                0.20000000    ns.dead_stemn
@@ -540,6 +632,7 @@ none\thourly_climate_prefix
                0.01000000    ns.cwdn
                0.01000000    ns.retransn
                0.10000000    epv.prev_leafcalloc
+               10.00000000    epv.height
                0    canopy_strata_n_basestations
 """
 
@@ -653,7 +746,7 @@ none\thourly_climate_prefix
         lines.append(f"      {basin_lat:.8f}    y")
         lines.append(f"      {basin_elev:.8f}    z")
         lines.append("      1    hill_parm_ID")
-        lines.append("      0.10000000    gw.storage")
+        lines.append(f"      {self.init_gw_storage:.8f}    gw.storage")
         lines.append("      0.00000000    gw.NO3")
         lines.append("      0    hillslope_n_basestations")
         lines.append(f"      {num_patches}    num_zones")
@@ -742,14 +835,14 @@ none\thourly_climate_prefix
             lines.append(f"            {lna:.8f}    lna")
             lines.append("            1.00000000    Ksat_vertical")
             lines.append("            0.00000000    mpar")
-            lines.append("            0.10000000    rz_storage")
-            lines.append("            0.05000000    unsat_storage")
-            lines.append("            0.50000000    sat_deficit")
+            lines.append(f"            {self.init_rz_storage:.8f}    rz_storage")
+            lines.append(f"            {self.init_unsat_storage:.8f}    unsat_storage")
+            lines.append(f"            {self.init_sat_deficit:.8f}    sat_deficit")
             lines.append("            0.00000000    snowpack.water_equivalent_depth")
             lines.append("            0.00000000    snowpack.water_depth")
             lines.append("            -10.00000000    snowpack.T")
             lines.append("            0.00000000    snowpack.surface_age")
-            lines.append("            500.00000000    snowpack.energy_deficit")
+            lines.append("            -500.00000000    snowpack.energy_deficit")
             lines.append("            1.00000000    litter.cover_fraction")
             lines.append("            0.00100000    litter.rain_stored")
             lines.append("            0.03000000    litter_cs.litr1c")
@@ -773,11 +866,11 @@ none\thourly_climate_prefix
             lines.append("               0.00000000    gap_fraction")
             lines.append("               2.00000000    rootzone.depth")
             lines.append("               0.00000000    snow_stored")
-            lines.append("               0.02000000    cs.stem_density")
+            lines.append("               0.50000000    cs.stem_density")
             lines.append("               0.00200000    rain_stored")
-            lines.append("               20.00000000    cs.cpool")
-            lines.append("               8.00000000    cs.leafc")
-            lines.append("               1.00000000    cs.dead_leafc")
+            lines.append("               2.00000000    cs.cpool")
+            lines.append("               0.60000000    cs.leafc")
+            lines.append("               0.10000000    cs.dead_leafc")
             lines.append("               5.00000000    cs.live_stemc")
             lines.append("               10.00000000    cs.dead_stemc")
             lines.append("               2.00000000    cs.live_crootc")
@@ -785,7 +878,7 @@ none\thourly_climate_prefix
             lines.append("               1.00000000    cs.frootc")
             lines.append("               0.50000000    cs.cwdc")
             lines.append("               0.50000000    ns.npool")
-            lines.append("               0.01000000    ns.leafn")
+            lines.append("               0.18000000    ns.leafn")
             lines.append("               0.03000000    ns.dead_leafn")
             lines.append("               0.10000000    ns.live_stemn")
             lines.append("               0.20000000    ns.dead_stemn")
@@ -795,6 +888,7 @@ none\thourly_climate_prefix
             lines.append("               0.01000000    ns.cwdn")
             lines.append("               0.01000000    ns.retransn")
             lines.append("               0.10000000    epv.prev_leafcalloc")
+            lines.append("               10.00000000    epv.height")
             lines.append("               0    canopy_strata_n_basestations")
 
         content = '\n'.join(lines)
@@ -981,26 +1075,39 @@ none\thourly_climate_prefix
         # Fall back to single-patch flow table
         try:
             catchment_path = self.get_catchment_path()
-            if catchment_path.exists():
-                gdf = gpd.read_file(catchment_path)
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
-                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
 
-                utm_zone = int((lon + 180) / 6) + 1
-                hemisphere = 'north' if lat >= 0 else 'south'
-                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
-                area_m2 = gdf_proj.geometry.area.sum()
-            else:
-                lon, lat = -115.0, 51.0
-                elev = 1500.0
-                area_m2 = 1e8
+            # Search alternate experiment dirs if not found
+            if not catchment_path.exists():
+                catchment_dir = self.project_dir / 'shapefiles' / 'catchment'
+                if catchment_dir.exists():
+                    for shp_file in catchment_dir.rglob('*.shp'):
+                        if self.domain_name in shp_file.name:
+                            catchment_path = shp_file
+                            logger.info(f"Found catchment shapefile in alternate location: {shp_file}")
+                            break
+
+            if not catchment_path.exists():
+                raise FileNotFoundError(
+                    f"Catchment shapefile not found for flow table generation. "
+                    f"Searched: {self.project_dir / 'shapefiles' / 'catchment'}"
+                )
+
+            gdf = gpd.read_file(catchment_path)
+            centroid = gdf.geometry.centroid.iloc[0]
+            lon, lat = centroid.x, centroid.y
+            elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
+
+            utm_zone = int((lon + 180) / 6) + 1
+            hemisphere = 'north' if lat >= 0 else 'south'
+            utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
+            gdf_proj = gdf.to_crs(utm_crs)
+            area_m2 = gdf_proj.geometry.area.sum()
+        except (FileNotFoundError, ValueError):
+            raise
         except Exception as e:
-            logger.warning(f"Could not read catchment for flow table: {e}")
-            lon, lat = -115.0, 51.0
-            elev = 1500.0
-            area_m2 = 1e8
+            raise RuntimeError(
+                f"Failed to read catchment for flow table: {e}"
+            ) from e
 
         patch_id = 1
         zone_id = 1
@@ -1008,10 +1115,13 @@ none\thourly_climate_prefix
         num_hillslopes = 1
         num_patches = 1
 
+        # For lumped single-patch model, patch is treated as outlet (drainage_type=1=STREAM)
+        # gamma=1.0 means 100% of water leaves the system as streamflow
+        # num_neighbors=0 since there's no downstream patch
         content = f"""{num_hillslopes}
 {hill_id}
 {num_patches}
-{patch_id} {zone_id} {hill_id} {lon:.8f} {lat:.8f} {elev:.8f} {area_m2:.8f} {area_m2:.8f} 1 0.0 0
+{patch_id} {zone_id} {hill_id} {lon:.8f} {lat:.8f} {elev:.8f} {area_m2:.8f} {area_m2:.8f} 1 1.0 0
 """
 
         flow_file.write_text(content)
@@ -1093,63 +1203,74 @@ none\thourly_climate_prefix
         logger.info("Generating default files...")
 
         # Basin defaults
-        # Note: sat_to_gw_coeff set for moderate groundwater recharge
-        # gw_loss_coeff set low to allow groundwater storage and baseflow
+        # Note: sat_to_gw_coeff controls GW recharge rate (higher = more recharge)
+        # gw_loss_coeff controls basin-level GW loss (moderate value for baseflow)
         basin_def = self.defs_dir / "basin.def"
         basin_content = """1    basin_default_ID
-0.2    psi_air_entry
-0.02    pore_size_index
-0.00005    sat_to_gw_coeff
-25.0    gw_loss_coeff
-0.2    n_routing_power
+-6.0    psi_air_entry
+0.12    pore_size_index
+0.01    sat_to_gw_coeff
+1.0    gw_loss_coeff
+0.5    n_routing_power
 1.0    m_pai
 """
         basin_def.write_text(basin_content)
 
         # Hillslope defaults
+        # gw_loss_coeff controls baseflow rate - higher values = faster baseflow drainage
+        # gw_loss_fast_threshold: when gw.storage > threshold, excess uses gw_loss_fast_coeff
+        #   - Set to positive value (e.g., 0.1m) to enable fast flow component
+        #   - Default of -1.0 disables fast flow entirely (all storage uses slow coeff)
+        # gw_loss_fast_coeff: coefficient for fast groundwater drainage when storage > threshold
         hillslope_def = self.defs_dir / "hillslope.def"
         hillslope_content = """1    hillslope_default_ID
-0.2    gw_loss_coeff
+0.1    gw_loss_coeff
+0.1    gw_loss_fast_threshold
+0.3    gw_loss_fast_coeff
 """
         hillslope_def.write_text(hillslope_content)
 
         # Zone defaults
         zone_def = self.defs_dir / "zone.def"
+        # RHESSys lapse convention: T_zone = T_base - lapse_rate * (z_zone - z_base)
+        # Positive values = standard environmental lapse (temp decreases with elevation)
         zone_content = """1    zone_default_ID
 0.0    atm_trans_lapse_rate
--0.006    dewpoint_lapse_rate
--0.0065    lapse_rate_tmax
--0.0065    lapse_rate_tmin
-0.0    max_effective_lai
+0.006    dewpoint_lapse_rate
+0.0065    lapse_rate_tmax
+0.0065    lapse_rate_tmin
+6.0    max_effective_lai
 2.0    max_snow_temp
 -2.0    min_rain_temp
 0.7    ndep_NO3
--0.004    wet_lapse_rate
+0.004    wet_lapse_rate
 0.0    lapse_rate_precip_default
 """
         zone_def.write_text(zone_content)
 
         # Soil (patch) defaults
-        # Note: soil_depth increased to 2.5m for sufficient storage
+        # Note: soil_depth set to 3.0m for reasonable storage without excessive depth
         # m set to 2.0 for moderate Ksat decay with depth
         # Ksat_0 set to allow reasonable infiltration
+        # Ksat_0_v set to realistic ratio with Ksat_0 (typically 1-10x, not 200x)
         soil_def = self.defs_dir / "soil.def"
         soil_content = """1    patch_default_ID
 -6.0    psi_air_entry
 0.12    pore_size_index
 0.45    porosity_0
 0.45    porosity_decay
-0.0001    Ksat_0
-200.0    Ksat_0_v
+0.001    Ksat_0
+0.01    Ksat_0_v
 2.0    m
-2.0    m_z
+1.5    m_z
 2.0    N_decay
-2.5    soil_depth
-0.3    active_zone_z
-1500.0    albedo
-1500.0    maximum_snow_energy_deficit
-0.5    snow_melt_Tcoef
-3.0    snow_water_capacity
+3.0    soil_depth
+0.001    sat_to_gw_coeff
+1.0    active_zone_z
+0.2    albedo
+-500.0    maximum_snow_energy_deficit
+4.0    snow_melt_Tcoef
+1.0    snow_water_capacity
 0.5    wilting_point
 0.15    theta_mean_std_p1
 0.0    theta_mean_std_p2
@@ -1160,41 +1281,120 @@ none\thourly_climate_prefix
         soil_def.write_text(soil_content)
 
         # Vegetation (stratum) defaults
+        # Based on evergreen conifer parameters from RHESSys ParameterLibrary
         veg_def = self.defs_dir / "stratum.def"
         veg_content = """1    stratum_default_ID
-1    epc.veg_type
-0    epc.phenology_type
-static    epc.phenology_flag
-4.0    epc.max_lai
-0.5    epc.proj_sla
-0.5    epc.shade_sla
-0.5    epc.proj_sla_shade_sla_ratio
-0.03    epc.lai_stomatal_fraction
-1.0    epc.flnr
-1.0    epc.ppfd_coef
-0.5    epc.topt
-0.5    epc.tcoef
-0.5    epc.tmax
-0.0012    epc.psi_open
--0.0065    epc.psi_close
-0.5    epc.vpd_open
-4.0    epc.vpd_close
-0.05    epc.gl_smax
+TREE    epc.veg.type
+0.8    K_absorptance
+0.1    K_reflectance
+0.1    K_transmittance
+1.0    PAR_absorptance
+0.0    PAR_reflectance
+0.0    PAR_transmittance
+0.5    epc.ext_coef
+0.00024    specific_rain_capacity
+0.00024    specific_snow_capacity
+0.002    wind_attenuation_coef
+1.5    mrc.q10
+0.21    mrc.per_N
+0.2    epc.gr_perc
+1.0    lai_stomatal_fraction
+0.1    epc.flnr
+0.03    epc.ppfd_coef
+15.0    epc.topt
+40.0    epc.tmax
+0.2    epc.tcoef
+-0.65    epc.psi_open
+-2.5    epc.psi_close
+0.0    epc.vpd_open
+3500.0    epc.vpd_close
+0.006    epc.gl_smax
 0.00006    epc.gl_c
-0.0    epc.specific_rain_capacity
-0.0    epc.specific_snow_capacity
-0.5    epc.wind_attenuation_coef
-1.0    epc.max_height
-0.5    epc.max_root_depth
-0.5    epc.root_growth_direction
-0.25    epc.root_distrib_parm
-0.0    epc.resprout_leaf_carbon
-0.7    epc.min_percent_leafg
-0.0    epc.dickenson_pa
-0.0    epc.waring_pa
-0.0    epc.chen_pa
+0.00012    gsurf_slope
+0.00001    gsurf_intercept
+static    epc.phenology_flag
+EVERGREEN    epc.phenology.type
+12.0    epc.max_lai
+9.0    epc.proj_sla
+2.6    epc.lai_ratio
+1.4    epc.proj_swa
+0.27    epc.leaf_turnover
+91    epc.day_leafon
+260    epc.day_leafoff
+30    epc.ndays_expand
+30    epc.ndays_litfall
+45.0    epc.leaf_cn
+70.0    epc.leaflitr_cn
+0.0    min_heat_capacity
+0.0    max_heat_capacity
 waring    epc.allocation_flag
-0.0    epc.storage_transfer_prop
+1.0    epc.storage_transfer_prop
+0.27    epc.froot_turnover
+0.7    epc.livewood_turnover
+0.01    epc.kfrag_base
+139.7    epc.froot_cn
+200.0    epc.livewood_cn
+0.31    epc.leaflitr_flab
+0.45    epc.leaflitr_fcel
+0.24    epc.leaflitr_flig
+0.23    epc.frootlitr_flab
+0.41    epc.frootlitr_fcel
+0.36    epc.frootlitr_flig
+0.52    epc.deadwood_fcel
+0.48    epc.deadwood_flig
+1.325    epc.alloc_frootc_leafc
+0.3    epc.alloc_crootc_stemc
+1.62    epc.alloc_stemc_leafc
+0.073    epc.alloc_livewoodc_woodc
+0.05    epc.maxlgf
+0.5    epc.alloc_prop_day_growth
+0.0    epc.daily_fire_turnover
+0.57    epc.height_to_stem_exp
+11.39    epc.height_to_stem_coef
+0.005    epc.max_daily_mortality
+0.005    epc.min_daily_mortality
+0.0    epc.daily_mortality_threshold
+0    epc.dyn_alloc_prop_day_growth
+0.0005    epc.min_leaf_carbon
+100    epc.max_years_resprout
+0.001    epc.resprout_leaf_carbon
+0.00012    epc.litter_gsurf_slope
+0.00001    epc.litter_gsurf_intercept
+1.0    epc.coef_CO2
+0.8    epc.root_growth_direction
+8.0    epc.root_distrib_parm
+0.6    epc.crown_ratio
+-2.0    epc.gs_tmin
+5.0    epc.gs_tmax
+900.0    epc.gs_vpd_min
+4100.0    epc.gs_vpd_max
+36000.0    epc.gs_dayl_min
+39600.0    epc.gs_dayl_max
+-15.0    epc.gs_psi_min
+-14.0    epc.gs_psi_max
+6.0    epc.gs_ravg_days
+0.5    epc.gsi_thresh
+1.0    epc.gs_npp_on
+187.0    epc.gs_npp_slp
+197.0    epc.gs_npp_intercpt
+0.2    epc.max_storage_percent
+0.27    epc.min_percent_leafg
+0.25    epc.dickenson_pa
+0.8    epc.waring_pa
+2.5    epc.waring_pb
+0.0    epc.branch_turnover
+0    epc.Tacclim
+3.22    epc.Tacclim_intercpt
+0.046    epc.Tacclim_slp
+30    epc.Tacclim_days
+0.002    epc.litter_moist_coef
+50.0    epc.litter_density
+0    epc.nfix
+1    epc.edible
+0    epc.psi_curve
+-1.0    epc.psi_threshold
+0.2    epc.psi_slp
+1.0    epc.psi_intercpt
 """
         veg_def.write_text(veg_content)
 

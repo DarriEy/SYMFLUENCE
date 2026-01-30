@@ -210,7 +210,7 @@ GET_GFORCE_FILE="FUSE_SRC/FUSE_NETCDF/get_gforce.f90"
 if [ -f "$GET_GFORCE_FILE" ]; then
     perl disable_mpi.pl "$GET_GFORCE_FILE"
     # Also comment out standalone 'use mpi' if any
-    sed -i 's/^\([[:space:]]*\)use mpi[[:space:]]*$/\1! use mpi  ! MPI not available/' "$GET_GFORCE_FILE"
+    sed -i.bak 's/^\([[:space:]]*\)use mpi[[:space:]]*$/\1! use mpi  ! MPI not available/' "$GET_GFORCE_FILE" && rm -f "${GET_GFORCE_FILE}.bak"
     echo "  Disabled MPI in get_gforce.f90"
 fi
 

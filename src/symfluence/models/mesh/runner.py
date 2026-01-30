@@ -144,6 +144,9 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
             # Check execution success
             if result.returncode == 0 and self._verify_outputs():
+                # Copy outputs from forcing directory to output directory
+                self._copy_outputs()
+
                 # Clean up copied executable only on success
                 mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
                 if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
@@ -188,23 +191,54 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         ]
         return cmd
 
+    def _is_lumped_mode(self) -> bool:
+        """Check if running in lumped (noroute) mode."""
+        run_options = self.forcing_mesh_path / 'MESH_input_run_options.ini'
+        if run_options.exists():
+            try:
+                with open(run_options, 'r') as f:
+                    content = f.read()
+                    import re
+                    if re.search(r'RUNMODE\s+noroute', content):
+                        return True
+            except Exception:
+                pass
+        return False
+
     def _verify_outputs(self) -> bool:
         """
         Verify MESH output files exist.
 
         Checks for required output files in both the output directory and
         forcing directory (MESH writes outputs to its working directory).
+        In lumped (noroute) mode, accepts water balance output instead of
+        streamflow CSV.
 
         Returns:
             bool: True if all required outputs found, False otherwise.
         """
-        required_outputs = [
-            'MESH_output_streamflow.csv',
-        ]
+        is_lumped = self._is_lumped_mode()
+
+        if is_lumped:
+            # In lumped/noroute mode, we don't get streamflow CSV
+            # Accept any valid output file (balance or echo_print)
+            required_outputs = [
+                'MESH_output_echo_print.txt',  # Always produced
+            ]
+            # Optional outputs that indicate success
+            _optional_outputs = [
+                'Basin_average_water_balance.csv',  # Daily water balance from BASINAVGWBFILEFLAG=daily
+                'results/Basin_average_water_balance.csv',
+                'results/MESH_output_echo_print.txt',
+            ]
+        else:
+            required_outputs = [
+                'MESH_output_streamflow.csv',
+            ]
 
         # Check in output directory (may be process-specific during parallel calibration)
         # or fall back to forcing directory (default MESH behavior)
-        check_dirs = [self.output_dir, self.forcing_mesh_path]
+        check_dirs = [self.output_dir, self.forcing_mesh_path, self.forcing_mesh_path / 'results']
 
         for output_file in required_outputs:
             found = False
@@ -239,10 +273,16 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         outputs_to_copy = [
             'MESH_output_streamflow.csv',
             'MESH_output_echo_print.txt',
-            'MESH_output_echo_results.txt'
+            'MESH_output_echo_results.txt',
+            # Lumped mode water balance outputs
+            'Basin_average_water_balance.csv',
+            'GRU_water_balance.csv',  # Hourly GRU water balance with ROF
         ]
 
         for out_file in outputs_to_copy:
+            # Check both forcing directory and results subdirectory
             src = self.forcing_mesh_path / out_file
+            if not src.exists():
+                src = self.forcing_mesh_path / 'results' / out_file
             if src.exists():
                 shutil.copy2(src, self.output_dir / out_file)

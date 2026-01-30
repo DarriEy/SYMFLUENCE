@@ -208,6 +208,13 @@ class MESHFlowManager:
             workflow.save(output_dir=str(self.forcing_dir))
             self.logger.info("Meshflow workflow completed successfully")
 
+            # Call prepare_forcing_callback to generate/fix forcing data
+            # This is needed because meshflow's CDO-based forcing prep has issues
+            # with frequency inference on multi-file datasets
+            if prepare_forcing_callback:
+                self.logger.info("Running forcing preparation callback")
+                prepare_forcing_callback()
+
             # Post-process
             if postprocess_callback:
                 postprocess_callback()

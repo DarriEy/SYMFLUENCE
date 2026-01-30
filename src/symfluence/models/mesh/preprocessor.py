@@ -253,6 +253,8 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.parameter_fixer.fix_hydrology_wf_r2()
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
+        self.parameter_fixer.fix_reservoir_file()
+        self.parameter_fixer.configure_lumped_outputs()
         self.parameter_fixer.create_safe_forcing()
 
     def _create_meshflow_config(self) -> Dict[str, Any]:
@@ -500,3 +502,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.parameter_fixer.fix_hydrology_wf_r2()
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
+        # Fix reservoir file after drainage database is finalized
+        self.parameter_fixer.fix_reservoir_file()
+        # Configure output for lumped mode calibration
+        self.parameter_fixer.configure_lumped_outputs()

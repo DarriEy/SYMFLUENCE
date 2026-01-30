@@ -49,12 +49,26 @@ from dataclasses import dataclass
 
 @dataclass
 class ParameterInfo:
-    """Information about a hydrological parameter."""
+    """Information about a hydrological parameter.
+
+    Attributes:
+        min: Minimum bound for the parameter.
+        max: Maximum bound for the parameter.
+        units: Physical units string (e.g., 'm/day', '°C').
+        description: Human-readable description of the parameter.
+        category: Parameter category ('snow', 'soil', 'baseflow', etc.).
+        transform: Normalization transform type. 'linear' (default) maps
+            uniformly between min and max. 'log' maps uniformly in
+            log-space, which is appropriate for parameters spanning
+            multiple orders of magnitude (e.g., conductivities, loss
+            coefficients). Log transform requires min > 0.
+    """
     min: float
     max: float
     units: str = ""
     description: str = ""
     category: str = "other"
+    transform: str = "linear"
 
 
 class ParameterBoundsRegistry:
@@ -96,7 +110,7 @@ class ParameterBoundsRegistry:
         'wltsmc': ParameterInfo(0.02, 0.15, 'fraction', 'Wilting point soil moisture', 'soil'),
         'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil'),
         'satpsi': ParameterInfo(0.05, 0.5, 'm', 'Saturated soil potential', 'soil'),
-        'bb': ParameterInfo(3.0, 12.0, '-', 'Pore size distribution index', 'soil'),
+        'bb': ParameterInfo(2.0, 8.0, '-', 'Pore size distribution index', 'soil'),
         # Note: smcmax defined in NOAH section below with bounds (0.3, 0.6)
         'alpha_fc': ParameterInfo(0.3, 0.8, '-', 'Field capacity coefficient', 'soil'),
         'expon': ParameterInfo(1.0, 6.0, '-', 'Exponent parameter', 'soil'),
@@ -132,8 +146,8 @@ class ParameterBoundsRegistry:
         'QBRATE_2B': ParameterInfo(0.0001, 0.01, '1/day', 'Secondary baseflow depletion', 'baseflow'),
 
         # NGEN CFE groundwater parameters
-        'Cgw': ParameterInfo(0.0001, 0.005, 'm/h', 'Groundwater coefficient', 'baseflow'),
-        'max_gw_storage': ParameterInfo(0.05, 1.0, 'm', 'Maximum groundwater storage (expanded for large catchments)', 'baseflow'),
+        'Cgw': ParameterInfo(1e-5, 0.01, 'm/h', 'Groundwater coefficient', 'baseflow'),
+        'max_gw_storage': ParameterInfo(0.05, 0.5, 'm', 'Maximum groundwater storage', 'baseflow'),
     }
 
     # ========================================================================
@@ -290,19 +304,28 @@ class ParameterBoundsRegistry:
     # MESH PARAMETERS
     # ========================================================================
     MESH_PARAMS: Dict[str, ParameterInfo] = {
-        # CLASS land surface parameters
+        # CLASS.ini parameters - control runoff generation (most impactful)
+        'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil'),
+        'DRN': ParameterInfo(0.1, 10.0, '-', 'Drainage parameter', 'soil'),
+        'SDEP': ParameterInfo(0.5, 5.0, 'm', 'Soil depth', 'soil'),
+        'XSLP': ParameterInfo(0.001, 0.3, '-', 'Slope for overland flow', 'surface'),
+        'XDRAINH': ParameterInfo(0.01, 1.0, '-', 'Horizontal drainage coefficient', 'soil'),
+        'MANN_CLASS': ParameterInfo(0.01, 0.5, '-', 'Manning coefficient for overland flow', 'surface'),
+
+        # Hydrology.ini parameters - snow and ponding
         'ZSNL': ParameterInfo(0.001, 0.1, 'm', 'Limiting snow depth', 'snow'),
         'ZPLG': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (ground)', 'soil'),
         'ZPLS': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (snow)', 'snow'),
         'FRZTH': ParameterInfo(0.0, 5.0, 'm', 'Frozen soil infiltration threshold', 'soil'),
         'MANN': ParameterInfo(0.01, 0.3, '-', 'Manning roughness coefficient', 'routing'),
 
-        # Hydrology parameters
+        # Legacy hydrology parameters
         'RCHARG': ParameterInfo(0.0, 1.0, '-', 'Recharge fraction to groundwater', 'baseflow'),
         'DRAINFRAC': ParameterInfo(0.0, 1.0, '-', 'Drainage fraction', 'soil'),
         'BASEFLW': ParameterInfo(0.001, 0.1, 'm/day', 'Baseflow rate', 'baseflow'),
 
-        # Routing parameters
+        # Routing parameters (meshflow-generated files)
+        'WF_R2': ParameterInfo(0.1, 0.5, '-', 'Channel roughness coefficient for WATFLOOD routing', 'routing'),
         'DTMINUSR': ParameterInfo(60.0, 600.0, 's', 'Routing time-step', 'routing'),
     }
 
@@ -311,33 +334,37 @@ class ParameterBoundsRegistry:
     # ========================================================================
     RHESSYS_PARAMS: Dict[str, ParameterInfo] = {
         # Groundwater/baseflow parameters (basin.def and soil.def)
-        # Note: gw_loss_coeff constrained to prevent excessive groundwater loss
-        'sat_to_gw_coeff': ParameterInfo(0.00001, 0.001, '1/day', 'Saturation to groundwater coefficient', 'baseflow'),
-        'gw_loss_coeff': ParameterInfo(0.0, 0.5, '-', 'Groundwater loss coefficient (low to preserve streamflow)', 'baseflow'),
+        # Log-space transform for parameters spanning orders of magnitude
+        'sat_to_gw_coeff': ParameterInfo(0.0001, 0.1, '1/day', 'Saturation to groundwater coefficient', 'baseflow', 'log'),
+        'gw_loss_coeff': ParameterInfo(0.001, 0.5, '-', 'Groundwater loss coefficient (controls slow baseflow)', 'baseflow', 'log'),
+        'gw_loss_fast_coeff': ParameterInfo(0.01, 1.0, '-', 'Fast groundwater loss coefficient', 'baseflow', 'log'),
+        'gw_loss_fast_threshold': ParameterInfo(0.05, 0.5, 'm', 'GW storage threshold for fast flow activation', 'baseflow'),
 
         # Soil hydraulic parameters (soil.def)
-        # Note: m constrained to prevent extreme Ksat decay; soil_depth min increased for storage
         'psi_air_entry': ParameterInfo(-10.0, -1.0, 'kPa', 'Air entry pressure (negative)', 'soil'),
         'pore_size_index': ParameterInfo(0.05, 0.4, '-', 'Pore size distribution index', 'soil'),
         'porosity_0': ParameterInfo(0.3, 0.6, 'm³/m³', 'Surface porosity', 'soil'),
-        'porosity_decay': ParameterInfo(0.1, 1.0, 'm³/m³', 'Porosity decay with depth', 'soil'),
-        'Ksat_0': ParameterInfo(0.000001, 0.001, 'm/s', 'Surface saturated conductivity', 'soil'),
-        'Ksat_0_v': ParameterInfo(10.0, 1000.0, 'm/day', 'Vertical saturated conductivity', 'soil'),
-        'm': ParameterInfo(0.1, 5.0, '-', 'Lateral decay of Ksat with depth (constrained)', 'soil'),
-        'm_z': ParameterInfo(0.1, 5.0, '-', 'Vertical decay of Ksat with depth (constrained)', 'soil'),
-        'soil_depth': ParameterInfo(1.0, 5.0, 'm', 'Total soil depth (min increased for storage)', 'soil'),
-        'active_zone_z': ParameterInfo(0.1, 1.0, 'm', 'Active zone depth', 'soil'),
+        'porosity_decay': ParameterInfo(0.1, 0.8, 'm³/m³', 'Porosity decay with depth', 'soil'),
+        # Ksat_0 in m/day: 0.0001-0.1 m/day = 0.1-100 mm/day
+        'Ksat_0': ParameterInfo(0.0001, 0.1, 'm/day', 'Surface saturated conductivity (lateral)', 'soil', 'log'),
+        # Ksat_0_v: Should be similar magnitude to Ksat_0 (ratio typically 1-10x)
+        'Ksat_0_v': ParameterInfo(0.0001, 0.5, 'm/day', 'Vertical saturated conductivity', 'soil', 'log'),
+        'm': ParameterInfo(0.5, 5.0, '-', 'Lateral decay of Ksat with depth', 'soil'),
+        'm_z': ParameterInfo(0.2, 3.0, '-', 'Vertical decay of Ksat with depth', 'soil'),
+        'soil_depth': ParameterInfo(2.0, 15.0, 'm', 'Total soil depth', 'soil'),
+        'active_zone_z': ParameterInfo(0.5, 3.0, 'm', 'Active zone depth', 'soil'),
 
-        # Snow parameters (zone.def)
-        'max_snow_temp': ParameterInfo(-2.0, 4.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
+        # Snow parameters (soil.def for snow_melt_Tcoef, zone.def for temps)
+        'max_snow_temp': ParameterInfo(-2.0, 2.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
         'min_rain_temp': ParameterInfo(-6.0, 0.0, '°C', 'Min temp for rain (all snow below this)', 'snow'),
-        'snow_melt_Tcoef': ParameterInfo(0.1, 2.0, 'mm/°C/day', 'Snow melt temperature coefficient', 'snow'),
-        'maximum_snow_energy_deficit': ParameterInfo(500.0, 3000.0, 'kJ/m²', 'Maximum snow energy deficit', 'snow'),
+        'snow_melt_Tcoef': ParameterInfo(0.5, 8.0, 'mm/°C/day', 'Snow melt temperature coefficient', 'snow'),
+        'snow_water_capacity': ParameterInfo(0.1, 1.5, '-', 'Snow water holding capacity coefficient', 'snow'),
+        'maximum_snow_energy_deficit': ParameterInfo(-1500.0, -100.0, 'kJ/m²', 'Maximum snow energy deficit (must be negative)', 'snow'),
 
         # Vegetation parameters (stratum.def)
         'epc.max_lai': ParameterInfo(0.5, 8.0, 'm²/m²', 'Maximum LAI', 'et'),
-        'epc.gl_smax': ParameterInfo(0.001, 0.2, 'm/s', 'Maximum stomatal conductance', 'et'),
-        'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et'),
+        'epc.gl_smax': ParameterInfo(0.001, 0.2, 'm/s', 'Maximum stomatal conductance', 'et', 'log'),
+        'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et', 'log'),
         'epc.vpd_open': ParameterInfo(0.1, 2.0, 'kPa', 'VPD at stomatal opening', 'et'),
         'epc.vpd_close': ParameterInfo(2.0, 6.0, 'kPa', 'VPD at stomatal closure', 'et'),
 
@@ -360,6 +387,30 @@ class ParameterBoundsRegistry:
         'Kf': ParameterInfo(0.0, 20.0, 'mm/°C/day', 'Melt factor', 'snow'),
         'Gratio': ParameterInfo(0.01, 200.0, '-', 'Thermal coefficient for snow pack thermal state', 'snow'),
         'Albedo_diff': ParameterInfo(0.001, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
+    }
+
+    # ========================================================================
+    # VIC PARAMETERS
+    # ========================================================================
+    VIC_PARAMS: Dict[str, ParameterInfo] = {
+        # Variable infiltration curve parameter - controls infiltration nonlinearity
+        'infilt': ParameterInfo(0.001, 0.9, '-', 'Variable infiltration curve parameter', 'soil'),
+        # Baseflow parameters
+        'Ds': ParameterInfo(0.0, 1.0, '-', 'Fraction of Dsmax where nonlinear baseflow begins', 'baseflow'),
+        'Dsmax': ParameterInfo(0.1, 30.0, 'mm/day', 'Maximum baseflow velocity', 'baseflow'),
+        'Ws': ParameterInfo(0.1, 1.0, '-', 'Fraction of max soil moisture for nonlinear baseflow', 'baseflow'),
+        'c': ParameterInfo(1.0, 4.0, '-', 'Exponent in baseflow curve', 'baseflow'),
+        # Soil layer depths
+        'depth1': ParameterInfo(0.05, 0.5, 'm', 'Soil layer 1 depth', 'soil'),
+        'depth2': ParameterInfo(0.1, 1.5, 'm', 'Soil layer 2 depth', 'soil'),
+        'depth3': ParameterInfo(0.1, 2.0, 'm', 'Soil layer 3 depth', 'soil'),
+        # Soil hydraulic parameters
+        'Ksat_vic': ParameterInfo(1.0, 5000.0, 'mm/day', 'VIC saturated hydraulic conductivity', 'soil'),
+        'expt_vic': ParameterInfo(4.0, 30.0, '-', 'VIC soil layer exponent', 'soil'),
+        # Bulk density
+        'bulk_density': ParameterInfo(1200.0, 1800.0, 'kg/m³', 'Soil bulk density', 'soil'),
+        # Snow parameters
+        'snow_rough': ParameterInfo(0.0001, 0.01, 'm', 'Snow surface roughness', 'snow'),
     }
 
     # ========================================================================
@@ -405,9 +456,10 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.MESH_PARAMS)
         self._all_params.update(self.RHESSYS_PARAMS)
         self._all_params.update(self.GR_PARAMS)
+        self._all_params.update(self.VIC_PARAMS)
         self._all_params.update(self.HBV_PARAMS)
 
-    def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
+    def get_bounds(self, param_name: str) -> Optional[Dict]:
         """
         Get bounds for a single parameter.
 
@@ -415,11 +467,11 @@ class ParameterBoundsRegistry:
             param_name: Parameter name
 
         Returns:
-            Dictionary with 'min' and 'max' keys, or None if not found
+            Dictionary with 'min', 'max', and 'transform' keys, or None if not found
         """
         info = self._all_params.get(param_name)
         if info:
-            return {'min': info.min, 'max': info.max}
+            return {'min': info.min, 'max': info.max, 'transform': info.transform}
         return None
 
     def get_info(self, param_name: str) -> Optional[ParameterInfo]:
@@ -434,7 +486,7 @@ class ParameterBoundsRegistry:
         """
         return self._all_params.get(param_name)
 
-    def get_bounds_for_params(self, param_names: List[str]) -> Dict[str, Dict[str, float]]:
+    def get_bounds_for_params(self, param_names: List[str]) -> Dict[str, Dict]:
         """
         Get bounds for multiple parameters.
 
@@ -442,7 +494,7 @@ class ParameterBoundsRegistry:
             param_names: List of parameter names
 
         Returns:
-            Dictionary mapping param_name -> {'min': float, 'max': float}
+            Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
         """
         bounds = {}
         for name in param_names:
@@ -451,7 +503,7 @@ class ParameterBoundsRegistry:
                 bounds[name] = b
         return bounds
 
-    def get_params_by_category(self, category: str) -> Dict[str, Dict[str, float]]:
+    def get_params_by_category(self, category: str) -> Dict[str, Dict]:
         """
         Get all parameter bounds for a category.
 
@@ -462,7 +514,7 @@ class ParameterBoundsRegistry:
             Dictionary of parameter bounds
         """
         return {
-            name: {'min': info.min, 'max': info.max}
+            name: {'min': info.min, 'max': info.max, 'transform': info.transform}
             for name, info in self._all_params.items()
             if info.category == category
         }
@@ -631,9 +683,14 @@ def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
         Dictionary mapping MESH param_name -> {'min': float, 'max': float}
     """
     mesh_params = [
-        'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN',  # CLASS
-        'RCHARG', 'DRAINFRAC', 'BASEFLW',  # Hydrology
-        'DTMINUSR',  # Routing
+        # CLASS.ini parameters (runoff generation)
+        'KSAT', 'DRN', 'SDEP', 'XSLP', 'XDRAINH', 'MANN_CLASS',
+        # Hydrology.ini parameters (snow/ponding)
+        'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN',
+        # Legacy hydrology
+        'RCHARG', 'DRAINFRAC', 'BASEFLW',
+        # Routing
+        'WF_R2', 'DTMINUSR',
     ]
     return get_registry().get_bounds_for_params(mesh_params)
 
@@ -658,12 +715,12 @@ def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
     """
     rhessys_params = [
         # Groundwater/baseflow
-        'sat_to_gw_coeff', 'gw_loss_coeff',
+        'sat_to_gw_coeff', 'gw_loss_coeff', 'gw_loss_fast_coeff', 'gw_loss_fast_threshold',
         # Soil
         'psi_air_entry', 'pore_size_index', 'porosity_0', 'porosity_decay',
         'Ksat_0', 'Ksat_0_v', 'm', 'm_z', 'soil_depth', 'active_zone_z',
         # Snow
-        'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'maximum_snow_energy_deficit',
+        'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'snow_water_capacity', 'maximum_snow_energy_deficit',
         # Vegetation/ET
         'epc.max_lai', 'epc.gl_smax', 'epc.gl_c', 'epc.vpd_open', 'epc.vpd_close',
         # Routing
@@ -692,3 +749,25 @@ def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
         'smoothing',
     ]
     return get_registry().get_bounds_for_params(hbv_params)
+
+
+def get_vic_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all VIC parameter bounds.
+
+    Returns:
+        Dictionary mapping VIC param_name -> {'min': float, 'max': float}
+    """
+    vic_params = [
+        # Infiltration
+        'infilt',
+        # Baseflow parameters
+        'Ds', 'Dsmax', 'Ws', 'c',
+        # Soil layer depths
+        'depth1', 'depth2', 'depth3',
+        # Soil hydraulic parameters
+        'Ksat_vic', 'expt_vic',
+        # Other
+        'bulk_density', 'snow_rough',
+    ]
+    return get_registry().get_bounds_for_params(vic_params)

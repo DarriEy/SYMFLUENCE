@@ -356,8 +356,23 @@ shortwave_radiation_provided=0
             'rain_snow_thresh': 1.0,
             'soil_type': 3,
             'veg_type': 10,
+            # Soil moisture parameters for physically-consistent initialization
+            'smcmax': 0.5,    # Saturation moisture content (porosity)
+            'smcwlt': 0.1,    # Wilting point moisture content
         }
         options.update(overrides)
+
+        # Calculate initial soil moisture as a reasonable fraction of saturation
+        # This ensures initial conditions are physically consistent with calibration bounds
+        # Default: 60% of saturation (between field capacity and saturation)
+        initial_moisture_frac = self._get_config_value(
+            lambda: self.config.model.ngen.initial_moisture_fraction,
+            default=0.6,
+            dict_key='NOAH_INITIAL_MOISTURE_FRACTION'
+        )
+        initial_sh2o = options['smcmax'] * initial_moisture_frac
+        # Ensure we're at least at wilting point
+        initial_sh2o = max(initial_sh2o, options['smcwlt'])
 
         config_text = f"""&timing
   dt                 = {options['dt']}
@@ -422,7 +437,7 @@ shortwave_radiation_provided=0
 &initial_values
  dzsnso    =  0.0,  0.0,  0.0,  0.1,  0.3,  0.6,  1.0
  sice      =  0.0,  0.0,  0.0,  0.0
- sh2o      =  0.3,  0.3,  0.3,  0.3
+ sh2o      =  {initial_sh2o:.3f},  {initial_sh2o:.3f},  {initial_sh2o:.3f},  {initial_sh2o:.3f}
  zwt       =  -2.0
 /
 """
@@ -603,7 +618,16 @@ shortwave_radiation_provided=0
                         "LWDN": "land_surface_radiation~incoming~longwave__energy_flux",
                         "SOLDN": "land_surface_radiation~incoming~shortwave__energy_flux",
                         "SFCPRS": "land_surface_air__pressure"
-                    }
+                    },
+                    # Expose NOAH outputs for coupling with CFE
+                    "output_variables": [
+                        "QINSUR",      # Net water input to soil surface [mm/s]
+                        "ETRAN",       # Transpiration [mm/s]
+                        "EDIR",        # Direct soil evaporation [mm/s]
+                        "ECAN",        # Canopy evaporation [mm/s]
+                        "RUNSF",       # Surface runoff [mm/s]
+                        "RUNSB"        # Subsurface runoff [mm/s]
+                    ]
                 }
             })
 
@@ -611,19 +635,27 @@ shortwave_radiation_provided=0
             lib_file = str(lib_paths.get("CFE", f"./extern/cfe/cmake_build/libcfebmi{lib_ext}"))
 
             # Build variables_names_map for CFE
-            # CFE gets forcing variables from the forcing provider and SLOTH/PET outputs from other modules
+            # In a multi-module setup:
+            # - CFE receives precipitation DIRECTLY from forcing (not from NOAH)
+            # - CFE receives evapotranspiration from PET or NOAH
+            # - CFE receives ice fractions from SLOTH for infiltration partitioning
             variables_map = {
-                "atmosphere_water__liquid_equivalent_precipitation_rate": "precip_rate",
+                # CFE always receives precipitation directly from forcing
+                "atmosphere_water__liquid_equivalent_precipitation_rate": "atmosphere_water__liquid_equivalent_precipitation_rate",
             }
 
-            # Add SLOTH variables if SLOTH is enabled
+            # Add SLOTH variables if SLOTH is enabled (provides ice fraction for partitioning)
             if self._include_sloth:
                 variables_map["ice_fraction_schaake"] = "sloth_ice_fraction_schaake"
                 variables_map["ice_fraction_xinanjiang"] = "sloth_ice_fraction_xinanjiang"
                 variables_map["soil_moisture_profile"] = "sloth_smp"
 
-            # Add PET variable if PET is enabled
-            if self._include_pet:
+            # Add evapotranspiration source
+            if self._include_noah:
+                # When NOAH is enabled, CFE receives actual ET from NOAH's ETRAN
+                variables_map["water_potential_evaporation_flux"] = "ETRAN"
+            elif self._include_pet:
+                # When only PET is enabled (no NOAH), use PET's potential ET
                 variables_map["water_potential_evaporation_flux"] = "water_potential_evaporation_flux"
 
             modules.append({
@@ -637,7 +669,6 @@ shortwave_radiation_provided=0
                     "main_output_variable": "Q_OUT",
                     "registration_function": "register_bmi_cfe",
                     "variables_names_map": variables_map,
-                    "uses_forcing_file": False,
                     "output_variable_units": "m3/s"
                 }
             })

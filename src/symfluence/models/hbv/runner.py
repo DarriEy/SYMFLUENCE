@@ -205,9 +205,9 @@ class HBVRunner(  # type: ignore[misc]
                         total_area = gdf[col].sum()
                         col_lower = col.lower()
                         if 'km' in col_lower:
-                            self.logger.info(f"Catchment area from shapefile column '{col}' interpreted as km²")
+                            self.logger.debug(f"Catchment area from shapefile column '{col}' interpreted as km²")
                             return float(total_area * 1e6)
-                        self.logger.info(f"Catchment area from shapefile column '{col}' interpreted as m²")
+                        self.logger.debug(f"Catchment area from shapefile column '{col}' interpreted as m²")
                         return float(total_area)
             else:
                 self.logger.debug("Catchment shapefile not found in any of the expected locations")
@@ -224,7 +224,7 @@ class HBVRunner(  # type: ignore[misc]
             None
         )
         if area_km2:
-            self.logger.info(f"Using catchment area from config: {area_km2:.2f} km²")
+            self.logger.debug(f"Using catchment area from config: {area_km2:.2f} km²")
             return area_km2 * 1e6
 
         # No fallback - raise error to avoid incorrect discharge outputs

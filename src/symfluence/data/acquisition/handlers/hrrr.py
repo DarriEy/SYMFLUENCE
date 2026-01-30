@@ -12,9 +12,10 @@ import s3fs
 from pathlib import Path
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from ..mixins.retry import RetryMixin
 
 @AcquisitionRegistry.register('HRRR')
-class HRRRAcquirer(BaseAcquisitionHandler):
+class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Download and process High Resolution Rapid Refresh (HRRR) atmospheric forcing data.
 
@@ -241,7 +242,14 @@ class HRRRAcquirer(BaseAcquisitionHandler):
             # Size: ~118 MB
         """
         self.logger.info("Downloading HRRR data from S3")
-        fs = s3fs.S3FileSystem(anon=True)
+        fs = s3fs.S3FileSystem(
+            anon=True,
+            config_kwargs={
+                'connect_timeout': 60,
+                'read_timeout': 120,
+                'retries': {'max_attempts': 10, 'mode': 'adaptive'},
+            },
+        )
         vars_map = {"TMP": "2m_above_ground", "SPFH": "2m_above_ground", "PRES": "surface", "UGRD": "10m_above_ground", "VGRD": "10m_above_ground", "DSWRF": "surface", "DLWRF": "surface"}
         req_vars = self.config_dict.get('HRRR_VARS')
         if req_vars: vars_map = {k: v for k, v in vars_map.items() if k in req_vars}
@@ -249,8 +257,11 @@ class HRRRAcquirer(BaseAcquisitionHandler):
         bbox = hrrr_bbox if hrrr_bbox else self.bbox
         all_datasets, xy_slice = [], None
         curr = self.start_date.date()
+        total_days = (self.end_date.date() - self.start_date.date()).days + 1
         while curr <= self.end_date.date():
             dstr = curr.strftime("%Y%m%d")
+            day_num = (curr - self.start_date.date()).days + 1
+            self.logger.info(f"HRRR download progress: day {day_num}/{total_days} ({dstr})")
             for h in range(24):
                 cdt = pd.Timestamp(f"{dstr} {h:02d}:00:00")
                 if cdt < self.start_date or cdt > self.end_date: continue
@@ -260,12 +271,19 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                         try:
                             s1 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}/{level}", s3=fs)
                             s2 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}", s3=fs)
-                            v_ds.append(xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False))
-                        except (OSError, KeyError, ValueError) as e:
+                            ds = self.execute_with_retry(
+                                lambda s1=s1, s2=s2: xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False, decode_timedelta=False),
+                                max_retries=3,
+                                base_delay=5,
+                                backoff_factor=2.0,
+                                max_delay=60,
+                            )
+                            v_ds.append(ds)
+                        except Exception as e:
                             self.logger.debug(f"Variable {v} not available for {dstr} {h:02d}z: {e}")
                             continue
                     if v_ds:
-                        ds_h = xr.merge(v_ds)
+                        ds_h = xr.merge(v_ds, compat="override")
                         if xy_slice is None and "latitude" in ds_h.coords:
                             mask = (
                                 (ds_h.latitude >= bbox["lat_min"])
@@ -274,13 +292,25 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                                 & (ds_h.longitude <= bbox["lon_max"])
                             )
                             iy, ix = np.where(mask)
-                            if len(iy) > 0: xy_slice = (slice(iy.min(), iy.max()+1), slice(ix.min(), ix.max()+1))
+                            if len(iy) > 0:
+                                xy_slice = (slice(iy.min(), iy.max()+1), slice(ix.min(), ix.max()+1))
+                            else:
+                                # Bbox smaller than grid resolution; find nearest grid point
+                                center_lat = (bbox["lat_min"] + bbox["lat_max"]) / 2
+                                center_lon = (bbox["lon_min"] + bbox["lon_max"]) / 2
+                                dist = (ds_h.latitude - center_lat)**2 + (ds_h.longitude - center_lon)**2
+                                min_idx = np.unravel_index(dist.values.argmin(), dist.shape)
+                                xy_slice = (slice(min_idx[0], min_idx[0]+1), slice(min_idx[1], min_idx[1]+1))
+                                self.logger.info(f"Bbox smaller than HRRR grid cell; using nearest grid point at "
+                                                 f"lat={float(ds_h.latitude.values[min_idx]):.4f}, "
+                                                 f"lon={float(ds_h.longitude.values[min_idx]):.4f}")
                         all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)
-                except (OSError, KeyError, ValueError) as e:
+                except Exception as e:
                     self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}")
                     continue
             curr += pd.Timedelta(days=1)
         if not all_datasets: raise ValueError("No HRRR data downloaded")
+        self.logger.info(f"HRRR download complete: {len(all_datasets)} hours acquired")
         ds_final = xr.concat(all_datasets, dim="time").sortby("time")
         step = int(self.config_dict.get('HRRR_TIME_STEP_HOURS', 1))
         if step > 1: ds_final = ds_final.isel(time=slice(0, None, step))

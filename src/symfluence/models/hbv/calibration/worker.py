@@ -17,6 +17,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
 from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
 from symfluence.optimization.workers.base_worker import WorkerTask
@@ -227,7 +228,8 @@ class HBVWorker(InMemoryModelWorker):
         self,
         sim_mm: np.ndarray,
         obs_mm: np.ndarray,
-        skip_warmup: bool = True
+        skip_warmup: bool = True,
+        time_index: Optional[pd.DatetimeIndex] = None
     ) -> Dict[str, Any]:
         """Calculate streamflow metrics with timestep-aware warmup handling.
 
@@ -235,6 +237,7 @@ class HBVWorker(InMemoryModelWorker):
             sim_mm: Simulated runoff in mm/timestep
             obs_mm: Observed runoff in mm/timestep
             skip_warmup: Whether to skip warmup period
+            time_index: Optional time index for period filtering
 
         Returns:
             Dictionary with 'kge', 'nse', 'n_points'
@@ -242,6 +245,10 @@ class HBVWorker(InMemoryModelWorker):
         from symfluence.evaluation.metrics import kge, nse
 
         try:
+            # Get time index for filtering
+            if time_index is None:
+                time_index = self._time_index
+
             # Convert warmup days to timesteps
             warmup_steps = warmup_timesteps(self.warmup_days, self.timestep_hours)
 
@@ -249,6 +256,8 @@ class HBVWorker(InMemoryModelWorker):
             if skip_warmup:
                 sim = sim_mm[warmup_steps:]
                 obs = obs_mm[warmup_steps:]
+                if time_index is not None and len(time_index) > warmup_steps:
+                    time_index = time_index[warmup_steps:]
             else:
                 sim = sim_mm
                 obs = obs_mm
@@ -257,6 +266,32 @@ class HBVWorker(InMemoryModelWorker):
             min_len = min(len(sim), len(obs))
             sim = sim[:min_len]
             obs = obs[:min_len]
+            if time_index is not None and len(time_index) > min_len:
+                time_index = time_index[:min_len]
+
+            # Filter to calibration period if specified
+            cal_period = self.config.get('CALIBRATION_PERIOD', '')
+            if cal_period and time_index is not None:
+                try:
+                    dates = [d.strip() for d in cal_period.split(',')]
+                    if len(dates) >= 2:
+                        start_date = pd.Timestamp(dates[0])
+                        end_date = pd.Timestamp(dates[1])
+
+                        # Ensure time_index is DatetimeIndex
+                        if not isinstance(time_index, pd.DatetimeIndex):
+                            time_index = pd.DatetimeIndex(time_index)
+
+                        # Create mask for calibration period
+                        cal_mask = (time_index >= start_date) & (time_index <= end_date)
+                        sim = sim[cal_mask]
+                        obs = obs[cal_mask]
+                        self.logger.debug(
+                            f"Filtered to calibration period {start_date} - {end_date}: "
+                            f"{cal_mask.sum()} points"
+                        )
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(f"Could not filter to calibration period: {e}")
 
             # Remove NaN
             valid_mask = ~(np.isnan(sim) | np.isnan(obs))
