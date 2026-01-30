@@ -152,11 +152,14 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
-# Fix for conda GCC 14: explicitly link libstdc++ to resolve __cxa_call_terminate
-# This is needed because conda's GCC uses a separate libstdc++ that may not be auto-linked
-if [ -n "$CONDA_PREFIX" ]; then
+# Fix for conda GCC 14: explicitly link against conda's libstdc++ to resolve __cxa_call_terminate
+# conda's GCC 14 emits __cxa_call_terminate which only exists in its own libstdc++
+# We must pass this through CMAKE_EXE_LINKER_FLAGS since CMake ignores LDFLAGS for the final link
+if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
     EXTRA_LIBS="-lstdc++"
-    echo "Adding -lstdc++ for conda GCC 14 compatibility"
+    CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS=-L${CONDA_PREFIX}/lib\ -lstdc++"
+    CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SHARED_LINKER_FLAGS=-L${CONDA_PREFIX}/lib\ -lstdc++"
+    echo "Adding conda libstdc++ linker flags for GCC 14 compatibility"
 fi
 
 # Add UDUNITS2 paths if available (from detection/build snippet)
@@ -247,6 +250,12 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_SQLITE3=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
+
+  # Add conda linker flags in fallback too
+  if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS=-L${CONDA_PREFIX}/lib\ -lstdc++"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_SHARED_LINKER_FLAGS=-L${CONDA_PREFIX}/lib\ -lstdc++"
+  fi
 
   # Add UDUNITS2 paths to fallback as well
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
