@@ -34,6 +34,7 @@ env/
 .env/
 .venv/
 .venv-docs/
+.conda-env/
 
 # Ignore everything in 0_config_files (user workspace)
 0_config_files/*

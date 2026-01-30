@@ -84,11 +84,11 @@ detect_2i2c_environment() {
 
 setup_2i2c_conda_env() {
     # Set up a conda environment for 2i2c that:
-    # 1. Uses /tmp for storage (overlay filesystem has space)
+    # 1. Lives in the repo root (.conda-env) for persistence across sessions
     # 2. Installs GDAL and rpy2 via conda (pre-built, no compilation)
     # 3. Sets system compilers to avoid broken conda gcc
 
-    local env_path="${1:-/tmp/symfluence}"
+    local env_path="${1:-.conda-env}"
 
     print_info "Setting up 2i2c-compatible conda environment at: $env_path"
 
@@ -881,15 +881,16 @@ main() {
 
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             # 2i2c environments need special handling:
-            # - Use /tmp for conda env (home often has quota limits)
+            # - Create conda env in repo root for persistence across sessions
             # - Install GDAL/rpy2 via conda (avoid compilation issues)
             # - Use system compilers (conda gcc often broken)
             print_info "Using 2i2c-optimized installation path"
-            setup_2i2c_conda_env "/tmp/symfluence" || {
+            local conda_env_path="${symfluence_dir}/.conda-env"
+            setup_2i2c_conda_env "$conda_env_path" || {
                 print_error "2i2c environment setup failed"
                 print_info "You may need to manually run:"
-                print_info "  conda create -p /tmp/symfluence python=3.11 gdal numpy -c conda-forge -y"
-                print_info "  conda activate /tmp/symfluence"
+                print_info "  conda create -p ${conda_env_path} python=3.11 gdal numpy -c conda-forge -y"
+                print_info "  conda activate ${conda_env_path}"
                 print_info "  pip install -e . --no-deps"
                 exit 1
             }
@@ -1027,7 +1028,7 @@ else:
         # Re-export 2i2c compiler settings before binary install (ensures they persist)
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             print_info "Ensuring 2i2c compiler settings for binary builds..."
-            local conda_env="${CONDA_ENV_PATH:-/tmp/symfluence}"
+            local conda_env="${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
             local conda_gcc="${conda_env}/bin/x86_64-conda-linux-gnu-gcc"
             local conda_gxx="${conda_env}/bin/x86_64-conda-linux-gnu-g++"
             local conda_fc="${conda_env}/bin/x86_64-conda-linux-gnu-gfortran"
@@ -1064,9 +1065,7 @@ else:
         echo ""
         print_success "Installation complete!"
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
-            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-/tmp/symfluence}"
-            print_warning "Note: /tmp environment won't persist across server restarts"
-            print_info "Re-run './scripts/symfluence-bootstrap --install' after JupyterHub restarts"
+            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
         else
             print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
         fi
