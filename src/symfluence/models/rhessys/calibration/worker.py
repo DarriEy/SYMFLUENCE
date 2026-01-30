@@ -478,9 +478,7 @@ class RHESSysWorker(BaseWorker):
             '-st', str(start_date.year), str(start_date.month), str(start_date.day), '1',
             '-ed', str(end_date.year), str(end_date.month), str(end_date.day), '1',
             '-pre', 'rhessys',
-            '-b',   # Basin output
-            '-g',   # Grow mode: full carbon cycling + Penman-Monteith transpiration
-            '-longwaveevap',  # Enable longwave radiation in canopy energy balance
+            '-b',   # Basin output (non-grow mode: static LAI, Lstar computed unconditionally)
         ]
 
         if gw1 is not None and gw2 is not None:

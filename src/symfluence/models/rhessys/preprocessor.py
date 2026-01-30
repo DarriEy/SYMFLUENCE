@@ -93,30 +93,30 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         near saturation (low sat_deficit) reduces spinup time significantly.
 
         Config options (all in meters):
-            RHESSYS_INIT_SAT_DEFICIT: Initial saturation deficit [m]. Default 0.05.
-                Lower = wetter soil, faster spinup. Range: 0.0 - 2.0
-            RHESSYS_INIT_GW_STORAGE: Initial groundwater storage [m]. Default 0.5.
-                Higher = more baseflow at start. Range: 0.1 - 2.0
+            RHESSYS_INIT_SAT_DEFICIT: Initial saturation deficit [m]. Default 2.0.
+                Lower = wetter soil. Range: 0.0 - 3.0
+            RHESSYS_INIT_GW_STORAGE: Initial groundwater storage [m]. Default 0.01.
+                Higher = more baseflow at start. Range: 0.0 - 2.0
             RHESSYS_INIT_RZ_STORAGE: Initial root zone storage [m]. Default 0.1.
             RHESSYS_INIT_UNSAT_STORAGE: Initial unsaturated zone storage [m]. Default 0.05.
         """
         # Get config values with sensible defaults for mountain catchments
-        # Moderate sat_deficit (0.3m) allows saturation excess runoff while
-        # preventing excessive water loss. With the RHESSys temperature fix
-        # (no soil evap at T<0C), we can use wetter initial conditions.
+        # Start with drier conditions (sat_deficit=2.0m) to avoid spurious
+        # saturation excess runoff during spinup. The model will wet up
+        # naturally from precipitation inputs.
         try:
             self.init_sat_deficit = float(getattr(
-                self.config.model.rhessys, 'init_sat_deficit', 0.3
+                self.config.model.rhessys, 'init_sat_deficit', 2.0
             ))
         except (AttributeError, TypeError):
-            self.init_sat_deficit = 0.3
+            self.init_sat_deficit = 2.0
 
         try:
             self.init_gw_storage = float(getattr(
-                self.config.model.rhessys, 'init_gw_storage', 0.3
+                self.config.model.rhessys, 'init_gw_storage', 0.01
             ))
         except (AttributeError, TypeError):
-            self.init_gw_storage = 0.3
+            self.init_gw_storage = 0.01
 
         # Moderate initial storage for typical late-season conditions
         try:
@@ -588,7 +588,7 @@ none\thourly_climate_prefix
             0.00000000    snowpack.water_depth
             -5.00000000    snowpack.T
             30.00000000    snowpack.surface_age
-            -200.00000000    snowpack.energy_deficit
+            -50.00000000    snowpack.energy_deficit
             1.00000000    litter.cover_fraction
             0.00100000    litter.rain_stored
             0.03000000    litter_cs.litr1c
@@ -842,7 +842,7 @@ none\thourly_climate_prefix
             lines.append("            0.00000000    snowpack.water_depth")
             lines.append("            -10.00000000    snowpack.T")
             lines.append("            0.00000000    snowpack.surface_age")
-            lines.append("            -500.00000000    snowpack.energy_deficit")
+            lines.append("            -50.00000000    snowpack.energy_deficit")
             lines.append("            1.00000000    litter.cover_fraction")
             lines.append("            0.00100000    litter.rain_stored")
             lines.append("            0.03000000    litter_cs.litr1c")
@@ -1268,15 +1268,15 @@ none\thourly_climate_prefix
 0.001    sat_to_gw_coeff
 1.0    active_zone_z
 0.2    albedo
--500.0    maximum_snow_energy_deficit
+-100.0    maximum_snow_energy_deficit
 4.0    snow_melt_Tcoef
 1.0    snow_water_capacity
 0.5    wilting_point
 0.15    theta_mean_std_p1
 0.0    theta_mean_std_p2
 0.0    gl_c
-0.00012    gsurf_slope
-0.00001    gsurf_intercept
+0.01    gsurf_slope
+0.001    gsurf_intercept
 """
         soil_def.write_text(soil_content)
 
@@ -1310,8 +1310,8 @@ TREE    epc.veg.type
 3500.0    epc.vpd_close
 0.006    epc.gl_smax
 0.00006    epc.gl_c
-0.00012    gsurf_slope
-0.00001    gsurf_intercept
+0.01    gsurf_slope
+0.001    gsurf_intercept
 static    epc.phenology_flag
 EVERGREEN    epc.phenology.type
 12.0    epc.max_lai
@@ -1351,15 +1351,15 @@ waring    epc.allocation_flag
 0.0    epc.daily_fire_turnover
 0.57    epc.height_to_stem_exp
 11.39    epc.height_to_stem_coef
-0.005    epc.max_daily_mortality
-0.005    epc.min_daily_mortality
+0.00005    epc.max_daily_mortality
+0.00003    epc.min_daily_mortality
 0.0    epc.daily_mortality_threshold
 0    epc.dyn_alloc_prop_day_growth
-0.0005    epc.min_leaf_carbon
+0.22    epc.min_leaf_carbon
 100    epc.max_years_resprout
 0.001    epc.resprout_leaf_carbon
-0.00012    epc.litter_gsurf_slope
-0.00001    epc.litter_gsurf_intercept
+0.01    epc.litter_gsurf_slope
+0.001    epc.litter_gsurf_intercept
 1.0    epc.coef_CO2
 0.8    epc.root_growth_direction
 8.0    epc.root_distrib_parm
