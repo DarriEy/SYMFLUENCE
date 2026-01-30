@@ -54,7 +54,7 @@ def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
             # Update in-place
             time_var[:] = rounded_hours
             time_var.units = 'hours since 1990-01-01 00:00:00'
-            time_var.calendar = 'standard'
+            time_var.calendar = calendar
             time_var.long_name = 'time'
 
             # File is automatically closed and changes are saved
@@ -142,9 +142,12 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
             attrs={}  # Start with empty attributes
         )
 
+        # Preserve original calendar attribute
+        orig_calendar = ds.time.attrs.get('calendar', 'standard')
+
         # Set clean attributes
         new_time.attrs['units'] = 'hours since 1990-01-01 00:00:00'
-        new_time.attrs['calendar'] = 'standard'
+        new_time.attrs['calendar'] = orig_calendar
         new_time.attrs['long_name'] = 'time'
 
         # Replace time coordinate

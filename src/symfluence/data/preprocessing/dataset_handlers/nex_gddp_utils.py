@@ -18,6 +18,7 @@ from ...utils import VariableStandardizer
 
 
 @DatasetRegistry.register("nex-gddp-cmip6")
+@DatasetRegistry.register("nex-gddp")
 class NEXGDDPCMIP6Handler(BaseDatasetHandler):
     """
     Handler for NEX-GDDP-CMIP6 downscaled climate data.

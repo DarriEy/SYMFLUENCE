@@ -564,7 +564,10 @@ class RHESSysConfig(BaseModel):
     world_template: str = Field(default='world.template', alias='RHESSYS_WORLD_TEMPLATE')
     flow_template: str = Field(default='flow.template', alias='RHESSYS_FLOW_TEMPLATE')
     params_to_calibrate: str = Field(
-        default='sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef',
+        default=(
+            'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,porosity_decay,'
+            'soil_depth,snow_melt_Tcoef,max_snow_temp,min_rain_temp'
+        ),
         alias='RHESSYS_PARAMS_TO_CALIBRATE'
     )
     skip_calibration: bool = Field(default=True, alias='RHESSYS_SKIP_CALIBRATION')
@@ -578,6 +581,56 @@ class RHESSysConfig(BaseModel):
     vmfire_install_path: str = Field(default='installs/wmfire/lib', alias='VMFIRE_INSTALL_PATH')
     # Execution settings
     timeout: int = Field(default=7200, alias='RHESSYS_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+
+
+class VICConfig(BaseModel):
+    """VIC (Variable Infiltration Capacity) model configuration.
+
+    VIC is a large-scale, semi-distributed hydrological model that solves
+    full water and energy balances. It uses a grid-based structure and is
+    typically applied to large river basins.
+
+    Reference:
+        Liang, X., D. P. Lettenmaier, E. F. Wood, and S. J. Burges, 1994:
+        A simple hydrologically based model of land surface water and energy
+        fluxes for general circulation models. J. Geophys. Res., 99(D7), 14415-14428.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='VIC_INSTALL_PATH')
+    exe: str = Field(default='vic_image.exe', alias='VIC_EXE')
+    driver: Literal['image', 'classic'] = Field(default='image', alias='VIC_DRIVER')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_VIC_PATH')
+    global_param_file: str = Field(default='vic_global.txt', alias='VIC_GLOBAL_PARAM_FILE')
+    domain_file: str = Field(default='vic_domain.nc', alias='VIC_DOMAIN_FILE')
+    params_file: str = Field(default='vic_params.nc', alias='VIC_PARAMS_FILE')
+
+    # Spatial mode
+    spatial_mode: SpatialModeType = Field(default='auto', alias='VIC_SPATIAL_MODE')
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_VIC')
+    output_prefix: str = Field(default='vic_output', alias='VIC_OUTPUT_PREFIX')
+
+    # Calibration
+    params_to_calibrate: Optional[str] = Field(
+        default=None,
+        alias='VIC_PARAMS_TO_CALIBRATE'
+    )
+
+    # Model options
+    full_energy: bool = Field(default=False, alias='VIC_FULL_ENERGY')
+    frozen_soil: bool = Field(default=False, alias='VIC_FROZEN_SOIL')
+    snow_band: bool = Field(default=False, alias='VIC_SNOW_BAND')
+
+    # Timing
+    model_steps_per_day: int = Field(default=24, alias='VIC_STEPS_PER_DAY', ge=1, le=48)
+
+    # Execution
+    timeout: int = Field(default=7200, alias='VIC_TIMEOUT', ge=60, le=86400)
 
 
 class GNNConfig(BaseModel):
@@ -741,6 +794,7 @@ class ModelConfig(BaseModel):
     rhessys: Optional[RHESSysConfig] = Field(default=None)
     gnn: Optional[GNNConfig] = Field(default=None)
     ignacio: Optional[IGNACIOConfig] = Field(default=None)
+    vic: Optional[VICConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -789,6 +843,8 @@ class ModelConfig(BaseModel):
             values['rhessys'] = RHESSysConfig()
         if 'GNN' in models and values.get('gnn') is None:
             values['gnn'] = GNNConfig()
+        if 'VIC' in models and values.get('vic') is None:
+            values['vic'] = VICConfig()
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')

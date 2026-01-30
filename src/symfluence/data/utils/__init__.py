@@ -22,6 +22,8 @@ try:
         read_raster_window,
         read_raster_multiband_window,
         create_spatial_mask,
+        find_nearest_grid_point,
+        get_bbox_center,
         subset_xarray_to_bbox,
         normalize_longitude,
         validate_bbox,
@@ -34,6 +36,8 @@ except ImportError as e:
     read_raster_window: Any = None  # type: ignore
     read_raster_multiband_window: Any = None  # type: ignore
     create_spatial_mask: Any = None  # type: ignore
+    find_nearest_grid_point: Any = None  # type: ignore
+    get_bbox_center: Any = None  # type: ignore
     subset_xarray_to_bbox: Any = None  # type: ignore
     normalize_longitude: Any = None  # type: ignore
     validate_bbox: Any = None  # type: ignore
@@ -54,6 +58,8 @@ __all__ = [
     'read_raster_window',
     'read_raster_multiband_window',
     'create_spatial_mask',
+    'find_nearest_grid_point',
+    'get_bbox_center',
     'subset_xarray_to_bbox',
     'normalize_longitude',
     'validate_bbox',

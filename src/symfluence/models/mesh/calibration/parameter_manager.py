@@ -33,7 +33,10 @@ class MESHParameterManager(BaseParameterManager):
         # Parse MESH parameters to calibrate from config
         mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
         if mesh_params_str is None:
-            mesh_params_str = 'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR'
+            # Default to parameters that control runoff generation
+            # CLASS params: KSAT (infiltration), DRN (drainage), SDEP (soil depth)
+            # Hydrology params: XSLP (slope), MANN_CLASS (roughness)
+            mesh_params_str = 'KSAT,DRN,SDEP,XSLP,MANN_CLASS'
 
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
@@ -47,14 +50,40 @@ class MESHParameterManager(BaseParameterManager):
         self.routing_params_file = self.mesh_settings_dir / 'MESH_parameters.txt'
 
         # Map parameters to files
-        # NOTE: meshflow creates MESH_parameters_hydrology.ini with ZSNL, ZPLS, ZPLG, MANN in .ini format
-        # The old CLASS file is in a different format, so calibratable params go in hydrology file
+        # NOTE: meshflow creates MESH_parameters_hydrology.ini with ZSNL, ZPLS, ZPLG, WF_R2
+        # CLASS.ini has fixed-format parameters that control runoff generation
         self.param_file_map = {
+            # CLASS.ini parameters (fixed-format, control runoff)
+            'KSAT': 'CLASS',      # Saturated hydraulic conductivity (mm/hr) - Line 13, pos 4
+            'DRN': 'CLASS',       # Drainage parameter - Line 12, pos 1
+            'SDEP': 'CLASS',      # Soil depth (m) - Line 12, pos 2
+            'XSLP': 'CLASS',      # Slope - Line 13, pos 1
+            'XDRAINH': 'CLASS',   # Horizontal drainage - Line 13, pos 2
+            'MANN_CLASS': 'CLASS', # Manning for overland flow - Line 13, pos 3
+            # Meshflow-generated parameters (MESH_parameters_hydrology.ini)
             'ZSNL': 'hydrology', 'ZPLG': 'hydrology', 'ZPLS': 'hydrology',
+            'WF_R2': 'hydrology',  # Channel roughness coefficient
+            'FLZ': 'hydrology',    # Baseflow recession coefficient (critical for winter flow)
+            'PWR': 'hydrology',    # Power coefficient for LZS drainage
+            # Legacy parameters (may not exist in meshflow-generated files)
             'FRZTH': 'CLASS',
             'MANN': 'hydrology',
             'RCHARG': 'hydrology', 'DRAINFRAC': 'hydrology', 'BASEFLW': 'hydrology',
             'DTMINUSR': 'routing',  # In main MESH_parameters.txt
+        }
+
+        # CLASS.ini line mappings (0-indexed line number, 0-indexed position in line)
+        # Format: param_name -> (line_index, value_position, num_values_in_line)
+        # CLASS.ini structure (counting from 0):
+        #   Line 12 (file line 13): DRN/SDEP/FARE/DD (4 values)
+        #   Line 13 (file line 14): XSLP/XDRAINH/MANN/KSAT/MID (5 values, MID is text)
+        self.class_param_positions = {
+            'DRN': (12, 0, 4),       # File line 13 (0-indexed: 12), position 0
+            'SDEP': (12, 1, 4),      # File line 13, position 1
+            'XSLP': (13, 0, 5),      # File line 14 (0-indexed: 13), position 0
+            'XDRAINH': (13, 1, 5),   # File line 14, position 1
+            'MANN_CLASS': (13, 2, 5), # File line 14, position 2
+            'KSAT': (13, 3, 5),      # File line 14, position 3
         }
 
     def _get_parameter_names(self) -> List[str]:
@@ -62,8 +91,21 @@ class MESHParameterManager(BaseParameterManager):
         return self.mesh_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return MESH parameter bounds from central registry."""
-        return get_mesh_bounds()
+        """Return MESH parameter bounds, preferring config-specified bounds."""
+        # Start with registry defaults
+        bounds = get_mesh_bounds()
+
+        # Override with config-specified bounds if available
+        config_bounds = self.config.get('MESH_PARAM_BOUNDS', {})
+        if config_bounds:
+            self.logger.debug(f"Using config-specified MESH bounds for: {list(config_bounds.keys())}")
+            for param_name, param_bounds in config_bounds.items():
+                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    bounds[param_name] = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
+                elif isinstance(param_bounds, dict):
+                    bounds[param_name] = param_bounds
+
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update MESH parameter .ini files."""
@@ -113,9 +155,9 @@ class MESHParameterManager(BaseParameterManager):
 
             success = True
 
-            # Update CLASS parameters
+            # Update CLASS parameters (fixed-format file)
             if class_params:
-                success = success and self._update_ini_file(
+                success = success and self._update_class_file(
                     self.class_params_file, class_params
                 )
 
@@ -137,6 +179,86 @@ class MESHParameterManager(BaseParameterManager):
             self.logger.error(f"Error updating MESH parameters: {e}")
             return False
 
+    # Parameters that have multiple values per line (one per GRU/river class)
+    ARRAY_PARAMS = {'WF_R2'}
+
+    def _update_class_file(self, file_path: Path, params: Dict[str, float]) -> bool:
+        """Update CLASS.ini fixed-format parameter file.
+
+        CLASS.ini has a fixed-format where parameters are at specific line/column positions.
+        Line numbers and positions are defined in self.class_param_positions.
+        """
+        try:
+            self.logger.debug(f"Updating CLASS file: {file_path}")
+            if not file_path.exists():
+                self.logger.error(f"CLASS parameter file not found: {file_path}")
+                return False
+
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+
+            updated = 0
+            for param_name, value in params.items():
+                if param_name not in self.class_param_positions:
+                    self.logger.warning(f"CLASS parameter {param_name} position not defined")
+                    continue
+
+                line_idx, pos_idx, num_values = self.class_param_positions[param_name]
+
+                if line_idx >= len(lines):
+                    self.logger.warning(f"Line {line_idx + 1} not found in CLASS file for {param_name}")
+                    continue
+
+                line = lines[line_idx]
+
+                # Parse the line - values are space-separated, with comment at end
+                # Example: "   0.030   0.350   0.100   0.050   100 Temp_sub-_gras   13 XSLP/..."
+                parts = line.split()
+
+                if pos_idx >= len(parts):
+                    self.logger.warning(f"Position {pos_idx} not found in line for {param_name}")
+                    continue
+
+                # Format the new value (use appropriate precision)
+                if abs(value) < 0.01:
+                    new_val_str = f"{value:.3f}"
+                elif abs(value) < 1:
+                    new_val_str = f"{value:.3f}"
+                elif abs(value) < 100:
+                    new_val_str = f"{value:.2f}"
+                else:
+                    new_val_str = f"{value:.1f}"
+
+                # Replace the value at the specific position
+                old_val = parts[pos_idx]
+                parts[pos_idx] = new_val_str
+
+                # Reconstruct the line with proper spacing
+                # CLASS.ini uses fixed-width columns (typically 8 characters per value)
+                new_line = ""
+                for i, part in enumerate(parts):
+                    if i < num_values:
+                        # Numeric values - right-align in 8-char field
+                        new_line += f"{part:>8}"
+                    else:
+                        # Rest of line (comments, line number, etc.)
+                        new_line += " " + part
+                new_line += "\n"
+
+                lines[line_idx] = new_line
+                self.logger.debug(f"Updated {param_name}: {old_val} -> {new_val_str}")
+                updated += 1
+
+            with open(file_path, 'w') as f:
+                f.writelines(lines)
+
+            self.logger.debug(f"Updated {updated} CLASS parameters in {file_path.name}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating CLASS file {file_path.name}: {e}")
+            return False
+
     def _update_ini_file(self, file_path: Path, params: Dict[str, float]) -> bool:
         """Update a .ini format parameter file."""
         try:
@@ -155,11 +277,29 @@ class MESHParameterManager(BaseParameterManager):
 
             updated = 0
             for param_name, value in params.items():
-                # Match: KEY value (ignore comments starting with !)
-                # Use word boundary \b to avoid matching partial names
-                # and handle KEY=value or KEY value
-                pattern = rf'\b({param_name})\b\s*[\s=]+\s*([\d\.\-\+eE]+)'
-                content, n = re.subn(pattern, lambda m: m.group(1) + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
+                if param_name in self.ARRAY_PARAMS:
+                    # Handle array parameters (e.g., WF_R2 has one value per river class)
+                    # Format: WF_R2  0.30    0.30    0.30  # comment
+                    # Replace all numeric values on the line with the calibrated value
+                    pattern = rf'^({param_name}\s+)([\d\.\s\-\+eE]+)(#.*)?$'
+
+                    def replace_array_values(m):
+                        prefix = m.group(1)
+                        values_str = m.group(2)
+                        comment = m.group(3) or ''
+                        # Count how many values there were
+                        num_values = len(re.findall(r'[\d\.\-\+eE]+', values_str))
+                        # Create new values string with same count
+                        new_values = '    '.join([f"{value:.2f}"] * num_values)
+                        return prefix + new_values + '  ' + comment
+
+                    content, n = re.subn(pattern, replace_array_values, content, count=1, flags=re.MULTILINE)
+                else:
+                    # Match: KEY value (ignore comments starting with !)
+                    # Use word boundary \b to avoid matching partial names
+                    # and handle KEY=value or KEY value
+                    pattern = rf'\b({param_name})\b\s*[\s=]+\s*([\d\.\-\+eE]+)'
+                    content, n = re.subn(pattern, lambda m: m.group(1) + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
 
                 if n > 0:
                     updated += 1

@@ -514,23 +514,25 @@ ERROR_MESSAGES = {
     "api_key_missing": """
 Error: No API key configured and no local LLM found.
 
-🚀 Option 1: Use Ollama (FREE, no signup required):
+💰 Option 1: Use free Groq (RECOMMENDED - requires signup):
+  1. Get a free API key: https://console.groq.com
+  2. Set the environment variable:
+     export GROQ_API_KEY="your-groq-api-key"
+  3. Then run:
+     symfluence agent start
+
+This is the recommended option - fast, free tier available, and easy to use!
+
+---
+
+🚀 Option 2: Use Ollama (FREE, no signup required):
   1. Download Ollama: https://ollama.ai
   2. Install and run: ollama serve
   3. In another terminal, pull a model: ollama pull llama2
   4. Then run:
      symfluence agent start
 
-This is the easiest option - completely free and runs locally!
-
----
-
-💰 Option 2: Use free Groq (requires signup):
-  1. Get a free API key: https://console.groq.com
-  2. Set the environment variable:
-     export GROQ_API_KEY="your-groq-api-key"
-  3. Then run:
-     symfluence agent start
+Completely free and runs locally!
 
 ---
 

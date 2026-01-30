@@ -108,6 +108,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         self.gruId = gruId
         self.hruId = hruId
         self.catchment_name = catchment_name
+        self._source_calendar = 'standard'
 
     @property
     def model_name(self) -> str:
@@ -356,6 +357,10 @@ class SummaForcingProcessor(BaseForcingProcessor):
         del lapse_values
         gc.collect()
 
+        # Insert leap day forcing files for noleap calendar sources
+        if self._source_calendar in ('noleap', '365_day'):
+            self._insert_noleap_leap_days()
+
         self.logger.info(f"Completed processing of {total_files} {self.forcing_dataset.upper()} forcing files with temperature lapsing")
 
     def _process_single_file(self, file: str, lapse_values: pd.DataFrame, lapse_rate: float):
@@ -489,6 +494,222 @@ class SummaForcingProcessor(BaseForcingProcessor):
             dat.close()
             del dat
 
+    def _insert_noleap_leap_days(self):
+        """
+        Insert interpolated Feb 29 forcing files for each leap year in the
+        simulation period.  Called after the main batch processing loop when
+        the source calendar is ``noleap`` or ``365_day``.
+
+        For every leap year found in the processed forcing date range the
+        method:
+        1. Locates the processed files that contain the last hour of Feb 28
+           and the first hour of Mar 1.
+        2. Extracts those two boundary time-steps.
+        3. Linearly interpolates 24 hourly time-steps for Feb 29
+           (00:00 – 23:00).
+        4. Writes a new NetCDF file with the same encoding / compression as
+           the existing files.
+
+        The resulting files are named
+        ``{domain}_{dataset}_leapday_{year}-02-29-00-00-00.nc`` and are
+        automatically picked up by ``create_forcing_file_list`` because they
+        share the expected prefix.
+        """
+        import calendar
+        import re
+
+        self.logger.info("Scanning processed forcing files for leap-day insertion (source calendar: %s)",
+                         self._source_calendar)
+
+        # ------------------------------------------------------------------
+        # 1. Discover the date range from existing processed files
+        # ------------------------------------------------------------------
+        prefix = f"{self.domain_name}_{self.forcing_dataset}".lower()
+        processed_files = sorted(
+            f for f in os.listdir(self.forcing_summa_path)
+            if f.lower().startswith(prefix) and f.endswith('.nc')
+        )
+
+        if not processed_files:
+            self.logger.warning("No processed forcing files found – skipping leap-day insertion")
+            return
+
+        def _extract_date(fname):
+            match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", fname)
+            if match:
+                try:
+                    return datetime.strptime(match.group(1), "%Y-%m-%d-%H-%M-%S")
+                except ValueError:
+                    pass
+            return None
+
+        dates = [_extract_date(f) for f in processed_files]
+        dates = [d for d in dates if d is not None]
+
+        if not dates:
+            self.logger.warning("Could not extract dates from processed filenames – skipping leap-day insertion")
+            return
+
+        min_year = min(d.year for d in dates)
+        max_year = max(d.year for d in dates)
+
+        leap_years = [y for y in range(min_year, max_year + 1) if calendar.isleap(y)]
+        if not leap_years:
+            self.logger.info("No leap years in range %d–%d – nothing to insert", min_year, max_year)
+            return
+
+        # Reference date used for the seconds-since encoding
+        reference_date = pd.Timestamp('1990-01-01 00:00:00')
+        inserted = 0
+
+        for year in leap_years:
+            # Target times: Feb 28 23:00 and Mar 1 00:00
+            feb28_23 = pd.Timestamp(f'{year}-02-28 23:00:00')
+            mar01_00 = pd.Timestamp(f'{year}-03-01 00:00:00')
+
+            feb28_23_sec = (feb28_23 - reference_date).total_seconds()
+            mar01_00_sec = (mar01_00 - reference_date).total_seconds()
+
+            # ------------------------------------------------------------------
+            # 2. Find the file(s) containing these boundary time-steps
+            # ------------------------------------------------------------------
+            boundary_ds = {}  # key: 'feb28' or 'mar01', value: xr.Dataset single-time slice
+
+            for fname in processed_files:
+                fpath = self.forcing_summa_path / fname
+                try:
+                    with xr.open_dataset(fpath, decode_times=False) as ds:
+                        time_vals = ds['time'].values
+                        # Check for feb28_23
+                        if 'feb28' not in boundary_ds:
+                            mask = np.abs(time_vals - feb28_23_sec) < 1.0
+                            if np.any(mask):
+                                idx = int(np.argmax(mask))
+                                boundary_ds['feb28'] = ds.isel(time=idx).load()
+                        # Check for mar01_00
+                        if 'mar01' not in boundary_ds:
+                            mask = np.abs(time_vals - mar01_00_sec) < 1.0
+                            if np.any(mask):
+                                idx = int(np.argmax(mask))
+                                boundary_ds['mar01'] = ds.isel(time=idx).load()
+                except Exception as exc:
+                    self.logger.debug("Could not read %s while scanning for leap-day boundaries: %s", fname, exc)
+                    continue
+
+                if len(boundary_ds) == 2:
+                    break  # Found both boundaries
+
+            if len(boundary_ds) < 2:
+                self.logger.warning(
+                    "Could not find Feb 28 23:00 and/or Mar 1 00:00 boundary data for %d – "
+                    "skipping leap-day insertion for this year (found: %s)",
+                    year, list(boundary_ds.keys())
+                )
+                continue
+
+            # ------------------------------------------------------------------
+            # 3. Interpolate 24 hourly time-steps for Feb 29 00:00–23:00
+            # ------------------------------------------------------------------
+            feb29_hours = pd.date_range(f'{year}-02-29 00:00', periods=24, freq='h')
+            feb29_secs = np.array(
+                [(t - reference_date).total_seconds() for t in feb29_hours],
+                dtype=np.float64,
+            )
+
+            ds_feb28 = boundary_ds['feb28']
+            ds_mar01 = boundary_ds['mar01']
+
+            # Total gap = 25 hours (Feb 28 23:00 → Mar 1 00:00 next day = 25h)
+            # Weights for linear interpolation: Feb 29 00:00 is 1h after feb28_23,
+            # Feb 29 23:00 is 24h after feb28_23.  Mar 1 00:00 is 25h after feb28_23.
+            # weight_mar = hours_since_feb28_23 / 25
+            weights = np.arange(1, 25, dtype=np.float64) / 25.0  # [1/25 .. 24/25]
+
+            # Build a new dataset
+            # Start from the structure of the feb28 slice (has all vars, coords, attrs)
+            data_vars = {}
+            forcing_vars = [v for v in ds_feb28.data_vars if v != 'data_step']
+
+            for var in forcing_vars:
+                v28 = ds_feb28[var].values  # shape: (hru,) or scalar
+                v01 = ds_mar01[var].values
+
+                if np.ndim(v28) == 0:
+                    # Scalar variable (e.g. hruId) – replicate
+                    data_vars[var] = ('hru', np.full(1 if np.ndim(v28) == 0 else len(v28), v28))
+                    continue
+
+                # v28 and v01 are 1-D (hru,)
+                nhru = len(v28)
+                interp = np.zeros((24, nhru), dtype=np.float64)
+                for h_idx, w in enumerate(weights):
+                    interp[h_idx, :] = (1.0 - w) * v28 + w * v01
+
+                data_vars[var] = (('time', 'hru'), interp)
+
+            # Handle hruId – keep from source
+            if 'hruId' in ds_feb28:
+                data_vars['hruId'] = ('hru', ds_feb28['hruId'].values.copy())
+
+            # data_step scalar
+            data_vars['data_step'] = self.data_step
+
+            coords = {
+                'time': ('time', feb29_secs),
+                'hru': ('hru', ds_feb28['hru'].values if 'hru' in ds_feb28.coords else np.arange(len(ds_feb28.hru))),
+            }
+
+            leap_ds = xr.Dataset(data_vars, coords=coords)
+
+            # Copy variable attributes from source
+            for var in leap_ds.data_vars:
+                if var in ds_feb28:
+                    leap_ds[var].attrs = dict(ds_feb28[var].attrs)
+
+            # Set time attributes
+            leap_ds['time'].attrs = {
+                'units': 'seconds since 1990-01-01 00:00:00',
+                'calendar': 'standard',
+                'long_name': 'time',
+                'axis': 'T',
+            }
+
+            leap_ds['data_step'] = self.data_step
+            leap_ds['data_step'].attrs = {
+                'long_name': 'data step length in seconds',
+                'units': 's',
+            }
+
+            # Ensure hruId is int32
+            if 'hruId' in leap_ds:
+                leap_ds['hruId'] = leap_ds['hruId'].astype('int32')
+
+            # ------------------------------------------------------------------
+            # 4. Write the leap-day file
+            # ------------------------------------------------------------------
+            out_name = f"{self.domain_name}_{self.forcing_dataset}_leapday_{year}-02-29-00-00-00.nc"
+            out_path = self.forcing_summa_path / out_name
+
+            encoding: dict[str, dict] = {
+                str(v): {'zlib': True, 'complevel': 1, 'shuffle': True}
+                for v in leap_ds.data_vars
+            }
+            if 'hruId' in leap_ds:
+                encoding['hruId'] = {'dtype': 'int32', '_FillValue': None}
+            encoding['time'] = {
+                'dtype': 'float64',
+                'zlib': True,
+                'complevel': 1,
+                '_FillValue': None,
+            }
+
+            leap_ds.to_netcdf(out_path, encoding=encoding)
+            leap_ds.close()
+            inserted += 1
+            self.logger.info("Inserted leap-day forcing file: %s", out_name)
+
+        self.logger.info("Leap-day insertion complete: inserted %d leap-day file(s)", inserted)
+
     def _fix_time_coordinate_comprehensive(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
         """
         Fix time coordinate to ensure SUMMA compatibility using only the data's time coordinate.
@@ -510,6 +731,23 @@ class SummaForcingProcessor(BaseForcingProcessor):
             time_coord = dataset['time']
 
             self.logger.debug(f"File {filename}: Original time dtype: {time_coord.dtype}")
+
+            # Detect source calendar before any conversion
+            source_calendar = 'standard'
+            if 'calendar' in time_coord.attrs:
+                source_calendar = time_coord.attrs['calendar']
+            elif hasattr(time_coord.values[0], 'calendar'):
+                # cftime objects carry their calendar (e.g., DatetimeNoLeap)
+                cal = getattr(time_coord.values[0], 'calendar', None)
+                if cal:
+                    source_calendar = cal
+            # NEX-GDDP CMIP6 models use noleap calendars
+            if 'NEX-GDDP' in self.forcing_dataset.upper() and source_calendar == 'standard':
+                source_calendar = 'noleap'
+                self.logger.info(f"File {filename}: NEX-GDDP dataset detected, using noleap calendar")
+
+            self._source_calendar = source_calendar
+            self.logger.debug(f"File {filename}: Detected source calendar: {source_calendar}")
 
             # Convert any time format to pandas datetime first
             if time_coord.dtype.kind == 'M':  # datetime64
@@ -567,7 +805,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             # Set proper attributes for SUMMA
             dataset.time.attrs = {
                 'units': 'seconds since 1990-01-01 00:00:00',
-                'calendar': 'standard',
+                'calendar': source_calendar,
                 'long_name': 'time',
                 'axis': 'T'
             }
@@ -1025,6 +1263,19 @@ class SummaForcingProcessor(BaseForcingProcessor):
             'SWRadAtm': (0.0, 1500.0)       # Shortwave radiation W/m²
         }
 
+        # Tolerances for clipping trivially out-of-range values (e.g., interpolation artifacts)
+        # Values within this absolute tolerance of the boundary are clipped with a warning
+        # Values beyond this tolerance trigger an error
+        clip_tolerances = {
+            'airtemp': 1.0,        # 1 K
+            'airpres': 500.0,      # 500 Pa
+            'spechum': 0.001,      # 0.001 kg/kg
+            'windspd': 0.5,        # 0.5 m/s
+            'pptrate': 0.001,      # 0.001 mm/s
+            'LWRadAtm': 10.0,      # 10 W/m²
+            'SWRadAtm': 10.0,      # 10 W/m²
+        }
+
         out_of_range_errors = []
 
         for var, (min_val, max_val) in valid_ranges.items():
@@ -1032,8 +1283,22 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 continue
 
             var_data = dataset[var]
+            tolerance = clip_tolerances.get(var, 0.0)
 
-            # Check for out-of-range values
+            # Clip values that are trivially out of range (within tolerance)
+            below_min_trivial = (var_data < min_val) & (var_data >= min_val - tolerance)
+            above_max_trivial = (var_data > max_val) & (var_data <= max_val + tolerance)
+            trivial_count = int(below_min_trivial.sum()) + int(above_max_trivial.sum())
+
+            if trivial_count > 0:
+                self.logger.warning(
+                    f"File {filename}: Clipping {trivial_count} trivially out-of-range "
+                    f"{var} values to [{min_val}, {max_val}] (within tolerance {tolerance})"
+                )
+                dataset[var] = var_data.clip(min=min_val, max=max_val)
+                var_data = dataset[var]
+
+            # Check for remaining out-of-range values (beyond tolerance)
             below_min_count = int((var_data < min_val).sum())
             above_max_count = int((var_data > max_val).sum())
 
@@ -1281,6 +1546,13 @@ class SummaForcingProcessor(BaseForcingProcessor):
             if match:
                 try:
                     return datetime.strptime(match.group(1), "%Y%m%d")
+                except ValueError:
+                    pass
+            # Pattern 4: _YYYYMM_ embedded in filename (e.g. _210001_processed.nc)
+            match = re.search(r"_(\d{6})_", filename)
+            if match:
+                try:
+                    return datetime.strptime(match.group(1), "%Y%m")
                 except ValueError:
                     pass
             # Fallback to a very old date for non-matching files

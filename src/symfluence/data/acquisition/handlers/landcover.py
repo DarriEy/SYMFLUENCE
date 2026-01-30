@@ -40,7 +40,7 @@ References:
 from pathlib import Path
 import requests
 import rasterio
-from rasterio.windows import from_bounds
+from rasterio.windows import from_bounds, Window
 import numpy as np
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -156,7 +156,14 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
             url = f"/vsicurl/{src_p}" if str(src_p).startswith("http") else src_p
             with rasterio.open(url) as src:
                 win = from_bounds(self.bbox['lon_min'], self.bbox['lat_min'], self.bbox['lon_max'], self.bbox['lat_max'], src.transform)
-                out_d = src.read(1, window=win)
+                # Ensure window covers at least 1 pixel (handles point domains)
+                col_off, row_off, win_width, win_height = (
+                    int(win.col_off), int(win.row_off),
+                    max(1, int(np.ceil(win.width))),
+                    max(1, int(np.ceil(win.height)))
+                )
+                win = Window(col_off, row_off, win_width, win_height)
+                out_d = src.read(1, window=win, boundless=True, fill_value=255)
                 meta = src.meta.copy()
                 meta.update({"height": out_d.shape[0], "width": out_d.shape[1], "transform": src.window_transform(win)})
             with rasterio.open(out_path, "w", **meta) as dst: dst.write(out_d, 1)
@@ -225,7 +232,14 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
                             self.bbox["lat_max"],
                             src.transform,
                         )
-                        data = src.read(1, window=win)
+                        # Ensure window covers at least 1 pixel (handles point domains)
+                        col_off, row_off, win_width, win_height = (
+                            int(win.col_off), int(win.row_off),
+                            max(1, int(np.ceil(win.width))),
+                            max(1, int(np.ceil(win.height)))
+                        )
+                        win = Window(col_off, row_off, win_width, win_height)
+                        data = src.read(1, window=win, boundless=True, fill_value=255)
                         if out_meta is None:
                             out_transform = src.window_transform(win)
                             out_meta = src.meta.copy()

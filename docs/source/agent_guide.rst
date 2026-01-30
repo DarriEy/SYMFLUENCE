@@ -25,13 +25,13 @@ API Key Setup
 The agent requires an API key for an OpenAI-compatible LLM provider. Configure
 one of the following environment variables:
 
-**OpenAI (Recommended for best performance)**::
-
-    export OPENAI_API_KEY="sk-your-key-here"
-
-**Groq (Free tier available)**::
+**Groq (Recommended - Free tier available)**::
 
     export GROQ_API_KEY="gsk_your-key-here"
+
+**OpenAI (Alternative option)**::
+
+    export OPENAI_API_KEY="sk-your-key-here"
 
 **Ollama (Local, free)**::
 
@@ -128,22 +128,22 @@ The agent can be configured via environment variables:
 
 =======================  =====================================  ===================
 Variable                 Description                            Default
-=======================  =====================================  ===================
-``OPENAI_API_KEY``       OpenAI API key                         (required)
+=======================  =====================================  =======================
+``GROQ_API_KEY``         Groq API key (highest priority)        (recommended)
+``OPENAI_API_KEY``       OpenAI API key (fallback)              -
 ``OPENAI_API_BASE``      Custom API base URL                    api.openai.com/v1
-``OPENAI_MODEL``         Model to use                           gpt-4-turbo-preview
+``OPENAI_MODEL``         Model to use                           llama-3.3-70b-versatile
 ``OPENAI_TIMEOUT``       Request timeout (seconds)              60
 ``OPENAI_MAX_RETRIES``   Maximum retry attempts                 2
-``GROQ_API_KEY``         Groq API key (fallback if no OpenAI)   -
-=======================  =====================================  ===================
+=======================  =====================================  =======================
 
 Provider Priority
 ^^^^^^^^^^^^^^^^^
 
 When initializing, the agent checks for API keys in this order:
 
-1. **OPENAI_API_KEY** - OpenAI or custom endpoint
-2. **GROQ_API_KEY** - Groq free service
+1. **GROQ_API_KEY** - Groq free service (highest priority)
+2. **OPENAI_API_KEY** - OpenAI or custom endpoint
 3. **Ollama** - Local LLM if running
 4. **Error** - Shows setup instructions
 

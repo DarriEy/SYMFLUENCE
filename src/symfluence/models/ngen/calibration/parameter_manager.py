@@ -71,21 +71,21 @@ class NgenParameterManager(BaseParameterManager):
         self.hydro_id = self._resolve_hydro_id()
 
         # Default TBL mappings for NOAH (used if JSON or namelist overrides aren't available)
-        # Format: de_param -> (tbl_file, variable_name, column_index_1_based or None for single value)
-        # Note: For SOILPARM.TBL, column indices are: BB=2, MAXSMC=5, SATDK=8 (depending on version)
-        # In our case, based on cat SOILPARM.TBL:
-        # 1-indexed: BB=2, DRYSMC=3, F11=4, MAXSMC=5, REFSMC=6, SATPSI=7, SATDK=8
+        # Format: de_param -> (tbl_file, variable_name, column_index or None for single value)
+        # Column indices are 0-indexed into parts[] after line.split(), where parts[0] is
+        # the row index. SOILPARM.TBL columns: BB=1, DRYSMC=2, F11=3, MAXSMC=4,
+        # REFSMC=5, SATPSI=6, SATDK=7, SATDW=8, WLTSMC=9, QTZ=10
         self.noah_tbl_map = {
             "refkdt": ("GENPARM.TBL", "REFKDT_DATA", None),
             "slope":  ("GENPARM.TBL", "SLOPE_DATA", 1), # Default to first slope category
-            "smcmax": ("SOILPARM.TBL", "MAXSMC", 5),
-            "dksat":  ("SOILPARM.TBL", "SATDK", 8),
-            "bb":     ("SOILPARM.TBL", "BB", 2),
+            "smcmax": ("SOILPARM.TBL", "MAXSMC", 4),
+            "dksat":  ("SOILPARM.TBL", "SATDK", 7),
+            "bb":     ("SOILPARM.TBL", "BB", 1),
         }
 
-        self.logger.info("NgenParameterManager initialized")
-        self.logger.info(f"Calibrating modules: {self.modules_to_calibrate}")
-        self.logger.info(f"Total parameters to calibrate: {len(self.all_param_names)}")
+        self.logger.debug("NgenParameterManager initialized")
+        self.logger.debug(f"Calibrating modules: {self.modules_to_calibrate}")
+        self.logger.debug(f"Total parameters to calibrate: {len(self.all_param_names)}")
 
     def _resolve_hydro_id(self) -> Optional[str]:
         """Resolve the active catchment ID (hydro_id) from available configuration files."""
@@ -130,14 +130,45 @@ class NgenParameterManager(BaseParameterManager):
         return all_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return ngen parameter bounds from central registry in module.param format."""
+        """Return ngen parameter bounds, preferring config YAML over registry defaults.
+
+        Checks NGEN_CFE_PARAM_BOUNDS, NGEN_NOAH_PARAM_BOUNDS, and NGEN_PET_PARAM_BOUNDS
+        from the config YAML first. Falls back to central registry bounds if not specified.
+        """
         base_bounds = get_ngen_bounds()
         bounds = {}
+
+        # Load config-specified bounds per module
+        config_bounds_keys = {
+            'CFE': 'NGEN_CFE_PARAM_BOUNDS',
+            'NOAH': 'NGEN_NOAH_PARAM_BOUNDS',
+            'PET': 'NGEN_PET_PARAM_BOUNDS',
+        }
+        config_bounds = {}
+        for module, config_key in config_bounds_keys.items():
+            module_bounds = self._get_config_value(
+                lambda ck=config_key: None,  # type: ignore[misc]  # No typed config path for bounds yet
+                default=None,
+                dict_key=config_key
+            )
+            if isinstance(module_bounds, dict):
+                for param_name, bound_values in module_bounds.items():
+                    if isinstance(bound_values, (list, tuple)) and len(bound_values) == 2:
+                        config_bounds[f"{module}.{param_name}"] = {
+                            'min': float(bound_values[0]),
+                            'max': float(bound_values[1])
+                        }
 
         for module, params in self.params_to_calibrate.items():
             for param in params:
                 full_param_name = f"{module}.{param}"
-                if param in base_bounds:
+                if full_param_name in config_bounds:
+                    bounds[full_param_name] = config_bounds[full_param_name]
+                    self.logger.debug(
+                        f"Using config bounds for {full_param_name}: "
+                        f"[{config_bounds[full_param_name]['min']}, {config_bounds[full_param_name]['max']}]"
+                    )
+                elif param in base_bounds:
                     bounds[full_param_name] = base_bounds[param]
                 else:
                     self.logger.warning(

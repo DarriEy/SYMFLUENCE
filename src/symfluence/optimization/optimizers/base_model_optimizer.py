@@ -159,6 +159,7 @@ References:
 
 import logging
 import random
+import tempfile
 import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
@@ -333,11 +334,14 @@ class BaseModelOptimizer(
         self.reporting_manager = reporting_manager
 
         # Setup paths using typed config accessors
+        # Note: dict_key enables fallback for legacy dict-based configs
         self.data_dir = Path(self._get_config_value(
-            lambda: self.config.system.data_dir, default='.'
+            lambda: self.config.system.data_dir, default='.',
+            dict_key='SYMFLUENCE_DATA_DIR'
         ))
         self.domain_name = self._get_config_value(
-            lambda: self.config.domain.name, default='default'
+            lambda: self.config.domain.name, default='default',
+            dict_key='DOMAIN_NAME'
         )
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         # Note: experiment_id is provided by ConfigMixin property
@@ -351,12 +355,14 @@ class BaseModelOptimizer(
                 self.project_dir / 'settings' / model_name
             )
 
-        # Results directory
+        # Results directory - now includes model name to avoid overwrites between models
         algorithm = self._get_config_value(
-            lambda: self.config.optimization.algorithm, default='optimization'
+            lambda: self.config.optimization.algorithm, default='optimization',
+            dict_key='OPTIMIZATION_ALGORITHM'
         ).lower()
+        model_name = self._get_model_name()
         self.results_dir = (
-            self.project_dir / 'optimization' /
+            self.project_dir / 'optimization' / model_name /
             f"{algorithm}_{self.experiment_id}"
         )
         self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -369,19 +375,24 @@ class BaseModelOptimizer(
         self.calibration_target = self._create_calibration_target()
         self.worker = self._create_worker()
 
-        # Algorithm parameters (using typed config)
+        # Algorithm parameters (using typed config with dict_key fallback)
         self.max_iterations = self._get_config_value(
-            lambda: self.config.optimization.iterations, default=self.DEFAULT_ITERATIONS
+            lambda: self.config.optimization.iterations, default=self.DEFAULT_ITERATIONS,
+            dict_key='OPTIMIZATION_MAX_ITERATIONS'
         )
         self.population_size = self._get_config_value(
-            lambda: self.config.optimization.population_size, default=self.DEFAULT_POPULATION_SIZE
+            lambda: self.config.optimization.population_size, default=self.DEFAULT_POPULATION_SIZE,
+            dict_key='OPTIMIZATION_POPULATION_SIZE'
         )
         self.target_metric = self._get_config_value(
-            lambda: self.config.optimization.metric, default='KGE'
+            lambda: self.config.optimization.metric, default='KGE',
+            dict_key='OPTIMIZATION_METRIC'
         )
 
         # Random seed
-        self.random_seed = self._get_config_value(lambda: self.config.system.random_seed)
+        self.random_seed = self._get_config_value(
+            lambda: self.config.system.random_seed, dict_key='RANDOM_SEED'
+        )
         if self.random_seed is not None and self.random_seed != 'None':
             self._set_random_seeds(int(self.random_seed))
 
@@ -389,7 +400,10 @@ class BaseModelOptimizer(
         self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
         # Setup directories if NUM_PROCESSES is set, regardless of count (for isolation)
-        num_processes = self._get_config_value(lambda: self.config.system.num_processes, default=1)
+        num_processes = self._get_config_value(
+            lambda: self.config.system.num_processes, default=1,
+            dict_key='NUM_PROCESSES'
+        )
         if num_processes >= 1:
             self._setup_parallel_dirs()
 
@@ -820,6 +834,20 @@ class BaseModelOptimizer(
 
         # Use algorithm-specific directory
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+
+        # If the primary simulations directory is not writable (common on macOS
+        # sandboxed mounts or read-only network drives), fall back to a local
+        # scratch directory so calibration can proceed.
+        try:
+            base_dir.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            fallback = Path(tempfile.gettempdir()) / "symfluence" / self.domain_name / f'run_{algorithm}'
+            fallback.mkdir(parents=True, exist_ok=True)
+            self.logger.warning(
+                f"Simulations directory not writable: {base_dir}. "
+                f"Falling back to scratch: {fallback}"
+            )
+            base_dir = fallback
 
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,

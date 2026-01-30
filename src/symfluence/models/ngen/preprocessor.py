@@ -689,17 +689,17 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
 
-        # Variable mapping from ERA5/internal names to AORC/GRIB standard names
-        # Use AORC standard naming (DLWRF_surface, DSWRF_surface) that NGEN recognizes
+        # Variable mapping from ERA5/internal names to BMI standard names for NGEN
+        # Use BMI standard naming that NGEN modules expect
         var_mapping = {
-            'pptrate': 'precip_rate',
-            'airtemp': 'TMP_2maboveground',
-            'spechum': 'SPFH_2maboveground',
-            'airpres': 'PRES_surface',
-            'SWRadAtm': 'DSWRF_surface',
-            'LWRadAtm': 'DLWRF_surface',
-            'windspeed_u': 'UGRD_10maboveground',
-            'windspeed_v': 'VGRD_10maboveground',
+            'pptrate': 'atmosphere_water__liquid_equivalent_precipitation_rate',
+            'airtemp': 'land_surface_air__temperature',
+            'spechum': 'atmosphere_air_water~vapor__relative_saturation',
+            'airpres': 'land_surface_air__pressure',
+            'SWRadAtm': 'land_surface_radiation~incoming~shortwave__energy_flux',
+            'LWRadAtm': 'land_surface_radiation~incoming~longwave__energy_flux',
+            'windspeed_u': 'land_surface_wind__x_component_of_velocity',
+            'windspeed_v': 'land_surface_wind__y_component_of_velocity',
         }
 
         for idx, cat_id in enumerate(catchment_ids):
@@ -710,14 +710,23 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
                     cols[n_v] = arr[:, idx] if arr.ndim > 1 else arr
 
             df = pd.DataFrame(cols)
-            df['APCP_surface'] = df['precip_rate'] if 'precip_rate' in df else 0
+
+            # Convert precipitation from mm/s (internal) to mm/h (CFE expects mm h-1)
+            # CFE's BMI expects atmosphere_water__liquid_equivalent_precipitation_rate in mm/h
+            precip_col = 'atmosphere_water__liquid_equivalent_precipitation_rate'
+            if precip_col in df:
+                df[precip_col] = df[precip_col] * 3600.0  # mm/s → mm/h
+
+            # Also add AORC-style names for compatibility (in same units: mm/h)
+            df['APCP_surface'] = df[precip_col] if precip_col in df else 0
+            df['precip_rate'] = df[precip_col] if precip_col in df else 0
 
             # Wind components are required for NGEN PET and NOAH modules
             # After decomposition, these should exist, but check just in case
             missing_wind_vars = []
-            if 'UGRD_10maboveground' not in df.columns:
+            if 'land_surface_wind__x_component_of_velocity' not in df.columns:
                 missing_wind_vars.append('windspeed_u (U-component of wind)')
-            if 'VGRD_10maboveground' not in df.columns:
+            if 'land_surface_wind__y_component_of_velocity' not in df.columns:
                 missing_wind_vars.append('windspeed_v (V-component of wind)')
 
             if missing_wind_vars:

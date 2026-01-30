@@ -129,16 +129,14 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
     ),
 
     'MESH': ModelSpatialCapability(
-        supported_modes={SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
         default_mode=SpatialMode.DISTRIBUTED,
         requires_routing={
             SpatialMode.DISTRIBUTED: False,  # MESH has internal routing (WATFLOOD/PDMROF)
-            SpatialMode.SEMI_DISTRIBUTED: False
+            SpatialMode.SEMI_DISTRIBUTED: False,
+            SpatialMode.LUMPED: False  # Uses noroute mode with CLASS output
         },
-        warning_message=(
-            "MESH is optimized for semi-distributed or distributed domains. "
-            "Consider SUMMA or FUSE for lumped modeling."
-        )
+        warning_message=None  # Lumped mode now fully supported
     ),
 
     'NGEN': ModelSpatialCapability(
@@ -153,14 +151,32 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
     ),
 
     'RHESSYS': ModelSpatialCapability(
-        supported_modes={SpatialMode.DISTRIBUTED},
+        # RHESSys is inherently hierarchical/distributed but can operate with a
+        # single aggregate hillslope/patch for lumped experiments.
+        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
         default_mode=SpatialMode.DISTRIBUTED,
         requires_routing={
-            SpatialMode.DISTRIBUTED: False  # Internal hillslope routing
+            SpatialMode.DISTRIBUTED: False,  # Internal hillslope routing
+            SpatialMode.LUMPED: False
         },
         warning_message=(
-            "RHESSys requires distributed domain with landscape hierarchy. "
-            "Use SUMMA or FUSE for lumped/semi-distributed modeling."
+            "RHESSys performs best with distributed landscape hierarchy. "
+            "Lumped mode is supported when world/flow files are pre-aggregated."
+        )
+    ),
+
+    'VIC': ModelSpatialCapability(
+        # VIC is designed for grid-based distributed modeling but can operate
+        # with a single-cell domain for lumped experiments.
+        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+        default_mode=SpatialMode.DISTRIBUTED,
+        requires_routing={
+            SpatialMode.DISTRIBUTED: True,  # VIC outputs cell runoff, needs external routing
+            SpatialMode.LUMPED: False
+        },
+        warning_message=(
+            "VIC is designed for distributed grid-based modeling. "
+            "For lumped mode, a single-cell domain will be created."
         )
     ),
 }

@@ -106,6 +106,19 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to fix run options variable names: {e}")
 
+    def _get_num_cells(self) -> int:
+        """Get number of cells from drainage database."""
+        if not self.ddb_path.exists():
+            return 1
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                for dim in ['subbasin', 'N']:
+                    if dim in ds.sizes:
+                        return int(ds.sizes[dim])
+        except Exception:
+            pass
+        return 1
+
     def fix_run_options_snow_params(self) -> None:
         """Fix run options snow/ice parameters for stable multi-year simulations."""
         if not self.run_options_path.exists():
@@ -115,24 +128,40 @@ class MESHParameterFixer(ConfigMixin):
             with open(self.run_options_path, 'r') as f:
                 content = f.read()
 
-            # Get RUNMODE from config (default to 'wf_route' for routing)
-            runmode = self._get_config_value('MESH_RUNMODE', 'wf_route')
+            # Get RUNMODE from config (default to 'runrte' for routing)
+            runmode = self._get_config_value('MESH_RUNMODE', 'runrte')
+
+            # For single-cell (lumped) domains, use noroute mode.
+            # run_def/runrte require IREACH and reservoir configuration that
+            # lumped domains typically don't have. The extractor compensates
+            # by summing RFF + DRAINSOL to capture total runoff including
+            # soil drainage that would become baseflow in routing mode.
+            num_cells = self._get_num_cells()
+            if num_cells == 1 and runmode != 'noroute':
+                self.logger.info(
+                    "Single-cell domain detected (lumped mode). "
+                    "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
+                )
+                runmode = 'noroute'
 
             # Determine output flags based on routing mode
             if runmode == 'noroute':
+                # In noroute mode, no routing at all (no baseflow either)
                 streamflow_flag = 'none'
-                outfiles_flag = 'none'
+                outfiles_flag = 'daily'
+                basinavgwb_flag = 'daily'
             else:
-                # Enable streamflow output when routing is enabled
+                # run_def or runrte: enable streamflow + water balance output
                 streamflow_flag = 'csv'
-                outfiles_flag = 'default'
+                outfiles_flag = 'daily'
+                basinavgwb_flag = 'daily'
 
             modified = False
             # Snow parameters: SWELIM reduced from 1500 to 500mm for temperate regions
             # 1500mm was unrealistically high and caused multi-year accumulation issues
             # For alpine/polar applications, override via MESH_SWELIM config option
             replacements = [
-                (r'FREZTH\s+[-\d.]+', 'FREZTH                -2.0'),
+                (r'FREZTH\s+[-\d.]+', 'FREZTH                0.0'),
                 (r'SWELIM\s+[-\d.]+', 'SWELIM                500.0'),
                 (r'SNDENLIM\s+[-\d.]+', 'SNDENLIM              600.0'),
                 (r'PBSMFLAG\s+\w+', 'PBSMFLAG              off'),
@@ -145,6 +174,7 @@ class MESHParameterFixer(ConfigMixin):
                 (r'OUTFILESFLAG\s+\w+', f'OUTFILESFLAG         {outfiles_flag}'),
                 (r'OUTFIELDSFLAG\s+\w+', 'OUTFIELDSFLAG        none'),
                 (r'STREAMFLOWOUTFLAG\s+\w+', f'STREAMFLOWOUTFLAG     {streamflow_flag}'),
+                (r'BASINAVGWBFILEFLAG\s+\w+', f'BASINAVGWBFILEFLAG    {basinavgwb_flag}'),
                 (r'PRINTSIMSTATUS\s+\w+', 'PRINTSIMSTATUS        date_monthly'),
             ]
 
@@ -156,7 +186,10 @@ class MESHParameterFixer(ConfigMixin):
                         modified = True
 
             # Log the routing mode being used
-            self.logger.info(f"MESH RUNMODE set to '{runmode}' with streamflow output '{streamflow_flag}'")
+            self.logger.info(
+                f"MESH RUNMODE set to '{runmode}' with streamflow output '{streamflow_flag}', "
+                f"basin WB output '{basinavgwb_flag}'"
+            )
 
             if modified:
                 with open(self.run_options_path, 'w') as f:
@@ -758,6 +791,115 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to fix run options output dirs: {e}")
 
+    def fix_reservoir_file(self) -> None:
+        """Fix reservoir input file to match IREACH in drainage database.
+
+        MESH requires the reservoir file to match max(IREACH) from the drainage database.
+        When IREACH = 0 (no reservoirs), the reservoir file should have 0 reservoirs.
+
+        The reservoir file format is:
+        - Line 1: <n_reservoirs> <n_columns> <header_flag>
+        - Lines 2+: reservoir data (if n_reservoirs > 0)
+        """
+        reservoir_file = self.forcing_dir / "MESH_input_reservoir.txt"
+
+        # Get max IREACH from drainage database
+        max_ireach = 0
+        if self.ddb_path.exists():
+            try:
+                with xr.open_dataset(self.ddb_path) as ds:
+                    if 'IREACH' in ds:
+                        ireach_vals = ds['IREACH'].values
+                        # Handle any remaining fill values
+                        valid_vals = ireach_vals[ireach_vals >= 0]
+                        if len(valid_vals) > 0:
+                            max_ireach = int(np.max(valid_vals))
+                        self.logger.debug(f"Max IREACH from DDB: {max_ireach}")
+            except Exception as e:
+                self.logger.debug(f"Could not read IREACH from DDB: {e}")
+
+        # Create or fix reservoir file
+        try:
+            if max_ireach == 0:
+                # No reservoirs - create simple file
+                with open(reservoir_file, 'w') as f:
+                    f.write("0\n")  # Just the count, no other columns needed
+                self.logger.info("Fixed reservoir file: 0 reservoirs")
+            else:
+                # Reservoirs exist - ensure file has correct count
+                if reservoir_file.exists():
+                    with open(reservoir_file, 'r') as f:
+                        content = f.read().strip()
+                    first_line = content.split('\n')[0] if content else ""
+                    parts = first_line.split()
+                    file_count = int(parts[0]) if parts else 0
+                    if file_count != max_ireach:
+                        self.logger.warning(
+                            f"Reservoir file count ({file_count}) != IREACH max ({max_ireach}). "
+                            f"Reservoir routing may fail."
+                        )
+                else:
+                    self.logger.warning(
+                        f"Reservoir file not found but IREACH max = {max_ireach}. "
+                        f"Creating placeholder with 0 reservoirs."
+                    )
+                    with open(reservoir_file, 'w') as f:
+                        f.write("0\n")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix reservoir file: {e}")
+
+    def configure_lumped_outputs(self) -> None:
+        """Configure outputs_balance.txt for lumped mode calibration.
+
+        In lumped (noroute) mode, we need daily runoff output for calibration.
+        This method enables daily CSV output of total runoff (RFF).
+        """
+        outputs_balance = self.forcing_dir / "outputs_balance.txt"
+        if not outputs_balance.exists():
+            return
+
+        # Check if we're in lumped mode
+        num_cells = self._get_num_cells()
+        if num_cells > 1:
+            return  # Not lumped mode
+
+        try:
+            with open(outputs_balance, 'r') as f:
+                lines = f.readlines()
+
+            modified = False
+            new_lines = []
+
+            for line in lines:
+                stripped = line.strip()
+
+                # Enable daily CSV output for runoff (RFF)
+                # Change "!RFF D csv" to "RFF D csv" (uncomment)
+                # Or add if not present
+                if stripped.startswith('!RFF') and ('D' in stripped or 'H' in stripped) and 'csv' in stripped.lower():
+                    # Uncomment and ensure daily
+                    new_line = stripped[1:].replace(' H ', ' D ')  # Remove ! and change H to D
+                    new_lines.append(new_line + '\n')
+                    modified = True
+                    continue
+
+                new_lines.append(line)
+
+            # If no RFF csv line found, add one
+            if not any('RFF' in l and 'csv' in l.lower() and not l.strip().startswith('!')
+                      for l in new_lines):
+                new_lines.append('RFF     D  csv\n')
+                modified = True
+
+            if modified:
+                with open(outputs_balance, 'w') as f:
+                    f.writelines(new_lines)
+                self.logger.info("Configured outputs_balance.txt for lumped mode (daily RFF csv)")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to configure lumped outputs: {e}")
+
     def _get_domain_latitude(self) -> Optional[float]:
         """Get representative latitude from drainage database for climate classification."""
         ddb_path = self.forcing_dir / "MESH_drainage_database.nc"
@@ -988,11 +1130,12 @@ class MESHParameterFixer(ConfigMixin):
                     var_time.standard_name = 'time'
                     var_time.long_name = 'time'
                     var_time.axis = 'T'
-                    var_time.units = 'hours since 1979-12-01'
-                    var_time.calendar = 'proleptic_gregorian'
+                    # Use same format as original forcing (MESH_forcing.nc)
+                    var_time.units = 'hours since 1900-01-01 00:00:00'
+                    var_time.calendar = 'gregorian'  # Match original forcing file
 
-                    # Convert time to hours since reference
-                    reference = pd.Timestamp('1979-12-01')
+                    # Convert time to hours since 1900-01-01 (same as MESH_forcing.nc)
+                    reference = pd.Timestamp('1900-01-01')
                     time_hours = np.array([
                         (pd.Timestamp(t) - reference).total_seconds() / 3600.0
                         for t in ds_safe['time'].values

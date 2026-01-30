@@ -7,10 +7,45 @@ dataset for the contiguous United States via the HyTEST data catalog.
 
 import numpy as np
 import intake
+import time
 from pathlib import Path
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-from ...utils import VariableStandardizer, create_spatial_mask
+from ...utils import VariableStandardizer, create_spatial_mask, find_nearest_grid_point, get_bbox_center
+from aiohttp.client_exceptions import ClientPayloadError, ClientError
+
+
+def _load_with_retry(dataset, logger, max_retries=5, initial_delay=5):
+    """
+    Load xarray dataset with exponential backoff retry logic.
+
+    Args:
+        dataset: xarray Dataset to load
+        logger: Logger instance
+        max_retries: Maximum number of retry attempts (default: 5)
+        initial_delay: Initial delay in seconds before first retry (default: 5)
+
+    Returns:
+        Loaded xarray Dataset
+
+    Raises:
+        Exception: If all retry attempts fail
+    """
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to load data (attempt {attempt + 1}/{max_retries})")
+            return dataset.load()
+        except (ClientPayloadError, ClientError, Exception) as e:
+            if attempt < max_retries - 1:
+                delay = initial_delay * (2 ** attempt)  # Exponential backoff
+                logger.warning(
+                    f"Download interrupted: {str(e)[:100]}. "
+                    f"Retrying in {delay} seconds... (attempt {attempt + 1}/{max_retries})"
+                )
+                time.sleep(delay)
+            else:
+                logger.error(f"Failed to load data after {max_retries} attempts")
+                raise
 
 
 @AcquisitionRegistry.register('CONUS404')
@@ -37,7 +72,7 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
 
     def download(self, output_dir: Path) -> Path:
         """
-        Download CONUS404 data from HyTEST catalog with spatial and temporal subsetting.
+        Download CONUS404 data from HyTEST catalog with spatial and temporal subsetting with retry logic.
 
         This method accesses CONUS404 data via the HyTEST intake catalog, performs
         intelligent spatial subsetting using bounding box masking, selects variables
@@ -147,6 +182,19 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
         """
         self.logger.info("Downloading CONUS404 data")
 
+        # Configure fsspec/s3fs with better timeout and retry settings
+        import fsspec
+        fsspec.config.conf = {
+            **fsspec.config.conf,
+            's3': {
+                'client_kwargs': {
+                    'connect_timeout': 60,
+                    'read_timeout': 120,
+                    'max_attempts': 10
+                }
+            }
+        }
+
         # Open catalog and get dataset
         cat_url = self.config.get(
             "CONUS404_CATALOG_URL",
@@ -163,13 +211,48 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
         lat_v, lon_v = ds_full[lat_name].values, ds_full[lon_name].values
         mask = create_spatial_mask(lat_v, lon_v, self.bbox)
         iy, ix = np.where(mask)
-        if iy.size == 0:
-            raise ValueError("No grid points in bbox")
 
-        ds_spatial = ds_full.isel({
-            ds_full[lat_name].dims[0]: slice(iy.min(), iy.max() + 1),
-            ds_full[lat_name].dims[1]: slice(ix.min(), ix.max() + 1)
-        })
+        if iy.size == 0:
+            # No grid points in bbox - use nearest neighbor extraction
+            # This handles point domains or very small bboxes
+            self.logger.info("No grid points in bbox, using nearest neighbor extraction")
+
+            # Get target point - use pour point if available, otherwise bbox center
+            pour_point_str = self.config_dict.get('POUR_POINT_COORDS')
+            if pour_point_str:
+                parts = pour_point_str.split('/')
+                target_lat, target_lon = float(parts[0]), float(parts[1])
+                self.logger.info(f"Using pour point coordinates: {target_lat}, {target_lon}")
+            else:
+                target_lat, target_lon = get_bbox_center(self.bbox)
+                self.logger.info(f"Using bbox center: {target_lat}, {target_lon}")
+
+            # Find nearest grid point
+            nearest_iy, nearest_ix = find_nearest_grid_point(lat_v, lon_v, target_lat, target_lon)
+            self.logger.info(f"Nearest grid point indices: y={nearest_iy}, x={nearest_ix}")
+
+            # Get the lat/lon of the nearest point for logging
+            if lat_v.ndim == 2:
+                nearest_lat = lat_v[nearest_iy, nearest_ix]
+                nearest_lon = lon_v[nearest_iy, nearest_ix]
+            else:
+                nearest_lat = lat_v[nearest_iy]
+                nearest_lon = lon_v[nearest_ix]
+            self.logger.info(f"Nearest grid point location: {nearest_lat:.4f}, {nearest_lon:.4f}")
+
+            # Extract single grid cell (with small buffer for safety)
+            y_dim = ds_full[lat_name].dims[0]
+            x_dim = ds_full[lat_name].dims[1]
+            ds_spatial = ds_full.isel({
+                y_dim: slice(max(0, nearest_iy), nearest_iy + 1),
+                x_dim: slice(max(0, nearest_ix), nearest_ix + 1)
+            })
+        else:
+            # Normal case - subset to bounding box
+            ds_spatial = ds_full.isel({
+                ds_full[lat_name].dims[0]: slice(iy.min(), iy.max() + 1),
+                ds_full[lat_name].dims[1]: slice(ix.min(), ix.max() + 1)
+            })
 
         # Temporal subsetting
         ds_subset = ds_spatial.sel(time=slice(self.start_date, self.end_date))
@@ -187,7 +270,7 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
             if var:
                 req_vars.append(var)
 
-        ds_raw = ds_subset[req_vars].load()
+        ds_raw = _load_with_retry(ds_subset[req_vars], self.logger)
 
         # Standardize variable names using centralized utility
         standardizer = VariableStandardizer(self.logger)

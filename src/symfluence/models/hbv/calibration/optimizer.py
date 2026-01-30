@@ -267,18 +267,38 @@ class HBVModelOptimizer(BaseModelOptimizer):
 
         This method ensures consistent warmup handling with the calibration process.
 
+        IMPORTANT: Warmup is skipped from the FULL simulation period BEFORE
+        filtering to the evaluation period. This matches how calibration works:
+        1. Run full simulation (e.g., 2002-2009)
+        2. Skip warmup from start (e.g., skip 365 days from 2002 → start at 2003)
+        3. Filter to calibration period (e.g., 2004-2007)
+
+        The calibration period is typically defined to START after warmup ends,
+        so no additional warmup skip is needed within the period itself.
+
         Args:
             runoff: Full simulation runoff array (mm/day)
             observations: Full observation array (mm/day)
             time_index: Time index for the data
             period: Tuple of (start_timestamp, end_timestamp)
             prefix: Metric name prefix (e.g., 'Calib', 'Eval')
-            skip_warmup: Whether to skip warmup days from the period start
+            skip_warmup: Whether to skip warmup days from FULL simulation start
 
         Returns:
             Dictionary of prefixed metrics
         """
         try:
+            # Apply warmup skip from the FULL simulation FIRST (matching calibration)
+            # This ensures we compare the same data as during optimization
+            if skip_warmup and len(runoff) > self.worker.warmup_days:
+                runoff = runoff[self.worker.warmup_days:]
+                observations = observations[self.worker.warmup_days:]
+                time_index = time_index[self.worker.warmup_days:]
+                self.logger.debug(
+                    f"Skipped {self.worker.warmup_days} warmup days from full simulation. "
+                    f"Data now starts at {time_index[0]}"
+                )
+
             # Create pandas Series for easier time-based filtering
             sim_series = pd.Series(runoff, index=time_index)
             obs_series = pd.Series(observations, index=time_index)
@@ -291,25 +311,12 @@ class HBVModelOptimizer(BaseModelOptimizer):
 
                 self.logger.debug(
                     f"{prefix} period: {period[0]} to {period[1]}, "
-                    f"{len(sim_period)} points before warmup adjustment"
+                    f"{len(sim_period)} points"
                 )
-
-                # Apply warmup skip from the START of the period (matching calibration)
-                if skip_warmup and len(sim_period) > self.worker.warmup_days:
-                    sim_period = sim_period.iloc[self.worker.warmup_days:]
-                    obs_period = obs_period.iloc[self.worker.warmup_days:]
-                    self.logger.debug(
-                        f"{prefix} period after warmup skip ({self.worker.warmup_days} days): "
-                        f"{len(sim_period)} points"
-                    )
             else:
-                # No period specified, use all data with warmup skip
-                if skip_warmup:
-                    sim_period = sim_series.iloc[self.worker.warmup_days:]
-                    obs_period = obs_series.iloc[self.worker.warmup_days:]
-                else:
-                    sim_period = sim_series
-                    obs_period = obs_series
+                # No period specified, use all data (already had warmup skipped if requested)
+                sim_period = sim_series
+                obs_period = obs_series
 
             # Align and remove NaN
             common_idx = sim_period.index.intersection(obs_period.index)

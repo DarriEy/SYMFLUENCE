@@ -98,7 +98,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
         # Priority 0: Manual override
         fixed_area = config.get('FIXED_CATCHMENT_AREA')
         if fixed_area:
-            logger.info(f"Using fixed catchment area from config: {fixed_area} m²")
+            logger.debug(f"Using fixed catchment area from config: {fixed_area} m²")
             return float(fixed_area)
 
         domain_name = config.get('DOMAIN_NAME')
@@ -141,7 +141,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                     logger.debug(f"Total area from column: {total_area}")
 
                     if 0 < total_area < 1e12:  # Reasonable area check
-                        logger.info(f"Using catchment area from shapefile: {total_area:.0f} m²")
+                        logger.debug(f"Using catchment area from shapefile: {total_area:.0f} m²")
                         return total_area
 
                 # Fallback: calculate from geometry
@@ -152,7 +152,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                     gdf = gdf.to_crs(utm_crs)
 
                 geom_area = gdf.geometry.area.sum()
-                logger.info(f"Using catchment area from geometry: {geom_area:.0f} m²")
+                logger.debug(f"Using catchment area from geometry: {geom_area:.0f} m²")
                 return geom_area
 
             except ImportError:
@@ -173,7 +173,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     if 0 < total_area < 1e12:
-                        logger.info(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
+                        logger.debug(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
                         return total_area
 
             except (ValueError, KeyError, FileNotFoundError) as e:
