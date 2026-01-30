@@ -104,9 +104,9 @@ setup_2i2c_conda_env() {
     # and udunits2/expat (for ngen)
     if [[ ! -d "$env_path" ]]; then
         print_info "Creating conda environment with GDAL, compilers, and build tools..."
-        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat openblas -c conda-forge -y || {
             print_warning "Full conda env creation failed, trying minimal..."
-            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
+            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat openblas -c conda-forge -y || {
                 print_error "Failed to create conda environment"
                 return 1
             }
