@@ -980,13 +980,21 @@ else:
         if [[ -f "$req_file" ]]; then
             if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
                 # 2i2c: GDAL and rpy2 already installed via conda, skip them in pip
-                print_info "Installing pip dependencies (excluding conda-provided packages)..."
+                # Also exclude torch from requirements - install CPU-only version separately
+                # to avoid pulling ~5-8 GB of CUDA/nvidia packages
+                print_info "Installing pip dependencies (excluding conda-provided and torch packages)..."
                 local filtered_req="/tmp/requirements_filtered.txt"
-                grep -viE "^(gdal|rpy2)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
+                grep -viE "^(gdal|rpy2|torch)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
                 python -m pip install -r "$filtered_req" || {
                     print_error "Dependency installation failed"; exit 1;
                 }
                 rm -f "$filtered_req"
+                # Install CPU-only PyTorch to save ~5-8 GB of disk space
+                print_info "Installing CPU-only PyTorch (saving disk space)..."
+                python -m pip install torch --index-url https://download.pytorch.org/whl/cpu || {
+                    print_warning "CPU-only PyTorch installation failed, trying default..."
+                    python -m pip install torch || print_warning "PyTorch installation failed (continuing)"
+                }
             else
                 # Use enhanced installer that handles rpy2/GDAL specially
                 install_python_requirements "$req_file" "false" || {
