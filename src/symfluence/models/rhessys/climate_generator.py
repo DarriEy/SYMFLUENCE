@@ -263,19 +263,37 @@ class RHESSysClimateGenerator:
 
             # If it's a rate (e.g. kg/m2/s, mm/s, m/s)
             if 's-1' in units or 's^-1' in units or '/s' in units:
-                # If units are kg/m2/s or mm/s, they are effectively mm/s
-                # We also treat 'm s-1' as 'mm s-1' because meteorological
-                # precipitation rates are almost always in mm/s or kg/m2/s in NetCDF.
-                # True m/s would be 1000x larger than typical rain.
-                if 'kg' in units or 'mm' in units or 'm s-1' in units or 'm/s' in units:
+                # kg/m2/s is equivalent to mm/s (density of water = 1000 kg/m3)
+                if 'kg' in units or 'mm' in units:
                     self.logger.info(
-                        f"Interpreting '{units}' as mm/s (treating 'm s-1' as 'mm s-1' per convention)"
+                        f"Interpreting '{units}' as mm/s"
                     )
-                    # Convert mm/s to mm/hour (3600 s/hr)
-                    # After daily aggregation (sum of 24 hourly values), result is mm/day
                     precip = precip * 3600.0
+                elif 'm s-1' in units or 'm/s' in units:
+                    # Ambiguous: could be genuine m/s or convention for mm/s.
+                    # Use magnitude to distinguish: typical precip rates are
+                    # ~1e-5 to 1e-4 m/s (genuine) vs ~0.01 to 0.1 mm/s.
+                    raw_mean = float(np.nanmean(precip[precip > 0])) if np.any(precip > 0) else 0.0
+                    if raw_mean < 0.001:
+                        # Values < 0.001 are consistent with genuine m/s
+                        # (e.g. 1e-5 m/s = 0.01 mm/s = 0.864 mm/day)
+                        self.logger.info(
+                            f"Interpreting '{units}' as genuine m/s (mean wet rate={raw_mean:.6f}). "
+                            f"Converting m/s -> mm/s (* 1000) -> mm/hour (* 3600)."
+                        )
+                        precip = precip * 1000.0 * 3600.0
+                    else:
+                        # Values >= 0.001 are consistent with mm/s convention
+                        self.logger.info(
+                            f"Interpreting '{units}' as mm/s by convention (mean wet rate={raw_mean:.6f}). "
+                            f"Converting mm/s -> mm/hour (* 3600)."
+                        )
+                        precip = precip * 3600.0
                 else:
-                    # Assume other rates are also mm/s for safety
+                    # Other rate units - assume mm/s for safety
+                    self.logger.info(
+                        f"Interpreting unknown rate units '{units}' as mm/s"
+                    )
                     precip = precip * 3600.0
 
                 # Sanity check: verify precipitation magnitude after conversion
@@ -289,6 +307,11 @@ class RHESSysClimateGenerator:
                     raise ValueError(
                         f"Precipitation rate {mean_precip:.4f} mm/hour is physically impossible. "
                         f"Check if units '{units}' should be interpreted differently."
+                    )
+                if mean_precip < 0.001:  # Suspiciously low - likely wrong conversion
+                    self.logger.warning(
+                        f"Precipitation mean ({mean_precip:.6f} mm/hour) is suspiciously low. "
+                        f"Original units were '{units}'. Possible 1000x underestimate."
                     )
             # If it's already a depth per timestep (e.g. ERA5 'm' accumulated)
             elif 'm' in units:
@@ -443,15 +466,49 @@ class RHESSysClimateGenerator:
         # Set base station elevation = zone elevation (elev_mean) so no temperature
         # lapse is applied. For lumped mode, forcing data already represents
         # basin-average conditions.
-        lon, lat, elev = -115.0, 51.0, 1500.0
+        lon, lat, elev = -115.0, 51.0, None
         if catchment_path and catchment_path.exists():
             try:
                 gdf = gpd.read_file(catchment_path)
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
-                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
+                gdf_ll = gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf
+                minx, miny, maxx, maxy = gdf_ll.total_bounds
+                lon0 = (minx + maxx) / 2
+                lat0 = (miny + maxy) / 2
+                utm_zone = int((lon0 + 180) / 6) + 1
+                hemisphere = 'north' if lat0 >= 0 else 'south'
+                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
+                gdf_proj = gdf_ll.to_crs(utm_crs)
+                centroid_proj = gdf_proj.geometry.centroid.iloc[0]
+                centroid_ll = gpd.GeoSeries([centroid_proj], crs=utm_crs).to_crs("EPSG:4326").iloc[0]
+                lon, lat = float(centroid_ll.x), float(centroid_ll.y)
+                elev_col = self.config.get('CATCHMENT_SHP_ELEV', 'elev_mean')
+                if elev_col in gdf.columns:
+                    elev = float(gdf[elev_col].iloc[0])
             except (FileNotFoundError, KeyError, IndexError, ValueError):
                 pass
+
+        # Fallback: read zone elevation from worldfile to ensure base station matches
+        if elev is None:
+            try:
+                import re
+                world_file = self.climate_dir.parent / 'worldfiles' / f"{base_name.replace('_base', '')}.world"
+                if world_file.exists():
+                    with open(world_file, 'r') as f:
+                        for line in f:
+                            match = re.match(r'\s*([\d\.\-]+)\s+z\b', line)
+                            if match:
+                                elev = float(match.group(1))
+                                self.logger.info(f"Base station elevation from worldfile: {elev:.1f} m")
+                                break
+            except Exception:
+                pass
+
+        if elev is None:
+            elev = 1500.0
+            self.logger.warning(
+                "Could not determine catchment elevation for base station. "
+                "Using fallback 1500m. This may cause incorrect lapse rate corrections."
+            )
 
         # Full path to climate file prefix
         climate_prefix = self.climate_dir / base_name

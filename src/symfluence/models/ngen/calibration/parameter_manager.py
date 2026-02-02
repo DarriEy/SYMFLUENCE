@@ -212,16 +212,16 @@ class NgenParameterManager(BaseParameterManager):
 
         # CFE parameters
         if 'CFE' in self.modules_to_calibrate:
-            cfe_params_str = self._get_config_value(lambda: self.config.model.ngen.cfe_params_to_calibrate, default='maxsmc,satdk,bb,slop', dict_key='NGEN_CFE_PARAMS_TO_CALIBRATE')
+            cfe_params_str = self._get_config_value(lambda: self.config.model.ngen.cfe_params_to_calibrate, default='maxsmc,satdk,bb,slop,Cgw,max_gw_storage,K_nash,K_lf,soil_depth', dict_key='NGEN_CFE_PARAMS_TO_CALIBRATE')
             if cfe_params_str is None:
-                cfe_params_str = 'maxsmc,satdk,bb,slop'
+                cfe_params_str = 'maxsmc,satdk,bb,slop,Cgw,max_gw_storage,K_nash,K_lf,soil_depth'
             params['CFE'] = [p.strip() for p in cfe_params_str.split(',') if p.strip()]
 
         # NOAH-OWP parameters
         if 'NOAH' in self.modules_to_calibrate:
-            noah_params_str = self._get_config_value(lambda: self.config.model.ngen.noah_params_to_calibrate, default='refkdt,slope,smcmax,dksat', dict_key='NGEN_NOAH_PARAMS_TO_CALIBRATE')
+            noah_params_str = self._get_config_value(lambda: self.config.model.ngen.noah_params_to_calibrate, default='refkdt,slope,smcmax,dksat,bexp', dict_key='NGEN_NOAH_PARAMS_TO_CALIBRATE')
             if noah_params_str is None:
-                noah_params_str = 'refkdt,slope,smcmax,dksat'
+                noah_params_str = 'refkdt,slope,smcmax,dksat,bexp'
             params['NOAH'] = [p.strip() for p in noah_params_str.split(',') if p.strip()]
 
         # PET parameters
@@ -236,12 +236,22 @@ class NgenParameterManager(BaseParameterManager):
     # Note: Parameter bounds are now provided by the central ParameterBoundsRegistry
     # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
     def get_default_parameters(self) -> Dict[str, float]:
-        """Get default parameter values (middle of bounds)"""
+        """Get default parameter values (middle of bounds).
+
+        Uses geometric midpoint for log-transformed parameters to avoid
+        bias toward the upper bound in log-space.
+        """
+        import math
         bounds = self.param_bounds
         params = {}
 
         for param_name, param_bounds in bounds.items():
-            params[param_name] = (param_bounds['min'] + param_bounds['max']) / 2.0
+            transform = param_bounds.get('transform', 'linear')
+            if transform == 'log' and param_bounds['min'] > 0:
+                # Geometric midpoint for log-space parameters
+                params[param_name] = math.sqrt(param_bounds['min'] * param_bounds['max'])
+            else:
+                params[param_name] = (param_bounds['min'] + param_bounds['max']) / 2.0
 
         return params
 

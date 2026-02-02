@@ -64,6 +64,16 @@ class RHESSysWorker(BaseWorker):
         try:
             self.logger.debug(f"Applying RHESSys parameters to {settings_dir}")
 
+            # Separate worldfile params from def file params
+            worldfile_param_names = {'precip_lapse_rate'}
+            def_params = {}
+            self._pending_worldfile_params = {}
+            for pname, pval in params.items():
+                if pname in worldfile_param_names:
+                    self._pending_worldfile_params[pname] = pval
+                else:
+                    def_params[pname] = pval
+
             # The settings_dir should contain a 'defs' subdirectory
             defs_dir = settings_dir / 'defs'
             if not defs_dir.exists():
@@ -79,7 +89,9 @@ class RHESSysWorker(BaseWorker):
             self.logger.debug(f"Found {len(def_files)} def files in {defs_dir}: {[f.name for f in def_files]}")
 
             # Update definition files with new parameters
-            return self._update_def_files(defs_dir, params)
+            result = self._update_def_files(defs_dir, def_params)
+
+            return result
 
         except Exception as e:
             self.logger.error(f"Error applying RHESSys parameters: {e}")
@@ -99,6 +111,11 @@ class RHESSysWorker(BaseWorker):
             True if successful
         """
         import re
+
+        # Parameters that live in the worldfile (not def files)
+        # These are applied after the worldfile is copied in _build_command
+        # Note: precip_lapse_rate handling is done in _build_command via -p flag
+        _ = {'precip_lapse_rate'}  # Worldfile params - documented for reference
 
         # Mapping from parameter names to definition files
         # NOTE: gw_loss_coeff is in hillslope.def, sat_to_gw_coeff is in soil.def
@@ -129,6 +146,8 @@ class RHESSysWorker(BaseWorker):
             'epc.gl_c': 'stratum.def',
             'epc.vpd_open': 'stratum.def',
             'epc.vpd_close': 'stratum.def',
+            'theta_mean_std_p1': 'soil.def',
+            'theta_mean_std_p2': 'soil.def',
         }
 
         # Group parameters by file
@@ -403,6 +422,10 @@ class RHESSysWorker(BaseWorker):
                 shutil.copy2(original_world, worker_world)
                 self.logger.debug(f"Copied/updated world file to {worker_world}")
 
+                # Apply any worldfile-level calibration parameters (e.g. precip_lapse_rate)
+                if hasattr(self, '_pending_worldfile_params') and self._pending_worldfile_params:
+                    self._apply_worldfile_params(worker_world, self._pending_worldfile_params)
+
             # ALWAYS recreate the header to ensure paths are correct
             # (previous versions only created if not exists, which could cause stale paths)
             if original_hdr.exists():
@@ -478,8 +501,13 @@ class RHESSysWorker(BaseWorker):
             '-st', str(start_date.year), str(start_date.month), str(start_date.day), '1',
             '-ed', str(end_date.year), str(end_date.month), str(end_date.day), '1',
             '-pre', 'rhessys',
-            '-b',   # Basin output (non-grow mode: static LAI, Lstar computed unconditionally)
         ]
+
+        # Basin output without grow mode. The Jarvis conductance model (non-grow)
+        # uses gs = gl_smax * f(vpd) * f(psi) * LAI, giving the optimizer direct
+        # control over ET magnitude through gl_smax calibration. Grow mode's Farquhar
+        # model constrains gs by nitrogen/CO2, making gl_smax ineffective as a lever.
+        cmd.extend(['-b'])
 
         if gw1 is not None and gw2 is not None:
             cmd.extend(['-gw', str(gw1), str(gw2)])
@@ -487,10 +515,11 @@ class RHESSysWorker(BaseWorker):
         if s1 is not None and s2 is not None and s3 is not None:
             cmd.extend(['-s', str(s1), str(s2), str(s3)])
 
-        cmd.extend([
-            '-sv', '1.0', '1.0',
-            '-svalt', '1.0', '1.0',
-        ])
+        # Vegetation scaling flags — required for correct model physics.
+        # Even at 1.0, these activate RHESSys internal code paths that affect
+        # stomatal conductance and canopy processes.
+        cmd.extend(['-sv', '1.0', '1.0'])
+        cmd.extend(['-svalt', '1.0', '1.0'])
 
         # Fire spread if WMFire is enabled
         wmfire_enabled = config.get('RHESSYS_USE_WMFIRE', False)
@@ -515,7 +544,35 @@ class RHESSysWorker(BaseWorker):
             cmd.extend(["-stdev", str(std_scale)])
             self.logger.debug(f"Subgrid variability enabled with std_scale={std_scale}")
 
+        # Subsurface-to-GW recharge pathway (SYMFLUENCE Patch 2)
+        # DISABLED: testing old binary without this flag
+        # cmd.extend(["-subsurfacegw"])
+
         return cmd
+
+    def _apply_worldfile_params(self, world_file: Path, params: Dict[str, float]):
+        """Apply calibration parameters to the worldfile (e.g. precip_lapse_rate)."""
+        import re
+        with open(world_file, 'r') as f:
+            lines = f.readlines()
+
+        updated_lines = []
+        for line in lines:
+            replaced = False
+            for param_name, value in params.items():
+                pattern = rf'^(\s*)([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s*\n?)$'
+                match = re.match(pattern, line)
+                if match:
+                    new_line = f"{match.group(1)}{value:.8f}{match.group(3)}{match.group(4)}{match.group(5)}"
+                    updated_lines.append(new_line)
+                    self.logger.debug(f"Worldfile param {param_name}: {match.group(2)} -> {value:.8f}")
+                    replaced = True
+                    break
+            if not replaced:
+                updated_lines.append(line)
+
+        with open(world_file, 'w') as f:
+            f.writelines(updated_lines)
 
     def _create_worker_header(
         self,
@@ -524,39 +581,43 @@ class RHESSysWorker(BaseWorker):
         worker_defs_dir: Path,
         rhessys_input_dir: Path
     ):
-        """Create a worker-specific header file pointing to worker defs."""
+        """Create a worker-specific header file pointing to worker defs.
+
+        Uses line-by-line replacement to handle any .def file path, regardless
+        of how the original path was normalized or constructed.
+        """
         with open(original_hdr, 'r') as f:
-            content = f.read()
+            lines = f.readlines()
 
-        # Replace def file paths with worker-specific paths.
-        # Try multiple path formats to handle different path separators and normalization
-        original_defs_str = os.path.normpath(str(rhessys_input_dir / 'defs'))
-        worker_defs_str = os.path.normpath(str(worker_defs_dir))
+        worker_defs_str = str(worker_defs_dir)
+        new_lines = []
+        replacements = 0
 
-        # Try normalized path replacement first
-        new_content = content.replace(original_defs_str, worker_defs_str)
+        for line in lines:
+            stripped = line.strip()
+            # Match lines that are file paths ending in .def
+            if stripped.endswith('.def') and '/' in stripped:
+                # Extract just the filename (e.g. basin.def)
+                def_filename = Path(stripped).name
+                new_path = str(worker_defs_dir / def_filename)
+                new_lines.append(new_path + '\n')
+                replacements += 1
+                self.logger.debug(f"Header path: {stripped} -> {new_path}")
+            else:
+                new_lines.append(line)
 
-        # Also try with trailing slash
-        if new_content == content:
-            new_content = content.replace(original_defs_str + '/', worker_defs_str + '/')
-
-        # Also try without normalization
-        if new_content == content:
-            new_content = content.replace(str(rhessys_input_dir / 'defs'), str(worker_defs_dir))
-
-        # Check if any replacements were made
-        if new_content == content:
+        if replacements == 0:
             self.logger.warning(
-                f"No path replacements made in header file. "
-                f"Looking for: '{original_defs_str}' "
-                f"Header snippet: '{content[:500]}...'"
+                f"No .def path replacements made in header file. "
+                f"Header content: '{(''.join(lines))[:500]}...'"
             )
         else:
-            replacements = content.count(original_defs_str)
-            self.logger.debug(f"Header path replacement: {original_defs_str} -> {worker_defs_str} ({replacements} replacements)")
+            self.logger.debug(
+                f"Header: replaced {replacements} .def paths to point to {worker_defs_str}"
+            )
 
         with open(worker_hdr, 'w') as f:
-            f.write(new_content)
+            f.writelines(new_lines)
 
         self.logger.debug(f"Created worker header at {worker_hdr}")
 
@@ -659,19 +720,20 @@ class RHESSysWorker(BaseWorker):
             self.logger.debug(f"Read {len(sim_df)} rows from {sim_file}")
 
             # Get streamflow in mm/day
-            # Prefer routedstreamflow (routed outlet flow) over unrouted
-            # 'streamflow' which includes return flow that can create
-            # spurious seasonal patterns. Fall back to 'streamflow' if
-            # routedstreamflow has negligible variance (e.g., constant
-            # baseflow from a model with broken water balance).
-            use_routed = False
-            if 'routedstreamflow' in sim_df.columns:
-                routed = sim_df['routedstreamflow'].values
-                if routed.sum() > 0 and np.std(routed) > 1e-6:
-                    streamflow_mm = routed
-                    use_routed = True
-            if not use_routed:
+            # Use unrouted 'streamflow' for calibration. The 'routedstreamflow'
+            # column applies a gamma-function routing that artificially damps
+            # peak flows in single-patch (lumped) models where there is no
+            # spatial network to route through. This causes low variability
+            # ratio (alpha) in KGE. For distributed models, routedstreamflow
+            # would be more appropriate but for lumped calibration, the raw
+            # hillslope streamflow is the correct signal.
+            if 'streamflow' in sim_df.columns:
                 streamflow_mm = sim_df['streamflow'].values
+            elif 'routedstreamflow' in sim_df.columns:
+                streamflow_mm = sim_df['routedstreamflow'].values
+            else:
+                self.logger.error("No streamflow column found in basin.daily")
+                return {'kge': self.penalty_score, 'error': 'No streamflow column'}
 
             # Convert to m³/s using catchment area from shared utility
             domain_name = config.get('DOMAIN_NAME')
@@ -744,6 +806,20 @@ class RHESSysWorker(BaseWorker):
                         calib_period_tuple = (start_str.strip(), end_str.strip())
                     except (ValueError, IndexError) as e:
                         self.logger.warning(f"Could not parse calibration period '{calib_period_str}': {e}")
+
+                # Auto-exclude spinup: if no calibration period is set, skip the
+                # first year of simulation to avoid initial condition transients
+                if calib_period_tuple is None and len(sim_dates) > 365:
+                    spinup_days = int(config.get('RHESSYS_SPINUP_DAYS', 365))
+                    spinup_end = sim_dates.min() + pd.Timedelta(days=spinup_days)
+                    calib_period_tuple = (
+                        spinup_end.strftime('%Y-%m-%d'),
+                        sim_dates.max().strftime('%Y-%m-%d')
+                    )
+                    self.logger.info(
+                        f"No CALIBRATION_PERIOD set; auto-excluding {spinup_days}-day spinup. "
+                        f"Evaluating from {calib_period_tuple[0]} to {calib_period_tuple[1]}"
+                    )
 
                 # Let StreamflowMetrics handle alignment and period filtering
                 obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(

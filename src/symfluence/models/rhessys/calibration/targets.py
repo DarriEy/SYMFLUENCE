@@ -174,10 +174,11 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             df['date'] = pd.to_datetime(df['DATE'])
             df.set_index('date', inplace=True)
 
-        # Find streamflow column - prefer routedstreamflow (routed outlet flow)
-        # over unrouted 'streamflow' which includes return flow artifacts
+        # Find streamflow column - prefer unrouted 'streamflow' over 'routedstreamflow'.
+        # The gamma-function routing in routedstreamflow artificially damps peaks
+        # in lumped (single-patch) models, causing low variability ratio (alpha).
         q_col = None
-        for col in ['routedstreamflow', 'streamflow', 'Qout', 'discharge', 'streamflow_m3s', 'Q']:
+        for col in ['streamflow', 'routedstreamflow', 'Qout', 'discharge', 'streamflow_m3s', 'Q']:
             if col in df.columns:
                 q_col = col
                 break

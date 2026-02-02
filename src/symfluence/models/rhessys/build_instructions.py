@@ -331,6 +331,232 @@ print "Patched $file with $changes changes\n";
 PERLSCRIPT
 perl /tmp/rhessys_event_patch.pl tec/handle_event.c
 
+# =============================================================
+# SYMFLUENCE Patches for enhanced hydrological functionality
+# =============================================================
+# These patches add:
+# 1. Subsurface-to-GW recharge pathway (-subsurfacegw flag)
+# 2. NaN/negative sat_deficit numerical stability guard
+#
+# Enabled via: symfluence binary install rhessys --patched
+# =============================================================
+
+if [ "${SYMFLUENCE_PATCHED:-}" = "1" ]; then
+echo "Applying SYMFLUENCE patches (--patched flag enabled)..."
+
+# -------------------------------------------------------------
+# SYMFLUENCE Patch 1: Add subsurface_gw_flag to rhessys.h
+# -------------------------------------------------------------
+echo "Patching rhessys.h for subsurface_gw_flag..."
+cat > /tmp/symfluence_rhessys_h.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Add subsurface_gw_flag after gw_flag in command_line_object struct
+if ($content !~ /subsurface_gw_flag/) {
+    $changes += ($content =~ s/(int\s+gw_flag;)/$1\n        int             subsurface_gw_flag;  \/* SYMFLUENCE: route subsurface drainage to GW *\//);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/symfluence_rhessys_h.pl include/rhessys.h
+
+# -------------------------------------------------------------
+# SYMFLUENCE Patch 1 (cont): Initialize subsurface_gw_flag in construct_command_line.c
+# -------------------------------------------------------------
+echo "Patching construct_command_line.c for flag initialization and parsing..."
+cat > /tmp/symfluence_cmdline.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Initialize subsurface_gw_flag = 0 after gw_flag = 1
+if ($content !~ /subsurface_gw_flag\s*=\s*0/) {
+    $changes += ($content =~ s/(command_line\[0\]\.gw_flag\s*=\s*1;)/$1\n\tcommand_line[0].subsurface_gw_flag = 0;  \/* SYMFLUENCE *\//);
+}
+
+# Add -subsurfacegw flag parsing after -gw handling block
+# Look for the closing of the -gw block and add after it
+if ($content !~ /-subsurfacegw/) {
+    my $subsurfacegw_block = q{
+
+			/*-------------------------------------------------*/
+			/* SYMFLUENCE: subsurface drainage to GW pathway   */
+			/*-------------------------------------------------*/
+			else if ( strcmp(main_argv[i],"-subsurfacegw") == 0 ){
+				i++;
+				command_line[0].subsurface_gw_flag = 1;
+			}/* end if */
+};
+    # Insert after the gw_loss_coeff_mult line's closing block
+    $changes += ($content =~ s/(command_line\[0\]\.gw_loss_coeff_mult\s*=.*?i\+\+;\s*\}\s*\/\*\s*end if\s*\*\/)/$1$subsurfacegw_block/s);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/symfluence_cmdline.pl init/construct_command_line.c
+
+# -------------------------------------------------------------
+# SYMFLUENCE Patch 1 (cont): Add valid options
+# -------------------------------------------------------------
+echo "Patching valid_option.c for new flags..."
+cat > /tmp/symfluence_valid.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Add -longwaveevap and -subsurfacegw to valid options if not present
+if ($content !~ /-subsurfacegw/) {
+    # Find the last strcmp before the closing parenthesis and i = 0
+    # Add our new options before the final closing paren
+    $changes += ($content =~ s/(\(strcmp\(command_line,"-msr"\)\s*==\s*0\))/$1 ||\n\t\t(strcmp(command_line,"-longwaveevap") == 0) ||\n\t\t(strcmp(command_line,"-subsurfacegw") == 0)/);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/symfluence_valid.pl tec/valid_option.c
+
+# -------------------------------------------------------------
+# SYMFLUENCE Patch 1 (cont): Add subsurface-to-GW recharge in patch_daily_F.c
+# -------------------------------------------------------------
+echo "Patching patch_daily_F.c for subsurface-to-GW recharge..."
+cat > /tmp/symfluence_patch_daily.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Add subsurface-to-GW recharge code after rz_drainage updates
+if ($content !~ /subsurface_gw_flag/) {
+    my $gw_recharge_block = q{
+
+	/* ---------------------------------------------- */
+	/* SYMFLUENCE: Subsurface-to-GW recharge.         */
+	/* Routes sat_to_gw_coeff * subsurface drainage   */
+	/* to the hillslope GW store for baseflow.        */
+	/* Gated by both -gw and -subsurfacegw flags.     */
+	/* ---------------------------------------------- */
+	if ((command_line[0].gw_flag) && (command_line[0].subsurface_gw_flag)) {
+		double total_sub_drain = unsat_drainage + rz_drainage;
+		if (total_sub_drain > ZERO) {
+			double sub_gw = patch[0].soil_defaults[0][0].sat_to_gw_coeff
+						* total_sub_drain;
+			patch[0].gw_drainage += sub_gw;
+			patch[0].sat_deficit += sub_gw;
+			hillslope[0].gw.storage += (sub_gw * patch[0].area / hillslope[0].area);
+		}
+	}
+};
+    # Insert after the hourly_rz_drainage line
+    $changes += ($content =~ s/(patch\[0\]\.hourly_rz_drainage\s*\+=\s*rz_drainage;)/$1$gw_recharge_block/);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/symfluence_patch_daily.pl cycle/patch_daily_F.c
+
+# -------------------------------------------------------------
+# SYMFLUENCE Patch 2: NaN/negative sat_deficit guard
+# -------------------------------------------------------------
+echo "Patching compute_subsurface_routing.c for NaN guards..."
+cat > /tmp/symfluence_nan_guard.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Ensure math.h is included (for isnan)
+if ($content !~ /#include\s*<math\.h>/) {
+    $changes += ($content =~ s/(#include\s*<stdio\.h>)/$1\n#include <math.h>/);
+}
+
+# Add first NaN guard after overland_flow = 0.0
+if ($content !~ /SYMFLUENCE.*NaN/) {
+    my $nan_guard1 = q{
+
+		/* ---------------------------------------------- */
+		/* SYMFLUENCE: NaN/negative sat_deficit guard.    */
+		/* Prevents numerical instability from propagating*/
+		/* through the simulation.                        */
+		/* ---------------------------------------------- */
+		if (isnan(patch[0].sat_deficit) || patch[0].sat_deficit < 0.0) {
+			patch[0].sat_deficit = 0.05;
+		}
+};
+    $changes += ($content =~ s/(patch\[0\]\.overland_flow\s*=\s*0\.0;)/$1$nan_guard1/);
+}
+
+# Add second NaN guard after sat_deficit += Qout - Qin
+if ($content !~ /Post-routing NaN guard/) {
+    my $nan_guard2 = q{
+
+			/* SYMFLUENCE: Post-routing NaN guard */
+			if (isnan(patch[0].sat_deficit) || patch[0].sat_deficit < 0.0) {
+				patch[0].sat_deficit = 0.05;
+			}
+};
+    $changes += ($content =~ s/(patch\[0\]\.sat_deficit\s*\+=\s*\(patch\[0\]\.Qout\s*-\s*patch\[0\]\.Qin\);)/$1$nan_guard2/);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/symfluence_nan_guard.pl hydro/compute_subsurface_routing.c
+
+# Verify SYMFLUENCE patches applied
+echo "Verifying SYMFLUENCE patches..."
+if grep -q "subsurface_gw_flag" include/rhessys.h && \
+   grep -q "subsurfacegw" init/construct_command_line.c && \
+   grep -q "subsurfacegw" tec/valid_option.c && \
+   grep -q "subsurface_gw_flag" cycle/patch_daily_F.c && \
+   grep -q "SYMFLUENCE" hydro/compute_subsurface_routing.c; then
+    echo "SYMFLUENCE patches applied successfully"
+else
+    echo "WARNING: Some SYMFLUENCE patches may not have applied correctly"
+fi
+
+else
+    echo "Building stock RHESSys (use --patched flag to enable SYMFLUENCE patches)"
+fi
+
 # Patch makefile to remove test dependency from rhessys target
 # This allows building without glib-2.0 which is required only for tests
 echo "Patching makefile to skip test dependency..."

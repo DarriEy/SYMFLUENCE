@@ -50,6 +50,19 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         2. Single nexus output (if CALIBRATION_NEXUS_ID specified)
         3. All nexus outputs summed (fallback - approximates basin total)
         """
+        # Detect lumped domain (single nexus) to avoid misleading routing warnings
+        is_lumped = False
+        try:
+            import json
+            nexus_file = self.project_dir / 'settings' / 'NGEN' / 'nexus.geojson'
+            if nexus_file.exists():
+                nexus_data = json.loads(nexus_file.read_text())
+                num_nexuses = len(nexus_data.get('features', []))
+                if num_nexuses == 1:
+                    is_lumped = True
+        except Exception:
+            is_lumped = False
+
         # Check for t-route outputs first (NetCDF format)
         troute_dir = sim_dir / "troute_output"
         if troute_dir.exists():
@@ -74,12 +87,15 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             target_files = [f for f in files if f.stem == f"{target_nexus}_output" or f.stem == target_nexus]
 
             if target_files:
-                self.logger.info(f"Using calibration nexus: {target_nexus}")
-                self.logger.warning(
-                    f"T-Route routing outputs not found. Using raw nexus output. "
-                    f"{target_nexus} will only show LOCAL catchment runoff, not accumulated upstream flow. "
-                    f"To enable proper routing, ensure NGEN_RUN_TROUTE: true in config and t-route is installed."
-                )
+                self.logger.debug(f"Using calibration nexus: {target_nexus}")
+                if is_lumped:
+                    self.logger.debug(
+                        "Lumped domain (single nexus). Using raw nexus output at outlet."
+                    )
+                else:
+                    self.logger.debug(
+                        f"Using raw nexus output for {target_nexus} (local catchment runoff)."
+                    )
                 return target_files
             else:
                 self.logger.warning(f"Configured CALIBRATION_NEXUS_ID '{target_nexus}' not found in output files. Available: {[f.stem for f in files[:10]]}")
@@ -135,7 +151,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         import xarray as xr
 
         # Get target nexus ID (outlet)
-        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID', 'nex-57')  # Default to outlet
+        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
 
         try:
             # Read t-route output (typically NetCDF with time and feature_id dimensions)
@@ -156,9 +172,22 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
                     # Extract flow at target nexus
                     if 'feature_id' in ds.dims:
-                        # Find target nexus in feature_id dimension
-                        nexus_id_str = target_nexus.replace('nex-', '')  # May need to strip prefix
-                        flow_data = ds[flow_var].sel(feature_id=nexus_id_str)
+                        feature_ids = ds['feature_id'].values
+                        if target_nexus:
+                            nexus_id_str = target_nexus.replace('nex-', '')
+                            flow_data = ds[flow_var].sel(feature_id=nexus_id_str)
+                        else:
+                            # Auto-detect: use first feature_id if not configured
+                            if len(feature_ids) > 0:
+                                autodetect_id = str(feature_ids[0])
+                                flow_data = ds[flow_var].sel(feature_id=feature_ids[0])
+                                self.logger.warning(
+                                    "CALIBRATION_NEXUS_ID not set. Using first feature_id from t-route output "
+                                    f"({autodetect_id}). Set CALIBRATION_NEXUS_ID to avoid mis-targeting."
+                                )
+                            else:
+                                self.logger.warning("T-route output has no feature_id entries; using full series.")
+                                flow_data = ds[flow_var]
                     else:
                         # Single location or need to select differently
                         flow_data = ds[flow_var]

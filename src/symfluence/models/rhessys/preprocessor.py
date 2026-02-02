@@ -93,45 +93,45 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         near saturation (low sat_deficit) reduces spinup time significantly.
 
         Config options (all in meters):
-            RHESSYS_INIT_SAT_DEFICIT: Initial saturation deficit [m]. Default 2.0.
+            RHESSYS_INIT_SAT_DEFICIT: Initial saturation deficit [m]. Default 0.03.
                 Lower = wetter soil. Range: 0.0 - 3.0
-            RHESSYS_INIT_GW_STORAGE: Initial groundwater storage [m]. Default 0.01.
+            RHESSYS_INIT_GW_STORAGE: Initial groundwater storage [m]. Default 0.1.
                 Higher = more baseflow at start. Range: 0.0 - 2.0
             RHESSYS_INIT_RZ_STORAGE: Initial root zone storage [m]. Default 0.1.
             RHESSYS_INIT_UNSAT_STORAGE: Initial unsaturated zone storage [m]. Default 0.05.
         """
-        # Get config values with sensible defaults for mountain catchments
-        # Start with drier conditions (sat_deficit=2.0m) to avoid spurious
-        # saturation excess runoff during spinup. The model will wet up
-        # naturally from precipitation inputs.
+        # Get config values with sensible defaults for mountain catchments.
+        # Start near saturation (sat_deficit=0.03m) so the model is in
+        # a realistic hydrological state from the beginning. Starting dry
+        # (e.g. sat_deficit=2.0) wastes years of spinup and degrades
+        # calibration performance.
         try:
             self.init_sat_deficit = float(getattr(
-                self.config.model.rhessys, 'init_sat_deficit', 2.0
+                self.config.model.rhessys, 'init_sat_deficit', 0.03
             ))
         except (AttributeError, TypeError):
-            self.init_sat_deficit = 2.0
+            self.init_sat_deficit = 0.03
 
         try:
             self.init_gw_storage = float(getattr(
-                self.config.model.rhessys, 'init_gw_storage', 0.01
+                self.config.model.rhessys, 'init_gw_storage', 0.1
             ))
         except (AttributeError, TypeError):
-            self.init_gw_storage = 0.01
+            self.init_gw_storage = 0.1
 
-        # Moderate initial storage for typical late-season conditions
         try:
             self.init_rz_storage = float(getattr(
-                self.config.model.rhessys, 'init_rz_storage', 0.15
+                self.config.model.rhessys, 'init_rz_storage', 0.1
             ))
         except (AttributeError, TypeError):
-            self.init_rz_storage = 0.15
+            self.init_rz_storage = 0.1
 
         try:
             self.init_unsat_storage = float(getattr(
-                self.config.model.rhessys, 'init_unsat_storage', 0.15
+                self.config.model.rhessys, 'init_unsat_storage', 0.05
             ))
         except (AttributeError, TypeError):
-            self.init_unsat_storage = 0.15
+            self.init_unsat_storage = 0.05
 
         logger.info(
             f"RHESSys worldfile initial conditions: "
@@ -196,6 +196,24 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
         logger.info(f"Created RHESSys input directories at {self.rhessys_input_dir}")
+
+    def _get_utm_crs_from_bounds(self, gdf: gpd.GeoDataFrame) -> str:
+        """Derive a UTM CRS from layer bounds (avoids centroid on geographic CRS)."""
+        gdf_ll = gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf
+        minx, miny, maxx, maxy = gdf_ll.total_bounds
+        lon0 = (minx + maxx) / 2
+        lat0 = (miny + maxy) / 2
+        utm_zone = int((lon0 + 180) / 6) + 1
+        hemisphere = 'north' if lat0 >= 0 else 'south'
+        return f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
+
+    def _get_centroid_lon_lat(self, gdf: gpd.GeoDataFrame, utm_crs: str) -> Tuple[float, float]:
+        """Compute centroid in projected CRS, then transform back to lon/lat."""
+        gdf_ll = gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf
+        gdf_proj = gdf_ll.to_crs(utm_crs)
+        centroid_proj = gdf_proj.geometry.centroid.iloc[0]
+        centroid_ll = gpd.GeoSeries([centroid_proj], crs=utm_crs).to_crs("EPSG:4326").iloc[0]
+        return float(centroid_ll.x), float(centroid_ll.y)
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """
@@ -315,17 +333,42 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
         # lapse is applied. For lumped simulations, the forcing data (e.g., ERA5)
         # already represents basin-average conditions, so lapse correction would
         # create artificially cold temperatures at the centroid elevation.
+        lon, lat, elev = -115.0, 51.0, None
         try:
             basin_path = self.get_catchment_path()
             if basin_path.exists():
                 gdf = gpd.read_file(basin_path)
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
-                elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
-            else:
-                lon, lat, elev = -115.0, 51.0, 1500.0
+                utm_crs = self._get_utm_crs_from_bounds(gdf)
+                lon, lat = self._get_centroid_lon_lat(gdf, utm_crs)
+                elev_col = getattr(self, 'catchment_elev_col', 'elev_mean')
+                if elev_col in gdf.columns:
+                    elev = float(gdf[elev_col].iloc[0])
         except (FileNotFoundError, KeyError, IndexError, ValueError):
-            lon, lat, elev = -115.0, 51.0, 1500.0
+            pass
+
+        # Fallback: read zone elevation from worldfile to ensure base station matches
+        if elev is None:
+            try:
+                world_file = self.worldfiles_dir / f"{self.domain_name}.world"
+                if world_file.exists():
+                    import re
+                    with open(world_file, 'r') as f:
+                        for line in f:
+                            match = re.match(r'\s*([\d\.\-]+)\s+z\b', line)
+                            if match:
+                                elev = float(match.group(1))
+                                logger.info(f"Base station elevation from worldfile: {elev:.1f} m")
+                                break
+            except Exception:
+                pass
+
+        if elev is None:
+            elev = 1500.0
+            logger.warning(
+                "Could not determine catchment elevation for base station. "
+                "Using fallback 1500m. This may cause incorrect lapse rate corrections. "
+                "Ensure catchment shapefile has the column configured by CATCHMENT_SHP_ELEV."
+            )
 
         # Full path to climate file prefix for RHESSys to find the daily files
         climate_prefix = self.climate_dir / base_name
@@ -341,6 +384,8 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
             non_critical_sequences.append("relative_humidity")
         if (self.climate_dir / f"{base_name}.Kdown_direct").exists():
             non_critical_sequences.append("Kdown_direct")
+        if (self.climate_dir / f"{base_name}.Kdown_diffuse").exists():
+            non_critical_sequences.append("Kdown_diffuse")
         if (self.climate_dir / f"{base_name}.Ldown").exists():
             non_critical_sequences.append("Ldown")
         if (self.climate_dir / f"{base_name}.tavg").exists():
@@ -470,16 +515,12 @@ none\thourly_climate_prefix
 
             gdf = gpd.read_file(catchment_path)
 
-            # Get centroid in original CRS (geographic)
-            centroid = gdf.geometry.centroid.iloc[0]
-            lon, lat = centroid.x, centroid.y
+            # Compute centroid in projected CRS to avoid geographic centroid warnings
+            utm_crs = self._get_utm_crs_from_bounds(gdf)
+            lon, lat = self._get_centroid_lon_lat(gdf, utm_crs)
 
             # Project to UTM for accurate area calculation
-            # Estimate UTM zone from longitude
-            utm_zone = int((lon + 180) / 6) + 1
-            hemisphere = 'north' if lat >= 0 else 'south'
-            utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-            gdf_proj = gdf.to_crs(utm_crs)
+            gdf_proj = (gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf).to_crs(utm_crs)
             area_m2 = gdf_proj.geometry.area.sum()
 
             if area_m2 <= 0:
@@ -491,10 +532,23 @@ none\thourly_climate_prefix
             logger.info(f"Catchment area: {area_m2:.0f} m² ({area_m2/1e6:.2f} km²)")
 
             # Try to get elevation stats
-            elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
-            slope_deg = float(gdf.get('slope_mean', [10.0])[0]) if 'slope_mean' in gdf.columns else 10.0
-            # Convert slope from degrees to fraction (tan) for RHESSys
-            slope = np.tan(np.radians(slope_deg))
+            elev_col = getattr(self, 'catchment_elev_col', 'elev_mean')
+            slope_col = getattr(self, 'catchment_slope_col', 'slope')
+            elev = float(gdf[elev_col].mean()) if elev_col in gdf.columns else 1500.0
+            slope_raw = float(gdf[slope_col].mean()) if slope_col in gdf.columns else 10.0
+            slope_units = str(self.config_dict.get('CATCHMENT_SHP_SLOPE_UNITS', 'degrees')).lower()
+            if slope_units in {'deg', 'degree', 'degrees'}:
+                slope = np.tan(np.radians(slope_raw))
+            elif slope_units in {'rad', 'radian', 'radians'}:
+                slope = np.tan(slope_raw)
+            elif slope_units in {'ratio', 'fraction', 'tan'}:
+                slope = slope_raw
+            else:
+                logger.warning(
+                    f"Unknown CATCHMENT_SHP_SLOPE_UNITS='{slope_units}'. "
+                    "Falling back to degrees."
+                )
+                slope = np.tan(np.radians(slope_raw))
             slope = max(0.01, min(slope, 2.0))
         except (FileNotFoundError, ValueError):
             raise  # Re-raise area-related errors - these must not be silently ignored
@@ -515,17 +569,25 @@ none\thourly_climate_prefix
         # Calculate topographic wetness index (lna) for TOPMODEL-based runoff
         # lna = ln(a/tan(beta)) where a = contributing area per unit contour
         # Approximation: a ≈ sqrt(area), so lna = 0.5*ln(area) - ln(tan(slope))
-        # Ensure slope is reasonable (minimum 0.01 = 1% to avoid division issues)
-        slope_rad = max(slope, 0.01)  # Minimum slope
-        tan_slope = np.tan(np.radians(slope_rad * 100))  # Convert from fraction to degrees
-        if tan_slope < 0.001:
-            tan_slope = 0.001  # Minimum to avoid log issues
-        # For very large basins, cap the contributing area effect
-        effective_area = min(area_m2, 1e8)  # Cap at 100 km²
-        lna = 0.5 * np.log(effective_area) - np.log(tan_slope)
-        lna = max(5.0, min(lna, 15.0))  # Constrain to reasonable range (5-15)
+        # slope is already tan(beta) from line 497, so use it directly
+        tan_slope = max(slope, 0.001)  # Minimum to avoid log issues
+        # Optional lna controls (can be disabled via config)
+        lna_area_cap = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_AREA_CAP_M2', 1e5))
+        lna_min = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_MIN', 5.0))
+        lna_max = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_MAX', 15.0))
 
-        logger.info(f"Calculated lna (TWI) = {lna:.2f} for area={area_m2/1e6:.1f} km², slope={slope:.3f}")
+        # For very large basins, optionally cap the contributing area effect
+        effective_area = min(area_m2, lna_area_cap) if lna_area_cap else area_m2
+        lna = 0.5 * np.log(effective_area) - np.log(tan_slope)
+        if lna_min is not None:
+            lna = max(lna_min, lna)
+        if lna_max is not None:
+            lna = min(lna_max, lna)
+
+        logger.info(
+            f"Calculated lna (TWI) = {lna:.2f} for area={area_m2/1e6:.1f} km², slope={slope:.3f} "
+            f"(lna_area_cap={lna_area_cap}, lna_min={lna_min}, lna_max={lna_max})"
+        )
 
         # Use configurable initial conditions for faster spinup
         init_sat_deficit = self.init_sat_deficit
@@ -565,8 +627,8 @@ none\thourly_climate_prefix
          {slope:.8f}    slope
          180.00000000    aspect
          1.00000000    precip_lapse_rate
-         0.20000000    e_horizon
-         0.20000000    w_horizon
+         0.00000000    e_horizon
+         0.00000000    w_horizon
          1    zone_n_basestations
          1    zone_basestation_ID
          1    num_patches
@@ -584,11 +646,11 @@ none\thourly_climate_prefix
             {init_rz_storage:.8f}    rz_storage
             {init_unsat_storage:.8f}    unsat_storage
             {init_sat_deficit:.8f}    sat_deficit
-            0.15000000    snowpack.water_equivalent_depth
+            0.00000000    snowpack.water_equivalent_depth
             0.00000000    snowpack.water_depth
-            -5.00000000    snowpack.T
-            30.00000000    snowpack.surface_age
-            -50.00000000    snowpack.energy_deficit
+            0.00000000    snowpack.T
+            0.00000000    snowpack.surface_age
+            0.00000000    snowpack.energy_deficit
             1.00000000    litter.cover_fraction
             0.00100000    litter.rain_stored
             0.03000000    litter_cs.litr1c
@@ -607,29 +669,29 @@ none\thourly_climate_prefix
                {stratum_id}    canopy_strata_ID
                1    veg_parm_ID
                0.70000000    cover_fraction
-               0.00000000    gap_fraction
+               0.30000000    gap_fraction
                2.00000000    rootzone.depth
                0.00000000    snow_stored
-               0.50000000    cs.stem_density
+               0.00000000    cs.stem_density
                0.00200000    rain_stored
-               2.00000000    cs.cpool
-               0.60000000    cs.leafc
-               0.10000000    cs.dead_leafc
-               2.00000000    cs.live_stemc
-               1.00000000    cs.dead_stemc
-               2.00000000    cs.live_crootc
-               5.00000000    cs.dead_crootc
-               1.00000000    cs.frootc
+               1.00000000    cs.cpool
+               0.44000000    cs.leafc
+               0.05000000    cs.dead_leafc
+               0.71000000    cs.live_stemc
+               4.00000000    cs.dead_stemc
+               0.22000000    cs.live_crootc
+               1.20000000    cs.dead_crootc
+               0.58000000    cs.frootc
                0.50000000    cs.cwdc
-               0.50000000    ns.npool
-               0.01300000    ns.leafn
-               0.03000000    ns.dead_leafn
-               0.10000000    ns.live_stemn
-               0.20000000    ns.dead_stemn
-               0.05000000    ns.live_crootn
-               0.10000000    ns.dead_crootn
-               0.02000000    ns.frootn
-               0.01000000    ns.cwdn
+               0.10000000    ns.npool
+               0.00980000    ns.leafn
+               0.00100000    ns.dead_leafn
+               0.00360000    ns.live_stemn
+               0.02000000    ns.dead_stemn
+               0.00110000    ns.live_crootn
+               0.00600000    ns.dead_crootn
+               0.00420000    ns.frootn
+               0.00250000    ns.cwdn
                0.01000000    ns.retransn
                0.10000000    epv.prev_leafcalloc
                10.00000000    epv.height
@@ -694,21 +756,15 @@ none\thourly_climate_prefix
                 logger.warning(f"Could not load HRU attributes: {e}")
 
         # Project to UTM for accurate area calculation
-        sample_centroid = gdf.geometry.centroid.iloc[0]
-        lon_sample = sample_centroid.x
-        lat_sample = sample_centroid.y
-        utm_zone = int((lon_sample + 180) / 6) + 1
-        hemisphere = 'north' if lat_sample >= 0 else 'south'
-        utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-        gdf_proj = gdf.to_crs(utm_crs)
+        utm_crs = self._get_utm_crs_from_bounds(gdf)
+        gdf_proj = (gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf).to_crs(utm_crs)
 
         # Calculate total basin area
         total_area = gdf_proj.geometry.area.sum()
         logger.info(f"Total basin area: {total_area/1e6:.2f} km²")
 
-        # Get basin centroid for header
-        basin_centroid = gdf.unary_union.centroid
-        basin_lon, basin_lat = basin_centroid.x, basin_centroid.y
+        # Get basin centroid for header (in lon/lat)
+        basin_lon, basin_lat = self._get_centroid_lon_lat(gdf, utm_crs)
 
         # Get column names for HRU attributes
         hru_id_col = 'HRU_ID' if 'HRU_ID' in gdf.columns else 'hru_id'
@@ -751,6 +807,11 @@ none\thourly_climate_prefix
         lines.append("      0    hillslope_n_basestations")
         lines.append(f"      {num_patches}    num_zones")
 
+        # Optional lna controls (can be disabled via config)
+        lna_area_cap = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_AREA_CAP_M2', 1e5))
+        lna_min = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_MIN', 5.0))
+        lna_max = self._parse_optional_float(self.config_dict.get('RHESSYS_LNA_MAX', 15.0))
+
         # Generate each zone/patch/stratum (one per HRU)
         for idx, (_, row) in enumerate(gdf.iterrows()):
             hru_id = int(row[hru_id_col])
@@ -762,8 +823,9 @@ none\thourly_climate_prefix
             proj_row = gdf_proj.iloc[idx]
             area_m2 = proj_row.geometry.area
 
-            centroid = row.geometry.centroid
-            lon, lat = centroid.x, centroid.y
+            centroid_proj = proj_row.geometry.centroid
+            centroid_ll = gpd.GeoSeries([centroid_proj], crs=utm_crs).to_crs("EPSG:4326").iloc[0]
+            lon, lat = float(centroid_ll.x), float(centroid_ll.y)
 
             # Get elevation from shapefile or attributes
             if elev_col and elev_col in gdf.columns:
@@ -798,9 +860,13 @@ none\thourly_climate_prefix
             # For each HRU, use its own area as contributing area approximation
             tan_slope = max(np.tan(np.radians(slope_deg)), 0.01)
             # Use sqrt of area as contour length approximation
-            contrib_area = np.sqrt(area_m2)
+            effective_area = min(area_m2, lna_area_cap) if lna_area_cap else area_m2
+            contrib_area = np.sqrt(effective_area)
             lna = np.log(contrib_area / tan_slope)
-            lna = max(5.0, min(lna, 15.0))  # Constrain to reasonable range
+            if lna_min is not None:
+                lna = max(lna_min, lna)
+            if lna_max is not None:
+                lna = min(lna_max, lna)
 
             logger.debug(f"HRU {hru_id}: area={area_m2/1e6:.2f}km², elev={elev:.0f}m, slope={slope_deg:.1f}°, lna={lna:.2f}")
 
@@ -814,8 +880,9 @@ none\thourly_climate_prefix
             lines.append(f"         {slope_frac:.8f}    slope")
             lines.append(f"         {aspect:.8f}    aspect")
             lines.append("         1.00000000    precip_lapse_rate")
-            lines.append("         0.20000000    e_horizon")
-            lines.append("         0.20000000    w_horizon")
+            # Horizons must be 0 for basin daylength to be assigned to zones
+            lines.append("         0.00000000    e_horizon")
+            lines.append("         0.00000000    w_horizon")
             lines.append("         1    zone_n_basestations")
             lines.append("         1    zone_basestation_ID")
             lines.append("         1    num_patches")
@@ -838,11 +905,12 @@ none\thourly_climate_prefix
             lines.append(f"            {self.init_rz_storage:.8f}    rz_storage")
             lines.append(f"            {self.init_unsat_storage:.8f}    unsat_storage")
             lines.append(f"            {self.init_sat_deficit:.8f}    sat_deficit")
+            # Initialize snowpack to zero - model will build snowpack from precipitation
             lines.append("            0.00000000    snowpack.water_equivalent_depth")
             lines.append("            0.00000000    snowpack.water_depth")
-            lines.append("            -10.00000000    snowpack.T")
+            lines.append("            0.00000000    snowpack.T")
             lines.append("            0.00000000    snowpack.surface_age")
-            lines.append("            -50.00000000    snowpack.energy_deficit")
+            lines.append("            0.00000000    snowpack.energy_deficit")
             lines.append("            1.00000000    litter.cover_fraction")
             lines.append("            0.00100000    litter.rain_stored")
             lines.append("            0.03000000    litter_cs.litr1c")
@@ -863,29 +931,31 @@ none\thourly_climate_prefix
             lines.append(f"               {stratum_id}    canopy_strata_ID")
             lines.append("               1    veg_parm_ID")
             lines.append("               0.70000000    cover_fraction")
-            lines.append("               0.00000000    gap_fraction")
+            lines.append("               0.30000000    gap_fraction")
             lines.append("               2.00000000    rootzone.depth")
             lines.append("               0.00000000    snow_stored")
-            lines.append("               0.50000000    cs.stem_density")
+            # stem_density must be 0 to prevent horizon recalculation in update_phenology.c
+            # which would override zone daylength to 0 and disable photosynthesis/transpiration
+            lines.append("               0.00000000    cs.stem_density")
             lines.append("               0.00200000    rain_stored")
-            lines.append("               2.00000000    cs.cpool")
-            lines.append("               0.60000000    cs.leafc")
-            lines.append("               0.10000000    cs.dead_leafc")
-            lines.append("               5.00000000    cs.live_stemc")
-            lines.append("               10.00000000    cs.dead_stemc")
-            lines.append("               2.00000000    cs.live_crootc")
-            lines.append("               5.00000000    cs.dead_crootc")
-            lines.append("               1.00000000    cs.frootc")
+            lines.append("               1.00000000    cs.cpool")
+            lines.append("               0.44000000    cs.leafc")
+            lines.append("               0.05000000    cs.dead_leafc")
+            lines.append("               0.71000000    cs.live_stemc")
+            lines.append("               4.00000000    cs.dead_stemc")
+            lines.append("               0.22000000    cs.live_crootc")
+            lines.append("               1.20000000    cs.dead_crootc")
+            lines.append("               0.58000000    cs.frootc")
             lines.append("               0.50000000    cs.cwdc")
-            lines.append("               0.50000000    ns.npool")
-            lines.append("               0.18000000    ns.leafn")
-            lines.append("               0.03000000    ns.dead_leafn")
-            lines.append("               0.10000000    ns.live_stemn")
-            lines.append("               0.20000000    ns.dead_stemn")
-            lines.append("               0.05000000    ns.live_crootn")
-            lines.append("               0.10000000    ns.dead_crootn")
-            lines.append("               0.02000000    ns.frootn")
-            lines.append("               0.01000000    ns.cwdn")
+            lines.append("               0.10000000    ns.npool")
+            lines.append("               0.00980000    ns.leafn")
+            lines.append("               0.00100000    ns.dead_leafn")
+            lines.append("               0.00360000    ns.live_stemn")
+            lines.append("               0.02000000    ns.dead_stemn")
+            lines.append("               0.00110000    ns.live_crootn")
+            lines.append("               0.00600000    ns.dead_crootn")
+            lines.append("               0.00420000    ns.frootn")
+            lines.append("               0.00250000    ns.cwdn")
             lines.append("               0.01000000    ns.retransn")
             lines.append("               0.10000000    epv.prev_leafcalloc")
             lines.append("               10.00000000    epv.height")
@@ -903,7 +973,8 @@ none\thourly_climate_prefix
         for idx, (_, row) in enumerate(gdf.iterrows()):
             hru_id = int(row[hru_id_col])
             proj_row = gdf_proj.iloc[idx]
-            centroid = row.geometry.centroid
+            centroid_proj = proj_row.geometry.centroid
+            centroid_ll = gpd.GeoSeries([centroid_proj], crs=utm_crs).to_crs("EPSG:4326").iloc[0]
 
             if elev_col and elev_col in gdf.columns:
                 elev = float(row[elev_col])
@@ -916,8 +987,8 @@ none\thourly_climate_prefix
                 'patch_id': hru_id,
                 'zone_id': hru_id,
                 'hill_id': hillslope_id,
-                'lon': centroid.x,
-                'lat': centroid.y,
+                'lon': float(centroid_ll.x),
+                'lat': float(centroid_ll.y),
                 'elev': elev,
                 'area': proj_row.geometry.area,
             })
@@ -974,6 +1045,26 @@ none\thourly_climate_prefix
             landuse_def.write_text(landuse_content)
 
         logger.info(f"World header written: {header_file}")
+
+    def _parse_optional_float(self, value):
+        """Parse optional float config values, allowing None/empty/0 to disable."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            val = value.strip().lower()
+            if val in {"none", "null", ""}:
+                return None
+            try:
+                value = float(val)
+            except ValueError:
+                return None
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        if value <= 0:
+            return None
+        return value
 
     def _generate_tec_file(self):
         """
@@ -1093,14 +1184,12 @@ none\thourly_climate_prefix
                 )
 
             gdf = gpd.read_file(catchment_path)
-            centroid = gdf.geometry.centroid.iloc[0]
-            lon, lat = centroid.x, centroid.y
-            elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
+            utm_crs = self._get_utm_crs_from_bounds(gdf)
+            lon, lat = self._get_centroid_lon_lat(gdf, utm_crs)
+            elev_col = getattr(self, 'catchment_elev_col', 'elev_mean')
+            elev = float(gdf.get(elev_col, [1500])[0]) if elev_col in gdf.columns else 1500.0
 
-            utm_zone = int((lon + 180) / 6) + 1
-            hemisphere = 'north' if lat >= 0 else 'south'
-            utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-            gdf_proj = gdf.to_crs(utm_crs)
+            gdf_proj = (gdf.to_crs("EPSG:4326") if gdf.crs is not None else gdf).to_crs(utm_crs)
             area_m2 = gdf_proj.geometry.area.sum()
         except (FileNotFoundError, ValueError):
             raise
@@ -1203,8 +1292,8 @@ none\thourly_climate_prefix
         logger.info("Generating default files...")
 
         # Basin defaults
-        # Note: sat_to_gw_coeff controls GW recharge rate (higher = more recharge)
-        # gw_loss_coeff controls basin-level GW loss (moderate value for baseflow)
+        # Note: sat_to_gw_coeff and gw_loss_coeff are primarily patch/hillslope params,
+        # but RHESSys also reads them at basin level as defaults. Keep them here.
         basin_def = self.defs_dir / "basin.def"
         basin_content = """1    basin_default_ID
 -6.0    psi_air_entry
@@ -1244,7 +1333,7 @@ none\thourly_climate_prefix
 -2.0    min_rain_temp
 0.7    ndep_NO3
 0.004    wet_lapse_rate
-0.0    lapse_rate_precip_default
+-999.0    lapse_rate_precip_default
 """
         zone_def.write_text(zone_content)
 
@@ -1259,8 +1348,8 @@ none\thourly_climate_prefix
 0.12    pore_size_index
 0.45    porosity_0
 0.45    porosity_decay
-0.001    Ksat_0
-0.01    Ksat_0_v
+0.1    Ksat_0
+1.0    Ksat_0_v
 2.0    m
 1.5    m_z
 2.0    N_decay
@@ -1306,7 +1395,7 @@ TREE    epc.veg.type
 0.2    epc.tcoef
 -0.65    epc.psi_open
 -2.5    epc.psi_close
-0.0    epc.vpd_open
+500.0    epc.vpd_open
 3500.0    epc.vpd_close
 0.006    epc.gl_smax
 0.00006    epc.gl_c
@@ -1314,7 +1403,7 @@ TREE    epc.veg.type
 0.001    gsurf_intercept
 static    epc.phenology_flag
 EVERGREEN    epc.phenology.type
-12.0    epc.max_lai
+4.0    epc.max_lai
 9.0    epc.proj_sla
 2.6    epc.lai_ratio
 1.4    epc.proj_swa

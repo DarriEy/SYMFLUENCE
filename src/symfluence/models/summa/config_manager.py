@@ -459,6 +459,17 @@ class SummaConfigManager(PathResolverMixin):
 
         parameter_path = self.setup_dir / self.parameter_name
 
+        # Read GRU IDs from attributes file for the gru dimension
+        attr_path = self.setup_dir / self.attribute_name if hasattr(self, 'attribute_name') else self.setup_dir / 'attributes.nc'
+        try:
+            with xr.open_dataset(attr_path) as attr_ds:
+                gru_ids = attr_ds['gruId'].values.astype(int)
+                num_gru = len(gru_ids)
+        except Exception:
+            # Fallback: single GRU matching the HRU
+            gru_ids = forcing_hruIds[:1]
+            num_gru = 1
+
         with nc4.Dataset(parameter_path, "w", format="NETCDF4") as tp:
             # Set attributes
             tp.setncattr('Author', "Created by SUMMA workflow scripts")
@@ -467,12 +478,19 @@ class SummaConfigManager(PathResolverMixin):
 
             # Define dimensions
             tp.createDimension('hru', num_hru)
+            tp.createDimension('gru', num_gru)
 
             # Create hruId variable
             var = tp.createVariable('hruId', 'i4', 'hru', fill_value=False)
             var.setncattr('units', '-')
             var.setncattr('long_name', 'Index of hydrological response unit (HRU)')
             var[:] = forcing_hruIds
+
+            # Create gruId variable
+            gru_var = tp.createVariable('gruId', 'i4', 'gru', fill_value=False)
+            gru_var.setncattr('units', '-')
+            gru_var.setncattr('long_name', 'Index of grouped response unit (GRU)')
+            gru_var[:] = gru_ids
 
             # Create variables for specified trial parameters
             if self.config_dict.get('SETTINGS_SUMMA_TRIALPARAM_N') != 0:

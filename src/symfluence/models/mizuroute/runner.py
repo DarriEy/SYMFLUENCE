@@ -132,7 +132,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         if not runoff_filepath.exists():
             self.logger.warning(f"Model output file not found: {runoff_filepath}. Checking if any other output files exist in {experiment_output_dir}...")
             if experiment_output_dir.exists():
-                nc_files = list(experiment_output_dir.glob("*.nc"))
+                nc_files = [f for f in experiment_output_dir.glob("*.nc") if '_para_' not in f.name]
                 if nc_files:
                     runoff_filepath = nc_files[0]
                     self.logger.info(f"Using fallback output file: {runoff_filepath}")

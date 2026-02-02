@@ -58,6 +58,9 @@ class RHESSysParameterManager(BaseParameterManager):
         'epc.gl_c': 'stratum.def',
         'epc.vpd_open': 'stratum.def',
         'epc.vpd_close': 'stratum.def',
+        'theta_mean_std_p1': 'soil.def',
+        'theta_mean_std_p2': 'soil.def',
+        'precip_lapse_rate': 'worldfile',  # Applied to worldfile, not def files
     }
 
     def __init__(self, config: Dict, logger: logging.Logger, rhessys_settings_dir: Path):
@@ -88,7 +91,7 @@ class RHESSysParameterManager(BaseParameterManager):
                 'm,Ksat_0,Ksat_0_v,porosity_0,porosity_decay,'
                 'soil_depth,m_z,active_zone_z,snow_melt_Tcoef,snow_water_capacity,'
                 'max_snow_temp,min_rain_temp,maximum_snow_energy_deficit,'
-                'epc.gl_smax,epc.max_lai'
+                'epc.gl_smax,epc.max_lai,theta_mean_std_p1,theta_mean_std_p2,precip_lapse_rate'
             )
             logger.warning(
                 "RHESSYS_PARAMS_TO_CALIBRATE missing in config; using fallback list: "
@@ -188,6 +191,21 @@ class RHESSysParameterManager(BaseParameterManager):
         """
         def_file_name = self.PARAM_FILE_MAP.get(param_name)
         if not def_file_name:
+            return None
+
+        # Worldfile params: read from the worldfile instead of def files
+        if def_file_name == 'worldfile':
+            world_file = self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{self.domain_name}.world'
+            if world_file.exists():
+                try:
+                    with open(world_file, 'r') as f:
+                        content = f.read()
+                    pattern = rf'([\d\.\-\+eE]+)\s+{re.escape(param_name)}(\s.*|)$'
+                    match = re.search(pattern, content, re.MULTILINE)
+                    if match:
+                        return float(match.group(1))
+                except Exception:
+                    pass
             return None
 
         def_file = self.defs_dir / def_file_name

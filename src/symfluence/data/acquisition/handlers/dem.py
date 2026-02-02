@@ -44,7 +44,7 @@ from pathlib import Path
 import requests
 import rasterio
 from rasterio.merge import merge as rio_merge
-from rasterio.windows import from_bounds
+from rasterio.windows import from_bounds, Window
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
@@ -149,16 +149,21 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
                     url = f"{base_url}/{tile_name}/{tile_name}.tif"
 
                     local_tile = dem_dir / f"temp_{tile_name}.tif"
-                    if not local_tile.exists():
-                        self.logger.info(f"Fetching tile: {tile_name}")
-                        tile_result = self._download_tile_with_retry(
-                            session, url, local_tile, tile_name
-                        )
-                        if tile_result:
-                            tile_paths.append(tile_result)
-                    else:
-                        self.logger.info(f"Using cached tile: {tile_name}")
-                        tile_paths.append(local_tile)
+                    if local_tile.exists():
+                        # Validate cached tile is readable
+                        if not self._validate_tile(local_tile, tile_name):
+                            local_tile.unlink()
+                        else:
+                            self.logger.info(f"Using cached tile: {tile_name}")
+                            tile_paths.append(local_tile)
+                            continue
+
+                    self.logger.info(f"Fetching tile: {tile_name}")
+                    tile_result = self._download_tile_with_retry(
+                        session, url, local_tile, tile_name
+                    )
+                    if tile_result:
+                        tile_paths.append(tile_result)
 
             if not tile_paths:
                 raise FileNotFoundError(f"No Copernicus DEM tiles found for bbox: {self.bbox}")
@@ -190,6 +195,16 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
 
         return out_path
 
+    def _validate_tile(self, tile_path: Path, tile_name: str) -> bool:
+        """Validate a cached tile is readable by rasterio."""
+        try:
+            with rasterio.open(tile_path) as src:
+                src.read(1, window=Window(0, 0, 1, 1))
+            return True
+        except Exception:
+            self.logger.warning(f"Cached tile {tile_name} is corrupted, will re-download")
+            return False
+
     def _download_tile_with_retry(
         self, session, url: str, local_tile: Path, tile_name: str
     ) -> Path | None:
@@ -199,10 +214,18 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
             try:
                 with session.get(url, stream=True, timeout=300) as r:
                     if r.status_code == 200:
+                        expected_size = int(r.headers.get('Content-Length', 0))
+                        bytes_written = 0
                         with open(local_tile, "wb") as f:
                             for chunk in r.iter_content(chunk_size=65536):
                                 if chunk:
                                     f.write(chunk)
+                                    bytes_written += len(chunk)
+                        if expected_size and bytes_written < expected_size:
+                            raise IOError(
+                                f"Incomplete download for {tile_name}: "
+                                f"got {bytes_written}, expected {expected_size}"
+                            )
                         self.logger.info(f"✓ Downloaded {tile_name}")
                         return local_tile
                     elif r.status_code == 404:

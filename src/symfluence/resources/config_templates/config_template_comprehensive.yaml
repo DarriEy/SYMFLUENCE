@@ -183,7 +183,7 @@ NGEN_ACTIVE_CATCHMENT_ID: null
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_CFE_PARAMS_TO_CALIBRATE: maxsmc,satdk,bb,slop
+NGEN_CFE_PARAMS_TO_CALIBRATE: maxsmc,satdk,bb,slop,Cgw,max_gw_storage,K_nash,K_lf,soil_depth
 
 # NGEN_EXE
 #   Type:        str
@@ -211,7 +211,7 @@ NGEN_MODULES_TO_CALIBRATE: CFE
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat
+NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat,bexp
 
 # NGEN_PET_PARAMS_TO_CALIBRATE
 #   Type:        str
@@ -389,8 +389,8 @@ SETTINGS_MESH_INPUT: default
 #   Type:        str
 #   Default:     None
 #   Source:      MESHConfig (model_configs.py)
-#   Usage:      5
-MESH_PARAMS_TO_CALIBRATE: ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR
+#   Usage:      5 — Include KSAT,DRN,SDEP (runoff) + FLZ,PWR (baseflow) + FRZTH,XDRAINH,MANN_CLASS. DTMINUSR should NOT be calibrated.
+MESH_PARAMS_TO_CALIBRATE: KSAT,DRN,SDEP,XSLP,FLZ,PWR,ZSNL,ZPLS,RCHARG,FRZTH,XDRAINH,MANN_CLASS
 
 # MESH_SPINUP_DAYS
 #   Type:        int
@@ -3729,7 +3729,123 @@ HBV_DEFAULT_PERC: 2.5
 HBV_DEFAULT_MAXBAS: 2.5
 
 
-# 9.5. RHESSys Model Configuration
+# 9.5. VIC Model Configuration
+# ================================================================================
+
+# VIC_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+VIC_INSTALL_PATH: default
+
+# VIC_EXE
+#   Type:        str
+#   Default:     vic_image.exe
+#   Source:      VICConfig (model_configs.py)
+VIC_EXE: "vic_image.exe"
+
+# VIC_DRIVER
+#   Type:        str
+#   Default:     image
+#   Source:      VICConfig (model_configs.py)
+VIC_DRIVER: "image"
+
+# SETTINGS_VIC_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+SETTINGS_VIC_PATH: default
+
+# VIC_GLOBAL_PARAM_FILE
+#   Type:        str
+#   Default:     vic_global.txt
+#   Source:      VICConfig (model_configs.py)
+VIC_GLOBAL_PARAM_FILE: "vic_global.txt"
+
+# VIC_DOMAIN_FILE
+#   Type:        str
+#   Default:     vic_domain.nc
+#   Source:      VICConfig (model_configs.py)
+VIC_DOMAIN_FILE: "vic_domain.nc"
+
+# VIC_PARAMS_FILE
+#   Type:        str
+#   Default:     vic_params.nc
+#   Source:      VICConfig (model_configs.py)
+VIC_PARAMS_FILE: "vic_params.nc"
+
+# VIC_SPATIAL_MODE
+#   Type:        str
+#   Default:     auto
+#   Source:      VICConfig (model_configs.py)
+VIC_SPATIAL_MODE: auto
+
+# EXPERIMENT_OUTPUT_VIC
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+EXPERIMENT_OUTPUT_VIC: default
+
+# VIC_OUTPUT_PREFIX
+#   Type:        str
+#   Default:     vic_output
+#   Source:      VICConfig (model_configs.py)
+VIC_OUTPUT_PREFIX: "vic_output"
+
+# VIC_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     null
+#   Source:      VICConfig (model_configs.py)
+VIC_PARAMS_TO_CALIBRATE: null
+
+# VIC_FULL_ENERGY
+#   Description: Enable full energy balance mode (critical for snow-dominated catchments).
+#   Type:        bool
+#   Default:     True
+#   Source:      VICConfig (model_configs.py)
+VIC_FULL_ENERGY: True
+
+# VIC_FROZEN_SOIL
+#   Description: Enable frozen soil algorithm.
+#   Type:        bool
+#   Default:     True
+#   Source:      VICConfig (model_configs.py)
+VIC_FROZEN_SOIL: True
+
+# VIC_SNOW_BAND
+#   Type:        bool
+#   Default:     False
+#   Source:      VICConfig (model_configs.py)
+VIC_SNOW_BAND: False
+
+# VIC_N_SNOW_BANDS
+#   Description: Number of elevation bands for snow modelling.
+#   Type:        int
+#   Default:     10
+#   Source:      VICConfig (model_configs.py)
+VIC_N_SNOW_BANDS: 10
+
+# VIC_PFACTOR_PER_KM
+#   Description: Orographic precipitation factor per metre of elevation difference.
+#   Type:        float
+#   Default:     0.002
+#   Source:      VICConfig (model_configs.py)
+VIC_PFACTOR_PER_KM: 0.0005
+
+# VIC_STEPS_PER_DAY
+#   Type:        int
+#   Default:     24
+#   Source:      VICConfig (model_configs.py)
+VIC_STEPS_PER_DAY: 24
+
+# VIC_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      VICConfig (model_configs.py)
+VIC_TIMEOUT: 7200
+
+
+# 9.6. RHESSys Model Configuration
 # ================================================================================
 
 # RHESSYS_INSTALL_PATH

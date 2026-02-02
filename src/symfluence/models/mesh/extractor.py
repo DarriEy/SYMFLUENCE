@@ -245,11 +245,16 @@ class MESHResultExtractor(ModelResultExtractor):
                     name='total_runoff'
                 )
             elif 'RFFACC' in df.columns:
-                return pd.Series(
-                    df['RFFACC'].values,
+                # RFFACC is typically cumulative; difference it to get daily runoff
+                series = pd.Series(
+                    df['RFFACC'].astype(float).values,
                     index=pd.DatetimeIndex(df['datetime']),
                     name='RFFACC'
                 )
+                diff = series.diff()
+                if not diff.empty:
+                    diff.iloc[0] = series.iloc[0]
+                return diff
             raise ValueError("No RFF or RFFACC column found")
 
         col_candidates = var_mapping.get(variable_type, [variable_type.upper()])
