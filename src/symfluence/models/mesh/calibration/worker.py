@@ -75,6 +75,11 @@ class MESHWorker(BaseWorker):
 
             if not success:
                 self.logger.error(f"Failed to update MESH parameter files in {param_dir}")
+            else:
+                self.logger.debug(
+                    f"Applied {len(params)} MESH parameters to {param_dir}: "
+                    f"{', '.join(f'{k}={v:.4g}' for k, v in params.items())}"
+                )
 
             return success
 
@@ -325,22 +330,93 @@ class MESHWorker(BaseWorker):
             else:
                 obs_daily = obs_df[obs_col]
 
+            # Drop warm-up from simulation before alignment.
+            # Prefer the actual spinup written to run options by the parameter
+            # fixer (METRICSSPINUP), which accounts for forcing-data limits.
+            # Fall back to config value only when run options are unavailable.
+            run_opts = output_dir / 'MESH_input_run_options.ini'
+            actual_spinup = 0
+            if run_opts.exists():
+                actual_spinup = self._parse_spinup_from_run_options(run_opts)
+            warmup_days = actual_spinup if actual_spinup > 0 else int(
+                config.get('MESH_SPINUP_DAYS', 365)
+            )
+            if not sim_df.empty:
+                sim_start = sim_df.index.min()
+                warmup_cutoff = sim_start + pd.Timedelta(days=warmup_days)
+                sim_warm = sim_df.loc[sim_df.index >= warmup_cutoff]
+                if sim_warm.empty:
+                    self.logger.warning(
+                        "Warm-up trimming removed all simulation data; "
+                        "model likely crashed before completing spinup. "
+                        f"Sim range: {sim_start.date()} to {sim_df.index.max().date()}, "
+                        f"warmup cutoff: {warmup_cutoff.date()}"
+                    )
+                    return {'kge': self.penalty_score, 'error': 'Simulation shorter than spinup'}
+                else:
+                    sim_df = sim_warm
+                    self.logger.debug(
+                        f"Trimmed {warmup_days} warm-up days "
+                        f"(cutoff={warmup_cutoff.date()}, "
+                        f"remaining={len(sim_df)} rows)"
+                    )
+
+            # Filter to calibration period if specified (consistent with
+            # FUSE, RHESSys, HYPE, and HBV workers)
+            calib_period = config.get('CALIBRATION_PERIOD', '')
+            if calib_period and ',' in str(calib_period):
+                try:
+                    start_str, end_str = [s.strip() for s in str(calib_period).split(',')]
+                    calib_start = pd.Timestamp(start_str)
+                    calib_end = pd.Timestamp(end_str)
+                    sim_df = sim_df.loc[
+                        (sim_df.index >= calib_start) & (sim_df.index <= calib_end)
+                    ]
+                    obs_daily = obs_daily.loc[
+                        (obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)
+                    ]
+                    self.logger.debug(
+                        f"Applied calibration period filter: {calib_start.date()} to {calib_end.date()}, "
+                        f"sim={len(sim_df)} obs={len(obs_daily)} rows"
+                    )
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"Could not parse calibration period '{calib_period}': {e}")
+
             # Align simulation and observations
             common_idx = sim_df.index.intersection(obs_daily.index)
             if len(common_idx) == 0:
                 self.logger.error("No common dates between simulation and observations")
-                self.logger.debug(f"Sim dates: {sim_df.index[0]} to {sim_df.index[-1]}")
-                self.logger.debug(f"Obs dates: {obs_daily.index[0]} to {obs_daily.index[-1]}")
+                if not sim_df.empty:
+                    self.logger.debug(f"Sim dates: {sim_df.index.min()} to {sim_df.index.max()}")
+                if not obs_daily.empty:
+                    self.logger.debug(f"Obs dates: {obs_daily.index.min()} to {obs_daily.index.max()}")
                 return {'kge': self.penalty_score, 'error': 'No common dates'}
+
+            common_idx = common_idx.sort_values()
 
             obs_aligned = obs_daily.loc[common_idx].values
             sim_aligned = sim_df.loc[common_idx, 'runoff'].values
 
-            # Calculate metrics
-            kge_val = kge(obs_aligned, sim_aligned, transfo=1)
+            # Calculate metrics with KGE decomposition for diagnostics
+            kge_result = kge(obs_aligned, sim_aligned, transfo=1, return_components=True)
             nse_val = nse(obs_aligned, sim_aligned, transfo=1)
 
-            return {'kge': float(kge_val), 'nse': float(nse_val)}
+            self.logger.debug(
+                f"MESH metrics (n={len(obs_aligned)}): "
+                f"KGE={kge_result['KGE']:.4f} "  # type: ignore[index]
+                f"(r={kge_result['r']:.3f}, "  # type: ignore[index]
+                f"alpha={kge_result['alpha']:.3f}, "  # type: ignore[index]
+                f"beta={kge_result['beta']:.3f}), "  # type: ignore[index]
+                f"NSE={nse_val:.4f}"
+            )
+
+            return {
+                'kge': float(kge_result['KGE']),  # type: ignore[index]
+                'nse': float(nse_val),
+                'r': float(kge_result['r']),  # type: ignore[index]
+                'alpha': float(kge_result['alpha']),  # type: ignore[index]
+                'beta': float(kge_result['beta']),  # type: ignore[index]
+            }
 
         except FileNotFoundError as e:
             self.logger.error(f"Output or observation file not found: {e}")
@@ -375,6 +451,31 @@ class MESHWorker(BaseWorker):
             pass
 
         return datetime(2001, 1, 1)  # Default
+
+    def _parse_spinup_from_run_options(self, run_opts_path: Path) -> int:
+        """Parse actual METRICSSPINUP days from MESH run options file.
+
+        The parameter fixer writes the actual (possibly limited) spinup days
+        to the run options as METRICSSPINUP. This is more reliable than
+        the config value which may reflect the originally requested spinup
+        before it was clamped to available forcing data.
+
+        Returns:
+            Actual spinup days from run options, or 0 if not found.
+        """
+        import re
+
+        try:
+            with open(run_opts_path, 'r') as f:
+                content = f.read()
+
+            match = re.search(r'METRICSSPINUP\s+(\d+)', content)
+            if match:
+                return int(match.group(1))
+        except (IOError, ValueError):
+            pass
+
+        return 0
 
     def _get_basin_area(self, output_dir: Path, config: Dict[str, Any]) -> Optional[float]:
         """Get basin area in m² from drainage database or config."""

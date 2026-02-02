@@ -189,11 +189,12 @@ class FuseElevationBandManager(ConfigMixin):
             xr.DataArray(elevations, dims=['elevation_band'])
 
             # FUSE (Fortran) reads data with nf90_get_var using count=(/nSpat1,nSpat2,n_bands/)
-            # which expects NetCDF dimension order to be (latitude, longitude, elevation_band)
-            # The last dimension in NetCDF is fastest-varying, matching Fortran's first array index
-            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
-            band_dims = spatial_dims + ['elevation_band']
-            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
+            # In Fortran, dimensions are reversed from C/NetCDF order, so the NetCDF
+            # dimension order must be (elevation_band, lat, lon) so that Fortran sees
+            # (lon, lat, elevation_band) matching (/nSpat1, nSpat2, n_bands/)
+            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
+            band_dims = ['elevation_band'] + spatial_dims
+            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
 
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
@@ -328,11 +329,12 @@ class FuseElevationBandManager(ConfigMixin):
             })
 
             # FUSE (Fortran) reads data with nf90_get_var using count=(/nSpat1,nSpat2,n_bands/)
-            # which expects NetCDF dimension order to be (latitude, longitude, elevation_band)
-            # The last dimension in NetCDF is fastest-varying, matching Fortran's first array index
-            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
-            band_dims = spatial_dims + ['elevation_band']
-            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
+            # In Fortran, dimensions are reversed from C/NetCDF order, so the NetCDF
+            # dimension order must be (elevation_band, lat, lon) so that Fortran sees
+            # (lon, lat, elevation_band) matching (/nSpat1, nSpat2, n_bands/)
+            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
+            band_dims = ['elevation_band'] + spatial_dims
+            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
 
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),

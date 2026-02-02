@@ -108,7 +108,7 @@ class ParameterBoundsRegistry:
         # NGEN CFE soil parameters
         'maxsmc': ParameterInfo(0.3, 0.6, 'fraction', 'Maximum soil moisture content', 'soil'),
         'wltsmc': ParameterInfo(0.02, 0.15, 'fraction', 'Wilting point soil moisture', 'soil'),
-        'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil'),
+        'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil', 'log'),
         'satpsi': ParameterInfo(0.05, 0.5, 'm', 'Saturated soil potential', 'soil'),
         'bb': ParameterInfo(2.0, 8.0, '-', 'Pore size distribution index', 'soil'),
         # Note: smcmax defined in NOAH section below with bounds (0.3, 0.6)
@@ -120,19 +120,19 @@ class ParameterBoundsRegistry:
 
         # NGEN NOAH-OWP soil parameters
         'slope': ParameterInfo(0.1, 1.0, '-', 'NOAH slope parameter', 'soil'),
-        'dksat': ParameterInfo(1e-7, 1e-4, 'm/s', 'NOAH saturated conductivity', 'soil'),
+        'dksat': ParameterInfo(1e-7, 1e-4, 'm/s', 'NOAH saturated conductivity', 'soil', 'log'),
         'psisat': ParameterInfo(0.01, 1.0, 'm', 'NOAH saturated potential', 'soil'),
         'bexp': ParameterInfo(2.0, 14.0, '-', 'NOAH b exponent', 'soil'),
         'smcmax': ParameterInfo(0.3, 0.6, 'm³/m³', 'NOAH maximum soil moisture (should match CFE)', 'soil'),
         'smcwlt': ParameterInfo(0.01, 0.3, 'm³/m³', 'NOAH wilting point', 'soil'),
         'smcref': ParameterInfo(0.1, 0.5, 'm³/m³', 'NOAH reference moisture', 'soil'),
-        'noah_refdk': ParameterInfo(1e-7, 1e-3, 'm/s', 'NOAH reference conductivity', 'soil'),
+        'noah_refdk': ParameterInfo(1e-7, 1e-3, 'm/s', 'NOAH reference conductivity', 'soil', 'log'),
         'noah_refkdt': ParameterInfo(0.5, 5.0, '-', 'NOAH reference KDT', 'soil'),
         'noah_czil': ParameterInfo(0.02, 0.2, '-', 'NOAH Zilitinkevich coefficient', 'soil'),
         'noah_z0': ParameterInfo(0.001, 1.0, 'm', 'NOAH roughness length', 'soil'),
         'noah_frzk': ParameterInfo(0.0, 10.0, '-', 'NOAH frozen ground parameter', 'soil'),
         'noah_salp': ParameterInfo(-2.0, 2.0, '-', 'NOAH shape parameter', 'soil'),
-        'refkdt': ParameterInfo(0.5, 3.0, '-', 'Reference surface runoff parameter', 'soil'),
+        'refkdt': ParameterInfo(0.5, 5.0, '-', 'Reference surface runoff parameter (expanded for infiltration control)', 'soil'),
     }
 
     # ========================================================================
@@ -146,8 +146,8 @@ class ParameterBoundsRegistry:
         'QBRATE_2B': ParameterInfo(0.0001, 0.01, '1/day', 'Secondary baseflow depletion', 'baseflow'),
 
         # NGEN CFE groundwater parameters
-        'Cgw': ParameterInfo(1e-5, 0.01, 'm/h', 'Groundwater coefficient', 'baseflow'),
-        'max_gw_storage': ParameterInfo(0.05, 0.5, 'm', 'Maximum groundwater storage', 'baseflow'),
+        'Cgw': ParameterInfo(1e-5, 0.01, 'm/h', 'Groundwater coefficient', 'baseflow', 'log'),
+        'max_gw_storage': ParameterInfo(0.05, 2.0, 'm', 'Maximum groundwater storage (expanded for mountain catchments)', 'baseflow'),
     }
 
     # ========================================================================
@@ -158,10 +158,10 @@ class ParameterBoundsRegistry:
         'TIMEDELAY': ParameterInfo(0.0, 10.0, 'days', 'Time delay in routing', 'routing'),
 
         # NGEN CFE routing parameters
-        'K_lf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient', 'routing'),
-        'K_nash': ParameterInfo(0.01, 0.4, '1/h', 'Nash cascade coefficient', 'routing'),
-        'Klf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient (alias)', 'routing'),
-        'Kn': ParameterInfo(0.01, 0.4, '1/h', 'Nash cascade coefficient (alias)', 'routing'),
+        'K_lf': ParameterInfo(0.01, 0.8, '1/h', 'Lateral flow coefficient (expanded upper bound)', 'routing'),
+        'K_nash': ParameterInfo(0.01, 0.8, '1/h', 'Nash cascade coefficient (expanded upper bound)', 'routing'),
+        'Klf': ParameterInfo(0.01, 0.8, '1/h', 'Lateral flow coefficient (alias)', 'routing'),
+        'Kn': ParameterInfo(0.01, 0.8, '1/h', 'Nash cascade coefficient (alias)', 'routing'),
 
         # mizuRoute parameters (SUMMA)
         'velo': ParameterInfo(0.1, 5.0, 'm/s', 'Flow velocity', 'routing'),
@@ -319,6 +319,10 @@ class ParameterBoundsRegistry:
         'FRZTH': ParameterInfo(0.0, 5.0, 'm', 'Frozen soil infiltration threshold', 'soil'),
         'MANN': ParameterInfo(0.01, 0.3, '-', 'Manning roughness coefficient', 'routing'),
 
+        # Baseflow parameters (hydrology.ini)
+        'FLZ': ParameterInfo(0.0001, 0.1, '-', 'Baseflow recession coefficient', 'baseflow'),
+        'PWR': ParameterInfo(1.0, 5.0, '-', 'Baseflow power exponent', 'baseflow'),
+
         # Legacy hydrology parameters
         'RCHARG': ParameterInfo(0.0, 1.0, '-', 'Recharge fraction to groundwater', 'baseflow'),
         'DRAINFRAC': ParameterInfo(0.0, 1.0, '-', 'Drainage fraction', 'soil'),
@@ -354,6 +358,10 @@ class ParameterBoundsRegistry:
         'soil_depth': ParameterInfo(2.0, 15.0, 'm', 'Total soil depth', 'soil'),
         'active_zone_z': ParameterInfo(0.5, 3.0, 'm', 'Active zone depth', 'soil'),
 
+        # Subgrid variability parameters (soil.def) — critical for lumped mode peak flows
+        'theta_mean_std_p1': ParameterInfo(0.01, 0.5, '-', 'Std dev of saturation deficit (controls partial saturation area)', 'soil'),
+        'theta_mean_std_p2': ParameterInfo(0.0, 0.3, '-', 'Second parameter for saturation deficit variance', 'soil'),
+
         # Snow parameters (soil.def for snow_melt_Tcoef, zone.def for temps)
         'max_snow_temp': ParameterInfo(-2.0, 2.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
         'min_rain_temp': ParameterInfo(-6.0, 0.0, '°C', 'Min temp for rain (all snow below this)', 'snow'),
@@ -363,13 +371,16 @@ class ParameterBoundsRegistry:
 
         # Vegetation parameters (stratum.def)
         'epc.max_lai': ParameterInfo(0.5, 8.0, 'm²/m²', 'Maximum LAI', 'et'),
-        'epc.gl_smax': ParameterInfo(0.001, 0.2, 'm/s', 'Maximum stomatal conductance', 'et', 'log'),
+        'epc.gl_smax': ParameterInfo(0.001, 0.02, 'm/s', 'Maximum stomatal conductance', 'et', 'log'),
         'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et', 'log'),
         'epc.vpd_open': ParameterInfo(0.1, 2.0, 'kPa', 'VPD at stomatal opening', 'et'),
         'epc.vpd_close': ParameterInfo(2.0, 6.0, 'kPa', 'VPD at stomatal closure', 'et'),
 
         # Routing parameters (basin.def)
         'n_routing_power': ParameterInfo(0.1, 1.0, '-', 'Routing power exponent', 'routing'),
+
+        # Forcing correction parameters (worldfile)
+        'precip_lapse_rate': ParameterInfo(0.5, 1.5, '-', 'Precipitation multiplier (corrects forcing bias)', 'forcing'),
     }
 
     # ========================================================================
@@ -719,12 +730,16 @@ def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
         # Soil
         'psi_air_entry', 'pore_size_index', 'porosity_0', 'porosity_decay',
         'Ksat_0', 'Ksat_0_v', 'm', 'm_z', 'soil_depth', 'active_zone_z',
+        # Subgrid variability (critical for lumped mode peak flows)
+        'theta_mean_std_p1', 'theta_mean_std_p2',
         # Snow
         'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'snow_water_capacity', 'maximum_snow_energy_deficit',
         # Vegetation/ET
         'epc.max_lai', 'epc.gl_smax', 'epc.gl_c', 'epc.vpd_open', 'epc.vpd_close',
         # Routing
         'n_routing_power',
+        # Forcing correction
+        'precip_lapse_rate',
     ]
     return get_registry().get_bounds_for_params(rhessys_params)
 

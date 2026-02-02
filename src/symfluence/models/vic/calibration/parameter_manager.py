@@ -32,8 +32,14 @@ class VICParameterManager(BaseParameterManager):
         'Ksat': 'Ksat',           # Applied to all layers
         'expt': 'expt',           # Applied to all layers
         'Wcr_FRACT': 'Wcr_FRACT', # Applied to all layers
-        'Wpwp_FRACT': 'Wpwp_FRACT', # Applied to all layers
+        'Wpwp_FRACT': 'Wpwp_FRACT', # Derived from Wpwp_ratio × Wcr_FRACT; applied to all layers
+        'Wpwp_ratio': None,       # Special: Wpwp_FRACT = Wpwp_ratio × Wcr_FRACT
+        'Ksat_decay': None,       # Special: multiplicative decay of Ksat per layer (layer_n = Ksat × decay^n)
+        'expt_increase': None,    # Special: additive increase of expt per layer (layer_n = expt + increase×n)
         'snow_rough': 'snow_rough',
+        'max_snow_albedo': 'max_snow_albedo',  # Maximum fresh snow albedo [0-1]
+        'min_rain_temp': None,    # Special: written to global param file [°C]
+        'max_snow_temp': None,    # Special: written to global param file [°C]
         'elev_offset': None,      # Special: shifts snow band elevations (not a direct NetCDF variable)
     }
 
@@ -70,7 +76,7 @@ class VICParameterManager(BaseParameterManager):
             vic_params_str = config.get('VIC_PARAMS_TO_CALIBRATE')
 
         if vic_params_str is None:
-            vic_params_str = 'infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,Ksat,Wcr_FRACT,Wpwp_FRACT,snow_rough'
+            vic_params_str = 'infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,min_rain_temp,max_snow_temp,elev_offset'
             logger.warning(
                 f"VIC_PARAMS_TO_CALIBRATE missing; using fallback: {vic_params_str}"
             )
@@ -109,6 +115,8 @@ class VICParameterManager(BaseParameterManager):
         - expt: [4.0, 30.0] - Soil layer exponent
         """
         # VIC-specific bounds
+        # Bounds tightened from original ranges to improve DDS convergence
+        # efficiency and reduce parameter space for the typical 1000-iteration budget.
         vic_bounds = {
             # --- Infiltration ---
             'infilt': {'min': 0.001, 'max': 0.9},
@@ -116,23 +124,28 @@ class VICParameterManager(BaseParameterManager):
             'Ds': {'min': 0.0, 'max': 1.0},          # Fraction of Dsmax for nonlinear baseflow
             'Dsmax': {'min': 0.1, 'max': 30.0},       # Maximum baseflow velocity [mm/day]
             'Ws': {'min': 0.1, 'max': 1.0},           # Soil moisture fraction for nonlinear baseflow
-            'c': {'min': 1.0, 'max': 6.0},            # ARNO baseflow exponent (VIC allows up to ~10)
+            'c': {'min': 1.0, 'max': 4.0},            # ARNO baseflow exponent
             # --- Soil layers ---
-            'depth1': {'min': 0.01, 'max': 0.5},      # Top layer depth [m]
-            'depth2': {'min': 0.1, 'max': 2.0},       # Middle layer depth [m]
-            'depth3': {'min': 0.1, 'max': 3.0},       # Bottom layer depth [m]
-            'expt': {'min': 4.0, 'max': 30.0},        # Brooks-Corey exponent (all layers)
-            'Ksat': {'min': 10.0, 'max': 5000.0},     # Saturated hydraulic conductivity [mm/day]
+            'depth1': {'min': 0.05, 'max': 0.5},      # Top layer depth [m]
+            'depth2': {'min': 0.1, 'max': 1.5},       # Middle layer depth [m]
+            'depth3': {'min': 0.1, 'max': 2.0},       # Bottom layer depth [m]
+            'expt': {'min': 4.0, 'max': 25.0},        # Brooks-Corey exponent (top layer)
+            'expt_increase': {'min': 0.0, 'max': 5.0},  # Additive expt increase per layer
+            'Ksat': {'min': 50.0, 'max': 800.0},      # Saturated hydraulic conductivity [mm/day]
+            'Ksat_decay': {'min': 0.1, 'max': 1.0},   # Multiplicative Ksat decay per layer
             # --- ET partitioning ---
             'Wcr_FRACT': {'min': 0.3, 'max': 0.9},    # Critical soil moisture fraction
-            'Wpwp_FRACT': {'min': 0.05, 'max': 0.45},  # Wilting point fraction (must be < Wcr_FRACT)
+            'Wpwp_ratio': {'min': 0.15, 'max': 0.85},  # Wpwp as fraction of Wcr (Wpwp_FRACT = ratio × Wcr_FRACT)
             # --- Snow ---
             'snow_rough': {'min': 0.00001, 'max': 0.01},  # Snow surface roughness [m]
+            'max_snow_albedo': {'min': 0.7, 'max': 0.95},  # Maximum fresh snow albedo
+            'min_rain_temp': {'min': -1.5, 'max': 1.5},    # Min temp for rain (below = all snow) [°C]
+            'max_snow_temp': {'min': 0.5, 'max': 3.5},     # Max temp for snow (above = all rain) [°C]
             # --- Temperature bias via snow band elevation offset ---
             # Positive offset raises band elevations → cooler bands → delayed snowmelt
-            # Each +100m offset cools all bands by ~0.65°C via lapse rate
-            # Range 0-1000m gives temperature bias of 0 to -6.5°C
-            'elev_offset': {'min': 0.0, 'max': 1000.0},   # Snow band elevation offset [m]
+            # Negative offset lowers band elevations → warmer bands → earlier snowmelt
+            # Each ±100m offset shifts temperature by ~∓0.65°C via lapse rate
+            'elev_offset': {'min': -200.0, 'max': 200.0},   # Snow band elevation offset [m]
         }
 
         # Check for config overrides
@@ -179,10 +192,9 @@ class VICParameterManager(BaseParameterManager):
             ds = xr.open_dataset(self.params_file)
             ds = ds.load()  # Load into memory for modification
 
-            # Enforce constraint: Wpwp_FRACT must be < Wcr_FRACT
-            if 'Wcr_FRACT' in params and 'Wpwp_FRACT' in params:
-                if params['Wpwp_FRACT'] >= params['Wcr_FRACT']:
-                    params['Wpwp_FRACT'] = params['Wcr_FRACT'] * 0.5
+            # Derive Wpwp_FRACT from Wpwp_ratio × Wcr_FRACT
+            if 'Wpwp_ratio' in params and 'Wcr_FRACT' in params:
+                params['Wpwp_FRACT'] = params['Wpwp_ratio'] * params['Wcr_FRACT']
 
             # Handle elev_offset: shift snow band elevations to control snowmelt timing
             if 'elev_offset' in params and 'elevation' in ds:
@@ -192,10 +204,37 @@ class VICParameterManager(BaseParameterManager):
                     ds['elevation'].values[band][mask] += offset
                 self.logger.debug(f"Applied elev_offset = {offset:.0f}m to snow band elevations")
 
+            # Apply layer-specific Ksat with depth decay
+            if 'Ksat' in params and 'Ksat' in ds:
+                base_ksat = params['Ksat']
+                ksat_decay = params.get('Ksat_decay', 1.0)
+                for layer in range(ds['Ksat'].shape[0]):
+                    layer_ksat = base_ksat * (ksat_decay ** layer)
+                    mask = ~np.isnan(ds['Ksat'].values[layer])
+                    ds['Ksat'].values[layer][mask] = layer_ksat
+                self.logger.debug(
+                    f"Updated Ksat: layer0={base_ksat:.1f}, decay={ksat_decay:.3f}"
+                )
+
+            # Apply layer-specific expt with depth increase
+            if 'expt' in params and 'expt' in ds:
+                base_expt = params['expt']
+                expt_inc = params.get('expt_increase', 0.0)
+                for layer in range(ds['expt'].shape[0]):
+                    layer_expt = base_expt + expt_inc * layer
+                    mask = ~np.isnan(ds['expt'].values[layer])
+                    ds['expt'].values[layer][mask] = layer_expt
+                self.logger.debug(
+                    f"Updated expt: layer0={base_expt:.1f}, increase={expt_inc:.2f}/layer"
+                )
+
+            # Parameters handled above — skip in generic loop
+            LAYER_SPECIFIC_PARAMS = {'Ksat', 'Ksat_decay', 'expt', 'expt_increase'}
+
             for param_name, value in params.items():
                 var_name = self.PARAM_VAR_MAP.get(param_name)
-                if var_name is None:
-                    continue  # Skip special params like elev_offset
+                if var_name is None or param_name in LAYER_SPECIFIC_PARAMS:
+                    continue  # Skip special params
 
                 if var_name not in ds:
                     self.logger.warning(f"Variable {var_name} not in parameter file")
@@ -256,6 +295,21 @@ class VICParameterManager(BaseParameterManager):
             params = {}
 
             for param_name in self.vic_params:
+                # Handle Wpwp_ratio: derive from existing Wcr_FRACT and Wpwp_FRACT
+                if param_name == 'Wpwp_ratio':
+                    if 'Wcr_FRACT' in ds and 'Wpwp_FRACT' in ds:
+                        wcr_vals = ds['Wcr_FRACT'].values[~np.isnan(ds['Wcr_FRACT'].values)]
+                        wpwp_vals = ds['Wpwp_FRACT'].values[~np.isnan(ds['Wpwp_FRACT'].values)]
+                        if len(wcr_vals) > 0 and len(wpwp_vals) > 0:
+                            wcr_mean = float(np.nanmean(wcr_vals))
+                            wpwp_mean = float(np.nanmean(wpwp_vals))
+                            if wcr_mean > 0:
+                                params[param_name] = wpwp_mean / wcr_mean
+                                continue
+                    bounds = self.param_bounds.get(param_name, {'min': 0.15, 'max': 0.85})
+                    params[param_name] = (bounds['min'] + bounds['max']) / 2
+                    continue
+
                 var_name = self.PARAM_VAR_MAP.get(param_name)
                 if var_name and var_name in ds:
                     data = ds[var_name]

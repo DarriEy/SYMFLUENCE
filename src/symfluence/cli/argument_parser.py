@@ -356,6 +356,8 @@ For more help on a specific command:
                                   help=f'Tools to install. If not specified, installs all. Choices: {", ".join(EXTERNAL_TOOLS)}')
         install_parser.add_argument('--force', action='store_true',
                                   help='Force reinstall even if already installed')
+        install_parser.add_argument('--patched', action='store_true',
+                                  help='Apply SYMFLUENCE patches (currently: RHESSys GW recharge + NaN guards)')
         install_parser.set_defaults(func=BinaryCommands.install)
 
         # binary validate

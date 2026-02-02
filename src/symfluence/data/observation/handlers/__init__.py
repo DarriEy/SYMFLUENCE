@@ -57,6 +57,7 @@ from .canopy_height import (
     MetaCanopyHeightHandler,
     GLADTreeHeightHandler,
 )
+from .canswe import CanSWEHandler, NorSWEHandler
 
 __all__ = [
     # CHIRPS
@@ -138,4 +139,7 @@ __all__ = [
     "GEDICanopyHeightHandler",
     "MetaCanopyHeightHandler",
     "GLADTreeHeightHandler",
+    # CanSWE / NorSWE
+    "CanSWEHandler",
+    "NorSWEHandler",
 ]

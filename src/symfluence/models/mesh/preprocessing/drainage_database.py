@@ -385,51 +385,50 @@ class MESHDrainageDatabase(ConfigMixin):
                     ds = ds.rename({old_lc_dim: 'landclass'})
                     modified = True
 
-                # Ensure landclass variable exists and is on (subbasin, landclass)
+                # Ensure GRU variable exists and is on (subbasin, landclass)
                 if 'GRU' in ds:
-                    self.logger.info("Renaming 'GRU' variable to 'landclass'")
                     # Correct dimension names if needed
-                    ds['landclass'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
-                    ds = ds.drop_vars('GRU')
-                    modified = True
-                    ds['landclass'].attrs['grid_mapping'] = 'crs'
+                    if ds['GRU'].dims != (target_n_dim, 'landclass'):
+                        ds['GRU'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
+                        modified = True
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
 
-                    # For lumped mode, ensure we only have 1 landclass
-                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
-                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
-                        # Keep only the first landclass
-                        landclass_data = ds['landclass'].isel(landclass=0).values
-                        landclass_attrs = ds['landclass'].attrs
-                        # Drop the variable and dimension
-                        ds = ds.drop_vars('landclass')
-                        # Re-create with correct dimensions (subbasin, landclass=1)
-                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
-                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                    # For lumped mode, optionally force single landclass
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
+                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(
+                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
+                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                        )
+                        ds = ds.isel(landclass=slice(0, 1))
+                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
                         modified = True
 
                 elif 'landclass' in ds:
-                    # Ensure correct dimension names
-                    if ds['landclass'].dims != (target_n_dim, 'landclass'):
-                        self.logger.info(f"Correcting landclass dimensions from {ds['landclass'].dims} to ('{target_n_dim}', 'landclass')")
-                        ds['landclass'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
-                        modified = True
-                    ds['landclass'].attrs['grid_mapping'] = 'crs'
+                    # If landclass is present but GRU is missing, treat landclass as GRU fractions
+                    self.logger.info("Found 'landclass' variable without GRU; renaming to GRU")
+                    ds['GRU'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
+                    ds = ds.drop_vars('landclass')
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
+                    modified = True
 
-                    # For lumped mode, ensure we only have 1 landclass
-                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
-                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
-                        landclass_attrs = ds['landclass'].attrs
-                        ds = ds.drop_vars('landclass')
-                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
-                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                    # For lumped mode, optionally force single landclass
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
+                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(
+                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
+                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                        )
+                        ds = ds.isel(landclass=slice(0, 1))
+                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
                         modified = True
                 else:
-                    # Create landclass variable if it doesn't exist (e.g., for lumped mode)
+                    # Create GRU variable if it doesn't exist (e.g., for lumped mode)
                     # For lumped mode, we have 1 subbasin and 1 landclass, with 100% coverage
-                    self.logger.info("Creating landclass variable for lumped mode (1 landclass, 100% coverage)")
+                    self.logger.info("Creating GRU variable for lumped mode (1 landclass, 100% coverage)")
                     n_landclass = 1  # Single landcover class for lumped mode
                     landclass_data = np.ones((n_size, n_landclass), dtype=np.float64)
-                    ds['landclass'] = ((target_n_dim, 'landclass'), landclass_data, {
+                    ds['GRU'] = ((target_n_dim, 'landclass'), landclass_data, {
                         'long_name': 'Land cover class fractions',
                         'units': '1',
                         'grid_mapping': 'crs'
@@ -538,7 +537,11 @@ class MESHDrainageDatabase(ConfigMixin):
                         })
                         modified = True
 
-                # Rename NGRU or land dimension to 'landclass'
+                # Ensure 1D coordinate for landclass dimension
+                if 'landclass' in ds.dims:
+                    n_land = int(ds.dims['landclass'])
+                    ds = ds.assign_coords(landclass=np.arange(1, n_land + 1, dtype=np.int32))
+                    modified = True
 
                 # Remove global attributes that might confuse MESH
                 for attr in ['crs', 'grid_mapping', 'featureType']:

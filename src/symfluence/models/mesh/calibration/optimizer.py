@@ -204,34 +204,3 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 # Update parallel_dirs to include forcing path
                 dirs['forcing_dir'] = dest_forcing
                 dirs['settings_dir'] = dest_settings
-
-        # Update MESH_input_run_options.ini with process-specific paths
-        self._update_mesh_run_options(self.parallel_dirs)
-
-    def _update_mesh_run_options(
-        self,
-        parallel_dirs: Dict[int, Dict[str, Path]]
-    ) -> None:
-        """
-        Update MESH_input_run_options.ini with process-specific output directories.
-
-        MESH configuration files have strict field width limits (A10 = 10 characters).
-        We keep the output directory as "./" since MESH runs from the forcing directory,
-        which is already process-specific in parallel mode.
-
-        Args:
-            parallel_dirs: Dictionary of parallel directory paths per process
-        """
-        for proc_id, dirs in parallel_dirs.items():
-            forcing_dir = dirs.get('forcing_dir')
-            if not forcing_dir: continue
-
-            run_options_path = forcing_dir / 'MESH_input_run_options.ini'
-            if not run_options_path.exists(): continue
-
-            try:
-                # No need to update output paths - MESH runs from forcing_dir
-                # and "./" resolves correctly. Absolute paths exceed MESH's 10-char limit.
-                self.logger.debug(f"MESH run options for process {proc_id} using relative output paths")
-            except Exception as e:
-                self.logger.error(f"Failed to verify MESH run options for process {proc_id}: {e}")

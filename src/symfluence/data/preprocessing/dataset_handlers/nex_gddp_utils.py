@@ -128,14 +128,16 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
             )
             ds["spechum"] = q
         elif "hurs" in ds.data_vars:
-            # fallback: relative humidity as spechum (percent)
+            # Keep as relative humidity; downstream forcing processor will
+            # convert to specific humidity via Magnus formula
             hurs = ds["hurs"].astype("float32")
             hurs = xr.where(np.isfinite(hurs), hurs, np.nan)
             hurs.attrs.update(
                 long_name="Near-surface relative humidity",
                 units="percent",
             )
-            ds["spechum"] = hurs
+            ds["relhum"] = hurs
+            ds = ds.drop_vars("hurs")
 
         # ---- Wind speed ----
         if "windspd" in ds.data_vars:
@@ -162,7 +164,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         keep_vars = [
             v for v in [
                 "pptrate", "LWRadAtm", "SWRadAtm",
-                "airtemp", "spechum", "windspd", "airpres",
+                "airtemp", "spechum", "relhum", "windspd", "airpres",
             ]
             if v in ds.data_vars
         ]
@@ -240,7 +242,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
 
         # Process each variable
         for var_name in ds.data_vars:
-            if var_name not in ['pptrate', 'airtemp', 'spechum', 'windspd', 'airpres', 'LWRadAtm', 'SWRadAtm']:
+            if var_name not in ['pptrate', 'airtemp', 'spechum', 'relhum', 'windspd', 'airpres', 'LWRadAtm', 'SWRadAtm']:
                 # Keep non-forcing variables as-is
                 ds_hourly[var_name] = ds[var_name]
                 continue

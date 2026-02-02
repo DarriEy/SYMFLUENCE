@@ -741,10 +741,9 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 cal = getattr(time_coord.values[0], 'calendar', None)
                 if cal:
                     source_calendar = cal
-            # NEX-GDDP CMIP6 models use noleap calendars
-            if 'NEX-GDDP' in self.forcing_dataset.upper() and source_calendar == 'standard':
-                source_calendar = 'noleap'
-                self.logger.info(f"File {filename}: NEX-GDDP dataset detected, using noleap calendar")
+            # NEX-GDDP acquisition handler already converts all calendars
+            # (noleap, 360_day, etc.) to standard Gregorian with explicit
+            # calendar=standard encoding, so trust the detected calendar here.
 
             self._source_calendar = source_calendar
             self.logger.debug(f"File {filename}: Detected source calendar: {source_calendar}")

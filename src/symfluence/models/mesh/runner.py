@@ -107,7 +107,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             MESH executable is temporarily copied to the forcing directory for
             execution and removed after successful completion.
         """
-        self.logger.info("Starting MESH model run")
+        self.logger.debug("Starting MESH model run")
 
         with symfluence_error_handler(
             "MESH model execution",
@@ -123,7 +123,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             log_file = log_dir / f'mesh_run_{current_time}.log'
 
             # Execute MESH (it must run in the forcing directory)
-            self.logger.info(f"Executing command: {' '.join(map(str, cmd))}")
+            self.logger.debug(f"Executing command: {' '.join(map(str, cmd))}")
 
             # Prepare environment
             run_env = os.environ.copy()
@@ -139,11 +139,17 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 cwd=self.forcing_mesh_path,
                 env=run_env,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
-                success_message="MESH simulation completed successfully"
+                success_message="MESH simulation completed successfully",
+                success_log_level=logging.DEBUG
             )
 
-            # Check execution success
-            if result.returncode == 0 and self._verify_outputs():
+            outputs_ok = self._verify_outputs()
+            # Check execution success (accept non-zero if outputs are valid)
+            if outputs_ok:
+                if result.returncode != 0:
+                    self.logger.warning(
+                        f"MESH exited with code {result.returncode} but required outputs were found; treating as success."
+                    )
                 # Copy outputs from forcing directory to output directory
                 self._copy_outputs()
 
@@ -153,15 +159,15 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     mesh_exe_in_forcing.unlink()
                 return self.output_dir
             else:
-                self.logger.error(f"MESH simulation failed with code {result.returncode}")
+                self.logger.debug(f"MESH simulation failed with code {result.returncode}")
                 # Log the end of the log file for easier debugging
                 if log_file.exists():
                      with open(log_file, 'r', errors='replace') as f:  # Handle non-UTF-8 characters
                          lines = f.readlines()
                          last_lines = lines[-20:]
-                         self.logger.error("Last 20 lines of model log:")
+                         self.logger.debug("Last 20 lines of model log:")
                          for line in last_lines:
-                             self.logger.error(f"  {line.strip()}")
+                             self.logger.debug(f"  {line.strip()}")
                 return None
 
     def _create_run_command(self) -> List[str]:
@@ -175,16 +181,29 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         Returns:
             List[str]: Command arguments for subprocess execution.
         """
-        # Copy mesh executable to forcing path
+        # Copy mesh executable to forcing path (only if missing or outdated)
         mesh_exe_dest = self.forcing_mesh_path / self.mesh_exe.name
-        shutil.copy2(self.mesh_exe, mesh_exe_dest)
-        # Make sure it's executable
-        mesh_exe_dest.chmod(0o755)
+        if not mesh_exe_dest.exists() or (
+            self.mesh_exe.stat().st_mtime > mesh_exe_dest.stat().st_mtime
+        ):
+            shutil.copy2(self.mesh_exe, mesh_exe_dest)
+            mesh_exe_dest.chmod(0o755)
 
         # Create results directory that MESH expects
         results_dir = self.forcing_mesh_path / 'results'
         results_dir.mkdir(parents=True, exist_ok=True)
-        self.logger.info(f"Created MESH results directory: {results_dir}")
+
+        # Clear stale output files to prevent _verify_outputs from matching
+        # previous iteration's data if the current run fails silently
+        for stale_pattern in ['MESH_output_*.csv', 'MESH_output_*.txt',
+                              'Basin_average_water_balance.csv',
+                              'GRU_water_balance.csv']:
+            for stale_file in self.forcing_mesh_path.glob(stale_pattern):
+                stale_file.unlink()
+            for stale_file in results_dir.glob(stale_pattern):
+                stale_file.unlink()
+
+        self.logger.debug(f"Created MESH results directory: {results_dir}")
 
         cmd = [
             f'./{self.mesh_exe.name}'
@@ -220,16 +239,10 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         is_lumped = self._is_lumped_mode()
 
         if is_lumped:
-            # In lumped/noroute mode, we don't get streamflow CSV
-            # Accept any valid output file (balance or echo_print)
+            # In lumped/noroute mode, accept either basin-average or GRU water balance.
             required_outputs = [
-                'MESH_output_echo_print.txt',  # Always produced
-            ]
-            # Optional outputs that indicate success
-            _optional_outputs = [
-                'Basin_average_water_balance.csv',  # Daily water balance from BASINAVGWBFILEFLAG=daily
-                'results/Basin_average_water_balance.csv',
-                'results/MESH_output_echo_print.txt',
+                'Basin_average_water_balance.csv',
+                'GRU_water_balance.csv',
             ]
         else:
             required_outputs = [
@@ -240,17 +253,36 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         # or fall back to forcing directory (default MESH behavior)
         check_dirs = [self.output_dir, self.forcing_mesh_path, self.forcing_mesh_path / 'results']
 
+        found_any = False
         for output_file in required_outputs:
             found = False
             for check_dir in check_dirs:
                 output_path = check_dir / output_file
                 if output_path.exists():
-                    found = True
-                    break
+                    # Ensure file has data (not just headers)
+                    try:
+                        with open(output_path, 'r') as f:
+                            lines = f.readlines()
+                        if len(lines) > 1:
+                            found = True
+                            break
+                    except OSError:
+                        pass
 
             if not found:
-                self.logger.warning(f"Required output file not found: {output_file}")
-                return False
+                # For lumped mode, allow either balance file to satisfy the requirement
+                if not is_lumped:
+                    self.logger.warning(f"Required output file not found: {output_file}")
+                    return False
+                # If lumped, only warn if neither is found by the end
+                continue
+            found_any = True
+
+        # For lumped, at least one balance file must be present
+        if is_lumped:
+            if not found_any:
+                self.logger.warning("No lumped water balance outputs found (Basin_average or GRU).")
+            return found_any
 
         return True
 

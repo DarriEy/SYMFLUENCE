@@ -110,6 +110,19 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
         self.logger.info(f"MODIS SCA acquisition complete: {merged_file}")
         return merged_file
 
+    def _generate_date_chunks(self, chunk_years: int = 4) -> List[tuple]:
+        """Split the full date range into smaller chunks for AppEEARS."""
+        chunks = []
+        chunk_start = self.start_date
+        while chunk_start < self.end_date:
+            chunk_end = min(
+                chunk_start.replace(year=chunk_start.year + chunk_years) - pd.Timedelta(days=1),
+                self.end_date
+            )
+            chunks.append((chunk_start, chunk_end))
+            chunk_start = chunk_end + pd.Timedelta(days=1)
+        return chunks
+
     def _download_product_appeears(
         self,
         output_dir: Path,
@@ -117,7 +130,7 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
         username: str,
         password: str
     ) -> Optional[Path]:
-        """Download a single MODIS product via AppEEARS API."""
+        """Download a single MODIS product via AppEEARS API with time chunking."""
         self.logger.info(f"Downloading {product} via AppEEARS")
 
         # Parse product name (e.g., 'MOD10A1.061' -> product='MOD10A1', version='061')
@@ -131,41 +144,57 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
             self.logger.info(f"Using existing file: {output_file}")
             return output_file
 
+        # Split into time chunks to avoid AppEEARS file limits
+        chunks = self._generate_date_chunks(chunk_years=4)
+        self.logger.info(f"Splitting {product} request into {len(chunks)} time chunks")
+
         # Login to AppEEARS
         token = self._appeears_login(username, password)
         if not token:
             raise RuntimeError("Failed to authenticate with AppEEARS")
 
         try:
-            # Submit task
-            task_id = self._submit_appeears_task(
-                token, product_name, version
-            )
+            for i, (chunk_start, chunk_end) in enumerate(chunks):
+                chunk_label = f"{chunk_start.strftime('%Y%m%d')}_{chunk_end.strftime('%Y%m%d')}"
+                self.logger.info(
+                    f"Chunk {i+1}/{len(chunks)}: {chunk_start.date()} to {chunk_end.date()}"
+                )
 
-            if not task_id:
-                raise RuntimeError(f"Failed to submit AppEEARS task for {product}")
+                # Submit task for this chunk
+                task_id = self._submit_appeears_task(
+                    token, product_name, version,
+                    start_date=chunk_start, end_date=chunk_end
+                )
 
-            # Wait for task completion
-            if not self._wait_for_task(token, task_id):
-                raise RuntimeError(f"AppEEARS task {task_id} did not complete")
+                if not task_id:
+                    self.logger.warning(f"Failed to submit chunk {i+1}, skipping")
+                    continue
 
-            # Download results
-            self._download_task_results(token, task_id, output_dir, product_name)
+                # Wait for task completion
+                if not self._wait_for_task(token, task_id):
+                    self.logger.warning(f"Chunk {i+1} task did not complete, skipping")
+                    continue
 
-            # Process downloaded files into single NetCDF
+                # Download results
+                self._download_task_results(
+                    token, task_id, output_dir, f"{product_name}_{chunk_label}"
+                )
+
+            # Consolidate all chunk files into single NetCDF
             self._consolidate_appeears_output(output_dir, product_name, output_file)
 
             return output_file
 
         finally:
-            # Logout
             self._appeears_logout(token)
 
     def _submit_appeears_task(
         self,
         token: str,
         product: str,
-        version: str
+        version: str,
+        start_date=None,
+        end_date=None
     ) -> Optional[str]:
         """Submit an AppEEARS area request task."""
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
@@ -185,9 +214,11 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
 
         task_name = f"SYMFLUENCE_{self.domain_name}_{product}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-        # Format dates for AppEEARS
-        start_date = self.start_date.strftime("%m-%d-%Y")
-        end_date = self.end_date.strftime("%m-%d-%Y")
+        # Format dates for AppEEARS (use overrides if provided)
+        req_start = start_date if start_date is not None else self.start_date
+        req_end = end_date if end_date is not None else self.end_date
+        start_date = req_start.strftime("%m-%d-%Y")
+        end_date = req_end.strftime("%m-%d-%Y")
 
         # Build task request
         task_request = {

@@ -38,8 +38,10 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         # Initialize FuseRunner
         self.fuse_runner = FUSERunner(config, logger)
 
+        # Use short FUSE file ID (Fortran CHARACTER(LEN=6) limit in selectmodl.f90)
+        self.fuse_file_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
         self.model_decisions_path = (self.project_dir / "settings" / "FUSE" /
-                                   f"fuse_zDecisions_{self.experiment_id}.txt")
+                                   f"fuse_zDecisions_{self.fuse_file_id}.txt")
 
         # Storage for simulation results (used for visualization)
         self.simulation_results: dict[str, Any] = {}
@@ -134,11 +136,13 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         else:
             obs_file_path = Path(obs_file_path)
 
-        sim_file_path = self.project_dir / 'simulations' / self.experiment_id / 'FUSE' / f"{self.domain_name}_{self.experiment_id}_runs_best.nc"
+        # FUSE names output files using FUSE_FILE_ID (not experiment_id)
+        # due to Fortran CHARACTER(LEN=6) limit in selectmodl.f90
+        sim_file_path = self.project_dir / 'simulations' / self.experiment_id / 'FUSE' / f"{self.domain_name}_{self.fuse_file_id}_runs_best.nc"
 
         if not sim_file_path.exists():
             # Try runs_def as fallback
-            sim_file_path = self.project_dir / 'simulations' / self.experiment_id / 'FUSE' / f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
+            sim_file_path = self.project_dir / 'simulations' / self.experiment_id / 'FUSE' / f"{self.domain_name}_{self.fuse_file_id}_runs_def.nc"
 
         # Load observations if not already cached
         if self.observed_streamflow is None:

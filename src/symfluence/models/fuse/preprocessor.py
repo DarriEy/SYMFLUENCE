@@ -558,7 +558,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 da_values = np.maximum(da_values, 0.0)
 
             self.logger.debug(f"PERF: [{name}] process_var total took {time.time() - pv_start:.4f}s")
-            return xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
+            result = xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
+            return result.transpose(*spatial_dims)
 
         # Map variables
         var_map = {
@@ -714,7 +715,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 'longitude': ('longitude', subcatchments.astype(float)),
                 'latitude': ('latitude', [float(mean_lat)])
             }
-            spatial_dims = ('time', 'longitude', 'latitude')
+            spatial_dims = ('time', 'latitude', 'longitude')
 
         # Create dataset
         fuse_forcing = xr.Dataset(coords=coords)

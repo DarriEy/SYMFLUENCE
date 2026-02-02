@@ -563,10 +563,14 @@ class RHESSysConfig(BaseModel):
     forcing_path: str = Field(default='default', alias='FORCING_RHESSYS_PATH')
     world_template: str = Field(default='world.template', alias='RHESSYS_WORLD_TEMPLATE')
     flow_template: str = Field(default='flow.template', alias='RHESSYS_FLOW_TEMPLATE')
+    # LNA/TWI controls (optional; None disables caps)
+    lna_area_cap_m2: Optional[float] = Field(default=None, alias='RHESSYS_LNA_AREA_CAP_M2')
+    lna_min: Optional[float] = Field(default=None, alias='RHESSYS_LNA_MIN')
+    lna_max: Optional[float] = Field(default=None, alias='RHESSYS_LNA_MAX')
     params_to_calibrate: str = Field(
         default=(
             'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,porosity_decay,'
-            'soil_depth,snow_melt_Tcoef,max_snow_temp,min_rain_temp'
+            'soil_depth,snow_melt_Tcoef,max_snow_temp,min_rain_temp,theta_mean_std_p1'
         ),
         alias='RHESSYS_PARAMS_TO_CALIBRATE'
     )
@@ -581,6 +585,8 @@ class RHESSysConfig(BaseModel):
     vmfire_install_path: str = Field(default='installs/wmfire/lib', alias='VMFIRE_INSTALL_PATH')
     # Execution settings
     timeout: int = Field(default=7200, alias='RHESSYS_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+    # Grow mode for Farquhar photosynthesis and transpiration (default True)
+    use_grow_mode: bool = Field(default=True, alias='RHESSYS_USE_GROW_MODE')
 
 
 class VICConfig(BaseModel):
@@ -622,9 +628,11 @@ class VICConfig(BaseModel):
     )
 
     # Model options
-    full_energy: bool = Field(default=False, alias='VIC_FULL_ENERGY')
-    frozen_soil: bool = Field(default=False, alias='VIC_FROZEN_SOIL')
+    full_energy: bool = Field(default=True, alias='VIC_FULL_ENERGY')
+    frozen_soil: bool = Field(default=True, alias='VIC_FROZEN_SOIL')
     snow_band: bool = Field(default=False, alias='VIC_SNOW_BAND')
+    n_snow_bands: int = Field(default=10, alias='VIC_N_SNOW_BANDS', ge=1, le=25)
+    pfactor_per_km: float = Field(default=0.0005, alias='VIC_PFACTOR_PER_KM', ge=0.0, le=0.01)
 
     # Timing
     model_steps_per_day: int = Field(default=24, alias='VIC_STEPS_PER_DAY', ge=1, le=48)

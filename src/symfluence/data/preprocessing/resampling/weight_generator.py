@@ -336,7 +336,7 @@ class RemappingWeightGenerator(ConfigMixin):
             with nc4.Dataset(sample_file, 'r') as ncid:
                 all_summa_vars = [
                     'airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate',
-                    'airtemp', 'spechum', 'windspd'
+                    'airtemp', 'spechum', 'windspd', 'relhum'
                 ]
                 available_vars = [v for v in all_summa_vars if v in ncid.variables]
 

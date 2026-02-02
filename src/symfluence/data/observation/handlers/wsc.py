@@ -64,35 +64,53 @@ class WSCStreamflowHandler(BaseObservationHandler):
         self.logger.info(f"Downloading WSC streamflow data for station {station_id} via GeoMet API")
 
         base_url = "https://api.weather.gc.ca/collections/hydrometric-daily-mean/items"
-
-        params = {
-            'STATION_NUMBER': station_id,
-            'f': 'json',
-            'limit': 10000
-        }
+        page_limit = 10000
 
         try:
-            response = requests.get(base_url, params=params, timeout=60)
-            response.raise_for_status()
+            all_rows = []
+            offset = 0
 
-            data = response.json()
-            features = data.get('features', [])
+            while True:
+                params = {
+                    'STATION_NUMBER': station_id,
+                    'f': 'json',
+                    'limit': page_limit,
+                    'offset': offset
+                }
 
-            if not features:
-                self.logger.debug(f"No features found for station {station_id}")
-                raise DataAcquisitionError(f"No data found for WSC station {station_id} in GeoMet API")
+                response = requests.get(base_url, params=params, timeout=60)
+                response.raise_for_status()
 
-            rows = []
-            for feat in features:
-                props = feat.get('properties', {})
-                rows.append(props)
+                data = response.json()
+                features = data.get('features', [])
 
-            df = pd.DataFrame(rows)
+                if not features:
+                    if offset == 0:
+                        raise DataAcquisitionError(
+                            f"No data found for WSC station {station_id} in GeoMet API"
+                        )
+                    break
+
+                for feat in features:
+                    all_rows.append(feat.get('properties', {}))
+
+                self.logger.debug(
+                    f"WSC GeoMet page: offset={offset}, received={len(features)}, total={len(all_rows)}"
+                )
+
+                if len(features) < page_limit:
+                    break
+
+                offset += page_limit
+
+            df = pd.DataFrame(all_rows)
             df.to_csv(output_path, index=False)
 
             self.logger.info(f"Successfully downloaded {len(df)} records to {output_path}")
             return output_path
 
+        except DataAcquisitionError:
+            raise
         except Exception as e:
             self.logger.error(f"Failed to download WSC data from GeoMet: {e}")
             raise DataAcquisitionError(f"Could not retrieve WSC data for station {station_id}") from e

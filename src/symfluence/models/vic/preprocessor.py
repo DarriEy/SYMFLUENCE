@@ -246,7 +246,11 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
                 # Orographic precipitation factor: increase with elevation
                 # ~5% per 100m above mean, decrease below mean
                 elev_diff = elevations[b] - mean_elev
-                pfactors[b] = 1.0 + 0.0005 * elev_diff
+                pfactor_per_km = self._get_config_value(
+                    lambda: self.config.model.vic.pfactor_per_km,
+                    default=0.0005
+                )
+                pfactors[b] = 1.0 + pfactor_per_km * elev_diff
 
             # Ensure area fractions sum to 1
             area_fracs = area_fracs / area_fracs.sum()
@@ -474,11 +478,11 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             'expt': np.array([8.0, 10.0, 12.0]),   # Soil layer exponent
             'Ksat': np.array([100.0, 50.0, 10.0]), # Saturated hydraulic conductivity [mm/day]
             'phi_s': np.array([-0.3, -0.5, -1.0]), # Soil bubbling pressure [m]
-            'init_moist': np.array([100.0, 200.0, 300.0]),  # Initial soil moisture [mm]
             'depth': np.array([0.1, 0.5, 1.5]),    # Soil layer depths [m]
             'bulk_density': np.array([1500.0, 1600.0, 1700.0]),  # Bulk density [kg/m³]
             'soil_density': np.array([2650.0, 2650.0, 2650.0]),  # Particle density [kg/m³]
             'Wcr_FRACT': np.array([0.7, 0.7, 0.7]),  # Critical moisture fraction
+            # NOTE: init_moist is computed below from depth and porosity
             'Wpwp_FRACT': np.array([0.3, 0.3, 0.3]), # Wilting point fraction
             'rough': 0.001,     # Surface roughness [m]
             'snow_rough': 0.0005,  # Snow roughness [m]
@@ -495,7 +499,11 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         nroot = 2      # Root zones
 
         # Compute elevation bands from DEM
-        band_data = self._compute_elevation_bands()
+        n_snow_bands = self._get_config_value(
+            lambda: self.config.model.vic.n_snow_bands,
+            default=10
+        )
+        band_data = self._compute_elevation_bands(n_bands=n_snow_bands)
         nband = len(band_data['elevations'])
 
         # Create parameter arrays
@@ -523,6 +531,13 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         params['bubble'] = np.zeros((nlayers, nlat, nlon))
         for layer in range(nlayers):
             params['bubble'][layer, :, :] = 5.0  # Bubbling pressure [cm]
+
+        # Compute init_moist as 50% of max soil capacity (depth × porosity × 1000)
+        # to avoid exceeding capacity, which crashes VIC when depths shrink during calibration
+        porosity = 1.0 - defaults['bulk_density'] / defaults['soil_density']
+        max_moist = defaults['depth'] * porosity * 1000.0  # mm
+        defaults['init_moist'] = 0.5 * max_moist
+        logger.info(f"Computed init_moist from depth & porosity: {defaults['init_moist']}")
 
         # Layer parameters
         for var in ['expt', 'Ksat', 'phi_s', 'init_moist', 'depth',
@@ -600,10 +615,13 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         ds['lats'] = (['lat', 'lon'], params['lats'])
         ds['lons'] = (['lat', 'lon'], params['lons'])
 
+        # Add max_snow_albedo to params (calibratable snow parameter)
+        params['max_snow_albedo'] = np.full((nlat, nlon), 0.85)
+
         # Scalar parameters
         for var in ['infilt', 'Ds', 'Dsmax', 'Ws', 'c', 'rough', 'snow_rough',
                     'annual_prec', 'avg_T', 'elev', 'off_gmt', 'fs_active',
-                    'July_Tavg', 'dp']:
+                    'July_Tavg', 'dp', 'max_snow_albedo']:
             ds[var] = (['lat', 'lon'], params[var])
 
         # Layer parameters
@@ -842,6 +860,15 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
                             data = data * dt_seconds
                             logger.info(f"Converted {src_var} from kg/m²/s to mm/timestep")
 
+                    elif vic_var in ('SWDOWN', 'LWDOWN'):
+                        # VIC expects W/m²; ERA5 ssrd/strd are in J/m² (accumulated per timestep)
+                        if src_var in ('ssrd', 'strd'):
+                            data = data / dt_seconds
+                            logger.info(f"Converted {src_var} from J/m² to W/m² (÷{dt_seconds})")
+                        elif 'J' in src_units and 'm' in src_units:
+                            data = data / dt_seconds
+                            logger.info(f"Converted {src_var} from {src_units} to W/m²")
+
                     elif vic_var == 'PRESSURE':
                         # VIC expects Pa
                         if src_units == 'kPa' or np.nanmean(data) < 200:
@@ -982,9 +1009,9 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         temp_k = air_temp + 273.15
         lwdown = 0.75 * 5.67e-8 * temp_k ** 4
         elev = props.get('elev', 1000.0)
-        pressure = 101.325 * np.exp(-elev / 8500.0) * np.ones(n)
-        es = 0.6108 * np.exp(17.27 * air_temp / (air_temp + 237.3))
-        vp = 0.6 * es
+        pressure = 101325.0 * np.exp(-elev / 8500.0) * np.ones(n)  # Pa
+        es = 610.8 * np.exp(17.27 * air_temp / (air_temp + 237.3))  # Pa (Tetens)
+        vp = 0.6 * es  # Pa, assuming 60% relative humidity
         wind = np.abs(np.random.normal(3, 1, n))
 
         # Create dataset
@@ -1080,6 +1107,7 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             f"FULL_ENERGY            {'TRUE' if full_energy else 'FALSE'}",
             f"FROZEN_SOIL            {'TRUE' if frozen_soil else 'FALSE'}",
             f"QUICK_FLUX             {'FALSE' if (full_energy or frozen_soil) else 'TRUE'}",
+            f"NODES                  {10 if frozen_soil else 3}",
             "SNOW_DENSITY           DENS_SNTHRM",
             "SNOW_BAND              TRUE",
             "",
@@ -1112,12 +1140,12 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             "#-- Output Variables --#",
             f"OUTFILE                {output_prefix}",
             "AGGFREQ                NDAYS   1",
-            "OUTVAR                 OUT_RUNOFF",
-            "OUTVAR                 OUT_BASEFLOW",
-            "OUTVAR                 OUT_EVAP",
+            "OUTVAR                 OUT_RUNOFF      *.      *       *.      AGG_TYPE_SUM",
+            "OUTVAR                 OUT_BASEFLOW    *.      *       *.      AGG_TYPE_SUM",
+            "OUTVAR                 OUT_EVAP        *.      *       *.      AGG_TYPE_SUM",
             "OUTVAR                 OUT_SWE",
             "OUTVAR                 OUT_SOIL_MOIST",
-            "OUTVAR                 OUT_PREC",
+            "OUTVAR                 OUT_PREC        *.      *       *.      AGG_TYPE_SUM",
             "",
         ]
 

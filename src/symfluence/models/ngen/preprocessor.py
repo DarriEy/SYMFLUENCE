@@ -99,6 +99,18 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         # CFE is the core runoff generation module
         self._include_cfe = ngen_config.get('ENABLE_CFE', self._available_modules.get("CFE", True))
 
+        # QINSUR-based coupling: NOAH and PET serve complementary roles.
+        # NOAH handles snow physics, canopy interception, and surface energy balance,
+        # outputting QINSUR (net water input to soil surface) as CFE's precipitation input.
+        # PET provides potential evapotranspiration for CFE's internal soil moisture accounting.
+        # No double-counting: QINSUR is post-interception water; PET drives CFE's soil ET.
+        if self._include_noah and self._include_pet:
+            self.logger.info(
+                "NOAH+PET both enabled: using QINSUR-based coupling. "
+                "NOAH provides QINSUR (post-snow/interception water) to CFE as precipitation; "
+                "PET provides potential ET for CFE's soil moisture depletion."
+            )
+
         # Log module configuration
         self.logger.info("NGEN module configuration:")
         self.logger.info(f"  SLOTH: {'ENABLED' if self._include_sloth else 'DISABLED'}")
@@ -452,14 +464,20 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Specific humidity: should be kg/kg (0-0.1 range), sometimes given as g/kg
         if 'spechum' in forcing_data:
-            hum_units = forcing_data['spechum'].attrs.get('units', '').lower()
+            hum_units = forcing_data['spechum'].attrs.get('units', '').lower().strip()
             hum_max = float(forcing_data['spechum'].max())
 
-            if 'g/kg' in hum_units or 'g kg' in hum_units or hum_max > 1.0:
+            # Check if units explicitly indicate g/kg (but NOT kg/kg or kg kg-1)
+            is_g_per_kg = (
+                hum_units in ('g/kg', 'g kg-1', 'g/kg-1')
+                or (hum_units.startswith('g') and 'kg' in hum_units and not hum_units.startswith('kg'))
+            )
+
+            if is_g_per_kg or hum_max > 1.0:
                 self.logger.info("Converting specific humidity from g/kg to kg/kg (÷1000)")
                 forcing_data['spechum'] = forcing_data['spechum'] / 1000.0
             else:
-                self.logger.debug("Specific humidity appears to be in kg/kg")
+                self.logger.debug(f"Specific humidity appears to be in kg/kg (units='{hum_units}', max={hum_max:.6f})")
 
         # Radiation (SWRadAtm, LWRadAtm) should be in W/m² - typically already correct
         for rad_var in ['SWRadAtm', 'LWRadAtm']:
@@ -694,7 +712,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         var_mapping = {
             'pptrate': 'atmosphere_water__liquid_equivalent_precipitation_rate',
             'airtemp': 'land_surface_air__temperature',
-            'spechum': 'atmosphere_air_water~vapor__relative_saturation',
+            'spechum': 'atmosphere_air_water~vapor__specific_humidity',
             'airpres': 'land_surface_air__pressure',
             'SWRadAtm': 'land_surface_radiation~incoming~shortwave__energy_flux',
             'LWRadAtm': 'land_surface_radiation~incoming~longwave__energy_flux',
@@ -711,15 +729,23 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
             df = pd.DataFrame(cols)
 
-            # Convert precipitation from mm/s (internal) to mm/h (CFE expects mm h-1)
-            # CFE's BMI expects atmosphere_water__liquid_equivalent_precipitation_rate in mm/h
+            # Precipitation unit handling depends on whether NOAH is enabled:
+            # - NOAH-OWP expects mm/s (kg m-2 s-1), outputs QINSUR in mm/s to CFE
+            # - CFE standalone expects mm/h for direct precipitation input
+            # When NOAH is enabled, keep precip in mm/s; otherwise convert to mm/h for CFE
             precip_col = 'atmosphere_water__liquid_equivalent_precipitation_rate'
             if precip_col in df:
-                df[precip_col] = df[precip_col] * 3600.0  # mm/s → mm/h
+                if not self._include_noah:
+                    # CFE standalone: convert mm/s → mm/h
+                    df[precip_col] = df[precip_col] * 3600.0
+                    self.logger.debug("Converted precipitation to mm/h for CFE standalone mode")
+                else:
+                    # NOAH enabled: keep in mm/s (NOAH's expected unit)
+                    self.logger.debug("Keeping precipitation in mm/s for NOAH-OWP")
 
-            # Also add AORC-style names for compatibility (in same units: mm/h)
-            df['APCP_surface'] = df[precip_col] if precip_col in df else 0
-            df['precip_rate'] = df[precip_col] if precip_col in df else 0
+            # Note: Do NOT add AORC-style aliases (APCP_surface, precip_rate).
+            # These map to the same CSDMS canonical name via WellKnownFields in ngen,
+            # causing doubled precipitation vectors and ngen crashes.
 
             # Wind components are required for NGEN PET and NOAH modules
             # After decomposition, these should exist, but check just in case

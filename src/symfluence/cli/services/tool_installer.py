@@ -95,6 +95,10 @@ class ToolInstaller(BaseService):
             if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
                 env["PATH"] = "/usr/bin:" + env.get("PATH", "")
 
+        # Set SYMFLUENCE_PATCHED if patched mode is enabled
+        if getattr(self, '_patched', False):
+            env["SYMFLUENCE_PATCHED"] = "1"
+
         return env
 
     def install(
@@ -103,6 +107,7 @@ class ToolInstaller(BaseService):
         symfluence_instance=None,
         force: bool = False,
         dry_run: bool = False,
+        patched: bool = False,
     ) -> Dict[str, Any]:
         """
         Clone and install external tool repositories with dependency resolution.
@@ -112,10 +117,13 @@ class ToolInstaller(BaseService):
             symfluence_instance: Optional SYMFLUENCE instance with config.
             force: If True, reinstall even if already exists.
             dry_run: If True, only show what would be done.
+            patched: If True, apply SYMFLUENCE patches (e.g., RHESSys GW recharge).
 
         Returns:
             Dictionary with installation results.
         """
+        # Store patched flag for use in _get_clean_build_env
+        self._patched = patched
         action = "Planning" if dry_run else "Installing"
         self._console.panel(f"{action} External Tools", style="blue")
 

@@ -419,6 +419,11 @@ class BaseModelOptimizer(
         self._final_evaluation_runner: Optional[Any] = None
         self._results_saver: Optional[FinalResultsSaver] = None
 
+        # Crash rate tracking
+        self._total_evaluations: int = 0
+        self._crash_count: int = 0
+        self._last_crash_warning: int = 0
+
     # =========================================================================
     # Lazy-initialized component properties
     # =========================================================================
@@ -638,6 +643,62 @@ class BaseModelOptimizer(
         """Get path to the file manager used for final evaluation."""
         pass
 
+
+    def _load_best_previous_params(self) -> Optional[Dict[str, float]]:
+        """Load best parameters from previous optimization runs (warm-start).
+
+        Scans sibling run directories for best_params.json files and returns
+        the parameters from the run with the highest score, but only if the
+        parameter names match the current model's expected parameters.
+        """
+        import json
+        parent_dir = self.results_dir.parent
+        if not parent_dir.exists():
+            return None
+
+        # Get current model's expected parameter names for validation
+        expected_params = set(self.param_manager.all_param_names)
+
+        best_score = -float('inf')
+        best_params = None
+        best_run = None
+
+        for run_dir in parent_dir.iterdir():
+            if not run_dir.is_dir() or run_dir == self.results_dir:
+                continue
+            for f in run_dir.iterdir():
+                if f.name.endswith('_best_params.json'):
+                    try:
+                        data = json.loads(f.read_text())
+                        score = data.get('best_score', -float('inf'))
+                        params = data.get('best_params')
+                        if score > best_score and params:
+                            # Validate that loaded params cover all expected params.
+                            # A partial match (e.g. from a run with a different
+                            # parameter set) can poison the initial guess because
+                            # missing params default to 0.5 — the midpoint that
+                            # was never optimized for the current combination.
+                            loaded_keys = set(params.keys())
+                            missing = expected_params - loaded_keys
+                            if missing:
+                                self.logger.debug(
+                                    f"Skipping {run_dir.name}: parameter set "
+                                    f"mismatch — missing {sorted(missing)} "
+                                    f"(loaded: {sorted(loaded_keys)})"
+                                )
+                                continue
+                            best_score = score
+                            best_params = params
+                            best_run = run_dir.name
+                    except (json.JSONDecodeError, OSError):
+                        continue
+
+        if best_params is not None:
+            self.logger.info(
+                f"Warm-starting from {best_run} (KGE={best_score:.4f})"
+            )
+            return best_params
+        return None
 
     def _create_parameter_manager(self):
         """
@@ -875,7 +936,8 @@ class BaseModelOptimizer(
         secondary_score: Optional[float] = None,
         secondary_label: Optional[str] = None,
         n_improved: Optional[int] = None,
-        population_size: Optional[int] = None
+        population_size: Optional[int] = None,
+        crash_stats: Optional[Dict[str, Any]] = None
     ) -> None:
         """Log optimization progress in consistent format across all algorithms.
 
@@ -989,6 +1051,12 @@ class BaseModelOptimizer(
         if n_improved is not None and population_size is not None:
             msg_parts.append(f"Improved: {n_improved}/{population_size}")
 
+        if crash_stats and crash_stats.get('total_evaluations', 0) > 0:
+            msg_parts.append(
+                f"Crashes: {crash_stats['crash_count']}/{crash_stats['total_evaluations']} "
+                f"({crash_stats['crash_rate']:.1%})"
+            )
+
         msg_parts.append(f"Elapsed: {elapsed}")
 
         self.logger.info(" | ".join(msg_parts))
@@ -1027,7 +1095,39 @@ class BaseModelOptimizer(
         Returns:
             Fitness score
         """
-        return self.population_evaluator.evaluate_solution(normalized_params, proc_id)
+        score = self.population_evaluator.evaluate_solution(normalized_params, proc_id)
+
+        # Track crash rate (penalty scores indicate model crash)
+        self._total_evaluations += 1
+        if score <= self.DEFAULT_PENALTY_SCORE:
+            self._crash_count += 1
+
+        # Warn every 50 evaluations if crash rate exceeds 10%
+        if (self._total_evaluations % 50 == 0
+                and self._total_evaluations > self._last_crash_warning):
+            crash_rate = self._crash_count / self._total_evaluations
+            if crash_rate > 0.10:
+                self.logger.warning(
+                    f"High crash rate: {self._crash_count}/{self._total_evaluations} "
+                    f"({crash_rate:.1%}) evaluations returned penalty score"
+                )
+                self._last_crash_warning = self._total_evaluations
+
+        return score
+
+    def get_crash_stats(self) -> Dict[str, Any]:
+        """Return crash rate statistics.
+
+        Returns:
+            Dictionary with 'crash_count', 'total_evaluations', and 'crash_rate'.
+        """
+        rate = (self._crash_count / self._total_evaluations
+                if self._total_evaluations > 0 else 0.0)
+        return {
+            'crash_count': self._crash_count,
+            'total_evaluations': self._total_evaluations,
+            'crash_rate': rate,
+        }
 
     def _create_gradient_callback(self) -> Optional[Callable]:
         """
@@ -1365,7 +1465,12 @@ class BaseModelOptimizer(
             return self.param_manager.denormalize_parameters(normalized)
 
         def record_iteration(iteration, score, params, additional_metrics=None):
-            self.record_iteration(iteration, score, params, additional_metrics=additional_metrics)
+            crash_stats = self.get_crash_stats()
+            merged = dict(additional_metrics or {}, **{
+                'crash_count': crash_stats['crash_count'],
+                'crash_rate': crash_stats['crash_rate'],
+            })
+            self.record_iteration(iteration, score, params, additional_metrics=merged)
 
         def update_best(score, params, iteration):
             self.update_best(score, params, iteration)
@@ -1374,7 +1479,8 @@ class BaseModelOptimizer(
             self.log_iteration_progress(
                 alg_name, iteration, best_score,
                 secondary_score=secondary_score, secondary_label=secondary_label,
-                n_improved=n_improved, population_size=pop_size
+                n_improved=n_improved, population_size=pop_size,
+                crash_stats=self.get_crash_stats()
             )
 
         # Additional callbacks for specific algorithms
@@ -1383,16 +1489,26 @@ class BaseModelOptimizer(
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
         }
 
-        # Handle initial guess - only for GR models (others benefit from random initialization)
-        if self._get_model_name().upper() == 'GR':
-            try:
+        # Seed optimization with best previous result (warm-start) or def file defaults
+        skip_warm_start = self.config.get('SKIP_WARM_START', False)
+        try:
+            if skip_warm_start:
+                self.logger.info(
+                    "SKIP_WARM_START is set — skipping warm-start from previous runs. "
+                    "Optimization will start from def file defaults or config-specified initial parameters."
+                )
                 initial_params_dict = self.param_manager.get_initial_parameters()
-                if initial_params_dict:
-                    initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
-                    kwargs['initial_guess'] = initial_guess
-                    self.logger.info("Using initial parameter guess for optimization seeding")
-            except (KeyError, AttributeError, ValueError) as e:
-                self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
+            else:
+                initial_params_dict = self._load_best_previous_params()
+                if initial_params_dict is None:
+                    initial_params_dict = self.param_manager.get_initial_parameters()
+                    if initial_params_dict:
+                        self.logger.info("Using initial parameter guess for optimization seeding")
+            if initial_params_dict:
+                initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
+                kwargs['initial_guess'] = initial_guess
+        except (KeyError, AttributeError, ValueError) as e:
+            self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
 
         # Guard NSGA-II: only SUMMA supports multi-objective
         if algorithm_name.lower() in ['nsga2', 'nsga-ii']:
