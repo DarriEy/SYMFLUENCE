@@ -144,3 +144,6 @@ scripts/run_hbv_daily_v_hourly_comparison.py
 # Shell wrapper is now tracked for CI compatibility
 installs/
 scripts/studies/
+
+# Paper source files (kept locally, not tracked)
+paper/
