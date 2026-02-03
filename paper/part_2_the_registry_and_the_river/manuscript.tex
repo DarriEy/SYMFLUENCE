@@ -1,0 +1,595 @@
+% The Registry and the River - WRR Submission
+% AGU Journal Template for Water Resources Research
+\documentclass[draft,wrcr]{agujournal2019}
+
+% Required packages
+\usepackage{apacite}
+\usepackage{lineno}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{grffile} % Handle spaces in figure paths
+\usepackage{multirow}
+
+% Set graphics path for figures
+\graphicspath{{diagrams/}}
+
+% Code listing style
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  keywordstyle=\color{blue},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!50!black}
+}
+
+% Line numbers for review
+\linenumbers
+
+\begin{document}
+
+%% Title
+\title{The Registry and the River: Architectural Patterns for Community Hydrological Modeling}
+
+%% Authors
+\authors{
+Darri Eythorsson\affil{1},
+Nicolas Vasquez\affil{1},
+Cyril Th\'{e}bault\affil{1},
+Frank Han\affil{1},
+Kasra Keshavarz\affil{1},
+Wouter Knoben\affil{1},
+Dave Casson\affil{1},
+Mohammed Ismail Ahmed\affil{1},
+Ashley Van Beusekom\affil{1},
+Hongli Liu\affil{2},
+Befekadu Taddesse Woldegiorgis\affil{1},
+Camille Gautier\affil{1},
+Katherine Reece\affil{1},
+Peter Wagener\affil{1},
+Ignacio Aguirre\affil{1},
+Paul Coderre\affil{1},
+Neharika Bhattarai\affil{1},
+Junwei Guo\affil{1},
+Shadi Hatami\affil{1},
+David Tarboton\affil{3},
+James Halgren\affil{4},
+Jordan Reed\affil{5},
+Raymond Spiteri\affil{6},
+Alain Pietroniro\affil{1},
+Martyn Clark\affil{1}
+}
+
+%% Affiliations
+\affiliation{1}{University of Calgary, Schulich School of Engineering, Department of Civil Engineering, Calgary, Alberta, Canada}
+\affiliation{2}{University of Alberta, Faculty of Engineering, Department of Civil and Environmental Engineering, Edmonton, Alberta, Canada}
+\affiliation{3}{Utah State University, Department of Civil and Environmental Engineering, Logan, Utah, USA}
+\affiliation{4}{Brigham Young University, Department of Civil and Environmental Engineering, Provo, Utah, USA}
+\affiliation{5}{Consortium of Universities for the Advancement of Hydrologic Science, Inc. (CUAHSI), Cambridge, Massachusetts, USA}
+\affiliation{6}{University of Saskatchewan, Department of Computer Science, Saskatoon, Saskatchewan, Canada}
+
+%% Corresponding author
+\correspondingauthor{Darri Eythorsson}{darri.eythorsson@ucalgary.ca}
+
+%% Key Points
+\begin{keypoints}
+\item SYMFLUENCE implements a four-tier layered architecture integrating 25 models, 41 data handlers, and 21 optimization algorithms through registry-based extensibility
+\item The CF-Intermediate Format provides a scale-invariant interface between data acquisition and model execution, reducing adapter implementations from $\sim$250 to $\sim$20
+\item Declarative YAML specifications replace ad hoc scripting, enabling complete experimental designs to be version-controlled, shared, and reproduced
+\end{keypoints}
+
+%% ============================================================================
+%% ABSTRACT
+%% ============================================================================
+\begin{abstract}
+The companion paper \cite{Eythorsson2025a} argued that predictive stagnation in computational hydrology reflects an infrastructure deficit rather than a scientific one, and proposed five architectural principles---declarative specification, registry-based extensibility, end-to-end orchestration, automatic provenance, and separation of scientific from computational concerns---as a path toward shared community infrastructure. This paper presents the concrete realization of those principles in SYMFLUENCE (SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexus for Computational Exploration), a four-tier layered architecture that integrates 25 hydrological models spanning Fortran, C, Python, R, and Julia; 41 data acquisition handlers; 31 observation processing pipelines; and 21 optimization algorithms within a single declarative, registry-governed, provenance-capturing workflow system.
+
+We describe each architectural tier in detail: the configuration system that replaces imperative scripting with type-safe, validatable YAML specifications comprising over 600 parameters organized into eight semantic sections; the registry pattern that enables decentralized model contribution without core code modification; the workflow orchestrator that manages the complete modeling lifecycle through a 16-stage directed acyclic graph from data acquisition through calibration and evaluation; the data management layer that unifies heterogeneous forcing, observation, and attribute sources behind the CF-Intermediate Format; the model integration architecture that standardizes interaction with models of radically different heritage through a four-component interface (preprocessor, runner, postprocessor, extractor); and the optimization framework that decouples 21 algorithms from models through parameter normalization and strategy-based parallel execution.
+
+Throughout, we emphasize the governance implications of architectural choices: how interface definitions function as social contracts, how registries enable coordination without committees, and how layered separation of concerns converts the impossible generalist problem into manageable specialization. The architecture is offered not as a monolithic prescription but as a reference implementation of patterns the community can adopt, adapt, or independently re-implement to achieve interoperability across the growing ecosystem of hydrological tools.
+\end{abstract}
+
+%% ============================================================================
+%% PLAIN LANGUAGE SUMMARY
+%% ============================================================================
+\section*{Plain Language Summary}
+This paper describes how we built a software system that puts the architectural principles from our companion paper into practice. SYMFLUENCE connects 25 different hydrological models---written in five programming languages over three decades---with 41 data sources and 21 calibration algorithms, all controlled through simple configuration files rather than custom scripts. The key innovation is the ``registry pattern'': new models can be added by implementing a standard interface and registering themselves, without anyone needing to modify the core system. This is like how smartphone apps work---developers follow the rules, and their app automatically works with the phone's features. We describe how the system is organized into layers (user interface, workflow management, specialized managers, and core infrastructure), how data flows from raw satellite and reanalysis products to model-ready inputs through a standardized intermediate format, how models with radically different designs are wrapped in a common interface, and how calibration algorithms are kept separate from the models they optimize. The system automatically records everything needed to reproduce a simulation. By handling the technical complexity, SYMFLUENCE lets hydrologists focus on scientific questions rather than software engineering---a snow scientist can add a new snow model without understanding database code, and a data scientist can add a new satellite product without understanding model internals.
+
+%% ============================================================================
+%% MAIN TEXT
+%% ============================================================================
+
+\section{Introduction}
+
+This paper is the second in a three-part series examining the infrastructure foundations of computational hydrology. The first paper \cite{Eythorsson2025a}, ``Outstanding in Every Field,'' documented what we called the impossible generalist problem: the compound expectation that each computational hydrologist will independently master field observation, process understanding, mathematical foundations, legacy numerical codes, data science at scale, parameter estimation, optimization algorithms, differentiable modeling, machine learning, high-performance computing, and reproducibility infrastructure---before addressing their actual scientific question. We argued that this expectation reflects not a talent deficit but an infrastructure deficit, and that the path forward lies in shared architectural principles rather than individual heroism.
+
+The central challenge in modern hydrological modeling is no longer a lack of capability but the fragmentation born from a powerful confluence of data, models, and computational methods. Over the past two decades, the field has witnessed exponential growth in data availability \cite{Bierkens2015,Samaniego2017,Wood2011}, modeling diversity \cite{Clark2017,Hrachowitz2017}, and computational power \cite{Kollet2010,Kuffour2020}. This progress has enabled increasingly sophisticated process representations \cite{Fatichi2016,Paniconi2015} and spurred the rise of flexible, multi-hypothesis frameworks \cite{Clark2015a,Clark2015b,Craig2020,Fenicia2011,Knoben2019}.
+
+Yet this abundance has produced a paradox. Despite unprecedented process understanding and computational capability, predictive skill has not improved proportionally \cite{Addor2019,Knoben2024}. This apparent plateau has led some to question whether the pursuit of detailed process representation has reached fundamental limits---whether we are, as recent provocations suggest, approaching the boundaries of what hydrological science can predict \cite{Nearing2021}. However, attributing stagnation to scientific inadequacy is premature when technical infrastructure remains a primary constraint. The barriers limiting prediction are not primarily epistemic but operational: they arise from the fragmented systems through which we attempt to deploy our process knowledge.
+
+Crucially, we argued that until models can be deployed without implementation error confounding results, the community cannot assess whether process-based models are scientifically adequate or merely inadequately deployed---that workflow infrastructure is a prerequisite to scientific inference, not an afterthought to it.
+
+This paper describes how those principles translate into engineering practice. Where the companion paper asked \textit{why} the community needs shared architecture, this paper asks \textit{how}---and answers with a specific, implemented system that demonstrates the feasibility of the proposed approach. The third paper \cite{Eythorsson2025c}, ``From Configuration to Prediction,'' provides empirical validation through twelve experiments spanning point-scale to regional applications, demonstrating that the architecture described here operates as designed across three orders of magnitude in domain size.
+
+The system is SYMFLUENCE. It is not the only possible implementation of the principles we advocate, and we do not claim it should be the only one. But it is a complete one---spanning the full modeling lifecycle from data acquisition through calibration and evaluation, integrating models written in five programming languages across three decades of software conventions, and operating on platforms from laptops to HPC clusters. Its architecture embodies choices that other frameworks could adopt independently: a configuration system that separates scientific intent from computational implementation, a registry pattern that enables extensibility without central gatekeeping, and a layered design that allows specialization without isolation.
+
+%% ============================================================================
+\section{Background: Technical Barriers to Translating Process Knowledge}
+
+The previous section introduced a paradox at the heart of modern hydrology: despite rapid growth in data, models, and computational power, predictive skill has not kept pace. Here we examine why. The barriers limiting prediction are not primarily scientific but technical. They arise from the fragmented infrastructure through which we attempt to deploy our process knowledge, creating friction that obscures rather than reveals the value of mechanistic understanding.
+
+\subsection{The Glue Code Problem}
+
+The most visible manifestation of this friction is the proliferation of ``glue code''---the ad hoc scripts researchers write to connect discrete workflow stages. Modern hydrological modeling comprises a sequence of tasks: data acquisition and formatting, domain delineation, model parameterization, simulation, and analysis. In the absence of integrated systems, these steps are connected through bespoke Python or R scripts that handle file conversion, spatial regridding, and input-file generation \cite{Gil2016}. These scripts are typically user-specific, weakly documented, and become major sources of complexity and error. The workflow itself---the connective tissue between components---becomes a research burden rather than an enabler, consuming time that would otherwise advance scientific inquiry.
+
+\subsection{The Provenance Gap}
+
+Even when researchers invest effort in documentation, a provenance gap undermines reproducibility. Published results depend not only on models and data but on computational environments, configuration files, and the exact sequence of processing steps \cite{Hutton2016}. Critical metadata---library versions, parameter bounds, Git commit identifiers---are rarely captured systematically, leaving an incomplete record that prevents independent verification \cite{Leek2015}. Archiving final scripts cannot guarantee identical outcomes without this contextual information. The scientific literature thus contains a growing corpus of computationally irreproducible studies \cite{Powers2019}, not due to scientific misconduct but because the infrastructure for capturing provenance is not standard practice.
+
+\subsection{The Scalability Bottleneck}
+
+The scalability bottleneck amplifies these issues. Simulating large domains or extensive ensembles requires specialized knowledge of parallel programming, job-scheduling systems such as SLURM, and concurrent file I/O management \cite{Asgari2022,Kollet2010,Maxwell2015}. These demands restrict reproducible, large-scale experiments to a small subset of technically proficient research groups, limiting the community's ability to test hypotheses at scales relevant to operational prediction and climate impact assessment. The barrier is not computational capacity---HPC resources are increasingly accessible---but the software-engineering expertise required to deploy workflows at scale.
+
+\subsection{Consequences for Scientific Progress}
+
+Collectively, these technical barriers create a feedback loop that distorts scientific priorities. When deploying a model requires weeks of environment configuration, debugging build scripts, and writing custom preprocessing code, researchers rationally gravitate toward simpler approaches, even when those approaches sacrifice process fidelity \cite{Schuwirth2019}. The apparent failure of complex models to consistently outperform simple benchmarks \cite{Addor2019,Knoben2024,Raleigh2014} may reflect not the limits of process-based modeling but the limits of our ability to deploy it reliably. If technical friction prevents proper model configuration, calibration, and evaluation, we cannot distinguish scientific inadequacy from implementation failure.
+
+This diagnosis suggests that advancing hydrological prediction requires treating workflow infrastructure as a first-class research problem. A next-generation modeling framework must: (1) be declarative, defining complete experiments within single configuration files to eliminate ad hoc scripting; (2) automate provenance, recording all environment details, code versions, and configurations; (3) provide end-to-end orchestration, managing workflows from data preparation through evaluation; (4) be natively scalable, supporting parallel execution and HPC schedulers; and (5) ensure portability, reproducing identical results across platforms.
+
+%% ============================================================================
+\section{Framework Architecture and Design}
+
+The barriers identified in Section 2---fragmented workflows, incomplete provenance, and scalability bottlenecks---are not merely software-engineering inconveniences but fundamental obstacles to scientific progress. Addressing them requires deliberate architectural choices that accommodate the inherent complexity of modern hydrological modeling: a heterogeneous ecosystem of compiled models (Fortran, C++), scripted workflows (Python, R, Julia), programmatic interfaces (CLIs, APIs), diverse file formats (NetCDF, text, binary), distributed data sources, and the computational demands of large-domain simulation.
+
+This complexity cannot be eliminated, but it can be managed through systematic design. The architecture presented in this section treats the integration layer itself as a first-class component of the scientific workflow---one that must be transparent, reproducible, and maintainable. By formalizing how models, data, and computation interact, SYMFLUENCE orchestrates connections into a unified, testable, and extensible system.
+
+\subsection{Design Principles}
+
+Five design principles, articulated in the companion paper and grounded in software engineering practice, guided every architectural decision in SYMFLUENCE. These principles are not merely aspirational goals but operational constraints that shaped every component of the system.
+
+\textbf{Declarative specification} emerged from the observation that glue-code fragmentation is fundamentally a problem of misplaced authority---experimental choices should not be embedded in scripts that couple intent to implementation. By making configuration the primary artifact, the framework shifts control from imperative code to auditable, versionable declarations. A researcher specifies \textit{what} an experiment should do; the framework determines \textit{how}. The configuration file becomes the primary artifact of record---human-readable, machine-executable, version-controllable, and diffable.
+
+\textbf{Registry-based extensibility} addresses the recognition that adding new components (models, data sources, algorithms) should not require modification to existing code. Components declare their capabilities and register themselves; the framework discovers them at runtime. The registry is a governance model: an architectural social contract that specifies what the community expects of a contribution and what it provides in return.
+
+\textbf{End-to-end orchestration} responds to the finding that partial solutions addressing individual workflow stages still recreate fragmentation at a higher level of abstraction. Only a framework that manages the complete lifecycle---from data acquisition through model execution, calibration, and evaluation---can eliminate the integration burden entirely.
+
+\textbf{Automatic provenance} addresses the recognition that reproducibility fails not from a lack of intent but from the practical difficulty of systematically capturing computational context. Reproducibility should be a byproduct of normal operation, not an additional burden. Every workflow execution should automatically record its computational context: software versions, resolved configuration, Git state, and platform details.
+
+\textbf{Separation of concerns} treats parallelism as an architectural property rather than a user responsibility. Scientific choices (which model, which forcing, which evaluation metric) should be expressible independently of computational choices (how many cores, which cluster, which file system). This separation is what ultimately converts the impossible generalist problem into manageable specialization.
+
+\subsection{Four-Tier Layered Architecture}
+
+SYMFLUENCE employs a four-tier layered architecture that separates user interfaces, workflow orchestration, domain-specific managers, and core infrastructure (Figure~\ref{fig:architecture}). Each tier communicates with adjacent layers through defined interfaces, enabling independent evolution while maintaining system cohesion. A single declarative YAML configuration file governs the entire stack, specifying the complete experimental design from domain definition through evaluation and eliminating the ad hoc scripting that Section 2 identified as a primary source of irreproducibility.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"1. architecture/fig1_architecture.pdf"}
+\caption{SYMFLUENCE system architecture diagram showing the four-tier layered design: User Interface Layer (Python API, CLI, AI Agent), Workflow Orchestration Layer (step sequencing, dependency management), Manager Layer (seven specialized facades), and Core Infrastructure Layer (configuration, path resolution, logging, profiling).}
+\label{fig:architecture}
+\end{figure}
+
+\textbf{User Interface Layer.} The topmost layer provides multiple entry points for interaction. The Python API exposes the \texttt{SYMFLUENCE} class as the primary programmatic interface, enabling integration with Jupyter notebooks, custom scripts, and automated pipelines. The command-line interface offers equivalent functionality through a structured command hierarchy, supporting both interactive use and batch execution within job schedulers. An experimental AI-assisted interface enables natural-language specification of modeling tasks. These interfaces share no execution logic; they serve solely to translate user intent into calls to the orchestration layer below.
+
+\textbf{Workflow Orchestration Layer.} Beneath the interface layer, the workflow orchestrator sequences the modeling lifecycle through discrete steps. This layer maintains execution state, enforces preconditions between stages, and coordinates the domain managers that perform actual computation. The orchestrator implements a dependency graph that ensures steps execute in valid order---domain discretization cannot proceed until domain definition is complete; model execution cannot begin until preprocessing completes.
+
+\textbf{Manager Layer.} Seven specialized managers---for project setup, data acquisition, domain definition, model execution, optimization, analysis, and reporting---encapsulate subsystem complexity behind facade interfaces. Each implements the facade pattern, presenting simplified entry points to complex subsystems and shielding upper layers from implementation detail. Table~\ref{tab:managers} summarizes their responsibilities.
+
+\begin{table}[ht]
+\centering
+\caption{Core Manager classes in SYMFLUENCE, their responsibilities, and the underlying complexity they encapsulate.}
+\label{tab:managers}
+\begin{tabular}{lll}
+\toprule
+Manager & Responsibility & Underlying Complexity \\
+\midrule
+ProjectManager & Project initialization & Directory creation, config snapshots \\
+DataManager & Data acquisition \& processing & 41+ handlers, cloud APIs, caching \\
+DomainManager & Geospatial operations & Delineation, discretization, geofabrics \\
+ModelManager & Model execution & 25 models, pre/postprocessing pipelines \\
+OptimizationManager & Parameter calibration & 21 algorithms, parallel evaluation \\
+AnalysisManager & Performance evaluation & 100+ metrics, sensitivity analysis \\
+ReportingManager & Visualization & Domain, optimization, diagnostic plots \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The facade pattern serves two purposes. First, it shields upper layers from implementation volatility; adding a new data source or model requires no changes to the orchestrator or interfaces. Second, it provides a natural extension point for community contributions; new capabilities register with existing managers rather than requiring architectural modifications.
+
+\textbf{Core Infrastructure Layer.} The foundation layer provides cross-cutting services consumed by all components above. The configuration subsystem parses and validates YAML specifications, producing immutable configuration objects that flow upward through the architecture. The path resolver abstracts filesystem operations, translating logical resource identifiers into platform-appropriate paths. The logging infrastructure provides unified output formatting with configurable verbosity. Type validation, implemented through Pydantic models, catches configuration errors at parse time rather than during execution, failing fast with actionable error messages.
+
+\subsection{Recurring Architectural Patterns}
+
+Three patterns recur throughout the layered design.
+
+\textbf{The registry pattern} enables runtime discovery of pluggable components---models, data sources, metrics, and analysis methods---by having them register themselves upon import. Components announce their presence through decorators; the framework enumerates available capabilities without hard-coded lists.
+
+\begin{lstlisting}[language=Python,caption={Registry pattern example for model components}]
+@ComponentRegistry.register_preprocessor('SUMMA')
+class SUMMAPreprocessor(BaseModelPreProcessor):
+    """Register SUMMA preprocessor at import time."""
+    ...
+
+@ComponentRegistry.register_runner('SUMMA', method_name='run')
+class SUMMARunner(BaseModelRunner):
+    """Register SUMMA runner at import time."""
+    ...
+\end{lstlisting}
+
+Adding a new model requires implementing the appropriate interfaces and applying the registration decorator. No modification to existing code is necessary. This pattern yields three architectural benefits: \textit{loose coupling} isolates model implementations from orchestration logic; \textit{extensibility} enables new models to be added without modifying existing code; and \textit{graceful degradation} allows partial model support.
+
+\textbf{Lazy initialization} defers resource allocation until first use. Managers are instantiated at startup but do not load data, compile models, or allocate memory until explicitly invoked. This pattern keeps startup time constant regardless of configuration complexity.
+
+\textbf{The mixin pattern} provides reusable behaviors across class hierarchies without deep inheritance chains. \texttt{ConfigurableMixin} composes six atomic mixins---\texttt{LoggingMixin}, \texttt{ConfigMixin}, \texttt{ProjectContextMixin}, \texttt{FileUtilsMixin}, \texttt{ValidationMixin}, and \texttt{TimingMixin}---granting consistent access to configuration, logging, file operations, and validation across all framework components.
+
+\subsection{Workflow Orchestration}
+
+The \texttt{WorkflowOrchestrator} transforms declarative configurations into executable sequences, managing the complete modeling lifecycle from project initialization through analysis (Figure~\ref{fig:workflow}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"3. workflow_orchestration/fig3_workflow_orchestration.pdf"}
+\caption{Workflow orchestration showing the 16-stage directed acyclic graph (DAG) that manages the complete modeling lifecycle. Stages are grouped into six categories: project initialization, data acquisition, domain definition, model execution, optimization, and analysis. Dependencies between stages are enforced at runtime.}
+\label{fig:workflow}
+\end{figure}
+
+\textbf{Pipeline structure.} The orchestrator defines sixteen stages grouped into six categories: project initialization, domain definition, model-agnostic preprocessing, model-specific operations, optimization, and analysis. Each stage produces a well-defined artifact---shapefiles, NetCDF datasets, processed CSV files, or optimized parameter sets---that serves as a precondition for downstream stages.
+
+\textbf{Dependency management.} Stages encode explicit dependencies that the orchestrator enforces at runtime. Before executing any stage, the orchestrator verifies that all prerequisite stages have completed successfully. Dependency violations produce informative errors identifying missing prerequisites rather than cryptic failures deep in execution.
+
+\textbf{Execution modes.} The orchestrator supports three execution modes: \textit{sequential execution} processes stages in dependency order; \textit{selective execution} allows users to specify individual stages or stage ranges; and \textit{forced re-execution} overrides completion tracking, re-running stages regardless of prior state.
+
+\textbf{Completion tracking.} The orchestrator maintains persistent state recording which stages have completed successfully. Upon completion, a marker file is written encoding the stage name, timestamp, configuration hash, and framework version. Configuration hashing enables automatic invalidation: if parameters relevant to a stage change between runs, the marker is considered stale and the stage re-executes.
+
+\textbf{Error handling and recovery.} Stage execution is wrapped in error handling that captures failures, logs diagnostics, and records partial state. \textit{Fail-fast mode} (default) halts on first error, preserving system state for debugging. \textit{Continue-on-error mode} logs failures but proceeds to subsequent stages where dependencies permit.
+
+\subsection{Scale-Invariance Principle}
+
+A property of the architecture that deserves explicit naming is \textit{scale-invariance}: the same 16-stage workflow DAG executes identically regardless of domain size, from a single-HRU point-scale flux tower experiment to a 21,474-HRU regional application spanning 103,000~km$^2$. Switching between scales requires changing only the domain coordinates, discretization parameters, and observation sources in the YAML configuration file. The companion paper \cite{Eythorsson2025c} demonstrates this property empirically across three orders of magnitude in domain size.
+
+%% ============================================================================
+\section{Configuration System}
+
+The declarative specification principle requires a configuration system capable of expressing complete experimental designs while maintaining type safety, validation, and provenance. This section describes SYMFLUENCE's configuration architecture, which replaces ad hoc scripting with machine-readable specifications that serve as both execution instructions and reproducibility artifacts.
+
+\subsection{Hierarchical YAML Specification}
+
+SYMFLUENCE configurations employ a hierarchical YAML structure that organizes over 600 parameters into semantically coherent sections (Table~\ref{tab:config}). Rather than scattering experimental choices across multiple scripts and environment variables, this structure consolidates the complete experimental design into a single, version-controllable document.
+
+\begin{table}[ht]
+\centering
+\caption{SYMFLUENCE configuration schema: top-level sections and their responsibilities.}
+\label{tab:config}
+\begin{tabular}{llr}
+\toprule
+Section & Responsibility & Parameters \\
+\midrule
+\texttt{system} & Runtime environment, parallelism, logging & $\sim$11 \\
+\texttt{domain} & Spatial extent, temporal bounds, discretization & $\sim$38 \\
+\texttt{data} & Geospatial data sources, observation retrieval & 10+ \\
+\texttt{forcing} & Meteorological forcing dataset selection & $\sim$18 \\
+\texttt{model} & Hydrological model selection and parameterization & 150+ \\
+\texttt{optimization} & Calibration algorithm, objectives, constraints & 50+ \\
+\texttt{evaluation} & Observation data sources, performance metrics & 100+ \\
+\texttt{paths} & File system locations, shapefile field mappings & $\sim$37 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A minimal working configuration requires only ten parameters; all others inherit validated, model-aware defaults:
+
+\begin{lstlisting}[language=Python,caption={Minimal SYMFLUENCE configuration}]
+experiment:
+  name: Bow_at_Banff_SUMMA
+  start: "2004-01-01"
+  end: "2010-12-31"
+domain:
+  pour_point: [51.17, -115.57]
+forcing:
+  dataset: ERA5
+model:
+  name: SUMMA
+optimization:
+  algorithm: DDS
+  iterations: 1000
+  objective: KGE
+\end{lstlisting}
+
+This hierarchical organization mirrors the natural decomposition of hydrological experiments: a researcher specifying a new study modifies only the relevant sections, and a domain specification developed for one model can be combined with different model or optimization configurations without modification.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"4. configuration/fig4_configuration.pdf"}
+\caption{Configuration system architecture showing the hierarchical YAML specification, Pydantic-based validation, and the flow from user configuration through type-safe parsing to immutable frozen configuration objects that govern the entire workflow.}
+\label{fig:configuration}
+\end{figure}
+
+\subsection{Validation and Type Safety}
+
+Configuration errors represent a significant source of debugging effort in computational workflows. A misspelled parameter name, an invalid coordinate, or an incompatible combination of settings can produce cryptic failures hours into execution. SYMFLUENCE addresses this through comprehensive validation that catches errors at configuration load time rather than during execution.
+
+\textbf{Pydantic foundation.} The configuration system builds on Pydantic, a data validation library that enforces type constraints through Python's type annotation system. Each configuration section is implemented as a Pydantic model with typed fields. Type annotations serve dual purposes: they enable static analysis tools to catch type mismatches before execution, and they drive runtime validation that rejects invalid values with informative error messages.
+
+\textbf{Immutability.} All configuration models are frozen (\texttt{frozen=True}), preventing modification after construction. This immutability provides several benefits: configurations can be safely shared across threads and processes without synchronization concerns; the framework can cache derived values without invalidation logic; and accidental mutation becomes impossible.
+
+\textbf{Cross-field validation.} Many configuration constraints span multiple fields. SYMFLUENCE implements six cross-field validators: \textit{temporal consistency validation} ensures experiment start precedes end and calibration periods fall within bounds; \textit{coordinate validation} checks that pour point coordinates fall within valid geographic ranges; \textit{model requirements validation} verifies model-specific parameters are present; \textit{spatial mode consistency validation} detects mismatches between domain definition and model spatial mode; \textit{optimization configuration validation} ensures algorithms exist and parameters fall within valid ranges; and \textit{path validation} verifies required directories exist.
+
+\subsection{Provenance Capture}
+
+Reproducibility requires capturing not only the configuration but the complete computational context in which it was executed. SYMFLUENCE's provenance system automatically records this context at workflow initialization:
+
+\textbf{Environment capture:} Python version, installed package versions with checksums, virtual environment path; operating system, version, architecture, hostname, available memory, CPU cores; SYMFLUENCE version, Git commit hash, branch name, presence of uncommitted changes; working directory, environment variables (filtered for security), timestamp.
+
+\textbf{Configuration snapshots:} Each workflow execution writes both the resolved configuration (after applying defaults and validation) and the original configuration (preserving explicit user choices), enabling diagnosis of unexpected behavior from modified defaults.
+
+\textbf{Unified logging:} The \texttt{LoggingManager} provides hierarchical logging with concise console output for interactive monitoring and comprehensive file logging with debug-level messages, timing information, and full stack traces.
+
+%% ============================================================================
+\section{Data Management}
+
+Hydrological modeling workflows require forcing fields, observational records, and static catchment attributes, each originating from different providers, formats, and spatiotemporal grids. SYMFLUENCE consolidates these heterogeneous inputs through a unified data management layer centered on the \texttt{DataManager} class, which dispatches work to three registered pipelines: forcing preprocessing, observation processing, and attribute processing (Figure~\ref{fig:data}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"5. data_management/fig5_data_management.pdf"}
+\caption{Data management architecture showing the pipeline from heterogeneous data sources (forcing, observations, attributes) through the CF-Intermediate Format (CFIF) to model-ready inputs. The decorator-based registry enables extensibility without core code modification.}
+\label{fig:data}
+\end{figure}
+
+\subsection{Pipeline Architecture}
+
+Each pipeline is registered with the \texttt{DataManager} through a decorator-based registry (\texttt{@register\_pipeline}), following the same extensibility pattern used throughout the framework. This design decouples the orchestrator from pipeline implementations: adding support for a new data source requires registering a new pipeline class rather than modifying dispatch logic.
+
+SYMFLUENCE supports three acquisition modes: \textit{cloud mode} retrieves gridded products directly from remote object stores and APIs (Zarr, S3, OpenDAP); \textit{MAF mode} targets high-performance computing environments, invoking specialized tools under SLURM to stage large datasets from institutional archives; and \textit{user-supplied mode} bypasses acquisition entirely and reads pre-staged local files.
+
+\subsection{The CF-Intermediate Format}
+
+The forcing pipeline transforms raw meteorological fields into per-HRU time series. Variable standardization maps provider-specific names and units to a common internal vocabulary---the CF-Intermediate Format (CFIF)---using the Pint unit library. CFIF is a scale-invariant intermediate representation that decouples dataset-specific conventions from model-specific input requirements.
+
+This standardization layer means that the current implementation supports 10+ forcing datasets and 25 hydrological models through approximately 20 adapter implementations rather than the $\sim$250 that would be required without the intermediate format. The intermediate format absorbs provider heterogeneity on the input side and model heterogeneity on the output side, dramatically reducing the combinatorial burden of supporting new data-model combinations.
+
+\textbf{Spatial remapping:} Grid-to-catchment remapping uses pre-computed weight matrices following the EASYMORE approach \cite{Gharari2023}. For each HRU, a sparse weight vector maps source grid cells to the target unit based on areal intersection, producing area-weighted averages that conserve the integrated field. Weight matrices are computed once during domain setup and reused across variables and time steps.
+
+\textbf{Temporal processing:} Source fields are aggregated or disaggregated to the model time step. Temporal alignment ensures all variables share a consistent calendar, accounting for leap years and time zone offsets.
+
+\textbf{Elevation correction:} For variables with strong elevation dependence---primarily temperature and precipitation---the pipeline applies lapse-rate corrections and precipitation scaling factors derived from the elevation difference between the source grid cell and the HRU centroid.
+
+\subsection{Observation Processing}
+
+Thirty-one observation handlers span five families: streamflow (USGS, WSC, GRDC), snow (SNOTEL, SNODAS, VIIRS), soil moisture (SMAP, ISMN, Sentinel-1, ESA-CCI), evapotranspiration (MODIS, FluxNet, GLEAM, OPENet), and other variables (LAI, LST, GRACE, GGMN).
+
+After source-specific retrieval, all observation streams pass through a shared four-stage backbone: \textit{unit conversion} maps provider-native units to SI equivalents; \textit{quality control} applies flag-based filtering and range validation; \textit{gap handling} detects data voids and applies configurable policies; and \textit{temporal alignment} standardizes time zones and calendar encoding.
+
+\subsection{Model-Ready Data Store}
+
+All three pipelines deposit their outputs into a shared data store that serves as the sole entry point for model setup and evaluation. Storing forcing, observations, and attributes in a common NetCDF-4 format with CF-1.8 conventions and per-HRU indexing eliminates format translation glue code between data preparation and modeling stages. The store is self-describing: variable metadata, unit information, spatial reference, and provenance attributes are embedded in the files.
+
+%% ============================================================================
+\section{Domain Definition and Spatial Discretization}
+
+SYMFLUENCE separates spatial discretization into two distinct levels---Grouped Response Units (GRUs) and Hydrological Response Units (HRUs)---decoupling the lateral routing structure from within-catchment process heterogeneity (Figure~\ref{fig:domain}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"6. domain_discretization/fig6_domain_discretization.pdf"}
+\caption{Two-level spatial discretization showing the separation between GRUs (routing topology) and HRUs (within-catchment heterogeneity). The same discretization framework supports point-scale, lumped, semi-distributed, and fully distributed domain configurations.}
+\label{fig:domain}
+\end{figure}
+
+\textbf{GRUs} define the routing topology. Each GRU corresponds to a subcatchment draining to a single river segment, and the complete set of GRUs tiles the catchment without overlap. The drainage network connecting GRUs encodes upstream-downstream relationships that govern lateral water transfer through routing models such as mizuRoute. GRU boundaries are derived from DEM-based flow accumulation and remain fixed regardless of how the interior of each subcatchment is further subdivided.
+
+\textbf{HRUs} capture sub-grid heterogeneity within each GRU. An HRU is defined by one or more discretizing attributes---elevation bands, aspect classes, land-cover types, soil classifications---intersected with the parent GRU boundary. Because HRUs nest strictly within their parent GRU, the mapping from each HRU to its routing segment is unambiguous.
+
+\subsection{Domain Definition Methods}
+
+The domain definition system employs a strategy pattern coordinated by the \texttt{DomainDelineator} class. Four definition methods span the spectrum from point-scale to fully distributed representations:
+
+\begin{table}[ht]
+\centering
+\caption{Domain definition methods supported in SYMFLUENCE.}
+\label{tab:domain}
+\begin{tabular}{llll}
+\toprule
+Method & Spatial Units & Routing & Use Cases \\
+\midrule
+Point & Single bounding box & None & Flux towers, lysimeters \\
+Lumped & Single watershed & Optional network & Bucket models, calibration \\
+Semi-distributed & Multiple subcatchments & River network & Process-based modeling \\
+Distributed & Regular grid cells & D8 flow directions & Land surface models \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Point domains} create minimal spatial structure for single-location simulations. \textbf{Lumped watershed delineation} creates a single polygon encompassing the entire drainage area upstream of a specified pour point through TauDEM-based terrain analysis. \textbf{Semi-distributed delineation} creates multiple subcatchments connected by a river network. \textbf{Distributed domains} create regular grids suitable for land surface models.
+
+\subsection{Spatial Discretization}
+
+The \texttt{DomainDiscretizer} supports six discretization attributes that can be applied individually or in combination: elevation bands (capturing temperature lapse and snow zones), land cover (vegetation processes, interception), soil type (infiltration, storage capacity), aspect (solar radiation, snow redistribution), radiation class (energy balance partitioning), and glacier fraction.
+
+For applications requiring representation of multiple heterogeneity sources, SYMFLUENCE supports combined discretization that intersects multiple attribute layers. The algorithm creates HRUs for each unique combination of attributes present within a GRU---for example, combining 5 elevation bands with 4 land cover classes could produce up to 20 HRUs per GRU.
+
+The hierarchical design carries two practical consequences. First, increasing HRU complexity within a GRU does not alter the routing network---practitioners can refine vertical process representation independently of lateral connectivity. Second, all HRUs within a GRU share calibrated parameter values by default, so adding discretization layers does not increase the calibration parameter space.
+
+%% ============================================================================
+\section{Model Integration}
+
+The diversity of hydrological models---spanning conceptual rainfall-runoff formulations, process-based land surface schemes, and data-driven approaches---presents a significant integration challenge. Each model brings distinct input requirements, execution mechanisms, and output formats. SYMFLUENCE addresses this heterogeneity through a unified component interface that standardizes model interaction while preserving model-specific capabilities (Figure~\ref{fig:model}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"7. model_integration/fig7_model_integration.pdf"}
+\caption{Model integration architecture showing the four-component interface (PreProcessor, Runner, PostProcessor, ResultExtractor) and the ComponentRegistry that enables runtime discovery. Models spanning Fortran, C, Python, R, and Julia are unified behind common abstract base classes.}
+\label{fig:model}
+\end{figure}
+
+\subsection{Component Architecture}
+
+Each integrated model provides four components that implement abstract base classes:
+
+\textbf{PreProcessor} (\texttt{BaseModelPreProcessor}) transforms SYMFLUENCE's standardized data formats into model-specific inputs. Responsibilities include forcing data conversion, generating spatial attributes, creating configuration files, and setting up initial conditions. The preprocessor receives an optional parameter dictionary enabling calibration workflows to generate model inputs for candidate parameter sets.
+
+\textbf{Runner} (\texttt{BaseModelRunner}) executes the model with preprocessed inputs. Responsibilities include binary invocation (subprocess management for compiled executables), environment configuration, execution monitoring, and error capture.
+
+\textbf{PostProcessor} (\texttt{BaseModelPostProcessor}) extracts and standardizes model outputs. Responsibilities include output parsing (NetCDF, CSV, binary formats), variable extraction, unit conversion, and spatial aggregation. All postprocessors produce results in a common CSV format, enabling consistent evaluation.
+
+\textbf{ResultExtractor} (\texttt{ModelResultExtractor}) provides flexible access to any output variable for diagnostic and research purposes, beyond the streamflow focus of the postprocessor.
+
+\subsection{The ComponentRegistry}
+
+The \texttt{ComponentRegistry} provides centralized discovery and instantiation of model components through decorator-based registration. Separate registries are maintained for each component type, enabling fine-grained model capability declaration.
+
+\subsection{Supported Models}
+
+SYMFLUENCE integrates 25 models spanning the spectrum from parsimonious conceptual formulations to complex process-based representations:
+
+\begin{table}[ht]
+\centering
+\caption{Hydrological models supported in SYMFLUENCE.}
+\label{tab:models}
+\begin{tabular}{llll}
+\toprule
+Model & Type & Spatial Modes & Routing \\
+\midrule
+SUMMA & Process-based & Point, Lumped, Semi-dist., Distributed & External (mizuRoute) \\
+VIC & Process-based & Point, Lumped, Distributed & External (mizuRoute) \\
+FUSE & Flexible conceptual & Point, Lumped, Semi-distributed & External (mizuRoute) \\
+GR4J/GR6J & Conceptual & Lumped, Semi-distributed & External (mizuRoute) \\
+HYPE & Conceptual & Lumped, Semi-distributed & Internal \\
+HBV & Conceptual & Lumped, Semi-distributed & External (mizuRoute) \\
+LSTM & Machine Learning & Lumped & None \\
+GNN & Machine Learning & Semi-distributed & Internal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Routing Integration}
+
+Hydrological models that simulate vertical water balance processes require coupling with routing models to translate hillslope runoff into channel discharge. SYMFLUENCE automates this coupling through dependency resolution and standardized interfaces. MizuRoute serves as the primary routing solution, implementing three methods: Impulse Response Function (IRF), Kinematic Wave Tracking (KWT), and Diffusive Wave.
+
+The \texttt{RoutingDecider} determines when routing is required based on configuration and model characteristics. When the \texttt{ModelManager} resolves the execution workflow, it automatically inserts routing models after their source models, ensuring correct execution order.
+
+%% ============================================================================
+\section{Calibration and Optimization}
+
+Parameter calibration remains essential for hydrological model application, whether to compensate for structural deficiencies in process representation, to adapt models to local conditions, or to quantify predictive uncertainty. SYMFLUENCE provides a comprehensive optimization framework in which algorithms, objective functions, calibration targets, and execution strategies are decoupled components that can be combined flexibly (Figure~\ref{fig:optimization}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"8. calibration_optimization/fig8_calibration_optimization.pdf"}
+\caption{Calibration and optimization framework showing the algorithm library (21 algorithms across six categories), parameter normalization to [0,1] space, and the strategy pattern for parallel execution across MPI, ProcessPool, and Sequential backends.}
+\label{fig:optimization}
+\end{figure}
+
+\subsection{Architecture}
+
+The \texttt{OptimizationManager} orchestrates calibration workflows, delegating to model-specific optimizers retrieved from the \texttt{OptimizerRegistry}. Each optimizer inherits from \texttt{BaseModelOptimizer}, which provides parameter management, parallel execution, results tracking, and final evaluation as reusable capabilities.
+
+Three component registries supply the building blocks for any calibration experiment:
+
+\textbf{Algorithm Library:} Twenty-one algorithms span six categories: local search (DDS, Nelder-Mead), population-based (PSO, DE, SCE-UA, GA, CMA-ES), gradient-based (ADAM, L-BFGS), multi-objective (NSGA-II, MOEA/D), Bayesian/MCMC (DREAM, GLUE, ABC), and others (Basin-Hopping, Simulated Annealing, Bayesian Optimization).
+
+\textbf{Objective Registry:} Metrics for quantifying simulation-observation agreement. For maximization metrics (KGE, NSE), the framework transforms into minimization via $\text{cost} = 1 - \text{metric}$.
+
+\textbf{Calibration Target Registry:} Maps variable types (streamflow, snow/SWE, ET, soil moisture, groundwater, total water storage) to model-specific evaluator implementations. A \texttt{MultivariateTarget} combines multiple variables into a single scalar objective via configurable weighting.
+
+\subsection{Parameter Normalization}
+
+All algorithms operate in a normalized [0, 1] parameter space, enabling consistent search behavior regardless of parameter magnitudes or units. The \texttt{BaseParameterManager} implements bidirectional transformation between normalized and physical spaces. Parameter bounds derive from model-specific sources, making algorithm implementations fully portable across registered models.
+
+\subsection{Execution Distribution}
+
+Parallel execution employs a strategy pattern with automatic runtime selection: \textbf{MPI strategy} distributes tasks round-robin across ranks on distributed-memory HPC clusters; \textbf{ProcessPool strategy} uses Python's \texttt{ProcessPoolExecutor} for shared-memory parallelism; \textbf{Sequential strategy} provides a fallback. Selection cascades automatically: MPI is attempted first, then ProcessPool, then Sequential.
+
+Process isolation prevents file conflicts during parallel evaluation. Each candidate evaluation receives a dedicated directory structure, and configuration files are automatically updated with process-specific paths.
+
+%% ============================================================================
+\section{Analysis Layer}
+
+The analysis layer provides the evaluation, visualization, and diagnostic infrastructure that connects model outputs to scientific interpretation (Figure~\ref{fig:analysis}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"10. analysis_layer/fig10_analysis_layer.pdf"}
+\caption{Analysis layer architecture showing the metric registry (100+ performance metrics), variable-specific evaluators for streamflow, ET, snow, soil moisture, groundwater, and TWS, and the benchmarking framework for comparing calibrated models against reference predictors.}
+\label{fig:analysis}
+\end{figure}
+
+\subsection{Performance Metrics}
+
+SYMFLUENCE implements over 100 performance metrics through a centralized \texttt{METRIC\_REGISTRY}: efficiency metrics (NSE, KGE, KGE'), error metrics (RMSE, MAE, MSE), bias metrics (PBIAS, volume error), correlation metrics (Pearson r, Spearman $\rho$), and flow-specific metrics (baseflow index, flashiness, flow duration curve metrics).
+
+\subsection{Multi-Variable Evaluation}
+
+Variable-specific evaluators inherit from a common \texttt{ModelEvaluator} base class: \texttt{StreamflowEvaluator}, \texttt{ETEvaluator}, \texttt{SnowEvaluator}, \texttt{SoilMoistureEvaluator}, \texttt{GroundwaterEvaluator}, and \texttt{TWSEvaluator}. Each handles variable-specific preprocessing (e.g., spatial aggregation for gridded products, temporal alignment for satellite observations) while producing standardized metric outputs.
+
+\subsection{Benchmarking}
+
+The \texttt{Benchmarker} class compares calibrated model skill against a hierarchy of reference predictors: mean flow, median flow, monthly climatology, daily climatology, and rainfall-runoff ratios. By embedding reference model evaluation as a standard workflow step, the framework encourages practices that might otherwise be omitted.
+
+%% ============================================================================
+\section{User Interfaces and Deployment}
+
+SYMFLUENCE provides three access modalities: Python API, command-line interface, and AI-assisted workflows (Figure~\ref{fig:deployment}). The framework detects SLURM, PBS, and SGE environments, adjusts parallelism to match allocated resources, and supports containerized deployment.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{"9. user_interfaces_deployment/fig9_user_interfaces_deployment.pdf"}
+\caption{User interface and deployment options showing the three access modalities (Python API, CLI, AI-assisted), HPC environment detection (SLURM, PBS, SGE), and containerized deployment support for reproducible execution across platforms.}
+\label{fig:deployment}
+\end{figure}
+
+%% ============================================================================
+\section{Discussion}
+
+\subsection{The Interface as Social Contract}
+
+The most consequential architectural choice in SYMFLUENCE is not any specific algorithm or data handler but the definition of the interfaces between components. When we define what a \texttt{BaseModelPreProcessor} must provide, we are specifying a \textit{social} contract: what the community expects of a model integration and what it provides in return.
+
+A group that implements this interface gains access to the full ecosystem: 41 data handlers will prepare their inputs, 21 optimization algorithms will calibrate their parameters, 100+ metrics will evaluate their outputs. The interface is thus simultaneously a technical specification and a governance mechanism---it defines the terms of participation in a shared infrastructure.
+
+\subsection{Decentralized Contribution}
+
+The registry pattern enables a specific form of decentralized scientific contribution. A research group developing a new snow model need not understand, modify, or even possess the complete SYMFLUENCE source code. They implement the defined interfaces, apply the registration decorators, and package their model as a standalone module. Upon import, the model registers itself with the framework and becomes available to all workflows.
+
+This pattern addresses the coordination problem that the companion paper identified as central to the infrastructure deficit: how to enable collaboration without requiring consensus on implementation details. The registry provides coordination through convention rather than committee---contributors agree on interfaces but retain full autonomy over implementation.
+
+\subsection{From Infrastructure to Inference}
+
+The central argument of this paper series is that workflow infrastructure is a prerequisite to robust scientific inference in hydrology. The architecture described here removes technical barriers; it does not generate scientific hypotheses or interpret results. Its contribution is to shift the bottleneck from implementation to inquiry, creating conditions under which the community can conduct systematic, reproducible experiments needed to determine whether detailed process representation improves prediction, or whether simpler approaches suffice.
+
+The apparent failure of complex models to consistently outperform simple benchmarks may reflect not the limits of process-based modeling but the limits of our ability to deploy it reliably. When technical friction prevents proper model configuration, calibration, and evaluation, we cannot distinguish scientific inadequacy from implementation failure. By providing infrastructure that eliminates this friction, SYMFLUENCE enables the community to finally address this question empirically.
+
+\subsection{Limitations}
+
+Several limitations deserve acknowledgment. \textit{Interface stability} presents ongoing challenges as new modeling paradigms (differentiable models, hybrid approaches) may require interface evolution that creates migration burden. \textit{Adoption barriers} remain significant---the framework provides value only if adopted, yet adoption requires investment in learning and migration. \textit{Social institutions} beyond software patterns are needed; interfaces are social contracts, but contracts require enforcement and evolution mechanisms that pure software cannot provide. \textit{Performance trade-offs} from abstraction layers may matter for computationally intensive applications.
+
+%% ============================================================================
+\section{Conclusion}
+
+The central challenge in modern hydrology lies not in the capability of individual modeling tools, but in the fragmentation of the workflows that deploy and integrate them. This fragmentation has obscured a critical question: Does the stagnation in predictive skill reflect fundamental scientific limits, or does it reflect our inability to deploy process knowledge reliably? This paper has described the architecture of SYMFLUENCE: a four-tier layered system that implements the five design principles advocated in the first paper of this series \cite{Eythorsson2025a}. The system integrates 25 hydrological models, 41 data acquisition handlers, 31 observation processing pipelines, and 21 optimization algorithms within a single declarative, registry-governed, provenance-capturing workflow. By unifying the full modeling lifecycle---data acquisition, domain definition, model execution, calibration, and evaluation---within a declarative, reproducible, and scalable framework, SYMFLUENCE demonstrates that hydrological experiments can now be treated as complete, traceable, and reproducible units of science.
+
+The significance of this approach extends beyond technical efficiency. By encoding the full experimental process in a single, machine-readable artifact, SYMFLUENCE establishes the infrastructure necessary to distinguish scientific inadequacy from implementation failure. When models are deployed through fragmented, irreproducible workflows, poor performance cannot definitively indicate either process understanding limits or technical barriers. The framework presented here removes this ambiguity, enabling the community to conduct fair tests of whether detailed process representation improves prediction---finally addressing whether we are approaching scientific limits or simply struggling with infrastructure. The contribution is not the specific implementation but the demonstration that the proposed principles are feasible, practical, and sufficient: declarative specification works, registry-based extensibility works, end-to-end orchestration works, automatic provenance works, and separation of concerns works.
+
+The companion paper \cite{Eythorsson2025c} provides empirical validation of these claims through twelve experiments that exercise the architecture across domains spanning three orders of magnitude in spatial extent---from single-HRU point-scale flux tower experiments to a 21,474-HRU regional application covering 103,000~km$^2$. Those experiments demonstrate that the scale-invariance principle holds in practice: the same 16-stage workflow DAG, the same configuration structure, and the same interfaces operate unchanged across vastly different application contexts.
+
+This shift lowers the technical barrier to advanced computational hydrology and establishes a shared foundation for robust model intercomparison, reproducibility, and cumulative scientific progress. Whether the community adopts SYMFLUENCE specifically or re-implements these patterns in other frameworks is less important than whether it adopts the patterns themselves. The registry and the river are both systems of flow---one of data and control, the other of water. Both require channels, both require connections, and both work best when the infrastructure is shared. The framework demonstrates that the long-standing barriers to integration are surmountable when treated as design challenges, laying the groundwork for a hydrological science where reproducible infrastructure positions us to distinguish the boundaries of our process understanding from the limitations of our implementation.
+
+%% ============================================================================
+\section*{Open Research}
+The SYMFLUENCE framework is available at [repository URL to be added]. Documentation, tutorials, and example configurations are provided at [documentation URL]. All configuration files used in the companion validation paper \cite{Eythorsson2025c} are archived with DOIs for reproducibility.
+
+%% ============================================================================
+\acknowledgments
+This project received funding under award NA22NWS4320003 from the NOAA Cooperative Institute Program. The statements, findings, conclusions, and recommendations are those of the authors and do not necessarily reflect the views of NOAA. We acknowledge the computational resources provided by the Digital Research Alliance of Canada, the University of Calgary, and the Rosen Center for Advanced Computing.
+
+%% ============================================================================
+\section*{Conflict of Interest}
+The authors declare no conflicts of interest.
+
+%% ============================================================================
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,66 @@
+## 4.4 Calibration Algorithm Ensemble
+
+To evaluate SYMFLUENCE's optimization suite, we compare 12 calibration algorithms drawn from six algorithmic families on a common testbed: the HBV model (Bergström, 1995) applied to the Bow River at Banff lumped catchment (2,210 km²) with ERA5 forcing. All algorithms calibrate the same 14 HBV parameters (Table X) against observed daily streamflow (WSC station 05BB001) over 2004–2007, with independent evaluation over 2008–2009 and a two-year spinup (2002–2003). KGE (Gupta et al., 2009) serves as the objective function for all runs.
+
+The 12 algorithms span the major optimization paradigms available in SYMFLUENCE: single-solution perturbation (DDS; Tolson and Shoemaker, 2007), evolutionary methods (SCE-UA, DE, PSO, GA, CMA-ES), gradient-based methods (ADAM, L-BFGS), direct search (Nelder–Mead), stochastic global search (Simulated Annealing, Basin Hopping), and surrogate-based optimization (Bayesian Optimization). Each algorithm is allocated a normalized budget of approximately 4,000 function evaluations to ensure a fair comparison across paradigms. For population-based methods this translates to 200 generations with a population of 20; for single-solution methods such as DDS it translates to 4,000 iterations; for gradient-based methods it corresponds to 2,000 (ADAM) or 500 (L-BFGS) gradient steps, where each step consumes approximately two evaluations through JAX native autodiff. All configurations share a common YAML template and differ only in the `ITERATIVE_OPTIMIZATION_ALGORITHM` block and its associated hyperparameters; a single random seed (42) is used for Part 1 of the study.
+
+Two design choices merit explicit discussion. First, gradient-based methods (ADAM, L-BFGS) require a differentiable model. SYMFLUENCE provides this by engaging a smooth HBV formulation (`HBV_SMOOTHING_FACTOR = 15.0`) that replaces threshold operations (min/max) with soft approximations when the JAX backend is active. Derivative-free methods operate on the standard (non-smooth) HBV. The comparison therefore evaluates *algorithm + compatible model formulation* pairs rather than algorithms in isolation — a deliberate choice reflecting the real-world usage pattern where the availability of gradients dictates both the algorithm and the model variant. Second, the function evaluation budget is approximate rather than exact: Nelder–Mead may consume up to 8,000 evaluations due to internal simplex reflections, L-BFGS incurs additional line-search overhead, and Bayesian Optimization uses only ~200 true function evaluations but fits a Gaussian process surrogate at each iteration. These differences are inherent to cross-paradigm comparisons and are reported transparently in Table X.
+
+**Table X.** Calibration and evaluation performance for 12 optimization algorithms applied to HBV on the Bow River at Banff. Algorithms are sorted by calibration KGE. KGE degradation is defined as Cal KGE − Eval KGE; negative values indicate the algorithm generalizes better to the evaluation period than expected from calibration.
+
+| Rank | Algorithm | Family | Cal KGE | Eval KGE | Cal NSE | Cal RMSE (m³ s⁻¹) | PBIAS (%) | KGE Degrad. |
+|------|-----------|--------|---------|----------|---------|--------------------|-----------|-------------|
+| 1 | DDS | Sampling | 0.757 | 0.749 | 0.806 | 1.51 | −23.2 | +0.008 |
+| 2 | Nelder–Mead | Direct Search | 0.751 | 0.720 | 0.825 | 1.43 | −24.1 | +0.031 |
+| 3 | GA | Evolutionary | 0.745 | 0.723 | 0.832 | 1.40 | −24.8 | +0.023 |
+| 4 | CMA-ES | Evolutionary | 0.745 | 0.735 | 0.825 | 1.43 | −24.8 | +0.010 |
+| 5 | ADAM | Gradient | 0.743 | **0.778** | 0.843 | 1.36 | −24.4 | −0.035 |
+| 6 | SA | Stochastic | 0.736 | 0.742 | 0.764 | 1.66 | −24.8 | −0.006 |
+| 7 | DE | Evolutionary | 0.734 | 0.740 | 0.754 | 1.70 | −24.8 | −0.006 |
+| 8 | SCE-UA | Evolutionary | 0.683 | 0.637 | 0.706 | 1.86 | −29.0 | +0.045 |
+| 9 | Bayes. Opt. | Surrogate | 0.678 | 0.687 | 0.661 | 1.99 | −29.5 | −0.009 |
+| 10 | PSO | Evolutionary | 0.662 | 0.628 | 0.660 | 1.99 | −31.4 | +0.034 |
+| 11 | Basin Hop. | Stochastic | 0.662 | 0.674 | 0.704 | 1.86 | −31.9 | −0.012 |
+| 12 | L-BFGS | Gradient | 0.654 | 0.702 | 0.727 | 1.79 | −31.9 | −0.048 |
+
+### 4.4.1 Algorithm Performance and Generalization
+
+Figure X presents the main performance results. Panel (a) shows calibration and evaluation KGE for all 12 algorithms, sorted by calibration performance. A reference line at KGE = 0.75 — the threshold above which Knoben et al. (2019) consider streamflow predictions "good" — divides the field: four algorithms (DDS, Nelder–Mead, GA, CMA-ES) exceed this threshold during calibration, while the remaining eight fall below it. The top-ranked algorithm, DDS, achieves a calibration KGE of 0.757 with near-zero degradation during evaluation (Eval KGE = 0.749), confirming its established reputation for efficient single-objective optimization in hydrology (Tolson and Shoemaker, 2007).
+
+The calibration KGE range across all 12 algorithms is narrow (0.654–0.757, spread of 0.103), indicating that for this basin and model the objective surface is relatively accessible: even the worst-performing algorithm (L-BFGS) reaches a KGE that exceeds the daily seasonal benchmark reported in Section 4.5. The evaluation KGE range is similarly compact (0.628–0.778), but the ranking shifts meaningfully between periods.
+
+Panel (b) examines generalization by plotting calibration KGE against evaluation KGE. Points above the 1:1 line indicate algorithms whose parameter sets perform better in evaluation than in calibration (negative KGE degradation). Six of the 12 algorithms fall in this region: ADAM, SA, DE, Basin Hopping, Bayesian Optimization, and L-BFGS. The most striking case is ADAM, which ranks fifth in calibration (KGE = 0.743) but achieves the highest evaluation KGE of any algorithm (0.778). This negative degradation of −0.035 suggests that the smoothed HBV formulation required by gradient-based optimization may act as an implicit regularizer, producing parameter sets that generalize more robustly than those found by derivative-free methods on the non-smooth surface. L-BFGS shows the same pattern in an exaggerated form (Cal KGE = 0.654, Eval KGE = 0.702, degradation = −0.048), though its low absolute performance limits the practical significance of this observation.
+
+Conversely, SCE-UA exhibits the largest positive degradation (+0.045), overfitting to the calibration period more than any other algorithm despite its long pedigree in hydrological calibration. PSO shows a similar pattern (degradation = +0.034), consistent with known tendencies of swarm-based methods to converge prematurely to local optima in high-dimensional spaces (Arsenault et al., 2014).
+
+All 12 algorithms produce a systematic negative percent bias (PBIAS ranging from −23% to −32%), indicating that HBV underestimates mean flow at this site regardless of the parameter set. This is a model structural limitation rather than an optimizer deficiency, and it is consistent with the HBV bias reported for this same basin in Section 4.2.
+
+### 4.4.2 Convergence Efficiency
+
+Figure Y shows the convergence trajectories — best KGE achieved as a function of cumulative function evaluations — for all 12 algorithms, with the top five performers (DDS, Nelder–Mead, GA, CMA-ES, ADAM) highlighted in colour and the remaining seven rendered as grey background traces.
+
+DDS reaches KGE = 0.74 within the first 100 function evaluations and plateaus shortly thereafter, consistent with the algorithm's design principle of concentrating perturbations in fewer dimensions as the budget is consumed. ADAM and Nelder–Mead show rapid initial gains as well, both reaching KGE > 0.70 within 500 evaluations through gradient descent and simplex reflection, respectively. By contrast, the population-based evolutionary methods (GA, CMA-ES) require 1,500–2,500 evaluations to match the same performance level, reflecting the overhead of maintaining and evolving a diverse population before converging. GA's trajectory is notably non-monotonic in the early generations, with the best-of-population KGE advancing in discrete jumps as favourable recombination events occur.
+
+The grey background traces reveal a clear separation between algorithms that ultimately converge to the high-performance region (KGE > 0.73) and those that stall at lower values. SCE-UA, Bayesian Optimization, and PSO plateau between KGE = 0.66 and 0.68, suggesting that these algorithms would benefit from larger evaluation budgets or alternative hyperparameter settings on this problem. Basin Hopping's convergence is characterised by long flat intervals punctuated by abrupt improvements, reflecting its multi-start architecture.
+
+### 4.4.3 Parameter Equifinality
+
+Figure Z displays the calibrated parameter values for all 12 algorithms as a heatmap, with each column normalized to [0, 1] across algorithms to highlight relative differences. Algorithms are ordered by calibration KGE (descending) to facilitate cross-referencing with Figure X.
+
+The heatmap reveals substantial equifinality: algorithms achieving similar KGE values (e.g., DDS at 0.757, Nelder–Mead at 0.751, GA at 0.745) converge to markedly different parameter sets. This is most evident in the snow module parameters. The top-performing group (DDS, Nelder–Mead, GA, CMA-ES, ADAM, SA) consistently identifies a high temperature threshold (TT = 1.2–2.2 °C) and a high degree-day factor (CFMAX = 6.8–10.0 mm °C⁻¹ d⁻¹), while the lower-performing group (SCE-UA, Bayesian Optimization, PSO, Basin Hopping, L-BFGS) converges to a negative TT (−0.3 to −1.1 °C) and a low CFMAX (1.0–3.4 mm °C⁻¹ d⁻¹). These two regimes represent alternative snow accumulation and melt strategies that the HBV structure permits: a "warm threshold / fast melt" regime versus a "cold threshold / slow melt" regime. Both achieve positive KGE but the warm-threshold regime consistently produces higher values.
+
+Field capacity (FC) shows a similar bifurcation. The high-performing group converges to the lower bound (FC ≈ 50 mm), while SCE-UA, Bayesian Optimization, Basin Hopping, and L-BFGS find values in the range 232–554 mm. High FC delays the filling of the soil moisture reservoir, compensating for the slower melt rate in the cold-threshold regime but ultimately producing a less accurate overall simulation.
+
+Several parameters show convergence to boundary values across multiple algorithms: the snowfall correction factor (SFCF) pins at 1.5 (the upper bound) for 10 of 12 algorithms, the soil moisture shape parameter (Beta) clusters at 1.0 for six algorithms, and the moisture reduction threshold (LP) saturates at 1.0 for nine algorithms. These patterns suggest that the feasible ranges for SFCF and LP may be too narrow and warrant expansion in future studies, while the Beta convergence to 1.0 indicates that a linear soil moisture–runoff relationship is preferred for this catchment.
+
+The recession coefficients (K0, K1, K2) and the percolation rate (PERC) show less systematic variation across algorithms. K0 spans 0.05–0.63 d⁻¹ and K1 spans 0.01–0.32 d⁻¹, with no clear relationship to overall KGE. This is consistent with known interactions between recession parameters in HBV, where compensatory adjustments in K0, K1, K2, and PERC can produce similar outflow dynamics from different internal state trajectories.
+
+### 4.4.4 Framework Implications
+
+Three findings from this experiment bear on SYMFLUENCE's design and usability.
+
+First, the configuration-driven architecture enables fair cross-algorithm comparison with minimal effort. All 12 algorithms are specified through a single YAML parameter (`ITERATIVE_OPTIMIZATION_ALGORITHM`) and its associated hyperparameters, with all other settings — domain, forcing, observations, calibration period, evaluation period, objective function — held constant. The standardized output format (convergence logs, best parameters, and final evaluation metrics in JSON) allows automated post-processing without algorithm-specific parsing.
+
+Second, the integration of JAX-based automatic differentiation into the calibration pipeline opens the HBV model — and, by extension, any JAX-differentiable model in SYMFLUENCE — to gradient-based optimizers that are not typically used in hydrology. ADAM's strong generalization performance (highest evaluation KGE of all 12 algorithms) suggests that gradient methods paired with smooth model formulations deserve broader consideration in hydrological calibration, particularly for high-dimensional parameter spaces where derivative-free methods scale poorly.
+
+Third, the equifinality analysis highlights the value of multi-algorithm calibration as a diagnostic tool. A single calibration run with a single algorithm — the standard practice in most hydrological modelling studies — would have identified one parameter set and one KGE value without revealing the bimodal snow-parameter structure or the boundary-convergence patterns that emerge from the 12-algorithm comparison. SYMFLUENCE's batch execution infrastructure (`run_study.py`) makes it straightforward to launch such ensemble calibrations, and the standardized outputs make the resulting parameter sets directly comparable.
