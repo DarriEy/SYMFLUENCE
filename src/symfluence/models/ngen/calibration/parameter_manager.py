@@ -81,6 +81,7 @@ class NgenParameterManager(BaseParameterManager):
             "smcmax": ("SOILPARM.TBL", "MAXSMC", 4),
             "dksat":  ("SOILPARM.TBL", "SATDK", 7),
             "bb":     ("SOILPARM.TBL", "BB", 1),
+            "bexp":   ("SOILPARM.TBL", "BB", 1),  # bexp is alias for BB (pore size distribution)
         }
 
         self.logger.debug("NgenParameterManager initialized")
@@ -130,10 +131,12 @@ class NgenParameterManager(BaseParameterManager):
         return all_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return ngen parameter bounds, preferring config YAML over registry defaults.
+        """Return ngen parameter bounds, merging config YAML with registry defaults.
 
         Checks NGEN_CFE_PARAM_BOUNDS, NGEN_NOAH_PARAM_BOUNDS, and NGEN_PET_PARAM_BOUNDS
-        from the config YAML first. Falls back to central registry bounds if not specified.
+        from the config YAML first. Config bounds override min/max values but preserve
+        the 'transform' key from the registry (e.g., 'log' for parameters spanning
+        multiple orders of magnitude like satdk, dksat, Cgw).
         """
         base_bounds = get_ngen_bounds()
         bounds = {}
@@ -154,19 +157,26 @@ class NgenParameterManager(BaseParameterManager):
             if isinstance(module_bounds, dict):
                 for param_name, bound_values in module_bounds.items():
                     if isinstance(bound_values, (list, tuple)) and len(bound_values) == 2:
-                        config_bounds[f"{module}.{param_name}"] = {
+                        # Start with min/max from config
+                        param_bounds = {
                             'min': float(bound_values[0]),
                             'max': float(bound_values[1])
                         }
+                        # Preserve 'transform' from registry if it exists (e.g., 'log' for
+                        # parameters like satdk, dksat, Cgw that span multiple orders of magnitude)
+                        if param_name in base_bounds and 'transform' in base_bounds[param_name]:
+                            param_bounds['transform'] = base_bounds[param_name]['transform']
+                        config_bounds[f"{module}.{param_name}"] = param_bounds
 
         for module, params in self.params_to_calibrate.items():
             for param in params:
                 full_param_name = f"{module}.{param}"
                 if full_param_name in config_bounds:
                     bounds[full_param_name] = config_bounds[full_param_name]
+                    transform_str = f" (transform={config_bounds[full_param_name].get('transform', 'linear')})"
                     self.logger.debug(
                         f"Using config bounds for {full_param_name}: "
-                        f"[{config_bounds[full_param_name]['min']}, {config_bounds[full_param_name]['max']}]"
+                        f"[{config_bounds[full_param_name]['min']}, {config_bounds[full_param_name]['max']}]{transform_str}"
                     )
                 elif param in base_bounds:
                     bounds[full_param_name] = base_bounds[param]
@@ -197,14 +207,16 @@ class NgenParameterManager(BaseParameterManager):
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
 
-        # Validate modules
+        # Validate modules (filter invalid ones without mutating during iteration)
         valid_modules = ['CFE', 'NOAH', 'PET']
+        validated = []
         for module in modules:
-            if module not in valid_modules:
+            if module in valid_modules:
+                validated.append(module)
+            else:
                 self.logger.warning(f"Unknown module '{module}', skipping")
-                modules.remove(module)
 
-        return modules if modules else ['CFE']  # Default to CFE
+        return validated if validated else ['CFE']  # Default to CFE
 
     def _parse_parameters_to_calibrate(self) -> Dict[str, List[str]]:
         """Parse parameters to calibrate for each module"""
@@ -416,15 +428,20 @@ class NgenParameterManager(BaseParameterManager):
                     return f"{new_val:.8g}{tail}"
                 return f"{new_val:.8g}"
 
-            # Determine num_timesteps from config
+            # Determine num_timesteps from config using FORCING_TIME_STEP_SIZE
             start_time = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
             end_time = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
+            forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
+            try:
+                forcing_timestep = int(forcing_timestep)
+            except (ValueError, TypeError):
+                forcing_timestep = 3600
+
             if start_time and end_time:
                 try:
                     duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
-                    # ngen usually runs at hourly timestep unless configured otherwise
-                    # We add 1 because ngen intervals are inclusive of start/end bounds
-                    num_steps = int(duration.total_seconds() / 3600)
+                    # Use configured timestep, add 1 for inclusive end bound
+                    num_steps = int(duration.total_seconds() / forcing_timestep) + 1
                 except (ValueError, TypeError) as e:
                     self.logger.debug(f"Could not parse time range, defaulting to 1 timestep: {e}")
                     num_steps = 1
@@ -444,12 +461,17 @@ class NgenParameterManager(BaseParameterManager):
                     lines[i] = f"num_timesteps={num_steps}"
                     continue
 
-                # Enforce working surface runoff settings
+                # Surface runoff scheme configuration - respect user config if set
+                # Default to Schaake partitioning and GIUH routing if not specified
+                cfe_partition_scheme = self._get_config_value(
+                    lambda: None, default='Schaake', dict_key='NGEN_CFE_PARTITION_SCHEME')
+                cfe_runoff_scheme = self._get_config_value(
+                    lambda: None, default='GIUH', dict_key='NGEN_CFE_RUNOFF_SCHEME')
                 if k == "surface_water_partitioning_scheme":
-                    lines[i] = "surface_water_partitioning_scheme=Schaake"
+                    lines[i] = f"surface_water_partitioning_scheme={cfe_partition_scheme}"
                     continue
                 if k == "surface_runoff_scheme":
-                    lines[i] = "surface_runoff_scheme=GIUH"
+                    lines[i] = f"surface_runoff_scheme={cfe_runoff_scheme}"
                     continue
 
                 # Match parameters by mapped BMI key
@@ -746,15 +768,20 @@ class NgenParameterManager(BaseParameterManager):
             path = candidates[0]
             lines = path.read_text().splitlines()
 
-            # Determine num_timesteps from config
+            # Determine num_timesteps from config using FORCING_TIME_STEP_SIZE
             start_time = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
             end_time = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
+            forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
+            try:
+                forcing_timestep = int(forcing_timestep)
+            except (ValueError, TypeError):
+                forcing_timestep = 3600
+
             if start_time and end_time:
                 try:
                     duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
-                    # ngen usually runs at hourly timestep unless configured otherwise
-                    # We add 1 because ngen intervals are inclusive of start/end bounds
-                    num_steps = int(duration.total_seconds() / 3600)
+                    # Use configured timestep, add 1 for inclusive end bound
+                    num_steps = int(duration.total_seconds() / forcing_timestep) + 1
                 except (ValueError, TypeError) as e:
                     self.logger.debug(f"Could not parse time range, defaulting to 1 timestep: {e}")
                     num_steps = 1

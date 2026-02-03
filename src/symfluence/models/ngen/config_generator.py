@@ -63,19 +63,36 @@ class NgenConfigGenerator(ConfigMixin):
         self._include_pet = True
         self._include_noah = True
         self._include_sloth = False
+        self._noah_et_fallback = 'ETRAN'  # Default when PET disabled but NOAH enabled
 
     def set_module_availability(
         self,
         cfe: bool = True,
         pet: bool = True,
         noah: bool = True,
-        sloth: bool = False
+        sloth: bool = False,
+        noah_et_fallback: str = 'ETRAN'
     ):
-        """Set which NGEN modules are available."""
+        """Set which NGEN modules are available.
+
+        Args:
+            cfe: Enable CFE runoff module
+            pet: Enable PET evapotranspiration module
+            noah: Enable NOAH-OWP land surface module
+            sloth: Enable SLOTH ice fraction module
+            noah_et_fallback: When PET disabled but NOAH enabled, which NOAH output
+                to use as CFE's ET input. Options:
+                - 'ETRAN': Transpiration (default) - dominant for vegetated areas
+                - 'EDIR': Direct soil evaporation - better for sparse vegetation
+                - 'ECAN': Canopy evaporation - rarely appropriate alone
+                Note: All are ACTUAL ET (soil-moisture limited), not potential ET.
+                For proper potential ET, enable the PET module.
+        """
         self._include_cfe = cfe
         self._include_pet = pet
         self._include_noah = noah
         self._include_sloth = sloth
+        self._noah_et_fallback = noah_et_fallback
 
     def generate_all_configs(
         self,
@@ -199,15 +216,23 @@ class NgenConfigGenerator(ConfigMixin):
             )
             catchment_area_km2 = 1.0
 
-        # Calculate num_timesteps
+        # Calculate num_timesteps using configured forcing timestep (not hardcoded hourly)
         start_time = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
         end_time = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
         if end_time == 'default': end_time = '2000-12-31 23:00:00'
 
+        # Get forcing timestep from config (default 3600s = 1 hour)
+        forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
+        try:
+            forcing_timestep = int(forcing_timestep)
+        except (ValueError, TypeError):
+            forcing_timestep = 3600
+
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
-            num_steps = int(duration.total_seconds() / 3600)
+            # Use configured timestep, add 1 for inclusive end bound
+            num_steps = int(duration.total_seconds() / forcing_timestep) + 1
         except (ValueError, TypeError):
             num_steps = 1
 
@@ -319,7 +344,7 @@ surface_water_partitioning_scheme=Schaake
         self.logger.info(f"  Vegetation height: {params['veg_height']:.2f} m")
         self.logger.info(f"  Momentum roughness: {params['momentum_roughness']:.2f} m")
 
-        # Calculate num_timesteps
+        # Calculate num_timesteps using configured forcing timestep (already in params['timestep'])
         start_time = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
         end_time = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
@@ -327,7 +352,8 @@ surface_water_partitioning_scheme=Schaake
 
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
-            num_steps = int(duration.total_seconds() / 3600)
+            # Use configured timestep (forcing_timestep), add 1 for inclusive end bound
+            num_steps = int(duration.total_seconds() / forcing_timestep) + 1
         except (ValueError, TypeError):
             num_steps = 1
 
@@ -729,8 +755,12 @@ shortwave_radiation_provided=1
             if self._include_pet:
                 variables_map["water_potential_evaporation_flux"] = "water_potential_evaporation_flux"
             elif self._include_noah:
-                # Fallback: if PET is not enabled but NOAH is, use NOAH's ETRAN
-                variables_map["water_potential_evaporation_flux"] = "ETRAN"
+                # Fallback: if PET is not enabled but NOAH is, use configured NOAH output
+                # Options: ETRAN (transpiration), EDIR (direct soil evap), ECAN (canopy evap)
+                # NOTE: These are ACTUAL ET (soil-moisture limited), not potential ET.
+                # This is a simplification - for proper potential ET, enable PET module.
+                et_var = getattr(self, '_noah_et_fallback', 'ETRAN')
+                variables_map["water_potential_evaporation_flux"] = et_var
 
             modules.append({
                 "name": "bmi_c",
