@@ -103,8 +103,17 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 return files
 
         # If no CALIBRATION_NEXUS_ID specified, sum all nexuses
-        self.logger.debug(f"No CALIBRATION_NEXUS_ID specified. Summing all {len(files)} nexus outputs")
-        self.logger.debug("Note: For proper routed flow, enable t-route routing in config")
+        # This is only valid for single-nexus (lumped) domains
+        if len(files) > 1:
+            self.logger.warning(
+                f"CALIBRATION_NEXUS_ID not specified for multi-nexus domain ({len(files)} nexuses). "
+                f"Summing raw nexus outputs is NOT equivalent to routed outlet flow! "
+                f"For scientifically valid calibration of distributed domains, either: "
+                f"(1) Set CALIBRATION_NEXUS_ID to the outlet nexus, or "
+                f"(2) Enable t-route routing (NGEN_RUN_TROUTE: True)"
+            )
+        else:
+            self.logger.debug("Single nexus domain - using raw nexus output as outlet flow")
         return files
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
@@ -311,14 +320,18 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 # flow_depth (m) * area (km²) * (1e6 m²/km²) / timestep (s) = m³/s
                 nexus_id = nexus_file.stem.replace('_output', '')
 
-                # Check config to skip conversion
+                # Check config to skip conversion - this is the recommended explicit approach
                 is_flow_already = self.config_dict.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
 
-                if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
+                if is_flow_already:
+                    # Explicit config: trust user setting, no conversion needed
+                    self.logger.debug(f"No conversion for {nexus_id} (NGEN_CSV_OUTPUT_IS_FLOW=True)")
+                elif nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
                     area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
 
-                    # Heuristic: Check if conversion yields unreasonable values
-                    # This protects against cases where output IS flow but user didn't set flag
+                    # Heuristic-based unit detection - not recommended, may produce wrong results
+                    # NOTE: CFE with output_variable_units="m3/s" outputs flow directly
+                    # This heuristic is a fallback when NGEN_CSV_OUTPUT_IS_FLOW is not set
                     potential_flow = (flow_values * area_m2) / timestep_seconds
                     mean_raw = np.mean(flow_values)
                     mean_converted = np.mean(potential_flow)
@@ -326,21 +339,22 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     # Calculate conversion factor
                     conversion_factor = mean_converted / mean_raw if mean_raw > 0 else 1
 
-                    # Skip conversion if:
-                    # 1. Converted values are extremely large (> 100,000 m³/s), OR
-                    # 2. Conversion multiplies values by more than 100x (likely already in flow units)
+                    # Skip conversion if values suggest output is already in flow units
                     if mean_converted > 100000 or conversion_factor > 100:
-                        self.logger.debug(
-                            f"Unit conversion for {nexus_id} skipped (output already in m³/s). "
-                            f"Raw mean: {mean_raw:.4f}, factor: {conversion_factor:.1f}x"
+                        self.logger.warning(
+                            f"Unit heuristic for {nexus_id}: output appears to already be in m³/s "
+                            f"(raw mean: {mean_raw:.4f}, conversion would multiply by {conversion_factor:.1f}x). "
+                            f"For explicit control, set NGEN_CSV_OUTPUT_IS_FLOW: True in config."
                         )
                         # Don't convert
                     else:
                         flow_values = potential_flow
-                        self.logger.debug(f"Converted {nexus_id} from depth to flow using area {nexus_areas[nexus_id]:.2f} km²")
+                        self.logger.info(
+                            f"Converted {nexus_id} from depth to flow using area {nexus_areas[nexus_id]:.2f} km². "
+                            f"If output was already in m³/s, set NGEN_CSV_OUTPUT_IS_FLOW: True to disable conversion."
+                        )
                 else:
-                    reason = "config NGEN_CSV_OUTPUT_IS_FLOW=True" if is_flow_already else "no area found"
-                    self.logger.debug(f"No conversion for {nexus_id} ({reason}), assuming units already in m³/s")
+                    self.logger.debug(f"No conversion for {nexus_id} (no area found), assuming m³/s")
 
                 s = pd.Series(
                     flow_values,

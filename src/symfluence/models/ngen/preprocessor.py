@@ -84,20 +84,33 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Determine which modules to include based on config and available libraries
         # Allow user to override which modules are enabled via config
+        # Check both nested NGEN section and top-level config for ENABLE_* keys
         ngen_config = self.config_dict.get('NGEN', {})
 
+        def get_module_enabled(module_name: str, default: bool) -> bool:
+            """Get module enabled status, checking nested NGEN section first, then top-level."""
+            config_key = f'ENABLE_{module_name}'
+            # First check nested NGEN section
+            if config_key in ngen_config:
+                return ngen_config[config_key]
+            # Then check top-level config (for backwards compatibility)
+            if config_key in self.config_dict:
+                return self.config_dict[config_key]
+            # Fall back to library availability check
+            return self._available_modules.get(module_name, default)
+
         # SLOTH provides ice fraction and soil moisture variables for CFE
-        self._include_sloth = ngen_config.get('ENABLE_SLOTH', self._available_modules.get("SLOTH", True))
+        self._include_sloth = get_module_enabled('SLOTH', True)
 
         # PET provides evapotranspiration (but has known issues - can be disabled)
         # Note: PET requires wind speed variables (UGRD, VGRD) in forcing
-        self._include_pet = ngen_config.get('ENABLE_PET', self._available_modules.get("PET", True))
+        self._include_pet = get_module_enabled('PET', True)
 
         # NOAH-OWP provides alternative ET physics (more robust than PET)
-        self._include_noah = ngen_config.get('ENABLE_NOAH', self._available_modules.get("NOAH", False))
+        self._include_noah = get_module_enabled('NOAH', False)
 
         # CFE is the core runoff generation module
-        self._include_cfe = ngen_config.get('ENABLE_CFE', self._available_modules.get("CFE", True))
+        self._include_cfe = get_module_enabled('CFE', True)
 
         # QINSUR-based coupling: NOAH and PET serve complementary roles.
         # NOAH handles snow physics, canopy interception, and surface energy balance,
@@ -110,6 +123,26 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
                 "NOAH provides QINSUR (post-snow/interception water) to CFE as precipitation; "
                 "PET provides potential ET for CFE's soil moisture depletion."
             )
+        elif self._include_noah and not self._include_pet:
+            # Get the ET fallback configuration
+            self._noah_et_fallback = self.config_dict.get('NGEN_NOAH_ET_FALLBACK', 'ETRAN')
+            valid_fallbacks = ['ETRAN', 'EDIR', 'ECAN']
+            if self._noah_et_fallback not in valid_fallbacks:
+                self.logger.warning(
+                    f"Invalid NGEN_NOAH_ET_FALLBACK '{self._noah_et_fallback}', using 'ETRAN'"
+                )
+                self._noah_et_fallback = 'ETRAN'
+
+            self.logger.warning(
+                f"NOAH enabled but PET disabled: CFE will receive NOAH's {self._noah_et_fallback} "
+                f"(actual ET) instead of potential ET. This is a simplification that may cause "
+                f"underestimation of ET demand since {self._noah_et_fallback} is already "
+                f"soil-moisture limited. For physically correct potential ET, enable PET module "
+                f"(ENABLE_PET: True) or set NGEN_NOAH_ET_FALLBACK to 'EDIR' for bare-soil "
+                f"dominated catchments."
+            )
+        else:
+            self._noah_et_fallback = None
 
         # Log module configuration
         self.logger.info("NGEN module configuration:")
@@ -792,7 +825,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         """
         catchment_gdf = gpd.read_file(self.get_catchment_path())
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, catchment_gdf.crs)
-        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_all_configs(catchment_gdf, self.hru_id_col)
 
     def generate_realization_config(self, catchment_file: Path, nexus_file: Path, forcing_file: Path):
@@ -809,7 +843,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             forcing_file: Path to forcing NetCDF file.
         """
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
-        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
 
         # Generate t-route config if routing is enabled
