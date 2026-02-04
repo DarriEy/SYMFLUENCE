@@ -213,5 +213,11 @@ class AORCAcquirer(BaseAcquisitionHandler):
         ds_combined.attrs.update({'source': 'NOAA AORC v1.1', 'bbox': str(self.bbox)})
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_AORC_{self.start_date.year}-{self.end_date.year}.nc"
-        ds_combined.to_netcdf(output_file)
+        # Clear Zarr encoding to avoid HDF5 errors when writing to NetCDF
+        for var in ds_combined.data_vars:
+            ds_combined[var].encoding.clear()
+        for coord in ds_combined.coords:
+            ds_combined[coord].encoding.clear()
+        # Load data into memory before writing to avoid dask/HDF5 conflicts
+        ds_combined.load().to_netcdf(output_file)
         return output_file
