@@ -327,11 +327,19 @@ class TestNgenNormalization:
 
         manager = NgenParameterManager(ngen_config, test_logger, settings_dir)
 
-        # Get midpoint values for all params
+        # Get midpoint values for all params, accounting for log-transformed parameters
+        # For linear params: midpoint = (min + max) / 2
+        # For log params: midpoint = sqrt(min * max) (geometric mean)
         params = {}
         for name in manager.all_param_names:
             bounds = manager.param_bounds[name]
-            params[name] = (bounds['min'] + bounds['max']) / 2
+            transform = bounds.get('transform', 'linear')
+            if transform == 'log' and bounds['min'] > 0 and bounds['max'] > 0:
+                # Geometric mean for log-transformed parameters
+                params[name] = np.sqrt(bounds['min'] * bounds['max'])
+            else:
+                # Arithmetic mean for linear parameters
+                params[name] = (bounds['min'] + bounds['max']) / 2
 
         normalized = manager.normalize_parameters(params)
 

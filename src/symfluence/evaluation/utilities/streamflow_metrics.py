@@ -156,10 +156,65 @@ class StreamflowMetrics:
         if catchment_name == 'default' or not catchment_name:
             catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
 
-        catchment_file = catchment_path / catchment_name
+        # Build list of paths to search (in priority order)
+        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        experiment_id = config.get('EXPERIMENT_ID', 'run_1')
 
-        if not catchment_file.exists():
-            logger.warning(f"Catchment file not found: {catchment_file}. Using default {default_area} km2")
+        # Also search for GRUs variant (common naming convention)
+        grus_name = f"{domain_name}_HRUs_GRUs.shp"
+
+        # Build search paths with multiple fallbacks
+        # Shapefiles are typically created during preprocessing and may be in a different
+        # experiment directory (commonly run_1) than the current calibration experiment
+        search_paths = [
+            catchment_path / catchment_name,  # Direct path
+            catchment_path / domain_method / experiment_id / catchment_name,  # Current experiment
+            catchment_path / domain_method / catchment_name,  # Without experiment_id
+            catchment_path / grus_name,  # GRUs variant direct
+            catchment_path / domain_method / experiment_id / grus_name,  # GRUs current experiment
+            catchment_path / domain_method / grus_name,  # GRUs without experiment_id
+        ]
+
+        # Add run_1 as fallback if current experiment_id is different
+        # (shapefiles are typically created during initial preprocessing in run_1)
+        if experiment_id != 'run_1':
+            search_paths.extend([
+                catchment_path / domain_method / 'run_1' / catchment_name,
+                catchment_path / domain_method / 'run_1' / grus_name,
+            ])
+
+        # Find the first existing file
+        catchment_file = None
+        for path in search_paths:
+            if path.exists():
+                catchment_file = path
+                logger.debug(f"Found catchment shapefile: {path}")
+                break
+
+        # Last resort: search any existing experiment directory under domain_method
+        if catchment_file is None:
+            domain_method_dir = catchment_path / domain_method
+            if domain_method_dir.exists():
+                for exp_dir in sorted(domain_method_dir.iterdir()):
+                    if exp_dir.is_dir():
+                        for name in [catchment_name, grus_name]:
+                            candidate = exp_dir / name
+                            if candidate.exists():
+                                catchment_file = candidate
+                                logger.debug(
+                                    f"Found catchment shapefile in fallback search: {candidate}"
+                                )
+                                break
+                    if catchment_file:
+                        break
+
+        if catchment_file is None:
+            logger.warning(
+                f"Catchment shapefile not found for {domain_name}. "
+                f"Searched paths include: {catchment_path / domain_method}. "
+                f"Using default area {default_area} km2. "
+                f"This may cause incorrect unit conversions during calibration!"
+            )
             return default_area
 
         gdf = gpd.read_file(catchment_file)

@@ -97,6 +97,30 @@ def calculate_specific_humidity(dewpoint_K: xr.DataArray, pressure_Pa: xr.DataAr
     return spechum
 
 
+def _is_cumulative_accumulation(data: xr.DataArray) -> bool:
+    """
+    Detect whether data is cumulatively accumulated (values increase
+    monotonically within forecast periods with periodic resets) or
+    per-step accumulated (each timestep is independent).
+
+    ERA5 data from different sources may use different conventions:
+    - CDS: Cumulatively accumulated from forecast init (values increase within periods)
+    - ARCO: May provide per-step values (each hour's total independently)
+
+    Returns:
+        True if data appears cumulatively accumulated, False if per-step.
+    """
+    diff = data.diff('time')
+    n_negative = int((diff < 0).sum())
+    n_total = int(diff.size)
+    if n_total == 0:
+        return True
+    negative_fraction = n_negative / n_total
+    # Cumulative data has negative diffs only at forecast resets (~8% for 12h cycles).
+    # Per-step data has negative diffs whenever the flux decreases (~30-50% typically).
+    return negative_fraction < 0.15
+
+
 def deaccumulate_to_rate(
     accumulated: xr.DataArray,
     time_seconds: xr.DataArray,
@@ -109,7 +133,9 @@ def deaccumulate_to_rate(
 
     ERA5 accumulated variables (precipitation, radiation) need to be
     de-accumulated by taking the time difference and dividing by the
-    time step duration.
+    time step duration. This function auto-detects whether the data is
+    cumulatively accumulated (values increase within forecast periods)
+    or per-step accumulated (each timestep contains its own total).
 
     Args:
         accumulated: Accumulated variable values
@@ -122,6 +148,7 @@ def deaccumulate_to_rate(
     Returns:
         Instantaneous rate values
     """
+    logger = logging.getLogger(__name__)
     val = accumulated
 
     # Handle ERA5's negative downward flux convention if needed
@@ -129,18 +156,36 @@ def deaccumulate_to_rate(
         if float(val.min()) < 0.0:
             val = -val
 
-    # De-accumulate: take time difference
-    diff = val.diff('time')
+    is_cumulative = _is_cumulative_accumulation(val)
 
-    # Handle accumulation resets (when diff is negative, indicating new accumulation period)
-    # For resets, use the current value as the increment
-    diff = xr.where(diff >= 0, diff, val.isel(time=slice(1, None)))
+    if is_cumulative:
+        # Standard de-accumulation: take time difference
+        diff = val.diff('time')
 
-    # Handle NaN/inf
-    diff = xr.where(np.isfinite(diff), diff, 0.0)
+        # Handle accumulation resets (when diff is negative, indicating new accumulation period)
+        # For resets, use the current value as the increment
+        diff = xr.where(diff >= 0, diff, val.isel(time=slice(1, None)))
 
-    # Convert to rate and scale
-    rate = (diff / time_seconds) * scale_factor
+        # Handle NaN/inf
+        diff = xr.where(np.isfinite(diff), diff, 0.0)
+
+        # Convert to rate and scale
+        rate = (diff / time_seconds) * scale_factor
+    else:
+        # Per-step data: each timestep is an independent accumulated total.
+        # Just divide by the time step duration to get the rate.
+        # Slice off the first timestep to match the time dimension of diff-based output.
+        per_step = val.isel(time=slice(1, None))
+
+        # Handle NaN/inf
+        per_step = xr.where(np.isfinite(per_step), per_step, 0.0)
+
+        # Convert to rate and scale
+        rate = (per_step / time_seconds) * scale_factor
+        logger.debug(
+            f"Detected per-step accumulation for {var_name or 'variable'} "
+            f"(using direct division instead of differencing)"
+        )
 
     # Apply valid range if specified
     if var_name in ERA5_VARIABLE_RANGES:

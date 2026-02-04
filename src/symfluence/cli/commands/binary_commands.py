@@ -33,6 +33,7 @@ class BinaryCommands(BaseCommand):
         # Get tools to install
         tools = args.tools if args.tools else None  # None means install all
         force = args.force
+        patched = getattr(args, 'patched', False)
 
         if tools:
             BaseCommand._console.info(f"Installing tools: {', '.join(tools)}")
@@ -42,11 +43,15 @@ class BinaryCommands(BaseCommand):
         if force:
             BaseCommand._console.indent("(Force reinstall mode)")
 
+        if patched:
+            BaseCommand._console.indent("(SYMFLUENCE patches enabled)")
+
         # Handle subprocess errors specifically
         try:
             success = binary_manager.get_executables(
                 specific_tools=tools,
-                force=force
+                force=force,
+                patched=patched
             )
         except subprocess.CalledProcessError as e:
             BaseCommand._console.error(f"Build command failed: {e}")

@@ -56,6 +56,87 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """Return model name."""
         return 'MESH'
 
+    def _apply_best_parameters_for_final(self, best_params):
+        """Apply best parameters for final evaluation, pointing to forcing directory."""
+        forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+        return self.worker.apply_parameters(
+            best_params,
+            self.optimization_settings_dir,
+            config=self.config,
+            proc_forcing_dir=str(forcing_dir)
+        )
+
+    def run_final_evaluation(self, best_params):
+        """Run final evaluation using MESH worker's metric calculation.
+
+        Overrides the base implementation because the generic StreamflowTarget
+        evaluator expects NetCDF files (SUMMA format), but MESH outputs CSV.
+        The MESH worker's calculate_metrics already handles CSV output correctly.
+        """
+        self.logger.info("=" * 60)
+        self.logger.info("RUNNING FINAL EVALUATION")
+        self.logger.info("=" * 60)
+        self.logger.info("Running model with best parameters over full simulation period...")
+
+        try:
+            # Update file manager for full period
+            self._update_file_manager_for_final_run()
+
+            # Apply best parameters to forcing directory
+            if not self._apply_best_parameters_for_final(best_params):
+                self.logger.error("Failed to apply best parameters for final evaluation")
+                return None
+
+            # Setup output directory
+            final_output_dir = self.results_dir / 'final_evaluation'
+            final_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Run MESH model
+            if not self._run_model_for_final_evaluation(final_output_dir):
+                self.logger.error("MESH run failed during final evaluation")
+                return None
+
+            # MESH writes output to forcing/MESH_input/results/
+            # Copy results to final_evaluation directory and also use that path
+            forcing_results = self.project_dir / 'forcing' / 'MESH_input' / 'results'
+            if forcing_results.exists():
+                for f in forcing_results.iterdir():
+                    if f.is_file():
+                        shutil.copy2(f, final_output_dir / f.name)
+
+            # Use MESH worker's calculate_metrics (handles CSV output)
+            metrics = self.worker.calculate_metrics(
+                final_output_dir, self.config
+            )
+
+            if not metrics or metrics.get('kge', -999) <= -900:
+                self.logger.error("Failed to calculate final evaluation metrics")
+                return None
+
+            # Format metrics with Calib/Eval prefixes for consistency
+            calib_metrics = {"KGE_Calib": metrics.get('kge'), "NSE_Calib": metrics.get('nse')}
+            eval_metrics: dict[str, float] = {}
+
+            self.logger.info(f"Final evaluation: KGE={metrics.get('kge', 'N/A'):.4f}, "
+                           f"NSE={metrics.get('nse', 'N/A'):.4f}")
+
+            final_result = {
+                'final_metrics': metrics,
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
+                'success': True,
+                'best_params': best_params
+            }
+
+            self._save_final_evaluation_results(final_result, 'DDS')
+            return final_result
+
+        except (IOError, OSError, ValueError, RuntimeError) as e:
+            self.logger.error(f"Error in final evaluation: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
+
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run MESH for final evaluation."""
         return self.worker.run_model(
@@ -123,34 +204,3 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 # Update parallel_dirs to include forcing path
                 dirs['forcing_dir'] = dest_forcing
                 dirs['settings_dir'] = dest_settings
-
-        # Update MESH_input_run_options.ini with process-specific paths
-        self._update_mesh_run_options(self.parallel_dirs)
-
-    def _update_mesh_run_options(
-        self,
-        parallel_dirs: Dict[int, Dict[str, Path]]
-    ) -> None:
-        """
-        Update MESH_input_run_options.ini with process-specific output directories.
-
-        MESH configuration files have strict field width limits (A10 = 10 characters).
-        We keep the output directory as "./" since MESH runs from the forcing directory,
-        which is already process-specific in parallel mode.
-
-        Args:
-            parallel_dirs: Dictionary of parallel directory paths per process
-        """
-        for proc_id, dirs in parallel_dirs.items():
-            forcing_dir = dirs.get('forcing_dir')
-            if not forcing_dir: continue
-
-            run_options_path = forcing_dir / 'MESH_input_run_options.ini'
-            if not run_options_path.exists(): continue
-
-            try:
-                # No need to update output paths - MESH runs from forcing_dir
-                # and "./" resolves correctly. Absolute paths exceed MESH's 10-char limit.
-                self.logger.debug(f"MESH run options for process {proc_id} using relative output paths")
-            except Exception as e:
-                self.logger.error(f"Failed to verify MESH run options for process {proc_id}: {e}")

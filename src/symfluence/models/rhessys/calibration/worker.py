@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import sys
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -61,7 +62,17 @@ class RHESSysWorker(BaseWorker):
             True if successful
         """
         try:
-            self.logger.debug(f"Applying RHESSys parameters: {params}")
+            self.logger.debug(f"Applying RHESSys parameters to {settings_dir}")
+
+            # Separate worldfile params from def file params
+            worldfile_param_names = {'precip_lapse_rate'}
+            def_params = {}
+            self._pending_worldfile_params = {}
+            for pname, pval in params.items():
+                if pname in worldfile_param_names:
+                    self._pending_worldfile_params[pname] = pval
+                else:
+                    def_params[pname] = pval
 
             # The settings_dir should contain a 'defs' subdirectory
             defs_dir = settings_dir / 'defs'
@@ -73,11 +84,19 @@ class RHESSysWorker(BaseWorker):
                 )
                 return False
 
+            # Log available def files for debugging
+            def_files = list(defs_dir.glob('*.def'))
+            self.logger.debug(f"Found {len(def_files)} def files in {defs_dir}: {[f.name for f in def_files]}")
+
             # Update definition files with new parameters
-            return self._update_def_files(defs_dir, params)
+            result = self._update_def_files(defs_dir, def_params)
+
+            return result
 
         except Exception as e:
             self.logger.error(f"Error applying RHESSys parameters: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
             return False
 
     def _update_def_files(self, defs_dir: Path, params: Dict[str, float]) -> bool:
@@ -93,10 +112,19 @@ class RHESSysWorker(BaseWorker):
         """
         import re
 
+        # Parameters that live in the worldfile (not def files)
+        # These are applied after the worldfile is copied in _build_command
+        # Note: precip_lapse_rate handling is done in _build_command via -p flag
+        _ = {'precip_lapse_rate'}  # Worldfile params - documented for reference
+
         # Mapping from parameter names to definition files
+        # NOTE: gw_loss_coeff is in hillslope.def, sat_to_gw_coeff is in soil.def
+        # (verified from RHESSys .params output files)
         PARAM_FILE_MAP = {
-            'sat_to_gw_coeff': 'basin.def',
-            'gw_loss_coeff': 'basin.def',
+            'sat_to_gw_coeff': 'soil.def',      # Saturated zone to GW recharge coefficient
+            'gw_loss_coeff': 'hillslope.def',   # Groundwater loss/baseflow coefficient (slow)
+            'gw_loss_fast_coeff': 'hillslope.def',  # Fast groundwater loss coefficient
+            'gw_loss_fast_threshold': 'hillslope.def',  # Threshold storage for fast flow (m)
             'n_routing_power': 'basin.def',
             'psi_air_entry': 'basin.def',
             'pore_size_index': 'basin.def',
@@ -109,6 +137,7 @@ class RHESSysWorker(BaseWorker):
             'soil_depth': 'soil.def',
             'active_zone_z': 'soil.def',
             'snow_melt_Tcoef': 'soil.def',
+            'snow_water_capacity': 'soil.def',
             'maximum_snow_energy_deficit': 'soil.def',
             'max_snow_temp': 'zone.def',
             'min_rain_temp': 'zone.def',
@@ -117,6 +146,8 @@ class RHESSysWorker(BaseWorker):
             'epc.gl_c': 'stratum.def',
             'epc.vpd_open': 'stratum.def',
             'epc.vpd_close': 'stratum.def',
+            'theta_mean_std_p1': 'soil.def',
+            'theta_mean_std_p2': 'soil.def',
         }
 
         # Group parameters by file
@@ -127,6 +158,10 @@ class RHESSysWorker(BaseWorker):
                 if def_file_name not in params_by_file:
                     params_by_file[def_file_name] = {}
                 params_by_file[def_file_name][param_name] = value
+            else:
+                self.logger.warning(f"Unknown RHESSys parameter '{param_name}' - not in PARAM_FILE_MAP")
+
+        total_params_updated = 0
 
         # Update each file
         for def_file_name, file_params in params_by_file.items():
@@ -138,7 +173,13 @@ class RHESSysWorker(BaseWorker):
             with open(def_file, 'r') as f:
                 lines = f.readlines()
 
+            # Log first few lines of def file for debugging (first time only)
+            if total_params_updated == 0:
+                self.logger.debug(f"RHESSys def file sample ({def_file_name}): {lines[:3]}")
+
             updated_lines = []
+            params_matched = set()
+
             for line in lines:
                 updated = False
                 for param_name, value in file_params.items():
@@ -147,10 +188,13 @@ class RHESSysWorker(BaseWorker):
                     pattern = rf'^([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s.*|)$'
                     match = re.match(pattern, line)
                     if match:
+                        old_value = match.group(1)
                         new_line = f"{value:.6f}{match.group(2)}{match.group(3)}{match.group(4)}\n"
                         # Strip double newlines if they happen
                         new_line = new_line.replace('\n\n', '\n')
                         updated_lines.append(new_line)
+                        params_matched.add(param_name)
+                        self.logger.debug(f"  RHESSys param {param_name}: {old_value} -> {value:.6f}")
                         updated = True
                         break
                 if not updated:
@@ -158,7 +202,37 @@ class RHESSysWorker(BaseWorker):
 
             with open(def_file, 'w') as f:
                 f.writelines(updated_lines)
-            self.logger.debug(f"Updated {len(file_params)} params in {def_file_name}")
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+
+            # VERIFICATION: Re-read file to confirm writes succeeded
+            with open(def_file, 'r') as f:
+                verify_content = f.read()
+            for param_name, value in file_params.items():
+                expected_str = f"{value:.6f}"
+                if expected_str not in verify_content:
+                    self.logger.error(
+                        f"WRITE VERIFICATION FAILED: {param_name}={expected_str} not found in {def_file_name}!"
+                    )
+
+            # Check for unmatched parameters - use INFO level to ensure visibility
+            unmatched = set(file_params.keys()) - params_matched
+            if unmatched:
+                self.logger.info(
+                    f"RHESSys params NOT FOUND in {def_file_name}: {unmatched}. "
+                    f"Looking for pattern: 'value<whitespace>param_name'"
+                )
+
+            total_params_updated += len(params_matched)
+            self.logger.debug(f"Updated {len(params_matched)}/{len(file_params)} params in {def_file_name}")
+
+        # Warn if no parameters were actually updated
+        if total_params_updated == 0:
+            self.logger.error(
+                "CRITICAL: No RHESSys parameters were updated! "
+                "Calibration will not work. Check def file format and parameter names."
+            )
+            return False
 
         return True
 
@@ -231,22 +305,54 @@ class RHESSysWorker(BaseWorker):
                 else:
                     env["LD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('LD_LIBRARY_PATH', '')}"
 
-            # Run RHESSys
+            # Run RHESSys with timeout to catch parameter combinations that cause hangs
             import time as time_module
+            # Normal runs complete in <1s; 30s timeout catches problematic parameters
+            timeout_seconds = config.get('RHESSYS_CALIBRATION_TIMEOUT', 30)
             run_start = time_module.time()
-            result = subprocess.run(
-                cmd,
-                cwd=str(rhessys_output_dir),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=config.get('RHESSYS_TIMEOUT', 3600)
-            )
+
+            # Write stdout/stderr to files to avoid pipe buffer issues
+            stdout_file = rhessys_output_dir / 'rhessys_stdout.log'
+            stderr_file = rhessys_output_dir / 'rhessys_stderr.log'
+
+            try:
+                with open(stdout_file, 'w') as stdout_f, open(stderr_file, 'w') as stderr_f:
+                    result = subprocess.run(
+                        cmd,
+                        cwd=str(rhessys_output_dir),
+                        env=env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stdout_f,
+                        stderr=stderr_f,
+                        timeout=timeout_seconds
+                    )
+            except subprocess.TimeoutExpired:
+                params = kwargs.get('params', {})
+                param_str = ", ".join(f"{k}={v:.4g}" for k, v in params.items())
+                self.logger.warning(
+                    f"RHESSys timed out after {timeout_seconds}s - skipping trial. "
+                    f"Parameters: {param_str}"
+                )
+                return False
             run_time = time_module.time() - run_start
-            self.logger.info(f"RHESSys completed in {run_time:.2f}s with return code {result.returncode}")
+            self.logger.debug(f"RHESSys completed in {run_time:.2f}s")
+
+            # Read stderr for logging if needed
+            result.stderr = ""
+            if stderr_file.exists():
+                try:
+                    result.stderr = stderr_file.read_text()
+                except Exception:
+                    pass
+
+            # Log any stderr output (even on success) for debugging
+            if result.stderr:
+                stderr_text = result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr
+                self.logger.debug(f"RHESSys stderr: {stderr_text[:500]}")
 
             if result.returncode != 0:
-                self._last_error = f"RHESSys failed: {result.stderr[-500:]}"
+                stderr_text = result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr
+                self._last_error = f"RHESSys failed: {stderr_text[-500:]}"
                 self.logger.error(self._last_error)
                 return False
 
@@ -257,9 +363,14 @@ class RHESSysWorker(BaseWorker):
                 self.logger.error(f"Expected output at {output_file}")
                 return False
 
-            # Log output file size to verify it was actually written
-            file_size = output_file.stat().st_size
-            self.logger.debug(f"Output file {output_file} size: {file_size} bytes")
+            # Log output file size and modification time to verify fresh output
+            file_stat = output_file.stat()
+            file_size = file_stat.st_size
+            mod_time = file_stat.st_mtime
+            self.logger.debug(
+                f"RHESSys output: {output_file.name}, size={file_size} bytes, "
+                f"mtime={mod_time:.3f}, run_time={run_time:.2f}s"
+            )
 
             return True
 
@@ -304,15 +415,25 @@ class RHESSysWorker(BaseWorker):
         worker_hdr = settings_dir / f'{domain_name}.world.hdr'
 
         if worker_defs_dir.exists():
-            # Copy world file if it doesn't exist in worker dir
-            if original_world.exists() and not worker_world.exists():
+            # ALWAYS copy world file to ensure initial conditions are up-to-date
+            # (previous versions only copied if not exists, causing stale initial conditions)
+            if original_world.exists():
                 import shutil
                 shutil.copy2(original_world, worker_world)
+                self.logger.debug(f"Copied/updated world file to {worker_world}")
 
-            # Create/Update modified header in worker dir if it doesn't exist
-            if original_hdr.exists() and not worker_hdr.exists():
+                # Apply any worldfile-level calibration parameters (e.g. precip_lapse_rate)
+                if hasattr(self, '_pending_worldfile_params') and self._pending_worldfile_params:
+                    self._apply_worldfile_params(worker_world, self._pending_worldfile_params)
+
+            # ALWAYS recreate the header to ensure paths are correct
+            # (previous versions only created if not exists, which could cause stale paths)
+            if original_hdr.exists():
                 # Copy and modify header to point to worker defs
                 self._create_worker_header(original_hdr, worker_hdr, worker_defs_dir, rhessys_input_dir)
+                self.logger.debug(f"Created/updated worker header: {worker_hdr}")
+        else:
+            self.logger.warning(f"Worker defs directory does not exist: {worker_defs_dir}")
 
         # Parse dates
         start_str = config.get('EXPERIMENT_TIME_START', '2004-01-01 01:00')
@@ -333,16 +454,60 @@ class RHESSysWorker(BaseWorker):
         gw1 = config.get('RHESSYS_GW1')
         gw2 = config.get('RHESSYS_GW2')
 
+        # Log which world file is being used and verify header exists
+        expected_hdr = Path(str(world_to_use) + '.hdr')
+        self.logger.debug(
+            f"RHESSys command setup: world={world_to_use}, "
+            f"header_exists={expected_hdr.exists()}, "
+            f"worker_defs_exists={worker_defs_dir.exists()}"
+        )
+        if expected_hdr.exists():
+            # Log first 2 lines of header to verify paths
+            with open(expected_hdr, 'r') as f:
+                hdr_content = f.read()
+                hdr_lines = hdr_content.split('\n')[:4]
+            self.logger.debug(f"Header file content (first 4 lines): {hdr_lines}")
+
+            # CRITICAL: Verify header points to worker defs, not original defs
+            worker_defs_str = str(worker_defs_dir)
+            if worker_defs_str in hdr_content:
+                self.logger.debug(f"Header CORRECTLY points to worker defs: {worker_defs_str}")
+            else:
+                self.logger.error(
+                    f"HEADER MISMATCH! Expected defs path '{worker_defs_str}' not found in header! "
+                    f"This means RHESSys will read WRONG def files!"
+                )
+
+        # CRITICAL DIAGNOSTIC: Verify actual def file content before RHESSys runs
+        soil_def = worker_defs_dir / 'soil.def'
+        if soil_def.exists():
+            with open(soil_def, 'r') as f:
+                soil_lines = f.readlines()
+            # Show lines 5-12 which should contain Ksat_0 and m parameters
+            self.logger.debug("BEFORE RUN soil.def lines 5-12:")
+            for i, line in enumerate(soil_lines[4:12], start=5):
+                self.logger.debug(f"  Line {i}: {repr(line)}")
+
+        # Build header file path - MUST explicitly specify with -whdr flag
+        # RHESSys doesn't always auto-detect <worldfile>.hdr
+        header_file = Path(str(world_to_use) + '.hdr')
+
         cmd = [
             str(exe),
             '-w', str(world_to_use),
+            '-whdr', str(header_file),  # CRITICAL: Explicitly specify header file!
             '-t', str(tecfile),
             '-r', str(routing),
             '-st', str(start_date.year), str(start_date.month), str(start_date.day), '1',
             '-ed', str(end_date.year), str(end_date.month), str(end_date.day), '1',
             '-pre', 'rhessys',
-            '-b',  # Basin output
         ]
+
+        # Basin output without grow mode. The Jarvis conductance model (non-grow)
+        # uses gs = gl_smax * f(vpd) * f(psi) * LAI, giving the optimizer direct
+        # control over ET magnitude through gl_smax calibration. Grow mode's Farquhar
+        # model constrains gs by nitrogen/CO2, making gl_smax ineffective as a lever.
+        cmd.extend(['-b'])
 
         if gw1 is not None and gw2 is not None:
             cmd.extend(['-gw', str(gw1), str(gw2)])
@@ -350,10 +515,11 @@ class RHESSysWorker(BaseWorker):
         if s1 is not None and s2 is not None and s3 is not None:
             cmd.extend(['-s', str(s1), str(s2), str(s3)])
 
-        cmd.extend([
-            '-sv', '1.0', '1.0',
-            '-svalt', '1.0', '1.0',
-        ])
+        # Vegetation scaling flags — required for correct model physics.
+        # Even at 1.0, these activate RHESSys internal code paths that affect
+        # stomatal conductance and canopy processes.
+        cmd.extend(['-sv', '1.0', '1.0'])
+        cmd.extend(['-svalt', '1.0', '1.0'])
 
         # Fire spread if WMFire is enabled
         wmfire_enabled = config.get('RHESSYS_USE_WMFIRE', False)
@@ -371,7 +537,42 @@ class RHESSysWorker(BaseWorker):
                     "Fire spread will be disabled for calibration."
                 )
 
+        # Subgrid variability for lumped mode (-stdev enables variance-based return flow)
+        # This uses normal distribution around mean sat_deficit to generate partial saturation
+        std_scale = config.get('RHESSYS_STD_SCALE', 1.0)
+        if std_scale > 0:
+            cmd.extend(["-stdev", str(std_scale)])
+            self.logger.debug(f"Subgrid variability enabled with std_scale={std_scale}")
+
+        # Subsurface-to-GW recharge pathway (SYMFLUENCE Patch 2)
+        # DISABLED: testing old binary without this flag
+        # cmd.extend(["-subsurfacegw"])
+
         return cmd
+
+    def _apply_worldfile_params(self, world_file: Path, params: Dict[str, float]):
+        """Apply calibration parameters to the worldfile (e.g. precip_lapse_rate)."""
+        import re
+        with open(world_file, 'r') as f:
+            lines = f.readlines()
+
+        updated_lines = []
+        for line in lines:
+            replaced = False
+            for param_name, value in params.items():
+                pattern = rf'^(\s*)([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s*\n?)$'
+                match = re.match(pattern, line)
+                if match:
+                    new_line = f"{match.group(1)}{value:.8f}{match.group(3)}{match.group(4)}{match.group(5)}"
+                    updated_lines.append(new_line)
+                    self.logger.debug(f"Worldfile param {param_name}: {match.group(2)} -> {value:.8f}")
+                    replaced = True
+                    break
+            if not replaced:
+                updated_lines.append(line)
+
+        with open(world_file, 'w') as f:
+            f.writelines(updated_lines)
 
     def _create_worker_header(
         self,
@@ -380,19 +581,45 @@ class RHESSysWorker(BaseWorker):
         worker_defs_dir: Path,
         rhessys_input_dir: Path
     ):
-        """Create a worker-specific header file pointing to worker defs."""
+        """Create a worker-specific header file pointing to worker defs.
+
+        Uses line-by-line replacement to handle any .def file path, regardless
+        of how the original path was normalized or constructed.
+        """
         with open(original_hdr, 'r') as f:
-            content = f.read()
+            lines = f.readlines()
 
-        # Replace def file paths with worker-specific paths.
-        # Use normalized strings to ensure replacement works despite path variations.
-        original_defs_str = os.path.normpath(str(rhessys_input_dir / 'defs'))
-        worker_defs_str = os.path.normpath(str(worker_defs_dir))
+        worker_defs_str = str(worker_defs_dir)
+        new_lines = []
+        replacements = 0
 
-        content = content.replace(original_defs_str, worker_defs_str)
+        for line in lines:
+            stripped = line.strip()
+            # Match lines that are file paths ending in .def
+            if stripped.endswith('.def') and '/' in stripped:
+                # Extract just the filename (e.g. basin.def)
+                def_filename = Path(stripped).name
+                new_path = str(worker_defs_dir / def_filename)
+                new_lines.append(new_path + '\n')
+                replacements += 1
+                self.logger.debug(f"Header path: {stripped} -> {new_path}")
+            else:
+                new_lines.append(line)
+
+        if replacements == 0:
+            self.logger.warning(
+                f"No .def path replacements made in header file. "
+                f"Header content: '{(''.join(lines))[:500]}...'"
+            )
+        else:
+            self.logger.debug(
+                f"Header: replaced {replacements} .def paths to point to {worker_defs_str}"
+            )
 
         with open(worker_hdr, 'w') as f:
-            f.write(content)
+            f.writelines(new_lines)
+
+        self.logger.debug(f"Created worker header at {worker_hdr}")
 
     def _cleanup_stale_output(self, output_dir: Path, config: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -442,7 +669,7 @@ class RHESSysWorker(BaseWorker):
                 self.logger.warning(f"Could not remove stale file {file_path}: {e}")
 
         if files_removed > 0:
-            self.logger.info(f"Cleaned up {files_removed} stale RHESSys output files from {output_dir}")
+            self.logger.debug(f"Cleaned up {files_removed} stale RHESSys output files from {output_dir}")
 
     def calculate_metrics(
         self,
@@ -489,23 +716,41 @@ class RHESSysWorker(BaseWorker):
                 self.logger.error(f"rhessys_basin.daily not found in {sim_dir}")
                 return {'kge': self.penalty_score, 'error': 'rhessys_basin.daily not found'}
 
-            self.logger.info(f"Calculating RHESSys metrics from: {sim_file}")
             sim_df = pd.read_csv(sim_file, sep=r'\s+', header=0)
-            self.logger.info(f"Read {len(sim_df)} rows from simulation output")
+            self.logger.debug(f"Read {len(sim_df)} rows from {sim_file}")
 
             # Get streamflow in mm/day
-            streamflow_mm = sim_df['streamflow'].values
+            # Use unrouted 'streamflow' for calibration. The 'routedstreamflow'
+            # column applies a gamma-function routing that artificially damps
+            # peak flows in single-patch (lumped) models where there is no
+            # spatial network to route through. This causes low variability
+            # ratio (alpha) in KGE. For distributed models, routedstreamflow
+            # would be more appropriate but for lumped calibration, the raw
+            # hillslope streamflow is the correct signal.
+            if 'streamflow' in sim_df.columns:
+                streamflow_mm = sim_df['streamflow'].values
+            elif 'routedstreamflow' in sim_df.columns:
+                streamflow_mm = sim_df['routedstreamflow'].values
+            else:
+                self.logger.error("No streamflow column found in basin.daily")
+                return {'kge': self.penalty_score, 'error': 'No streamflow column'}
 
             # Convert to m³/s using catchment area from shared utility
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f'domain_{domain_name}'
 
-            area_km2 = self._streamflow_metrics.get_catchment_area(
-                config, project_dir, domain_name, source='shapefile'
-            )
+            # Cache catchment area to avoid repeated shapefile reads
+            cache_key = f"_cached_area_{domain_name}"
+            if hasattr(self, cache_key):
+                area_km2 = getattr(self, cache_key)
+            else:
+                area_km2 = self._streamflow_metrics.get_catchment_area(
+                    config, project_dir, domain_name, source='shapefile'
+                )
+                setattr(self, cache_key, area_km2)
+                self.logger.debug(f"Cached catchment area: {area_km2:.2f} km²")
             area_m2 = area_km2 * 1e6  # Convert km² to m²
-            self.logger.info(f"Using catchment area: {area_km2:.2f} km² ({area_m2:.2e} m²)")
 
             # Q (m³/s) = Q (mm/day) * area (m²) / 86400 / 1000
             streamflow_m3s = streamflow_mm * area_m2 / 86400 / 1000
@@ -533,16 +778,22 @@ class RHESSysWorker(BaseWorker):
             )
             sim_series = pd.Series(streamflow_m3s, index=sim_dates)
 
-            # Load observations (domain_name and project_dir already set above)
-            obs_values, obs_index = self._streamflow_metrics.load_observations(
-                config, project_dir, domain_name, resample_freq='D'
-            )
+            # Load observations - cache to avoid repeated CSV reads
+            obs_cache_key = f"_cached_obs_{domain_name}"
+            if hasattr(self, obs_cache_key):
+                obs_values, obs_index = getattr(self, obs_cache_key)
+            else:
+                obs_values, obs_index = self._streamflow_metrics.load_observations(
+                    config, project_dir, domain_name, resample_freq='D'
+                )
+                if obs_values is not None:
+                    setattr(self, obs_cache_key, (obs_values, obs_index))
+                    self.logger.debug(f"Cached {len(obs_values)} observations")
             if obs_values is None:
                 self.logger.error("Observations not found for metric calculation")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
             obs_series = pd.Series(obs_values, index=obs_index)
-            self.logger.info(f"Loaded {len(obs_series)} observations")
 
             # Align and calculate metrics
             try:
@@ -556,16 +807,35 @@ class RHESSysWorker(BaseWorker):
                     except (ValueError, IndexError) as e:
                         self.logger.warning(f"Could not parse calibration period '{calib_period_str}': {e}")
 
+                # Auto-exclude spinup: if no calibration period is set, skip the
+                # first year of simulation to avoid initial condition transients
+                if calib_period_tuple is None and len(sim_dates) > 365:
+                    spinup_days = int(config.get('RHESSYS_SPINUP_DAYS', 365))
+                    spinup_end = sim_dates.min() + pd.Timedelta(days=spinup_days)
+                    calib_period_tuple = (
+                        spinup_end.strftime('%Y-%m-%d'),
+                        sim_dates.max().strftime('%Y-%m-%d')
+                    )
+                    self.logger.info(
+                        f"No CALIBRATION_PERIOD set; auto-excluding {spinup_days}-day spinup. "
+                        f"Evaluating from {calib_period_tuple[0]} to {calib_period_tuple[1]}"
+                    )
+
                 # Let StreamflowMetrics handle alignment and period filtering
                 obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
                     sim_series, obs_series, calibration_period=calib_period_tuple
                 )
-                self.logger.info(f"Aligned timeseries length: {len(obs_aligned)}")
+
+                # Log streamflow statistics for diagnostics
+                self.logger.debug(
+                    f"RHESSys metrics: n={len(obs_aligned)}, "
+                    f"obs_mean={np.nanmean(obs_aligned):.2f}, obs_std={np.nanstd(obs_aligned):.2f}, "
+                    f"sim_mean={np.nanmean(sim_aligned):.2f}, sim_std={np.nanstd(sim_aligned):.2f}"
+                )
 
                 results = self._streamflow_metrics.calculate_metrics(
                     obs_aligned, sim_aligned, metrics=['kge', 'nse']
                 )
-                self.logger.info(f"Calculated metrics: {results}")
                 return results
 
             except ValueError as e:

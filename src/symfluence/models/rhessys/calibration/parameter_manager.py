@@ -22,15 +22,20 @@ class RHESSysParameterManager(BaseParameterManager):
     """Handles RHESSys parameter bounds, normalization, and file updates."""
 
     # Mapping from parameter names to definition files
+    # NOTE: Parameter locations verified from RHESSys .params output files
     PARAM_FILE_MAP = {
+        # hillslope.def parameters
+        'gw_loss_coeff': 'hillslope.def',   # Groundwater loss/baseflow coefficient (slow)
+        'gw_loss_fast_coeff': 'hillslope.def',   # Fast groundwater loss coefficient
+        'gw_loss_fast_threshold': 'hillslope.def',  # Threshold storage for fast flow (m)
+
         # basin.def parameters
-        'sat_to_gw_coeff': 'basin.def',
-        'gw_loss_coeff': 'basin.def',
         'n_routing_power': 'basin.def',
         'psi_air_entry': 'basin.def',
         'pore_size_index': 'basin.def',
 
         # soil.def (patch defaults) parameters
+        'sat_to_gw_coeff': 'soil.def',  # Saturated zone to GW recharge coefficient
         'porosity_0': 'soil.def',
         'porosity_decay': 'soil.def',
         'Ksat_0': 'soil.def',
@@ -40,6 +45,7 @@ class RHESSysParameterManager(BaseParameterManager):
         'soil_depth': 'soil.def',
         'active_zone_z': 'soil.def',
         'snow_melt_Tcoef': 'soil.def',
+        'snow_water_capacity': 'soil.def',
         'maximum_snow_energy_deficit': 'soil.def',
 
         # zone.def parameters
@@ -52,6 +58,9 @@ class RHESSysParameterManager(BaseParameterManager):
         'epc.gl_c': 'stratum.def',
         'epc.vpd_open': 'stratum.def',
         'epc.vpd_close': 'stratum.def',
+        'theta_mean_std_p1': 'soil.def',
+        'theta_mean_std_p2': 'soil.def',
+        'precip_lapse_rate': 'worldfile',  # Applied to worldfile, not def files
     }
 
     def __init__(self, config: Dict, logger: logging.Logger, rhessys_settings_dir: Path):
@@ -62,9 +71,32 @@ class RHESSysParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse RHESSys parameters to calibrate from config
-        rhessys_params_str = config.get('RHESSYS_PARAMS_TO_CALIBRATE')
+        # Try typed config first, then legacy dict access
+        rhessys_params_str = None
+        try:
+            if hasattr(config, 'model') and hasattr(config.model, 'rhessys'):
+                rhessys_params_str = config.model.rhessys.params_to_calibrate
+        except (AttributeError, TypeError):
+            pass
+
+        # Fallback to dict-style access
         if rhessys_params_str is None:
-            rhessys_params_str = 'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef'
+            rhessys_params_str = config.get('RHESSYS_PARAMS_TO_CALIBRATE')
+
+        if rhessys_params_str is None:
+            # Final fallback - includes Ksat_0_v which is critical for lateral vs vertical flow
+            # gw_loss_fast_coeff and gw_loss_fast_threshold control fast GW drainage
+            rhessys_params_str = (
+                'sat_to_gw_coeff,gw_loss_coeff,gw_loss_fast_coeff,gw_loss_fast_threshold,'
+                'm,Ksat_0,Ksat_0_v,porosity_0,porosity_decay,'
+                'soil_depth,m_z,active_zone_z,snow_melt_Tcoef,snow_water_capacity,'
+                'max_snow_temp,min_rain_temp,maximum_snow_energy_deficit,'
+                'epc.gl_smax,epc.max_lai,theta_mean_std_p1,theta_mean_std_p2,precip_lapse_rate'
+            )
+            logger.warning(
+                "RHESSYS_PARAMS_TO_CALIBRATE missing in config; using fallback list: "
+                f"{rhessys_params_str}"
+            )
 
         self.rhessys_params = [p.strip() for p in str(rhessys_params_str).split(',') if p.strip()]
 
@@ -82,8 +114,44 @@ class RHESSysParameterManager(BaseParameterManager):
         return self.rhessys_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return RHESSys parameter bounds from central registry."""
-        return get_rhessys_bounds()
+        """
+        Return RHESSys parameter bounds, with config overrides.
+
+        Priority:
+        1. Config RHESSYS_PARAM_BOUNDS (if specified)
+        2. Central registry defaults
+
+        This allows users to customize bounds in their config file while
+        maintaining sensible defaults from the registry.
+        """
+        # Start with registry defaults
+        bounds = get_rhessys_bounds()
+
+        # Check for config overrides (preserve transform from registry)
+        config_bounds = self.config.get('RHESSYS_PARAM_BOUNDS', {})
+        if config_bounds:
+            for param_name, bound_list in config_bounds.items():
+                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
+                    # Preserve existing transform setting from registry
+                    existing_transform = bounds.get(param_name, {}).get('transform', 'linear')
+                    bounds[param_name] = {
+                        'min': float(bound_list[0]),
+                        'max': float(bound_list[1]),
+                        'transform': existing_transform,  # type: ignore[dict-item]
+                    }
+                    self.logger.debug(
+                        f"Using config bounds for {param_name}: [{bound_list[0]}, {bound_list[1]}]"
+                    )
+
+        # Log final bounds for calibrated parameters
+        for param_name in self.rhessys_params:
+            if param_name in bounds:
+                b = bounds[param_name]
+                transform = b.get('transform', 'linear')
+                transform_str = " (log-space)" if transform == 'log' else ""
+                self.logger.info(f"RHESSys param {param_name}: bounds=[{b['min']:.6f}, {b['max']:.6f}]{transform_str}")
+
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update RHESSys definition files with new parameter values."""
@@ -123,6 +191,21 @@ class RHESSysParameterManager(BaseParameterManager):
         """
         def_file_name = self.PARAM_FILE_MAP.get(param_name)
         if not def_file_name:
+            return None
+
+        # Worldfile params: read from the worldfile instead of def files
+        if def_file_name == 'worldfile':
+            world_file = self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{self.domain_name}.world'
+            if world_file.exists():
+                try:
+                    with open(world_file, 'r') as f:
+                        content = f.read()
+                    pattern = rf'([\d\.\-\+eE]+)\s+{re.escape(param_name)}(\s.*|)$'
+                    match = re.search(pattern, content, re.MULTILINE)
+                    if match:
+                        return float(match.group(1))
+                except Exception:
+                    pass
             return None
 
         def_file = self.defs_dir / def_file_name

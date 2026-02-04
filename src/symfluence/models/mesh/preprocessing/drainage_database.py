@@ -299,6 +299,14 @@ class MESHDrainageDatabase(ConfigMixin):
                 for val in next_arr_sorted
             ], dtype=np.int32)
 
+            # CRITICAL: For single-cell (lumped) domains, MESH uses max(Next) to
+            # determine the number of active cells for array sizing. With Next=0,
+            # max(Next)=0, so arrays are sized to 0 and nothing can be read.
+            # Fix: Set Next=1 (self-reference) for single-cell domains.
+            if n_grus == 1 and next_arr_remapped[0] == 0:
+                next_arr_remapped[0] = 1
+                self.logger.info("Single-cell domain: set Next=1 (self-reference) for MESH array sizing")
+
             ds_new['Next'] = xr.DataArray(
                 next_arr_remapped,
                 dims=[n_dim],
@@ -377,51 +385,50 @@ class MESHDrainageDatabase(ConfigMixin):
                     ds = ds.rename({old_lc_dim: 'landclass'})
                     modified = True
 
-                # Ensure landclass variable exists and is on (subbasin, landclass)
+                # Ensure GRU variable exists and is on (subbasin, landclass)
                 if 'GRU' in ds:
-                    self.logger.info("Renaming 'GRU' variable to 'landclass'")
                     # Correct dimension names if needed
-                    ds['landclass'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
-                    ds = ds.drop_vars('GRU')
-                    modified = True
-                    ds['landclass'].attrs['grid_mapping'] = 'crs'
+                    if ds['GRU'].dims != (target_n_dim, 'landclass'):
+                        ds['GRU'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
+                        modified = True
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
 
-                    # For lumped mode, ensure we only have 1 landclass
-                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
-                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
-                        # Keep only the first landclass
-                        landclass_data = ds['landclass'].isel(landclass=0).values
-                        landclass_attrs = ds['landclass'].attrs
-                        # Drop the variable and dimension
-                        ds = ds.drop_vars('landclass')
-                        # Re-create with correct dimensions (subbasin, landclass=1)
-                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
-                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                    # For lumped mode, optionally force single landclass
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
+                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(
+                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
+                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                        )
+                        ds = ds.isel(landclass=slice(0, 1))
+                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
                         modified = True
 
                 elif 'landclass' in ds:
-                    # Ensure correct dimension names
-                    if ds['landclass'].dims != (target_n_dim, 'landclass'):
-                        self.logger.info(f"Correcting landclass dimensions from {ds['landclass'].dims} to ('{target_n_dim}', 'landclass')")
-                        ds['landclass'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
-                        modified = True
-                    ds['landclass'].attrs['grid_mapping'] = 'crs'
+                    # If landclass is present but GRU is missing, treat landclass as GRU fractions
+                    self.logger.info("Found 'landclass' variable without GRU; renaming to GRU")
+                    ds['GRU'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
+                    ds = ds.drop_vars('landclass')
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
+                    modified = True
 
-                    # For lumped mode, ensure we only have 1 landclass
-                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
-                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
-                        landclass_attrs = ds['landclass'].attrs
-                        ds = ds.drop_vars('landclass')
-                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
-                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                    # For lumped mode, optionally force single landclass
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
+                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(
+                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
+                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                        )
+                        ds = ds.isel(landclass=slice(0, 1))
+                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
                         modified = True
                 else:
-                    # Create landclass variable if it doesn't exist (e.g., for lumped mode)
+                    # Create GRU variable if it doesn't exist (e.g., for lumped mode)
                     # For lumped mode, we have 1 subbasin and 1 landclass, with 100% coverage
-                    self.logger.info("Creating landclass variable for lumped mode (1 landclass, 100% coverage)")
+                    self.logger.info("Creating GRU variable for lumped mode (1 landclass, 100% coverage)")
                     n_landclass = 1  # Single landcover class for lumped mode
                     landclass_data = np.ones((n_size, n_landclass), dtype=np.float64)
-                    ds['landclass'] = ((target_n_dim, 'landclass'), landclass_data, {
+                    ds['GRU'] = ((target_n_dim, 'landclass'), landclass_data, {
                         'long_name': 'Land cover class fractions',
                         'units': '1',
                         'grid_mapping': 'crs'
@@ -530,32 +537,67 @@ class MESHDrainageDatabase(ConfigMixin):
                         })
                         modified = True
 
-                # Rename NGRU or land dimension to 'landclass'
+                # Ensure 1D coordinate for landclass dimension
+                if 'landclass' in ds.dims:
+                    n_land = int(ds.dims['landclass'])
+                    ds = ds.assign_coords(landclass=np.arange(1, n_land + 1, dtype=np.int32))
+                    modified = True
 
                 # Remove global attributes that might confuse MESH
                 for attr in ['crs', 'grid_mapping', 'featureType']:
                     if attr in ds.attrs:
                         del ds.attrs[attr]
 
-                # Add IREACH if missing
+                # Add IREACH if missing (0 = no reservoir, positive = reservoir ID)
+                # Note: Do NOT use _FillValue for IREACH - MESH interprets it incorrectly
+                # and reads -2147483648 (INT_MIN) which causes reservoir mismatch errors
                 if 'IREACH' not in ds:
                     ds['IREACH'] = xr.DataArray(
                         np.zeros(n_size, dtype=np.int32),
                         dims=[n_dim],
-                        attrs={'long_name': 'Reservoir ID', '_FillValue': -1}
+                        attrs={'long_name': 'Reservoir ID', 'units': '1'}
                     )
                     modified = True
                     self.logger.info("Added IREACH to drainage database")
+                else:
+                    # Fix existing IREACH if it has problematic _FillValue attribute
+                    if '_FillValue' in ds['IREACH'].attrs:
+                        # Remove the _FillValue and ensure clean int32 encoding
+                        ireach_vals = ds['IREACH'].values.copy()
+                        # Replace any fill values with 0 (no reservoir)
+                        fill_val = ds['IREACH'].attrs['_FillValue']
+                        ireach_vals = np.where(ireach_vals == fill_val, 0, ireach_vals)
+                        ireach_vals = np.where(np.isnan(ireach_vals.astype(float)), 0, ireach_vals)
+                        ds['IREACH'] = xr.DataArray(
+                            ireach_vals.astype(np.int32),
+                            dims=[n_dim],
+                            attrs={'long_name': 'Reservoir ID', 'units': '1'}
+                        )
+                        modified = True
+                        self.logger.info("Fixed IREACH encoding (removed problematic _FillValue)")
 
-                # Add IAK if missing
+                # Add IAK if missing (river class, 1 = default single class)
+                # Note: Do NOT use _FillValue for IAK - same issue as IREACH
                 if 'IAK' not in ds:
                     ds['IAK'] = xr.DataArray(
                         np.ones(n_size, dtype=np.int32),
                         dims=[n_dim],
-                        attrs={'long_name': 'River class', '_FillValue': -1}
+                        attrs={'long_name': 'River class', 'units': '1'}
                     )
                     modified = True
                     self.logger.info("Added IAK to drainage database")
+                elif '_FillValue' in ds['IAK'].attrs:
+                    # Fix existing IAK if it has problematic _FillValue attribute
+                    iak_vals = ds['IAK'].values.copy()
+                    fill_val = ds['IAK'].attrs['_FillValue']
+                    iak_vals = np.where(iak_vals == fill_val, 1, iak_vals)
+                    ds['IAK'] = xr.DataArray(
+                        iak_vals.astype(np.int32),
+                        dims=[n_dim],
+                        attrs={'long_name': 'River class', 'units': '1'}
+                    )
+                    modified = True
+                    self.logger.info("Fixed IAK encoding (removed problematic _FillValue)")
 
                 # Add AL (characteristic length)
                 # AL is used in MESH routing for time-of-concentration calculations
@@ -697,6 +739,9 @@ class MESHDrainageDatabase(ConfigMixin):
                     ds_idx = np.where(rank_arr == next_arr[i])[0]
                     if len(ds_idx) > 0:
                         ds_idx = ds_idx[0]
+                        # Skip self-referencing outlets (subbasin drains to itself)
+                        if ds_idx == i:
+                            continue
                         new_da = da[ds_idx] + grid_area[i]
                         if new_da != da[ds_idx]:
                             da[ds_idx] = new_da
@@ -748,6 +793,13 @@ class MESHDrainageDatabase(ConfigMixin):
                     [rank_map.get(int(val), 0) if int(val) > 0 else 0 for val in next_sorted],
                     dtype=np.int32
                 )
+
+                # CRITICAL: For single-cell (lumped) domains, set Next=1 (self-reference)
+                # so MESH can properly size its internal arrays
+                n_grus = len(new_rank_arr)
+                if n_grus == 1 and next_remap[0] == 0:
+                    next_remap[0] = 1
+                    self.logger.debug("Single-cell domain: preserving Next=1 for MESH")
 
                 ds_new['Rank'] = xr.DataArray(
                     new_rank_arr,

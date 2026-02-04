@@ -75,8 +75,99 @@ class NgenWorker(BaseWorker):
                 ngen_dir = settings_dir / 'NGEN'
 
             if not ngen_dir.exists():
-                self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
-                return False
+                # Attempt to recover by re-copying from source settings
+                config = kwargs.get('config', self.config)
+                if config:
+                    import shutil
+                    data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                    domain_name = config.get('DOMAIN_NAME', '')
+                    source_ngen = data_dir / f"domain_{domain_name}" / 'settings' / 'NGEN'
+                    if source_ngen.exists():
+                        self.logger.warning(
+                            f"NGEN settings directory missing at {ngen_dir}, "
+                            f"recovering from {source_ngen}"
+                        )
+                        ngen_dir.mkdir(parents=True, exist_ok=True)
+                        for item in source_ngen.iterdir():
+                            dest = ngen_dir / item.name
+                            if item.is_file():
+                                shutil.copy2(item, dest)
+                            elif item.is_dir():
+                                if dest.exists():
+                                    shutil.rmtree(dest)
+                                shutil.copytree(item, dest)
+                    else:
+                        self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
+                        return False
+                else:
+                    self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
+                    return False
+            else:
+                # Sync critical config files if source has updates
+                config = kwargs.get('config', self.config)
+                if config:
+                    data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                    domain_name = config.get('DOMAIN_NAME', '')
+                    source_ngen = data_dir / f"domain_{domain_name}" / 'settings' / 'NGEN'
+
+                    # Sync realization_config.json if source has updated forcing mappings
+                    src_realization = source_ngen / "realization_config.json"
+                    dst_realization = ngen_dir / "realization_config.json"
+                    if src_realization.exists():
+                        try:
+                            src_text = src_realization.read_text()
+                            dst_text = dst_realization.read_text() if dst_realization.exists() else ""
+                            if "atmosphere_air_water~vapor__specific_humidity" in src_text and \
+                               "atmosphere_air_water~vapor__relative_saturation" in dst_text:
+                                import shutil
+                                shutil.copy2(src_realization, dst_realization)
+                                self.logger.debug(
+                                    "Synced realization_config.json (specific humidity mapping)"
+                                )
+                        except OSError as e:
+                            self.logger.debug(f"Could not sync realization_config.json: {e}")
+
+                    # Sync CFE configs if source has catchment_area_km2 and destination differs
+                    # This is critical for CFE to output m³/s instead of depth units
+                    src_cfe_dir = source_ngen / "CFE"
+                    dst_cfe_dir = ngen_dir / "CFE"
+                    if src_cfe_dir.exists() and dst_cfe_dir.exists():
+                        try:
+                            import shutil
+                            import re
+                            for src_cfe_file in src_cfe_dir.glob("*_bmi_config_cfe*.txt"):
+                                dst_cfe_file = dst_cfe_dir / src_cfe_file.name
+                                if dst_cfe_file.exists():
+                                    src_content = src_cfe_file.read_text()
+                                    dst_content = dst_cfe_file.read_text()
+                                    # Extract catchment_area_km2 values to compare
+                                    area_re = re.compile(r'catchment_area_km2=([0-9.eE+-]+)')
+                                    src_match = area_re.search(src_content)
+                                    dst_match = area_re.search(dst_content)
+                                    # Sync if source has area but destination doesn't,
+                                    # or if the values differ significantly
+                                    should_sync = False
+                                    if src_match and not dst_match:
+                                        should_sync = True
+                                    elif src_match and dst_match:
+                                        try:
+                                            src_area = float(src_match.group(1))
+                                            dst_area = float(dst_match.group(1))
+                                            # Sync if values differ by more than 0.1%
+                                            if abs(src_area - dst_area) / max(src_area, 1e-10) > 0.001:
+                                                should_sync = True
+                                                self.logger.debug(
+                                                    f"CFE area mismatch: source={src_area:.2f}, dest={dst_area:.2f}"
+                                                )
+                                        except ValueError:
+                                            should_sync = True  # Can't parse, sync to be safe
+                                    if should_sync:
+                                        shutil.copy2(src_cfe_file, dst_cfe_file)
+                                        self.logger.debug(
+                                            f"Synced CFE config with catchment_area_km2: {src_cfe_file.name}"
+                                        )
+                        except OSError as e:
+                            self.logger.debug(f"Could not sync CFE configs: {e}")
 
             # Use NgenParameterManager to update files
             # It handles CFE, NOAH (namelists and TBLs), and PET

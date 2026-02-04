@@ -208,21 +208,26 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             catchment = gpd.read_file(self.get_catchment_path())
             n_hrus = len(catchment)
 
-            # Get area for each HRU
-            if 'area' in catchment.columns:
-                areas = catchment['area'].values
-                self.logger.debug("Using 'area' column for area weights")
-            elif 'area_km2' in catchment.columns:
-                areas = catchment['area_km2'].values
-                self.logger.debug("Using 'area_km2' column for area weights")
-            else:
-                # Calculate from geometry
-                areas = catchment.geometry.area.values
+            # Get area for each HRU - check various column naming conventions
+            area_col = None
+            for col in ['area', 'area_km2', 'HRU_area', 'GRU_area', 'Area', 'AREA']:
+                if col in catchment.columns:
+                    area_col = col
+                    break
+
+            if area_col:
+                areas = catchment[area_col].values
+                # Convert m² to km² if values are large (> 1e6 suggests m²)
                 if areas.mean() > 1e6:
-                    areas = areas / 1e6  # Convert m² to km²
-                    self.logger.debug("Calculated areas from geometry (m² to km²)")
+                    areas = areas / 1e6
+                    self.logger.debug(f"Using '{area_col}' column for area weights (converted m² to km²)")
                 else:
-                    self.logger.debug("Calculated areas from geometry")
+                    self.logger.debug(f"Using '{area_col}' column for area weights")
+            else:
+                # Calculate from geometry - need to project to equal-area CRS first
+                catchment_projected = catchment.to_crs('EPSG:6933')  # Equal-area projection
+                areas = catchment_projected.geometry.area.values / 1e6  # m² to km²
+                self.logger.debug("Calculated areas from projected geometry (m² to km²)")
 
             # Verify dimensions match
             if len(areas) != ds.sizes.get('hru', 0):
@@ -279,7 +284,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Read observations
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True)
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], format='ISO8601')
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_df.index = obs_df.index.tz_localize(None)
@@ -407,7 +412,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True)
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], format='ISO8601')
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_df.index = obs_df.index.tz_localize(None)

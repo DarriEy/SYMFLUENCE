@@ -106,6 +106,19 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to fix run options variable names: {e}")
 
+    def _get_num_cells(self) -> int:
+        """Get number of cells from drainage database."""
+        if not self.ddb_path.exists():
+            return 1
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                for dim in ['subbasin', 'N']:
+                    if dim in ds.sizes:
+                        return int(ds.sizes[dim])
+        except Exception:
+            pass
+        return 1
+
     def fix_run_options_snow_params(self) -> None:
         """Fix run options snow/ice parameters for stable multi-year simulations."""
         if not self.run_options_path.exists():
@@ -115,36 +128,53 @@ class MESHParameterFixer(ConfigMixin):
             with open(self.run_options_path, 'r') as f:
                 content = f.read()
 
-            # Get RUNMODE from config (default to 'wf_route' for routing)
-            runmode = self._get_config_value('MESH_RUNMODE', 'wf_route')
+            # Get RUNMODE from config (default to 'runrte' for routing)
+            runmode = self._get_config_value('MESH_RUNMODE', 'runrte')
+
+            # For single-cell (lumped) domains, use noroute mode.
+            # run_def/runrte require IREACH and reservoir configuration that
+            # lumped domains typically don't have. The extractor compensates
+            # by summing RFF + DRAINSOL to capture total runoff including
+            # soil drainage that would become baseflow in routing mode.
+            num_cells = self._get_num_cells()
+            if num_cells == 1 and runmode != 'noroute':
+                self.logger.info(
+                    "Single-cell domain detected (lumped mode). "
+                    "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
+                )
+                runmode = 'noroute'
 
             # Determine output flags based on routing mode
             if runmode == 'noroute':
+                # In noroute mode, no routing at all (no baseflow either)
                 streamflow_flag = 'none'
-                outfiles_flag = 'none'
+                outfiles_flag = 'daily'
+                basinavgwb_flag = 'daily'
             else:
-                # Enable streamflow output when routing is enabled
+                # run_def or runrte: enable streamflow + water balance output
                 streamflow_flag = 'csv'
-                outfiles_flag = 'default'
+                outfiles_flag = 'daily'
+                basinavgwb_flag = 'daily'
 
             modified = False
             # Snow parameters: SWELIM reduced from 1500 to 500mm for temperate regions
             # 1500mm was unrealistically high and caused multi-year accumulation issues
             # For alpine/polar applications, override via MESH_SWELIM config option
             replacements = [
-                (r'FREZTH\s+[-\d.]+', 'FREZTH                -2.0'),
-                (r'SWELIM\s+[-\d.]+', 'SWELIM                500.0'),
+                (r'FREZTH\s+[-\d.]+', 'FREZTH                0.0'),
+                (r'SWELIM\s+[-\d.]+', f'SWELIM                {self._get_config_value(lambda: self.config.model.mesh.swelim, default=800.0, dict_key="MESH_SWELIM")}'),
                 (r'SNDENLIM\s+[-\d.]+', 'SNDENLIM              600.0'),
                 (r'PBSMFLAG\s+\w+', 'PBSMFLAG              off'),
                 (r'FROZENSOILINFILFLAG\s+\d+', 'FROZENSOILINFILFLAG   0'),
                 (r'RUNMODE\s+\w+', f'RUNMODE               {runmode}'),
-                (r'METRICSSPINUP\s+\d+', 'METRICSSPINUP         730'),
+                (r'METRICSSPINUP\s+\d+', f'METRICSSPINUP         {int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=730, dict_key="MESH_SPINUP_DAYS"))}'),
                 (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
                 (r'SHDFILEFLAG\s+\w+', 'SHDFILEFLAG           nc_subbasin pad_outlets'),
                 (r'BASINFORCINGFLAG\s+\w+', 'BASINFORCINGFLAG      nc_subbasin'),
                 (r'OUTFILESFLAG\s+\w+', f'OUTFILESFLAG         {outfiles_flag}'),
                 (r'OUTFIELDSFLAG\s+\w+', 'OUTFIELDSFLAG        none'),
                 (r'STREAMFLOWOUTFLAG\s+\w+', f'STREAMFLOWOUTFLAG     {streamflow_flag}'),
+                (r'BASINAVGWBFILEFLAG\s+\w+', f'BASINAVGWBFILEFLAG    {basinavgwb_flag}'),
                 (r'PRINTSIMSTATUS\s+\w+', 'PRINTSIMSTATUS        date_monthly'),
             ]
 
@@ -156,7 +186,10 @@ class MESHParameterFixer(ConfigMixin):
                         modified = True
 
             # Log the routing mode being used
-            self.logger.info(f"MESH RUNMODE set to '{runmode}' with streamflow output '{streamflow_flag}'")
+            self.logger.info(
+                f"MESH RUNMODE set to '{runmode}' with streamflow output '{streamflow_flag}', "
+                f"basin WB output '{basinavgwb_flag}'"
+            )
 
             if modified:
                 with open(self.run_options_path, 'w') as f:
@@ -277,12 +310,21 @@ class MESHParameterFixer(ConfigMixin):
                     return
 
                 sums = gru.sum(sum_dim)
-                # Only keep GRU columns with sum > 0.15 (conservative threshold)
-                keep_mask = sums > 0.15
+                min_gru_sum = float(
+                    self._get_config_value(
+                        lambda: self.config.model.mesh.gru_min_total,
+                        default=0.0,
+                        dict_key='MESH_GRU_MIN_TOTAL'
+                    )
+                )
+                # Keep GRU columns above configured threshold (default: keep all > 0)
+                keep_mask = sums > min_gru_sum
                 active_indices = [i for i, keep in enumerate(keep_mask.values) if keep]
 
                 if len(active_indices) == 0:
-                    self.logger.warning("No GRU columns have sum > 0.15")
+                    self.logger.warning(
+                        f"No GRU columns have sum > {min_gru_sum:.2f}"
+                    )
                     return
 
                 # Trim to only the active GRUs
@@ -297,7 +339,10 @@ class MESHParameterFixer(ConfigMixin):
                 temp_path = self.ddb_path.with_suffix('.tmp.nc')
                 ds_trim.to_netcdf(temp_path)
                 os.replace(temp_path, self.ddb_path)
-                self.logger.info(f"Trimmed DDB to {len(active_indices)} active GRU column(s) (all with sum > 0.15)")
+                self.logger.info(
+                    f"Trimmed DDB to {len(active_indices)} active GRU column(s) "
+                    f"(all with sum > {min_gru_sum:.2f})"
+                )
                 self._ensure_gru_normalization()
         except Exception as e:
             self.logger.warning(f"Failed to trim DDB to active GRUs: {e}")
@@ -375,9 +420,14 @@ class MESHParameterFixer(ConfigMixin):
 
                 sums = gru.sum(sum_dim)
                 # Threshold for considering a GRU class "active"
-                # Reduced from 0.15 to 0.05 to preserve small but hydrologically
-                # important classes (e.g., wetlands, urban areas at <15% coverage)
-                min_gru_sum = 0.05
+                # Default 0.0 keeps any non-zero class; can be overridden in config.
+                min_gru_sum = float(
+                    self._get_config_value(
+                        lambda: self.config.model.mesh.gru_min_total,
+                        default=0.0,
+                        dict_key='MESH_GRU_MIN_TOTAL'
+                    )
+                )
                 active_count = int((sums > min_gru_sum).sum())
 
                 # Log any classes being excluded
@@ -701,39 +751,62 @@ class MESHParameterFixer(ConfigMixin):
             self.logger.warning(f"Failed to add WF_R2: {e}")
 
     def fix_missing_hydrology_params(self) -> None:
-        """Verify hydrology parameters are present for MESH routing.
+        """Verify and pre-populate hydrology parameters for MESH.
 
-        Note: MESH WATFLOOD routing uses R2N, R1N, PWR, FLZ parameters which are
-        generated by meshflow. Legacy parameters like RCHARG, BASEFLW, MANN are
-        not supported by MESH and should not be added.
+        Ensures that:
+        1. Standard routing parameters (R2N, R1N, PWR, FLZ) exist.
+        2. Calibratable legacy parameters (RCHARG, FRZTH) are present with
+           physically reasonable defaults so the optimizer doesn't start from
+           arbitrary mid-range values injected at first iteration.
         """
-        # Check if routing is enabled in run options
-        if self.run_options_path.exists():
-            with open(self.run_options_path, 'r') as f:
-                run_options_content = f.read()
-
-            # Skip if RUNMODE is set to noroute
-            if re.search(r'RUNMODE\s+noroute', run_options_content):
-                self.logger.info("RUNMODE is 'noroute', skipping routing parameter additions")
-                return
-
         if not self.hydro_path.exists():
             self.logger.warning("Hydrology file not found, skipping parameter verification")
             return
 
-        # Just verify that standard routing parameters exist (R2N, R1N, PWR, FLZ)
-        # These are generated by meshflow - no need to add custom parameters
+        is_noroute = False
+        if self.run_options_path.exists():
+            with open(self.run_options_path, 'r') as f:
+                run_options_content = f.read()
+            if re.search(r'RUNMODE\s+noroute', run_options_content):
+                is_noroute = True
+
         try:
             with open(self.hydro_path, 'r') as f:
                 content = f.read()
 
-            required_params = ['R2N', 'R1N', 'PWR', 'FLZ']
-            missing = [p for p in required_params if p not in content]
+            modified = False
 
-            if missing:
-                self.logger.warning(f"Missing routing parameters in hydrology file: {missing}")
-            else:
-                self.logger.debug("All standard routing parameters present (R2N, R1N, PWR, FLZ)")
+            # Verify standard routing parameters (only relevant when routing)
+            if not is_noroute:
+                required_params = ['R2N', 'R1N', 'PWR', 'FLZ']
+                missing = [p for p in required_params if p not in content]
+                if missing:
+                    self.logger.warning(f"Missing routing parameters in hydrology file: {missing}")
+                else:
+                    self.logger.debug("All standard routing parameters present (R2N, R1N, PWR, FLZ)")
+
+            # Pre-populate calibratable parameters with physically reasonable defaults.
+            # This prevents the optimizer from auto-injecting at mid-range on first
+            # iteration, which wastes early DDS exploration budget.
+            calibratable_defaults = {
+                'RCHARG': (0.20, 'Recharge fraction to groundwater (typical 0.1-0.3)'),
+                'FRZTH': (0.10, 'Frozen soil infiltration threshold (m)'),
+            }
+
+            for param_name, (default_val, description) in calibratable_defaults.items():
+                # Use word boundary to avoid matching partial names
+                if not re.search(rf'\b{param_name}\b', content):
+                    if not content.endswith('\n'):
+                        content += '\n'
+                    content += f"{param_name}  {default_val:.6f}  # {description}\n"
+                    modified = True
+                    self.logger.info(
+                        f"Pre-populated {param_name}={default_val} in {self.hydro_path.name}"
+                    )
+
+            if modified:
+                with open(self.hydro_path, 'w') as f:
+                    f.write(content)
 
         except Exception as e:
             self.logger.warning(f"Failed to verify hydrology parameters: {e}")
@@ -757,6 +830,115 @@ class MESHParameterFixer(ConfigMixin):
 
         except Exception as e:
             self.logger.warning(f"Failed to fix run options output dirs: {e}")
+
+    def fix_reservoir_file(self) -> None:
+        """Fix reservoir input file to match IREACH in drainage database.
+
+        MESH requires the reservoir file to match max(IREACH) from the drainage database.
+        When IREACH = 0 (no reservoirs), the reservoir file should have 0 reservoirs.
+
+        The reservoir file format is:
+        - Line 1: <n_reservoirs> <n_columns> <header_flag>
+        - Lines 2+: reservoir data (if n_reservoirs > 0)
+        """
+        reservoir_file = self.forcing_dir / "MESH_input_reservoir.txt"
+
+        # Get max IREACH from drainage database
+        max_ireach = 0
+        if self.ddb_path.exists():
+            try:
+                with xr.open_dataset(self.ddb_path) as ds:
+                    if 'IREACH' in ds:
+                        ireach_vals = ds['IREACH'].values
+                        # Handle any remaining fill values
+                        valid_vals = ireach_vals[ireach_vals >= 0]
+                        if len(valid_vals) > 0:
+                            max_ireach = int(np.max(valid_vals))
+                        self.logger.debug(f"Max IREACH from DDB: {max_ireach}")
+            except Exception as e:
+                self.logger.debug(f"Could not read IREACH from DDB: {e}")
+
+        # Create or fix reservoir file
+        try:
+            if max_ireach == 0:
+                # No reservoirs - create simple file
+                with open(reservoir_file, 'w') as f:
+                    f.write("0\n")  # Just the count, no other columns needed
+                self.logger.info("Fixed reservoir file: 0 reservoirs")
+            else:
+                # Reservoirs exist - ensure file has correct count
+                if reservoir_file.exists():
+                    with open(reservoir_file, 'r') as f:
+                        content = f.read().strip()
+                    first_line = content.split('\n')[0] if content else ""
+                    parts = first_line.split()
+                    file_count = int(parts[0]) if parts else 0
+                    if file_count != max_ireach:
+                        self.logger.warning(
+                            f"Reservoir file count ({file_count}) != IREACH max ({max_ireach}). "
+                            f"Reservoir routing may fail."
+                        )
+                else:
+                    self.logger.warning(
+                        f"Reservoir file not found but IREACH max = {max_ireach}. "
+                        f"Creating placeholder with 0 reservoirs."
+                    )
+                    with open(reservoir_file, 'w') as f:
+                        f.write("0\n")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix reservoir file: {e}")
+
+    def configure_lumped_outputs(self) -> None:
+        """Configure outputs_balance.txt for lumped mode calibration.
+
+        In lumped (noroute) mode, we need daily runoff output for calibration.
+        This method enables daily CSV output of total runoff (RFF).
+        """
+        outputs_balance = self.forcing_dir / "outputs_balance.txt"
+        if not outputs_balance.exists():
+            return
+
+        # Check if we're in lumped mode
+        num_cells = self._get_num_cells()
+        if num_cells > 1:
+            return  # Not lumped mode
+
+        try:
+            with open(outputs_balance, 'r') as f:
+                lines = f.readlines()
+
+            modified = False
+            new_lines = []
+
+            for line in lines:
+                stripped = line.strip()
+
+                # Enable daily CSV output for runoff (RFF)
+                # Change "!RFF D csv" to "RFF D csv" (uncomment)
+                # Or add if not present
+                if stripped.startswith('!RFF') and ('D' in stripped or 'H' in stripped) and 'csv' in stripped.lower():
+                    # Uncomment and ensure daily
+                    new_line = stripped[1:].replace(' H ', ' D ')  # Remove ! and change H to D
+                    new_lines.append(new_line + '\n')
+                    modified = True
+                    continue
+
+                new_lines.append(line)
+
+            # If no RFF csv line found, add one
+            if not any('RFF' in l and 'csv' in l.lower() and not l.strip().startswith('!')
+                      for l in new_lines):
+                new_lines.append('RFF     D  csv\n')
+                modified = True
+
+            if modified:
+                with open(outputs_balance, 'w') as f:
+                    f.writelines(new_lines)
+                self.logger.info("Configured outputs_balance.txt for lumped mode (daily RFF csv)")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to configure lumped outputs: {e}")
 
     def _get_domain_latitude(self) -> Optional[float]:
         """Get representative latitude from drainage database for climate classification."""
@@ -988,11 +1170,12 @@ class MESHParameterFixer(ConfigMixin):
                     var_time.standard_name = 'time'
                     var_time.long_name = 'time'
                     var_time.axis = 'T'
-                    var_time.units = 'hours since 1979-12-01'
-                    var_time.calendar = 'proleptic_gregorian'
+                    # Use same format as original forcing (MESH_forcing.nc)
+                    var_time.units = 'hours since 1900-01-01 00:00:00'
+                    var_time.calendar = 'gregorian'  # Match original forcing file
 
-                    # Convert time to hours since reference
-                    reference = pd.Timestamp('1979-12-01')
+                    # Convert time to hours since 1900-01-01 (same as MESH_forcing.nc)
+                    reference = pd.Timestamp('1900-01-01')
                     time_hours = np.array([
                         (pd.Timestamp(t) - reference).total_seconds() / 3600.0
                         for t in ds_safe['time'].values

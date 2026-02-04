@@ -302,13 +302,15 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
 
             self.logger.debug(f"Executing distributed FUSE: {' '.join(command)}")
 
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
                     check=True,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     cwd=str(self.setup_dir)
                 )
 
@@ -554,7 +556,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             best_params = self.output_path / f"{self.domain_name}_{fuse_id}_para_sce.nc"
 
             if default_params.exists():
-                import shutil
+                # Use module-level shutil import (already imported at top of file)
                 shutil.copy2(default_params, best_params)
                 self.logger.info("Copied default parameters to best parameters file for snow optimization")
             else:
@@ -563,6 +565,236 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         except Exception as e:
             self.logger.error(f"Error copying default to best parameters: {str(e)}")
 
+    def _add_elevation_params_to_constraints(self) -> bool:
+        """
+        Add elevation band parameters to the FUSE constraints file as FIXED parameters.
+
+        FUSE reads its parameters from the constraints file. If elevation band
+        parameters (N_BANDS, Z_FORCING, Z_MID01, AF01) are missing, FUSE defaults
+        them to zeros which breaks snow aggregation - snowmelt never becomes
+        effective precipitation.
+
+        This method reads the elevation bands file and adds the parameters to
+        the constraints file BEFORE running FUSE, so they are used correctly.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            # Read elevation bands file
+            elev_bands_path = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
+            if not elev_bands_path.exists():
+                self.logger.warning(f"Elevation bands file not found: {elev_bands_path}")
+                return False
+
+            with xr.open_dataset(elev_bands_path) as eb_ds:
+                n_bands = eb_ds.sizes.get('elevation_band', 1)
+                mean_elevs = eb_ds['mean_elev'].values.flatten()
+                area_fracs = eb_ds['area_frac'].values.flatten()
+                z_forcing = float(np.sum(mean_elevs * area_fracs))
+
+            # Find constraints file
+            constraints_file = self.setup_dir / 'fuse_zConstraints_snow.txt'
+            if not constraints_file.exists():
+                self.logger.warning(f"Constraints file not found: {constraints_file}")
+                return False
+
+            # Read existing constraints
+            with open(constraints_file, 'r') as f:
+                lines = f.readlines()
+
+            # Check if elevation params already exist
+            existing_params = set()
+            for line in lines:
+                for param in ['N_BANDS', 'Z_FORCING', 'Z_MID01', 'AF01']:
+                    if param in line and not line.strip().startswith('!'):
+                        existing_params.add(param)
+
+            if existing_params:
+                self.logger.debug(f"Elevation params already in constraints: {existing_params}")
+                # Update existing values instead of adding duplicates
+                updated_lines = []
+                for line in lines:
+                    if 'N_BANDS' in line and not line.strip().startswith('!'):
+                        line = f"F 0 {float(n_bands):9.3f} {float(n_bands):9.3f} {float(n_bands):9.3f} .10   1.0 0 0 0  0 0 0 N_BANDS   NO_CHILD1 NO_CHILD2 ! number of elevation bands\n"
+                    elif 'Z_FORCING' in line and not line.strip().startswith('!'):
+                        line = f"F 0 {z_forcing:9.3f} {z_forcing:9.3f} {z_forcing:9.3f} .10   1.0 0 0 0  0 0 0 Z_FORCING NO_CHILD1 NO_CHILD2 ! forcing elevation (m)\n"
+                    elif 'Z_MID01' in line and not line.strip().startswith('!'):
+                        line = f"F 0 {mean_elevs[0]:9.3f} {mean_elevs[0]:9.3f} {mean_elevs[0]:9.3f} .10   1.0 0 0 0  0 0 0 Z_MID01   NO_CHILD1 NO_CHILD2 ! band 1 elevation (m)\n"
+                    elif 'AF01' in line and not line.strip().startswith('!'):
+                        line = f"F 0 {area_fracs[0]:9.3f} {area_fracs[0]:9.3f} {area_fracs[0]:9.3f} .10   1.0 0 0 0  0 0 0 AF01      NO_CHILD1 NO_CHILD2 ! band 1 area fraction\n"
+                    updated_lines.append(line)
+                lines = updated_lines
+
+            # Add elevation params if not present
+            params_to_add = []
+            if 'N_BANDS' not in existing_params:
+                params_to_add.append(f"F 0 {float(n_bands):9.3f} {float(n_bands):9.3f} {float(n_bands):9.3f} .10   1.0 0 0 0  0 0 0 N_BANDS   NO_CHILD1 NO_CHILD2 ! number of elevation bands\n")
+            if 'Z_FORCING' not in existing_params:
+                params_to_add.append(f"F 0 {z_forcing:9.3f} {z_forcing:9.3f} {z_forcing:9.3f} .10   1.0 0 0 0  0 0 0 Z_FORCING NO_CHILD1 NO_CHILD2 ! forcing elevation (m)\n")
+            if 'Z_MID01' not in existing_params:
+                params_to_add.append(f"F 0 {mean_elevs[0]:9.3f} {mean_elevs[0]:9.3f} {mean_elevs[0]:9.3f} .10   1.0 0 0 0  0 0 0 Z_MID01   NO_CHILD1 NO_CHILD2 ! band 1 elevation (m)\n")
+            if 'AF01' not in existing_params:
+                params_to_add.append(f"F 0 {area_fracs[0]:9.3f} {area_fracs[0]:9.3f} {area_fracs[0]:9.3f} .10   1.0 0 0 0  0 0 0 AF01      NO_CHILD1 NO_CHILD2 ! band 1 area fraction\n")
+
+            if params_to_add:
+                # Find position to insert (before the description section)
+                insert_pos = len(lines)
+                for i, line in enumerate(lines):
+                    if '*****' in line or 'description' in line.lower():
+                        insert_pos = i
+                        break
+
+                # Insert the new parameters
+                for param_line in reversed(params_to_add):
+                    lines.insert(insert_pos, param_line)
+
+            # Write back
+            with open(constraints_file, 'w') as f:
+                f.writelines(lines)
+
+            self.logger.info(f"Added elevation params to constraints: N_BANDS={n_bands}, "
+                           f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
+            return True
+
+        except (FileNotFoundError, OSError, KeyError, ValueError) as e:
+            self.logger.error(f"Failed to add elevation params to constraints: {e}")
+            return False
+
+    def _fix_elevation_band_params_in_para_def(self) -> bool:
+        """
+        Fix elevation band parameters in para_def.nc after FUSE run_def creates it.
+
+        FUSE's run_def mode generates para_def.nc with zeros for elevation band
+        parameters (N_BANDS, Z_FORCING, Z_MID01, AF01), which causes snow
+        aggregation to fail - snowmelt never becomes effective precipitation.
+
+        This method reads the elevation bands file and updates para_def.nc with
+        the correct values so that calib_sce and run_best will work properly.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            fuse_id = self._get_fuse_file_id()
+            para_def_path = self.output_path / f"{self.domain_name}_{fuse_id}_para_def.nc"
+
+            if not para_def_path.exists():
+                self.logger.warning(f"para_def.nc not found: {para_def_path}")
+                return False
+
+            # Read elevation bands file to get correct values
+            elev_bands_path = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
+            if not elev_bands_path.exists():
+                self.logger.warning(f"Elevation bands file not found: {elev_bands_path}")
+                return False
+
+            with xr.open_dataset(elev_bands_path) as eb_ds:
+                n_bands = eb_ds.dims.get('elevation_band', 1)
+                mean_elevs = eb_ds['mean_elev'].values.flatten()
+                area_fracs = eb_ds['area_frac'].values.flatten()
+
+                # Calculate Z_FORCING as area-weighted mean elevation
+                z_forcing = float(np.sum(mean_elevs * area_fracs))
+
+            # Update para_def.nc with correct elevation band parameters
+            with xr.open_dataset(para_def_path) as ds:
+                ds_dict = {var: ds[var].values for var in ds.data_vars}
+                ds_attrs = dict(ds.attrs)
+                ds_coords = {c: ds.coords[c].values for c in ds.coords}
+
+            # Update the elevation band parameters
+            ds_dict['N_BANDS'] = np.array([float(n_bands)])
+            ds_dict['Z_FORCING'] = np.array([z_forcing])
+
+            for i in range(n_bands):
+                z_mid_name = f'Z_MID{i+1:02d}'
+                af_name = f'AF{i+1:02d}'
+                ds_dict[z_mid_name] = np.array([float(mean_elevs[i])])
+                ds_dict[af_name] = np.array([float(area_fracs[i])])
+
+            # Write back to NetCDF
+            new_ds = xr.Dataset(
+                {var: (['par'], vals) for var, vals in ds_dict.items()},
+                coords={'par': ds_coords.get('par', [0])},
+                attrs=ds_attrs
+            )
+            new_ds.to_netcdf(para_def_path, mode='w')
+
+            self.logger.info(f"Fixed elevation band params in para_def.nc: N_BANDS={n_bands}, "
+                           f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
+            return True
+
+        except (FileNotFoundError, OSError, KeyError, ValueError) as e:
+            self.logger.error(f"Failed to fix elevation band params: {e}")
+            return False
+
+    def _fix_elevation_band_params_in_para_sce(self) -> bool:
+        """
+        Fix elevation band parameters in para_sce.nc after FUSE calibration.
+
+        Similar to _fix_elevation_band_params_in_para_def, but for the calibration
+        output file. FUSE's calib_sce creates para_sce.nc with zeros for elevation
+        band parameters, causing run_best to fail in aggregating snowmelt.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            fuse_id = self._get_fuse_file_id()
+            para_sce_path = self.output_path / f"{self.domain_name}_{fuse_id}_para_sce.nc"
+
+            if not para_sce_path.exists():
+                self.logger.warning(f"para_sce.nc not found: {para_sce_path}")
+                return False
+
+            # Read elevation bands file to get correct values
+            elev_bands_path = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
+            if not elev_bands_path.exists():
+                self.logger.warning(f"Elevation bands file not found: {elev_bands_path}")
+                return False
+
+            with xr.open_dataset(elev_bands_path) as eb_ds:
+                n_bands = eb_ds.sizes.get('elevation_band', 1)
+                mean_elevs = eb_ds['mean_elev'].values.flatten()
+                area_fracs = eb_ds['area_frac'].values.flatten()
+                z_forcing = float(np.sum(mean_elevs * area_fracs))
+
+            # Update para_sce.nc with correct elevation band parameters
+            # Need to handle the 'par' dimension which may have multiple parameter sets
+            with xr.open_dataset(para_sce_path) as ds:
+                par_size = ds.sizes.get('par', 1)
+                ds_dict = {}
+                for var in ds.data_vars:
+                    ds_dict[var] = ds[var].values.copy()
+                ds_attrs = dict(ds.attrs)
+                ds_coords = {c: ds.coords[c].values for c in ds.coords}
+
+            # Update elevation band parameters - broadcast to all parameter sets
+            ds_dict['N_BANDS'] = np.full(par_size, float(n_bands))
+            ds_dict['Z_FORCING'] = np.full(par_size, z_forcing)
+
+            for i in range(n_bands):
+                z_mid_name = f'Z_MID{i+1:02d}'
+                af_name = f'AF{i+1:02d}'
+                ds_dict[z_mid_name] = np.full(par_size, float(mean_elevs[i]))
+                ds_dict[af_name] = np.full(par_size, float(area_fracs[i]))
+
+            # Write back to NetCDF
+            new_ds = xr.Dataset(
+                {var: (['par'], vals) for var, vals in ds_dict.items()},
+                coords={'par': ds_coords.get('par', np.arange(par_size))},
+                attrs=ds_attrs
+            )
+            new_ds.to_netcdf(para_sce_path, mode='w')
+
+            self.logger.info(f"Fixed elevation band params in para_sce.nc: N_BANDS={n_bands}, "
+                           f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
+            return True
+
+        except (FileNotFoundError, OSError, KeyError, ValueError) as e:
+            self.logger.error(f"Failed to fix elevation band params in para_sce.nc: {e}")
+            return False
 
     def _update_filemanager_for_run(self) -> bool:
         """
@@ -584,9 +816,14 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 self.logger.warning(f"File manager not found: {fm_path}")
                 return False
 
-            # Read current file manager
-            with open(fm_path, 'r') as f:
-                lines = f.readlines()
+            # Read current file manager with encoding fallback
+            try:
+                with open(fm_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                self.logger.warning(f"UTF-8 decode error reading {fm_path}, falling back to latin-1")
+                with open(fm_path, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
 
             # Get current settings
             fuse_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
@@ -604,10 +841,14 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
 
             # Update relevant lines
             updated_lines = []
+            input_path_str = str(self.forcing_fuse_path) + '/'
+
             for line in lines:
                 stripped = line.strip()
                 if stripped.startswith("'") and 'OUTPUT_PATH' in line:
                     updated_lines.append(f"'{output_path}'       ! OUTPUT_PATH\n")
+                elif stripped.startswith("'") and 'INPUT_PATH' in line:
+                     updated_lines.append(f"'{input_path_str}'       ! INPUT_PATH\n")
                 elif stripped.startswith("'") and 'FMODEL_ID' in line:
                     updated_lines.append(f"'{fuse_id}'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files\n")
                 elif stripped.startswith("'") and 'M_DECISIONS' in line:
@@ -619,7 +860,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             with open(fm_path, 'w') as f:
                 f.writelines(updated_lines)
 
-            self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
+            self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
             return True
 
         except (FileNotFoundError, OSError, PermissionError) as e:
@@ -674,6 +915,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             result = self.execute_model_subprocess(
                 command,
                 log_file,
+                cwd=self.setup_dir,  # Run from settings directory where input_info.txt lives
                 check=False,  # Don't raise, we'll return boolean
                 success_message="FUSE execution completed"
             )
@@ -731,8 +973,15 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 self.logger.info("Snow optimization detected - copying default to best parameters")
                 self._copy_default_to_best_params()
 
+            # Note: Adding elevation params to constraints was causing FUSE crashes
+            # The underlying issue is in how FUSE handles single-band elevation aggregation
+            # TODO: Investigate FUSE source code for proper fix
+
             # Run FUSE with default parameters
             success = self._execute_fuse('run_def')
+
+            # Also fix para_def.nc for any downstream uses
+            self._fix_elevation_band_params_in_para_def()
 
             # Check if FUSE internal calibration should run (independent of external optimization)
             run_internal_calibration = self._get_config_value(
@@ -745,6 +994,10 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                     # Run FUSE internal SCE-UA calibration as benchmark
                     self.logger.info("Running FUSE internal calibration (calib_sce) as benchmark")
                     success = self._execute_fuse('calib_sce')
+
+                    # CRITICAL: Fix elevation band parameters in para_sce.nc too
+                    # FUSE calib_sce creates para_sce.nc with zeros for Z_FORCING, Z_MID, AF
+                    self._fix_elevation_band_params_in_para_sce()
 
                     # Run FUSE with best parameters from internal calibration
                     success = self._execute_fuse('run_best')

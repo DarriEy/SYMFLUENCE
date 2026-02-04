@@ -194,6 +194,17 @@ class DataManager(BaseManager):
             if download_usgs_gw and 'usgs_gw' not in [o.lower() for o in additional_obs]:
                 additional_obs.append('usgs_gw')
 
+            # Check for GRACE TWS and ensure it's in additional_obs
+            download_grace = self._get_config_value(
+                lambda: self.config.evaluation.grace.download,
+                False
+            )
+            if isinstance(download_grace, str):
+                download_grace = download_grace.lower() == 'true'
+
+            if download_grace and 'grace' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('grace')
+
             # Check for MODIS Snow and ensure it's in additional_obs
             download_modis_snow = self._get_config_value(
                 lambda: self.config.evaluation.modis_snow.download,

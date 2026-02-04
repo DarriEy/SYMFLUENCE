@@ -581,7 +581,8 @@ class InMemoryModelWorker(BaseWorker):
         self,
         sim_mm_day: np.ndarray,
         obs_mm_day: np.ndarray,
-        skip_warmup: bool = True
+        skip_warmup: bool = True,
+        time_index: Optional[pd.DatetimeIndex] = None
     ) -> Dict[str, Any]:
         """Calculate standard streamflow metrics.
 
@@ -589,15 +590,22 @@ class InMemoryModelWorker(BaseWorker):
             sim_mm_day: Simulated runoff in mm/day
             obs_mm_day: Observed runoff in mm/day
             skip_warmup: Whether to skip warmup period
+            time_index: Optional time index for period filtering
 
         Returns:
             Dictionary with 'kge', 'nse', 'n_points', and optionally 'error'
         """
         try:
+            # Get time index for filtering
+            if time_index is None:
+                time_index = self._time_index
+
             # Skip warmup if requested
             if skip_warmup:
                 sim = sim_mm_day[self.warmup_days:]
                 obs = obs_mm_day[self.warmup_days:]
+                if time_index is not None and len(time_index) > self.warmup_days:
+                    time_index = time_index[self.warmup_days:]
             else:
                 sim = sim_mm_day
                 obs = obs_mm_day
@@ -606,6 +614,32 @@ class InMemoryModelWorker(BaseWorker):
             min_len = min(len(sim), len(obs))
             sim = sim[:min_len]
             obs = obs[:min_len]
+            if time_index is not None and len(time_index) > min_len:
+                time_index = time_index[:min_len]
+
+            # Filter to calibration period if specified
+            cal_period = self.config.get('CALIBRATION_PERIOD', '')
+            if cal_period and time_index is not None:
+                try:
+                    dates = [d.strip() for d in cal_period.split(',')]
+                    if len(dates) >= 2:
+                        start_date = pd.Timestamp(dates[0])
+                        end_date = pd.Timestamp(dates[1])
+
+                        # Ensure time_index is DatetimeIndex
+                        if not isinstance(time_index, pd.DatetimeIndex):
+                            time_index = pd.DatetimeIndex(time_index)
+
+                        # Create mask for calibration period
+                        cal_mask = (time_index >= start_date) & (time_index <= end_date)
+                        sim = sim[cal_mask]
+                        obs = obs[cal_mask]
+                        self.logger.debug(
+                            f"Filtered to calibration period {start_date} - {end_date}: "
+                            f"{cal_mask.sum()} points"
+                        )
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(f"Could not filter to calibration period: {e}")
 
             # Remove NaN
             valid_mask = ~(np.isnan(sim) | np.isnan(obs))

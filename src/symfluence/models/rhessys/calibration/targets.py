@@ -59,7 +59,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             if obs_series is not None:
                 # Resample to daily frequency (mean) to match RHESSys output frequency
                 obs_daily = obs_series.resample('D').mean()
-                self.logger.info(f"Resampled observations from {len(obs_series)} to {len(obs_daily)} daily values")
+                self.logger.debug(f"Resampled observations from {len(obs_series)} to {len(obs_daily)} daily values")
                 return obs_daily
 
             return obs_series
@@ -101,7 +101,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             raise ValueError("No simulation files provided")
 
         sim_file = sim_files[0]
-        self.logger.info(f"Extracting simulated streamflow from: {sim_file}")
+        self.logger.debug(f"Extracting simulated streamflow from: {sim_file}")
 
         if sim_file.suffix == '.csv':
             return self._extract_from_csv(sim_file)
@@ -174,9 +174,11 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             df['date'] = pd.to_datetime(df['DATE'])
             df.set_index('date', inplace=True)
 
-        # Find streamflow column
+        # Find streamflow column - prefer unrouted 'streamflow' over 'routedstreamflow'.
+        # The gamma-function routing in routedstreamflow artificially damps peaks
+        # in lumped (single-patch) models, causing low variability ratio (alpha).
         q_col = None
-        for col in ['streamflow', 'Qout', 'discharge', 'streamflow_m3s', 'Q']:
+        for col in ['streamflow', 'routedstreamflow', 'Qout', 'discharge', 'streamflow_m3s', 'Q']:
             if col in df.columns:
                 q_col = col
                 break
@@ -193,7 +195,73 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
 
         q_sim = df[q_col]
         q_sim.name = 'streamflow_cms'
-        return q_sim
+        return self._convert_units_if_depth(q_sim, sim_file)
+
+    # ------------------------------------------------------------------ #
+    # Unit handling                                                      #
+    # ------------------------------------------------------------------ #
+    def _convert_units_if_depth(self, q_sim: pd.Series, sim_file: Path) -> pd.Series:
+        """
+        RHESSys basin.daily reports streamflow as depth (mm/day) at the basin
+        outlet. Observations are in m³/s. Always convert mm/day → m³/s.
+
+        Formula: Q (m³/s) = Q (mm/day) × Area (m²) / 86400 / 1000
+        """
+        positive = q_sim[q_sim > 0]
+        if positive.empty:
+            return q_sim  # nothing to convert
+
+        basin_area = self._get_basin_area(sim_file)
+        if basin_area is None:
+            # Cannot convert without area; return as-is but warn
+            self.logger.warning(
+                "Unable to infer basin area for RHESSys unit conversion; "
+                "streamflow may remain in depth units (mm/day)."
+            )
+            return q_sim
+
+        # RHESSys outputs streamflow in mm/day
+        # Convert: Q (m³/s) = Q (mm/day) × Area (m²) / 86400 (s/day) / 1000 (mm/m)
+        q_cms = q_sim * basin_area / 86400.0 / 1000.0
+        q_cms.name = 'streamflow_cms'
+        self.logger.debug(
+            f"Converted RHESSys streamflow from mm/day to m³/s using area={basin_area:.2f} m²"
+        )
+        return q_cms
+
+    def _get_basin_area(self, sim_file: Path) -> Optional[float]:
+        """
+        Retrieve basin area (m²) from the RHESSys worldfile used for this run.
+
+        Tries canonical location: <data_dir>/domain_<name>/RHESSys_input/worldfiles/<name>.world
+        Falls back to sim_dir parents if needed.
+        """
+        domain_name = self.config.domain.name
+        data_dir = Path(self.config.system.data_dir)
+        candidates = [
+            data_dir / f"domain_{domain_name}" / "RHESSys_input" / "worldfiles" / f"{domain_name}.world",
+            sim_file.parents[2] / "RHESSys_input" / "worldfiles" / f"{domain_name}.world",
+        ]
+
+        for wf_path in candidates:
+            if wf_path.exists():
+                try:
+                    with open(wf_path, 'r') as f:
+                        lines = f.readlines()
+                    # Zone area appears before the string 'area' on its label line
+                    for line in lines:
+                        stripped = line.strip()
+                        if stripped.endswith('area'):
+                            try:
+                                area_val = float(stripped.split()[0])
+                                if area_val > 0:
+                                    return area_val
+                            except Exception:
+                                continue
+                except Exception as e:
+                    self.logger.debug(f"Failed to read basin area from {wf_path}: {e}")
+
+        return None
 
     def needs_routing(self) -> bool:
         """RHESSys handles its own routing internally."""

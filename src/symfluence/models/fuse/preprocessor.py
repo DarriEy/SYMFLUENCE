@@ -256,8 +256,12 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
             if decision_file_path and decision_file_path.exists() and self.config_dict.get('FUSE_SNOW_MODEL'):
                 snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
-                with open(decision_file_path, 'r') as f:
-                    lines = f.readlines()
+                try:
+                    with open(decision_file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                except UnicodeDecodeError:
+                    with open(decision_file_path, 'r', encoding='latin-1') as f:
+                        lines = f.readlines()
                 updated_lines = []
                 for line in lines:
                     if line.strip().endswith('SNOWM'):
@@ -554,7 +558,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 da_values = np.maximum(da_values, 0.0)
 
             self.logger.debug(f"PERF: [{name}] process_var total took {time.time() - pv_start:.4f}s")
-            return xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
+            result = xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
+            return result.transpose(*spatial_dims)
 
         # Map variables
         var_map = {
@@ -710,7 +715,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 'longitude': ('longitude', subcatchments.astype(float)),
                 'latitude': ('latitude', [float(mean_lat)])
             }
-            spatial_dims = ('time', 'longitude', 'latitude')
+            spatial_dims = ('time', 'latitude', 'longitude')
 
         # Create dataset
         fuse_forcing = xr.Dataset(coords=coords)
@@ -795,9 +800,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         }
 
         try:
-            # Read the template file
-            with open(template_path, 'r') as f:
-                lines = f.readlines()
+            # Read the template file with encoding fallback
+            try:
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                self.logger.warning(
+                    f"UTF-8 decode error reading {template_path}, falling back to latin-1"
+                )
+                with open(template_path, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
 
             # Process each line
             modified_lines = []
@@ -858,8 +870,12 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             '<units_q>': unit_str,
         }
 
-        with open(input_info_path, 'r') as f:
-            lines = f.readlines()
+        try:
+            with open(input_info_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            with open(input_info_path, 'r', encoding='latin-1') as f:
+                lines = f.readlines()
 
         updated_lines = []
         for line in lines:

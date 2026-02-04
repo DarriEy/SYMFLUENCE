@@ -99,6 +99,16 @@ class ShapefileAccessMixin(ConfigMixin):
         "Longitude column in catchment shapefile from config.paths.catchment_lon."
     )
 
+    catchment_elev_col = shapefile_column(
+        'catchment_elev', 'elev_mean',
+        "Mean elevation column in catchment shapefile from config.paths.catchment_elev."
+    )
+
+    catchment_slope_col = shapefile_column(
+        'catchment_slope', 'slope',
+        "Mean slope column in catchment shapefile from config.paths.catchment_slope."
+    )
+
     # =========================================================================
     # River Network Shapefile Columns
     # =========================================================================

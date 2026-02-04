@@ -288,13 +288,15 @@ class SubcatchmentProcessor:
             # Create log file for this subcatchment
             log_file = subcat_output_dir / 'fuse_run.log'
 
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
                     check=True,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     cwd=str(settings_dir)
                 )
 

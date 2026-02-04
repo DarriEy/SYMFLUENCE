@@ -7,7 +7,6 @@ Refactored to use the Unified Model Execution Framework.
 
 import logging
 import os
-import re
 import subprocess  # nosec B404 - Required for running Docker containers and model executables
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -104,7 +103,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             import platform
             use_geojson = getattr(self, "_use_geojson_catchments", False)
             if platform.system() == "Darwin":
-                self.logger.info("Forcing GeoJSON catchments on macOS for stability")
+                self.logger.debug("Forcing GeoJSON catchments on macOS for stability")
                 use_geojson = True
 
             if use_geojson:
@@ -120,6 +119,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 [catchment_file, nexus_file, realization_file],
                 context="NextGen model execution"
             )
+
+            # Clean stale output files to prevent ngen from appending to
+            # previous iteration's data (causes CSV parsing errors in calibration)
+            for stale_pattern in ['nex-*.csv', 'cat-*.csv']:
+                for stale_file in output_dir.glob(stale_pattern):
+                    stale_file.unlink()
 
             # Ensure realization_config uses absolute library paths
             # Patch a copy to avoid side effects if multiple runs use same settings_dir
@@ -233,7 +238,8 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     log_file,
                     cwd=self.ngen_exe.parent,  # Run from ngen build directory (needed for relative library paths)
                     env=env,  # Use modified environment with library paths
-                    success_message="NextGen model run completed successfully"
+                    success_message="NextGen model run completed successfully",
+                    success_log_level=logging.DEBUG
                 )
 
                 # Move outputs from build directory to output directory
@@ -241,12 +247,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 # Run t-route routing if configured
                 if self.config_dict.get('NGEN_RUN_TROUTE', True):  # Default to True
-                    self.logger.info("Starting t-route routing...")
+                    self.logger.debug("Starting t-route routing...")
                     troute_success = self._run_troute_routing(output_dir)
                     if not troute_success:
-                        self.logger.warning("T-Route routing failed or not available. Continuing with NGEN outputs only.")
+                        self.logger.debug("T-Route routing not available. Using NGEN nexus outputs directly.")
                 else:
-                    self.logger.info("T-Route routing disabled in config")
+                    self.logger.debug("T-Route routing disabled in config")
 
                 return True
 
@@ -272,7 +278,8 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                                 log_file,
                                 cwd=self.ngen_exe.parent,
                                 env=env,
-                                success_message="NextGen model run completed successfully (GeoJSON fallback)"
+                                success_message="NextGen model run completed successfully (GeoJSON fallback)",
+                                success_log_level=logging.DEBUG
                             )
                             self._use_geojson_catchments = True
                             self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
@@ -292,8 +299,20 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         """Patch realization config to use absolute paths for libraries and init_configs."""
         import json
         try:
-            with open(realization_file, 'r') as f:
-                data = json.load(f)
+            content = realization_file.read_text()
+            if len(content.strip()) < 10:
+                # File is empty/corrupted — re-copy from source
+                source_realization = self.ngen_setup_dir / "realization_config.json"
+                if source_realization.exists() and source_realization.resolve() != realization_file.resolve():
+                    import shutil
+                    shutil.copy2(source_realization, realization_file)
+                    content = realization_file.read_text()
+                    self.logger.warning("Recovered empty realization config from source")
+                else:
+                    self.logger.warning("Realization config is empty and no source available")
+                    return
+
+            data = json.loads(content)
 
             changed = False
             # Determine absolute ngen base directory
@@ -339,7 +358,10 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                                     if (lib_dir / filename).exists():
                                         actual_lib = lib_dir / filename
                                     else:
-                                        candidates = list(lib_dir.glob(f"{filename.split('.')[0]}*.dylib"))
+                                        stem = filename.split('.')[0]
+                                        candidates = []
+                                        for ext in ("dylib", "so"):
+                                            candidates.extend(lib_dir.glob(f"{stem}*.{ext}"))
                                         if candidates:
                                             actual_lib = candidates[0]
 
@@ -362,20 +384,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                                     if target_mod:
                                         filename = Path(old_path).name
-                                        # Replace {{id}} template placeholder with actual catchment ID if present
-                                        if '{{id}}' in filename:
-                                            # Find first cat-<id>_* file in the target directory
-                                            target_dir = self.ngen_setup_dir / target_mod
-                                            if target_dir.exists():
-                                                candidates = list(target_dir.glob("cat-*"))
-                                                if candidates:
-                                                    # Use the actual file name pattern from the first matching file
-                                                    # For files like "cat-1_pet_config.txt", we want to replace {{id}} with "cat-1"
-                                                    first_file = candidates[0].name
-                                                    match = re.search(r'(cat-[a-zA-Z0-9_-]+?)(?=_)', first_file)
-                                                    if match:
-                                                        filename = filename.replace('{{id}}', match.group(1))
-                                        # Use the setup dir for THIS runner (might be isolated)
+                                        # Preserve {{id}} template in filenames; only make path absolute.
                                         new_path = str((self.ngen_setup_dir / target_mod / filename).resolve())
                                         if old_path != new_path:
                                             mod_params['init_config'] = new_path
@@ -386,19 +395,8 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             if 'global' in data and 'forcing' in data['global']:
                 forcing = data['global']['forcing']
                 if 'file_pattern' in forcing and '{{id}}' in forcing['file_pattern']:
-                    # Find first forcing file to extract the catchment ID
-                    forcing_dir = self.ngen_setup_dir.parent / 'forcing' / 'NGEN_input' / 'csv'
-                    if forcing_dir.exists():
-                        candidates = list(forcing_dir.glob("*_forcing*.csv"))
-                        if candidates:
-                            first_file = candidates[0].name
-                            match = re.search(r'(cat-[a-zA-Z0-9_-]+?)(?=_forcing)', first_file)
-                            if match:
-                                pattern = forcing['file_pattern']
-                                pattern = pattern.replace('{{id}}', match.group(1))
-                                forcing['file_pattern'] = pattern
-                                changed = True
-                                self.logger.debug(f"Patched forcing file pattern to {pattern}")
+                    # Preserve {{id}} template; avoid collapsing to a single catchment.
+                    self.logger.debug("Preserving {{id}} in forcing file pattern for multi-catchment runs")
 
             # 4. Patch output_root for isolated calibration directories
             if '_ngen_output_dir' in self.config_dict:
@@ -411,7 +409,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             if changed:
                 with open(realization_file, 'w') as f:
                     json.dump(data, f, indent=2)
-                self.logger.info("Patched absolute paths in realization config copy")
+                self.logger.debug("Patched absolute paths in realization config copy")
         except Exception as e:
             self.logger.warning(f"Failed to patch realization libraries: {e}")
 
@@ -475,7 +473,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             # Check if ngen_routing is available
             from ngen_routing.ngen_main import ngen_main
         except ImportError:
-            self.logger.info("T-Route (ngen_routing) not installed. Skipping routing.")
+            self.logger.debug("T-Route (ngen_routing) not installed. Skipping routing.")
             return False
 
         # Find t-route config

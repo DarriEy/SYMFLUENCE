@@ -60,11 +60,22 @@ class DDSAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting DDS optimization with {n_params} parameters")
 
-        # DDS perturbation range
+        # DDS perturbation range (default 0.2, higher values explore more)
         r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
 
-        # Initialize with random starting point
-        x_best = np.random.uniform(0, 1, n_params)
+        # Minimum perturbation probability to ensure exploration even late in optimization
+        p_min = self._get_config_value(
+            lambda: self.config.optimization.dds.p_min, default=0.05, dict_key='DDS_P_MIN'
+        )
+
+        # Initialize with random starting point or provided initial guess
+        initial_guess = kwargs.get('initial_guess')
+        if initial_guess is not None and len(initial_guess) == n_params:
+            x_best = np.array(initial_guess, dtype=float)
+            self.logger.info("Using provided initial guess for DDS")
+        else:
+            x_best = np.random.uniform(0, 1, n_params)
+
         f_best = evaluate_solution(x_best, 0)
 
         # Record initial state
@@ -72,11 +83,35 @@ class DDSAlgorithm(OptimizationAlgorithm):
         record_iteration(0, f_best, params_dict)
         update_best(f_best, params_dict, 0)
 
+        # Stagnation detection settings
+        stagnation_threshold = self._get_config_value(
+            lambda: self.config.optimization.dds.stagnation_threshold,
+            default=100, dict_key='DDS_STAGNATION_THRESHOLD'
+        )
+        iterations_since_improvement = 0
+
+        # Initialize current perturbation range
+        current_r = r
+
         # DDS main loop
         for iteration in range(1, self.max_iterations + 1):
+            # Stagnation detection: if no improvement for many iterations,
+            # increase perturbation to explore more
+            if iterations_since_improvement >= stagnation_threshold:
+                current_r = min(r * 2.0, 0.5)  # Double r but cap at 0.5
+                if iterations_since_improvement == stagnation_threshold:
+                    self.logger.debug(
+                        f"DDS stagnation detected at iteration {iteration} "
+                        f"(no improvement for {iterations_since_improvement} iterations). "
+                        f"Increasing perturbation to {current_r:.3f}"
+                    )
+            else:
+                current_r = r
+
             # Calculate probability of perturbation (decreases with iterations)
+            # Use p_min to maintain minimum exploration capability throughout optimization
             p = 1.0 - np.log(iteration) / np.log(self.max_iterations)
-            p = max(1.0 / n_params, p)  # Ensure at least one parameter is perturbed
+            p = max(p_min, max(1.0 / n_params, p))  # Ensure minimum perturbation probability
 
             # Select parameters to perturb
             perturb_mask = np.random.random(n_params) < p
@@ -90,7 +125,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
 
             for i in range(n_params):
                 if perturb_mask[i]:
-                    perturbation = r * np.random.standard_normal()
+                    perturbation = current_r * np.random.standard_normal()
                     x_new[i] = x_best[i] + perturbation
 
                     # Reflect at boundaries
@@ -109,14 +144,18 @@ class DDSAlgorithm(OptimizationAlgorithm):
             if f_new > f_best:
                 x_best = x_new
                 f_best = f_new
+                iterations_since_improvement = 0
+            else:
+                iterations_since_improvement += 1
 
             # Record results
             params_dict = denormalize_params(x_best)
             record_iteration(iteration, f_best, params_dict)
             update_best(f_best, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, f_best)
+            # Log progress every 10 iterations or at the end to reduce log spam
+            if iteration % 10 == 0 or iteration == self.max_iterations:
+                log_progress(self.name, iteration, f_best)
 
         return {
             'best_solution': x_best,

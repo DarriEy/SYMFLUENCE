@@ -65,8 +65,33 @@ class FUSEParameterManager(BaseParameterManager):
         return self.fuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return FUSE parameter bounds from central registry."""
-        return get_fuse_bounds()
+        """
+        Return FUSE parameter bounds, preferring config values over registry defaults.
+
+        Priority:
+        1. FUSE_PARAM_BOUNDS from config (user-specified)
+        2. Registry defaults for any parameters not in config
+        """
+        # Get registry defaults first
+        bounds = get_fuse_bounds()
+
+        # Check for user-specified bounds in config
+        # Use config_dict to handle both typed and dict configs
+        config_bounds = self.config_dict.get('FUSE_PARAM_BOUNDS')
+
+        if config_bounds:
+            self.logger.info("Using FUSE_PARAM_BOUNDS from config (overriding registry defaults)")
+            for param_name, param_bounds in config_bounds.items():
+                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    bounds[param_name] = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
+                    self.logger.debug(f"  {param_name}: [{param_bounds[0]}, {param_bounds[1]}]")
+                elif isinstance(param_bounds, dict) and 'min' in param_bounds and 'max' in param_bounds:
+                    bounds[param_name] = {'min': float(param_bounds['min']), 'max': float(param_bounds['max'])}
+                    self.logger.debug(f"  {param_name}: [{param_bounds['min']}, {param_bounds['max']}]")
+                else:
+                    self.logger.warning(f"Invalid bounds format for {param_name}: {param_bounds}")
+
+        return bounds
 
     def _get_default_fuse_bounds(self) -> Dict[str, Dict[str, float]]:
         """Get central registry defaults for FUSE parameters."""
@@ -94,9 +119,16 @@ class FUSEParameterManager(BaseParameterManager):
                 self.logger.error(f"FUSE constraints file not found: {constraints_file}")
                 return False
 
-            # Read the constraints file
-            with open(constraints_file, 'r') as f:
-                lines = f.readlines()
+            # Read the constraints file with encoding fallback
+            try:
+                with open(constraints_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                self.logger.warning(
+                    f"UTF-8 decode error reading {constraints_file}, falling back to latin-1"
+                )
+                with open(constraints_file, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
 
             # Fortran format: (L1,1X,I1,1X,3(F9.3,1X),...)
             # Default value column: position 4-12 (9 chars, F9.3 format)

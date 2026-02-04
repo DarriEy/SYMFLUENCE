@@ -152,11 +152,14 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
-# Fix for conda GCC 14: explicitly link libstdc++ to resolve __cxa_call_terminate
-# This is needed because conda's GCC uses a separate libstdc++ that may not be auto-linked
-if [ -n "$CONDA_PREFIX" ]; then
+# Fix for conda GCC 14: explicitly link against conda's libstdc++ to resolve __cxa_call_terminate
+# conda's GCC 14 emits __cxa_call_terminate which only exists in its own libstdc++
+# We must pass this through CMAKE_EXE_LINKER_FLAGS since CMake ignores LDFLAGS for the final link
+CONDA_LINKER_CMAKE_ARGS=""
+if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
     EXTRA_LIBS="-lstdc++"
-    echo "Adding -lstdc++ for conda GCC 14 compatibility"
+    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${CONDA_PREFIX}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${CONDA_PREFIX}/lib -lstdc++'"
+    echo "Adding conda libstdc++ linker flags for GCC 14 compatibility"
 fi
 
 # Add UDUNITS2 paths if available (from detection/build snippet)
@@ -229,8 +232,8 @@ else
 fi
 
 # Configure ngen
-echo "Running CMake with args: $CMAKE_ARGS"
-if cmake $CMAKE_ARGS -S . -B cmake_build 2>&1 | tee cmake_config.log; then
+echo "Running CMake with args: $CMAKE_ARGS $CONDA_LINKER_CMAKE_ARGS"
+if eval cmake $CMAKE_ARGS $CONDA_LINKER_CMAKE_ARGS -S . -B cmake_build 2>&1 | tee cmake_config.log; then
   echo "ngen configured successfully"
 else
   echo "CMake configuration failed, checking log..."
@@ -247,6 +250,8 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_SQLITE3=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
+
+  # Conda linker flags are in CONDA_LINKER_CMAKE_ARGS (set above)
 
   # Add UDUNITS2 paths to fallback as well
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
@@ -269,7 +274,7 @@ else
     echo "Fallback: keeping Fortran BMI support with iso_c_bmi wrapper"
   fi
 
-  cmake $FALLBACK_ARGS -S . -B cmake_build
+  eval cmake $FALLBACK_ARGS $CONDA_LINKER_CMAKE_ARGS -S . -B cmake_build
 fi
 
 # Build ngen executable

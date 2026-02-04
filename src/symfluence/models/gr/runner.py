@@ -148,7 +148,7 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
 
         # Store provided parameters in instance variables (not config_dict which is read-only)
         if params:
-            self.logger.info(f"Using external parameters for calibration: {params}")
+            self.logger.debug(f"Using external parameters for calibration: {params}")
             self._external_params = params
             self._skip_calibration = True
 
@@ -158,6 +158,7 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
             error_type=ModelExecutionError
         ):
             # Create output directory
+            self.logger.debug(f"GR model output will be written to: {self.output_path}")
             self.output_path.mkdir(parents=True, exist_ok=True)
 
             # Execute GR model
@@ -171,7 +172,7 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
                 success = self._run_distributed_routing()
 
             if success:
-                self.logger.info("GR model run completed successfully")
+                self.logger.debug("GR model run completed successfully")
 
                 # Calculate and log metrics for the run
                 self._calculate_and_log_metrics()
@@ -184,12 +185,12 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
     def _calculate_and_log_metrics(self) -> None:
         """Calculate and log performance metrics for the model run."""
         try:
-            from symfluence.evaluation.evaluators.gr_streamflow import GRStreamflowEvaluator
+            from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 
-            self.logger.info("Calculating performance metrics...")
+            self.logger.debug("Calculating performance metrics...")
 
             # Initialize evaluator with correct project directory
-            evaluator = GRStreamflowEvaluator(
+            evaluator = StreamflowEvaluator(
                 self.config if hasattr(self, 'config') and self.config else self.config_dict,
                 project_dir=self.project_dir,
                 logger=self.logger
@@ -397,12 +398,19 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
                         ZInputs = {Zmean}
                     )
 
-                    # Parse dates
+                    # Parse dates and validate indices
                     date_vector <- format(as.Date(BasinObs$time), "%Y-%m-%d")
 
-                    # Find indices
+                    # Find indices with validation
                     Ind_Warm <- which(date_vector >= "{spinup_start}" & date_vector <= "{spinup_end}")
                     Ind_Run <- which(date_vector >= "{run_start}" & date_vector <= "{run_end}")
+
+                    # Validate date ranges overlap with forcing data
+                    if (length(Ind_Run) < 1) {{
+                        forcing_range <- paste(min(as.Date(date_vector)), "to", max(as.Date(date_vector)))
+                        stop(paste0("GR date mismatch for HRU {hru_id}: Requested {run_start} to {run_end} ",
+                                   "but forcing data covers ", forcing_range))
+                    }}
 
                     # Use parameters
                     Param <- {param_str}
@@ -454,6 +462,15 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
 
             # Convert to xarray Dataset (mizuRoute format)
             self._save_distributed_results_for_routing(results_pivot, ds)
+
+            # Verify output file was actually created
+            output_nc = self.output_path / f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
+            if not output_nc.exists():
+                self.logger.error(
+                    f"GR model completed but output file was not created: {output_nc}. "
+                    "Check that simulation dates overlap with forcing data."
+                )
+                return False
 
             return True
 
@@ -709,8 +726,8 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
                 # Convert time column to POSIXct format
                 BasinObs$time_posix <- as.POSIXct(BasinObs$time)
 
-                # Create a safer date matching function
-                find_date_indices <- function(start_date, end_date, date_vector) {{
+                # Create a safer date matching function that throws an error on failure
+                find_date_indices <- function(start_date, end_date, date_vector, period_name) {{
                     date_vector_as_date <- as.Date(date_vector)
                     start_date_as_date <- as.Date(start_date)
                     end_date_as_date <- as.Date(end_date)
@@ -719,8 +736,11 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
                                     date_vector_as_date <= end_date_as_date)
 
                     if (length(indices) < 1) {{
-                        cat("WARNING: No dates found in range", start_date, "to", end_date, "\\n")
-                        return(NULL)
+                        forcing_range <- paste(min(date_vector_as_date), "to", max(date_vector_as_date))
+                        requested_range <- paste(start_date, "to", end_date)
+                        stop(paste0("GR date mismatch for ", period_name, " period: ",
+                                   "Requested ", requested_range, " but forcing data covers ", forcing_range,
+                                   ". Check SIMULATION_START/END and SPINUP/CALIBRATION periods in config."))
                     }}
 
                     return(indices)
@@ -729,9 +749,9 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
                 # Determine periods
                 date_vector <- format(as.Date(BasinObs$time), "%Y-%m-%d")
 
-                Ind_Warm <- find_date_indices("{spinup_start}", "{spinup_end}", date_vector)
-                Ind_Cal <- find_date_indices("{calib_start}", "{calib_end}", date_vector)
-                Ind_Run <- find_date_indices("{run_start}", "{run_end}", date_vector)
+                Ind_Warm <- find_date_indices("{spinup_start}", "{spinup_end}", date_vector, "spinup")
+                Ind_Cal <- find_date_indices("{calib_start}", "{calib_end}", date_vector, "calibration")
+                Ind_Run <- find_date_indices("{run_start}", "{run_end}", date_vector, "simulation")
 
                 # Preparation of InputsModel object
                 InputsModel <- CreateInputsModel(
@@ -822,7 +842,17 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
 
             # Execute the R script
             robjects.r(r_script)
-            self.logger.info("R script executed successfully!")
+            self.logger.debug("R script executed successfully!")
+
+            # Verify output file was actually created
+            output_csv = self.output_path / 'GR_results.csv'
+            if not output_csv.exists():
+                self.logger.error(
+                    f"GR model completed but output file was not created: {output_csv}. "
+                    "Check that simulation dates overlap with forcing data."
+                )
+                return False
+
             return True
 
         except Exception as e:

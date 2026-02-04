@@ -293,30 +293,24 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
     def _get_time_hours(self) -> List[str]:
         """Generate hourly time strings for CDS request based on dataset resolution.
 
-        This method creates the list of hours to request from the CDS API. It handles:
-        - Extracting unique hours from the full date range
-        - Respecting the dataset's native temporal resolution (1h, 3h, etc.)
-        - Returning sorted, unique hour strings for the API
+        Returns all valid hours at the dataset's native temporal resolution,
+        always aligned to midnight (00:00). This ensures compatibility with
+        CDS API constraints where analysis products are only available at
+        fixed intervals from 00:00 (e.g., 00:00, 03:00, 06:00 for 3-hourly).
 
-        The CDS API requires explicit hour strings (e.g., ['00:00', '03:00', '06:00']).
-        Rather than hardcoding hours, this method derives them from the date range
-        to ensure only relevant times are requested.
+        The experiment's start/end hour offset does not affect which hours
+        are requested — temporal subsetting to the exact range happens after
+        download during post-processing.
 
         Returns:
             List[str]: Hours as strings like ['00:00', '03:00', '06:00', ...]
 
         Example:
-            For CARRA (3-hourly) from 2015-01-05 to 2015-01-06:
+            For CARRA (3-hourly):
             Returns: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00']
         """
         resolution = self._get_temporal_resolution()
-        if not self.start_date or not self.end_date:
-            return [f"{h:02d}:00" for h in range(0, 24, resolution)]
-        times = pd.date_range(self.start_date, self.end_date, freq=f"{resolution}h")
-        if times.empty:
-            return [f"{self.start_date:%H}:00"]
-        hours = sorted({t.strftime("%H:00") for t in times})
-        return hours
+        return [f"{h:02d}:00" for h in range(0, 24, resolution)]
 
     def _build_analysis_request(
         self, years: List[int], months: List[str], days: List[str], hours: List[str]

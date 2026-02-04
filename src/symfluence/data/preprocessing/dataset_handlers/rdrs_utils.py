@@ -6,7 +6,7 @@ It handles RDRS variable mappings, unit conversions, grid structure, and shapefi
 """
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 import os
 import xarray as xr
 import pandas as pd
@@ -51,10 +51,16 @@ class RDRSHandler(BaseDatasetHandler):
         Returns:
             Processed dataset with standardized variables and units
         """
-        # Rename variables
+        # Rename variables, handling cases where multiple source vars map to the same target
         variable_mapping = self.get_variable_mapping()
-        existing_vars = {old: new for old, new in variable_mapping.items() if old in ds.variables}
-        ds = ds.rename(existing_vars)
+        # Build rename dict: only include sources present in dataset, skip if target already exists
+        rename_dict = {}
+        targets_seen = set(ds.variables)  # track existing + already-claimed target names
+        for old, new in variable_mapping.items():
+            if old in ds.variables and new not in targets_seen:
+                rename_dict[old] = new
+                targets_seen.add(new)
+        ds = ds.rename(rename_dict)
 
         # Apply unit conversions (must happen before attribute setting)
         if 'airpres' in ds:
@@ -75,7 +81,7 @@ class RDRSHandler(BaseDatasetHandler):
 
         if 'windspd' in ds:
             # RDRS v2.1 uses knots, but v3.1 uses m/s
-            if 'UVC' in existing_vars: # v3.1 names
+            if 'UVC' in rename_dict: # v3.1 names
                 pass
             else:
                 ds['windspd'] = ds['windspd'] * 0.514444
@@ -101,10 +107,116 @@ class RDRSHandler(BaseDatasetHandler):
         """RDRS requires merging of daily files into monthly files."""
         return True
 
+    def _detect_consolidated_file(self, raw_forcing_path: Path) -> Optional[Path]:
+        """
+        Check if raw forcing data is a single consolidated file (from cloud download).
+
+        Returns:
+            Path to consolidated file if found, None otherwise
+        """
+        patterns = [
+            f"domain_{self.domain_name}_RDRS_*.nc",
+            f"{self.domain_name}_RDRS_*.nc",
+            "*RDRS*.nc",
+        ]
+        for pattern in patterns:
+            matches = sorted(raw_forcing_path.glob(pattern))
+            if len(matches) == 1:
+                return matches[0]
+        return None
+
+    def _has_daily_files(self, raw_forcing_path: Path, start_year: int, end_year: int) -> bool:
+        """Check if raw forcing data is organized as daily files in year subdirectories."""
+        for year in range(start_year - 1, end_year + 1):
+            year_folder = raw_forcing_path / str(year)
+            if year_folder.exists():
+                return True
+        return False
+
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
                       start_year: int, end_year: int) -> None:
         """
         Merge RDRS forcing data files into monthly files.
+
+        Handles two acquisition formats:
+        - Cloud download: single consolidated NetCDF split into monthly files
+        - Traditional download: daily files in year subdirectories merged into monthly files
+
+        Args:
+            raw_forcing_path: Path to raw RDRS data
+            merged_forcing_path: Path where merged monthly files will be saved
+            start_year: Start year for processing
+            end_year: End year for processing
+        """
+        self.logger.info("Starting to merge RDRS forcing data")
+        merged_forcing_path.mkdir(parents=True, exist_ok=True)
+
+        consolidated_file = self._detect_consolidated_file(raw_forcing_path)
+
+        if consolidated_file and not self._has_daily_files(raw_forcing_path, start_year, end_year):
+            self._merge_from_consolidated(consolidated_file, merged_forcing_path, start_year, end_year)
+        else:
+            self._merge_from_daily_files(raw_forcing_path, merged_forcing_path, start_year, end_year)
+
+        self.logger.info("RDRS forcing data merging completed")
+
+    def _merge_from_consolidated(self, consolidated_file: Path, merged_forcing_path: Path,
+                                  start_year: int, end_year: int) -> None:
+        """
+        Split a single consolidated RDRS file (from cloud download) into monthly files.
+
+        Args:
+            consolidated_file: Path to the consolidated NetCDF file
+            merged_forcing_path: Path where monthly files will be saved
+            start_year: Start year for processing
+            end_year: End year for processing
+        """
+        self.logger.info(f"Processing consolidated cloud file: {consolidated_file.name}")
+
+        ds = xr.open_dataset(consolidated_file)
+        ds = self.process_dataset(ds)
+
+        years = range(start_year - 1, end_year + 1)
+
+        for year in years:
+            for month in range(1, 13):
+                start_time = pd.Timestamp(year, month, 1)
+                if month == 12:
+                    end_time = pd.Timestamp(year + 1, 1, 1) - pd.Timedelta(hours=1)
+                else:
+                    end_time = pd.Timestamp(year, month + 1, 1) - pd.Timedelta(hours=1)
+
+                # Select time slice for this month
+                monthly_data = ds.sel(time=slice(str(start_time), str(end_time)))
+
+                if monthly_data.sizes['time'] == 0:
+                    self.logger.debug(f"No data for {year}-{month:02d}, skipping")
+                    continue
+
+                # Ensure complete hourly time series and fill gaps
+                expected_times = pd.date_range(start=start_time, end=end_time, freq='h')
+                monthly_data = monthly_data.reindex(time=expected_times)
+                monthly_data = monthly_data.interpolate_na(dim='time', method='linear')
+                monthly_data = monthly_data.ffill(dim='time').bfill(dim='time')
+
+                # Set time encoding and metadata
+                monthly_data = self.setup_time_encoding(monthly_data)
+                monthly_data = self.add_metadata(
+                    monthly_data,
+                    'RDRS data split from consolidated file into monthly files and variables standardized'
+                )
+                monthly_data = self.clean_variable_attributes(monthly_data)
+
+                output_file = merged_forcing_path / f"RDRS_monthly_{year}{month:02d}.nc"
+                monthly_data.to_netcdf(output_file)
+                self.logger.info(f"Saved monthly file: {output_file.name}")
+
+        ds.close()
+
+    def _merge_from_daily_files(self, raw_forcing_path: Path, merged_forcing_path: Path,
+                                 start_year: int, end_year: int) -> None:
+        """
+        Merge daily RDRS files from year subdirectories into monthly files.
 
         Args:
             raw_forcing_path: Path to raw RDRS data organized by year
@@ -112,12 +224,10 @@ class RDRSHandler(BaseDatasetHandler):
             start_year: Start year for processing
             end_year: End year for processing
         """
-        self.logger.info("Starting to merge RDRS forcing data")
+        self.logger.info("Processing daily files from year subdirectories")
 
         years = range(start_year - 1, end_year + 1)
         file_name_pattern = f"domain_{self.domain_name}_*.nc"
-
-        merged_forcing_path.mkdir(parents=True, exist_ok=True)
 
         for year in years:
             self.logger.debug(f"Processing RDRS year {year}")
@@ -211,8 +321,6 @@ class RDRSHandler(BaseDatasetHandler):
                 # Clean up
                 for ds in datasets:
                     ds.close()
-
-        self.logger.info("RDRS forcing data merging completed")
 
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:

@@ -74,6 +74,7 @@ class BinaryService(BaseService):
         symfluence_instance=None,
         force: bool = False,
         dry_run: bool = False,
+        patched: bool = False,
     ) -> Dict[str, Any]:
         """
         Clone and install external tool repositories with dependency resolution.
@@ -83,6 +84,7 @@ class BinaryService(BaseService):
             symfluence_instance: Optional SYMFLUENCE instance with config.
             force: If True, reinstall even if already exists.
             dry_run: If True, only show what would be done.
+            patched: If True, apply SYMFLUENCE patches (e.g., RHESSys GW recharge).
 
         Returns:
             Dictionary with installation results.
@@ -92,6 +94,7 @@ class BinaryService(BaseService):
             symfluence_instance=symfluence_instance,
             force=force,
             dry_run=dry_run,
+            patched=patched,
         )
 
     def install(
