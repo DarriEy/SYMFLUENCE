@@ -321,7 +321,8 @@ cd ngiab
             'file_paths': ['guide.sh'],
             'check_type': 'exists'
         },
-        'order': 10
+        'order': 10,
+        'optional': True,  # Not installed by default with --install
     })
 
 
@@ -348,6 +349,7 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.wmfire.build_instructions',
         'symfluence.models.rhessys.build_instructions',
         'symfluence.models.ignacio.build_instructions',
+        'symfluence.models.vic.build_instructions',
     ]
 
     for module_name in model_modules:

@@ -84,11 +84,11 @@ detect_2i2c_environment() {
 
 setup_2i2c_conda_env() {
     # Set up a conda environment for 2i2c that:
-    # 1. Uses /tmp for storage (overlay filesystem has space)
+    # 1. Lives in the repo root (.conda-env) for persistence across sessions
     # 2. Installs GDAL and rpy2 via conda (pre-built, no compilation)
     # 3. Sets system compilers to avoid broken conda gcc
 
-    local env_path="${1:-/tmp/symfluence}"
+    local env_path="${1:-.conda-env}"
 
     print_info "Setting up 2i2c-compatible conda environment at: $env_path"
 
@@ -104,9 +104,9 @@ setup_2i2c_conda_env() {
     # and udunits2/expat (for ngen)
     if [[ ! -d "$env_path" ]]; then
         print_info "Creating conda environment with GDAL, compilers, and build tools..."
-        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat openblas -c conda-forge -y || {
             print_warning "Full conda env creation failed, trying minimal..."
-            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
+            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat openblas -c conda-forge -y || {
                 print_error "Failed to create conda environment"
                 return 1
             }
@@ -881,15 +881,16 @@ main() {
 
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             # 2i2c environments need special handling:
-            # - Use /tmp for conda env (home often has quota limits)
+            # - Create conda env in repo root for persistence across sessions
             # - Install GDAL/rpy2 via conda (avoid compilation issues)
             # - Use system compilers (conda gcc often broken)
             print_info "Using 2i2c-optimized installation path"
-            setup_2i2c_conda_env "/tmp/symfluence" || {
+            local conda_env_path="${symfluence_dir}/.conda-env"
+            setup_2i2c_conda_env "$conda_env_path" || {
                 print_error "2i2c environment setup failed"
                 print_info "You may need to manually run:"
-                print_info "  conda create -p /tmp/symfluence python=3.11 gdal numpy -c conda-forge -y"
-                print_info "  conda activate /tmp/symfluence"
+                print_info "  conda create -p ${conda_env_path} python=3.11 gdal numpy -c conda-forge -y"
+                print_info "  conda activate ${conda_env_path}"
                 print_info "  pip install -e . --no-deps"
                 exit 1
             }
@@ -916,13 +917,15 @@ main() {
 
         # Clear PYTHONPATH to isolate environment
         if [[ -n "$PYTHONPATH" ]]; then
-            print_warning "Clearing PYTHONPATH to isolate venv"
+            print_warning "Clearing PYTHONPATH to isolate environment"
             export PYTHONPATH=""
         fi
-        # Make clearing persistent for future activations
-        if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
-            if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
-                cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
+
+        if [[ "$IS_2I2C_ENVIRONMENT" != "true" ]]; then
+            # Make clearing persistent for future activations (pip venv only)
+            if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
+                if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
+                    cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
 
 # Clear PYTHONPATH to prevent system package conflicts
 if [ -n "$PYTHONPATH" ]; then
@@ -930,12 +933,13 @@ if [ -n "$PYTHONPATH" ]; then
     unset PYTHONPATH
 fi
 EOF
-            else
-                print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
+                else
+                    print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
+                fi
             fi
-        fi
 
-        resolve_python_scripts_path "$python_cmd" "$venv_path"
+            resolve_python_scripts_path "$python_cmd" "$venv_path"
+        fi
 
         print_info "Upgrading pip and preparing environment..."
         # Always use python -m pip to ensure correct Python version is used
@@ -976,13 +980,21 @@ else:
         if [[ -f "$req_file" ]]; then
             if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
                 # 2i2c: GDAL and rpy2 already installed via conda, skip them in pip
-                print_info "Installing pip dependencies (excluding conda-provided packages)..."
+                # Also exclude torch from requirements - install CPU-only version separately
+                # to avoid pulling ~5-8 GB of CUDA/nvidia packages
+                print_info "Installing pip dependencies (excluding conda-provided and torch packages)..."
                 local filtered_req="/tmp/requirements_filtered.txt"
-                grep -viE "^(gdal|rpy2)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
+                grep -viE "^(gdal|rpy2|torch)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
                 python -m pip install -r "$filtered_req" || {
                     print_error "Dependency installation failed"; exit 1;
                 }
                 rm -f "$filtered_req"
+                # Install CPU-only PyTorch to save ~5-8 GB of disk space
+                print_info "Installing CPU-only PyTorch (saving disk space)..."
+                python -m pip install torch --index-url https://download.pytorch.org/whl/cpu || {
+                    print_warning "CPU-only PyTorch installation failed, trying default..."
+                    python -m pip install torch || print_warning "PyTorch installation failed (continuing)"
+                }
             else
                 # Use enhanced installer that handles rpy2/GDAL specially
                 install_python_requirements "$req_file" "false" || {
@@ -1027,7 +1039,7 @@ else:
         # Re-export 2i2c compiler settings before binary install (ensures they persist)
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             print_info "Ensuring 2i2c compiler settings for binary builds..."
-            local conda_env="${CONDA_ENV_PATH:-/tmp/symfluence}"
+            local conda_env="${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
             local conda_gcc="${conda_env}/bin/x86_64-conda-linux-gnu-gcc"
             local conda_gxx="${conda_env}/bin/x86_64-conda-linux-gnu-g++"
             local conda_fc="${conda_env}/bin/x86_64-conda-linux-gnu-gfortran"
@@ -1064,9 +1076,7 @@ else:
         echo ""
         print_success "Installation complete!"
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
-            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-/tmp/symfluence}"
-            print_warning "Note: /tmp environment won't persist across server restarts"
-            print_info "Re-run './scripts/symfluence-bootstrap --install' after JupyterHub restarts"
+            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
         else
             print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
         fi

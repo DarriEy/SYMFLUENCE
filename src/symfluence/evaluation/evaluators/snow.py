@@ -347,6 +347,9 @@ class SnowEvaluator(ModelEvaluator):
                 self.project_dir / "observations" / "snow" / "swe" / "preprocessed" / f"{self.domain_name}_swe_processed.csv",
                 self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
                 self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv",
+                # CanSWE/NorSWE specific paths
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_canswe_swe_processed.csv",
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_norswe_swe_processed.csv",
             ]
             for p in paths:
                 if p.exists(): return p
@@ -386,11 +389,11 @@ class SnowEvaluator(ModelEvaluator):
         if self.optimization_target == 'swe':
             # Check for exact match first
             for col in columns:
-                if col.lower() == 'swe':
+                if col.lower() in ['swe', 'swe_mm']:
                     return col
             # Then check for patterns
             for col in columns:
-                if any(term in col.lower() for term in ['swe', 'snow_water_equivalent', 'value', 'water_equiv']):
+                if any(term in col.lower() for term in ['swe', 'swe_mm', 'snow_water_equivalent', 'value', 'water_equiv']):
                     return col
         elif self.optimization_target == 'sca':
             for col in columns:

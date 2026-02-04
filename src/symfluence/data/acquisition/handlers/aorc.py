@@ -177,7 +177,32 @@ class AORCAcquirer(BaseAcquisitionHandler):
                     lon_min, lon_max = (lon1 + 360.0) % 360.0, (lon2 + 360.0) % 360.0
                 else:
                     lon_min, lon_max = lon1, lon2
-                ds_subset = ds.sel(latitude=slice(self.bbox['lat_min'], self.bbox['lat_max']), longitude=slice(lon_min, lon_max))
+
+                # Check if this is a point-scale domain (bbox smaller than grid resolution)
+                bbox_lat_range = abs(self.bbox['lat_max'] - self.bbox['lat_min'])
+                bbox_lon_range = abs(lon_max - lon_min)
+                # AORC resolution is ~0.008-0.01 degrees; threshold at 0.01 degrees
+                is_point_scale = (bbox_lat_range < 0.01) or (bbox_lon_range < 0.01)
+
+                if is_point_scale:
+                    # Point-scale: use nearest-neighbor selection to get single grid cell
+                    # Keep as size-1 dimensions to maintain coordinate structure
+                    lat_center = (self.bbox['lat_min'] + self.bbox['lat_max']) / 2
+                    lon_center = (lon_min + lon_max) / 2
+                    self.logger.info(f"Point-scale domain detected (bbox: {bbox_lat_range:.4f}° x {bbox_lon_range:.4f}°). Using nearest-neighbor selection at ({lat_center:.4f}, {lon_center:.4f})")
+
+                    # Find nearest indices
+                    lat_idx = abs(ds['latitude'] - lat_center).argmin().values
+                    lon_idx = abs(ds['longitude'] - lon_center).argmin().values
+
+                    # Select single cell using isel to preserve dimensions
+                    ds_subset = ds.isel(latitude=slice(lat_idx, lat_idx+1), longitude=slice(lon_idx, lon_idx+1))
+                    self.logger.info(f"Selected nearest cell: lat={ds_subset.latitude.values[0]:.4f}, lon={ds_subset.longitude.values[0]:.4f}")
+                else:
+                    # Watershed-scale: use slice-based subsetting for spatial region
+                    self.logger.info(f"Watershed-scale domain detected (bbox: {bbox_lat_range:.4f}° x {bbox_lon_range:.4f}°). Using slice-based subsetting")
+                    ds_subset = ds.sel(latitude=slice(self.bbox['lat_min'], self.bbox['lat_max']), longitude=slice(lon_min, lon_max))
+
                 ds_subset = ds_subset.sel(time=slice(max(self.start_date, pd.Timestamp(f'{year}-01-01')), min(self.end_date, pd.Timestamp(f'{year}-12-31 23:59:59'))))
                 if len(ds_subset.time) > 0: datasets.append(ds_subset)
             except Exception as e:

@@ -27,6 +27,8 @@ class PathsConfig(BaseModel):
     catchment_lat: str = Field(default='center_lat', alias='CATCHMENT_SHP_LAT')
     catchment_lon: str = Field(default='center_lon', alias='CATCHMENT_SHP_LON')
     catchment_area: str = Field(default='HRU_area', alias='CATCHMENT_SHP_AREA')
+    catchment_elev: str = Field(default='elev_mean', alias='CATCHMENT_SHP_ELEV')
+    catchment_slope: str = Field(default='slope', alias='CATCHMENT_SHP_SLOPE')
     catchment_hruid: str = Field(default='HRU_ID', alias='CATCHMENT_SHP_HRUID')
     catchment_gruid: str = Field(default='GRU_ID', alias='CATCHMENT_SHP_GRUID')
 

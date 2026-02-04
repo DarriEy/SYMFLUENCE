@@ -115,7 +115,7 @@ class GRWorker(BaseWorker):
             # So params is NOT passed by default in BaseWorker unless it's in additional_data.
             # We need to ensure params are passed.
             if params:
-                self.logger.info(f"Worker received params: {params}")
+                self.logger.debug(f"Worker received params: {params}")
             else:
                 self.logger.warning("Worker run_model received NO params!")
 

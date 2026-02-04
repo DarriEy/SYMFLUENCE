@@ -66,7 +66,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             if obs_series is not None:
                 # Resample to daily frequency (mean) to match GR output frequency
                 obs_daily = obs_series.resample('D').mean()
-                self.logger.info(f"Resampled observations from {len(obs_series)} to {len(obs_daily)} daily values")
+                self.logger.debug(f"Resampled observations from {len(obs_series)} to {len(obs_daily)} daily values")
                 return obs_daily
 
             return obs_series
@@ -107,7 +107,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             pd.Series: Daily streamflow (m³/s)
         """
         sim_file = sim_files[0]
-        self.logger.info(f"Extracting simulated streamflow from: {sim_file}")
+        self.logger.debug(f"Extracting simulated streamflow from: {sim_file}")
 
         if sim_file.suffix == '.csv':
             return self._extract_lumped_gr_streamflow(sim_file)
@@ -271,7 +271,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
                 self.logger.debug(f"Catchment area calculated from geometry: {area_m2:.2f} m2")
                 return float(area_m2)
             else:
-                self.logger.warning(f"Catchment file not found: {catchment_file}")
+                self.logger.debug(f"Catchment file not found: {catchment_file}")
         except Exception as e:
             self.logger.debug(f"Error calculating area from shapefile: {e}")
 

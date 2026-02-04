@@ -26,6 +26,20 @@ class NgenStreamflowTarget(StreamflowEvaluator):
     def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
         self.station_id = config.get('STATION_ID', None)
+        # Cache for nexus areas to avoid repeated file reads during calibration
+        self._nexus_areas_cache: Optional[Dict[str, float]] = None
+        # Get configurable timestep (default 3600s = 1 hour)
+        self._timestep_seconds = self._get_config_value(
+            lambda: self.config.forcing.time_step_size,
+            default=3600,
+            dict_key='FORCING_TIME_STEP_SIZE'
+        )
+        # Get warm-up period in days (default 30 days for model spin-up)
+        self._warmup_days = self._get_config_value(
+            lambda: self.config.calibration.warmup_days,
+            default=30,
+            dict_key='CALIBRATION_WARMUP_DAYS'
+        )
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """
@@ -36,6 +50,19 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         2. Single nexus output (if CALIBRATION_NEXUS_ID specified)
         3. All nexus outputs summed (fallback - approximates basin total)
         """
+        # Detect lumped domain (single nexus) to avoid misleading routing warnings
+        is_lumped = False
+        try:
+            import json
+            nexus_file = self.project_dir / 'settings' / 'NGEN' / 'nexus.geojson'
+            if nexus_file.exists():
+                nexus_data = json.loads(nexus_file.read_text())
+                num_nexuses = len(nexus_data.get('features', []))
+                if num_nexuses == 1:
+                    is_lumped = True
+        except Exception:
+            is_lumped = False
+
         # Check for t-route outputs first (NetCDF format)
         troute_dir = sim_dir / "troute_output"
         if troute_dir.exists():
@@ -60,12 +87,15 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             target_files = [f for f in files if f.stem == f"{target_nexus}_output" or f.stem == target_nexus]
 
             if target_files:
-                self.logger.info(f"Using calibration nexus: {target_nexus}")
-                self.logger.warning(
-                    f"T-Route routing outputs not found. Using raw nexus output. "
-                    f"{target_nexus} will only show LOCAL catchment runoff, not accumulated upstream flow. "
-                    f"To enable proper routing, ensure NGEN_RUN_TROUTE: true in config and t-route is installed."
-                )
+                self.logger.debug(f"Using calibration nexus: {target_nexus}")
+                if is_lumped:
+                    self.logger.debug(
+                        "Lumped domain (single nexus). Using raw nexus output at outlet."
+                    )
+                else:
+                    self.logger.debug(
+                        f"Using raw nexus output for {target_nexus} (local catchment runoff)."
+                    )
                 return target_files
             else:
                 self.logger.warning(f"Configured CALIBRATION_NEXUS_ID '{target_nexus}' not found in output files. Available: {[f.stem for f in files[:10]]}")
@@ -73,8 +103,17 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 return files
 
         # If no CALIBRATION_NEXUS_ID specified, sum all nexuses
-        self.logger.info(f"No CALIBRATION_NEXUS_ID specified. Summing all {len(files)} nexus outputs")
-        self.logger.info("Note: For proper routed flow, enable t-route routing in config")
+        # This is only valid for single-nexus (lumped) domains
+        if len(files) > 1:
+            self.logger.warning(
+                f"CALIBRATION_NEXUS_ID not specified for multi-nexus domain ({len(files)} nexuses). "
+                f"Summing raw nexus outputs is NOT equivalent to routed outlet flow! "
+                f"For scientifically valid calibration of distributed domains, either: "
+                f"(1) Set CALIBRATION_NEXUS_ID to the outlet nexus, or "
+                f"(2) Enable t-route routing (NGEN_RUN_TROUTE: True)"
+            )
+        else:
+            self.logger.debug("Single nexus domain - using raw nexus output as outlet flow")
         return files
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
@@ -84,6 +123,8 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         Handles both:
         - T-Route routed outputs (NetCDF/Parquet format)
         - Raw NGEN nexus outputs (CSV format)
+
+        Applies warm-up period filtering if configured.
         """
         if not sim_files:
             return pd.Series(dtype=float)
@@ -91,16 +132,35 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         # Check if we have t-route outputs (NetCDF or Parquet)
         first_file = sim_files[0]
         if first_file.suffix in ['.nc', '.parquet']:
-            return self._extract_troute_data(sim_files)
+            flow_series = self._extract_troute_data(sim_files)
         else:
-            return self._extract_nexus_data(sim_files)
+            flow_series = self._extract_nexus_data(sim_files)
+
+        # Apply warm-up period filter to exclude model spin-up from calibration
+        if self._warmup_days > 0 and not flow_series.empty:
+            warmup_timesteps = int((self._warmup_days * 24 * 3600) / self._timestep_seconds)
+            if len(flow_series) > warmup_timesteps:
+                original_len = len(flow_series)
+                flow_series = flow_series.iloc[warmup_timesteps:]
+                self.logger.debug(
+                    f"Applied {self._warmup_days}-day warm-up filter: "
+                    f"{original_len} -> {len(flow_series)} timesteps"
+                )
+            else:
+                self.logger.warning(
+                    f"Warm-up period ({self._warmup_days} days = {warmup_timesteps} timesteps) "
+                    f"exceeds simulation length ({len(flow_series)} timesteps). "
+                    f"No warm-up filtering applied."
+                )
+
+        return flow_series
 
     def _extract_troute_data(self, troute_files: List[Path]) -> pd.Series:
         """Extract routed streamflow from t-route NetCDF/Parquet outputs."""
         import xarray as xr
 
         # Get target nexus ID (outlet)
-        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID', 'nex-57')  # Default to outlet
+        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
 
         try:
             # Read t-route output (typically NetCDF with time and feature_id dimensions)
@@ -121,9 +181,22 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
                     # Extract flow at target nexus
                     if 'feature_id' in ds.dims:
-                        # Find target nexus in feature_id dimension
-                        nexus_id_str = target_nexus.replace('nex-', '')  # May need to strip prefix
-                        flow_data = ds[flow_var].sel(feature_id=nexus_id_str)
+                        feature_ids = ds['feature_id'].values
+                        if target_nexus:
+                            nexus_id_str = target_nexus.replace('nex-', '')
+                            flow_data = ds[flow_var].sel(feature_id=nexus_id_str)
+                        else:
+                            # Auto-detect: use first feature_id if not configured
+                            if len(feature_ids) > 0:
+                                autodetect_id = str(feature_ids[0])
+                                flow_data = ds[flow_var].sel(feature_id=feature_ids[0])
+                                self.logger.warning(
+                                    "CALIBRATION_NEXUS_ID not set. Using first feature_id from t-route output "
+                                    f"({autodetect_id}). Set CALIBRATION_NEXUS_ID to avoid mis-targeting."
+                                )
+                            else:
+                                self.logger.warning("T-route output has no feature_id entries; using full series.")
+                                flow_data = ds[flow_var]
                     else:
                         # Single location or need to select differently
                         flow_data = ds[flow_var]
@@ -143,7 +216,11 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         return pd.Series(dtype=float)
 
     def _get_nexus_areas(self) -> Dict[str, float]:
-        """Load catchment areas mapped to nexus IDs from GeoJSON."""
+        """Load catchment areas mapped to nexus IDs from GeoJSON (cached)."""
+        # Return cached areas if available (avoids repeated file reads during calibration)
+        if self._nexus_areas_cache is not None:
+            return self._nexus_areas_cache
+
         try:
             import json
 
@@ -153,6 +230,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
             if not geojson_files:
                 self.logger.warning("No catchments GeoJSON found for area conversion")
+                self._nexus_areas_cache = {}
                 return {}
 
             geojson_path = geojson_files[0]
@@ -169,23 +247,31 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 toid = props.get('toid', '')  # This is the nexus ID
                 area_km2 = props.get('areasqkm', 0)
 
-                if toid and area_km2 > 0:
-                    # Normalize nexus ID (ensure it has nex- prefix)
-                    if not toid.startswith('nex-'):
-                        toid = f'nex-{toid}'
-                    nexus_areas[toid] = area_km2
+                # Validate area data
+                if not toid:
+                    continue
+                if area_km2 is None or not pd.notna(area_km2) or area_km2 <= 0:
+                    self.logger.debug(f"Invalid or missing area for {toid}: {area_km2}")
+                    continue
 
-            self.logger.info(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
+                # Normalize nexus ID (ensure it has nex- prefix)
+                if not toid.startswith('nex-'):
+                    toid = f'nex-{toid}'
+                nexus_areas[toid] = float(area_km2)
+
+            self.logger.debug(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
+            self._nexus_areas_cache = nexus_areas
             return nexus_areas
         except Exception as e:
             self.logger.warning(f"Error loading catchment areas: {e}")
+            self._nexus_areas_cache = {}
             return {}
 
     def _extract_nexus_data(self, nexus_files: List[Path]) -> pd.Series:
         """Extract streamflow from raw NGEN nexus CSV outputs."""
         all_streamflow = []
         nexus_areas = self._get_nexus_areas()
-        timestep_seconds = 3600  # Standard 1-hour timestep
+        timestep_seconds = self._timestep_seconds  # Use configurable timestep
 
         for nexus_file in nexus_files:
             try:
@@ -234,14 +320,18 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 # flow_depth (m) * area (km²) * (1e6 m²/km²) / timestep (s) = m³/s
                 nexus_id = nexus_file.stem.replace('_output', '')
 
-                # Check config to skip conversion
+                # Check config to skip conversion - this is the recommended explicit approach
                 is_flow_already = self.config_dict.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
 
-                if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
+                if is_flow_already:
+                    # Explicit config: trust user setting, no conversion needed
+                    self.logger.debug(f"No conversion for {nexus_id} (NGEN_CSV_OUTPUT_IS_FLOW=True)")
+                elif nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
                     area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
 
-                    # Heuristic: Check if conversion yields unreasonable values
-                    # This protects against cases where output IS flow but user didn't set flag
+                    # Heuristic-based unit detection - not recommended, may produce wrong results
+                    # NOTE: CFE with output_variable_units="m3/s" outputs flow directly
+                    # This heuristic is a fallback when NGEN_CSV_OUTPUT_IS_FLOW is not set
                     potential_flow = (flow_values * area_m2) / timestep_seconds
                     mean_raw = np.mean(flow_values)
                     mean_converted = np.mean(potential_flow)
@@ -249,22 +339,22 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     # Calculate conversion factor
                     conversion_factor = mean_converted / mean_raw if mean_raw > 0 else 1
 
-                    # Skip conversion if:
-                    # 1. Converted values are extremely large (> 100,000 m³/s), OR
-                    # 2. Conversion multiplies values by more than 100x (likely already in flow units)
+                    # Skip conversion if values suggest output is already in flow units
                     if mean_converted > 100000 or conversion_factor > 100:
                         self.logger.warning(
-                            f"Unit conversion for {nexus_id} appears unnecessary. "
-                            f"Raw mean: {mean_raw:.4f}, Converted mean: {mean_converted:.2f} (factor: {conversion_factor:.1f}x). "
-                            f"Assuming output is ALREADY flow (m³/s) and skipping conversion."
+                            f"Unit heuristic for {nexus_id}: output appears to already be in m³/s "
+                            f"(raw mean: {mean_raw:.4f}, conversion would multiply by {conversion_factor:.1f}x). "
+                            f"For explicit control, set NGEN_CSV_OUTPUT_IS_FLOW: True in config."
                         )
                         # Don't convert
                     else:
                         flow_values = potential_flow
-                        self.logger.debug(f"Converted {nexus_id} from depth to flow using area {nexus_areas[nexus_id]:.2f} km²")
+                        self.logger.info(
+                            f"Converted {nexus_id} from depth to flow using area {nexus_areas[nexus_id]:.2f} km². "
+                            f"If output was already in m³/s, set NGEN_CSV_OUTPUT_IS_FLOW: True to disable conversion."
+                        )
                 else:
-                    reason = "config NGEN_CSV_OUTPUT_IS_FLOW=True" if is_flow_already else "no area found"
-                    self.logger.debug(f"No conversion for {nexus_id} ({reason}), assuming units already in m³/s")
+                    self.logger.debug(f"No conversion for {nexus_id} (no area found), assuming m³/s")
 
                 s = pd.Series(
                     flow_values,

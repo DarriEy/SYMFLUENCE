@@ -352,7 +352,7 @@ class MESHConfigDefaults:
             'run_options': {
                 'flags': {
                     'etc': {
-                        'RUNMODE': 'wf_route',
+                        'RUNMODE': 'runrte',
                     },
                 },
             },

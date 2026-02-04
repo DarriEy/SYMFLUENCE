@@ -71,8 +71,14 @@ class ToolValidator(BaseService):
 
         config = self._load_config(symfluence_instance)
 
-        # Validate each tool
+        # Validate each tool (skip optional tools that aren't installed)
         for tool_name, tool_info in self.external_tools.items():
+            if tool_info.get('optional', False):
+                # Check if optional tool is installed before validating
+                data_dir = config.get("SYMFLUENCE_DATA_DIR", ".")
+                opt_path = Path(data_dir) / tool_info.get("default_path_suffix", "")
+                if not opt_path.exists():
+                    continue  # Skip optional tools that aren't installed
             self._console.newline()
             self._console.info(f"Checking {tool_name.upper()}:")
             tool_result = {
@@ -229,6 +235,9 @@ class ToolValidator(BaseService):
             exe_name = config[config_exe_key]
         else:
             exe_name = tool_info.get("default_exe", "")
+
+        if not exe_name:
+            return None
 
         # Handle shared library extension on macOS
         if exe_name.endswith(".so") and sys.platform == "darwin":

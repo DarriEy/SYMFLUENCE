@@ -496,6 +496,9 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'FORCING_RHESSYS_PATH': ('model', 'rhessys', 'forcing_path'),
     'RHESSYS_WORLD_TEMPLATE': ('model', 'rhessys', 'world_template'),
     'RHESSYS_FLOW_TEMPLATE': ('model', 'rhessys', 'flow_template'),
+    'RHESSYS_LNA_AREA_CAP_M2': ('model', 'rhessys', 'lna_area_cap_m2'),
+    'RHESSYS_LNA_MIN': ('model', 'rhessys', 'lna_min'),
+    'RHESSYS_LNA_MAX': ('model', 'rhessys', 'lna_max'),
     'RHESSYS_SKIP_CALIBRATION': ('model', 'rhessys', 'skip_calibration'),
     'RHESSYS_USE_WMFIRE': ('model', 'rhessys', 'use_wmfire'),
     'WMFIRE_INSTALL_PATH': ('model', 'rhessys', 'wmfire_install_path'),
@@ -527,6 +530,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'RHESSYS_USE_VMFIRE': ('model', 'rhessys', 'use_vmfire'),
     'VMFIRE_INSTALL_PATH': ('model', 'rhessys', 'vmfire_install_path'),
     'RHESSYS_TIMEOUT': ('model', 'rhessys', 'timeout'),
+    'RHESSYS_USE_GROW_MODE': ('model', 'rhessys', 'use_grow_mode'),
 
     # Model > GNN
     'GNN_LOAD': ('model', 'gnn', 'load'),

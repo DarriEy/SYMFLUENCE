@@ -135,6 +135,8 @@ class StreamflowEvaluator(ModelEvaluator):
         try:
             if self._is_mizuroute_output(sim_file):
                 return self._extract_mizuroute_streamflow(sim_file)
+            elif self._is_vic_output(sim_file):
+                return self._extract_vic_streamflow(sim_file)
             else:
                 return self._extract_summa_streamflow(sim_file)
         except Exception as e:
@@ -160,6 +162,73 @@ class StreamflowEvaluator(ModelEvaluator):
                 return any(var in ds.variables or var in ds.dims for var in mizuroute_vars)
         except (OSError, IOError, ValueError):
             return False
+
+    def _is_vic_output(self, sim_file: Path) -> bool:
+        """Detect if file contains VIC model output.
+
+        Args:
+            sim_file: Path to NetCDF file
+
+        Returns:
+            bool: True if VIC output format detected
+        """
+        try:
+            with xr.open_dataset(sim_file) as ds:
+                vic_vars = ['OUT_RUNOFF', 'OUT_BASEFLOW']
+                return any(var in ds.variables for var in vic_vars)
+        except (OSError, IOError, ValueError):
+            return False
+
+    def _extract_vic_streamflow(self, sim_file: Path) -> pd.Series:
+        """Extract streamflow from VIC model output.
+
+        VIC outputs surface runoff (OUT_RUNOFF) and baseflow (OUT_BASEFLOW)
+        in mm per output timestep. This method:
+        1. Sums runoff + baseflow
+        2. Averages over spatial dimensions (for distributed runs)
+        3. Converts mm/day to m³/s using catchment area
+
+        Args:
+            sim_file: Path to VIC output NetCDF
+
+        Returns:
+            pd.Series: Basin-scale streamflow time series (m³/s)
+
+        Raises:
+            ValueError: If no runoff variable found
+        """
+        with xr.open_dataset(sim_file) as ds:
+            runoff = None
+            baseflow = None
+
+            for var in ['OUT_RUNOFF', 'RUNOFF']:
+                if var in ds:
+                    runoff = ds[var]
+                    break
+            for var in ['OUT_BASEFLOW', 'BASEFLOW']:
+                if var in ds:
+                    baseflow = ds[var]
+                    break
+
+            if runoff is None:
+                raise ValueError("No runoff variable found in VIC output")
+
+            # Average over spatial dimensions (handles both lumped and distributed)
+            spatial_dims = [d for d in runoff.dims if d not in ['time']]
+            total_q_mm = runoff.mean(dim=spatial_dims)
+            if baseflow is not None:
+                total_q_mm = total_q_mm + baseflow.mean(dim=spatial_dims)
+
+            # Convert mm/day to m³/s: mm/day × area_m² / 1000 / 86400
+            catchment_area = self._get_catchment_area()  # m²
+            total_q_m3s = total_q_mm * catchment_area / 1000.0 / 86400.0
+
+            self.logger.debug(
+                f"VIC streamflow: mean={float(total_q_m3s.mean()):.3f} m³/s, "
+                f"catchment area={catchment_area/1e6:.1f} km²"
+            )
+
+            return cast(pd.Series, total_q_m3s.to_pandas())
 
     def _extract_mizuroute_streamflow(self, sim_file: Path) -> pd.Series:
         """Extract streamflow from mizuRoute routed output.

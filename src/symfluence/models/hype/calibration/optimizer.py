@@ -112,3 +112,129 @@ class HYPEModelOptimizer(BaseModelOptimizer):
                     'HYPE',
                     self.experiment_id
                 )
+
+    def _update_file_manager_output_path(self, output_dir: Path) -> None:
+        """
+        Update HYPE info.txt with final evaluation output directory.
+
+        HYPE uses 'resultdir' in info.txt instead of SUMMA's 'outputPath'.
+        """
+        file_manager_path = self._get_final_file_manager_path()
+
+        if not file_manager_path.exists():
+            self.logger.warning(f"HYPE info file not found: {file_manager_path}")
+            return
+
+        # Ensure output directory exists
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # HYPE requires trailing slash on resultdir
+        output_path_str = str(output_dir).rstrip('/') + '/'
+
+        try:
+            with open(file_manager_path, 'r') as f:
+                lines = f.readlines()
+
+            updated_lines = []
+            found_resultdir = False
+
+            for line in lines:
+                # Skip comments
+                if line.strip().startswith('!!'):
+                    updated_lines.append(line)
+                    continue
+
+                # Update resultdir for HYPE
+                if line.strip().startswith('resultdir') and not line.strip().startswith('!!'):
+                    updated_lines.append(f"resultdir\t{output_path_str}\n")
+                    found_resultdir = True
+                    self.logger.debug(f"Updated HYPE resultdir to: {output_path_str}")
+                else:
+                    updated_lines.append(line)
+
+            if not found_resultdir:
+                self.logger.warning("'resultdir' not found in HYPE info.txt - output may go to wrong location")
+
+            with open(file_manager_path, 'w') as f:
+                f.writelines(updated_lines)
+
+            self.logger.info(f"Updated HYPE info.txt output path to: {output_dir}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to update HYPE info.txt output path: {e}")
+
+    def _update_file_manager_for_final_run(self) -> None:
+        """
+        Update HYPE info.txt dates for final evaluation run.
+
+        HYPE uses 'bdate', 'cdate', 'edate' instead of SUMMA's 'simStartTime'/'simEndTime'.
+        """
+        file_manager_path = self._get_final_file_manager_path()
+
+        if not file_manager_path.exists():
+            self.logger.warning(f"HYPE info file not found: {file_manager_path}")
+            return
+
+        # Get full experiment period from config (same as base class)
+        sim_start = self._get_config_value(lambda: self.config.domain.time_start)
+        sim_end = self._get_config_value(lambda: self.config.domain.time_end)
+
+        if not sim_start or not sim_end:
+            self.logger.warning("Could not get simulation dates from config")
+            return
+
+        # Convert dates to HYPE format (YYYY-MM-DD)
+        try:
+            from datetime import datetime
+
+            # Parse various date formats
+            start_str = str(sim_start).split()[0]
+            end_str = str(sim_end).split()[0]
+
+            # Try to parse and reformat
+            parsed = False
+            for fmt in ['%Y-%m-%d', '%Y/%m/%d']:
+                try:
+                    start_dt = datetime.strptime(start_str, fmt)
+                    end_dt = datetime.strptime(end_str, fmt)
+                    hype_start = start_dt.strftime('%Y-%m-%d')
+                    hype_end = end_dt.strftime('%Y-%m-%d')
+                    parsed = True
+                    break
+                except ValueError:
+                    continue
+
+            if not parsed:
+                # If parsing fails, use the strings as-is (they might already be in correct format)
+                hype_start = start_str
+                hype_end = end_str
+                self.logger.debug(f"Using date strings as-is: {hype_start} to {hype_end}")
+
+            with open(file_manager_path, 'r') as f:
+                lines = f.readlines()
+
+            updated_lines = []
+            for line in lines:
+                # Skip comments
+                if line.strip().startswith('!!'):
+                    updated_lines.append(line)
+                    continue
+
+                # Update bdate (begin date)
+                if line.strip().startswith('bdate') and not line.strip().startswith('!!'):
+                    updated_lines.append(f"bdate\t{hype_start}\n")
+                    self.logger.debug(f"Updated HYPE bdate to: {hype_start}")
+                # Update edate (end date)
+                elif line.strip().startswith('edate') and not line.strip().startswith('!!'):
+                    updated_lines.append(f"edate\t{hype_end}\n")
+                    self.logger.debug(f"Updated HYPE edate to: {hype_end}")
+                else:
+                    updated_lines.append(line)
+
+            with open(file_manager_path, 'w') as f:
+                f.writelines(updated_lines)
+
+            self.logger.info(f"Updated HYPE info.txt dates: {hype_start} to {hype_end}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to update HYPE info.txt dates: {e}")

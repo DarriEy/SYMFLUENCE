@@ -59,9 +59,16 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         self.logger.info(f"Starting Async DDS optimization with {n_params} parameters")
 
         # Async DDS parameters
+        import sys
+
+        # On macOS, spawn-based multiprocessing is brittle for very fast model runs.
+        # Default to serial pool/batch to avoid deadlocks/hangs unless user overrides.
+        default_pool = 1 if sys.platform == "darwin" else min(20, num_processes * 2)
+        default_batch = 1 if sys.platform == "darwin" else num_processes
+
         dds_r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
-        pool_size = self._get_config_value(lambda: self.config.optimization.dds.async_pool_size, default=min(20, num_processes * 2), dict_key='ASYNC_DDS_POOL_SIZE')
-        batch_size = self._get_config_value(lambda: self.config.optimization.dds.async_batch_size, default=num_processes, dict_key='ASYNC_DDS_BATCH_SIZE')
+        pool_size = self._get_config_value(lambda: self.config.optimization.dds.async_pool_size, default=default_pool, dict_key='ASYNC_DDS_POOL_SIZE')
+        batch_size = self._get_config_value(lambda: self.config.optimization.dds.async_batch_size, default=default_batch, dict_key='ASYNC_DDS_BATCH_SIZE')
         max_stagnation = self._get_config_value(lambda: self.config.optimization.dds.max_stagnation_batches, default=10, dict_key='MAX_STAGNATION_BATCHES')
 
         # Calculate target evaluations
@@ -229,8 +236,9 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
             record_iteration(batch_num, best_score, params_dict)
             update_best(best_score, params_dict, batch_num)
 
-            # Log progress
-            log_progress(self.name, batch_num, best_score, improvements, batch_size)
+            # Log progress every 10 batches or at the end to reduce log spam
+            if batch_num % 10 == 0 or batch_num >= self.max_iterations // batch_size:
+                log_progress(self.name, batch_num, best_score, improvements, batch_size)
 
         self.logger.info("AsyncDDS completed")
         self.logger.info(f"Total evaluations: {total_evaluations}")

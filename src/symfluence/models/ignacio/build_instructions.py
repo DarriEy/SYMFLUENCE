@@ -80,5 +80,6 @@ echo "IGNACIO installation complete"
             'python_import': 'ignacio',
             'check_type': 'python_import'
         },
-        'order': 15  # Install after other fire models
+        'order': 15,  # Install after other fire models
+        'optional': True,  # Not installed by default with --install
     }

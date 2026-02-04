@@ -45,9 +45,11 @@ Configuration Parameters:
     RHESSYS_FLOW_TEMPLATE: Template for flow table generation
     RHESSYS_USE_WMFIRE: Enable WMFire wildfire spread module (default: False)
     RHESSYS_PARAMS_TO_CALIBRATE: Calibration parameters
-        (default: 'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef')
+        (default: 'sat_to_gw_coeff,gw_loss_coeff,gw_loss_fast_coeff,gw_loss_fast_threshold,m,Ksat_0,...')
         sat_to_gw_coeff: Saturation excess to groundwater coefficient
-        gw_loss_coeff: Groundwater loss coefficient
+        gw_loss_coeff: Groundwater loss coefficient (slow baseflow)
+        gw_loss_fast_coeff: Fast groundwater loss coefficient (for storage > threshold)
+        gw_loss_fast_threshold: Storage threshold (m) above which fast flow activates
         m: TOPMODEL decay parameter
         Ksat_0: Surface saturated hydraulic conductivity
         porosity_0: Surface porosity

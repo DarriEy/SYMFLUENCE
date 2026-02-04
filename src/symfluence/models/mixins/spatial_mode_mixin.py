@@ -76,14 +76,14 @@ class SpatialModeDetectionMixin:
             spatial_mode = self._infer_spatial_mode_from_domain()
             if log_detection:
                 domain_method = self._get_domain_definition_method()
-                logger.info(
+                logger.debug(
                     f"{model_name} spatial mode auto-detected as '{spatial_mode}' "
                     f"(DOMAIN_DEFINITION_METHOD: {domain_method})"
                 )
         else:
             spatial_mode = configured_mode
             if log_detection:
-                logger.info(f"{model_name} spatial mode set to '{spatial_mode}' from configuration")
+                logger.debug(f"{model_name} spatial mode set to '{spatial_mode}' from configuration")
 
         # Step 3: Validate and warn about routing if needed
         self._validate_spatial_mode_for_model(model_name_upper, spatial_mode)

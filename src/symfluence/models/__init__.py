@@ -134,6 +134,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import ignacio: {e}")
 
+try:
+    from . import vic
+except ImportError as e:
+    logger.warning(f"Could not import vic: {e}")
+
 
 __all__ = [
     # Core

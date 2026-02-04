@@ -31,6 +31,7 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
+        exclude: ^paper/
       # Formatter (optional - uncomment to enable auto-formatting)
       # - id: ruff-format
       #   types_or: [python, pyi]
@@ -42,7 +43,7 @@ repos:
       - id: bandit
         args: [-c, pyproject.toml, --quiet]
         additional_dependencies: ["bandit[toml]"]
-        exclude: ^tests/
+        exclude: ^(tests/|paper/)
 
   # Jupyter notebook cleanup (clear outputs before commit)
   - repo: https://github.com/kynan/nbstripout
@@ -58,4 +59,4 @@ repos:
       - id: mypy
         args: [--config-file=pyproject.toml]
         additional_dependencies: [types-PyYAML, types-requests, types-psutil, pandas-stubs]
-        exclude: ^(tests/|examples/)
+        exclude: ^(tests/|examples/|paper/)

@@ -568,14 +568,18 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type:
                 with xr.open_dataset(forcing_file) as ds:
                     if "time" not in ds:
                         continue
-                    times = pd.to_datetime(ds["time"].values)
+                    time_raw = ds["time"].values
+                    if len(time_raw) > 0 and hasattr(time_raw[0], 'strftime') and not isinstance(time_raw[0], datetime):
+                        times = pd.to_datetime([t.strftime('%Y-%m-%d %H:%M:%S') for t in time_raw])
+                    else:
+                        times = pd.to_datetime(time_raw)
             except Exception as exc:
                 self.logger.warning(f"Failed to read forcing times from {forcing_file}: {exc}")
                 continue
 
             if len(times) == 0:
                 continue
-            unique_times.update(pd.to_datetime(times).to_pydatetime())
+            unique_times.update(times.to_pydatetime())
 
         if not unique_times:
             return []

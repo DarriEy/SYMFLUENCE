@@ -273,6 +273,75 @@ def create_spatial_mask(
     return lat_mask & lon_mask
 
 
+def find_nearest_grid_point(
+    lat: np.ndarray,
+    lon: np.ndarray,
+    target_lat: float,
+    target_lon: float,
+    lon_convention: str = 'standard'
+) -> Tuple[int, int]:
+    """
+    Find the nearest grid point to a target location.
+
+    Uses great-circle distance (haversine formula) to find the grid cell
+    whose center is closest to the target coordinates.
+
+    Args:
+        lat: Latitude array (1D or 2D)
+        lon: Longitude array (1D or 2D)
+        target_lat: Target latitude in degrees
+        target_lon: Target longitude in degrees
+        lon_convention: 'standard' (-180 to 180) or 'positive' (0 to 360)
+
+    Returns:
+        Tuple of (y_index, x_index) for the nearest grid point
+
+    Example:
+        >>> iy, ix = find_nearest_grid_point(lat_2d, lon_2d, 46.78, -121.75)
+    """
+    # Create 2D arrays if 1D
+    if lat.ndim == 1 and lon.ndim == 1:
+        lat_2d, lon_2d = np.meshgrid(lat, lon, indexing='ij')
+    else:
+        lat_2d, lon_2d = lat, lon
+
+    # Normalize target longitude if needed
+    if lon_convention == 'positive':
+        target_lon = target_lon % 360
+
+    # Calculate great-circle distance using haversine formula
+    lat1 = np.radians(lat_2d)
+    lat2 = np.radians(target_lat)
+    lon1 = np.radians(lon_2d)
+    lon2 = np.radians(target_lon)
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arcsin(np.sqrt(a))
+
+    # Find minimum distance
+    min_idx = np.unravel_index(np.argmin(c), c.shape)
+
+    return int(min_idx[0]), int(min_idx[1])
+
+
+def get_bbox_center(bbox: BBox) -> Tuple[float, float]:
+    """
+    Calculate the center point of a bounding box.
+
+    Args:
+        bbox: Bounding box dict with lat_min, lat_max, lon_min, lon_max
+
+    Returns:
+        Tuple of (center_lat, center_lon)
+    """
+    center_lat = (bbox['lat_min'] + bbox['lat_max']) / 2
+    center_lon = (bbox['lon_min'] + bbox['lon_max']) / 2
+    return center_lat, center_lon
+
+
 def subset_xarray_to_bbox(
     ds,  # xr.Dataset or xr.DataArray
     bbox: BBox,

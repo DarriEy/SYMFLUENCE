@@ -74,7 +74,13 @@ class GRACEHandler(BaseObservationHandler):
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
-            raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")
+            # Search subdirectories for the shapefile
+            found = list(catchment_path.rglob(catchment_name))
+            if found:
+                basin_shp = found[0]
+                self.logger.info(f"Found basin shapefile in subdirectory: {basin_shp}")
+            else:
+                raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")
 
         basin_gdf = gpd.read_file(basin_shp)
         basin_area_km2 = self._calculate_area(basin_gdf)

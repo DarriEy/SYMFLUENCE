@@ -27,7 +27,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default=False
     )
     if delineate_coastal:
-        default_name = f"{discretizer.domain_name}_riverBasins__with_coastal.shp"
+        default_name = f"{discretizer.domain_name}_riverBasins_with_coastal.shp"
 
     gru_shapefile = discretizer._get_file_path(
         path_key="RIVER_BASINS_PATH",

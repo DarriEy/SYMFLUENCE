@@ -249,7 +249,7 @@ class RemappingWeightGenerator(ConfigMixin):
 
     def _detect_forcing_variables(self, forcing_file: Path) -> List[str]:
         """Detect available SUMMA forcing variables in a NetCDF file."""
-        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd', 'relhum']
 
         available = []
         try:
@@ -437,7 +437,7 @@ class RemappingWeightApplier(ConfigMixin):
         if self._detected_vars:
             return self._detected_vars
 
-        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd', 'relhum']
         with xr.open_dataset(forcing_file) as ds:
             return [v for v in all_summa_vars if v in ds.data_vars]
 

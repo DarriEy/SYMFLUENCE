@@ -147,5 +147,6 @@ fi
             'file_paths': ['lib/libwmfire.so', 'lib/libwmfire.dylib'],
             'check_type': 'exists_any'
         },
-        'order': 13  # Build before RHESSys (order 14)
+        'order': 13,  # Build before RHESSys (order 14)
+        'optional': True,  # Not installed by default with --install
     }

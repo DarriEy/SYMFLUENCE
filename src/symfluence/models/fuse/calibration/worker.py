@@ -77,11 +77,11 @@ class FUSEWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to FUSE para_def.nc file directly.
+        Apply parameters to FUSE constraints file AND para_def.nc.
 
-        FUSE's run_def mode reads parameters from para_def.nc, so we must
-        update this file directly for calibration to work. We also update
-        the constraints file for consistency.
+        In run_def mode, FUSE reads parameters directly from para_def.nc.
+        We update BOTH the constraints file (for consistency and run_pre mode)
+        AND the para_def.nc file (for run_def mode used during calibration).
 
         Args:
             params: Parameter values to apply
@@ -101,59 +101,53 @@ class FUSEWorker(BaseWorker):
             for p, v in list(params.items())[:5]:  # Log first 5 params
                 self.logger.debug(f"  PARAM: {p} = {v:.4f}")
 
-            # =====================================================================
-            # CRITICAL: Update para_def.nc directly for run_def mode
-            # FUSE reads parameters from para_def.nc, not from constraints file
-            # =====================================================================
-
-            # Determine para_def.nc location
-            domain_name = config.get('DOMAIN_NAME')
-            experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
-
-            # para_def.nc is in the SETTINGS directory, not the simulation output directory
-            # Check for FUSE subdirectory (common in parallel setup)
-            if (settings_dir / 'FUSE').exists():
-                fuse_settings_for_para = settings_dir / 'FUSE'
-            else:
-                fuse_settings_for_para = settings_dir
-
-            para_def_path = fuse_settings_for_para / f"{domain_name}_{fuse_id}_para_def.nc"
-
-            # Fallback to project-level path if not found in settings
-            if not para_def_path.exists():
-                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                project_dir = data_dir / f"domain_{domain_name}"
-                para_def_path = project_dir / 'simulations' / experiment_id / 'FUSE' / f"{domain_name}_{fuse_id}_para_def.nc"
-
-            if para_def_path.exists():
-                # Update para_def.nc directly
-                params_updated_nc = self._update_para_def_nc(para_def_path, params)
-                if params_updated_nc:
-                    self.logger.debug(f"APPLY_PARAMS: Updated {len(params_updated_nc)} params in {para_def_path.name}")
-                else:
-                    self.logger.warning(f"APPLY_PARAMS: No params updated in {para_def_path.name}")
-            else:
-                self.logger.warning(f"APPLY_PARAMS: para_def.nc not found at {para_def_path}, will try constraints file")
-
-            # =====================================================================
-            # Also update constraints file for consistency (and for FUSE modes that
-            # regenerate para_def.nc from constraints)
-            # =====================================================================
-
-            # Check for FUSE subdirectory (common in parallel setup)
-            if (settings_dir / 'FUSE').exists():
+            # Handle both cases: settings_dir is already FUSE dir, or contains FUSE subdir
+            if settings_dir.name == 'FUSE':
+                fuse_settings_dir = settings_dir
+            elif (settings_dir / 'FUSE').exists():
                 fuse_settings_dir = settings_dir / 'FUSE'
             else:
                 fuse_settings_dir = settings_dir
 
-            # Find the constraints file in settings_dir
+            # =====================================================================
+            # Update CONSTRAINTS FILE for consistency and run_pre mode
+            # =====================================================================
             constraints_file = fuse_settings_dir / 'fuse_zConstraints_snow.txt'
 
             if constraints_file.exists():
                 params_updated_txt = self._update_constraints_file(constraints_file, params)
                 if params_updated_txt:
-                    self.logger.debug(f"APPLY_PARAMS: Updated {len(params_updated_txt)} params in constraints file")
+                    sample_params = list(params.items())[:3]
+                    self.logger.debug(f"APPLY: Updated {len(params_updated_txt)} params in {constraints_file.name}, sample: {sample_params}")
+                else:
+                    self.logger.warning("APPLY_PARAMS: No params updated in constraints file")
+            else:
+                self.logger.error(
+                    f"APPLY_PARAMS: Constraints file not found at {constraints_file}. "
+                    f"FUSE calibration will not work!"
+                )
+                return False
+
+            # =====================================================================
+            # CRITICAL: Also update para_def.nc for run_def mode
+            # In run_def mode, FUSE reads directly from para_def.nc, NOT from
+            # constraints. This is the file that run_model() will copy.
+            # =====================================================================
+            if config:
+                domain_name = config.get('DOMAIN_NAME', '')
+                experiment_id = config.get('EXPERIMENT_ID', 'run_1')
+                fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+
+                # Find and update the para_def.nc file
+                para_def_path = fuse_settings_dir / f"{domain_name}_{fuse_id}_para_def.nc"
+                if para_def_path.exists():
+                    params_updated_nc = self._update_para_def_nc(para_def_path, params)
+                    if params_updated_nc:
+                        self.logger.debug(f"APPLY: Updated {len(params_updated_nc)} params in {para_def_path.name}")
+                    else:
+                        self.logger.warning("APPLY_PARAMS: No params updated in para_def.nc")
+                else:
+                    self.logger.warning(f"APPLY_PARAMS: para_def.nc not found at {para_def_path}")
 
             return True
 
@@ -215,6 +209,24 @@ class FUSEWorker(BaseWorker):
         except (KeyError, ValueError) as e:
             self.logger.error(f"Data error updating {para_def_path}: {e}")
 
+        # Verify write succeeded by reading back a value
+        # Use tolerance of 1e-3 to match FUSE's Fortran fixed-width precision (F9.3 format)
+        if params_updated:
+            try:
+                with nc.Dataset(para_def_path, 'r') as ds:
+                    # Read back first updated param to verify
+                    first_param = next(iter(params_updated))
+                    if first_param in ds.variables:
+                        actual_value = float(ds.variables[first_param][0])
+                        expected_value = params[first_param]
+                        if abs(actual_value - expected_value) > 1e-3:
+                            self.logger.warning(
+                                f"Parameter write verification: {first_param} expected {expected_value:.6f} "
+                                f"but file contains {actual_value:.6f} (diff={abs(actual_value - expected_value):.2e})"
+                            )
+            except Exception as e:
+                self.logger.debug(f"Could not verify para_def.nc write: {e}")
+
         return params_updated
 
     def _update_constraints_file(self, constraints_file: Path, params: Dict[str, float]) -> set:
@@ -234,9 +246,16 @@ class FUSEWorker(BaseWorker):
         params_updated = set()
 
         try:
-            # Read the constraints file
-            with open(constraints_file, 'r') as f:
-                lines = f.readlines()
+            # Read the constraints file with encoding fallback
+            try:
+                with open(constraints_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                self.logger.warning(
+                    f"UTF-8 decode error reading {constraints_file}, falling back to latin-1"
+                )
+                with open(constraints_file, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
 
             # Fortran format: (L1,1X,I1,1X,3(F9.3,1X),...)
             # Default value column: position 4-12 (9 chars, F9.3 format)
@@ -312,8 +331,9 @@ class FUSEWorker(BaseWorker):
         try:
             import subprocess
 
-            # Optimization modifies para_def.nc and runs with run_def mode
-            # run_def reads parameters from para_def.nc automatically
+            # Use run_def mode for calibration - FUSE reads parameters from constraints file
+            # run_def regenerates para_def.nc from constraints and elevation bands
+            # Note: run_pre mode doesn't work with standard FUSE binary
             mode = kwargs.get('mode', 'run_def')
 
             # Get FUSE executable path
@@ -325,12 +345,18 @@ class FUSEWorker(BaseWorker):
                 fuse_exe = Path(fuse_install) / 'fuse.exe'
 
             # Get file manager path using settings_dir
-            # Check for FUSE subdirectory (common in parallel setup)
-            if (settings_dir / 'FUSE').exists():
+            # Handle both cases: settings_dir already is the FUSE dir, or contains a FUSE subdir
+            # Avoid double FUSE (settings/FUSE/FUSE) by checking if we're already in a FUSE dir
+            if settings_dir.name == 'FUSE':
+                # settings_dir is already the FUSE directory
+                filemanager_path = settings_dir / 'fm_catch.txt'
+                execution_cwd = settings_dir
+            elif (settings_dir / 'FUSE').exists():
+                # FUSE subdirectory exists
                 filemanager_path = settings_dir / 'FUSE' / 'fm_catch.txt'
-                # Update settings_dir to point to the FUSE subdir for execution context
                 execution_cwd = settings_dir / 'FUSE'
             else:
+                # No FUSE subdirectory, use settings_dir directly
                 filemanager_path = settings_dir / 'fm_catch.txt'
                 execution_cwd = settings_dir
 
@@ -367,12 +393,19 @@ class FUSEWorker(BaseWorker):
                 (fuse_input_dir / f"{domain_name}_elev_bands.nc", f"{fuse_run_id}_elev_bands.nc")
             ]
 
-            # Also symlink the parameter file (para_def.nc) to match the short alias
-            # The optimizer generates {domain_name}_{fuse_id}_para_def.nc in execution_cwd
-            # FUSE with 'sim' alias will look for sim_{fuse_id}_para_def.nc
+            # COPY (not symlink!) the parameter file to match the short alias
+            # CRITICAL: FUSE overwrites para_def.nc during run_def mode, which would corrupt
+            # a symlinked source file. We must copy so FUSE writes to an isolated copy.
             param_file_src = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
-            param_file_dst = f"{fuse_run_id}_{fuse_id}_para_def.nc"
-            input_files.append((param_file_src, param_file_dst))
+            param_file_dst_path = execution_cwd / f"{fuse_run_id}_{fuse_id}_para_def.nc"
+            if param_file_src.exists():
+                # Use module-level shutil import (already imported at top of file)
+                if param_file_dst_path.exists():
+                    param_file_dst_path.unlink()
+                shutil.copy2(param_file_src, param_file_dst_path)
+                self.logger.debug(f"FUSE para_def copied (not symlinked): {param_file_dst_path.name}")
+            else:
+                self.logger.warning(f"FUSE para_def source not found: {param_file_src}")
 
             # Ensure configuration files are present (input_info.txt, fuse_zNumerix.txt, etc.)
             # These should have been copied by the optimizer, but if missing, symlink from main settings
@@ -408,6 +441,7 @@ class FUSEWorker(BaseWorker):
                     else:
                         self.logger.error(f"Source config file not found: {src_path}")
 
+            # Create symlinks for input files (but NOT para_def.nc which was copied above)
             for src, link_name in input_files:
                 if src.exists():
                     link_path = execution_cwd / link_name
@@ -419,6 +453,15 @@ class FUSEWorker(BaseWorker):
                         self.logger.debug(f"Created symlink: {link_path} -> {src}")
                     except Exception as e:
                         self.logger.warning(f"Failed to create symlink {link_path}: {e}")
+                else:
+                    self.logger.warning(f"Symlink source not found: {src}")
+
+            # Verify para_def copy exists
+            if not param_file_dst_path.exists():
+                self.logger.error(
+                    f"FUSE para_def copy was not created. "
+                    f"Expected: {param_file_dst_path}"
+                )
 
             # Pass use_local_input=True and actual decisions file to _update_file_manager
             if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir,
@@ -444,24 +487,36 @@ class FUSEWorker(BaseWorker):
             # For run_pre mode, we need to pass the parameter file as argument
             # For run_def mode, FUSE reads parameters from para_def.nc automatically
             if mode == 'run_pre':
-                experiment_id = config.get('EXPERIMENT_ID')
-                fuse_id = config.get('FUSE_FILE_ID', experiment_id)
-                # Note: para_def.nc is usually generated by the optimizer in the execution dir
-                # If it uses domain_name, we might need to symlink it too or rely on FUSE behavior
-                param_file = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
+                # Use the short alias (fuse_run_id) to match the copied parameter file
+                # The param file was copied to {fuse_run_id}_{fuse_id}_para_def.nc
+                param_file = execution_cwd / f"{fuse_run_id}_{fuse_id}_para_def.nc"
                 if param_file.exists():
                     cmd.append(str(param_file.name))
                 else:
-                    self.logger.error(f"Parameter file not found for run_pre: {param_file}")
-                    return False
+                    # Fallback to domain_name version if short alias not found
+                    param_file_alt = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
+                    if param_file_alt.exists():
+                        cmd.append(str(param_file_alt.name))
+                    else:
+                        self.logger.error(f"Parameter file not found for run_pre: tried {param_file} and {param_file_alt}")
+                        return False
 
             # Use execution_cwd as cwd
+            # Log command at INFO level for first execution to help debugging
             self.logger.debug(f"Executing FUSE: {' '.join(cmd)} in {execution_cwd}")
+
+            # Verify key files exist before running FUSE
+            expected_para_def = execution_cwd / f"{fuse_run_id}_{fuse_id}_para_def.nc"
+            if not expected_para_def.exists() and not expected_para_def.is_symlink():
+                self.logger.error(f"FUSE parameter file not found: {expected_para_def}")
+
             result = subprocess.run(
                 cmd,
                 cwd=str(execution_cwd),
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace undecodable bytes to prevent UnicodeDecodeError
                 timeout=config.get('FUSE_TIMEOUT', 300)
             )
 
@@ -483,10 +538,12 @@ class FUSEWorker(BaseWorker):
 
             # The output filename format is {domain_id}_{fmodel_id}_{suffix}
             # FUSE writes to execution_cwd because we set OUTPUT_PATH to ./
-            local_output_filename = f"{fuse_run_id}_{fuse_id}_runs_def.nc"
+            # The suffix depends on the run mode: run_def -> runs_def.nc, run_pre -> runs_pre.nc
+            run_suffix = 'runs_def' if mode == 'run_def' else 'runs_pre'
+            local_output_filename = f"{fuse_run_id}_{fuse_id}_{run_suffix}.nc"
             local_output_path = execution_cwd / local_output_filename
 
-            # Final destination
+            # Final destination - use consistent naming regardless of mode
             final_output_path = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
 
             if local_output_path.exists():
@@ -588,8 +645,18 @@ class FUSEWorker(BaseWorker):
             True if successful
         """
         try:
-            with open(filemanager_path, 'r') as f:
-                lines = f.readlines()
+            # Use encoding with error handling to prevent UnicodeDecodeError
+            # Some file managers may contain non-UTF-8 characters (e.g., from paths)
+            try:
+                with open(filemanager_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError as ue:
+                self.logger.warning(
+                    f"UTF-8 decode error reading {filemanager_path} at position {ue.start}: "
+                    f"falling back to latin-1 encoding"
+                )
+                with open(filemanager_path, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
 
             # Get experiment_id from config if not provided
             if experiment_id is None and config:
@@ -861,8 +928,8 @@ class FUSEWorker(BaseWorker):
                 else:
                     fuse_output_dir = output_dir
 
-                # FUSE runs in 'run_def' mode which reads from para_def.nc and produces runs_def.nc
-                # Try runs_def first, then other possible output files
+                # FUSE runs in 'run_pre' mode for calibration (reads para_def.nc without regenerating it)
+                # Output is renamed to runs_def.nc for consistency. Try runs_def first, then other files
                 sim_file_path = None
                 candidates = [
                     fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc",   # run_def mode (default)
@@ -912,11 +979,22 @@ class FUSEWorker(BaseWorker):
 
                     if 'q_routed' in ds.variables:
                         runoff_var = ds['q_routed']
+                        var_name = 'q_routed'
                     elif 'q_instnt' in ds.variables:
                         runoff_var = ds['q_instnt']
+                        var_name = 'q_instnt'
                     else:
                         self.logger.error(f"No runoff variable found in FUSE output. Variables: {list(ds.variables.keys())}")
                         return {'kge': self.penalty_score}
+
+                    # Diagnostic: Log raw FUSE output statistics
+                    raw_mean = float(runoff_var.mean())
+                    raw_max = float(runoff_var.max())
+                    if raw_mean < 1e-10 and raw_max < 1e-10:
+                        self.logger.warning(
+                            f"FUSE output {var_name} is all zeros! Raw mean={raw_mean:.6f}, max={raw_max:.6f}. "
+                            f"This may indicate FUSE is not reading calibration parameters correctly."
+                        )
 
                     # Handle distributed mode: sum across all subcatchments
                     # FUSE output in mm/day represents depth over each subcatchment
@@ -950,9 +1028,16 @@ class FUSEWorker(BaseWorker):
                         # Get catchment area for unit conversion
                         area_km2 = self._get_catchment_area(config, project_dir)
 
+                        # DEBUG: Log raw values before conversion
+                        self.logger.debug(
+                            f"DEBUG: raw sim mean={simulated_streamflow.mean():.4f} mm/day, "
+                            f"area={area_km2:.2f} km2, sim_file={sim_file_path}"
+                        )
+
                         # Convert FUSE output from mm/day to cms
                         # Q(cms) = Q(mm/day) * Area(km2) / 86.4
                         simulated_streamflow = simulated_streamflow * area_km2 / UnitConversion.MM_DAY_TO_CMS
+                        self.logger.debug(f"DEBUG: converted sim mean={simulated_streamflow.mean():.4f} m3/s")
 
             # Ensure simulated_streamflow has a DatetimeIndex (fallback if xarray decoding failed)
             if not isinstance(simulated_streamflow.index, pd.DatetimeIndex):
@@ -1004,8 +1089,11 @@ class FUSEWorker(BaseWorker):
                 obs_values, sim_values, metrics=['kge', 'nse', 'rmse', 'mae']
             )
 
-            # Debug: Log computed metrics to trace score flow
-            self.logger.debug(f"FUSE metrics computed: KGE={metrics['kge']:.4f}, NSE={metrics['nse']:.4f}, n_points={len(obs_values)}")
+            # Debug: Log computed metrics and diagnostic info to trace score flow
+            self.logger.debug(
+                f"FUSE metrics: KGE={metrics['kge']:.4f}, NSE={metrics['nse']:.4f}, "
+                f"n_pts={len(obs_values)}, sim_mean={sim_values.mean():.2f}, obs_mean={obs_values.mean():.2f}"
+            )
 
             return metrics
 
@@ -1131,6 +1219,8 @@ class FUSEWorker(BaseWorker):
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace undecodable bytes to prevent UnicodeDecodeError
                 timeout=config.get('MIZUROUTE_TIMEOUT', 600)
             )
 

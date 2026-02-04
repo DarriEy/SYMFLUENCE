@@ -98,7 +98,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
     def _get_ignacio_config(self) -> Dict[str, Any]:
         """Extract IGNACIO configuration from SYMFLUENCE config."""
-        config_dict = {}
+        config_dict: Dict[str, Any] = {}
 
         # Try to get from typed config
         if hasattr(self.config, 'model') and hasattr(self.config.model, 'ignacio'):

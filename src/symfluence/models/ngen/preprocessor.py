@@ -84,20 +84,65 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Determine which modules to include based on config and available libraries
         # Allow user to override which modules are enabled via config
+        # Check both nested NGEN section and top-level config for ENABLE_* keys
         ngen_config = self.config_dict.get('NGEN', {})
 
+        def get_module_enabled(module_name: str, default: bool) -> bool:
+            """Get module enabled status, checking nested NGEN section first, then top-level."""
+            config_key = f'ENABLE_{module_name}'
+            # First check nested NGEN section
+            if config_key in ngen_config:
+                return ngen_config[config_key]
+            # Then check top-level config (for backwards compatibility)
+            if config_key in self.config_dict:
+                return self.config_dict[config_key]
+            # Fall back to library availability check
+            return self._available_modules.get(module_name, default)
+
         # SLOTH provides ice fraction and soil moisture variables for CFE
-        self._include_sloth = ngen_config.get('ENABLE_SLOTH', self._available_modules.get("SLOTH", True))
+        self._include_sloth = get_module_enabled('SLOTH', True)
 
         # PET provides evapotranspiration (but has known issues - can be disabled)
         # Note: PET requires wind speed variables (UGRD, VGRD) in forcing
-        self._include_pet = ngen_config.get('ENABLE_PET', self._available_modules.get("PET", True))
+        self._include_pet = get_module_enabled('PET', True)
 
         # NOAH-OWP provides alternative ET physics (more robust than PET)
-        self._include_noah = ngen_config.get('ENABLE_NOAH', self._available_modules.get("NOAH", False))
+        self._include_noah = get_module_enabled('NOAH', False)
 
         # CFE is the core runoff generation module
-        self._include_cfe = ngen_config.get('ENABLE_CFE', self._available_modules.get("CFE", True))
+        self._include_cfe = get_module_enabled('CFE', True)
+
+        # QINSUR-based coupling: NOAH and PET serve complementary roles.
+        # NOAH handles snow physics, canopy interception, and surface energy balance,
+        # outputting QINSUR (net water input to soil surface) as CFE's precipitation input.
+        # PET provides potential evapotranspiration for CFE's internal soil moisture accounting.
+        # No double-counting: QINSUR is post-interception water; PET drives CFE's soil ET.
+        if self._include_noah and self._include_pet:
+            self.logger.info(
+                "NOAH+PET both enabled: using QINSUR-based coupling. "
+                "NOAH provides QINSUR (post-snow/interception water) to CFE as precipitation; "
+                "PET provides potential ET for CFE's soil moisture depletion."
+            )
+        elif self._include_noah and not self._include_pet:
+            # Get the ET fallback configuration
+            self._noah_et_fallback = self.config_dict.get('NGEN_NOAH_ET_FALLBACK', 'ETRAN')
+            valid_fallbacks = ['ETRAN', 'EDIR', 'ECAN']
+            if self._noah_et_fallback not in valid_fallbacks:
+                self.logger.warning(
+                    f"Invalid NGEN_NOAH_ET_FALLBACK '{self._noah_et_fallback}', using 'ETRAN'"
+                )
+                self._noah_et_fallback = 'ETRAN'
+
+            self.logger.warning(
+                f"NOAH enabled but PET disabled: CFE will receive NOAH's {self._noah_et_fallback} "
+                f"(actual ET) instead of potential ET. This is a simplification that may cause "
+                f"underestimation of ET demand since {self._noah_et_fallback} is already "
+                f"soil-moisture limited. For physically correct potential ET, enable PET module "
+                f"(ENABLE_PET: True) or set NGEN_NOAH_ET_FALLBACK to 'EDIR' for bare-soil "
+                f"dominated catchments."
+            )
+        else:
+            self._noah_et_fallback = None
 
         # Log module configuration
         self.logger.info("NGEN module configuration:")
@@ -452,14 +497,20 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Specific humidity: should be kg/kg (0-0.1 range), sometimes given as g/kg
         if 'spechum' in forcing_data:
-            hum_units = forcing_data['spechum'].attrs.get('units', '').lower()
+            hum_units = forcing_data['spechum'].attrs.get('units', '').lower().strip()
             hum_max = float(forcing_data['spechum'].max())
 
-            if 'g/kg' in hum_units or 'g kg' in hum_units or hum_max > 1.0:
+            # Check if units explicitly indicate g/kg (but NOT kg/kg or kg kg-1)
+            is_g_per_kg = (
+                hum_units in ('g/kg', 'g kg-1', 'g/kg-1')
+                or (hum_units.startswith('g') and 'kg' in hum_units and not hum_units.startswith('kg'))
+            )
+
+            if is_g_per_kg or hum_max > 1.0:
                 self.logger.info("Converting specific humidity from g/kg to kg/kg (÷1000)")
                 forcing_data['spechum'] = forcing_data['spechum'] / 1000.0
             else:
-                self.logger.debug("Specific humidity appears to be in kg/kg")
+                self.logger.debug(f"Specific humidity appears to be in kg/kg (units='{hum_units}', max={hum_max:.6f})")
 
         # Radiation (SWRadAtm, LWRadAtm) should be in W/m² - typically already correct
         for rad_var in ['SWRadAtm', 'LWRadAtm']:
@@ -689,17 +740,17 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
 
-        # Variable mapping from ERA5/internal names to AORC/GRIB standard names
-        # Use AORC standard naming (DLWRF_surface, DSWRF_surface) that NGEN recognizes
+        # Variable mapping from ERA5/internal names to BMI standard names for NGEN
+        # Use BMI standard naming that NGEN modules expect
         var_mapping = {
-            'pptrate': 'precip_rate',
-            'airtemp': 'TMP_2maboveground',
-            'spechum': 'SPFH_2maboveground',
-            'airpres': 'PRES_surface',
-            'SWRadAtm': 'DSWRF_surface',
-            'LWRadAtm': 'DLWRF_surface',
-            'windspeed_u': 'UGRD_10maboveground',
-            'windspeed_v': 'VGRD_10maboveground',
+            'pptrate': 'atmosphere_water__liquid_equivalent_precipitation_rate',
+            'airtemp': 'land_surface_air__temperature',
+            'spechum': 'atmosphere_air_water~vapor__specific_humidity',
+            'airpres': 'land_surface_air__pressure',
+            'SWRadAtm': 'land_surface_radiation~incoming~shortwave__energy_flux',
+            'LWRadAtm': 'land_surface_radiation~incoming~longwave__energy_flux',
+            'windspeed_u': 'land_surface_wind__x_component_of_velocity',
+            'windspeed_v': 'land_surface_wind__y_component_of_velocity',
         }
 
         for idx, cat_id in enumerate(catchment_ids):
@@ -710,14 +761,31 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
                     cols[n_v] = arr[:, idx] if arr.ndim > 1 else arr
 
             df = pd.DataFrame(cols)
-            df['APCP_surface'] = df['precip_rate'] if 'precip_rate' in df else 0
+
+            # Precipitation unit handling depends on whether NOAH is enabled:
+            # - NOAH-OWP expects mm/s (kg m-2 s-1), outputs QINSUR in mm/s to CFE
+            # - CFE standalone expects mm/h for direct precipitation input
+            # When NOAH is enabled, keep precip in mm/s; otherwise convert to mm/h for CFE
+            precip_col = 'atmosphere_water__liquid_equivalent_precipitation_rate'
+            if precip_col in df:
+                if not self._include_noah:
+                    # CFE standalone: convert mm/s → mm/h
+                    df[precip_col] = df[precip_col] * 3600.0
+                    self.logger.debug("Converted precipitation to mm/h for CFE standalone mode")
+                else:
+                    # NOAH enabled: keep in mm/s (NOAH's expected unit)
+                    self.logger.debug("Keeping precipitation in mm/s for NOAH-OWP")
+
+            # Note: Do NOT add AORC-style aliases (APCP_surface, precip_rate).
+            # These map to the same CSDMS canonical name via WellKnownFields in ngen,
+            # causing doubled precipitation vectors and ngen crashes.
 
             # Wind components are required for NGEN PET and NOAH modules
             # After decomposition, these should exist, but check just in case
             missing_wind_vars = []
-            if 'UGRD_10maboveground' not in df.columns:
+            if 'land_surface_wind__x_component_of_velocity' not in df.columns:
                 missing_wind_vars.append('windspeed_u (U-component of wind)')
-            if 'VGRD_10maboveground' not in df.columns:
+            if 'land_surface_wind__y_component_of_velocity' not in df.columns:
                 missing_wind_vars.append('windspeed_v (V-component of wind)')
 
             if missing_wind_vars:
@@ -757,7 +825,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         """
         catchment_gdf = gpd.read_file(self.get_catchment_path())
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, catchment_gdf.crs)
-        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_all_configs(catchment_gdf, self.hru_id_col)
 
     def generate_realization_config(self, catchment_file: Path, nexus_file: Path, forcing_file: Path):
@@ -774,7 +843,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             forcing_file: Path to forcing NetCDF file.
         """
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
-        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
 
         # Generate t-route config if routing is enabled

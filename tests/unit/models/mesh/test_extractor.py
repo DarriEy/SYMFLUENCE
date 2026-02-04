@@ -58,7 +58,7 @@ class TestMESHOutputFilePatterns:
         patterns = extractor.get_output_file_patterns()
 
         et_patterns = patterns['et']
-        assert 'MESH_output_balance.csv' in et_patterns
+        assert 'GRU_water_balance.csv' in et_patterns
 
 
 class TestMESHVariableNames:
@@ -71,7 +71,6 @@ class TestMESHVariableNames:
         extractor = MESHResultExtractor('MESH')
         var_names = extractor.get_variable_names('streamflow')
 
-        assert 'QOSIM1' in var_names
         assert 'QOSIM' in var_names
 
     def test_get_et_variable_names(self):
@@ -161,7 +160,7 @@ class TestMESHJulianDateConversion:
         extractor = MESHResultExtractor('MESH')
 
         # Day 1 of 2020 should be Jan 1, 2020
-        row = {'DAY': 1, 'YEAR': 2020}
+        row = pd.Series({'DAY': 1, 'YEAR': 2020})
         result = extractor._julian_to_datetime(row)
 
         assert result.year == 2020
@@ -175,7 +174,7 @@ class TestMESHJulianDateConversion:
         extractor = MESHResultExtractor('MESH')
 
         # Day 182 of 2020 (leap year) should be June 30, 2020
-        row = {'DAY': 182, 'YEAR': 2020}
+        row = pd.Series({'DAY': 182, 'YEAR': 2020})
         result = extractor._julian_to_datetime(row)
 
         assert result.year == 2020

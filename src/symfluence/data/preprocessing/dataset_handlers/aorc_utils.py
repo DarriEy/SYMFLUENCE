@@ -332,6 +332,9 @@ class AORCHandler(BaseDatasetHandler):
         - open a processed AORC file in merged_forcing_path
         - build polygons from latitude/longitude
         - compute elevation via provided elevation_calculator
+
+        For point domains or very small bounding boxes, we find the nearest
+        grid cell to the domain center instead of trying to intersect geometries.
         """
         self.logger.info("Creating AORC grid shapefile")
 
@@ -344,6 +347,40 @@ class AORCHandler(BaseDatasetHandler):
 
         aorc_file = aorc_files[0]
         self.logger.info(f"Using AORC file for grid: {aorc_file}")
+
+        # Check if this is a point domain or very small bounding box
+        is_point_domain = self.config.get('DOMAIN_DEFINITION_METHOD', '').lower() == 'point'
+        bbox_coords = self.config.get('BOUNDING_BOX_COORDS', '')
+        is_small_bbox = False
+        domain_center_lat = None
+        domain_center_lon = None
+
+        if bbox_coords:
+            try:
+                coords = [float(x) for x in str(bbox_coords).split('/')]
+                if len(coords) == 4:
+                    lat_max, lon_max, lat_min, lon_min = coords
+                    bbox_area = abs(lat_max - lat_min) * abs(lon_max - lon_min)
+                    is_small_bbox = bbox_area < 0.01  # Less than 0.01 square degrees
+                    domain_center_lat = (lat_max + lat_min) / 2
+                    domain_center_lon = (lon_max + lon_min) / 2
+                    if is_small_bbox:
+                        self.logger.info(f"Detected small bounding box (area={bbox_area:.6f} sq deg), will use nearest cell extraction")
+            except (ValueError, AttributeError):
+                pass
+
+        # If no bounding box center, try pour point coords
+        if domain_center_lat is None:
+            pour_point = self.config.get('POUR_POINT_COORDS', '')
+            if pour_point:
+                try:
+                    coords = [float(x) for x in str(pour_point).split('/')]
+                    if len(coords) == 2:
+                        domain_center_lat, domain_center_lon = coords
+                        is_point_domain = True
+                        self.logger.info(f"Using pour point coordinates: {domain_center_lat}/{domain_center_lon}")
+                except (ValueError, AttributeError):
+                    pass
 
         with xr.open_dataset(aorc_file) as ds:
             var_lat, var_lon = self.get_coordinate_names()
@@ -375,7 +412,63 @@ class AORCHandler(BaseDatasetHandler):
         lats = []
         lons = []
 
-        if lat.ndim == 1 and lon.ndim == 1:
+        # For point domains or small bboxes, find the nearest cell
+        if (is_point_domain or is_small_bbox) and domain_center_lat is not None:
+            self.logger.info(f"Finding nearest AORC grid cell to domain center ({domain_center_lat:.4f}, {domain_center_lon:.4f})")
+
+            if lat.ndim == 1 and lon.ndim == 1:
+                # Regular 1D grid - find nearest indices
+                lat_idx = np.argmin(np.abs(lat - domain_center_lat))
+                lon_idx = np.argmin(np.abs(lon - domain_center_lon))
+
+                center_lat = float(lat[lat_idx])
+                center_lon = float(lon[lon_idx])
+
+                half_dlat = abs(lat[1] - lat[0]) / 2 if len(lat) > 1 else 0.005
+                half_dlon = abs(lon[1] - lon[0]) / 2 if len(lon) > 1 else 0.005
+
+                verts = [
+                    [center_lon - half_dlon, center_lat - half_dlat],
+                    [center_lon - half_dlon, center_lat + half_dlat],
+                    [center_lon + half_dlon, center_lat + half_dlat],
+                    [center_lon + half_dlon, center_lat - half_dlat],
+                    [center_lon - half_dlon, center_lat - half_dlat],
+                ]
+                geometries.append(Polygon(verts))
+                ids.append(0)
+                lats.append(center_lat)
+                lons.append(center_lon)
+
+                self.logger.info(f"Selected nearest cell: lat={center_lat:.4f}, lon={center_lon:.4f}")
+
+            elif lat.ndim == 2:
+                # 2D grid - find nearest cell
+                distances = np.sqrt((lat - domain_center_lat)**2 + (lon - domain_center_lon)**2)
+                min_idx = np.unravel_index(np.argmin(distances), distances.shape)
+                i, j = min_idx
+
+                ny, nx = lat.shape
+                lat_corners = [
+                    lat[i, j],
+                    lat[i, j+1] if j+1 < nx else lat[i, j],
+                    lat[i+1, j+1] if i+1 < ny and j+1 < nx else lat[i, j],
+                    lat[i+1, j] if i+1 < ny else lat[i, j],
+                ]
+                lon_corners = [
+                    lon[i, j],
+                    lon[i, j+1] if j+1 < nx else lon[i, j],
+                    lon[i+1, j+1] if i+1 < ny and j+1 < nx else lon[i, j],
+                    lon[i+1, j] if i+1 < ny else lon[i, j],
+                ]
+
+                geometries.append(Polygon(zip(lon_corners, lat_corners)))
+                ids.append(0)
+                lats.append(float(lat[i, j]))
+                lons.append(float(lon[i, j]))
+
+                self.logger.info(f"Selected nearest cell: lat={lat[i,j]:.4f}, lon={lon[i,j]:.4f}")
+
+        elif lat.ndim == 1 and lon.ndim == 1:
             # Regular lat/lon grid (ERA5-style) :contentReference[oaicite:10]{index=10}
             half_dlat = abs(lat[1] - lat[0]) / 2 if len(lat) > 1 else 0.005
             half_dlon = abs(lon[1] - lon[0]) / 2 if len(lon) > 1 else 0.005
