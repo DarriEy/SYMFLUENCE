@@ -40,8 +40,8 @@ class TWSEvaluator(ModelEvaluator):
         - Diagnostic exports for visualization and analysis
 
     Output Variables:
-        - basin__StorageChange: sum of scalarSWE+calarCanopyWat+scalarTotalSoilWat
-            +scalarAquiferStorage+scalarGlceWE 
+        - basin__Storage: sum of scalarSWE+calarCanopyWat+scalarTotalSoilWat
+            +scalarAquiferStorage+scalarGlceWE or cumsum of basin__StorageChange
         - basin__MassBalanceMax: glacier mass balance units of mm of water, maximum per year
         - basin__MassBalanceMin: glacier mass balance units of mm of water, minimum per year
 
@@ -50,7 +50,7 @@ class TWSEvaluator(ModelEvaluator):
         TWS_ANOMALY_BASELINE: Baseline period for anomaly calc ('overlap' or year range)
         TWS_UNIT_CONVERSION: Scaling factor for model storage (default: 1.0)
         TWS_STORAGE_COMPONENTS: Comma-separated storage variables to sum
-        TWS_DETREND: Remove linear trend (critical for glacierized basins)
+        TWS_DETREND: Remove linear trend
         TWS_SCALE_TO_OBS: Scale model variability to match observations
         TWS_OBS_PATH: Direct path override for GRACE data
 
@@ -62,6 +62,7 @@ class TWSEvaluator(ModelEvaluator):
         - Spatial footprint ~300 km (cannot resolve sub-grid variability)
 
     Attributes:
+        optimization_target: 'stor_grace' or 'stor_mb'
         grace_column: GRACE data column name
         anomaly_baseline: Baseline period specification
         unit_conversion: Scaling factor for model storage values
@@ -94,8 +95,6 @@ class TWSEvaluator(ModelEvaluator):
                 - Can include glacier mass change: 'scalarGlceWE'
                 - Or just use total '
             TWS_DETREND: Remove linear trend from both sim and obs (default: False)
-                - Critical for glacierized basins (glacier mass loss trend obscures seasonal signal)
-                - Improves correlation from ~0.3 to ~0.8 for glacier domains
             TWS_SCALE_TO_OBS: Scale model variability to match observations (default: False)
                 - Centers both series on zero-mean, rescales model std dev to match obs
                 - Useful when pattern is correct but amplitude is wrong
@@ -110,13 +109,23 @@ class TWSEvaluator(ModelEvaluator):
         """
         super().__init__(config, project_dir, logger)
 
+        self.optimization_target = self._get_config_value(
+            lambda: self.config.optimization.target,
+            default='streamflow',
+            dict_key='OPTIMIZATION_TARGET'
+        )
+        if self.optimization_target not in ['stor_grace', 'stor_mb']:
+            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            if eval_var in ['stor_grace', 'stor_mb']:
+                self.optimization_target = eval_var
+            else:
+                self.optimization_target = 'stor_grace'
+
         self.grace_column = self.config_dict.get('TWS_GRACE_COLUMN', 'grace_jpl_anomaly')
         self.anomaly_baseline = self.config_dict.get('TWS_ANOMALY_BASELINE', 'overlap')
         self.unit_conversion = self.config_dict.get('TWS_UNIT_CONVERSION', 1.0)
 
         # Detrending option: removes linear trend from both series before comparison
-        # This is critical for glacierized basins where long-term glacier mass loss
-        # creates a trend mismatch that obscures the seasonal signal we want to calibrate
         self.detrend = self.config_dict.get('TWS_DETREND', False)
 
         # Scaling option: scale model variability to match observed
@@ -248,36 +257,7 @@ class TWSEvaluator(ModelEvaluator):
         try:
             ds = xr.open_dataset(output_file)
             total_tws = None
-
-            for var in self.storage_vars:
-                if var in ds.data_vars:
-                    data = ds[var].values.astype(float)
-
-                    # Replace fill values (-9999) with NaN
-                    # SUMMA uses -9999 for missing/invalid data in some domains
-                    data = np.where(data < -999, np.nan, data)
-
-                    # Unit conversion: aquifer storage is in meters, others usually in mm
-                    if 'aquifer' in var.lower():
-                        self.logger.debug(f"Converting {var} from meters to mm")
-                        data = data * 1000.0
-
-                    if data.ndim > 1:
-                        axes_to_sum = tuple(range(1, data.ndim))
-                        data = np.nanmean(data, axis=axes_to_sum)
-
-                    if total_tws is None:
-                        total_tws = data.copy()
-                    else:
-                        # Use nansum behavior: NaN + value = value
-                        total_tws = np.where(np.isnan(total_tws), data,
-                                            np.where(np.isnan(data), total_tws, total_tws + data))
-                else:
-                    self.logger.warning(f"Storage variable {var} not found in {output_file}")
-
-            if total_tws is None:
-                raise ValueError(f"No storage variables {self.storage_vars} found in {output_file}")
-
+            
             # Find time coordinate
             time_coord = None
             for var in ['time', 'Time', 'datetime']:
@@ -288,9 +268,61 @@ class TWSEvaluator(ModelEvaluator):
             if time_coord is None:
                 raise ValueError("Could not extract time coordinate")
 
+            if self.optimization_target == 'stor_mb':
+                if 'basin__GlacierArea' in ds.variables and 'basin__GlacierStorage' in ds.variables:
+                    area = ds['basin__GlacierArea']
+                    area = np.where(area <= 0, np.nan, area)
+                    total_tws = ds['basin__GlacierStorage']/area
+                    # convert from Gt/m² (km³ of water/m² to mm
+                    total_tws = total_tws * 1e9 * 1000.0
+                else:
+                    self.logger.warning(f"Glacier mass balance variables not found in SUMMA output for mass balance calculation")
+                    return None          
+            else:
+                if 'basin__StorageChange' in ds.data_vars:
+                    total_tws = ds['basin__StorageChange']   
+                    total_tws = np.where(total_tws < -999, np.nan, total_tws)
+                    # integrate: mm/s * seconds -> mm per timestep, then cumulative sum over time
+                    if hasattr(total_tws, 'sel') or hasattr(total_tws, 'dims'):
+                        dt = self.config.get('FORCING_TIME_STEP_SIZE', 1)
+                        total_tws = (total_tws * dt).cumsum(dim=time_coord)
+                    else:
+                        dt = self.config.get('FORCING_TIME_STEP_SIZE', 1)
+                        total_tws = np.cumsum(total_tws * dt, axis=0)
+                else:         
+                    for var in self.storage_vars:
+                        if var in ds.data_vars:
+                            data = ds[var].values.astype(float)
+
+                            # Replace fill values (-9999) with NaN
+                            # SUMMA uses -9999 for missing/invalid data in some domains
+                            data = np.where(data < -999, np.nan, data)
+
+                            # Unit conversion: aquifer storage is in meters, others usually in mm
+                            if 'aquifer' in var.lower():
+                                self.logger.debug(f"Converting {var} from meters to mm")
+                                data = data * 1000.0
+
+                            if data.ndim > 1:
+                                axes_to_sum = tuple(range(1, data.ndim))
+                                data = np.nanmean(data, axis=axes_to_sum)
+
+                            if total_tws is None:
+                                total_tws = data.copy()
+                            else:
+                                # Use nansum behavior: NaN + value = value
+                                total_tws = np.where(np.isnan(total_tws), data,
+                                                    np.where(np.isnan(data), total_tws, total_tws + data))
+                        else:
+                            self.logger.warning(f"Storage variable {var} not found in {output_file}")
+
+            if total_tws is None:
+                raise ValueError(f"No storage variables {self.storage_vars} found in {output_file}")
+
             tws_series = pd.Series(total_tws.flatten(), index=time_coord, name='simulated_tws')
             tws_series = tws_series * self.unit_conversion
             ds.close()
+
             return tws_series
         except Exception as e:
             self.logger.error(f"Error loading SUMMA output: {e}")
@@ -350,19 +382,31 @@ class TWSEvaluator(ModelEvaluator):
         # Search in multiple possible locations for GRACE data
         # Support both observations/grace and observations/storage/grace paths
         obs_base = self.project_dir / 'observations'
-        search_dirs = [
-            obs_base / 'storage' / 'grace',  # Ashley's glacier domain setup
-            obs_base / 'grace',               # Standard location
-        ]
 
-        potential_patterns = [
-            f'{self.domain_name}_HRUs_GRUs_grace_tws_anomaly.csv',  # HRU-specific format
-            f'{self.domain_name}_HRUs_elevation_grace_tws_anomaly_by_hru.csv',  # Elevation-based HRU
-            f'{self.domain_name}_grace_tws_processed.csv',
-            f'{self.domain_name}_grace_tws_anomaly.csv',
-            'grace_tws_anomaly.csv',
-            'tws_anomaly.csv',
-        ]
+        if self.optimization_target == 'stor_mb':
+            # Independent storage anomaly observations (e.g. glacier mass balance)
+            search_dirs = [ 
+                obs_base / 'storage' / 'mass_balance',
+                obs_base / 'mass_balance',
+            ]
+            potential_patterns = [
+                 f'{self.domain_name}_mass_balance.csv',
+                 'obs_mass_balance.csv',
+                 'mass_balance.csv',
+            ]
+        else:
+            search_dirs = [
+                obs_base / 'storage' / 'grace',  # Ashley's glacier domain setup
+                obs_base / 'grace',               # Standard location
+            ]
+            potential_patterns = [
+                f'{self.domain_name}_HRUs_GRUs_grace_tws_anomaly.csv',  # HRU-specific format
+                f'{self.domain_name}_HRUs_elevation_grace_tws_anomaly_by_hru.csv',  # Elevation-based HRU
+                f'{self.domain_name}_grace_tws_processed.csv',
+                f'{self.domain_name}_grace_tws_anomaly.csv',
+                'grace_tws_anomaly.csv',
+                'tws_anomaly.csv',
+            ]
 
         for obs_dir in search_dirs:
             if not obs_dir.exists():
@@ -400,13 +444,22 @@ class TWSEvaluator(ModelEvaluator):
         Returns:
             Optional[str]: Name of GRACE anomaly column, or None if not found
         """
-        if self.grace_column in columns:
-            return self.grace_column
-        # Fallback to known columns
-        for fallback in ['grace_jpl_anomaly', 'grace_csr_anomaly', 'grace_gsfc_anomaly']:
-            if fallback in columns:
-                return fallback
-        return next((c for c in columns if 'grace' in c.lower() and 'anomaly' in c.lower()), None)
+        if self.optimization_target == 'stor_mb':
+            # For independent storage anomaly, expect a specific column
+            for col in columns:
+                if 'mass_balance' in col.lower() or 'stor_mb' in col.lower():
+                    return col
+            # Fallback to exact match
+            if 'Mass_Balance' in columns:
+                return 'Mass_Balance'   
+        else:
+            if self.grace_column in columns:
+                return self.grace_column
+            # Fallback to known columns
+            for fallback in ['grace_jpl_anomaly', 'grace_csr_anomaly', 'grace_gsfc_anomaly']:
+                if fallback in columns:
+                    return fallback
+            return next((c for c in columns if 'grace' in c.lower() and 'anomaly' in c.lower()), None)
 
     def needs_routing(self) -> bool:
         """Determine if water storage evaluation requires routing model.
@@ -561,51 +614,175 @@ class TWSEvaluator(ModelEvaluator):
             obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True)
             col = self._get_observed_data_column(obs_df.columns)
             if not col:
-                self.logger.error(f"[TWS] Could not find GRACE column in {obs_path}. Available: {list(obs_df.columns)}")
+                self.logger.error(f"[TWS] Could not find GRACE/MB column in {obs_path}. Available: {list(obs_df.columns)}")
                 return None
 
             obs_tws = obs_df[col].dropna()
 
-            # Aggregate simulated to monthly means to match GRACE
-            sim_monthly = sim_tws.resample('MS').mean()
+            if self.optimization_target == 'stor_mb':
+                # make a timeseries of maximum and minimum values and repeat value on month
+                # compute annual maxima/minima from simulated TWS and their timestamps
+                annual_max = sim_tws.resample('A').max()
+                annual_min = sim_tws.resample('A').min()
+                annual_max_idx = sim_tws.resample('A').idxmax()
+                annual_min_idx = sim_tws.resample('A').idxmin()
 
-            # Check if we have any simulated data
-            if len(sim_monthly) == 0:
-                self.logger.error("[TWS] No simulated TWS data available for metrics calculation")
-                return None
+                # For each annual max, find the most recent annual min occurring <= that max
+                max_minus_prev_min = []
+                for max_ts in annual_max_idx.values:
+                    if pd.isna(max_ts):
+                        max_minus_prev_min.append(np.nan)
+                        continue
+                    # candidate minima up to and including the max timestamp
+                    candidates = annual_min_idx[annual_min_idx <= max_ts]
+                    if len(candidates) == 0:
+                        max_minus_prev_min.append(np.nan)
+                    else:
+                        prev_min_ts = candidates.iloc[-1]
+                        try:
+                            max_val = float(sim_tws.loc[max_ts])
+                            prev_min_val = float(sim_tws.loc[prev_min_ts])
+                            max_minus_prev_min.append(max_val - prev_min_val)
+                        except Exception:
+                            max_minus_prev_min.append(np.nan)
 
-            # Find common period
-            common_idx = sim_monthly.index.intersection(obs_tws.index)
-            if len(common_idx) == 0:
-                sim_start, sim_end = sim_monthly.index[0], sim_monthly.index[-1]
-                obs_start, obs_end = obs_tws.index[0], obs_tws.index[-1]
-                self.logger.error(f"[TWS] No overlapping period between simulation ({sim_start} to {sim_end}) and observations ({obs_start} to {obs_end})")
-                return None
+                annual_max_mb = pd.Series(max_minus_prev_min, index=annual_max.index)
 
-            self.logger.debug(f"[TWS] Found common period with {len(common_idx)} points")
-            sim_matched = sim_monthly.loc[common_idx]
-            obs_matched = obs_tws.loc[common_idx]
+                # For each annual min, find the most recent annual max occurring <= that min
+                min_minus_prev_max = []
+                for min_ts in annual_min_idx.values:
+                    if pd.isna(min_ts):
+                        min_minus_prev_max.append(np.nan)
+                        continue
+                    candidates = annual_max_idx[annual_max_idx <= min_ts]
+                    if len(candidates) == 0:
+                        min_minus_prev_max.append(np.nan)
+                    else:
+                        prev_max_ts = candidates.iloc[-1]
+                        try:
+                            min_val = float(sim_tws.loc[min_ts])
+                            prev_max_val = float(sim_tws.loc[prev_max_ts])
+                            min_minus_prev_max.append(min_val - prev_max_val)
+                        except Exception:
+                            min_minus_prev_max.append(np.nan)
 
-            # Calculate anomaly for simulated data
-            baseline_mean = sim_matched.mean()
-            sim_anomaly = sim_matched - baseline_mean
+                annual_min_mb = pd.Series(min_minus_prev_max, index=annual_min.index)
 
-            # Apply detrending if configured
-            # This is critical for glacierized basins where glacier mass loss trend
-            # obscures the seasonal signal (improves correlation ~0.46 -> ~0.78)
-            if self.detrend:
-                self.logger.info("[TWS] Applying linear detrending to both series")
-                sim_anomaly = self._detrend_series(sim_anomaly)
-                obs_matched = self._detrend_series(obs_matched)
+                # Map to observation frequency:
+                obs_years = pd.DatetimeIndex(obs_tws.index).year
+                annual_years = pd.DatetimeIndex(annual_max_mb.index).year
 
-            # Apply variability scaling if configured
-            # This forces model variability to match observed (removes alpha penalty in KGE)
-            if self.scale_to_obs:
-                self.logger.info("[TWS] Scaling model variability to match observed")
-                sim_anomaly = self._scale_to_obs_variability(sim_anomaly, obs_matched)
+                # count observations per year to detect annual vs bi-annual
+                obs_counts = obs_tws.groupby(obs_tws.index.year).size()
+                is_annual = obs_counts.max() == 1 and obs_counts.min() == 1
+                is_biannual = obs_counts.max() == 2 and obs_counts.min() == 2
+
+                if is_annual:
+                    # annual observations: sum of the year's max and min-derived metrics
+                    mapped = []
+                    for y in obs_years:
+                        if y in annual_years:
+                            try:
+                                v_max = annual_max_mb.loc[annual_max_mb.index.year == y].values
+                                v_min = annual_min_mb.loc[annual_min_mb.index.year == y].values
+                                vm = (float(v_max[0]) if len(v_max) > 0 and not pd.isna(v_max[0]) else 0.0)
+                                vn = (float(v_min[0]) if len(v_min) > 0 and not pd.isna(v_min[0]) else 0.0)
+                                mapped.append(vm + vn)
+                            except Exception:
+                                mapped.append(np.nan)
+                        else:
+                            mapped.append(np.nan)
+                    sim_anomaly = pd.Series(mapped, index=obs_tws.index, name='sim_tws')
+                    obs_anomaly = obs_tws
+                elif is_biannual:
+                    # bi-annual observations: assign +value at the month matching annual max, -value at month matching annual min
+                    mapped = []
+                    # build dicts for quick lookup by year
+                    max_month_by_year = {iy: ts.month for iy, ts in zip(annual_max_mb.index.year, annual_max_idx.values) if not pd.isna(ts)}
+                    min_month_by_year = {iy: ts.month for iy, ts in zip(annual_min_mb.index.year, annual_min_idx.values) if not pd.isna(ts)}
+                    max_val_by_year = {iy: (float(v) if not pd.isna(v) else np.nan) for iy, v in zip(annual_max_mb.index.year, annual_max_mb.values)}
+                    min_val_by_year = {iy: (float(v) if not pd.isna(v) else np.nan) for iy, v in zip(annual_min_mb.index.year, annual_min_mb.values)}
+
+                    for ts in obs_tws.index:
+                        y = ts.year
+                        m = ts.month
+                        if y not in annual_years:
+                            mapped.append(np.nan)
+                            continue
+                        if max_month_by_year.get(y) == m:
+                            mapped.append(abs(max_val_by_year.get(y, np.nan)))
+                        elif min_month_by_year.get(y) == m:
+                            mapped.append(-abs(min_val_by_year.get(y, np.nan)))
+                        else:
+                            mapped.append(np.nan)
+                    sim_anomaly = pd.Series(mapped, index=obs_tws.index, name='sim_tws')
+                    obs_anomaly = obs_tws
+                else:
+                    self.logger.error("Mass balance observation data not annual or biannual")
+ 
+            else: # GRACE type data
+                # Aggregate simulated to monthly means to match GRACE
+                sim_monthly = sim_tws.resample('MS').mean()
+
+                # Check if we have any simulated data
+                if len(sim_monthly) == 0:
+                    self.logger.error("[TWS] No simulated TWS data available for metrics calculation")
+                    return None
+
+                # Find common period
+                common_idx = sim_monthly.index.intersection(obs_tws.index)
+                if len(common_idx) == 0:
+                    sim_start, sim_end = sim_monthly.index[0], sim_monthly.index[-1]
+                    obs_start, obs_end = obs_tws.index[0], obs_tws.index[-1]
+                    self.logger.error(f"[TWS] No overlapping period between simulation ({sim_start} to {sim_end}) and observations ({obs_start} to {obs_end})")
+                    return None
+
+                self.logger.debug(f"[TWS] Found common period with {len(common_idx)} points")
+                sim_matched = sim_monthly.loc[common_idx]
+                obs_matched = obs_tws.loc[common_idx]
+
+                # Calculate anomalies
+                if self.anomaly_baseline == 'overlap':
+                    baseline_mean_sim = sim_matched.mean()
+                    baseline_mean_obs = obs_matched.mean()
+                else: # year range XXXX-XXXX
+                    year_start = self.anomaly_baseline[0:4]
+                    year_end = self.anomaly_baseline[-4:]
+                    # Parse the year-range baseline and compute mean over that period
+                    try:
+                        ys = int(self.anomaly_baseline[:4])
+                        ye = int(self.anomaly_baseline[-4:])
+                        # Ensure DatetimeIndex for year selection
+                        idx_years = pd.DatetimeIndex(sim_matched.index).year
+                        mask = (idx_years >= ys) & (idx_years <= ye)
+                        if mask.any():
+                            baseline_mean_sim = sim_matched.loc[mask].mean()
+                            baseline_mean_obs = obs_matched.loc[mask].mean()
+                        else:
+                            self.logger.warning(f"[TWS] Baseline years {ys}-{ye} not in simulation overlap; using full-overlap mean")
+                            baseline_mean_sim = sim_matched.mean()
+                            baseline_mean_obs = obs_matched.mean()
+                    except Exception as exc:
+                        self.logger.warning(f"[TWS] Invalid TWS_ANOMALY_BASELINE '{self.anomaly_baseline}': {exc}; using overlap mean")
+                        baseline_mean_sim = sim_matched.mean()
+                        baseline_mean_obs = obs_matched.mean()
+                sim_anomaly = sim_matched - baseline_mean_sim
+                obs_anomaly = obs_matched - baseline_mean_obs
+
+                # Apply detrending if configured
+                if self.detrend:
+                    self.logger.info("[TWS] Applying linear detrending to both series")
+                    sim_anomaly = self._detrend_series(sim_anomaly)
+                    obs_anomaly = self._detrend_series(obs_anomaly)
+
+                # Apply variability scaling if configured
+                # This forces model variability to match observed (removes alpha penalty in KGE)
+                if self.scale_to_obs:
+                    self.logger.info("[TWS] Scaling model variability to match observed")
+                    sim_anomaly = self._scale_to_obs_variability(sim_anomaly, obs_anomaly)
 
             # Calculate metrics
-            metrics = self._calculate_performance_metrics(obs_matched, sim_anomaly)
+            metrics = self._calculate_performance_metrics(obs_anomaly, sim_anomaly)
             self.logger.debug(f"[TWS] Calculated metrics: {metrics}")
             return metrics
 
@@ -685,29 +862,54 @@ class TWSEvaluator(ModelEvaluator):
         sim_matched = sim_monthly.loc[common_index][valid_mask]
         obs_matched = obs_monthly.loc[common_index][valid_mask]
 
-        baseline_mean = sim_matched.mean()
-        sim_anomaly = sim_matched - baseline_mean
+        # Calculate anomalies
+        if self.anomaly_baseline == 'overlap':
+            baseline_mean_sim = sim_matched.mean()
+            baseline_mean_obs = obs_matched.mean()
+        else: # year range XXXX-XXXX
+            year_start = self.anomaly_baseline[0:4]
+            year_end = self.anomaly_baseline[-4:]
+            # Parse the year-range baseline and compute mean over that period
+            try:
+                ys = int(self.anomaly_baseline[:4])
+                ye = int(self.anomaly_baseline[-4:])
+                # Ensure DatetimeIndex for year selection
+                idx_years = pd.DatetimeIndex(sim_matched.index).year
+                mask = (idx_years >= ys) & (idx_years <= ye)
+                if mask.any():
+                    baseline_mean_sim = sim_matched.loc[mask].mean()
+                    baseline_mean_obs = obs_matched.loc[mask].mean()
+                else:
+                    self.logger.warning(f"[TWS] Baseline years {ys}-{ye} not in simulation overlap; using full-overlap mean")
+                    baseline_mean_sim = sim_matched.mean()
+                    baseline_mean_obs = obs_matched.mean()
+            except Exception as exc:
+                self.logger.warning(f"[TWS] Invalid TWS_ANOMALY_BASELINE '{self.anomaly_baseline}': {exc}; using overlap mean")
+                baseline_mean_sim = sim_matched.mean()
+                baseline_mean_obs = obs_matched.mean()
+        sim_anomaly = sim_matched - baseline_mean_sim
+        obs_anomaly = obs_matched - baseline_mean_obs
 
         # Store raw values for diagnostics
         sim_anomaly_raw = sim_anomaly.copy()
-        obs_matched_raw = obs_matched.copy()
+        obs_anomaly_raw = obs_anomaly.copy()
 
         # Apply detrending if configured
         if self.detrend:
             sim_anomaly = self._detrend_series(sim_anomaly)
-            obs_matched = self._detrend_series(obs_matched)
+            obs_anomaly = self._detrend_series(obs_anomaly)
 
         # Apply scaling if configured
         if self.scale_to_obs:
-            sim_anomaly = self._scale_to_obs_variability(sim_anomaly, obs_matched)
+            sim_anomaly = self._scale_to_obs_variability(sim_anomaly, obs_anomaly)
 
         return {
             'time': sim_matched.index,
             'sim_tws': sim_matched.values,
             'sim_anomaly': sim_anomaly.values,
             'sim_anomaly_raw': sim_anomaly_raw.values,
-            'obs_anomaly': obs_matched.values,
-            'obs_anomaly_raw': obs_matched_raw.values,
+            'obs_anomaly': obs_anomaly.values,
+            'obs_anomaly_raw': obs_anomaly_raw.values,
             'grace_column': self.grace_column,
             'grace_all_columns': obs_df.loc[common_index][valid_mask],
             'detrend_applied': self.detrend,
