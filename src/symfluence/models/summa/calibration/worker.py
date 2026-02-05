@@ -275,10 +275,13 @@ class SUMMAWorker(BaseWorker):
             import subprocess
 
             summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
+            summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
             if str(summa_exe) == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
                 summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
                 summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
+            else:
+                summa_exe = summa_exe / summa_exe_name
 
             file_manager = settings_dir / 'fileManager.txt'
 
