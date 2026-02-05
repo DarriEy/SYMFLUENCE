@@ -9,7 +9,6 @@ import logging
 import shutil
 import xarray as xr
 import geopandas as gpd
-import netCDF4 as nc4
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -333,12 +332,12 @@ class RemappingWeightGenerator(ConfigMixin):
         source_nc_resolution = None
 
         try:
-            with nc4.Dataset(sample_file, 'r') as ncid:
+            with xr.open_dataset(sample_file, engine="h5netcdf") as ds:
                 all_summa_vars = [
                     'airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate',
                     'airtemp', 'spechum', 'windspd', 'relhum'
                 ]
-                available_vars = [v for v in all_summa_vars if v in ncid.variables]
+                available_vars = [v for v in all_summa_vars if v in ds]
 
                 if not available_vars:
                     raise ValueError(f"No SUMMA forcing variables found in {sample_file}")
@@ -349,13 +348,13 @@ class RemappingWeightGenerator(ConfigMixin):
                 )
 
                 # Calculate grid resolution
-                if var_lat not in ncid.variables:
+                if var_lat not in ds:
                     raise KeyError(f"Latitude variable '{var_lat}' not found")
-                if var_lon not in ncid.variables:
+                if var_lon not in ds:
                     raise KeyError(f"Longitude variable '{var_lon}' not found")
 
-                lat_vals = ncid.variables[var_lat][:]
-                lon_vals = ncid.variables[var_lon][:]
+                lat_vals = ds[var_lat].values
+                lon_vals = ds[var_lon].values
 
                 if lat_vals.ndim == 1:
                     lat_size = len(lat_vals)
@@ -403,7 +402,7 @@ class RemappingWeightGenerator(ConfigMixin):
         if not case_remap_csv.exists() and case_remap_nc.exists():
             self.logger.debug("Converting NetCDF weights to CSV...")
             try:
-                with xr.open_dataset(case_remap_nc) as ds:
+                with xr.open_dataset(case_remap_nc, engine="h5netcdf") as ds:
                     ds.to_dataframe().to_csv(case_remap_csv)
             except Exception as e:
                 self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}")

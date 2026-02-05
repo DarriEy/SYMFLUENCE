@@ -46,7 +46,7 @@ class FileValidator:
             bool: True if file is valid, False otherwise
         """
         try:
-            with xr.open_dataset(file_path) as ds:
+            with xr.open_dataset(file_path, engine="h5netcdf") as ds:
                 # Check 1: Must have time dimension
                 if 'time' not in ds.dims:
                     self.logger.warning(
