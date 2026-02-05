@@ -9,7 +9,7 @@ import logging
 import shutil
 import time
 import uuid
-import netCDF4 as nc4
+import xarray as xr
 from pathlib import Path
 from typing import Optional
 
@@ -234,21 +234,21 @@ class RemappingWeightApplier(ConfigMixin):
     def _detect_file_variables(self, file: Path, worker_str: str) -> list:
         """Detect SUMMA forcing variables in the file."""
         try:
-            with nc4.Dataset(file, 'r') as ncid:
+            with xr.open_dataset(file, engine="h5netcdf") as ds:
                 all_summa_vars = [
                     'airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate',
                     'airtemp', 'spechum', 'windspd', 'relhum'
                 ]
-                available_vars = [v for v in all_summa_vars if v in ncid.variables]
+                available_vars = [v for v in all_summa_vars if v in ds]
 
                 if not available_vars:
                     self.logger.error(
                         f"{worker_str}No SUMMA variables found in {file.name}. "
-                        f"Available variables: {list(ncid.variables.keys())}"
+                        f"Available variables: {list(ds.variables.keys())}"
                     )
                     return []
 
-                if 'time' not in ncid.dimensions:
+                if 'time' not in ds.dims:
                     self.logger.error(f"{worker_str}Input file {file.name} has no time dimension!")
                     return []
 
