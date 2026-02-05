@@ -69,7 +69,7 @@ class PointScaleForcingExtractor(ConfigMixin):
             sample_file = forcing_files[0]
             var_lat, var_lon = self.dataset_handler.get_coordinate_names()
 
-            with xr.open_dataset(sample_file) as ds:
+            with xr.open_dataset(sample_file, engine="h5netcdf") as ds:
                 lat_vals = ds[var_lat].values
                 lon_vals = ds[var_lon].values
 
@@ -165,7 +165,7 @@ class PointScaleForcingExtractor(ConfigMixin):
         """Process a single forcing file."""
         self.logger.info(f"Extracting point forcing: {file.name}")
 
-        with xr.open_dataset(file) as ds:
+        with xr.open_dataset(file, engine="h5netcdf") as ds:
             # Pick the first cell if it's a grid
             spatial_dims = {d: 0 for d in ds.dims if d not in ['time', 'hru']}
 
@@ -216,5 +216,5 @@ class PointScaleForcingExtractor(ConfigMixin):
                 if '_FillValue' in ds_point[var].attrs:
                     del ds_point[var].attrs['_FillValue']
 
-            ds_point.to_netcdf(output_file)
+            ds_point.to_netcdf(output_file, engine="h5netcdf")
             self.logger.info(f"Created point forcing: {output_file.name}")
