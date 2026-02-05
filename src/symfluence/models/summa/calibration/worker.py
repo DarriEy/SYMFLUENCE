@@ -181,11 +181,14 @@ class SUMMAWorker(BaseWorker):
             # Import existing functions
             from symfluence.optimization.workers.summa import _run_summa_worker, _run_mizuroute_worker
 
-            summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
-            if str(summa_exe) == 'default':
+            summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
+            summa_exe = config.get("SUMMA_EXE", "summa_sundials.exe")
+            if summa_install_path == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
-                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
+                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe
+            else:
+                summa_install_path = Path(summa_install_path)
+                summa_exe = summa_install_path / summa_exe
 
             file_manager = settings_dir / 'fileManager.txt'
             if not file_manager.exists():
