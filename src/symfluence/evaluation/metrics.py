@@ -465,8 +465,8 @@ def kge_np(
     # Non-parametric alpha: based on normalized flow duration curves
     # Per Pool et al. (2018), normalize by sum so values represent probabilities
     # that sum to 1. This ensures alpha_np ranges from 0 to 1.
-    fdc_obs = np.sort(obs) / np.sum(obs)
-    fdc_sim = np.sort(sim) / np.sum(sim)
+    fdc_obs = np.sort(obs) / np.sum(obs) if mean_obs != 0 else np.nan
+    fdc_sim = np.sort(sim) / np.sum(sim) if mean_sim != 0 else np.nan
     alpha_np = 1.0 - 0.5 * np.sum(np.abs(fdc_sim - fdc_obs))
 
     # Beta remains the same (bias ratio)
