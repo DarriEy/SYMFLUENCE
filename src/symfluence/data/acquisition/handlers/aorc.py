@@ -219,5 +219,5 @@ class AORCAcquirer(BaseAcquisitionHandler):
         for coord in ds_combined.coords:
             ds_combined[coord].encoding.clear()
         # Load data into memory before writing to avoid dask/HDF5 conflicts
-        ds_combined.load().to_netcdf(output_file)
+        ds_combined.load().to_netcdf(output_file, engine="h5netcdf")
         return output_file

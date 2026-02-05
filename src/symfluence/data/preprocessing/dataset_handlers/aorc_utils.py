@@ -280,7 +280,7 @@ class AORCHandler(BaseDatasetHandler):
         for f in files:
             self.logger.info(f"Processing AORC file: {f}")
             try:
-                ds = xr.open_dataset(f)
+                ds = xr.open_dataset(f, engine="h5netcdf")
             except Exception as e:
                 self.logger.error(f"Error opening AORC file {f}: {e}")
                 continue
@@ -307,7 +307,7 @@ class AORCHandler(BaseDatasetHandler):
                         ds_proc[var_name].attrs.pop("missing_value", None)
 
                 out_name = merged_forcing_path / f"{f.stem}_processed.nc"
-                ds_proc.to_netcdf(out_name)
+                ds_proc.to_netcdf(out_name, engine="h5netcdf")
                 self.logger.info(f"Saved processed AORC forcing: {out_name}")
             except Exception as e:
                 self.logger.error(f"Error processing AORC dataset from {f}: {e}")
@@ -382,7 +382,7 @@ class AORCHandler(BaseDatasetHandler):
                 except (ValueError, AttributeError):
                     pass
 
-        with xr.open_dataset(aorc_file) as ds:
+        with xr.open_dataset(aorc_file, engine="h5netcdf") as ds:
             var_lat, var_lon = self.get_coordinate_names()
 
             # Try coords first, then data_vars, then fail
