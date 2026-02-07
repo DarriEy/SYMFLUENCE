@@ -1,5 +1,5 @@
 SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
+SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE/examples
 NUM_PROCESSES: 1
 DEBUG_MODE: false
 LOG_LEVEL: INFO
@@ -114,7 +114,7 @@ SETTINGS_SUMMA_GLACIER_MODE: false
 SETTINGS_SUMMA_GLACIER_ATTRIBUTES: attributes_glac.nc
 SETTINGS_SUMMA_GLACIER_COLDSTATE: coldState_glac.nc
 SUMMA_TIMEOUT: 7200
-MIZUROUTE_INSTALL_PATH: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data/installs/mizuRoute/route/bin
+MIZUROUTE_INSTALL_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/mizuRoute/route/bin
 MIZUROUTE_EXE: mizuRoute.exe
 SETTINGS_MIZU_PATH: default
 SETTINGS_MIZU_WITHIN_BASIN: 0
