@@ -100,6 +100,7 @@ class VariableStandardizer:
         },
         'CARRA': {
             't2m': 'airtemp',
+            'r2': 'relhum',
             'tp': 'pptrate',
             'sp': 'airpres',
             'q': 'spechum',

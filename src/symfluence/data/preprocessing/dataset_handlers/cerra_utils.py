@@ -243,6 +243,10 @@ class CERRAHandler(BaseDatasetHandler):
                 try:
                     import geopandas as gpd
                     hru_gdf = gpd.read_file(hru_shapefile)
+                    # Reproject to WGS84 if needed before extracting bounds
+                    if hru_gdf.crs and hru_gdf.crs != 'EPSG:4326':
+                        self.logger.info(f"Reprojecting HRU from {hru_gdf.crs} to EPSG:4326 for spatial filtering")
+                        hru_gdf = hru_gdf.to_crs('EPSG:4326')
                     # Get bounding box with small buffer to ensure we capture nearby cells
                     bbox = hru_gdf.total_bounds  # [minx, miny, maxx, maxy]
                     buffer = 0.1  # ~10km buffer
@@ -283,6 +287,9 @@ class CERRAHandler(BaseDatasetHandler):
                             # Re-read or use existing if efficient (safest to re-read to be sure)
                             if 'hru_gdf' not in locals():
                                 hru_gdf = gpd.read_file(hru_shapefile)
+                                # Reproject to WGS84 if needed
+                                if hru_gdf.crs and hru_gdf.crs != 'EPSG:4326':
+                                    hru_gdf = hru_gdf.to_crs('EPSG:4326')
 
                             minx, miny, maxx, maxy = hru_gdf.total_bounds
 
