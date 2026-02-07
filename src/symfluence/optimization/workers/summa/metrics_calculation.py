@@ -234,7 +234,7 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             target = ETTarget(config, project_dir, logger)
         elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
             target = SoilMoistureTarget(config, project_dir, logger)
-        elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage']:
+        elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage','stor_grace','stor_mb']:
             target = TWSTarget(config, project_dir, logger)
         elif optimization_target == 'multivariate':
             target = MultivariateTarget(config, project_dir, logger)
