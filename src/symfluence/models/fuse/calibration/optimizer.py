@@ -7,7 +7,7 @@ Provides unified interface for all optimization algorithms with FUSE.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
@@ -245,6 +245,100 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             params['AF01'] = 1.0
 
         return params
+
+    def _find_complete_fuse_template(self) -> Optional[Path]:
+        """
+        Find an existing complete FUSE para_def.nc template with all required variables.
+
+        FUSE's run_pre mode requires a para_def.nc with all ~89 variables including:
+        - Calibration parameters (MAXWATR_1, BASERTE, etc.)
+        - Derived parameters (MAXTENS_1, MAXFREE_1, etc.)
+        - Numerix settings (SOLUTION, TIMSTEP_TYP, etc.)
+        - Statistics placeholders (nash_sutt, kge, etc.)
+
+        This method searches for existing FUSE-generated templates that contain
+        all required variables. If found, this template should be used instead of
+        creating a minimal file via _create_para_def_nc().
+
+        Search locations (in priority order):
+        0. User-specified FUSE_TEMPLATE_PATH (highest priority)
+        1. Current simulation directory (from previous run)
+        2. Other simulation directories in the project
+        3. Parallel process directories (from calibration runs)
+
+        Returns:
+            Path to complete template if found, None otherwise
+        """
+        import netCDF4 as nc
+
+        # Minimum number of variables expected in a complete FUSE template
+        # FUSE generates ~89 variables; we require at least 70 to be safe
+        MIN_REQUIRED_VARS = 70
+
+        def is_complete_template(path: Path) -> bool:
+            """Check if a para_def.nc has all required variables."""
+            try:
+                with nc.Dataset(path, 'r') as ds:
+                    n_vars = len([v for v in ds.variables if v != 'par'])
+                    if n_vars >= MIN_REQUIRED_VARS:
+                        self.logger.debug(f"Found complete template with {n_vars} vars: {path}")
+                        return True
+                    else:
+                        self.logger.debug(f"Template {path} has only {n_vars} vars (need {MIN_REQUIRED_VARS}+)")
+                        return False
+            except Exception as e:
+                self.logger.debug(f"Could not check template {path}: {e}")
+                return False
+
+        # 0. Check for user-specified template path (highest priority)
+        user_template = self._get_config_value(
+            lambda: self.config.model.fuse.template_path,
+            default=None,
+            dict_key='FUSE_TEMPLATE_PATH'
+        )
+        if user_template:
+            user_template_path = Path(user_template)
+            if user_template_path.exists() and is_complete_template(user_template_path):
+                self.logger.info(f"Using user-specified FUSE template: {user_template_path}")
+                return user_template_path
+            else:
+                self.logger.warning(
+                    f"User-specified FUSE_TEMPLATE_PATH '{user_template}' does not exist "
+                    f"or is not a complete template. Searching for alternatives..."
+                )
+
+        # Search locations
+        search_paths: List[Path] = []
+
+        # 1. Current simulation directory
+        if self.fuse_sim_dir.exists():
+            search_paths.extend(self.fuse_sim_dir.glob("*_para_def.nc"))
+            search_paths.extend(self.fuse_sim_dir.glob("sim_*_para_def.nc"))
+
+        # 2. Other simulation directories
+        sim_base = self.project_dir / 'simulations'
+        if sim_base.exists():
+            for sim_dir in sim_base.iterdir():
+                if sim_dir.is_dir() and sim_dir.name != self.experiment_id:
+                    fuse_dir = sim_dir / 'FUSE'
+                    if fuse_dir.exists():
+                        search_paths.extend(fuse_dir.glob("*_para_def.nc"))
+                        search_paths.extend(fuse_dir.glob("sim_*_para_def.nc"))
+
+        # 3. Parallel process directories (may have FUSE-generated templates)
+        run_dirs = list(sim_base.glob("run_*/process_*/settings/FUSE"))
+        for run_dir in run_dirs:
+            if run_dir.exists():
+                search_paths.extend(run_dir.glob("sim_*_para_def.nc"))
+
+        # Check each path for completeness
+        for path in search_paths:
+            if path.exists() and is_complete_template(path):
+                self.logger.info(f"Found complete FUSE template: {path}")
+                return path
+
+        self.logger.debug("No complete FUSE template found")
+        return None
 
     def _add_elevation_params_to_constraints(self, constraints_file: Path) -> bool:
         """
@@ -493,11 +587,46 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, dict_key='FUSE_FILE_ID') or self.experiment_id
         param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
 
-        # If para_def.nc doesn't exist, create it with default parameters
-        # This is essential for FUSE calibration - run_def mode reads from para_def.nc
+        # If para_def.nc doesn't exist, try to find a complete FUSE template
+        # CRITICAL: For run_pre mode, FUSE requires all ~89 variables including:
+        # - Derived parameters (MAXTENS_*, MAXFREE_*, etc.)
+        # - Numerix settings (SOLUTION, TIMSTEP_TYP, etc.)
+        # - Statistics placeholders (nash_sutt, kge, etc.)
+        # A minimal file created by _create_para_def_nc() will NOT work for run_pre!
         if not param_file.exists():
-            self.logger.info(f"Creating missing para_def.nc at {param_file}")
-            self._create_para_def_nc(param_file)
+            # First, try to find an existing complete FUSE template
+            template_path = self._find_complete_fuse_template()
+
+            if template_path is not None:
+                # Copy the complete template to the expected location
+                self.logger.info(f"Using complete FUSE template from: {template_path}")
+                param_file.parent.mkdir(parents=True, exist_ok=True)
+                copy_file(template_path, param_file)
+            else:
+                # No complete template found - create minimal file
+                # This will work for run_def mode but NOT for run_pre mode
+                self.logger.warning(
+                    "No complete FUSE template found. Creating minimal para_def.nc. "
+                    "This will work for run_def mode, but run_pre mode requires a complete "
+                    "template with all ~89 variables. To generate a complete template, first "
+                    "run FUSE in run_def or calib_sce mode, or provide FUSE_TEMPLATE_PATH in config."
+                )
+                self._create_para_def_nc(param_file)
+
+                # Check if run_pre mode is requested and warn
+                fuse_mode = self._get_config_value(
+                    lambda: self.config.model.fuse.run_mode,
+                    default='run_def',
+                    dict_key='FUSE_RUN_MODE'
+                )
+                if fuse_mode == 'run_pre':
+                    self.logger.error(
+                        "FUSE run_pre mode is configured but no complete template was found! "
+                        "Calibration will likely fail. Please either:\n"
+                        "  1. Run FUSE once in run_def mode to generate a complete para_def.nc\n"
+                        "  2. Set FUSE_TEMPLATE_PATH to an existing complete para_def.nc\n"
+                        "  3. Switch to run_def mode (but note: run_def regenerates parameters)"
+                    )
 
         if param_file.exists():
             for proc_id, dirs in self.parallel_dirs.items():

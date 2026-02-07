@@ -79,8 +79,16 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
                 else:
                     raise ValueError("No runoff variable found in FUSE output")
 
-                # Assuming single parameter set, lat, lon for lumped
-                simulated = ds[sim_var].isel(param_set=0, latitude=0, longitude=0)
+                # Handle variable dimensions - param_set may or may not exist
+                var = ds[sim_var]
+                isel_kwargs = {}
+                if 'param_set' in var.dims:
+                    isel_kwargs['param_set'] = 0
+                if 'latitude' in var.dims:
+                    isel_kwargs['latitude'] = 0
+                if 'longitude' in var.dims:
+                    isel_kwargs['longitude'] = 0
+                simulated = var.isel(**isel_kwargs) if isel_kwargs else var
                 sim_df = cast(pd.Series, simulated.to_pandas())
 
                 # Convert mm/day to cms: Q(cms) = Q(mm/day) * Area(km2) / 86.4
@@ -128,6 +136,15 @@ class FUSESnowTarget(SnowEvaluator):
                 if spatial_dims:
                     simulated = simulated.mean(dim=spatial_dims)
             else:
-                simulated = ds[sim_var].isel(param_set=0, latitude=0, longitude=0)
+                # Handle variable dimensions - param_set may or may not exist
+                var = ds[sim_var]
+                isel_kwargs = {}
+                if 'param_set' in var.dims:
+                    isel_kwargs['param_set'] = 0
+                if 'latitude' in var.dims:
+                    isel_kwargs['latitude'] = 0
+                if 'longitude' in var.dims:
+                    isel_kwargs['longitude'] = 0
+                simulated = var.isel(**isel_kwargs) if isel_kwargs else var
 
             return cast(pd.Series, simulated.to_pandas())

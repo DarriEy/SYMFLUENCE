@@ -41,8 +41,11 @@ def get_fuse_build_instructions():
         'config_exe_key': 'FUSE_EXE',
         'default_path_suffix': 'installs/fuse/bin',
         'default_exe': 'fuse.exe',
-        'repository': 'https://github.com/CH-Earth/fuse.git',
-        'branch': None,
+        # Use Martyn's fork with bugfix/runpre for proper run_pre mode support
+        # This allows reading parameters directly from para_def.nc without
+        # regenerating from constraints file - required for regionalization
+        'repository': 'https://github.com/martynpclark/fuse.git',
+        'branch': 'bugfix/runpre',
         'install_dir': 'fuse',
         'build_commands': [
             common_env,

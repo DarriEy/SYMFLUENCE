@@ -254,24 +254,46 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 copyfile(source_file, dest_file)
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
 
-            if decision_file_path and decision_file_path.exists() and self.config_dict.get('FUSE_SNOW_MODEL'):
-                snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
+            # Apply FUSE_DECISION_OPTIONS from config to update model decisions
+            decision_options = self.config_dict.get('FUSE_DECISION_OPTIONS', {})
+            snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
+
+            if decision_file_path and decision_file_path.exists() and (decision_options or snow_model):
                 try:
                     with open(decision_file_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
                 except UnicodeDecodeError:
                     with open(decision_file_path, 'r', encoding='latin-1') as f:
                         lines = f.readlines()
-                updated_lines = []
-                for line in lines:
-                    if line.strip().endswith('SNOWM'):
-                        parts = line.split()
-                        if parts:
-                            line = line.replace(parts[0], snow_model, 1)
-                    updated_lines.append(line)
+
+                # Build a map of decision key -> value to apply
+                decisions_to_apply = {}
+                for key, values in decision_options.items():
+                    if isinstance(values, list) and values:
+                        decisions_to_apply[key] = values[0]
+                    elif isinstance(values, str):
+                        decisions_to_apply[key] = values
+
+                # FUSE_SNOW_MODEL as fallback for SNOWM if not in FUSE_DECISION_OPTIONS
+                if snow_model and 'SNOWM' not in decisions_to_apply:
+                    decisions_to_apply['SNOWM'] = snow_model
+
+                # Update decision lines (lines 2-10, 0-indexed 1-9)
+                for i in range(1, min(10, len(lines))):
+                    parts = lines[i].split()
+                    if len(parts) >= 2:
+                        decision_key = parts[1]
+                        if decision_key in decisions_to_apply:
+                            new_value = decisions_to_apply[decision_key]
+                            rest_of_line = ' '.join(parts[1:])
+                            lines[i] = f"{new_value:<10} {rest_of_line}\n"
+                            self.logger.debug(f"Updated FUSE decision {decision_key} to {new_value}")
+
                 with open(decision_file_path, 'w') as f:
-                    f.writelines(updated_lines)
-                self.logger.info(f"Updated FUSE snow model decision to {snow_model}")
+                    f.writelines(lines)
+
+                if decisions_to_apply:
+                    self.logger.info(f"Applied FUSE decision options: {decisions_to_apply}")
 
             self.logger.info(f"FUSE base settings copied to {settings_path}")
 

@@ -62,7 +62,15 @@ class FUSEPlotter(BasePlotter):
             for model_name, output_file in model_outputs:
                 if model_name.upper() == 'FUSE':
                     with xr.open_dataset(output_file) as ds:
-                        sim_flow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_series()
+                        var = ds['q_routed']
+                        isel_kwargs = {}
+                        if 'param_set' in var.dims:
+                            isel_kwargs['param_set'] = 0
+                        if 'latitude' in var.dims:
+                            isel_kwargs['latitude'] = 0
+                        if 'longitude' in var.dims:
+                            isel_kwargs['longitude'] = 0
+                        sim_flow = var.isel(**isel_kwargs).to_series() if isel_kwargs else var.to_series()
 
                         # Unit conversion (mm/day to cms)
                         basin_name = resolve_default_name(

@@ -127,10 +127,13 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         Convert FUSE spatial dimensions to mizuRoute format.
 
         Uses OutputConverterMixin for the core conversion:
-        - Squeezes singleton longitude dimension
-        - Renames latitude → gru
+        - Squeezes singleton latitude dimension
+        - Renames longitude → gru
         - Adds gruId variable
+        - Filters out coastal GRUs and sets gruId to match topology hruId
         """
+        import pandas as pd
+
         experiment_id = self.experiment_id
         fuse_id = self._get_fuse_file_id()
         domain = self.domain_name
@@ -157,12 +160,62 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         # Use generic mixin method with FUSE-specific parameters
         self.convert_to_mizuroute_format(
             input_path=target,
-            squeeze_dims=['longitude'],
-            rename_dims={'latitude': 'gru'},
+            squeeze_dims=['latitude'],
+            rename_dims={'longitude': 'gru'},
             add_id_var='gruId',
             id_source_dim='gru',
             create_backup=True
         )
+
+        # Filter coastal GRUs using mapping file if available
+        mapping_file = self.project_dir / 'settings' / 'mizuRoute' / 'fuse_to_routing_mapping.csv'
+        if mapping_file.exists():
+            ds = xr.open_dataset(target)
+            ds = ds.load()
+            ds.close()
+
+            mapping = pd.read_csv(mapping_file)
+            non_coastal = mapping[~mapping['is_coastal']]
+            fuse_indices = non_coastal['fuse_gru_idx'].values
+            gru_ids = non_coastal['gru_to_seg'].values.astype(np.int32)
+
+            n_total = ds.sizes.get('gru', 0)
+            n_keep = len(non_coastal)
+            self.logger.debug(f"Filtering coastal GRUs: {n_total} total → {n_keep} non-coastal")
+
+            ds = ds.isel(gru=fuse_indices)
+            ds = ds.assign_coords(gru=np.arange(n_keep))
+            ds['gruId'] = xr.DataArray(gru_ids, dims=['gru'],
+                                       attrs={'long_name': 'gru identifier'})
+
+            # Convert FUSE runoff from mm/day to m/s for mizuRoute
+            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+            if routing_units == 'm/s' and routing_var in ds:
+                fuse_timestep = int(self.config_dict.get('FUSE_OUTPUT_TIMESTEP_SECONDS', 86400))
+                conversion_factor = 1.0 / (1000.0 * fuse_timestep)
+                ds[routing_var] = ds[routing_var] * conversion_factor
+                ds[routing_var].attrs['units'] = 'm/s'
+                self.logger.debug(f"Converted {routing_var}: mm/day → m/s (factor={conversion_factor:.2e})")
+
+            ds.to_netcdf(target)
+            self.logger.debug(f"Saved filtered output with {n_keep} GRUs to {target}")
+        else:
+            self.logger.warning(f"Mapping file not found at {mapping_file}, skipping coastal GRU filtering")
+            # Still need to convert units from mm/day to m/s for mizuRoute
+            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+            if routing_units == 'm/s':
+                ds = xr.open_dataset(target)
+                ds = ds.load()
+                ds.close()
+                if routing_var in ds:
+                    fuse_timestep = int(self.config_dict.get('FUSE_OUTPUT_TIMESTEP_SECONDS', 86400))
+                    conversion_factor = 1.0 / (1000.0 * fuse_timestep)
+                    ds[routing_var] = ds[routing_var] * conversion_factor
+                    ds[routing_var].attrs['units'] = 'm/s'
+                    ds.to_netcdf(target)
+                    self.logger.debug(f"Converted {routing_var}: mm/day → m/s (factor={conversion_factor:.2e})")
 
         # Ensure _runs_def.nc exists if we processed a different file
         def_file = fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc"
@@ -462,8 +515,8 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                             f"Available: {list(fuse_ds.data_vars)}")
 
         # --- Identify spatial axis (one of latitude/longitude must have length > 1)
-        lat_len = fuse_ds.dims.get('latitude', 0)
-        lon_len = fuse_ds.dims.get('longitude', 0)
+        lat_len = fuse_ds.sizes.get('latitude', 0)
+        lon_len = fuse_ds.sizes.get('longitude', 0)
 
         if lat_len > 1 and (lon_len in (0, 1)):
             # (time, latitude, 1)
@@ -690,7 +743,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 return False
 
             with xr.open_dataset(elev_bands_path) as eb_ds:
-                n_bands = eb_ds.dims.get('elevation_band', 1)
+                n_bands = eb_ds.sizes.get('elevation_band', 1)
                 mean_elevs = eb_ds['mean_elev'].values.flatten()
                 area_fracs = eb_ds['area_frac'].values.flatten()
 
@@ -698,10 +751,19 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 z_forcing = float(np.sum(mean_elevs * area_fracs))
 
             # Update para_def.nc with correct elevation band parameters
+            # FUSE creates para_def.nc with 2 param sets (bounds), but set 1 often has NaN values
+            # We keep only the first valid parameter set to avoid FUSE failing on NaN values
             with xr.open_dataset(para_def_path) as ds:
-                ds_dict = {var: ds[var].values for var in ds.data_vars}
                 ds_attrs = dict(ds.attrs)
-                ds_coords = {c: ds.coords[c].values for c in ds.coords}
+                # Only keep the first parameter set (index 0) which has valid values
+                ds_dict = {}
+                for var in ds.data_vars:
+                    vals = ds[var].values
+                    if vals.ndim > 0 and len(vals) > 0:
+                        # Keep only first value, as array for consistency
+                        ds_dict[var] = np.array([vals[0]])
+                    else:
+                        ds_dict[var] = vals
 
             # Update the elevation band parameters
             ds_dict['N_BANDS'] = np.array([float(n_bands)])
@@ -713,16 +775,16 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 ds_dict[z_mid_name] = np.array([float(mean_elevs[i])])
                 ds_dict[af_name] = np.array([float(area_fracs[i])])
 
-            # Write back to NetCDF
+            # Write back to NetCDF with single parameter set
             new_ds = xr.Dataset(
                 {var: (['par'], vals) for var, vals in ds_dict.items()},
-                coords={'par': ds_coords.get('par', [0])},
+                coords={'par': [0]},
                 attrs=ds_attrs
             )
             new_ds.to_netcdf(para_def_path, mode='w')
 
-            self.logger.info(f"Fixed elevation band params in para_def.nc: N_BANDS={n_bands}, "
-                           f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
+            self.logger.info(f"Fixed elevation band params in para_def.nc (reduced to 1 param set): "
+                           f"N_BANDS={n_bands}, Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
             return True
 
         except (FileNotFoundError, OSError, KeyError, ValueError) as e:
@@ -908,8 +970,8 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         if mode == 'run_pre' and para_file:
             command.append(str(para_file))
 
-        # Create log file path
-        log_file = self.get_log_path() / 'fuse_run.log'
+        # Create log file path - use mode-specific log files to avoid overwriting
+        log_file = self.get_log_path() / f'fuse_{mode}.log'
 
         try:
             result = self.execute_model_subprocess(
