@@ -465,10 +465,12 @@ class SummaConfigManager(PathResolverMixin):
             with xr.open_dataset(attr_path) as attr_ds:
                 gru_ids = attr_ds['gruId'].values.astype(int)
                 num_gru = len(gru_ids)
-        except Exception:
-            # Fallback: single GRU matching the HRU
-            gru_ids = forcing_hruIds[:1]
-            num_gru = 1
+                self.logger.debug(f"Read {num_gru} GRU IDs from attributes file")
+        except Exception as e:
+            # Fallback: use hruIds as gruIds (one GRU per HRU)
+            self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.")
+            gru_ids = forcing_hruIds
+            num_gru = len(gru_ids)
 
         with nc4.Dataset(parameter_path, "w", format="NETCDF4") as tp:
             # Set attributes

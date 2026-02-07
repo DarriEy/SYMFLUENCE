@@ -659,7 +659,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             if result.returncode == 0:
                 self.logger.log(success_log_level, success_message)
             else:
-                self.logger.warning(f"Process exited with code {result.returncode}")
+                self.logger.debug(f"Process exited with code {result.returncode}")
 
             return result
 

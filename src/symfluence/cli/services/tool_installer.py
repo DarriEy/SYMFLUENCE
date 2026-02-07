@@ -183,7 +183,7 @@ class ToolInstaller(BaseService):
                 # Check if already exists
                 if tool_install_dir.exists() and not force:
                     self._console.indent(f"Skipping - already exists at: {tool_install_dir}")
-                    self._console.indent("Use --force_install to reinstall")
+                    self._console.indent("Use --force to reinstall")
                     installation_results["skipped"].append(tool_name)
                     continue
 

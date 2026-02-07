@@ -59,8 +59,8 @@ MODEL_CONFIGS = {
         output_dir_name='FUSE',
         default_var='q_routed',
         default_units='m/s',
-        default_dt='3600',
-        output_file_pattern='{experiment_id}_timestep.nc',
+        default_dt='86400',  # FUSE outputs daily timesteps
+        output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
         hru_dim='gru',
         hru_var='gruId',
         comment_name='FUSE'
@@ -281,6 +281,13 @@ class ControlFileWriter(ConfigurableMixin):
         routing_dt = self._get_config_value(lambda: self.config.model.mizuroute.routing_dt, default=model_config.default_dt)
         if routing_dt in ('default', None, ''):
             routing_dt = model_config.default_dt
+
+        # For FUSE, dt_qsim must match the actual FUSE output timestep,
+        # not the generic SETTINGS_MIZU_ROUTING_DT which is for routing computation.
+        # FUSE always outputs daily data — the generic routing_dt (often 3600 for
+        # SUMMA) must not override this.
+        if model_config.comment_name == 'FUSE':
+            routing_dt = model_config.default_dt  # 86400 (daily)
 
         # Generate output file name from pattern
         output_file = model_config.output_file_pattern.format(

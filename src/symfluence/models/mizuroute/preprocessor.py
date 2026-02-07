@@ -758,16 +758,16 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             seg_id = int(row[seg_id_col])
             down_seg_id = int(row[downseg_id_col])
 
-            # Check if downstream ID is valid (either 0 for outlet, or exists in segment list)
-            if down_seg_id != 0 and down_seg_id not in valid_seg_ids:
+            # Check if downstream ID is valid (either -9999 for outlet, or exists in segment list)
+            if down_seg_id not in valid_seg_ids and down_seg_id != -9999:
                 invalid_refs.append((seg_id, down_seg_id))
-                # Fix: set invalid downstream references to 0 (outlet)
-                shp_river.loc[idx, downseg_id_col] = 0
+                # Fix: set invalid downstream references to -9999 (mizuRoute outlet convention)
+                shp_river.loc[idx, downseg_id_col] = -9999
 
         if invalid_refs:
             self.logger.warning(f"Fixed {len(invalid_refs)} invalid downstream segment references:")
             for seg_id, invalid_down_id in invalid_refs:
-                self.logger.warning(f"  Segment {seg_id} had invalid downstream ID {invalid_down_id} -> set to 0 (outlet)")
+                self.logger.warning(f"  Segment {seg_id} had invalid downstream ID {invalid_down_id} -> set to -9999 (outlet)")
 
         # Validate HRU-to-segment mapping
         invalid_hru_refs = []
@@ -1300,11 +1300,11 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         valid_seg_ids = set(seg_ids)
         invalid_count = 0
         for i, down_seg_id in enumerate(down_seg_ids):
-            # Check if downstream ID is valid (either 0 for outlet, or exists in segment list)
-            if down_seg_id != 0 and down_seg_id not in valid_seg_ids:
+            # Check if downstream ID is valid (either -9999 for outlet, or exists in segment list)
+            if down_seg_id not in valid_seg_ids and down_seg_id != -9999:
                 invalid_count += 1
-                down_seg_ids[i] = 0  # Fix: set to outlet
-                self.logger.warning(f"Segment {seg_ids[i]} had invalid downstream ID {down_seg_id} -> set to 0 (outlet)")
+                down_seg_ids[i] = -9999  # Fix: set to outlet (mizuRoute convention)
+                self.logger.warning(f"Segment {seg_ids[i]} had invalid downstream ID {down_seg_id} -> set to -9999 (outlet)")
 
         if invalid_count > 0:
             self.logger.warning(f"Fixed {invalid_count} invalid downstream segment references in grid topology")

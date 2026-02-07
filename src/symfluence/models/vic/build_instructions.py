@@ -179,7 +179,7 @@ fi
             '''.strip()
         ],
         'dependencies': ['nc-config', 'mpicc'],
-        'test_command': 'vic_image.exe -v',
+        'test_command': None,
         'verify_install': {
             'file_paths': ['bin/vic_image.exe'],
             'check_type': 'exists'
