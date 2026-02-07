@@ -84,7 +84,10 @@ autodoc_mock_imports = [
 project = 'SYMFLUENCE'
 copyright = '2025, Darri Eythorsson'
 author = 'Darri Eythorsson'
-release = '0.6.0'
+
+# Read version from single source of truth
+from symfluence.symfluence_version import __version__  # noqa: E402
+release = __version__
 
 # Extensions
 extensions = [
