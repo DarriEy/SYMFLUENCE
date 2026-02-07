@@ -3,8 +3,8 @@
 
 """Total Water Storage (TWS) Evaluator.
 
-Evaluates simulated water storage from SUMMA using either total water storage change 
-and comparing against GRACE satellite data or using glacier only mass balance and 
+Evaluates simulated water storage from SUMMA using either total water storage change
+and comparing against GRACE satellite data or using glacier only mass balance and
 comparing against observed glacier mass balance data.
 """
 
@@ -31,7 +31,7 @@ class TWSEvaluator(ModelEvaluator):
     1) total water storage change against GRACE satellite observations of water storage anomalies.
     2) glacier annual maximum and minimum mass balance against observations
 
-   Key Features:
+    Key Features:
         - Multi-component storage summation: SWE + canopy + soil + aquifer
         - Flexible storage component selection via configuration
         - GRACE data support from multiple processing centers (JPL, CSR, GSFC)
@@ -93,7 +93,7 @@ class TWSEvaluator(ModelEvaluator):
             TWS_STORAGE_COMPONENTS: Comma-separated SUMMA storage variables
                 - Default: 'scalarSWE, scalarCanopyWat, scalarTotalSoilWat, scalarAquiferStorage'
                 - Can include glacier mass change: 'scalarGlceWE'
-                - Or just use total '
+                - Or use cumulative basin__StorageChange
             TWS_DETREND: Remove linear trend from both sim and obs (default: False)
             TWS_SCALE_TO_OBS: Scale model variability to match observations (default: False)
                 - Centers both series on zero-mean, rescales model std dev to match obs
@@ -257,7 +257,7 @@ class TWSEvaluator(ModelEvaluator):
         try:
             ds = xr.open_dataset(output_file)
             total_tws = None
-            
+
             # Find time coordinate
             time_coord = None
             for var in ['time', 'Time', 'datetime']:
@@ -276,20 +276,18 @@ class TWSEvaluator(ModelEvaluator):
                     # convert from Gt/m² (km³ of water/m² to mm
                     total_tws = total_tws * 1e9 * 1000.0
                 else:
-                    self.logger.warning(f"Glacier mass balance variables not found in SUMMA output for mass balance calculation")
-                    return None          
+                    raise ValueError("Glacier mass balance variables (basin__GlacierArea, basin__GlacierStorage) not found in SUMMA output")
             else:
                 if 'basin__StorageChange' in ds.data_vars:
-                    total_tws = ds['basin__StorageChange']   
+                    total_tws = ds['basin__StorageChange']
                     total_tws = np.where(total_tws < -999, np.nan, total_tws)
                     # integrate: mm/s * seconds -> mm per timestep, then cumulative sum over time
+                    dt = self.config_dict.get('FORCING_TIME_STEP_SIZE', 1)
                     if hasattr(total_tws, 'sel') or hasattr(total_tws, 'dims'):
-                        dt = self.config.get('FORCING_TIME_STEP_SIZE', 1)
                         total_tws = (total_tws * dt).cumsum(dim=time_coord)
                     else:
-                        dt = self.config.get('FORCING_TIME_STEP_SIZE', 1)
                         total_tws = np.cumsum(total_tws * dt, axis=0)
-                else:         
+                else:
                     for var in self.storage_vars:
                         if var in ds.data_vars:
                             data = ds[var].values.astype(float)
@@ -385,7 +383,7 @@ class TWSEvaluator(ModelEvaluator):
 
         if self.optimization_target == 'stor_mb':
             # Independent storage anomaly observations (e.g. glacier mass balance)
-            search_dirs = [ 
+            search_dirs = [
                 obs_base / 'storage' / 'mass_balance',
                 obs_base / 'mass_balance',
             ]
@@ -451,7 +449,8 @@ class TWSEvaluator(ModelEvaluator):
                     return col
             # Fallback to exact match
             if 'Mass_Balance' in columns:
-                return 'Mass_Balance'   
+                return 'Mass_Balance'
+            return None
         else:
             if self.grace_column in columns:
                 return self.grace_column
@@ -719,7 +718,8 @@ class TWSEvaluator(ModelEvaluator):
                     obs_anomaly = obs_tws
                 else:
                     self.logger.error("Mass balance observation data not annual or biannual")
- 
+                    return None
+
             else: # GRACE type data
                 # Aggregate simulated to monthly means to match GRACE
                 sim_monthly = sim_tws.resample('MS').mean()
@@ -746,8 +746,6 @@ class TWSEvaluator(ModelEvaluator):
                     baseline_mean_sim = sim_matched.mean()
                     baseline_mean_obs = obs_matched.mean()
                 else: # year range XXXX-XXXX
-                    year_start = self.anomaly_baseline[0:4]
-                    year_end = self.anomaly_baseline[-4:]
                     # Parse the year-range baseline and compute mean over that period
                     try:
                         ys = int(self.anomaly_baseline[:4])
@@ -867,8 +865,6 @@ class TWSEvaluator(ModelEvaluator):
             baseline_mean_sim = sim_matched.mean()
             baseline_mean_obs = obs_matched.mean()
         else: # year range XXXX-XXXX
-            year_start = self.anomaly_baseline[0:4]
-            year_end = self.anomaly_baseline[-4:]
             # Parse the year-range baseline and compute mean over that period
             try:
                 ys = int(self.anomaly_baseline[:4])
