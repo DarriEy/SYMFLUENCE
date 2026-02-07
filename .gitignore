@@ -147,3 +147,7 @@ scripts/studies/
 
 # Paper source files (kept locally, not tracked)
 paper/
+
+# Local data directories
+SYMFLUENCE_data/
+**/SYMFLUENCE_data/
