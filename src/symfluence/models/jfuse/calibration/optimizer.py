@@ -11,7 +11,10 @@ from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from .worker import JFUSEWorker  # noqa: F401 - Import to trigger worker registration
+
+# Note: JFUSEWorker registration is triggered by calibration/__init__.py import,
+# not here. Importing it here at module level causes a circular import when
+# _register_optimizers() runs from model_optimizers/__init__.py.
 
 
 @OptimizerRegistry.register_optimizer('JFUSE')
