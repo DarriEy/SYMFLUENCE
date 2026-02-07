@@ -340,8 +340,8 @@ class ObservedDataProcessor(ConfigMixin):
                                   sep=';',
                                   header=None,
                                   names=['YYYY', 'MM', 'DD', 'qobs', 'qc_flag'],
-                                  parse_dates={'datetime': ['YYYY', 'MM', 'DD']},
-                                  na_values=['', 'NA', 'NaN'], # Explicitly list common NA values
+                                  parse_dates={'datetime': ['YYYY', 'MM', 'DD']},  # type: ignore[call-overload]
+                                  na_values=['', 'NA', 'NaN'],
                                   skiprows = 1)
 
             vi_data['discharge_cms'] = pd.to_numeric(vi_data['qobs'], errors='coerce')
