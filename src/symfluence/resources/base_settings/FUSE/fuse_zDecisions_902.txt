@@ -11,7 +11,7 @@ temp_index SNOWM     ! (9) snow model
 0                    ! naming convention for model (0=full, 1=index + numrx)
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
-(nothing is read below this point) fuseConfigID=160
+(nothing is read below this point) fuseConfigID=902 (template - actual config set by FUSE_DECISION_OPTIONS)
 ---------------------------------------------------------------------------
 (1) rainfall error
 additive_e      ! additive rainfall error
