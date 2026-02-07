@@ -205,7 +205,7 @@ class TestExecuteModelSubprocess:
             )
 
             assert result.returncode == 1
-            mock_logger.warning.assert_called_with("Process exited with code 1")
+            mock_logger.debug.assert_called_with("Process exited with code 1")
 
     def test_failure_with_check_true(self, runner, temp_dir, mock_logger):
         """Test subprocess failure when check=True."""

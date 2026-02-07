@@ -406,6 +406,34 @@ MESH_SPINUP_DAYS: 365
 #   Usage:      3
 MESH_GRU_MIN_TOTAL: 0.0
 
+# MESH_FORCE_SINGLE_GRU
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Force single GRU mode for MESH preprocessing
+MESH_FORCE_SINGLE_GRU: true
+
+# MESH_APPLY_PARAMS_ALL_GRUS
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Apply calibration parameters to all GRUs uniformly
+MESH_APPLY_PARAMS_ALL_GRUS: true
+
+# MESH_USE_LANDCOVER_MULTIPLIERS
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Use landcover-based parameter multipliers
+MESH_USE_LANDCOVER_MULTIPLIERS: true
+
+# MESH_ENABLE_FROZEN_SOIL
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Enable frozen soil physics in MESH
+MESH_ENABLE_FROZEN_SOIL: true
+
 
 # 13. Routing Model (mizuRoute)
 # ================================================================================
@@ -1116,6 +1144,41 @@ NSGA2_SECONDARY_METRIC: "KGE"
 #   Source:      NSGA2Config (optimization.py)
 #   Usage:      3
 NSGA2_SECONDARY_TARGET: "gw_depth"
+
+# MOEAD_MULTI_TARGET
+#   Type:        bool
+#   Default:     False
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Enable multi-target optimization for MOEA/D
+MOEAD_MULTI_TARGET: false
+
+# MOEAD_PRIMARY_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Primary optimization target for MOEA/D
+MOEAD_PRIMARY_TARGET: "streamflow"
+
+# MOEAD_PRIMARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Primary metric for MOEA/D multi-target optimization
+MOEAD_PRIMARY_METRIC: "KGE"
+
+# MOEAD_SECONDARY_TARGET
+#   Type:        str
+#   Default:     gw_depth
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Secondary optimization target for MOEA/D
+MOEAD_SECONDARY_TARGET: "gw_depth"
+
+# MOEAD_SECONDARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Secondary metric for MOEA/D multi-target optimization
+MOEAD_SECONDARY_METRIC: "KGE"
 
 # NUMBER_OF_ITERATIONS
 #   Type:        int
@@ -1923,6 +1986,13 @@ CATCHMENT_PLOT_DIR: default
 #   Usage:      4
 CATCHMENT_SHP_AREA: "HRU_area"
 
+# CATCHMENT_SHP_ELEV
+#   Type:        str
+#   Default:     elev_mean
+#   Source:      PathsConfig (paths.py)
+#   Usage:      Elevation attribute name in catchment shapefile
+CATCHMENT_SHP_ELEV: "elev_mean"
+
 # CATCHMENT_SHP_GRUID
 #   Type:        str
 #   Default:     GRU_ID
@@ -1957,6 +2027,13 @@ CATCHMENT_SHP_LON: "center_lon"
 #   Source:      PathsConfig (paths.py)
 #   Usage:      35
 CATCHMENT_SHP_NAME: default
+
+# CATCHMENT_SHP_SLOPE
+#   Type:        str
+#   Default:     slope
+#   Source:      PathsConfig (paths.py)
+#   Usage:      Slope attribute name in catchment shapefile
+CATCHMENT_SHP_SLOPE: "slope"
 
 # CLUSTER_JSON
 #   Type:        str
@@ -3897,6 +3974,27 @@ RHESSYS_WORLD_TEMPLATE: "world.template"
 #   Usage:      3
 RHESSYS_FLOW_TEMPLATE: "flow.template"
 
+# RHESSYS_LNA_AREA_CAP_M2
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Maximum area cap for log-normal accumulation in RHESSys (m2)
+RHESSYS_LNA_AREA_CAP_M2: null
+
+# RHESSYS_LNA_MIN
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Minimum log-normal accumulation value for RHESSys
+RHESSYS_LNA_MIN: null
+
+# RHESSYS_LNA_MAX
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Maximum log-normal accumulation value for RHESSys
+RHESSYS_LNA_MAX: null
+
 # RHESSYS_PARAMS_TO_CALIBRATE
 #   Type:        str
 #   Default:     sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef
@@ -3917,6 +4015,13 @@ RHESSYS_SKIP_CALIBRATION: true
 #   Source:      RHESSysConfig (model_configs.py)
 #   Usage:      WMFire wildfire spread module integration
 RHESSYS_USE_WMFIRE: false
+
+# RHESSYS_USE_GROW_MODE
+#   Type:        bool
+#   Default:     True
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Enable vegetation growth mode in RHESSys
+RHESSYS_USE_GROW_MODE: true
 
 # WMFIRE_INSTALL_PATH
 #   Type:        str

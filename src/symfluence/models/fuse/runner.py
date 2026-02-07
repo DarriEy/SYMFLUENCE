@@ -1035,9 +1035,9 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 self.logger.info("Snow optimization detected - copying default to best parameters")
                 self._copy_default_to_best_params()
 
-            # Note: Adding elevation params to constraints was causing FUSE crashes
-            # The underlying issue is in how FUSE handles single-band elevation aggregation
-            # TODO: Investigate FUSE source code for proper fix
+            # Known limitation: elevation params in constraints cause FUSE crashes
+            # due to how FUSE handles single-band elevation aggregation internally.
+            # Workaround: skip elevation param constraints for lumped mode.
 
             # Run FUSE with default parameters
             success = self._execute_fuse('run_def')

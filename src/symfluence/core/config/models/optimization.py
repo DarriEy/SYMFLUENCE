@@ -88,6 +88,22 @@ class NSGA2Config(BaseModel):
     eta_m: int = Field(default=20, alias='NSGA2_ETA_M', ge=1)
 
 
+class MOEADConfig(BaseModel):
+    """MOEA/D (Multi-Objective Evolutionary Algorithm based on Decomposition) settings.
+
+    MOEA/D shares multi-target configuration with NSGA2 but uses decomposition-based
+    approach. These fields mirror the NSGA2 multi-target settings with MOEAD-prefixed
+    aliases for configuration convenience.
+    """
+    model_config = FROZEN_CONFIG
+
+    multi_target: bool = Field(default=False, alias='MOEAD_MULTI_TARGET')
+    primary_target: str = Field(default='streamflow', alias='MOEAD_PRIMARY_TARGET')
+    secondary_target: str = Field(default='gw_depth', alias='MOEAD_SECONDARY_TARGET')
+    primary_metric: str = Field(default='KGE', alias='MOEAD_PRIMARY_METRIC')
+    secondary_metric: str = Field(default='KGE', alias='MOEAD_SECONDARY_METRIC')
+
+
 class ABCConfig(BaseModel):
     """Approximate Bayesian Computation (ABC-SMC) algorithm settings.
 
@@ -301,6 +317,7 @@ class OptimizationConfig(BaseModel):
     dds: Optional[DDSConfig] = Field(default_factory=DDSConfig)
     sce_ua: Optional[SCEUAConfig] = Field(default_factory=SCEUAConfig)
     nsga2: Optional[NSGA2Config] = Field(default_factory=NSGA2Config)
+    moead: Optional[MOEADConfig] = Field(default_factory=MOEADConfig)
     abc: Optional[ABCConfig] = Field(default_factory=ABCConfig)
     emulation: Optional[EmulationConfig] = Field(default_factory=EmulationConfig)
 

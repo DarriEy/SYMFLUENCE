@@ -100,11 +100,11 @@ def test_noah_tbl_real_structure(tmp_path):
 
     manager = NgenParameterManager({'DOMAIN_NAME':'t','NGEN_MODULES_TO_CALIBRATE':'NOAH'}, logger, ngen_dir)
 
-    # Update smcmax (col 5) and dksat (col 8)
+    # Update smcmax (MAXSMC, 0-indexed parts[4]) and dksat (SATDK, 0-indexed parts[7])
     manager.update_model_files({'NOAH.smcmax': 0.55, 'NOAH.dksat': 2.0E-5})
 
     content = soilparm.read_text()
     parts = [p.rstrip(',') for p in content.splitlines()[-1].split()]
     assert parts[0] == "3"
-    assert float(parts[5]) == 0.55
-    assert "2.0000E-05" in parts[8] or "2e-05" in parts[8].lower()
+    assert float(parts[4]) == 0.55
+    assert "2.0000E-05" in parts[7] or "2e-05" in parts[7].lower()
