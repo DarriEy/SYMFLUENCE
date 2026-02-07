@@ -82,6 +82,66 @@ class CARRAHandler(BaseDatasetHandler):
         self.logger.info("CARRA data does not require merging. Skipping merge step.")
         pass
 
+    def _normalize_coordinates(self, merged_forcing_path: Path):
+        """
+        Normalize CARRA file coordinates: convert lon from 0-360 to -180/180
+        and sort latitude ascending.
+
+        This must run before shapefile creation and EASYMORE remapping to ensure
+        consistency between the forcing shapefile (which uses WGS84 -180/180 for
+        HRU intersection) and EASYMORE's internal meshgrid (built from the NetCDF
+        coordinate arrays).
+
+        Without this, CARRA's native 0-360 longitudes cause EASYMORE to assign
+        cols=0 for all entries because it cannot match -180/180 shapefile centroids
+        to 0-360 meshgrid values.
+        """
+        carra_files = sorted(merged_forcing_path.glob('*.nc'))
+        if not carra_files:
+            return
+
+        # Check first file to see if normalization is needed
+        with xr.open_dataset(carra_files[0]) as ds:
+            lons = ds.longitude.values
+            lats = ds.latitude.values
+            needs_lon_fix = lons.max() > 180
+            needs_lat_sort = len(lats) > 1 and lats[0] > lats[-1]
+
+        if not needs_lon_fix and not needs_lat_sort:
+            self.logger.info("CARRA coordinates already normalized (lon -180/180, lat ascending)")
+            return
+
+        fixes = []
+        if needs_lon_fix:
+            fixes.append(f"longitude 0-360 -> -180/180 (range: {lons.min():.1f}-{lons.max():.1f})")
+        if needs_lat_sort:
+            fixes.append(f"latitude descending -> ascending ({lats[0]:.2f}-{lats[-1]:.2f})")
+        self.logger.info(f"Normalizing CARRA coordinates in {len(carra_files)} files: {', '.join(fixes)}")
+
+        for nc_file in carra_files:
+            # Load into memory and close file handle before writing
+            with xr.open_dataset(nc_file) as ds:
+                ds_loaded = ds.load()
+
+            modified = False
+
+            if needs_lon_fix:
+                new_lons = ds_loaded.longitude.values.copy()
+                new_lons[new_lons > 180] -= 360
+                ds_loaded = ds_loaded.assign_coords(longitude=new_lons)
+                ds_loaded = ds_loaded.sortby('longitude')
+                modified = True
+
+            if needs_lat_sort:
+                ds_loaded = ds_loaded.sortby('latitude')
+                modified = True
+
+            if modified:
+                ds_loaded.to_netcdf(nc_file, mode='w')
+            ds_loaded.close()
+
+        self.logger.info("CARRA coordinate normalization complete")
+
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:
         """
@@ -101,7 +161,15 @@ class CARRAHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating CARRA grid shapefile")
 
+        # Normalize coordinates before shapefile creation and EASYMORE remapping.
+        # CARRA data may have 0-360 longitudes and descending latitude which causes
+        # mismatches with EASYMORE's coordinate matching.
+        self._normalize_coordinates(merged_forcing_path)
+
         output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+
+        # Import geopandas here - needed for GeoDataFrame creation below
+        import geopandas as gpd
 
         try:
             # Find a processed CARRA file
@@ -117,7 +185,9 @@ class CARRAHandler(BaseDatasetHandler):
                 lats = ds.latitude.values
                 lons = ds.longitude.values
 
-            self.logger.info(f"CARRA dimensions: {lats.shape}")
+            self.logger.info(f"CARRA dimensions: lat={lats.shape}, lon={lons.shape}")
+            self.logger.info(f"CARRA lat range: {lats.min():.4f} to {lats.max():.4f}")
+            self.logger.info(f"CARRA lon range: {lons.min():.4f} to {lons.max():.4f}")
 
             # Check if this is a regular lat/lon grid (1D) or curvilinear (2D)
             is_regular_grid = (lats.ndim == 1)
@@ -134,8 +204,11 @@ class CARRAHandler(BaseDatasetHandler):
             bbox_filter = None
             if hru_shapefile.exists():
                 try:
-                    import geopandas as gpd
                     hru_gdf = gpd.read_file(hru_shapefile)
+                    # Reproject to WGS84 if needed before extracting bounds
+                    if hru_gdf.crs and hru_gdf.crs != 'EPSG:4326':
+                        self.logger.info(f"Reprojecting HRU from {hru_gdf.crs} to EPSG:4326 for spatial filtering")
+                        hru_gdf = hru_gdf.to_crs('EPSG:4326')
                     # Get bounding box with small buffer to ensure we capture nearby cells
                     bbox = hru_gdf.total_bounds  # [minx, miny, maxx, maxy]
                     buffer = 0.1  # ~10km buffer
@@ -210,6 +283,11 @@ class CARRAHandler(BaseDatasetHandler):
                         cell_id += 1
 
                 self.logger.info(f"Created {cells_created} grid cells")
+
+                if cells_created == 0 and bbox_filter is not None:
+                    self.logger.warning("No grid cells created! CARRA grid does not overlap with HRU extent.")
+                    self.logger.warning("This usually means the CARRA download used a different bounding box than the HRU shapefile.")
+                    self.logger.warning("Check that BOUNDING_BOX_COORDS in config matches your study area.")
 
             else:
                 # Curvilinear grid - use stereographic projection
