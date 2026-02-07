@@ -141,7 +141,7 @@ class MESHWorker(BaseWorker):
 
                 data_dir = Path(data_dir)
                 project_dir = data_dir / f"domain_{domain_name}"
-                runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
+                runner.forcing_mesh_path = project_dir / 'forcing' / 'MESH_input'
                 runner.output_dir = output_dir
 
             # Run MESH
@@ -320,13 +320,22 @@ class MESHWorker(BaseWorker):
             sim_df.index = pd.DatetimeIndex(sim_df.index)
             obs_df.index = pd.DatetimeIndex(obs_df.index)
 
-            # If using GRU_water_balance (daily output), aggregate hourly obs to daily
-            if is_gru_wb:
-                # Aggregate hourly observations to daily mean
-                obs_daily = obs_df[obs_col].resample('D').mean()
-                self.logger.debug(
-                    f"Aggregated {len(obs_df)} hourly obs to {len(obs_daily)} daily values"
-                )
+            # MESH water balance outputs are daily (Basin_average) or hourly
+            # (GRU, aggregated to daily by the extractor). Observations may be
+            # sub-daily (e.g., hourly). Detect and resample so each daily MESH
+            # value is compared against the daily-mean observation, not just a
+            # single sub-daily timestamp.
+            if is_basin_wb or is_gru_wb:
+                # Check if obs are sub-daily (more records than unique days)
+                n_obs_days = len(obs_df.index.normalize().unique())
+                if len(obs_df) > n_obs_days * 1.5:
+                    obs_daily = obs_df[obs_col].resample('D').mean()
+                    self.logger.debug(
+                        f"Aggregated {len(obs_df)} sub-daily obs to "
+                        f"{len(obs_daily)} daily values"
+                    )
+                else:
+                    obs_daily = obs_df[obs_col]
             else:
                 obs_daily = obs_df[obs_col]
 

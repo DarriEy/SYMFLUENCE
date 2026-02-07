@@ -114,6 +114,11 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             self.logger,
             error_type=ModelExecutionError
         ):
+            # Clear stale output files from output_dir to prevent a crashed
+            # iteration from finding valid files left by the previous iteration
+            # on the same process (output_dir is reused across iterations).
+            self._clear_stale_outputs(self.output_dir)
+
             # Create run command
             cmd = self._create_run_command()
 
@@ -237,6 +242,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             bool: True if all required outputs found, False otherwise.
         """
         is_lumped = self._is_lumped_mode()
+        expected_days = self._get_expected_days()
 
         if is_lumped:
             # In lumped/noroute mode, accept either basin-average or GRU water balance.
@@ -261,9 +267,15 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 if output_path.exists():
                     # Ensure file has data (not just headers)
                     try:
-                        with open(output_path, 'r') as f:
-                            lines = f.readlines()
-                        if len(lines) > 1:
+                        data_rows = self._count_csv_rows(output_path)
+                        if data_rows > 0:
+                            if expected_days is not None:
+                                if not self._has_full_coverage(output_path, data_rows, expected_days):
+                                    self.logger.debug(
+                                        f"Output time series appears truncated: {output_path} "
+                                        f"(rows={data_rows}, expected_days={expected_days})"
+                                    )
+                                    continue
                             found = True
                             break
                     except OSError:
@@ -281,10 +293,73 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         # For lumped, at least one balance file must be present
         if is_lumped:
             if not found_any:
-                self.logger.warning("No lumped water balance outputs found (Basin_average or GRU).")
+                self.logger.debug("No lumped water balance outputs found (Basin_average or GRU).")
             return found_any
 
         return True
+
+    def _get_expected_days(self) -> Optional[int]:
+        """Infer expected simulation length from run options."""
+        run_options = self.forcing_mesh_path / 'MESH_input_run_options.ini'
+        if not run_options.exists():
+            return None
+
+        try:
+            with open(run_options, 'r') as f:
+                lines = f.readlines()
+        except OSError:
+            return None
+
+        date_lines = []
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) == 4 and all(p.isdigit() for p in parts):
+                year = int(parts[0])
+                jday = int(parts[1])
+                hour = int(parts[2])
+                minute = int(parts[3])
+                if 1 <= jday <= 366 and 0 <= hour <= 23 and minute in (0, 30):
+                    date_lines.append((year, jday, hour, minute))
+
+        if len(date_lines) < 2:
+            return None
+
+        start = date_lines[-2]
+        end = date_lines[-1]
+        try:
+            from datetime import timedelta
+            start_dt = datetime(start[0], 1, 1) + timedelta(days=start[1] - 1)
+            end_dt = datetime(end[0], 1, 1) + timedelta(days=end[1] - 1)
+        except ValueError:
+            return None
+
+        if end_dt < start_dt:
+            return None
+
+        return (end_dt - start_dt).days + 1
+
+    def _count_csv_rows(self, path: Path) -> int:
+        """Count data rows in a CSV file (excluding header)."""
+        try:
+            with open(path, 'r') as f:
+                lines = [line for line in f.readlines() if line.strip()]
+            return max(0, len(lines) - 1)
+        except OSError:
+            return 0
+
+    def _has_full_coverage(self, path: Path, rows: int, expected_days: int) -> bool:
+        """Check whether output rows meet expected simulation coverage."""
+        name = path.name.lower()
+        if 'gru_water_balance' in name:
+            expected_rows = expected_days * 24
+            return rows >= expected_rows
+        # Allow a small tolerance for daily outputs (end-date handling edge case)
+        tolerance_days = 1
+        try:
+            tolerance_days = int(self.config_dict.get('MESH_DAILY_TOLERANCE_DAYS', tolerance_days))
+        except (TypeError, ValueError):
+            tolerance_days = 1
+        return rows >= max(0, expected_days - tolerance_days)
 
     def _copy_outputs(self) -> None:
         """
@@ -306,6 +381,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             'MESH_output_streamflow.csv',
             'MESH_output_echo_print.txt',
             'MESH_output_echo_results.txt',
+            'MESH_input_run_options.ini',
             # Lumped mode water balance outputs
             'Basin_average_water_balance.csv',
             'GRU_water_balance.csv',  # Hourly GRU water balance with ROF
@@ -318,3 +394,26 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 src = self.forcing_mesh_path / 'results' / out_file
             if src.exists():
                 shutil.copy2(src, self.output_dir / out_file)
+
+    def _clear_stale_outputs(self, directory: Path) -> None:
+        """Clear stale MESH output files from a directory.
+
+        During parallel calibration, output_dir is reused across iterations.
+        If a previous iteration succeeded and copied files there, a subsequent
+        crashed iteration would find those stale files and be incorrectly
+        scored as successful.
+
+        Args:
+            directory: Directory to clear stale output files from.
+        """
+        if not directory or not directory.exists():
+            return
+
+        stale_patterns = [
+            'MESH_output_*.csv', 'MESH_output_*.txt',
+            'Basin_average_water_balance.csv',
+            'GRU_water_balance.csv',
+        ]
+        for pattern in stale_patterns:
+            for stale_file in directory.glob(pattern):
+                stale_file.unlink()

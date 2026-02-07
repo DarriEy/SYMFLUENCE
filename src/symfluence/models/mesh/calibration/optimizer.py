@@ -138,12 +138,17 @@ class MESHModelOptimizer(BaseModelOptimizer):
             return None
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
-        """Run MESH for final evaluation."""
+        """Run MESH for final evaluation.
+
+        Must pass proc_forcing_dir so MESH runs from forcing/MESH_input
+        (where parameters were applied), not settings/MESH.
+        """
+        forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
         return self.worker.run_model(
             self.config,
             self.project_dir / 'settings' / 'MESH',
             output_dir,
-            mode='run_def'
+            proc_forcing_dir=str(forcing_dir)
         )
 
     def _get_final_file_manager_path(self) -> Path:
@@ -164,7 +169,9 @@ class MESHModelOptimizer(BaseModelOptimizer):
           - forcing/MESH_input/  (MESH-specific)
           - output/
         """
-        base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+        # Avoid double "run_" prefix if experiment_id already starts with it
+        exp_dir = self.experiment_id if self.experiment_id.startswith('run_') else f'run_{self.experiment_id}'
+        base_dir = self.project_dir / 'simulations' / exp_dir
 
         # Create process directories using base class method
         self.parallel_dirs = self.setup_parallel_processing(

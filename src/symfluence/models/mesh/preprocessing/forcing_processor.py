@@ -302,3 +302,196 @@ class MESHForcingProcessor:
 
         except Exception as e:
             self.logger.warning(f"Failed to create split forcing files: {e}")
+
+    def apply_elevation_lapsing(
+        self,
+        elevation_info: list,
+        lapse_rate: float = 0.0065
+    ) -> None:
+        """Expand forcing from 1 subbasin to N subbasins with elevation-based lapsing.
+
+        Applies temperature lapse rate and barometric pressure adjustment so each
+        elevation band receives physically consistent forcing.
+
+        Args:
+            elevation_info: List of dicts with 'elevation' and 'fraction' per band
+            lapse_rate: Temperature lapse rate in K/m (default: 0.0065 = standard ELR)
+        """
+        forcing_nc = self.forcing_dir / "MESH_forcing.nc"
+        if not forcing_nc.exists():
+            self.logger.warning("MESH_forcing.nc not found, cannot apply elevation lapsing")
+            return
+
+        n_bands = len(elevation_info)
+        if n_bands < 2:
+            self.logger.warning("Need at least 2 elevation bands for lapsing")
+            return
+
+        band_elevs = np.array([info['elevation'] for info in elevation_info])
+        band_fracs = np.array([info['fraction'] for info in elevation_info])
+
+        # Reference elevation: area-weighted mean
+        ref_elev = np.sum(band_elevs * band_fracs)
+
+        self.logger.info(
+            f"Applying elevation lapsing: {n_bands} bands, "
+            f"ref_elev={ref_elev:.0f}m, lapse_rate={lapse_rate} K/m, "
+            f"elev_range={band_elevs.min():.0f}m to {band_elevs.max():.0f}m"
+        )
+
+        try:
+            with xr.open_dataset(forcing_nc) as ds:
+                n_dim = 'subbasin' if 'subbasin' in ds.dims else 'N' if 'N' in ds.dims else None
+                if not n_dim:
+                    self.logger.warning("No spatial dimension found in forcing")
+                    return
+
+                n_orig = ds.sizes[n_dim]
+                if n_orig != 1:
+                    self.logger.warning(
+                        f"Expected 1 subbasin for lapsing but found {n_orig}. "
+                        f"Skipping — forcing may already be expanded."
+                    )
+                    return
+
+                n_time = ds.sizes['time']
+                time_data = ds['time'].values
+
+                # Build expanded forcing arrays
+                forcing_vars = {}
+                for var_name in ['TA', 'PRES', 'QA', 'UV', 'PRE', 'FSIN', 'FLIN']:
+                    if var_name in ds:
+                        # Original data: shape (time, 1)
+                        orig = ds[var_name].values  # (time, 1)
+                        if orig.ndim == 1:
+                            orig = orig[:, np.newaxis]
+
+                        if var_name == 'TA':
+                            # Temperature lapsing: T_band = T_orig + lapse_rate * (ref_elev - band_elev)
+                            # Positive delta = warmer (band below reference)
+                            # Negative delta = colder (band above reference)
+                            expanded = np.zeros((n_time, n_bands), dtype=np.float32)
+                            for i in range(n_bands):
+                                delta_t = lapse_rate * (ref_elev - band_elevs[i])
+                                expanded[:, i] = (orig[:, 0] + delta_t).astype(np.float32)
+                            self.logger.info(
+                                f"  TA lapsing: band deltas = "
+                                f"{[f'{lapse_rate * (ref_elev - e):+.1f}K' for e in band_elevs]}"
+                            )
+
+                        elif var_name == 'PRES':
+                            # Barometric formula: P_band = P_orig * exp(-g*M*dz / (R*T))
+                            # g=9.80665, M=0.0289644 kg/mol, R=8.31447 J/(mol·K)
+                            g = 9.80665
+                            M = 0.0289644
+                            R = 8.31447
+                            expanded = np.zeros((n_time, n_bands), dtype=np.float32)
+                            for i in range(n_bands):
+                                dz = band_elevs[i] - ref_elev  # positive = higher = less pressure
+                                # Use original temperature for the exponent
+                                if 'TA' in ds:
+                                    temp_k = ds['TA'].values
+                                    if temp_k.ndim == 2:
+                                        temp_k = temp_k[:, 0]
+                                    # Clamp temperature to avoid division issues
+                                    temp_k = np.maximum(temp_k, 200.0)
+                                else:
+                                    temp_k = np.full(n_time, 273.15)
+                                exponent = -g * M * dz / (R * temp_k)
+                                expanded[:, i] = (orig[:, 0] * np.exp(exponent)).astype(np.float32)
+                        else:
+                            # QA, UV, PRE, FSIN, FLIN: replicate unchanged
+                            expanded = np.tile(orig, (1, n_bands)).astype(np.float32)
+
+                        forcing_vars[var_name] = expanded
+
+                # Get original coordinate data
+                lat_data = ds['lat'].values if 'lat' in ds else None
+                lon_data = ds['lon'].values if 'lon' in ds else None
+                has_crs = 'crs' in ds
+                crs_attrs = dict(ds['crs'].attrs) if has_crs else {}
+
+                # Get original time attributes
+                time_attrs = dict(ds['time'].attrs)
+                # Get original var attributes
+                var_attrs = {}
+                for var_name in forcing_vars:
+                    if var_name in ds:
+                        var_attrs[var_name] = dict(ds[var_name].attrs)
+
+            # Write expanded forcing file
+            with NC4Dataset(forcing_nc, 'w', format='NETCDF4') as ncfile:
+                ncfile.createDimension('time', None)  # unlimited
+                ncfile.createDimension('subbasin', n_bands)
+
+                # Time variable
+                # xarray strips 'units' and 'calendar' during auto-decode,
+                # so always set them explicitly to ensure proper encoding
+                var_time = ncfile.createVariable('time', 'f8', ('time',))
+                for attr_name, attr_val in time_attrs.items():
+                    if attr_name != '_FillValue':
+                        var_time.setncattr(attr_name, attr_val)
+                var_time.long_name = 'time'
+                var_time.standard_name = 'time'
+                var_time.units = 'hours since 1900-01-01'
+                var_time.calendar = 'gregorian'
+
+                reference = pd.Timestamp('1900-01-01')
+                time_hours = np.array([
+                    (pd.Timestamp(t) - reference).total_seconds() / 3600.0
+                    for t in time_data
+                ])
+                var_time[:] = time_hours
+
+                # Subbasin coordinate
+                var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
+                var_n[:] = np.arange(1, n_bands + 1)
+
+                # CRS
+                if has_crs:
+                    var_crs = ncfile.createVariable('crs', 'i4')
+                    for attr_name, attr_val in crs_attrs.items():
+                        var_crs.setncattr(attr_name, attr_val)
+
+                # Spatial coordinates (replicate for all bands)
+                if lat_data is not None:
+                    var_lat = ncfile.createVariable('lat', 'f8', ('subbasin',))
+                    var_lat.standard_name = 'latitude'
+                    var_lat.units = 'degrees_north'
+                    lat_expanded = np.full(n_bands, lat_data[0] if len(lat_data) > 0 else 0.0)
+                    var_lat[:] = lat_expanded
+
+                if lon_data is not None:
+                    var_lon = ncfile.createVariable('lon', 'f8', ('subbasin',))
+                    var_lon.standard_name = 'longitude'
+                    var_lon.units = 'degrees_east'
+                    lon_expanded = np.full(n_bands, lon_data[0] if len(lon_data) > 0 else 0.0)
+                    var_lon[:] = lon_expanded
+
+                # Forcing variables
+                for var_name, data in forcing_vars.items():
+                    var = ncfile.createVariable(
+                        var_name, 'f4', ('time', 'subbasin'), fill_value=-9999.0
+                    )
+                    attrs = var_attrs.get(var_name, {})
+                    for attr_name, attr_val in attrs.items():
+                        if attr_name != '_FillValue':
+                            var.setncattr(attr_name, attr_val)
+                    var[:] = data
+
+                ncfile.title = 'MESH Forcing Data (elevation-lapsed)'
+                ncfile.Conventions = 'CF-1.6'
+                ncfile.history = f'Elevation lapsing applied by SYMFLUENCE on {pd.Timestamp.now()}'
+
+            self.logger.info(
+                f"Expanded forcing: (time={n_time}, subbasin=1) -> "
+                f"(time={n_time}, subbasin={n_bands})"
+            )
+
+            # Recreate split forcing files with expanded data
+            self.create_split_forcing_files()
+
+        except Exception as e:
+            self.logger.warning(f"Failed to apply elevation lapsing: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
