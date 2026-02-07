@@ -114,6 +114,10 @@ class JFUSEParameterManager(BaseParameterManager):
 
     When jFUSE is installed, uses the native PARAM_BOUNDS from the package.
     Otherwise falls back to reasonable defaults from literature.
+
+    When JFUSE_USE_TRANSFER_FUNCTIONS is enabled, switches to coefficient
+    mode: calibration parameters become transfer function coefficients
+    (e.g. S1_max_a, S1_max_b) instead of raw FUSE parameters.
     """
 
     def __init__(
@@ -134,6 +138,10 @@ class JFUSEParameterManager(BaseParameterManager):
 
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
+
+        # Check for transfer function mode
+        self._use_transfer_functions = bool(config.get('JFUSE_USE_TRANSFER_FUNCTIONS', False))
+        self._tf_config = None
 
         # Parse jFUSE parameters to calibrate from config
         jfuse_params_str = config.get('JFUSE_PARAMS_TO_CALIBRATE')
@@ -164,6 +172,10 @@ class JFUSEParameterManager(BaseParameterManager):
                     self.all_bounds[param_name] = (bounds['min'], bounds['max'])
                     self.logger.info(f"Custom bounds for {param_name}: [{bounds['min']}, {bounds['max']}]")
 
+        # Initialize transfer function mode if enabled
+        if self._use_transfer_functions:
+            self._init_transfer_function_mode(config)
+
     def _validate_params(self) -> None:
         """Validate that calibration parameters exist in bounds."""
         invalid = [p for p in self.jfuse_params if p not in PARAM_BOUNDS]
@@ -173,16 +185,84 @@ class JFUSEParameterManager(BaseParameterManager):
                 f"Available parameters: {list(PARAM_BOUNDS.keys())}"
             )
 
+    def _init_transfer_function_mode(self, config: Dict) -> None:
+        """Initialize transfer function mode from config."""
+        from symfluence.models.jfuse.calibration.transfer_functions import (
+            JaxTransferFunctionConfig,
+        )
+
+        attributes_path = config.get('JFUSE_ATTRIBUTES_PATH')
+        if not attributes_path:
+            self.logger.error(
+                "JFUSE_USE_TRANSFER_FUNCTIONS=true but JFUSE_ATTRIBUTES_PATH not set"
+            )
+            self._use_transfer_functions = False
+            return
+
+        b_bounds_cfg = config.get('JFUSE_TF_B_BOUNDS', (-5.0, 5.0))
+        if isinstance(b_bounds_cfg, list):
+            b_bounds_cfg = tuple(b_bounds_cfg)
+
+        self._tf_config = JaxTransferFunctionConfig(
+            attributes_path=attributes_path,
+            calibrated_params=self.jfuse_params,
+            b_bounds=b_bounds_cfg,
+            logger=self.logger,
+        )
+
+        # Override calibration params and bounds with coefficient versions
+        self.calibration_params = self._tf_config.coefficient_names
+        for name, bounds in zip(
+            self._tf_config.coefficient_names,
+            self._tf_config.coefficient_bounds,
+        ):
+            self.all_bounds[name] = bounds
+
+        # Set defaults for coefficients: a = actual parameter default, b = 0
+        # Using actual defaults (not midpoint of bounds) gives a much better
+        # starting point — midpoint gives e.g. S1_max=2502 instead of 200.
+        for i, pname in enumerate(self.jfuse_params):
+            lo, hi = PARAM_BOUNDS[pname]
+            default_val = self.defaults.get(pname, (lo + hi) / 2.0)
+            self.defaults[f'{pname}_a'] = default_val
+            self.defaults[f'{pname}_b'] = 0.0
+
+        self.logger.info(
+            f"Transfer function mode enabled: {self._tf_config.n_coefficients} "
+            f"coefficients for {self._tf_config.n_calibrated_params} params, "
+            f"{self._tf_config.n_grus} GRUs"
+        )
+
+    @property
+    def use_transfer_functions(self) -> bool:
+        """Whether transfer function mode is active."""
+        return self._use_transfer_functions
+
+    @property
+    def transfer_function_config(self) -> Optional[object]:
+        """The JaxTransferFunctionConfig if TF mode is active, else None."""
+        return self._tf_config
+
     # ========================================================================
     # IMPLEMENT ABSTRACT METHODS
     # ========================================================================
 
     def _get_parameter_names(self) -> List[str]:
-        """Return jFUSE parameter names from config."""
+        """Return parameter/coefficient names for calibration."""
+        if self._use_transfer_functions and self._tf_config is not None:
+            return self._tf_config.coefficient_names
         return self.jfuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return jFUSE parameter bounds (including custom bounds from config)."""
+        """Return parameter/coefficient bounds for calibration."""
+        if self._use_transfer_functions and self._tf_config is not None:
+            return {
+                name: {'min': bounds[0], 'max': bounds[1]}
+                for name, bounds in zip(
+                    self._tf_config.coefficient_names,
+                    self._tf_config.coefficient_bounds,
+                )
+            }
         return {
             name: {'min': self.all_bounds[name][0], 'max': self.all_bounds[name][1]}
             for name in self.jfuse_params
@@ -202,6 +282,9 @@ class JFUSEParameterManager(BaseParameterManager):
 
         if initial_params == 'default':
             self.logger.debug("Using standard jFUSE defaults for initial parameters")
+            # In TF mode, return coefficient defaults (S1_max_a, S1_max_b, ...)
+            if self._use_transfer_functions and self._tf_config is not None:
+                return {p: self.defaults.get(p, 0.0) for p in self.calibration_params}
             return {p: self.defaults.get(p, 0.0) for p in self.jfuse_params}
 
         # Parse string-based initial params if provided
