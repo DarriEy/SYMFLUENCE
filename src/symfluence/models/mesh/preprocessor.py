@@ -249,10 +249,17 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.parameter_fixer.fix_run_options_var_names()
         self.parameter_fixer.fix_run_options_snow_params()
         self.parameter_fixer.fix_run_options_output_dirs()
-        self.parameter_fixer.fix_gru_count_mismatch()
+
+        # For elevation band discretization, GRU handling was done in _postprocess_meshflow_output
+        # Skip fix_gru_count_mismatch to avoid overriding elevation band setup
+        sub_grid_method = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+        if sub_grid_method.lower() != 'elevation':
+            self.parameter_fixer.fix_gru_count_mismatch()
+
         self.parameter_fixer.fix_hydrology_wf_r2()
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
+        self.parameter_fixer.fix_class_vegetation_parameters()
         self.parameter_fixer.fix_reservoir_file()
         self.parameter_fixer.configure_lumped_outputs()
         self.parameter_fixer.create_safe_forcing()
@@ -494,15 +501,104 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.forcing_processor.postprocess_meshflow_output()
         self.drainage_database.fix_drainage_topology()
         self.drainage_database.ensure_completeness()
-        # Fix GRU count mismatch BEFORE reordering
-        self.parameter_fixer.fix_gru_count_mismatch()
+
+        # Check if using elevation band discretization
+        sub_grid_method = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+        if sub_grid_method.lower() == 'elevation':
+            self._apply_elevation_band_grus()
+        else:
+            # Fix GRU count mismatch for landcover-based GRUs
+            self.parameter_fixer.fix_gru_count_mismatch()
+
         self.drainage_database.reorder_by_rank_and_normalize()
         # Do NOT call fix_gru_count_mismatch again - it would double-trim
         self.parameter_fixer.fix_run_options_output_dirs()
         self.parameter_fixer.fix_hydrology_wf_r2()
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
+        self.parameter_fixer.fix_class_vegetation_parameters()
         # Fix reservoir file after drainage database is finalized
         self.parameter_fixer.fix_reservoir_file()
         # Configure output for lumped mode calibration
         self.parameter_fixer.configure_lumped_outputs()
+
+    def _apply_elevation_band_grus(self) -> None:
+        """Apply elevation band discretization as GRUs for MESH.
+
+        This method:
+        1. Finds the elevation band HRU shapefile
+        2. Converts the DDB to use elevation bands as GRUs (multi-subbasin if lapsing)
+        3. Creates CLASS parameter blocks for each elevation band
+        4. Applies temperature/pressure lapsing to forcing (if enabled)
+        """
+        self.logger.info("Applying elevation band GRU discretization")
+
+        # Determine lapse rate settings
+        apply_lapse = self.config_dict.get('APPLY_LAPSE_RATE', True)
+        if isinstance(apply_lapse, str):
+            apply_lapse = apply_lapse.lower() in ('true', '1', 'yes')
+        lapse_rate = float(self.config_dict.get('LAPSE_RATE', 0.0065))
+
+        # Find elevation band HRU shapefile
+        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+
+        # Look for elevation band shapefile
+        hru_shp_candidates = [
+            self.project_dir / 'shapefiles' / 'catchment' / domain_method / experiment_id / f'{self.domain_name}_HRUs_elevation.shp',
+            self.project_dir / 'shapefiles' / 'catchment' / domain_method / experiment_id / f'{self.domain_name}_HRUs_elevation_aspect.shp',
+            self.project_dir / 'shapefiles' / 'catchment' / f'{self.domain_name}_HRUs_elevation.shp',
+        ]
+
+        hru_shapefile = None
+        for candidate in hru_shp_candidates:
+            if candidate.exists():
+                hru_shapefile = candidate
+                break
+
+        if hru_shapefile is None:
+            self.logger.warning(
+                f"Could not find elevation band HRU shapefile. Tried: {hru_shp_candidates}"
+            )
+            # Fall back to landcover-based GRUs
+            self.parameter_fixer.fix_gru_count_mismatch()
+            return
+
+        self.logger.info(f"Using elevation band shapefile: {hru_shapefile}")
+
+        if apply_lapse:
+            # Multi-subbasin approach: each elevation band gets its own subbasin
+            # with elevation-lapsed forcing
+            self.logger.info(
+                f"Using multi-subbasin elevation bands with lapse rate={lapse_rate} K/m"
+            )
+            n_bands, elevation_info = self.drainage_database.convert_to_multi_subbasin_elevation_bands(
+                hru_shapefile
+            )
+        else:
+            # Legacy: single subbasin, all bands share forcing
+            self.logger.info("Using single-subbasin elevation bands (no lapsing)")
+            n_bands, elevation_info = self.drainage_database.convert_to_elevation_band_grus(
+                hru_shapefile
+            )
+
+        if n_bands == 0:
+            self.logger.warning("Failed to convert to elevation band GRUs, falling back to landcover GRUs")
+            self.parameter_fixer.fix_gru_count_mismatch()
+            return
+
+        # Create CLASS parameter blocks for elevation bands
+        success = self.parameter_fixer.create_elevation_band_class_blocks(elevation_info)
+
+        if not success:
+            self.logger.warning("Failed to create elevation band CLASS blocks")
+            return
+
+        # Apply forcing lapsing (only for multi-subbasin approach)
+        if apply_lapse:
+            self.forcing_processor.apply_elevation_lapsing(elevation_info, lapse_rate)
+
+        self.logger.info(
+            f"Successfully configured {n_bands} elevation band GRUs for MESH"
+            + (f" with temperature lapsing (rate={lapse_rate} K/m)" if apply_lapse else "")
+        )

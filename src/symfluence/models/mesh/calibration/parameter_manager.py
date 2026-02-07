@@ -27,9 +27,25 @@ class MESHParameterManager(BaseParameterManager):
 
     # Marker comments used by meshflow to identify parameter lines in CLASS.ini
     # Maps: marker substring -> (expected param names at each position, total_value_count)
+    # Vegetation lines use 9 values: 5xFCAN/LNZ0/ALVC/ALIC + 4xLAMX/LAMN/CMAS/ROOT
+    # Only params listed in param_file_map are detected (others are skipped).
     CLASS_LINE_MARKERS = {
         'DRN/SDEP': (['DRN', 'SDEP', 'FARE', 'DD'], 4),
         'XSLP/XDRAINH/MANN/KSAT': (['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT'], 5),
+        'FCAN': ([None, None, None, None, None, 'LAMX', None, None, None], 9),
+        'ALIC': ([None, None, None, None, None, 'ROOT', None, None, None], 9),
+    }
+
+    # Default multipliers for landcover-specific parameter scaling
+    # These allow differentiated soil/surface parameters by landcover type
+    # Keys are NALCMS/IGBP class IDs, values are multiplier dictionaries
+    DEFAULT_LANDCOVER_MULTIPLIERS = {
+        1: {'KSAT': 0.8, 'SDEP': 1.2, 'MANN_CLASS': 1.5},   # Needleleaf forest: slower infiltration, deeper soil, rougher
+        8: {'KSAT': 1.0, 'SDEP': 1.0, 'MANN_CLASS': 1.2},   # Shrubland: moderate
+        9: {'KSAT': 0.9, 'SDEP': 1.1, 'MANN_CLASS': 1.3},   # Broadleaf deciduous: similar to needleleaf
+        10: {'KSAT': 1.2, 'SDEP': 0.9, 'MANN_CLASS': 0.8},  # Grassland: faster infiltration, shallower, smoother
+        15: {'KSAT': 0.5, 'SDEP': 0.3, 'MANN_CLASS': 0.5},  # Snow/Ice: very low infiltration, minimal soil
+        16: {'KSAT': 1.5, 'SDEP': 0.5, 'MANN_CLASS': 0.6},  # Barren: fast infiltration (fractured rock), shallow soil
     }
 
     def __init__(self, config: Dict, logger: logging.Logger, mesh_settings_dir: Path):
@@ -51,7 +67,7 @@ class MESHParameterManager(BaseParameterManager):
             # FROZENSOILINFILFLAG=0 in run_options, making the frozen soil
             # infiltration threshold inert.  Add FRZTH to
             # MESH_PARAMS_TO_CALIBRATE only if FROZENSOILINFILFLAG is enabled.
-            mesh_params_str = 'KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,ZSNL,ZPLS,RCHARG'
+            mesh_params_str = 'KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,ZSNL,ZPLS,RCHARG,WF_R2,R2N'
 
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
@@ -75,9 +91,14 @@ class MESHParameterManager(BaseParameterManager):
             'XSLP': 'CLASS',      # Slope - Line 13, pos 1
             'XDRAINH': 'CLASS',   # Horizontal drainage - Line 13, pos 2
             'MANN_CLASS': 'CLASS', # Manning for overland flow - Line 13, pos 3
+            # CLASS.ini vegetation parameters (control ET partitioning)
+            'LAMX': 'CLASS',      # Max LAI for first veg class - Line 05, pos 5
+            'ROOT': 'CLASS',      # Root depth (m) for first veg class - Line 08, pos 5
             # Meshflow-generated parameters (MESH_parameters_hydrology.ini)
             'ZSNL': 'hydrology', 'ZPLG': 'hydrology', 'ZPLS': 'hydrology',
             'WF_R2': 'hydrology',  # Channel roughness coefficient
+            'R2N': 'hydrology',    # Overland routing roughness (Manning's n)
+            'R1N': 'hydrology',    # River routing parameter
             'FLZ': 'hydrology',    # Baseflow recession coefficient (critical for winter flow)
             'PWR': 'hydrology',    # Power coefficient for LZS drainage
             # Legacy parameters (may not exist in meshflow-generated files)
@@ -96,6 +117,26 @@ class MESHParameterManager(BaseParameterManager):
         # and fall back to standard meshflow layout if detection fails.
         self.class_param_positions = self._detect_class_param_positions()
 
+        # Multi-GRU parameter distribution settings
+        # MESH_APPLY_PARAMS_ALL_GRUS: Apply calibrated params to all landcover classes (default: True)
+        # MESH_USE_LANDCOVER_MULTIPLIERS: Apply landcover-specific multipliers (default: True)
+        self.apply_to_all_grus = config.get('MESH_APPLY_PARAMS_ALL_GRUS', True)
+        self.use_landcover_multipliers = config.get('MESH_USE_LANDCOVER_MULTIPLIERS', True)
+
+        # Load custom multipliers from config or use defaults
+        self.landcover_multipliers = config.get(
+            'MESH_LANDCOVER_MULTIPLIERS',
+            self.DEFAULT_LANDCOVER_MULTIPLIERS
+        )
+
+        # Detect all GRU blocks in CLASS.ini for multi-GRU parameter distribution
+        self.all_gru_blocks = self._detect_all_gru_blocks()
+
+        # Build mapping from block index to NALCMS class ID for multipliers
+        # This reads the landcover stats CSV to determine which NALCMS classes
+        # correspond to which CLASS.ini blocks (blocks are ordered by frac_* column order)
+        self.block_to_nalcms = self._build_block_to_nalcms_mapping()
+
     def _get_parameter_names(self) -> List[str]:
         """Return MESH parameter names from config."""
         return self.mesh_params
@@ -112,6 +153,8 @@ class MESHParameterManager(BaseParameterManager):
         """
         # Standard meshflow defaults (0-indexed lines)
         defaults = {
+            'LAMX': (5, 5, 9),    # Line 05: 5xFCAN + 4xLAMX, LAMX at pos 5
+            'ROOT': (8, 5, 9),    # Line 08: 5xALIC + 4xROOT, ROOT at pos 5
             'DRN': (12, 0, 4),
             'SDEP': (12, 1, 4),
             'XSLP': (13, 0, 5),
@@ -157,7 +200,7 @@ class MESHParameterManager(BaseParameterManager):
                         # Marker line is a header/comment; data is on the NEXT line
                         data_line_idx = line_idx + 1
 
-                    for pos, pname in enumerate(param_names):
+                    for pos, pname in enumerate(param_names):  # type: ignore[var-annotated]
                         if pname in self.param_file_map:
                             detected[pname] = (data_line_idx, pos, n_values)
 
@@ -175,8 +218,142 @@ class MESHParameterManager(BaseParameterManager):
         self.logger.debug("No CLASS markers found; using default line positions")
         return defaults
 
+    def _detect_all_gru_blocks(self) -> List[Dict[str, Any]]:
+        """Detect all GRU/landcover parameter blocks in CLASS.ini.
+
+        Each landcover class has its own parameter block (lines 05-19 repeated).
+        This method finds all blocks and extracts their class IDs.
+
+        Returns:
+            List of dicts with 'class_id', 'drn_line', 'xslp_line' for each block.
+        """
+        class_file = self._resolve_ini_file('CLASS')
+        if class_file is None:
+            return []
+
+        try:
+            with open(class_file, 'r') as f:
+                lines = f.readlines()
+        except OSError:
+            return []
+
+        blocks: List[Dict[str, Any]] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # Look for DRN/SDEP marker (line 12 of each block)
+            if 'DRN/SDEP' in line:
+                drn_line = i
+                # XSLP/XDRAINH line should be next (line 13)
+                xslp_line = i + 1 if i + 1 < len(lines) else None
+
+                # Try to extract class ID from the XSLP line comment (e.g., "100 Temp_sub-_need_fore")
+                class_id = None
+                if xslp_line and xslp_line < len(lines):
+                    xslp_content = lines[xslp_line]
+                    # Look for 3-digit class ID (e.g., 100, 101, 102 for NALCMS mapping)
+                    import re
+                    match = re.search(r'\s(\d{3})\s+\w', xslp_content)
+                    if match:
+                        mesh_class_id = int(match.group(1))
+                        # MESH class IDs are typically 100 + NALCMS class
+                        class_id = mesh_class_id - 100 if mesh_class_id >= 100 else mesh_class_id
+
+                blocks.append({
+                    'class_id': class_id,
+                    'drn_line': drn_line,
+                    'xslp_line': xslp_line,
+                    'block_index': len(blocks)
+                })
+            i += 1
+
+        if blocks:
+            self.logger.debug(
+                f"Detected {len(blocks)} GRU blocks in CLASS.ini: "
+                f"{[b['class_id'] for b in blocks]}"
+            )
+        return blocks
+
+    def _detect_all_gru_blocks_from_lines(self, lines: List[str]) -> List[Dict[str, Any]]:
+        """Detect all GRU blocks from a list of lines (for use during file update).
+
+        Similar to _detect_all_gru_blocks but operates on already-loaded lines.
+        """
+        blocks: List[Dict[str, Any]] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if 'DRN/SDEP' in line:
+                drn_line = i
+                xslp_line = i + 1 if i + 1 < len(lines) else None
+
+                class_id = None
+                if xslp_line and xslp_line < len(lines):
+                    xslp_content = lines[xslp_line]
+                    match = re.search(r'\s(\d{3})\s+\w', xslp_content)
+                    if match:
+                        mesh_class_id = int(match.group(1))
+                        class_id = mesh_class_id - 100 if mesh_class_id >= 100 else mesh_class_id
+
+                blocks.append({
+                    'class_id': class_id,
+                    'drn_line': drn_line,
+                    'xslp_line': xslp_line,
+                    'block_index': len(blocks)
+                })
+            i += 1
+        return blocks
+
+    def _build_block_to_nalcms_mapping(self) -> Dict[int, int]:
+        """Build mapping from CLASS.ini block index to NALCMS class ID.
+
+        Reads the landcover stats CSV to determine which NALCMS classes are present
+        and their order (which corresponds to CLASS.ini block order).
+
+        Returns:
+            Dict mapping block index (0, 1, 2, ...) to NALCMS class ID (1, 8, 9, ...)
+        """
+        import pandas as pd
+
+        # Look for landcover stats in various locations
+        project_dir = self.mesh_settings_dir.parent.parent
+        possible_paths = [
+            project_dir / 'forcing' / 'MESH_input' / 'temp_modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
+            project_dir / 'attributes' / 'gistool-outputs' / 'modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
+            project_dir / 'attributes' / 'gistool-outputs' / 'landcover_stats_multi_gru.csv',
+        ]
+
+        for lc_path in possible_paths:
+            if lc_path.exists():
+                try:
+                    df = pd.read_csv(lc_path)
+                    # Extract class IDs from frac_* columns (preserving order)
+                    frac_cols = [col for col in df.columns if col.startswith('frac_')]
+                    class_ids = []
+                    for col in frac_cols:
+                        match = re.match(r'frac_(\d+)', col)
+                        if match:
+                            class_ids.append(int(match.group(1)))
+
+                    if class_ids:
+                        mapping = {i: class_id for i, class_id in enumerate(class_ids)}
+                        self.logger.debug(f"Block to NALCMS mapping: {mapping}")
+                        return mapping
+                except Exception as e:
+                    self.logger.warning(f"Failed to read landcover mapping from {lc_path}: {e}")
+
+        # Fallback: assume sequential mapping
+        self.logger.warning("Could not determine NALCMS class mapping; multipliers may not work correctly")
+        return {}
+
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return MESH parameter bounds, preferring config-specified bounds."""
+        """Return MESH parameter bounds, preferring config-specified bounds.
+
+        Config-specified bounds override min/max only, preserving
+        transform metadata (e.g. ``'log'``) from the registry so that
+        DDS normalization works correctly in log-space for parameters
+        spanning orders of magnitude.
+        """
         # Start with registry defaults
         bounds = get_mesh_bounds()
 
@@ -186,9 +363,19 @@ class MESHParameterManager(BaseParameterManager):
             self.logger.debug(f"Using config-specified MESH bounds for: {list(config_bounds.keys())}")
             for param_name, param_bounds in config_bounds.items():
                 if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    bounds[param_name] = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
+                    # Preserve registry transform if it exists
+                    existing = bounds.get(param_name, {})
+                    new_entry = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
+                    if 'transform' in existing:
+                        new_entry['transform'] = existing['transform']
+                    bounds[param_name] = new_entry
                 elif isinstance(param_bounds, dict):
-                    bounds[param_name] = param_bounds
+                    # Merge: config dict wins for min/max, but preserve
+                    # registry transform unless config explicitly sets one
+                    existing = bounds.get(param_name, {})
+                    merged = dict(existing)
+                    merged.update(param_bounds)
+                    bounds[param_name] = merged
 
         return bounds
 
@@ -214,11 +401,13 @@ class MESHParameterManager(BaseParameterManager):
         1. KSAT * DRN <= 400 mm/hr (cap unrealistic drainage rate)
         2. KSAT * DRN * (1/SDEP) <= 250 (prevent instant soil emptying)
         3. XSLP >= 0.005 (prevent CLASS numerical issues)
-        4. SDEP >= 1.5m always (shallow soils + high KSAT cause crashes)
+        4. SDEP >= 0.5m always (shallow soils + high KSAT cause crashes)
         5. XDRAINH <= 0.5 when KSAT > 100 (cap combined drainage)
         6. FRZTH <= SDEP (frozen threshold can't exceed soil depth)
         7. MANN_CLASS >= 0.01 (prevent zero-friction overland flow instability)
         8. RCHARG + DRAINFRAC <= 1.0 (water balance closure)
+        9. ROOT <= SDEP (root depth can't exceed soil depth)
+        10. LAMX >= 0.1 (CLASS needs minimum positive LAI)
         """
         validated = params.copy()
 
@@ -232,14 +421,18 @@ class MESHParameterManager(BaseParameterManager):
         rcharg = validated.get('RCHARG')
         drainfrac = validated.get('DRAINFRAC')
 
-        # Constraint 4: SDEP >= 1.5m (applied early so downstream constraints use it)
-        if sdep is not None and float(sdep) < 1.5:
+        # Constraint 4: SDEP >= 0.5m (applied early so downstream constraints use it)
+        # Note: 1.5m was too restrictive for alpine basins with thin soils.
+        # CLASS is stable with SDEP >= 0.5m when KSAT*DRN constraints are enforced.
+        # Allowing shallower soil is critical for mountain basins where deep soil
+        # causes excessive ET (too much root-zone water available for evaporation).
+        if sdep is not None and float(sdep) < 0.5:
             self.logger.debug(
-                f"Feasibility: raised SDEP {float(sdep):.2f} -> 1.5m "
+                f"Feasibility: raised SDEP {float(sdep):.2f} -> 0.5m "
                 f"(minimum for CLASS stability)"
             )
-            validated['SDEP'] = 1.5
-            sdep = 1.5
+            validated['SDEP'] = 0.5
+            sdep = 0.5
 
         # Constraint 1: KSAT * DRN <= 400
         # Moderately tightened from 500 to reduce crashes without
@@ -316,6 +509,25 @@ class MESHParameterManager(BaseParameterManager):
                     f"Feasibility: scaled RCHARG+DRAINFRAC {total:.3f} -> 1.0"
                 )
 
+        # Constraint 9: ROOT <= SDEP (root depth can't exceed soil depth)
+        root = validated.get('ROOT')
+        if root is not None and sdep is not None:
+            if float(root) > float(validated['SDEP']):
+                validated['ROOT'] = float(validated['SDEP'])
+                self.logger.debug(
+                    f"Feasibility: capped ROOT {float(root):.2f} -> {validated['ROOT']:.2f} "
+                    f"(must be <= SDEP)"
+                )
+
+        # Constraint 10: LAMX >= 0.1 (CLASS needs minimum positive LAI)
+        lamx = validated.get('LAMX')
+        if lamx is not None and float(lamx) < 0.1:
+            validated['LAMX'] = 0.1
+            self.logger.debug(
+                f"Feasibility: raised LAMX {float(lamx):.3f} -> 0.1 "
+                f"(minimum for CLASS stability)"
+            )
+
         return validated
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
@@ -366,28 +578,47 @@ class MESHParameterManager(BaseParameterManager):
         If a value falls in the bottom or top 5% of the feasible range,
         it is replaced with the bounds midpoint to give DDS a more
         central starting position in the search space.
+
+        For log-transformed parameters, the boundary check and midpoint
+        use log-space so the starting point is the geometric mean rather
+        than the arithmetic mean.
         """
         try:
-            params = {}
+            params: Dict[str, float] = {}
 
             for param_name in self.mesh_params:
                 bounds = self.param_bounds.get(param_name, {'min': 0.1, 'max': 10.0})
-                midpoint = (bounds['min'] + bounds['max']) / 2
+                transform = bounds.get('transform', 'linear')
+                is_log = (transform == 'log' and bounds['min'] > 0 and bounds['max'] > 0)
+
+                # Midpoint: geometric mean for log params, arithmetic for linear
+                if is_log:
+                    midpoint = np.exp((np.log(bounds['min']) + np.log(bounds['max'])) / 2)
+                else:
+                    midpoint = (bounds['min'] + bounds['max']) / 2
+
                 value = self._read_param_from_file(param_name)
 
                 if value is not None:
                     # Check if value is near the boundary (bottom/top 5%)
-                    param_range = bounds['max'] - bounds['min']
-                    if param_range > 0:
-                        normalized = (value - bounds['min']) / param_range
-                        if normalized < 0.05 or normalized > 0.95:
-                            self.logger.info(
-                                f"Initial {param_name}={value:.4g} is near boundary "
-                                f"[{bounds['min']:.4g}, {bounds['max']:.4g}] "
-                                f"(normalized={normalized:.3f}); "
-                                f"using midpoint {midpoint:.4g} for DDS start"
-                            )
-                            value = midpoint
+                    if is_log:
+                        log_range = np.log(bounds['max']) - np.log(bounds['min'])
+                        if log_range > 0 and value > 0:
+                            normalized = (np.log(max(value, bounds['min'])) - np.log(bounds['min'])) / log_range
+                        else:
+                            normalized = 0.5
+                    else:
+                        param_range = bounds['max'] - bounds['min']
+                        normalized = (value - bounds['min']) / param_range if param_range > 0 else 0.5
+
+                    if normalized < 0.05 or normalized > 0.95:
+                        self.logger.info(
+                            f"Initial {param_name}={value:.4g} is near boundary "
+                            f"[{bounds['min']:.4g}, {bounds['max']:.4g}] "
+                            f"(normalized={normalized:.3f}); "
+                            f"using midpoint {midpoint:.4g} for DDS start"
+                        )
+                        value = midpoint
                     params[param_name] = value
                 else:
                     params[param_name] = midpoint
@@ -454,10 +685,17 @@ class MESHParameterManager(BaseParameterManager):
     ARRAY_PARAMS = {'WF_R2'}
 
     def _update_class_file(self, file_path: Path, params: Dict[str, float]) -> bool:
-        """Update CLASS.ini fixed-format parameter file.
+        """Update CLASS.ini fixed-format parameter file for ALL GRU blocks.
 
-        CLASS.ini has a fixed-format where parameters are at specific line/column positions.
-        Line numbers and positions are defined in self.class_param_positions.
+        CLASS.ini has repeated parameter blocks for each landcover class.
+        This method updates parameters in ALL blocks, optionally applying
+        landcover-specific multipliers for differentiation.
+
+        When MESH_APPLY_PARAMS_ALL_GRUS=True (default), calibrated parameters
+        are applied to all landcover class blocks.
+
+        When MESH_USE_LANDCOVER_MULTIPLIERS=True (default), landcover-specific
+        multipliers are applied (e.g., forest gets deeper soil, barren gets shallower).
         """
         try:
             self.logger.debug(f"Updating CLASS file: {file_path}")
@@ -468,59 +706,98 @@ class MESHParameterManager(BaseParameterManager):
             with open(file_path, 'r') as f:
                 lines = f.readlines()
 
-            updated = 0
-            for param_name, value in params.items():
-                if param_name not in self.class_param_positions:
-                    self.logger.warning(f"CLASS parameter {param_name} position not defined")
-                    continue
+            # Re-detect GRU blocks in case file changed
+            blocks = self._detect_all_gru_blocks_from_lines(lines)
+            if not blocks:
+                # Fall back to single-block behavior
+                blocks = [{'class_id': None, 'drn_line': 12, 'xslp_line': 13, 'block_index': 0}]
 
-                line_idx, pos_idx, num_values = self.class_param_positions[param_name]
+            total_updated = 0
+            n_blocks = len(blocks) if self.apply_to_all_grus else 1
 
-                if line_idx >= len(lines):
-                    self.logger.warning(f"Line {line_idx + 1} not found in CLASS file for {param_name}")
-                    continue
+            for block_idx, block in enumerate(blocks[:n_blocks]):
+                drn_line = block['drn_line']
+                xslp_line = block['xslp_line']
 
-                line = lines[line_idx]
+                # Get NALCMS class ID for this block using the mapping
+                # block_to_nalcms maps block index (0, 1, 2, ...) to NALCMS class ID (1, 8, 9, ...)
+                nalcms_class_id = self.block_to_nalcms.get(block_idx)
 
-                # Parse the line - values are space-separated, with comment at end
-                # Example: "   0.030   0.350   0.100   0.050   100 Temp_sub-_gras   13 XSLP/..."
-                parts = line.split()
+                # Get multipliers for this landcover class
+                multipliers = {}
+                if self.use_landcover_multipliers and nalcms_class_id is not None:
+                    multipliers = self.landcover_multipliers.get(nalcms_class_id, {})
 
-                if pos_idx >= len(parts):
-                    self.logger.warning(f"Position {pos_idx} not found in line for {param_name}")
-                    continue
+                for param_name, base_value in params.items():
+                    # Apply landcover multiplier if available
+                    multiplier = multipliers.get(param_name, 1.0)
+                    value = base_value * multiplier
 
-                # Format the new value (use appropriate precision)
-                if abs(value) < 0.01:
-                    new_val_str = f"{value:.3f}"
-                elif abs(value) < 1:
-                    new_val_str = f"{value:.3f}"
-                elif abs(value) < 100:
-                    new_val_str = f"{value:.2f}"
-                else:
-                    new_val_str = f"{value:.1f}"
-
-                # Replace the value at the specific position
-                old_val = parts[pos_idx]
-                parts[pos_idx] = new_val_str
-
-                # Reconstruct the line with proper spacing
-                # CLASS.ini uses fixed-width columns (typically 8 characters per value)
-                new_line = ""
-                for i, part in enumerate(parts):
-                    if i < num_values:
-                        # Numeric values - right-align in 8-char field
-                        new_line += f"{part:>8}"
+                    # Determine which line this parameter is on
+                    if param_name in ['DRN', 'SDEP']:
+                        line_idx = drn_line
+                        pos_idx = 0 if param_name == 'DRN' else 1
+                        num_values = 4
+                    elif param_name in ['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT']:
+                        line_idx = xslp_line
+                        pos_map = {'XSLP': 0, 'XDRAINH': 1, 'MANN_CLASS': 2, 'KSAT': 3}
+                        pos_idx = pos_map[param_name]
+                        num_values = 5
+                    elif param_name in self.class_param_positions:
+                        # Fallback: use detected positions for vegetation params (LAMX, ROOT, etc.)
+                        line_idx_base, pos_idx, num_values = self.class_param_positions[param_name]
+                        if block_idx == 0:
+                            line_idx = line_idx_base
+                        else:
+                            # For multi-GRU, compute offset relative to DRN line
+                            default_drn = self.class_param_positions.get('DRN', (12, 0, 4))[0]
+                            offset = line_idx_base - default_drn
+                            line_idx = drn_line + offset
                     else:
-                        # Rest of line (comments, line number, etc.)
-                        new_line += " " + part
-                new_line += "\n"
+                        continue  # Not a CLASS.ini parameter
 
-                lines[line_idx] = new_line
-                self.logger.debug(f"Updated {param_name}: {old_val} -> {new_val_str}")
-                updated += 1
+                    if line_idx is None or line_idx >= len(lines):
+                        continue
 
-            if updated == 0:
+                    line = lines[line_idx]
+                    parts = line.split()
+
+                    if pos_idx >= len(parts):
+                        continue
+
+                    # Format the new value
+                    if abs(value) < 0.01:
+                        new_val_str = f"{value:.4f}"
+                    elif abs(value) < 1:
+                        new_val_str = f"{value:.3f}"
+                    elif abs(value) < 100:
+                        new_val_str = f"{value:.2f}"
+                    else:
+                        new_val_str = f"{value:.1f}"
+
+                    old_val = parts[pos_idx]
+                    parts[pos_idx] = new_val_str
+
+                    # Reconstruct line with proper spacing
+                    new_line = ""
+                    for i, part in enumerate(parts):
+                        if i < num_values:
+                            new_line += f"{part:>8}"
+                        else:
+                            new_line += " " + part
+                    new_line += "\n"
+
+                    lines[line_idx] = new_line
+                    total_updated += 1
+
+                    if block_idx == 0 or multiplier != 1.0:
+                        mult_info = f" (x{multiplier:.2f})" if multiplier != 1.0 else ""
+                        self.logger.debug(
+                            f"Block {block_idx} (NALCMS {nalcms_class_id}): "
+                            f"{param_name}: {old_val} -> {new_val_str}{mult_info}"
+                        )
+
+            if total_updated == 0:
                 self.logger.error(
                     f"No CLASS parameters were updated in {file_path.name} "
                     f"(requested: {list(params.keys())}). "
@@ -531,7 +808,11 @@ class MESHParameterManager(BaseParameterManager):
             with open(file_path, 'w') as f:
                 f.writelines(lines)
 
-            self.logger.debug(f"Updated {updated}/{len(params)} CLASS parameters in {file_path.name}")
+            n_blocks_updated = len(blocks[:n_blocks])
+            self.logger.debug(
+                f"Updated CLASS params across {n_blocks_updated} GRU blocks "
+                f"({total_updated} total updates) in {file_path.name}"
+            )
             return True
 
         except Exception as e:
@@ -687,9 +968,18 @@ class MESHParameterManager(BaseParameterManager):
             return None
 
     def _get_default_initial_values(self) -> Dict[str, float]:
-        """Get default initial parameter values (midpoint of bounds)."""
+        """Get default initial parameter values (midpoint of bounds).
+
+        Uses geometric mean for log-transformed parameters.
+        """
         params = {}
         for param_name in self.mesh_params:
             bounds = self.param_bounds[param_name]
-            params[param_name] = (bounds['min'] + bounds['max']) / 2
+            transform = bounds.get('transform', 'linear')
+            if transform == 'log' and bounds['min'] > 0 and bounds['max'] > 0:
+                params[param_name] = np.exp(
+                    (np.log(bounds['min']) + np.log(bounds['max'])) / 2
+                )
+            else:
+                params[param_name] = (bounds['min'] + bounds['max']) / 2
         return params

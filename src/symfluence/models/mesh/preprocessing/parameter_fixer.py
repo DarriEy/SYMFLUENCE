@@ -17,6 +17,9 @@ import xarray as xr
 from symfluence.core.mixins import ConfigMixin
 
 
+from .config_defaults import MESHConfigDefaults
+
+
 class MESHParameterFixer(ConfigMixin):
     """
     Fixes MESH parameter files for compatibility and stability.
@@ -156,6 +159,13 @@ class MESHParameterFixer(ConfigMixin):
                 outfiles_flag = 'daily'
                 basinavgwb_flag = 'daily'
 
+            # Determine frozen soil flag
+            # Default to 0 (OFF) for stability, but allow enabling for cold regions
+            enable_frozen = self._get_config_value(lambda: self.config.model.mesh.enable_frozen_soil, default=False, dict_key="MESH_ENABLE_FROZEN_SOIL")
+            frozen_flag = "1" if enable_frozen else "0"
+            if enable_frozen:
+                self.logger.info("FROZENSOILINFILFLAG enabled (1) - calibration of FRZTH is recommended")
+
             modified = False
             # Snow parameters: SWELIM reduced from 1500 to 500mm for temperate regions
             # 1500mm was unrealistically high and caused multi-year accumulation issues
@@ -165,7 +175,7 @@ class MESHParameterFixer(ConfigMixin):
                 (r'SWELIM\s+[-\d.]+', f'SWELIM                {self._get_config_value(lambda: self.config.model.mesh.swelim, default=800.0, dict_key="MESH_SWELIM")}'),
                 (r'SNDENLIM\s+[-\d.]+', 'SNDENLIM              600.0'),
                 (r'PBSMFLAG\s+\w+', 'PBSMFLAG              off'),
-                (r'FROZENSOILINFILFLAG\s+\d+', 'FROZENSOILINFILFLAG   0'),
+                (r'FROZENSOILINFILFLAG\s+\d+', f'FROZENSOILINFILFLAG   {frozen_flag}'),
                 (r'RUNMODE\s+\w+', f'RUNMODE               {runmode}'),
                 (r'METRICSSPINUP\s+\d+', f'METRICSSPINUP         {int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=730, dict_key="MESH_SPINUP_DAYS"))}'),
                 (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
@@ -244,38 +254,347 @@ class MESHParameterFixer(ConfigMixin):
             self.logger.warning(f"Failed to update control flag count: {e}")
 
     def fix_gru_count_mismatch(self) -> None:
-        """Ensure CLASS NM matches parameter block count and trim empty GRU columns."""
-        # First, determine which GRUs MESH will actually recognize
-        mesh_active_grus = self._get_mesh_active_gru_count()
+        """Ensure CLASS NM matches GRU count and renormalize GRU fractions.
 
-        # Then get the current DDB GRU count
-        current_ddb_gru_count = self._get_ddb_gru_count()
+        MESH has an off-by-one issue where it reads NGRU-1 GRUs from the drainage
+        database. This function ensures:
+        1. CLASS has NGRU-1 parameter blocks
+        2. The first NGRU-1 GRU fractions sum to 1.0 (not all NGRU)
 
-        if mesh_active_grus is not None and current_ddb_gru_count is not None:
-            if mesh_active_grus != current_ddb_gru_count:
-                self.logger.warning(
-                    f"DDB has {current_ddb_gru_count} GRU columns but MESH will only see {mesh_active_grus} active"
-                )
-                # Trim DDB to match MESH's expectations
-                self._trim_ddb_to_active_grus(mesh_active_grus)
+        If MESH_FORCE_SINGLE_GRU is enabled, collapses all GRUs to a single
+        dominant land cover class to simplify calibration and avoid numerical
+        instabilities in minor GRU classes.
 
-            # Now trim CLASS to match (which should equal mesh_active_grus)
-            class_block_count = self._get_class_block_count()
-            if class_block_count is not None and mesh_active_grus != class_block_count:
-                self.logger.warning(
-                    f"CLASS blocks ({class_block_count}) don't match MESH active GRUs ({mesh_active_grus})"
-                )
-                # Trim CLASS to match MESH's expectations
-                self._trim_class_to_count(mesh_active_grus)
-                # Update NM to reflect the trimmed count
-                self._update_class_nm(mesh_active_grus)
+        This function is idempotent - if already aligned, it does nothing.
+        """
+        # Check if single-GRU mode is requested
+        force_single_gru = self._get_config_value(
+            lambda: self.config.model.mesh.force_single_gru,
+            default=False,
+            dict_key='MESH_FORCE_SINGLE_GRU'
+        )
 
+        if force_single_gru:
+            self._collapse_to_single_gru()
             return
 
-        # Fall back to original logic only if we couldn't determine mesh_active_grus
-        keep_mask = self._trim_empty_gru_columns()
-        self._fix_class_nm(keep_mask)
-        self._ensure_gru_normalization()
+        # First, remove GRUs below the minimum fraction threshold
+        # This prevents numerical instability from very small GRU classes
+        self._remove_small_grus()
+
+        current_ddb_gru_count = self._get_ddb_gru_count()
+        class_block_count = self._get_class_block_count()
+
+        if current_ddb_gru_count is None or class_block_count is None:
+            # Fall back to original logic
+            keep_mask = self._trim_empty_gru_columns()
+            self._fix_class_nm(keep_mask)
+            self._ensure_gru_normalization()
+            return
+
+        # MESH reads NGRU-1 GRUs, so CLASS should have NGRU-1 blocks
+        expected_class_blocks = max(1, current_ddb_gru_count - 1)
+
+        # Check if already aligned
+        if class_block_count == expected_class_blocks:
+            self.logger.debug(
+                f"Already aligned: CLASS has {class_block_count} blocks, "
+                f"DDB has {current_ddb_gru_count} NGRU (MESH reads {expected_class_blocks})"
+            )
+            # Just ensure GRU fractions are normalized for the first NGRU-1 columns
+            self._renormalize_mesh_active_grus(expected_class_blocks)
+            return
+
+        self.logger.warning(
+            f"GRU count mismatch: CLASS has {class_block_count} blocks, "
+            f"but MESH will read {expected_class_blocks} GRUs (DDB NGRU={current_ddb_gru_count})"
+        )
+
+        # Strategy: adjust CLASS to match MESH's expectations
+        if class_block_count > expected_class_blocks:
+            # Too many CLASS blocks - trim to match
+            self._trim_class_to_count(expected_class_blocks)
+            self._update_class_nm(expected_class_blocks)
+        elif class_block_count < expected_class_blocks:
+            # Too few CLASS blocks - we need to trim DDB to have class_block_count + 1
+            # This way MESH reads exactly class_block_count GRUs
+            target_ddb_count = class_block_count + 1
+            self.logger.info(
+                f"Trimming DDB to {target_ddb_count} GRUs so MESH reads {class_block_count}"
+            )
+            self._trim_ddb_to_active_grus(target_ddb_count)
+
+        # Renormalize GRU fractions for MESH's active GRUs
+        final_class_count = self._get_class_block_count() or expected_class_blocks
+        self._renormalize_mesh_active_grus(final_class_count)
+
+    def _collapse_to_single_gru(self) -> None:
+        """Collapse all GRUs to a single dominant land cover class.
+
+        This simplifies the model by using a single GRU, which:
+        - Avoids numerical instabilities in minor GRU classes
+        - Simplifies calibration (fewer parameters)
+        - Is appropriate for lumped mode where spatial heterogeneity is already ignored
+
+        The dominant GRU (largest fraction) is kept, all others are removed.
+        """
+        self.logger.info("MESH_FORCE_SINGLE_GRU enabled - collapsing to single GRU")
+
+        # Find dominant GRU from DDB
+        if not self.ddb_path.exists():
+            self.logger.warning("No DDB found, cannot collapse to single GRU")
+            return
+
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    self.logger.warning("No GRU data in DDB")
+                    return
+
+                gru = ds['GRU'].values  # Shape: (subbasin, NGRU)
+                ngru = int(ds.sizes['NGRU'])
+
+                # Find index of dominant GRU (largest total fraction)
+                gru_sums = gru.sum(axis=0)  # Sum across subbasins
+                dominant_idx = int(np.argmax(gru_sums))
+                dominant_fraction = gru_sums[dominant_idx]
+
+                self.logger.info(
+                    f"Dominant GRU index: {dominant_idx} (fraction: {dominant_fraction:.4f})"
+                )
+
+                # Create new DDB with only 2 GRU columns (MESH reads NGRU-1=1)
+                # First column gets fraction 1.0, second column gets 0.0
+                new_gru = np.zeros((gru.shape[0], 2))
+                new_gru[:, 0] = 1.0  # Single GRU with 100% fraction
+
+                # Update DDB
+                ds_new = ds.copy()
+                # Need to create new dataset with different NGRU dimension
+                ds_new = ds_new.drop_dims('NGRU')
+                ds_new['GRU'] = xr.DataArray(
+                    new_gru,
+                    dims=['subbasin', 'NGRU'],
+                    coords={'subbasin': ds['subbasin']}
+                )
+
+                # Copy other NGRU-dimensioned variables if they exist
+                for var in ['LandUse', 'LandClass']:
+                    if var in ds:
+                        # Keep only dominant GRU's value
+                        old_vals = ds[var].values
+                        if old_vals.ndim == 1:  # Shape: (NGRU,)
+                            new_vals = np.array([old_vals[dominant_idx], 0])
+                        else:  # Shape: (subbasin, NGRU)
+                            new_vals = np.zeros((old_vals.shape[0], 2))
+                            new_vals[:, 0] = old_vals[:, dominant_idx]
+                        ds_new[var] = xr.DataArray(
+                            new_vals,
+                            dims=ds[var].dims if len(new_vals.shape) > 1 else ['NGRU']
+                        )
+
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds_new.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+
+                self.logger.info(
+                    f"Collapsed DDB from {ngru} to 2 GRU columns (MESH reads 1)"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Failed to collapse DDB to single GRU: {e}")
+            return
+
+        # Trim CLASS to single block (keep dominant GRU's parameters)
+        self._trim_class_to_count(1)
+        self._update_class_nm(1)
+        self.logger.info("Single-GRU mode activated: 1 CLASS block, 1 active GRU")
+
+    def _remove_small_grus(self) -> None:
+        """Remove GRUs below the minimum fraction threshold.
+
+        Small GRU fractions (e.g., <5%) can cause numerical instability in CLASS
+        energy balance calculations because:
+        1. Small fractions amplify numerical errors in flux calculations
+        2. Minor land cover classes may have poorly-constrained parameters
+        3. The GRU's contribution to catchment response is negligible
+
+        This method:
+        1. Identifies GRUs below MESH_GRU_MIN_TOTAL threshold
+        2. Removes their columns from the DDB
+        3. Removes corresponding CLASS parameter blocks
+        4. Renormalizes remaining GRU fractions to sum to 1.0
+        """
+        min_fraction = float(self._get_config_value(
+            lambda: self.config.model.mesh.gru_min_total,
+            default=0.05,
+            dict_key='MESH_GRU_MIN_TOTAL'
+        ))
+
+        if not self.ddb_path.exists():
+            return
+
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return
+
+                gru = ds['GRU']
+                ngru = int(ds.sizes['NGRU'])
+
+                # Get spatial dimension
+                sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
+                if not sum_dim:
+                    return
+
+                # Calculate GRU fractions (sum across spatial units, then average)
+                # For single-cell (lumped) domains, this is just the GRU values
+                gru_fractions = gru.sum(sum_dim).values
+                if gru.sizes[sum_dim] > 1:
+                    gru_fractions = gru_fractions / gru.sizes[sum_dim]
+
+                # Identify GRUs to keep (above threshold)
+                keep_mask = gru_fractions >= min_fraction
+                n_keep = int(keep_mask.sum())
+                n_remove = ngru - n_keep
+
+                if n_remove == 0:
+                    self.logger.debug(
+                        f"All {ngru} GRUs above {min_fraction:.1%} threshold"
+                    )
+                    return
+
+                if n_keep == 0:
+                    # Edge case: all GRUs below threshold - keep the largest
+                    largest_idx = int(np.argmax(gru_fractions))
+                    keep_mask[largest_idx] = True
+                    n_keep = 1
+                    n_remove = ngru - 1
+                    self.logger.warning(
+                        f"All GRUs below {min_fraction:.1%} threshold, keeping largest (idx={largest_idx})"
+                    )
+
+                # Log which GRUs are being removed
+                removed_indices = [i for i, keep in enumerate(keep_mask) if not keep]
+                removed_fractions = [gru_fractions[i] for i in removed_indices]
+                self.logger.info(
+                    f"Removing {n_remove} GRUs below {min_fraction:.1%} threshold: "
+                    f"indices {removed_indices} with fractions {[f'{f:.3f}' for f in removed_fractions]}"
+                )
+
+                # Subset the DDB to keep only GRUs above threshold
+                keep_indices = [i for i, keep in enumerate(keep_mask) if keep]
+                ds_filtered = ds.isel(NGRU=keep_indices)
+
+                # Renormalize GRU fractions to sum to 1.0
+                if 'GRU' in ds_filtered:
+                    gru_sum = ds_filtered['GRU'].sum('NGRU')
+                    gru_sum_safe = xr.where(gru_sum == 0, 1.0, gru_sum)
+                    ds_filtered['GRU'] = ds_filtered['GRU'] / gru_sum_safe
+
+                    # Log new fractions
+                    new_fractions = ds_filtered['GRU'].sum(sum_dim).values
+                    if ds_filtered['GRU'].sizes[sum_dim] > 1:
+                        new_fractions = new_fractions / ds_filtered['GRU'].sizes[sum_dim]
+                    self.logger.debug(
+                        f"Renormalized GRU fractions: {[f'{f:.3f}' for f in new_fractions]}"
+                    )
+
+                # Save filtered DDB
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds_filtered.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+
+                self.logger.info(
+                    f"Removed {n_remove} small GRU(s), {n_keep} remaining"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Failed to remove small GRUs from DDB: {e}")
+            return
+
+        # Now remove corresponding CLASS parameter blocks
+        self._remove_class_blocks_by_mask(keep_mask)
+
+    def _remove_class_blocks_by_mask(self, keep_mask: np.ndarray) -> None:
+        """Remove CLASS parameter blocks corresponding to removed GRUs.
+
+        Args:
+            keep_mask: Boolean array where True = keep GRU, False = remove
+        """
+        if not self.class_file_path.exists():
+            return
+
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+
+            # Find block starts (line 5 of each GRU block)
+            block_starts = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
+
+            if not block_starts:
+                self.logger.debug("No CLASS blocks found (looking for '05 5xFCAN/4xLAMX')")
+                return
+
+            n_blocks = len(block_starts)
+            n_mask = len(keep_mask)
+
+            # The mask may be longer than blocks (DDB has NGRU, CLASS has NGRU-1)
+            # Align from the front - first N blocks correspond to first N mask entries
+            effective_mask = keep_mask[:n_blocks] if n_mask >= n_blocks else np.pad(
+                keep_mask, (0, n_blocks - n_mask), constant_values=True
+            )
+
+            n_keep = int(effective_mask.sum())
+            n_remove = n_blocks - n_keep
+
+            if n_remove == 0:
+                return
+
+            self.logger.debug(
+                f"Removing {n_remove} CLASS blocks (keeping indices {[i for i, k in enumerate(effective_mask) if k]})"
+            )
+
+            # Find footer (lines 20, 21, 22)
+            footer_start = None
+            for i, line in enumerate(lines):
+                # Look for line starting with spaces/zeros and containing '20 '
+                if re.search(r'^\s*0\s+0\s+0\s+0.*20\s', line):
+                    footer_start = i
+                    break
+
+            footer = []
+            if footer_start is not None:
+                footer = lines[footer_start:]
+                lines = lines[:footer_start]
+
+            # Identify header (everything before first block)
+            header = lines[:block_starts[0]]
+
+            # Identify block boundaries
+            block_ends = block_starts[1:] + [len(lines)]
+            blocks = [lines[block_starts[i]:block_ends[i]] for i in range(n_blocks)]
+
+            # Keep only blocks where mask is True
+            kept_blocks = [blocks[i] for i in range(n_blocks) if effective_mask[i]]
+
+            # Reconstruct file
+            new_lines = header + [line for block in kept_blocks for line in block] + footer
+            content = '\n'.join(new_lines)
+            if not content.endswith('\n'):
+                content += '\n'
+
+            with open(self.class_file_path, 'w') as f:
+                f.write(content)
+
+            self.logger.info(f"Removed {n_remove} CLASS block(s), {n_keep} remaining")
+
+            # Update NM parameter
+            self._update_class_nm(n_keep)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to remove CLASS blocks: {e}")
 
     def _get_ddb_gru_count(self) -> Optional[int]:
         """Get the number of GRU columns in the DDB."""
@@ -291,7 +610,15 @@ class MESHParameterFixer(ConfigMixin):
             return None
 
     def _trim_ddb_to_active_grus(self, target_count: int) -> None:
-        """Trim DDB GRU columns to only keep the active ones (sum > 0.1)."""
+        """Trim DDB GRU columns to exactly target_count, keeping first N columns.
+
+        MESH has an off-by-one issue where it reads NGRU-1 GRUs from the drainage
+        database. This function trims the DDB to exactly match what MESH expects.
+
+        We keep the first N GRU columns (not the largest) to maintain correspondence
+        with CLASS parameter blocks, which are also indexed 0 to N-1. The GRU
+        fractions are renormalized to sum to 1.0.
+        """
         if not self.ddb_path.exists():
             return
 
@@ -300,52 +627,109 @@ class MESHParameterFixer(ConfigMixin):
                 if 'GRU' not in ds or 'NGRU' not in ds.dims:
                     return
 
-                if ds.dims['NGRU'] <= target_count:
+                current_count = int(ds.sizes['NGRU'])
+                if current_count <= target_count:
                     return
 
-                # Determine which GRU columns are actually active (sum > 0.1)
                 gru = ds['GRU']
                 sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
                 if not sum_dim:
                     return
 
-                sums = gru.sum(sum_dim)
-                min_gru_sum = float(
-                    self._get_config_value(
-                        lambda: self.config.model.mesh.gru_min_total,
-                        default=0.0,
-                        dict_key='MESH_GRU_MIN_TOTAL'
-                    )
+                # Calculate fractions being removed (last columns)
+                sums = gru.sum(sum_dim).values
+                removed_fractions = sums[target_count:]
+                total_removed = sum(removed_fractions)
+
+                self.logger.info(
+                    f"Trimming DDB from {current_count} to {target_count} GRU columns "
+                    f"(removing last {current_count - target_count} GRUs with total fraction {total_removed:.4f})"
                 )
-                # Keep GRU columns above configured threshold (default: keep all > 0)
-                keep_mask = sums > min_gru_sum
-                active_indices = [i for i, keep in enumerate(keep_mask.values) if keep]
 
-                if len(active_indices) == 0:
-                    self.logger.warning(
-                        f"No GRU columns have sum > {min_gru_sum:.2f}"
-                    )
-                    return
+                # Keep first N GRU columns to maintain CLASS block correspondence
+                keep_indices = list(range(target_count))
+                ds_trim = ds.isel(NGRU=keep_indices)
 
-                # Trim to only the active GRUs
-                ds_trim = ds.isel(NGRU=active_indices)
-
-                # Renormalize GRU fractions
+                # Renormalize GRU fractions to sum to 1.0
                 if 'GRU' in ds_trim:
                     sum_per = ds_trim['GRU'].sum('NGRU')
                     sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
                     ds_trim['GRU'] = ds_trim['GRU'] / sum_safe
 
+                    # Log the renormalization
+                    new_gru = ds_trim['GRU'].values
+                    self.logger.debug(f"Renormalized GRU fractions: {new_gru}")
+
                 temp_path = self.ddb_path.with_suffix('.tmp.nc')
                 ds_trim.to_netcdf(temp_path)
                 os.replace(temp_path, self.ddb_path)
                 self.logger.info(
-                    f"Trimmed DDB to {len(active_indices)} active GRU column(s) "
-                    f"(all with sum > {min_gru_sum:.2f})"
+                    f"Trimmed DDB to {target_count} GRU column(s) and renormalized fractions to sum to 1.0"
                 )
-                self._ensure_gru_normalization()
         except Exception as e:
             self.logger.warning(f"Failed to trim DDB to active GRUs: {e}")
+
+    def _renormalize_mesh_active_grus(self, active_count: int) -> None:
+        """Renormalize the first N GRU fractions to sum to 1.0.
+
+        MESH reads only the first (NGRU-1) GRU columns due to an off-by-one issue.
+        This function renormalizes only those active columns without changing the
+        DDB dimension, ensuring the active GRUs sum to 1.0.
+
+        Args:
+            active_count: Number of GRUs that MESH will actually read
+        """
+        if not self.ddb_path.exists():
+            return
+
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return
+
+                ngru_count = int(ds.sizes['NGRU'])
+                if active_count >= ngru_count:
+                    # No need to renormalize subset - use full normalization
+                    self._ensure_gru_normalization()
+                    return
+
+                gru = ds['GRU'].values  # Shape: (subbasin, NGRU)
+
+                # Check if first active_count columns already sum to 1.0
+                active_sums = gru[:, :active_count].sum(axis=1)
+                if np.allclose(active_sums, 1.0, atol=1e-4):
+                    self.logger.debug(
+                        f"First {active_count} GRU fractions already sum to 1.0"
+                    )
+                    return
+
+                self.logger.info(
+                    f"Renormalizing first {active_count} GRU fractions to sum to 1.0 "
+                    f"(current sum: {active_sums[0]:.4f})"
+                )
+
+                # Renormalize only the first active_count columns
+                for i in range(gru.shape[0]):  # For each subbasin
+                    row_sum = gru[i, :active_count].sum()
+                    if row_sum > 0:
+                        gru[i, :active_count] = gru[i, :active_count] / row_sum
+                    else:
+                        # If sum is 0, set first GRU to 1.0
+                        gru[i, 0] = 1.0
+
+                    # Set remaining columns to 0 (they're ignored by MESH anyway)
+                    gru[i, active_count:] = 0.0
+
+                ds['GRU'].values = gru
+
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+
+                self.logger.debug(f"Renormalized GRU fractions: {gru}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to renormalize MESH active GRUs: {e}")
 
     def _ensure_gru_normalization(self) -> None:
         """Ensure GRU fractions in DDB sum to 1.0 for every subbasin."""
@@ -404,7 +788,11 @@ class MESHParameterFixer(ConfigMixin):
         return None
 
     def _get_mesh_active_gru_count(self) -> Optional[int]:
-        """Determine the number of GRUs that MESH will recognize as active."""
+        """Determine the number of GRUs that MESH will actually read.
+
+        MESH has an off-by-one issue: it reads NGRU-1 GRUs from the drainage database.
+        This function returns the count that MESH will actually see.
+        """
         if not self.ddb_path.exists():
             return None
 
@@ -413,37 +801,15 @@ class MESHParameterFixer(ConfigMixin):
                 if 'GRU' not in ds or 'NGRU' not in ds.dims:
                     return None
 
-                gru = ds['GRU']
-                sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
-                if not sum_dim:
-                    return None
+                ngru_dim = int(ds.sizes['NGRU'])
 
-                sums = gru.sum(sum_dim)
-                # Threshold for considering a GRU class "active"
-                # Default 0.0 keeps any non-zero class; can be overridden in config.
-                min_gru_sum = float(
-                    self._get_config_value(
-                        lambda: self.config.model.mesh.gru_min_total,
-                        default=0.0,
-                        dict_key='MESH_GRU_MIN_TOTAL'
-                    )
-                )
-                active_count = int((sums > min_gru_sum).sum())
+                # MESH has an off-by-one issue: it reads NGRU-1 GRUs.
+                # Return what MESH will actually see.
+                mesh_gru_count = max(1, ngru_dim - 1) if ngru_dim > 1 else ngru_dim
 
-                # Log any classes being excluded
-                excluded = sums[sums <= min_gru_sum]
-                if len(excluded) > 0:
-                    excluded_total = float(excluded.sum())
-                    self.logger.warning(
-                        f"Excluding {len(excluded)} GRU class(es) below {min_gru_sum:.0%} threshold "
-                        f"(total area lost: {excluded_total:.1%})"
-                    )
+                self.logger.debug(f"MESH will read {mesh_gru_count} GRU(s) (NGRU dimension = {ngru_dim})")
+                return mesh_gru_count
 
-                if active_count > 0:
-                    self.logger.debug(f"MESH will recognize {active_count} active GRU(s) (threshold={min_gru_sum:.0%})")
-                    return active_count
-
-                return None
         except Exception as e:
             self.logger.debug(f"Could not determine MESH active GRU count: {e}")
             return None
@@ -464,7 +830,7 @@ class MESHParameterFixer(ConfigMixin):
             return None
 
     def _trim_class_to_count(self, target_count: int) -> None:
-        """Trim CLASS parameter blocks to a specific count."""
+        """Trim CLASS parameter blocks to a specific count, preserving footer."""
         if not self.class_file_path.exists():
             return
 
@@ -477,11 +843,27 @@ class MESHParameterFixer(ConfigMixin):
             ini_blocks = [i for i, line in enumerate(lines) if line.startswith('[GRU_')]
             legacy_blocks = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
 
+            # Find footer lines (lines 20, 21, 22) - they start with 0 and contain "20", "21", "22"
+            footer_start = None
+            for i, line in enumerate(lines):
+                if '20 ' in line or '20\t' in line or line.strip().endswith('20'):
+                    footer_start = i
+                    break
+
+            footer = []
+            if footer_start is not None:
+                footer = lines[footer_start:]
+                lines = lines[:footer_start]
+
             if ini_blocks:
                 header = lines[:ini_blocks[0]]
                 block_starts = ini_blocks + [len(lines)]
                 blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
             elif legacy_blocks:
+                # Filter legacy_blocks to only those before footer
+                legacy_blocks = [i for i in legacy_blocks if i < len(lines)]
+                if not legacy_blocks:
+                    return
                 header = lines[:legacy_blocks[0]]
                 block_starts = legacy_blocks + [len(lines)]
                 blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
@@ -492,7 +874,7 @@ class MESHParameterFixer(ConfigMixin):
             kept_blocks = blocks[:target_count]
 
             if len(kept_blocks) != len(blocks):
-                new_lines = header + [line for block in kept_blocks for line in block]
+                new_lines = header + [line for block in kept_blocks for line in block] + footer
                 content = '\n'.join(new_lines)
                 if not content.endswith('\n'):
                     content += '\n'
@@ -680,7 +1062,7 @@ class MESHParameterFixer(ConfigMixin):
         - R2N: Manning's n for overland flow, typically 0.02-0.10
         - WF_R2: Channel roughness coefficient for WATFLOOD routing, typically 0.20-0.40
 
-        Previously this code incorrectly set WF_R2 = R2N. Now uses appropriate default.
+        This method checks for a configured MESH_WF_R2 value (default 0.30).
         """
         settings_hydro = self.setup_dir / "MESH_parameters_hydrology.ini"
 
@@ -708,13 +1090,49 @@ class MESHParameterFixer(ConfigMixin):
                         f.write(content)
                     self.logger.info("Restored hydrology file from settings")
 
+            # Get configured WF_R2 value
+            # Try config key 'MESH_WF_R2' first, then look in hydrology params dict
+            configured_wf_r2 = self._get_config_value('MESH_WF_R2', None)
+
+            if configured_wf_r2 is None:
+                # Try to dig into the nested config structure if available
+                try:
+                    # Accessing via loose dict structure from config
+                    if hasattr(self, 'config') and isinstance(self.config, dict):
+                         configured_wf_r2 = self.config.get('hydrology_params', {}).get('routing', [{}])[0].get('wf_r2')
+                except Exception:
+                    pass
+
+            # Default to 0.30 if not configured
+            default_wf_r2 = 0.30
+            target_wf_r2 = float(configured_wf_r2) if configured_wf_r2 is not None else default_wf_r2
+
             if 'WF_R2' in content:
+                # If it exists, we might want to update it if the user explicitly configured it
+                if configured_wf_r2 is not None:
+                     self.logger.debug(f"WF_R2 already present, but updating to configured value {target_wf_r2}")
+                     # Regex replace to update existing value
+                     # Pattern looks for WF_R2 followed by numbers
+                     pattern = r'(WF_R2\s+)([\d\.\s]+)(.*)'
+
+                     def replace_wf_r2(match):
+                         prefix = match.group(1)
+                         suffix = match.group(3)
+                         # Count how many values we need (rough heuristic based on existing line)
+                         existing_values = match.group(2).split()
+                         n_vals = len(existing_values)
+                         new_vals = [f"{target_wf_r2:.4f}"] * n_vals
+                         return f"{prefix}{'    '.join(new_vals)}{suffix}"
+
+                     content = re.sub(pattern, replace_wf_r2, content)
+                     with open(self.hydro_path, 'w') as f:
+                         f.write(content)
+                     return
+
                 self.logger.debug("WF_R2 already present")
                 return
 
-            # Add WF_R2 with appropriate default (NOT copying from R2N)
-            # WF_R2 = 0.30 is a reasonable default for mixed channel types
-            # This can be calibrated during model optimization
+            # Add WF_R2
             new_lines = []
             r2n_found = False
             for line in lines:
@@ -722,12 +1140,12 @@ class MESHParameterFixer(ConfigMixin):
                     parts = line.split()
                     if len(parts) >= 2:
                         n_values = len(parts) - 1  # Number of routing classes
-                        # Use default WF_R2 = 0.30 for all classes (appropriate for channels)
-                        wf_r2_values = ["0.30"] * n_values
+
+                        wf_r2_values = [f"{target_wf_r2:.4f}"] * n_values
                         wf_r2_line = "WF_R2  " + "    ".join(wf_r2_values) + "  # channel roughness (calibratable)"
                         new_lines.append(wf_r2_line)
                         r2n_found = True
-                        self.logger.info(f"Added WF_R2=0.30 (default for {n_values} routing class(es))")
+                        self.logger.info(f"Added WF_R2={target_wf_r2} for {n_values} routing class(es)")
 
                         # Update parameter count
                         for j in range(len(new_lines) - 1, -1, -1):
@@ -940,6 +1358,123 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to configure lumped outputs: {e}")
 
+    def fix_class_vegetation_parameters(self) -> None:
+        """Fix CLASS vegetation parameters for different GRU types.
+
+        The default meshflow template uses the same vegetation parameters for all
+        GRU types, which can cause numerical instability in CLASS energy balance
+        calculations. This method adjusts key parameters based on the vegetation
+        class (from the MID comment in line 13).
+
+        Key parameters adjusted:
+        - LNZ0: Log of roughness length - different heights require different z0
+        - RSMN: Minimum stomatal resistance - varies by vegetation type
+
+        Reference roughness lengths (z0) by vegetation type:
+        - Needleleaf forest: z0 ~ 0.5-1.5m  (LNZ0 ~ -0.7 to 0.4)
+        - Broadleaf forest:  z0 ~ 0.5-2.0m  (LNZ0 ~ -0.7 to 0.7)
+        - Crops:             z0 ~ 0.05-0.15m (LNZ0 ~ -3.0 to -1.9)
+        - Grass:             z0 ~ 0.02-0.08m (LNZ0 ~ -3.9 to -2.5)
+        - Barrenland:        z0 ~ 0.001-0.01m (LNZ0 ~ -6.9 to -4.6)
+        """
+        if not self.class_file_path.exists():
+            return
+
+        # Vegetation-specific parameter corrections
+        # Format: {keyword: (lnz0, rsmn)}
+        # lnz0 is log(z0) where z0 is roughness length in meters
+        veg_corrections = {
+            'needle': (-0.7, 145),     # Needleleaf forest: z0=0.5m
+            'need_fore': (-0.7, 145),
+            'broad': (-0.4, 150),      # Broadleaf forest: z0=0.67m
+            'shru': (-1.8, 200),       # Shrub: z0=0.17m
+            'grass': (-2.5, 200),      # Grassland: z0=0.08m
+            'gras': (-2.5, 200),
+            'crop': (-2.3, 120),       # Crops: z0=0.10m
+            'Crop': (-2.3, 120),
+            'barren': (-4.6, 500),     # Barrenland: z0=0.01m
+            'urban': (-2.0, 200),      # Urban: z0=0.14m
+        }
+
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+
+            # First pass: identify GRU types from MID comments (line 13)
+            gru_types = []
+            for i, line in enumerate(lines):
+                if 'XSLP/XDRAINH/MANN/KSAT/MID' in line:
+                    gru_type = None
+                    line_lower = line.lower()
+                    for veg_key in veg_corrections:
+                        if veg_key.lower() in line_lower:
+                            gru_type = veg_key
+                            break
+                    gru_types.append((i, gru_type))
+
+            if not gru_types:
+                self.logger.debug("No GRU blocks found in CLASS file")
+                return
+
+            self.logger.debug(f"Found {len(gru_types)} GRU blocks: {gru_types}")
+
+            # Second pass: apply corrections to each GRU block
+            # GRU blocks are separated by blank lines, with lines 5-13 in sequence
+            modified = False
+            new_lines = []
+
+            # Find block boundaries (line 13 to next line 5 or end)
+            block_starts = []
+            for i, line in enumerate(lines):
+                if '05 5xFCAN/4xLAMX' in line:
+                    block_starts.append(i)
+
+            if len(block_starts) != len(gru_types):
+                self.logger.warning(
+                    f"Mismatch: {len(block_starts)} block starts vs {len(gru_types)} MID comments"
+                )
+
+            # Process each block
+            current_block = 0
+            for i, line in enumerate(lines):
+                # Determine which block we're in
+                while current_block < len(block_starts) - 1 and i >= block_starts[current_block + 1]:
+                    current_block += 1
+
+                if current_block < len(gru_types):
+                    _, gru_type = gru_types[current_block]
+                else:
+                    gru_type = None
+
+                # Fix LNZ0 in line 6 (5xLNZ0/4xLAMN)
+                if '5xLNZ0/4xLAMN' in line and gru_type:
+                    if gru_type in veg_corrections:
+                        lnz0_target = veg_corrections[gru_type][0]
+                        # Replace -1.300 with the target value
+                        line = line.replace('-1.300', f'{lnz0_target:.3f}')
+                        modified = True
+                        self.logger.debug(f"Set LNZ0={lnz0_target:.3f} for {gru_type}")
+
+                # Fix RSMN in line 9 (4xRSMN/4xQA50)
+                if '4xRSMN/4xQA50' in line and gru_type:
+                    if gru_type in veg_corrections:
+                        rsmn_target = veg_corrections[gru_type][1]
+                        # Replace 145.000 with the target value
+                        line = line.replace('145.000', f'{rsmn_target:.3f}')
+                        modified = True
+                        self.logger.debug(f"Set RSMN={rsmn_target:.3f} for {gru_type}")
+
+                new_lines.append(line)
+
+            if modified:
+                with open(self.class_file_path, 'w') as f:
+                    f.write('\n'.join(new_lines))
+                self.logger.info("Fixed CLASS vegetation parameters (LNZ0, RSMN) for different GRU types")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix CLASS vegetation parameters: {e}")
+
     def _get_domain_latitude(self) -> Optional[float]:
         """Get representative latitude from drainage database for climate classification."""
         ddb_path = self.forcing_dir / "MESH_drainage_database.nc"
@@ -1112,7 +1647,18 @@ class MESHParameterFixer(ConfigMixin):
                 forcing_end = forcing_times[-1]
 
             # Calculate spinup
-            spinup_days = int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=730, dict_key='MESH_SPINUP_DAYS'))
+            # Use configured value or dynamic default based on climate
+            configured_spinup = self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=None, dict_key='MESH_SPINUP_DAYS')
+
+            if configured_spinup is not None:
+                spinup_days = int(configured_spinup)
+            else:
+                # Get domain latitude/elevation for smart default
+                latitude = self._get_domain_latitude()
+                # Elevation not easily available here without reading more files, so pass None
+                spinup_days = MESHConfigDefaults.get_recommended_spinup_days(latitude=latitude)
+                self.logger.info(f"Using recommended spinup of {spinup_days} days (based on lat={latitude})")
+
             from datetime import timedelta
             requested_start = pd.Timestamp(analysis_start - timedelta(days=spinup_days))
 
@@ -1327,3 +1873,211 @@ class MESHParameterFixer(ConfigMixin):
                     except ValueError as e:
                         self.logger.debug(f"Line does not match date format '{stripped}': {e}")
         return date_line_indices
+
+    def create_elevation_band_class_blocks(self, elevation_info: list) -> bool:
+        """Create CLASS parameter blocks for elevation bands.
+
+        For elevation-band discretization, each elevation band becomes a GRU
+        with similar vegetation parameters but elevation-adjusted initial conditions.
+
+        Args:
+            elevation_info: List of dicts with 'elevation' and 'fraction' for each band
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.class_file_path.exists():
+            self.logger.warning("CLASS file not found, cannot create elevation band blocks")
+            return False
+
+        if not elevation_info:
+            self.logger.warning("No elevation info provided")
+            return False
+
+        n_bands = len(elevation_info)
+        self.logger.info(f"Creating {n_bands} CLASS blocks for elevation bands")
+
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+
+            # Find header lines (lines 01-04)
+            header_lines = []
+            block_start = None
+            for i, line in enumerate(lines):
+                if '04 DEGLAT/DEGLON' in line:
+                    header_lines = lines[:i + 1]
+                    block_start = i + 1
+                    break
+
+            if block_start is None:
+                self.logger.warning("Could not find CLASS header (line 04)")
+                return False
+
+            # Find footer lines (lines 20-22)
+            footer_lines = []
+            footer_start = None
+            for i, line in enumerate(lines):
+                if i > block_start and ('20 ' in line or line.strip().endswith('20')):
+                    footer_start = i
+                    footer_lines = lines[i:]
+                    break
+
+            if footer_start is None:
+                self.logger.warning("Could not find CLASS footer (line 20)")
+                return False
+
+            # Update NL and NM in header line 04
+            # Format: DEGLAT DEGLON ZRFM ZRFH ZBLD GC ILW NL NM  04 comment
+            # NL = number of grid cells (subbasins), NM = number of GRU types
+            # For multi-subbasin elevation bands, NL must match the DDB subbasin count
+            n_cells = self._get_num_cells()
+            for i, line in enumerate(header_lines):
+                if '04 DEGLAT/DEGLON' in line:
+                    parts = line.split()
+                    if len(parts) >= 11:
+                        # parts[7] = NL, parts[8] = NM, parts[9] = '04', parts[10] = comment
+                        parts[7] = str(n_cells)
+                        parts[8] = str(n_bands)
+                        # Reconstruct with original spacing style
+                        comment_idx = line.index('04 DEGLAT')
+                        values = parts[:9]
+                        header_lines[i] = '  ' + '  '.join(f'{v:>8s}' for v in values) + '       ' + line[comment_idx:]
+                    break
+
+            # Get base parameters from first existing GRU block
+            # Find first GRU block (lines 05-19)
+            block_lines = lines[block_start:footer_start]
+            first_block = []
+            in_block = False
+            for line in block_lines:
+                if '05 5xFCAN' in line or in_block:
+                    in_block = True
+                    first_block.append(line)
+                    if '19 RCAN/SCAN' in line:
+                        break
+
+            if not first_block or len(first_block) < 15:
+                # Use default block if not found
+                first_block = self._get_default_class_block()
+
+            # Create blocks for each elevation band
+            new_blocks = []
+            for i, elev_info in enumerate(elevation_info):
+                elevation = elev_info['elevation']
+                fraction = elev_info['fraction']
+
+                # Create block with elevation-adjusted parameters
+                block = self._create_elevation_adjusted_block(
+                    first_block, i, elevation, fraction
+                )
+                new_blocks.extend(block)
+                new_blocks.append('')  # Blank line between blocks
+
+            # Assemble new content
+            new_lines = header_lines + [''] + new_blocks + footer_lines
+
+            # Write updated file
+            with open(self.class_file_path, 'w') as f:
+                f.write('\n'.join(new_lines))
+
+            elev_str = ', '.join([f"{e['elevation']:.0f}m" for e in elevation_info])
+            self.logger.info(
+                f"Created {n_bands} elevation band CLASS blocks (elevations: {elev_str})"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.warning(f"Failed to create elevation band CLASS blocks: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+
+    def _create_elevation_adjusted_block(
+        self, base_block: list, band_index: int, elevation: float, fraction: float
+    ) -> list:
+        """Create a CLASS block with elevation-adjusted parameters.
+
+        Args:
+            base_block: Template CLASS block (lines 05-19)
+            band_index: Index of elevation band (0-based)
+            elevation: Mean elevation of band (m)
+            fraction: Area fraction of band
+
+        Returns:
+            List of lines for the CLASS block
+        """
+        block = []
+
+        # Use grassland/alpine vegetation for all elevation bands
+        # Higher elevations have sparser vegetation
+        # Cap at 1.0 (for low elevations) and min 0.2 (for very high)
+        vegetation_cover = min(1.0, max(0.2, 1.0 - (elevation - 1500) / 3000))
+
+        for line in base_block:
+            new_line = line
+
+            # Adjust FCAN (line 05) - vegetation fraction
+            if '05 5xFCAN' in line:
+                parts = line.split()
+                # Set grassland (position 4) as dominant
+                fcan_values = [0.0, 0.0, 0.0, vegetation_cover, 0.0]
+                new_line = f"   {fcan_values[0]:.3f}   {fcan_values[1]:.3f}   {fcan_values[2]:.3f}   {fcan_values[3]:.3f}   {fcan_values[4]:.3f}   1.450   0.000   0.000   0.000     05 5xFCAN/4xLAMX"
+
+            # Adjust LNZ0 (line 06) - roughness length
+            elif '5xLNZ0/4xLAMN' in line:
+                # Lower roughness at higher elevations (sparser vegetation)
+                lnz0 = -1.8 + (elevation - 1500) / 3000 * 0.5
+                new_line = f"   0.000   0.000   0.000  {lnz0:.3f}   0.000   0.000   0.000   0.000   1.200     06 5xLNZ0/4xLAMN"
+
+            # Adjust RSMN (line 09) - stomatal resistance
+            elif '4xRSMN/4xQA50' in line:
+                # Higher resistance at higher elevations (stressed vegetation)
+                rsmn = 200.0 + (elevation - 1500) / 2000 * 100
+                new_line = f"   0.000   0.000   0.000 {rsmn:.3f}           0.000   0.000   0.000  36.000     09 4xRSMN/4xQA50"
+
+            # Adjust MID in line 13 - unique identifier for each band
+            elif 'XSLP/XDRAINH/MANN/KSAT/MID' in line:
+                # Keep parameters, update MID
+                mid = 200 + band_index  # 200, 201, 202, etc.
+                # Parse existing values
+                parts = line.split()
+                if len(parts) >= 5:
+                    xslp = parts[0]
+                    xdrainh = parts[1]
+                    mann = parts[2]
+                    ksat = parts[3]
+                    new_line = f"   {xslp}   {xdrainh}   {mann}   {ksat}   {mid} ElevBand_{band_index+1}_{elevation:.0f}m                        13 XSLP/XDRAINH/MANN/KSAT/MID"
+
+            # Adjust initial snow (line 19) for elevation
+            elif '19 RCAN/SCAN' in line:
+                # More snow at higher elevations
+                sno = 50.0 + (elevation - 1500) / 100 * 5  # 50kg/m2 + 5kg per 100m
+                albs = min(0.85, 0.70 + (elevation - 1500) / 5000)  # Higher albedo with elevation
+                rhos = 300.0  # Standard snow density
+                new_line = f"   0.000   0.000   {sno:.1f}   {albs:.2f}   {rhos:.1f}   1.000  19 RCAN/SCAN/SNO/ALBS/RHOS/GRO"
+
+            block.append(new_line)
+
+        return block
+
+    def _get_default_class_block(self) -> list:
+        """Get a default CLASS parameter block for grassland vegetation."""
+        return [
+            "   0.000   0.000   0.000   1.000   0.000   0.000   0.000   0.000   1.450     05 5xFCAN/4xLAMX",
+            "   0.000   0.000   0.000  -1.800   0.000   0.000   0.000   0.000   1.200     06 5xLNZ0/4xLAMN",
+            "   0.000   0.000   0.000   0.045   0.000   0.000   0.000   0.000   4.500     07 5xALVC/4xCMAS",
+            "   0.000   0.000   0.000   0.160   0.000   0.000   0.000   0.000   1.090     08 5xALIC/4xROOT",
+            "   0.000   0.000   0.000 200.000           0.000   0.000   0.000  36.000     09 4xRSMN/4xQA50",
+            "   0.000   0.000   0.000   0.800           0.000   0.000   0.000   1.050     10 4xVPDA/4xVPDB",
+            "   0.000   0.000   0.000 100.000           0.000   0.000   0.000   5.000     11 4xPSGA/4xPSGB",
+            "   1.000   2.500   1.000  50.000                                             12 DRN/SDEP/FARE/DD",
+            "   0.030   0.350   0.100   0.050   100 Default                               13 XSLP/XDRAINH/MANN/KSAT/MID",
+            "  50.000  50.000  50.000                                                     14 3xSAND (or more)",
+            "  20.000  20.000  20.000                                                     15 3xCLAY (or more)",
+            "   0.000   0.000   0.000                                                     16 3xORGM (or more)",
+            "  4.000  2.000  1.000  -5.000  -10.000   4.000  17 3xTBAR (or more)/TCAN/TSNO/TPND",
+            "   0.250   0.150   0.040   0.000   0.000   0.000   0.000                     18 3xTHLQ (or more)/3xTHIC (or more)/ZPND",
+            "   0.000   0.000   100.0   0.75   250.0   1.000  19 RCAN/SCAN/SNO/ALBS/RHOS/GRO",
+        ]

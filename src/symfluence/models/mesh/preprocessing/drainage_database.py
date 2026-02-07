@@ -62,6 +62,47 @@ class MESHDrainageDatabase(ConfigMixin):
         """Path to drainage database file."""
         return self.forcing_dir / "MESH_drainage_database.nc"
 
+    def _get_landcover_class_ids(self, n_land: int) -> Optional[list]:
+        """Get actual landcover class IDs from landcover stats file.
+
+        Reads the frac_* column names from the landcover stats CSV to determine
+        which NALCMS/IGBP class IDs are present.
+
+        Args:
+            n_land: Expected number of landcover classes
+
+        Returns:
+            List of integer class IDs, or None if not determinable
+        """
+        import re
+        import pandas as pd
+
+        # Look for landcover stats file in forcing directory or attributes
+        possible_paths = [
+            self.forcing_dir / "temp_modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv",
+            self.forcing_dir.parent.parent / "attributes" / "gistool-outputs" / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv",
+        ]
+
+        for lc_path in possible_paths:
+            if lc_path.exists():
+                try:
+                    df = pd.read_csv(lc_path)
+                    # Extract class IDs from frac_* columns
+                    frac_cols = [col for col in df.columns if col.startswith('frac_')]
+                    class_ids = []
+                    for col in frac_cols:
+                        match = re.match(r'frac_(\d+)', col)
+                        if match:
+                            class_ids.append(int(match.group(1)))
+
+                    if class_ids:
+                        self.logger.debug(f"Found landcover class IDs from {lc_path.name}: {sorted(class_ids)}")
+                        return sorted(class_ids)
+                except Exception as e:
+                    self.logger.warning(f"Failed to read landcover classes from {lc_path}: {e}")
+
+        return None
+
     def fix_drainage_topology(self) -> None:
         """
         Fix drainage database topology if meshflow failed to build it properly.
@@ -80,7 +121,7 @@ class MESHDrainageDatabase(ConfigMixin):
                 if not n_dim:
                     return
 
-                n_size = ds.dims[n_dim]
+                n_size = ds.sizes[n_dim]
 
                 # Check if topology is broken
                 if 'Next' not in ds:
@@ -353,7 +394,7 @@ class MESHDrainageDatabase(ConfigMixin):
                 if not n_dim:
                     return
 
-                n_size = ds.dims[n_dim]
+                n_size = ds.sizes[n_dim]
                 modified = False
 
                 # MESH 1.5 with nc_subbasin expects 'subbasin' as the spatial dimension
@@ -378,49 +419,83 @@ class MESHDrainageDatabase(ConfigMixin):
                 )
                 modified = True
 
-                # Rename NGRU or land dimension to 'landclass'
-                old_lc_dim = 'land' if 'land' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else 'landclass' if 'landclass' in ds.dims else None
-                if old_lc_dim and old_lc_dim != 'landclass':
-                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'landclass'")
-                    ds = ds.rename({old_lc_dim: 'landclass'})
+                # Rename land or landclass dimension to 'NGRU' (MESH's expected name)
+                old_lc_dim = 'land' if 'land' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
+                if old_lc_dim and old_lc_dim != 'NGRU':
+                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'NGRU'")
+                    ds = ds.rename({old_lc_dim: 'NGRU'})
                     modified = True
 
-                # Ensure GRU variable exists and is on (subbasin, landclass)
+                # Ensure GRU variable exists and is on (subbasin, NGRU)
                 if 'GRU' in ds:
                     # Correct dimension names if needed
-                    if ds['GRU'].dims != (target_n_dim, 'landclass'):
-                        ds['GRU'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
+                    if ds['GRU'].dims != (target_n_dim, 'NGRU'):
+                        ds['GRU'] = ((target_n_dim, 'NGRU'), ds['GRU'].values, ds['GRU'].attrs)
                         modified = True
                     ds['GRU'].attrs['grid_mapping'] = 'crs'
 
-                    # For lumped mode, optionally force single landclass
-                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
-                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                    # For lumped mode, force single GRU by default (avoids MESH off-by-one issues)
+                    # MESH reads NGRU-1 GRUs, so we need NGRU=2 for MESH to see 1 GRU
+                    # Skip for elevation band mode to preserve multi-subbasin structure
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', True))
+                    _sub_grid = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+                    if isinstance(_sub_grid, str) and _sub_grid.lower() == 'elevation':
+                        force_single_gru = False
+                    if force_single_gru and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
                         self.logger.info(
-                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
-                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                            f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                            f"(NGRU=2 for MESH off-by-one workaround)"
                         )
-                        ds = ds.isel(landclass=slice(0, 1))
-                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
+                        # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU
+                        gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
+                        if n_size > 1:
+                            gru_data = np.tile(gru_data, (n_size, 1))
+                        vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
+                        if vars_to_drop:
+                            ds = ds.drop_vars(vars_to_drop, errors='ignore')
+                        if 'NGRU' in ds.coords:
+                            ds = ds.drop_vars('NGRU', errors='ignore')
+                        ds['GRU'] = xr.DataArray(
+                            gru_data,
+                            dims=[target_n_dim, 'NGRU'],
+                            attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+                        )
                         modified = True
 
-                elif 'landclass' in ds:
-                    # If landclass is present but GRU is missing, treat landclass as GRU fractions
-                    self.logger.info("Found 'landclass' variable without GRU; renaming to GRU")
-                    ds['GRU'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
-                    ds = ds.drop_vars('landclass')
+                elif 'NGRU' in ds:
+                    # If NGRU variable is present but GRU is missing, treat it as GRU fractions
+                    self.logger.info("Found 'NGRU' variable without GRU; renaming to GRU")
+                    ds['GRU'] = ((target_n_dim, 'NGRU'), ds['NGRU'].values, ds['NGRU'].attrs)
+                    ds = ds.drop_vars('NGRU')
                     ds['GRU'].attrs['grid_mapping'] = 'crs'
                     modified = True
 
-                    # For lumped mode, optionally force single landclass
-                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', False))
-                    if force_single_gru and 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                    # For lumped mode, force single GRU by default (avoids MESH off-by-one issues)
+                    # MESH reads NGRU-1 GRUs, so we need NGRU=2 for MESH to see 1 GRU
+                    # Skip for elevation band mode to preserve multi-subbasin structure
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', True))
+                    _sub_grid2 = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+                    if isinstance(_sub_grid2, str) and _sub_grid2.lower() == 'elevation':
+                        force_single_gru = False
+                    if force_single_gru and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
                         self.logger.info(
-                            f"Trimming landclass dimension from {ds.dims['landclass']} to 1 "
-                            f"(MESH_FORCE_SINGLE_GRU enabled)"
+                            f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                            f"(NGRU=2 for MESH off-by-one workaround)"
                         )
-                        ds = ds.isel(landclass=slice(0, 1))
-                        ds['GRU'] = ((target_n_dim, 'landclass'), np.ones((n_size, 1), dtype=np.float64), ds['GRU'].attrs)
+                        # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU
+                        gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
+                        if n_size > 1:
+                            gru_data = np.tile(gru_data, (n_size, 1))
+                        vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
+                        if vars_to_drop:
+                            ds = ds.drop_vars(vars_to_drop, errors='ignore')
+                        if 'NGRU' in ds.coords:
+                            ds = ds.drop_vars('NGRU', errors='ignore')
+                        ds['GRU'] = xr.DataArray(
+                            gru_data,
+                            dims=[target_n_dim, 'NGRU'],
+                            attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+                        )
                         modified = True
                 else:
                     # Create GRU variable if it doesn't exist (e.g., for lumped mode)
@@ -428,7 +503,7 @@ class MESHDrainageDatabase(ConfigMixin):
                     self.logger.info("Creating GRU variable for lumped mode (1 landclass, 100% coverage)")
                     n_landclass = 1  # Single landcover class for lumped mode
                     landclass_data = np.ones((n_size, n_landclass), dtype=np.float64)
-                    ds['GRU'] = ((target_n_dim, 'landclass'), landclass_data, {
+                    ds['GRU'] = ((target_n_dim, 'NGRU'), landclass_data, {
                         'long_name': 'Land cover class fractions',
                         'units': '1',
                         'grid_mapping': 'crs'
@@ -537,10 +612,91 @@ class MESHDrainageDatabase(ConfigMixin):
                         })
                         modified = True
 
-                # Ensure 1D coordinate for landclass dimension
-                if 'landclass' in ds.dims:
-                    n_land = int(ds.dims['landclass'])
-                    ds = ds.assign_coords(landclass=np.arange(1, n_land + 1, dtype=np.int32))
+                # Trim zero-fraction GRUs before setting coordinates
+                # Meshflow may create extra GRU entries with zero fractions
+                # Skip for elevation band mode — the padding column is required for MESH off-by-one
+                _sub_grid_trim = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+                _skip_trim = isinstance(_sub_grid_trim, str) and _sub_grid_trim.lower() == 'elevation'
+                if 'NGRU' in ds.dims and 'GRU' in ds and not _skip_trim:
+                    gru_vals = ds['GRU'].values
+                    # Sum GRU fractions across subbasins for each GRU
+                    if gru_vals.ndim == 2:
+                        gru_sums = gru_vals.sum(axis=0)
+                    else:
+                        gru_sums = gru_vals
+
+                    # Find non-zero GRUs
+                    nonzero_mask = gru_sums > 0.001
+                    n_nonzero = nonzero_mask.sum()
+                    n_original = len(nonzero_mask)
+
+                    if n_nonzero < n_original:
+                        self.logger.info(
+                            f"Trimming {n_original - n_nonzero} zero-fraction GRU(s) "
+                            f"(keeping {n_nonzero} of {n_original})"
+                        )
+                        # Trim NGRU dimension
+                        ds = ds.isel(NGRU=nonzero_mask)
+
+                        # Renormalize GRU fractions to sum to 1.0
+                        if 'GRU' in ds:
+                            gru_trimmed = ds['GRU'].values
+                            if gru_trimmed.ndim == 2:
+                                row_sums = gru_trimmed.sum(axis=1, keepdims=True)
+                                row_sums = np.where(row_sums == 0, 1, row_sums)
+                                ds['GRU'] = (ds['GRU'].dims, gru_trimmed / row_sums)
+                            else:
+                                total = gru_trimmed.sum()
+                                if total > 0:
+                                    ds['GRU'] = (ds['GRU'].dims, gru_trimmed / total)
+                        modified = True
+
+                # MESH does NOT expect a coordinate variable for the NGRU dimension.
+                # Having NGRU(NGRU) confuses MESH - it tries to map it as a data variable
+                # and reports "cannot be mapped from elemental dimension 'GRU'".
+                # Remove any NGRU coordinate variable if present.
+                if 'NGRU' in ds.dims and 'NGRU' in ds.coords:
+                    ds = ds.drop_vars('NGRU')
+                    self.logger.info("Removed NGRU coordinate variable (MESH expects dimension only)")
+                    modified = True
+
+                # FINAL CHECK: Enforce single GRU for lumped mode (after all other processing)
+                # MESH has an off-by-one issue: it reads NGRU-1 GRUs.
+                # For MESH to see 1 GRU, we need NGRU=2 with a padding column.
+                # Skip for elevation band mode to preserve multi-subbasin structure.
+                force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', True))
+                _sub_grid3 = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+                if isinstance(_sub_grid3, str) and _sub_grid3.lower() == 'elevation':
+                    force_single_gru = False
+                if force_single_gru and 'NGRU' in ds.dims and 'GRU' in ds and ds.sizes['NGRU'] > 1:
+                    self.logger.info(
+                        f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                        f"(set MESH_FORCE_SINGLE_GRU=false to use multiple GRUs)"
+                    )
+                    # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU (due to off-by-one)
+                    gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
+                    if n_size > 1:
+                        gru_data = np.tile(gru_data, (n_size, 1))
+                    # Drop all vars with NGRU dimension
+                    vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
+                    if vars_to_drop:
+                        ds = ds.drop_vars(vars_to_drop, errors='ignore')
+                    if 'NGRU' in ds.coords:
+                        ds = ds.drop_vars('NGRU', errors='ignore')
+                    ds['GRU'] = xr.DataArray(
+                        gru_data,
+                        dims=[target_n_dim, 'NGRU'],
+                        attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+                    )
+                    modified = True
+
+                # Ensure GRU has proper attributes that MESH expects
+                if 'GRU' in ds:
+                    ds['GRU'].attrs.update({
+                        'long_name': 'Group Response Unit',
+                        'standard_name': 'GRU',
+                        'grid_mapping': 'crs'
+                    })
                     modified = True
 
                 # Remove global attributes that might confuse MESH
@@ -695,8 +851,8 @@ class MESHDrainageDatabase(ConfigMixin):
 
                 if modified:
                     # Final GRU/landclass normalization check
-                    lc_var = 'landclass' if 'landclass' in ds else 'GRU' if 'GRU' in ds else None
-                    lc_dim = 'landclass' if 'landclass' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
+                    lc_var = 'NGRU' if 'NGRU' in ds else 'GRU' if 'GRU' in ds else None
+                    lc_dim = 'NGRU' if 'NGRU' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
 
                     if lc_var and lc_dim:
                         lc_da = ds[lc_var]
@@ -713,7 +869,11 @@ class MESHDrainageDatabase(ConfigMixin):
                             ds[lc_var].values = vals
 
                     temp_path = self.ddb_path.with_suffix('.tmp.nc')
-                    ds.to_netcdf(temp_path)
+                    # Ensure landclass is written as float64
+                    encoding = {}
+                    if 'NGRU' in ds.coords:
+                        encoding['NGRU'] = {'dtype': 'float64'}
+                    ds.to_netcdf(temp_path, encoding=encoding)
                     os.replace(temp_path, self.ddb_path)
 
         except Exception as e:
@@ -829,8 +989,73 @@ class MESHDrainageDatabase(ConfigMixin):
                             vals[idx, 0] = 1.0
                         ds_new['GRU'].values = vals
 
+                # MESH does NOT expect a coordinate variable for the NGRU dimension.
+                # Having NGRU(NGRU) confuses MESH - it tries to map it as a data variable.
+                # Remove any NGRU coordinate variable if present.
+                encoding: dict[str, dict[str, bool]] = {}
+                if 'NGRU' in ds_new.dims and 'NGRU' in ds_new.coords:
+                    ds_new = ds_new.drop_vars('NGRU')
+
+                # Enforce single GRU for lumped mode (avoids MESH off-by-one issue)
+                # Default to single GRU unless explicitly disabled via MESH_FORCE_SINGLE_GRU=false
+                # Skip for elevation band mode — multi-subbasin DDB must be preserved
+                force_single_gru = True
+                try:
+                    force_single_gru = bool(self.config_dict.get('MESH_FORCE_SINGLE_GRU', True))
+                except Exception:
+                    pass  # Keep default True
+
+                sub_grid_method = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
+                if isinstance(sub_grid_method, str) and sub_grid_method.lower() == 'elevation':
+                    force_single_gru = False
+                    self.logger.debug("Skipping force_single_gru: elevation band mode")
+
+                # Check GRU shape directly since dimension checks can be tricky
+                ngru_count = 1
+                if 'GRU' in ds_new:
+                    gru_shape = ds_new['GRU'].shape
+                    ngru_count = gru_shape[-1] if len(gru_shape) >= 2 else 1
+
+                self.logger.debug(f"[DEBUG] force_single_gru={force_single_gru}, ngru_count={ngru_count}")
+
+                if force_single_gru and ngru_count > 1:
+                    n_size = ds_new.sizes[n_dim] if n_dim else 1
+                    self.logger.info(
+                        f"Enforcing lumped mode: collapsing {ngru_count} GRUs to 1 "
+                        f"(set MESH_FORCE_SINGLE_GRU=false to use multiple GRUs)"
+                    )
+                    # MESH has an off-by-one issue: it reads NGRU-1 GRUs.
+                    # For MESH to see 1 GRU, we need NGRU=2: [0.998, 0.002]
+                    # The second column is padding with a small value.
+                    gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
+                    if n_size > 1:
+                        gru_data = np.tile(gru_data, (n_size, 1))
+
+                    # Drop all vars with NGRU dimension and the NGRU coord if present
+                    vars_to_drop = [v for v in ds_new.data_vars if 'NGRU' in ds_new[v].dims]
+                    if vars_to_drop:
+                        ds_new = ds_new.drop_vars(vars_to_drop, errors='ignore')
+                    if 'NGRU' in ds_new.coords:
+                        ds_new = ds_new.drop_vars('NGRU', errors='ignore')
+
+                    # Create new GRU with NGRU=2 for MESH off-by-one workaround
+                    ds_new['GRU'] = xr.DataArray(
+                        gru_data,
+                        dims=[n_dim, 'NGRU'],
+                        attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+                    )
+                    self.logger.info(f"Created GRU with shape {gru_data.shape} (NGRU=2 for MESH to see 1)")
+
+                # Ensure GRU has proper attributes that MESH expects
+                if 'GRU' in ds_new:
+                    ds_new['GRU'].attrs.update({
+                        'long_name': 'Group Response Unit',
+                        'standard_name': 'GRU',
+                        'grid_mapping': 'crs'
+                    })
+
                 temp_path = self.ddb_path.with_suffix('.tmp.nc')
-                ds_new.to_netcdf(temp_path)
+                ds_new.to_netcdf(temp_path, encoding=encoding)
                 os.replace(temp_path, self.ddb_path)
 
             self.logger.info("Reordered by Rank and normalized GRU fractions")
@@ -845,3 +1070,314 @@ class MESHDrainageDatabase(ConfigMixin):
         elif 'subbasin' in ds.dims:
             return 'subbasin'
         return None
+
+    def convert_to_elevation_band_grus(self, hru_shapefile: Path) -> tuple:
+        """Convert DDB to use elevation bands as GRUs instead of landcover classes.
+
+        This method reads the elevation band HRU shapefile created during discretization
+        and rebuilds the DDB GRU variable to have one GRU per elevation band.
+
+        Args:
+            hru_shapefile: Path to the elevation band HRU shapefile
+
+        Returns:
+            Tuple of (n_elev_bands, elevation_info) where elevation_info is a list of
+            dicts with 'elevation', 'fraction' for each band. Returns (0, []) on failure.
+        """
+        if not hru_shapefile.exists():
+            self.logger.warning(f"Elevation band shapefile not found: {hru_shapefile}")
+            return 0, []
+
+        if not self.ddb_path.exists():
+            self.logger.warning("MESH_drainage_database.nc not found")
+            return 0, []
+
+        try:
+            # Read elevation band HRU shapefile
+            gdf = gpd.read_file(hru_shapefile)
+            self.logger.info(f"Read elevation band shapefile with {len(gdf)} HRUs")
+
+            # Get area column name
+            area_col = 'HRU_area' if 'HRU_area' in gdf.columns else 'area'
+            if area_col not in gdf.columns:
+                # Calculate areas
+                gdf['HRU_area'] = gdf.geometry.area
+                area_col = 'HRU_area'
+
+            # Calculate total area and fraction for each elevation band
+            total_area = gdf[area_col].sum()
+            n_elev_bands = len(gdf)
+
+            elev_fractions = (gdf[area_col] / total_area).values
+            self.logger.info(
+                f"Elevation band fractions: {[f'{f:.3f}' for f in elev_fractions]}"
+            )
+
+            # Get mean elevation for each band
+            elev_col = 'avg_elevcl' if 'avg_elevcl' in gdf.columns else 'elev_mean'
+            if elev_col in gdf.columns:
+                mean_elevs = gdf[elev_col].values
+            else:
+                # Default elevations if not available
+                mean_elevs = [1500 + i * 400 for i in range(n_elev_bands)]
+
+            self.logger.info(
+                f"Elevation band means: {[f'{e:.0f}m' for e in mean_elevs]}"
+            )
+
+            # Build elevation info for CLASS block creation
+            elevation_info = [
+                {'elevation': float(mean_elevs[i]), 'fraction': float(elev_fractions[i])}
+                for i in range(n_elev_bands)
+            ]
+
+            # Update DDB with elevation band GRUs
+            with xr.open_dataset(self.ddb_path) as ds:
+                n_dim = self._get_spatial_dim(ds)
+                if not n_dim:
+                    self.logger.warning("Could not determine spatial dimension")
+                    return 0, []
+
+                n_size = int(ds.sizes[n_dim])
+
+                # Create new GRU array with elevation bands
+                # MESH reads NGRU-1, so we need n_elev_bands + 1 columns
+                n_gru_cols = n_elev_bands + 1
+                new_gru = np.zeros((n_size, n_gru_cols), dtype=np.float64)
+
+                # Set elevation band fractions (first n_elev_bands columns)
+                for i in range(n_elev_bands):
+                    new_gru[:, i] = elev_fractions[i]
+
+                # Create new dataset
+                ds_new = ds.drop_vars(['GRU'] if 'GRU' in ds else [], errors='ignore')
+                if 'NGRU' in ds_new.dims:
+                    ds_new = ds_new.drop_dims('NGRU')
+
+                # Add new GRU variable
+                ds_new['GRU'] = xr.DataArray(
+                    new_gru,
+                    dims=[n_dim, 'NGRU'],
+                    attrs={'long_name': 'Elevation band fractions'}
+                )
+
+                # Save updated DDB
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds_new.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+
+            self.logger.info(
+                f"Converted DDB to {n_elev_bands} elevation band GRUs "
+                f"(NGRU={n_gru_cols}, MESH reads {n_elev_bands})"
+            )
+            return n_elev_bands, elevation_info
+
+        except Exception as e:
+            self.logger.warning(f"Failed to convert to elevation band GRUs: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return 0, []
+
+    def convert_to_multi_subbasin_elevation_bands(self, hru_shapefile: Path) -> tuple:
+        """Convert DDB from 1 subbasin × N GRUs to N subbasins × (N+1) GRUs.
+
+        Each elevation band becomes its own subbasin with its own forcing,
+        enabling temperature lapsing. Uses an identity GRU matrix so each
+        subbasin has exactly one active GRU.
+
+        Args:
+            hru_shapefile: Path to the elevation band HRU shapefile
+
+        Returns:
+            Tuple of (n_elev_bands, elevation_info) where elevation_info is a list of
+            dicts with 'elevation', 'fraction' for each band. Returns (0, []) on failure.
+        """
+        if not hru_shapefile.exists():
+            self.logger.warning(f"Elevation band shapefile not found: {hru_shapefile}")
+            return 0, []
+
+        if not self.ddb_path.exists():
+            self.logger.warning("MESH_drainage_database.nc not found")
+            return 0, []
+
+        try:
+            # Read elevation band HRU shapefile
+            gdf = gpd.read_file(hru_shapefile)
+            self.logger.info(f"Read elevation band shapefile with {len(gdf)} HRUs")
+
+            # Get area column name
+            area_col = 'HRU_area' if 'HRU_area' in gdf.columns else 'area'
+            if area_col not in gdf.columns:
+                gdf['HRU_area'] = gdf.geometry.area
+                area_col = 'HRU_area'
+
+            total_area_from_shp = gdf[area_col].sum()
+            n_bands = len(gdf)
+            band_fractions = (gdf[area_col] / total_area_from_shp).values
+
+            # Get mean elevation for each band
+            elev_col = 'avg_elevcl' if 'avg_elevcl' in gdf.columns else 'elev_mean'
+            if elev_col in gdf.columns:
+                mean_elevs = gdf[elev_col].values
+            else:
+                mean_elevs = np.array([1500 + i * 400 for i in range(n_bands)])
+
+            self.logger.info(
+                f"Elevation bands: {n_bands} bands, "
+                f"elevations={[f'{e:.0f}m' for e in mean_elevs]}, "
+                f"fractions={[f'{f:.3f}' for f in band_fractions]}"
+            )
+
+            elevation_info = [
+                {'elevation': float(mean_elevs[i]), 'fraction': float(band_fractions[i])}
+                for i in range(n_bands)
+            ]
+
+            # Read existing DDB (single subbasin)
+            with xr.open_dataset(self.ddb_path) as ds:
+                n_dim = self._get_spatial_dim(ds)
+                if not n_dim:
+                    self.logger.warning("Could not determine spatial dimension")
+                    return 0, []
+
+                # Get original values from the single subbasin
+                orig_total_area = float(ds['GridArea'].values[0]) if 'GridArea' in ds else total_area_from_shp
+                orig_lat = float(ds['lat'].values[0]) if 'lat' in ds else 0.0
+                orig_lon = float(ds['lon'].values[0]) if 'lon' in ds else 0.0
+
+                # Collect other 1D variables to replicate
+                chnl_slope = float(ds['ChnlSlope'].values[0]) if 'ChnlSlope' in ds else 0.001
+                chnl_length = float(ds['ChnlLength'].values[0]) if 'ChnlLength' in ds else 1000.0
+                # Check for optional variables
+                has_slope = 'Slope' in ds
+                slope_val = float(ds['Slope'].values[0]) if has_slope else chnl_slope
+                has_area = 'Area' in ds
+
+            # Build new multi-subbasin DDB
+            target_dim = 'subbasin'
+
+            # GRU matrix: identity pattern with padding column for MESH off-by-one
+            # MESH reads NGRU-1 GRUs, so we need n_bands + 1 columns
+            n_gru_cols = n_bands + 1
+            gru_data = np.zeros((n_bands, n_gru_cols), dtype=np.float64)
+            for i in range(n_bands):
+                gru_data[i, i] = 1.0  # Each subbasin has exactly one active GRU
+
+            # Spatial arrays
+            grid_area = orig_total_area * band_fractions
+            lat_arr = np.full(n_bands, orig_lat, dtype=np.float64)
+            lon_arr = np.full(n_bands, orig_lon, dtype=np.float64)
+
+            # Rank and Next: all outlets in noroute mode
+            rank_arr = np.arange(1, n_bands + 1, dtype=np.int32)
+            next_arr = np.zeros(n_bands, dtype=np.int32)
+
+            # Build dataset
+            ds_new = xr.Dataset()
+
+            # CRS
+            ds_new['crs'] = xr.DataArray(
+                np.array(0, dtype=np.int32),
+                attrs={
+                    'grid_mapping_name': 'latitude_longitude',
+                    'semi_major_axis': 6378137.0,
+                    'inverse_flattening': 298.257223563,
+                    'longitude_of_prime_meridian': 0.0
+                }
+            )
+
+            # Coordinate
+            ds_new[target_dim] = xr.DataArray(
+                np.arange(1, n_bands + 1, dtype=np.int32),
+                dims=[target_dim],
+                attrs={'long_name': 'Grid index', 'units': '1'}
+            )
+
+            # GRU
+            ds_new['GRU'] = xr.DataArray(
+                gru_data,
+                dims=[target_dim, 'NGRU'],
+                attrs={'long_name': 'Elevation band fractions', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+            )
+
+            # 1D variables replicated/scaled across subbasins
+            ds_new['GridArea'] = xr.DataArray(
+                grid_area, dims=[target_dim],
+                attrs={'long_name': 'Grid area', 'units': 'm2', 'grid_mapping': 'crs'}
+            )
+            ds_new['lat'] = xr.DataArray(
+                lat_arr, dims=[target_dim],
+                attrs={'long_name': 'latitude', 'standard_name': 'latitude',
+                       'units': 'degrees_north', 'grid_mapping': 'crs'}
+            )
+            ds_new['lon'] = xr.DataArray(
+                lon_arr, dims=[target_dim],
+                attrs={'long_name': 'longitude', 'standard_name': 'longitude',
+                       'units': 'degrees_east', 'grid_mapping': 'crs'}
+            )
+            ds_new['Rank'] = xr.DataArray(
+                rank_arr, dims=[target_dim],
+                attrs={'long_name': 'Cell rank in topological order', 'units': '1'}
+            )
+            ds_new['Next'] = xr.DataArray(
+                next_arr, dims=[target_dim],
+                attrs={'long_name': 'Downstream cell rank', 'units': '1'}
+            )
+            ds_new['ChnlSlope'] = xr.DataArray(
+                np.full(n_bands, chnl_slope, dtype=np.float64), dims=[target_dim],
+                attrs={'long_name': 'Channel slope', 'units': '1', 'grid_mapping': 'crs'}
+            )
+            ds_new['ChnlLength'] = xr.DataArray(
+                np.full(n_bands, chnl_length, dtype=np.float64), dims=[target_dim],
+                attrs={'long_name': 'Channel length', 'units': 'm', 'grid_mapping': 'crs'}
+            )
+            ds_new['AL'] = xr.DataArray(
+                np.sqrt(grid_area), dims=[target_dim],
+                attrs={'long_name': 'Characteristic length of grid', 'units': 'm', 'grid_mapping': 'crs'}
+            )
+            ds_new['DA'] = xr.DataArray(
+                grid_area.copy(), dims=[target_dim],
+                attrs={'long_name': 'Drainage area', 'units': 'm**2', 'grid_mapping': 'crs'}
+            )
+            ds_new['IAK'] = xr.DataArray(
+                np.ones(n_bands, dtype=np.int32), dims=[target_dim],
+                attrs={'long_name': 'River class', 'units': '1'}
+            )
+            ds_new['IREACH'] = xr.DataArray(
+                np.zeros(n_bands, dtype=np.int32), dims=[target_dim],
+                attrs={'long_name': 'Reservoir ID', 'units': '1'}
+            )
+
+            if has_slope:
+                ds_new['Slope'] = xr.DataArray(
+                    np.full(n_bands, slope_val, dtype=np.float64), dims=[target_dim],
+                    attrs={'long_name': 'Mean basin slope', 'units': '1', 'grid_mapping': 'crs'}
+                )
+            if has_area:
+                ds_new['Area'] = xr.DataArray(
+                    grid_area.copy(), dims=[target_dim],
+                    attrs={'long_name': 'Grid area', 'units': 'm2', 'grid_mapping': 'crs'}
+                )
+            ds_new['ChnlLen'] = xr.DataArray(
+                np.full(n_bands, chnl_length, dtype=np.float64), dims=[target_dim],
+                attrs={'long_name': 'Channel length', 'units': 'm', 'grid_mapping': 'crs'}
+            )
+
+            # Save
+            temp_path = self.ddb_path.with_suffix('.tmp.nc')
+            ds_new.to_netcdf(temp_path)
+            os.replace(temp_path, self.ddb_path)
+
+            self.logger.info(
+                f"Converted DDB to multi-subbasin elevation bands: "
+                f"subbasin={n_bands}, NGRU={n_gru_cols}, "
+                f"total GridArea={grid_area.sum():.0f} m² "
+                f"(original={orig_total_area:.0f} m²)"
+            )
+            return n_bands, elevation_info
+
+        except Exception as e:
+            self.logger.warning(f"Failed to convert to multi-subbasin elevation bands: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return 0, []
