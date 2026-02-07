@@ -85,9 +85,11 @@ project = 'SYMFLUENCE'
 copyright = '2025, Darri Eythorsson'
 author = 'Darri Eythorsson'
 
-# Read version from single source of truth
-from symfluence.symfluence_version import __version__  # noqa: E402
-release = __version__
+# Read version from single source of truth (parse file directly to avoid import chain)
+import re
+_version_file = os.path.join(os.path.dirname(__file__), '../../src/symfluence/symfluence_version.py')
+with open(_version_file) as _f:
+    release = re.search(r'__version__\s*=\s*["\']([^"\']+)', _f.read()).group(1)
 
 # Extensions
 extensions = [
