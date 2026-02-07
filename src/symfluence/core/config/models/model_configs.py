@@ -236,6 +236,11 @@ class MESHConfig(BaseModel):
     )
     spinup_days: int = Field(default=365, alias='MESH_SPINUP_DAYS')
     gru_min_total: float = Field(default=0.0, alias='MESH_GRU_MIN_TOTAL')
+    # Lumped mode enforcement settings
+    force_single_gru: bool = Field(default=True, alias='MESH_FORCE_SINGLE_GRU')
+    apply_params_all_grus: bool = Field(default=True, alias='MESH_APPLY_PARAMS_ALL_GRUS')
+    use_landcover_multipliers: bool = Field(default=True, alias='MESH_USE_LANDCOVER_MULTIPLIERS')
+    enable_frozen_soil: bool = Field(default=True, alias='MESH_ENABLE_FROZEN_SOIL')
 
 
 class MizuRouteConfig(BaseModel):

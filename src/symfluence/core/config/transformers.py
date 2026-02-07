@@ -422,6 +422,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_PARAMS_TO_CALIBRATE': ('model', 'mesh', 'params_to_calibrate'),
     'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
     'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
+    'MESH_FORCE_SINGLE_GRU': ('model', 'mesh', 'force_single_gru'),
+    'MESH_APPLY_PARAMS_ALL_GRUS': ('model', 'mesh', 'apply_params_all_grus'),
+    'MESH_USE_LANDCOVER_MULTIPLIERS': ('model', 'mesh', 'use_landcover_multipliers'),
+    'MESH_ENABLE_FROZEN_SOIL': ('model', 'mesh', 'enable_frozen_soil'),
 
     # Model > mizuRoute - STANDARD NAMING (preferred)
     'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
@@ -602,6 +606,13 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Legacy aliases for NSGA2 multi-target settings
     'OPTIMIZATION_TARGET2': ('optimization', 'nsga2', 'secondary_target'),
     'OPTIMIZATION_METRIC2': ('optimization', 'nsga2', 'secondary_metric'),
+
+    # MOEAD aliases (map to same paths as NSGA2 for multi-target support)
+    'MOEAD_MULTI_TARGET': ('optimization', 'nsga2', 'multi_target'),
+    'MOEAD_PRIMARY_TARGET': ('optimization', 'nsga2', 'primary_target'),
+    'MOEAD_SECONDARY_TARGET': ('optimization', 'nsga2', 'secondary_target'),
+    'MOEAD_PRIMARY_METRIC': ('optimization', 'nsga2', 'primary_metric'),
+    'MOEAD_SECONDARY_METRIC': ('optimization', 'nsga2', 'secondary_metric'),
 
     # Optimization > Emulation
     'EMULATION_NUM_SAMPLES': ('optimization', 'emulation', 'num_samples'),
