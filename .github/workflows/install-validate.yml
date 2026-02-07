@@ -188,9 +188,9 @@ jobs:
           SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
             echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-            echo "✓ Added SUNDIALS library path: $SUNDIALS_LIB"
+            echo "Added SUNDIALS library path: $SUNDIALS_LIB"
           else
-            echo "⚠ SUNDIALS library directory not found at: $SUNDIALS_LIB"
+            echo "SUNDIALS library directory not found at: $SUNDIALS_LIB"
             ls -la "${{ env.SYMFLUENCE_DATA }}/installs/sundials/" || true
           fi
 
@@ -316,7 +316,7 @@ jobs:
 
           echo ""
           echo "========================================="
-          echo "✓ All ${TEST_LEVEL} tests completed"
+          echo "All ${TEST_LEVEL} tests completed"
           echo "========================================="
 
       # =====================================================================
@@ -350,7 +350,7 @@ jobs:
           chmod +x ./scripts/verify_binary_portability.sh
           ./scripts/verify_binary_portability.sh \
             "./release/symfluence-tools/bin" || {
-            echo "⚠️  Portability verification had warnings but continuing..."
+            echo "Portability verification had warnings but continuing..."
             echo "   Review the output above for potential issues"
           }
 
@@ -378,23 +378,23 @@ jobs:
           tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
 
           # Test binaries run without original install directory
-          echo "→ Testing SUMMA..."
+          echo "-> Testing SUMMA..."
           if [ -f "./symfluence-tools/bin/summa" ]; then
             ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
           fi
 
-          echo "→ Testing NGEN..."
+          echo "-> Testing NGEN..."
           if [ -f "./symfluence-tools/bin/ngen" ]; then
             ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
           fi
 
-          echo "→ Testing mizuRoute..."
+          echo "-> Testing mizuRoute..."
           if [ -f "./symfluence-tools/bin/mizuroute" ]; then
             # mizuRoute doesn't have --version, just check it exists and is executable
             [ -x "./symfluence-tools/bin/mizuroute" ] && echo "  mizuRoute is executable"
           fi
 
-          echo "✓ Relocatability test complete"
+          echo "Relocatability test complete"
 
       - name: Upload release artifacts
         if: success()
@@ -570,9 +570,9 @@ jobs:
           SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
             echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-            echo "✓ Added SUNDIALS library path: $SUNDIALS_LIB"
+            echo "Added SUNDIALS library path: $SUNDIALS_LIB"
           else
-            echo "⚠ SUNDIALS library directory not found at: $SUNDIALS_LIB"
+            echo "SUNDIALS library directory not found at: $SUNDIALS_LIB"
             ls -la "${{ env.SYMFLUENCE_DATA }}/installs/sundials/" || true
           fi
 
@@ -600,12 +600,12 @@ jobs:
           LOG_LEVEL: "INFO"
           YAML
 
-      - name: Step 1 — setup_project (creates domain scaffolding)
+      - name: Step 1 - setup_project (creates domain scaffolding)
         run: |
           set -e
           ./scripts/symfluence-bootstrap workflow step setup_project --config 0_config_files/config_ci_bow.yaml
 
-      - name: Step 2 — copy repo data into created domain folder
+      - name: Step 2 - copy repo data into created domain folder
         run: |
           set -e
           # Try both old (src/data) and new (tests/data) locations
@@ -615,7 +615,7 @@ jobs:
           elif [ -d "./src/data/domain_${DOMAIN}" ]; then
             SRC="./src/data/domain_${DOMAIN}"
           else
-            echo "⚠️  Test data not found for domain: ${DOMAIN}"
+            echo "Test data not found for domain: ${DOMAIN}"
             echo "   Checked: ./tests/data/domain_${DOMAIN} and ./src/data/domain_${DOMAIN}"
             echo "   Skipping data copy step"
             SRC=""
@@ -630,39 +630,39 @@ jobs:
             ls -R "${DEST}" || true
           fi
 
-      - name: Step 3 — run define_domain using CLI (if pour_point data available)
+      - name: Step 3 - run define_domain using CLI (if pour_point data available)
         run: |
           set -e
           DOMAIN_DIR="${SYMFLUENCE_DATA}/domain_${DOMAIN}"
           POUR_POINT_FILE="${DOMAIN_DIR}/shapefiles/pour_point/${DOMAIN}_pourPoint.shp"
 
           if [ -f "${POUR_POINT_FILE}" ]; then
-            echo "✅ Pour point shapefile found, running define_domain..."
+            echo "Pour point shapefile found, running define_domain..."
             ./scripts/symfluence-bootstrap workflow step define_domain --config 0_config_files/config_ci_bow.yaml
           else
-            echo "⚠️  Pour point shapefile not found at: ${POUR_POINT_FILE}"
+            echo "Pour point shapefile not found at: ${POUR_POINT_FILE}"
             echo "   Skipping define_domain step (test data not available)"
             echo "   To enable this step, provide pour_point shapefiles in tests/data/domain_${DOMAIN}/shapefiles/pour_point/"
           fi
 
-      - name: Assertions — check outputs (if available)
+      - name: Assertions - check outputs (if available)
         run: |
           set -e
           DOMAIN_DIR="${SYMFLUENCE_DATA}/domain_${DOMAIN}"
 
           # Check if workflow logs exist (always created)
           if ls "_workLog_${DOMAIN}" >/dev/null 2>&1; then
-            echo "✅ Workflow logs found"
+            echo "Workflow logs found"
           else
-            echo "⚠️  No workflow logs found (define_domain may have been skipped)"
+            echo "No workflow logs found (define_domain may have been skipped)"
           fi
 
           # Check river basins only if pour_point was available
           RIV_DIR="${DOMAIN_DIR}/shapefiles/river_basins"
           if ls "${RIV_DIR}/${DOMAIN}_riverBasins_"*.shp >/dev/null 2>&1; then
-            echo "✅ River basins shapefile found"
+            echo "River basins shapefile found"
           else
-            echo "⚠️  River basins shapefile not found (define_domain may have been skipped)"
+            echo "River basins shapefile not found (define_domain may have been skipped)"
           fi
 
       - name: Upload artifacts on failure
