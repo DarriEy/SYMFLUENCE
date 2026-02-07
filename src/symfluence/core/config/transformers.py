@@ -607,12 +607,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'OPTIMIZATION_TARGET2': ('optimization', 'nsga2', 'secondary_target'),
     'OPTIMIZATION_METRIC2': ('optimization', 'nsga2', 'secondary_metric'),
 
-    # MOEAD aliases (map to same paths as NSGA2 for multi-target support)
-    'MOEAD_MULTI_TARGET': ('optimization', 'nsga2', 'multi_target'),
-    'MOEAD_PRIMARY_TARGET': ('optimization', 'nsga2', 'primary_target'),
-    'MOEAD_SECONDARY_TARGET': ('optimization', 'nsga2', 'secondary_target'),
-    'MOEAD_PRIMARY_METRIC': ('optimization', 'nsga2', 'primary_metric'),
-    'MOEAD_SECONDARY_METRIC': ('optimization', 'nsga2', 'secondary_metric'),
+    # MOEAD multi-target settings (own Pydantic model: MOEADConfig)
+    'MOEAD_MULTI_TARGET': ('optimization', 'moead', 'multi_target'),
+    'MOEAD_PRIMARY_TARGET': ('optimization', 'moead', 'primary_target'),
+    'MOEAD_SECONDARY_TARGET': ('optimization', 'moead', 'secondary_target'),
+    'MOEAD_PRIMARY_METRIC': ('optimization', 'moead', 'primary_metric'),
+    'MOEAD_SECONDARY_METRIC': ('optimization', 'moead', 'secondary_metric'),
 
     # Optimization > Emulation
     'EMULATION_NUM_SAMPLES': ('optimization', 'emulation', 'num_samples'),
@@ -736,6 +736,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'CATCHMENT_SHP_LAT': ('paths', 'catchment_lat'),
     'CATCHMENT_SHP_LON': ('paths', 'catchment_lon'),
     'CATCHMENT_SHP_AREA': ('paths', 'catchment_area'),
+    'CATCHMENT_SHP_ELEV': ('paths', 'catchment_elev'),
+    'CATCHMENT_SHP_SLOPE': ('paths', 'catchment_slope'),
     'CATCHMENT_SHP_HRUID': ('paths', 'catchment_hruid'),
     'CATCHMENT_SHP_GRUID': ('paths', 'catchment_gruid'),
 
