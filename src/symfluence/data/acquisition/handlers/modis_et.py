@@ -2,99 +2,300 @@
 MODIS MOD16A2 Evapotranspiration (ET) Acquisition Handler
 
 Acquires MOD16A2 (Terra) and MYD16A2 (Aqua) 8-day composite ET products
-via NASA AppEEARS API and processes them into daily-mean ET values.
+via NASA earthaccess/CMR (default) or AppEEARS (fallback).
 
 References:
 - MOD16A2: https://lpdaac.usgs.gov/products/mod16a2v061/
 - MYD16A2: https://lpdaac.usgs.gov/products/myd16a2v061/
-- AppEEARS: https://appeears.earthdatacloud.nasa.gov/
+- earthaccess: https://github.com/nsidc/earthaccess
 
 Products provide 8-day composite values at 500m resolution:
 - ET_500m: Total Evapotranspiration (kg/m²/8day)
 - LE_500m: Average Latent Heat Flux (J/m²/day)
 - PET_500m: Total Potential ET (kg/m²/8day)
 - ET_QC_500m: Quality Control flags
+
+Configuration:
+    MOD16_USE_APPEEARS: False (default) - Use earthaccess; True = use AppEEARS
+    MOD16_PRODUCTS: List of products, default ['MOD16A2']
+    MOD16_VARIABLE: 'ET_500m' (default), 'LE_500m', 'PET_500m'
+    MOD16_MERGE_PRODUCTS: True to merge Terra+Aqua, False for Terra only
+    MOD16_CONVERT_TO_DAILY: True (default) - convert 8-day to daily mean
+    MOD16_QC_FILTER: True (default) - filter by quality flags
+    MOD16_UNITS: 'mm_day' (default), 'kg_m2_8day' (raw)
 """
+import os
+import re
 import requests
 import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Optional
-from ..registry import AcquisitionRegistry
-from .appeears_base import BaseAppEEARSAcquirer
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
+from ..registry import AcquisitionRegistry
+from .earthaccess_base import BaseEarthaccessAcquirer
 
 
 @AcquisitionRegistry.register('MOD16')
 @AcquisitionRegistry.register('MODIS_ET')
 @AcquisitionRegistry.register('MOD16A2')
-class MOD16ETAcquirer(BaseAppEEARSAcquirer):
+class MOD16ETAcquirer(BaseEarthaccessAcquirer):
     """
-    Acquires MODIS MOD16A2/MYD16A2 Evapotranspiration data via NASA AppEEARS API.
+    Acquires MODIS MOD16A2/MYD16A2 Evapotranspiration data.
 
-    The handler downloads 8-day composite ET products and optionally converts
-    them to daily mean values for comparison with model outputs.
-
-    Configuration:
-        MOD16_PRODUCTS: List of products, default ['MOD16A2.061']
-        MOD16_VARIABLE: 'ET_500m' (default), 'LE_500m', 'PET_500m'
-        MOD16_MERGE_PRODUCTS: True to merge Terra+Aqua, False for Terra only
-        MOD16_CONVERT_TO_DAILY: True (default) - convert 8-day to daily mean
-        MOD16_QC_FILTER: True (default) - filter by quality flags
-        MOD16_UNITS: 'mm_day' (default), 'kg_m2_8day' (raw)
-        EARTHDATA_USERNAME/EARTHDATA_PASSWORD: NASA Earthdata credentials
+    By default uses earthaccess for direct NASA Earthdata Cloud downloads.
+    Set MOD16_USE_APPEEARS: true for legacy AppEEARS API mode.
     """
 
     # MOD16A2 QC flag interpretation (ET_QC_500m)
     # Bits 0-1: MODLAND_QC (00=Good, 01=Other, 10=Marginal, 11=Cloud/NoData)
-    # Bit 2: Sensor (0=Terra, 1=Aqua)
-    # Bit 3: DeadDetector (0=No, 1=Yes)
-    # Bits 4-7: CloudState (0=Clear, 1=Cloudy, 2=Mixed, 3=NotSet)
-    QC_GOOD_MASK = 0b00000011  # Bits 0-1 for quality
-    QC_GOOD_VALUES = {0b00, 0b01}  # Good quality or Other quality
-    FILL_VALUE = 32767  # Fill value for no data
-
-    # Unit conversion: kg/m²/8day to mm/day (water density ~1000 kg/m³)
-    # 1 kg/m² = 1 mm, so kg/m²/8day / 8 = mm/day
-    SCALE_FACTOR = 0.1  # MOD16A2 scale factor
+    QC_GOOD_MASK = 0b00000011
+    QC_GOOD_VALUES = {0b00, 0b01}
+    FILL_VALUE = 32767
+    SCALE_FACTOR = 0.1
     DAYS_IN_COMPOSITE = 8
 
+    # AppEEARS URL (for fallback)
+    APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
+
     def download(self, output_dir: Path) -> Path:
-        """Download MOD16A2 ET products via AppEEARS."""
-        self.logger.info("Starting MOD16 ET acquisition via AppEEARS")
+        """Download MOD16A2 ET products."""
+        self.logger.info("Starting MOD16 ET acquisition")
 
         output_dir.mkdir(parents=True, exist_ok=True)
         processed_file = output_dir / f"{self.domain_name}_MOD16_ET.nc"
 
-        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
+        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
             self.logger.info(f"Using existing MOD16 ET file: {processed_file}")
             return processed_file
 
-        # Get products to download
-        products = self.config.get('MOD16_PRODUCTS', ['MOD16A2.061'])
-        if isinstance(products, str):
-            products = [p.strip() for p in products.split(',')]
+        # Check if AppEEARS mode is requested
+        use_appeears = self.config_dict.get('MOD16_USE_APPEEARS', False)
 
-        # Add Aqua product if merging is enabled
-        merge_products = self.config.get('MOD16_MERGE_PRODUCTS', False)
-        if merge_products and 'MYD16A2.061' not in products:
-            products.append('MYD16A2.061')
+        if use_appeears:
+            self.logger.info("Using AppEEARS API (legacy mode)")
+            return self._download_via_appeears(output_dir, processed_file)
+        else:
+            self.logger.info("Using earthaccess/CMR (recommended)")
+            return self._download_via_earthaccess(output_dir, processed_file)
 
-        # Check for Earthdata credentials
+    def _download_via_earthaccess(self, output_dir: Path, processed_file: Path) -> Path:
+        """Download and process MOD16A2 via earthaccess."""
+        raw_dir = output_dir / "raw"
+        raw_dir.mkdir(exist_ok=True)
+
+        # Get products
+        # Note: Using MOD16A2GF (Gap-Filled) as standard MOD16A2 is not in CMR cloud
+        merge_products = self.config_dict.get('MOD16_MERGE_PRODUCTS', False)
+        products = ['MOD16A2GF']
+        if merge_products:
+            products.append('MYD16A2GF')
+
+        all_files = []
+
+        for product in products:
+            self.logger.info(f"Acquiring {product} via earthaccess")
+            product_dir = raw_dir / product.lower().replace('16a2', '')
+
+            # Search CMR - MOD16A2 uses version '061' (3 digits, different from MOD10A1)
+            granules = self._search_granules_cmr(product, version='061')
+
+            if not granules:
+                # Try older version '006'
+                self.logger.info("No granules with v061, trying v006...")
+                granules = self._search_granules_cmr(product, version='006')
+
+            if not granules:
+                self.logger.warning(f"No {product} granules found")
+                continue
+
+            # Get download URLs
+            urls = self._get_download_urls(granules, extensions=('.hdf',))
+            self.logger.info(f"Found {len(urls)} {product} files to download")
+
+            # Download
+            files = self._download_with_earthaccess(urls, product_dir)
+            all_files.extend(files)
+            self.logger.info(f"Downloaded {len(files)} {product} files")
+
+        if not all_files:
+            raise RuntimeError("No MOD16 ET files downloaded")
+
+        # Process HDF files
+        self._process_modis_hdf_files(all_files, processed_file)
+
+        return processed_file
+
+    def _process_modis_hdf_files(self, files: List[Path], output_file: Path):
+        """Process downloaded MODIS HDF files into NetCDF."""
+        from pyhdf.SD import SD, SDC
+
+        self.logger.info(f"Processing {len(files)} MOD16 HDF files...")
+
+        variable = self.config_dict.get('MOD16_VARIABLE', 'ET_500m')
+        qc_filter = self.config_dict.get('MOD16_QC_FILTER', True)
+        convert_to_daily = self.config_dict.get('MOD16_CONVERT_TO_DAILY', True)
+        target_units = self.config_dict.get('MOD16_UNITS', 'mm_day')
+
+        results = []
+        for i, hdf_path in enumerate(sorted(files)):
+            if (i + 1) % 50 == 0:
+                self.logger.info(f"  Processing {i+1}/{len(files)}")
+
+            try:
+                # Extract date from filename
+                # MOD16A2.A2020001.h10v03.061.*.hdf
+                match = re.search(r'\.A(\d{7})\.', hdf_path.name)
+                if not match:
+                    continue
+
+                year = int(match.group(1)[:4])
+                doy = int(match.group(1)[4:])
+                date = datetime(year, 1, 1) + timedelta(days=doy - 1)
+
+                # Skip dates outside range
+                if date < self.start_date or date > self.end_date:
+                    continue
+
+                # Open HDF
+                hdf = SD(str(hdf_path), SDC.READ)
+
+                # Find ET variable (may have prefix)
+                et_sds_name = None
+                qc_sds_name = None
+                for name in hdf.datasets().keys():
+                    if variable in name or 'ET_500m' in name:
+                        if 'QC' not in name:
+                            et_sds_name = name
+                    if 'ET_QC' in name or 'QC_500m' in name:
+                        qc_sds_name = name
+
+                if not et_sds_name:
+                    hdf.end()
+                    continue
+
+                # Read ET data
+                et_sds = hdf.select(et_sds_name)
+                et_data = et_sds[:].astype(float)
+
+                # Apply fill value mask
+                et_data[et_data == self.FILL_VALUE] = np.nan
+
+                # Apply scale factor
+                et_data = et_data * self.SCALE_FACTOR
+
+                # Apply QC filter if available and enabled
+                if qc_filter and qc_sds_name:
+                    try:
+                        qc_sds = hdf.select(qc_sds_name)
+                        qc_data = qc_sds[:]
+                        # Good quality: bits 0-1 are 00 or 01
+                        good_quality = np.isin(qc_data & self.QC_GOOD_MASK, list(self.QC_GOOD_VALUES))
+                        et_data[~good_quality] = np.nan
+                    except Exception:
+                        pass
+
+                hdf.end()
+
+                # Get domain spatial mean
+                valid_mask = ~np.isnan(et_data)
+                if valid_mask.sum() > 0:
+                    domain_mean = np.nanmean(et_data)
+
+                    # Convert units
+                    if target_units == 'mm_day' and convert_to_daily:
+                        # kg/m²/8day to mm/day (1 kg/m² = 1 mm)
+                        domain_mean = domain_mean / self.DAYS_IN_COMPOSITE
+
+                    results.append({
+                        'date': date,
+                        'et': domain_mean,
+                        'valid_pixels': int(valid_mask.sum()),
+                        'total_pixels': int(et_data.size)
+                    })
+
+            except Exception as e:
+                self.logger.debug(f"Error processing {hdf_path.name}: {e}")
+                continue
+
+        if not results:
+            raise RuntimeError("No valid ET data extracted from HDF files")
+
+        # Create DataFrame and Dataset
+        df = pd.DataFrame(results)
+        df = df.sort_values('date').drop_duplicates('date', keep='first')
+        df = df.set_index('date')
+
+        # Convert to xarray
+        units = 'mm/day' if target_units == 'mm_day' and convert_to_daily else 'kg/m2/8day'
+        long_name = 'Evapotranspiration (daily mean)' if convert_to_daily else 'Evapotranspiration (8-day)'
+
+        ds = xr.Dataset({
+            'ET': xr.DataArray(
+                df['et'].values,
+                dims=['time'],
+                coords={'time': pd.to_datetime(df.index)},
+                attrs={'long_name': long_name, 'units': units}
+            ),
+            'valid_pixels': xr.DataArray(
+                df['valid_pixels'].values,
+                dims=['time'],
+                coords={'time': pd.to_datetime(df.index)},
+                attrs={'long_name': 'Number of valid pixels', 'units': 'count'}
+            )
+        })
+
+        ds.attrs['title'] = 'MODIS MOD16 Evapotranspiration'
+        ds.attrs['source'] = 'NASA MODIS MOD16A2/MYD16A2 v061'
+        ds.attrs['variable'] = variable
+        ds.attrs['created'] = datetime.now().isoformat()
+        ds.attrs['domain'] = self.domain_name
+        ds.attrs['method'] = 'earthaccess'
+
+        ds.to_netcdf(output_file)
+        self.logger.info(f"Saved {len(df)} ET records to {output_file}")
+        self.logger.info(f"  Date range: {df.index.min()} to {df.index.max()}")
+        self.logger.info(f"  ET range: {df['et'].min():.3f} - {df['et'].max():.3f} {units}")
+
+        # Create CSV output
+        self._create_csv_output(df, output_file.parent)
+
+        return output_file
+
+    def _create_csv_output(self, df: pd.DataFrame, output_dir: Path):
+        """Create CSV output for observation handler compatibility."""
+        csv_file = output_dir / f"{self.domain_name}_MOD16_ET_timeseries.csv"
+
+        out_df = df[['et']].copy()
+        out_df.columns = ['et_mm_day']
+        out_df.index.name = 'date'
+
+        out_df.to_csv(csv_file)
+        self.logger.info(f"Created CSV timeseries: {csv_file}")
+
+    # ===== AppEEARS Fallback Methods =====
+
+    def _download_via_appeears(self, output_dir: Path, processed_file: Path) -> Path:
+        """Download via AppEEARS API (legacy fallback)."""
         username, password = self._get_earthdata_credentials()
         if not username or not password:
             raise RuntimeError(
-                "Earthdata credentials required for MOD16 acquisition. "
-                "Set EARTHDATA_USERNAME and EARTHDATA_PASSWORD environment variables "
-                "or add to ~/.netrc (machine urs.earthdata.nasa.gov)"
+                "Earthdata credentials required. Set EARTHDATA_USERNAME and "
+                "EARTHDATA_PASSWORD environment variables or add to ~/.netrc"
             )
 
-        # Get variable to download
-        variable = self.config.get('MOD16_VARIABLE', 'ET_500m')
+        products = self.config_dict.get('MOD16_PRODUCTS', ['MOD16A2.061'])
+        if isinstance(products, str):
+            products = [p.strip() for p in products.split(',')]
 
-        # Download each product via AppEEARS
+        merge_products = self.config_dict.get('MOD16_MERGE_PRODUCTS', False)
+        if merge_products and 'MYD16A2.061' not in products:
+            products.append('MYD16A2.061')
+
+        variable = self.config_dict.get('MOD16_VARIABLE', 'ET_500m')
+
         product_files = {}
         for product in products:
             try:
@@ -109,11 +310,50 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         if not product_files:
             raise RuntimeError("No MOD16 ET products could be downloaded")
 
-        # Process and optionally merge products
-        self._process_products(product_files, processed_file, variable)
-
-        self.logger.info(f"MOD16 ET acquisition complete: {processed_file}")
+        self._process_appeears_products(product_files, processed_file, variable)
         return processed_file
+
+    def _get_earthdata_credentials(self) -> Tuple[Optional[str], Optional[str]]:
+        """Get Earthdata credentials from environment or .netrc."""
+        username = os.environ.get('EARTHDATA_USERNAME')
+        password = os.environ.get('EARTHDATA_PASSWORD')
+
+        if not username or not password:
+            try:
+                import netrc
+                nrc = netrc.netrc()
+                auth = nrc.authenticators('urs.earthdata.nasa.gov')
+                if auth:
+                    username, _, password = auth
+            except Exception:
+                pass
+
+        return username, password
+
+    def _appeears_login(self, username: str, password: str) -> Optional[str]:
+        """Login to AppEEARS and get token."""
+        try:
+            response = requests.post(
+                f"{self.APPEEARS_BASE}/login",
+                auth=(username, password),
+                timeout=60
+            )
+            response.raise_for_status()
+            return response.json().get('token')
+        except Exception as e:
+            self.logger.error(f"AppEEARS login failed: {e}")
+            return None
+
+    def _appeears_logout(self, token: str):
+        """Logout from AppEEARS."""
+        try:
+            requests.post(
+                f"{self.APPEEARS_BASE}/logout",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30
+            )
+        except Exception:
+            pass
 
     def _download_product_appeears(
         self,
@@ -123,42 +363,31 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         username: str,
         password: str
     ) -> Optional[Path]:
-        """Download a single MOD16 product via AppEEARS API."""
+        """Download a product via AppEEARS API."""
         self.logger.info(f"Downloading {product} ({variable}) via AppEEARS")
 
-        # Parse product name (e.g., 'MOD16A2.061')
         parts = product.split('.')
         product_name = parts[0]
         version = parts[1] if len(parts) > 1 else '061'
 
         output_file = output_dir / f"{self.domain_name}_{product_name}_raw.nc"
 
-        if output_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
-            self.logger.info(f"Using existing file: {output_file}")
+        if output_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
             return output_file
 
-        # Login to AppEEARS
         token = self._appeears_login(username, password)
         if not token:
             raise RuntimeError("Failed to authenticate with AppEEARS")
 
         try:
-            # Submit task
-            task_id = self._submit_appeears_task(
-                token, product_name, version, variable
-            )
-
+            task_id = self._submit_appeears_task(token, product_name, version, variable)
             if not task_id:
                 raise RuntimeError(f"Failed to submit AppEEARS task for {product}")
 
-            # Wait for task completion
             if not self._wait_for_task(token, task_id):
                 raise RuntimeError(f"AppEEARS task {task_id} did not complete")
 
-            # Download results
             self._download_task_results(token, task_id, output_dir, product_name)
-
-            # Process downloaded files into single NetCDF
             self._consolidate_appeears_output(output_dir, product_name, output_file)
 
             return output_file
@@ -173,33 +402,21 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         version: str,
         variable: str
     ) -> Optional[str]:
-        """Submit an AppEEARS area request task for MOD16."""
+        """Submit an AppEEARS area request task."""
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
 
-        # Create GeoJSON polygon for the bounding box
         coordinates = [[
-            [lon_min, lat_min],
-            [lon_max, lat_min],
-            [lon_max, lat_max],
-            [lon_min, lat_max],
+            [lon_min, lat_min], [lon_max, lat_min],
+            [lon_max, lat_max], [lon_min, lat_max],
             [lon_min, lat_min]
         ]]
 
         product_full = f"{product}.{version}"
         task_name = f"SYMFLUENCE_{self.domain_name}_{product}_ET_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-        # Format dates for AppEEARS (MM-DD-YYYY)
-        start_date = self.start_date.strftime("%m-%d-%Y")
-        end_date = self.end_date.strftime("%m-%d-%Y")
-
-        # Build layers - include QC layer for filtering
-        layers = [
-            {"product": product_full, "layer": variable}
-        ]
-
-        # Add QC layer if filtering is enabled
-        if self.config.get('MOD16_QC_FILTER', True):
+        layers = [{"product": product_full, "layer": variable}]
+        if self.config_dict.get('MOD16_QC_FILTER', True):
             layers.append({"product": product_full, "layer": "ET_QC_500m"})
 
         task_request = {
@@ -207,69 +424,160 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
             "task_name": task_name,
             "params": {
                 "dates": [{
-                    "startDate": start_date,
-                    "endDate": end_date
+                    "startDate": self.start_date.strftime("%m-%d-%Y"),
+                    "endDate": self.end_date.strftime("%m-%d-%Y")
                 }],
                 "layers": layers,
                 "geo": {
                     "type": "FeatureCollection",
                     "features": [{
                         "type": "Feature",
-                        "geometry": {
-                            "type": "Polygon",
-                            "coordinates": coordinates
-                        },
+                        "geometry": {"type": "Polygon", "coordinates": coordinates},
                         "properties": {}
                     }]
                 },
-                "output": {
-                    "format": {
-                        "type": "netcdf4"
-                    },
-                    "projection": "geographic"
-                }
+                "output": {"format": {"type": "netcdf4"}, "projection": "geographic"}
             }
         }
 
         try:
             response = requests.post(
                 f"{self.APPEEARS_BASE}/task",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json"
-                },
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 json=task_request,
                 timeout=120
             )
             response.raise_for_status()
-            result = response.json()
-            task_id = result.get('task_id')
+            task_id = response.json().get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
         except Exception as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                self.logger.error(f"Response: {e.response.text[:500]}")
             return None
 
-    def _process_products(
+    def _wait_for_task(self, token: str, task_id: str, timeout: int = 21600) -> bool:
+        """Wait for AppEEARS task to complete."""
+        import time
+
+        start_time = time.time()
+        check_interval = 60
+
+        while time.time() - start_time < timeout:
+            try:
+                response = requests.get(
+                    f"{self.APPEEARS_BASE}/task/{task_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=60
+                )
+                response.raise_for_status()
+                status = response.json().get('status')
+
+                if status == 'done':
+                    return True
+                elif status in ['error', 'expired']:
+                    self.logger.error(f"AppEEARS task failed with status: {status}")
+                    return False
+
+                self.logger.debug(f"Task status: {status}")
+                time.sleep(check_interval)
+
+            except Exception as e:
+                self.logger.warning(f"Error checking task status: {e}")
+                time.sleep(check_interval)
+
+        self.logger.error(f"AppEEARS task timed out after {timeout}s")
+        return False
+
+    def _download_task_results(
+        self,
+        token: str,
+        task_id: str,
+        output_dir: Path,
+        product: str
+    ):
+        """Download AppEEARS task results."""
+        try:
+            response = requests.get(
+                f"{self.APPEEARS_BASE}/bundle/{task_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=60
+            )
+            response.raise_for_status()
+            files = response.json().get('files', [])
+
+            for file_info in files:
+                file_id = file_info.get('file_id')
+                filename = file_info.get('file_name', f"{file_id}.nc")
+
+                if not filename.endswith('.nc'):
+                    continue
+
+                out_path = output_dir / filename
+                if out_path.exists():
+                    continue
+
+                dl_response = requests.get(
+                    f"{self.APPEEARS_BASE}/bundle/{task_id}/{file_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    stream=True,
+                    timeout=300
+                )
+                dl_response.raise_for_status()
+
+                with open(out_path, 'wb') as f:
+                    for chunk in dl_response.iter_content(chunk_size=1024*1024):
+                        f.write(chunk)
+
+                self.logger.debug(f"Downloaded: {filename}")
+
+        except Exception as e:
+            self.logger.error(f"Error downloading task results: {e}")
+            raise
+
+    def _consolidate_appeears_output(
+        self,
+        output_dir: Path,
+        product: str,
+        output_file: Path
+    ):
+        """Consolidate AppEEARS NetCDF files."""
+        nc_files = list(output_dir.glob(f"*{product}*.nc"))
+        if not nc_files:
+            raise RuntimeError(f"No NetCDF files found for {product}")
+
+        datasets = []
+        for f in nc_files:
+            try:
+                ds = xr.open_dataset(f)
+                datasets.append(ds)
+            except Exception as e:
+                self.logger.debug(f"Could not open {f}: {e}")
+
+        if not datasets:
+            raise RuntimeError("No valid NetCDF files to consolidate")
+
+        merged = xr.concat(datasets, dim='time')
+        merged = merged.sortby('time')
+        merged.to_netcdf(output_file)
+
+        for ds in datasets:
+            ds.close()
+
+    def _process_appeears_products(
         self,
         product_files: Dict[str, Path],
         output_file: Path,
         variable: str
     ):
-        """Process and merge ET products, convert units."""
-        self.logger.info("Processing MOD16 ET products")
-
-        convert_to_daily = self.config.get('MOD16_CONVERT_TO_DAILY', True)
-        qc_filter = self.config.get('MOD16_QC_FILTER', True)
-        target_units = self.config.get('MOD16_UNITS', 'mm_day')
+        """Process AppEEARS products into final output."""
+        convert_to_daily = self.config_dict.get('MOD16_CONVERT_TO_DAILY', True)
+        qc_filter = self.config_dict.get('MOD16_QC_FILTER', True)
+        target_units = self.config_dict.get('MOD16_UNITS', 'mm_day')
 
         datasets = {}
         for product, path in product_files.items():
             try:
                 ds = xr.open_dataset(path)
-                # Find the ET variable
                 et_var = None
                 for var in ds.data_vars:
                     if variable.lower().replace('_500m', '') in var.lower():
@@ -280,7 +588,6 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
                         break
                 if et_var:
                     datasets[product] = {'data': ds[et_var], 'ds': ds}
-                    # Also get QC if available
                     for qc_var in ds.data_vars:
                         if 'qc' in qc_var.lower():
                             datasets[product]['qc'] = ds[qc_var]
@@ -291,37 +598,28 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         if not datasets:
             raise RuntimeError("No valid ET datasets to process")
 
-        # Process each dataset
         processed_das = []
         for product, data_dict in datasets.items():
             da = data_dict['data'].copy()
 
-            # Apply scale factor if needed (MOD16A2 stores as scaled integers)
             if da.dtype in [np.int16, np.int32]:
                 da = da.astype(float) * self.SCALE_FACTOR
 
-            # Apply fill value mask
             da = da.where(da != self.FILL_VALUE * self.SCALE_FACTOR)
 
-            # Apply QC filter
             if qc_filter and 'qc' in data_dict:
                 qc = data_dict['qc']
-                # Good quality: bits 0-1 are 00 or 01
                 good_quality = (qc & self.QC_GOOD_MASK).isin(list(self.QC_GOOD_VALUES))
                 da = da.where(good_quality)
 
             processed_das.append(da)
 
-        # Merge if multiple products (Terra + Aqua)
         if len(processed_das) > 1:
-            # Stack and take mean (or max for conservative estimate)
             stacked = xr.concat(processed_das, dim='product')
             et_merged = stacked.mean(dim='product', skipna=True)
         else:
             et_merged = processed_das[0]
 
-        # Convert units: kg/m²/8day to mm/day
-        # 1 kg/m² water = 1 mm
         if target_units == 'mm_day' and convert_to_daily:
             et_merged = et_merged / self.DAYS_IN_COMPOSITE
             units = 'mm/day'
@@ -330,7 +628,6 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
             units = 'kg/m2/8day'
             long_name = 'Evapotranspiration (8-day composite)'
 
-        # Compute spatial mean for basin-scale calibration
         lat_dim = 'lat' if 'lat' in et_merged.dims else 'y'
         lon_dim = 'lon' if 'lon' in et_merged.dims else 'x'
 
@@ -339,53 +636,26 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         else:
             et_basin_mean = et_merged
 
-        # Create output dataset
         ds_out = xr.Dataset({
             'ET': et_merged.rename('ET'),
             'ET_basin_mean': et_basin_mean.rename('ET_basin_mean')
         })
 
-        ds_out['ET'].attrs = {
-            'long_name': long_name,
-            'units': units,
-            'source': 'MODIS MOD16A2/MYD16A2',
-            'variable': variable
-        }
-        ds_out['ET_basin_mean'].attrs = {
-            'long_name': f'Basin-averaged {long_name}',
-            'units': units
-        }
+        ds_out['ET'].attrs = {'long_name': long_name, 'units': units, 'source': 'MODIS MOD16A2/MYD16A2', 'variable': variable}
+        ds_out['ET_basin_mean'].attrs = {'long_name': f'Basin-averaged {long_name}', 'units': units}
 
         ds_out.attrs['title'] = 'MODIS MOD16 Evapotranspiration'
         ds_out.attrs['source_products'] = list(product_files.keys())
         ds_out.attrs['created'] = datetime.now().isoformat()
         ds_out.attrs['domain'] = self.domain_name
+        ds_out.attrs['method'] = 'appeears'
 
         ds_out.to_netcdf(output_file)
 
-        # Cleanup
         for data_dict in datasets.values():
             data_dict['ds'].close()
 
         self.logger.info(f"Processed MOD16 ET saved: {output_file}")
 
-        # Also create CSV for observation handler compatibility
-        self._create_csv_output(et_basin_mean, output_file.parent)
-
-    def _create_csv_output(self, et_series: xr.DataArray, output_dir: Path):
-        """Create CSV output compatible with observation handler."""
-        csv_file = output_dir / f"{self.domain_name}_MOD16_ET_timeseries.csv"
-
-        df = et_series.to_dataframe().reset_index()
-        df.columns = ['date' if 'time' in c.lower() else c for c in df.columns]
-
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.set_index('date')
-
-        # Rename to match expected column names
-        if 'ET_basin_mean' in df.columns:
-            df = df.rename(columns={'ET_basin_mean': 'et_mm_day'})
-
-        df.to_csv(csv_file)
-        self.logger.info(f"Created CSV timeseries: {csv_file}")
+        df = et_basin_mean.to_dataframe()
+        self._create_csv_output(df.rename(columns={df.columns[0]: 'et'}), output_file.parent)

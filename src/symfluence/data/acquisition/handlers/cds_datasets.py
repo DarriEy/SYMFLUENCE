@@ -6,6 +6,9 @@ from the Copernicus Climate Data Store, using a shared base class to eliminate
 code duplication.
 """
 
+import gc
+import sys
+import dask
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -75,30 +78,45 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
         chunk_files = []
 
-        # Use ThreadPoolExecutor for parallel downloads
-        # Monthly chunks are smaller, so we can potentially use more workers,
-        # but CDS still has per-user limits on active requests.
-        max_workers = 2
+        # Parallel download configuration
+        # On macOS, HDF5/netCDF4 have thread-safety issues that cause segfaults/bus errors
+        # when multiple threads perform xarray operations concurrently. Use serial
+        # processing on macOS to avoid these issues.
+        use_parallel = sys.platform != 'darwin'
+        max_workers = 2 if use_parallel else 1
 
-        logging.info(f"Starting parallel download for {len(ym_range)} months with {max_workers} workers...")
+        if use_parallel:
+            logging.info(f"Starting parallel download for {len(ym_range)} months with {max_workers} workers...")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_ym = {
-                executor.submit(self._download_and_process_month, year, month, output_dir): (year, month)
-                for year, month in ym_range
-            }
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_ym = {
+                    executor.submit(self._download_and_process_month, year, month, output_dir): (year, month)
+                    for year, month in ym_range
+                }
 
-            for future in concurrent.futures.as_completed(future_to_ym):
-                year, month = future_to_ym[future]
+                for future in concurrent.futures.as_completed(future_to_ym):
+                    year, month = future_to_ym[future]
+                    try:
+                        chunk_path = future.result()
+                        if chunk_path:
+                            chunk_files.append(chunk_path)
+                            logging.info(f"Completed processing for {year}-{month:02d}")
+                    except Exception as exc:
+                        logging.error(f"Processing for {year}-{month:02d} generated an exception: {exc}")
+                        # Cancel remaining and raise
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        raise exc
+        else:
+            # Serial processing for macOS to avoid HDF5/netCDF4 thread-safety issues
+            logging.info(f"Starting serial download for {len(ym_range)} months (parallel disabled on macOS)...")
+            for year, month in ym_range:
                 try:
-                    chunk_path = future.result()
+                    chunk_path = self._download_and_process_month(year, month, output_dir)
                     if chunk_path:
                         chunk_files.append(chunk_path)
                         logging.info(f"Completed processing for {year}-{month:02d}")
                 except Exception as exc:
                     logging.error(f"Processing for {year}-{month:02d} generated an exception: {exc}")
-                    # Cancel remaining and raise
-                    executor.shutdown(wait=False, cancel_futures=True)
                     raise exc
 
         # Merge all monthly chunks
@@ -126,14 +144,18 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                     final_files.append(final_path)
                     logging.info(f"Saved monthly file: {final_path.name}")
 
+                # Force garbage collection before returning
+                gc.collect()
                 # Return the directory containing the files
                 return output_dir
 
             logging.info(f"Merging {len(chunk_files)} monthly chunks...")
             # open_mfdataset creates a dask-backed dataset, good for memory
-            with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
-                # Save final dataset
-                final_f = self._save_final_dataset(ds_final, output_dir)
+            # Use synchronous scheduler to avoid thread/process issues on macOS
+            with dask.config.set(scheduler='synchronous'):
+                with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
+                    # Save final dataset
+                    final_f = self._save_final_dataset(ds_final, output_dir)
 
             # Validate that all required variables are present
             self._validate_required_variables(final_f)
@@ -149,6 +171,8 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                         f.unlink()
                     except OSError:
                         pass
+            # Force garbage collection to clean up any lingering file handles
+            gc.collect()
 
         return final_f
 
@@ -179,6 +203,12 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             - Creates temporary files in output_dir (cleaned up in finally block)
             - For debugging: keeps first month's raw files for inspection
         """
+        # Check if this month is already processed (skip if valid file exists)
+        chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}{month:02d}_temp.nc"
+        if chunk_path.exists() and chunk_path.stat().st_size > 1_000_000:  # >1MB indicates valid data
+            logging.info(f"Skipping {self._get_dataset_id()} {year}-{month:02d} - already processed ({chunk_path.stat().st_size / 1e6:.1f} MB)")
+            return chunk_path
+
         # Create a thread-local client
         c = cdsapi.Client()
 
@@ -220,10 +250,21 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # Debug: Check what variables are in the processed chunk
             logging.info(f"Processed chunk variables: {list(ds_chunk.data_vars)}")
 
-            # Save chunk to disk
+            # Save chunk to disk with compression
+            # The dataset has been loaded into memory by _process_and_merge_datasets()
+            # to avoid segfaults from accessing closed file handles
             chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}{month:02d}_temp.nc"
-            ds_chunk.to_netcdf(chunk_path)
+
+            # Build encoding for each variable to ensure compressed writing
+            encoding = {}
+            for var in ds_chunk.data_vars:
+                encoding[var] = {'zlib': True, 'complevel': 4}
+
+            ds_chunk.to_netcdf(chunk_path, encoding=encoding)
             ds_chunk.close()
+
+            # Explicit garbage collection to free memory in threaded context
+            gc.collect()
 
             return chunk_path
 
@@ -448,10 +489,16 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             xr.Dataset: Merged, processed dataset in memory with standard variable names
 
         Side Effects:
-            - Loads both files into memory (can be large for full months)
+            - Uses dask chunking for memory-efficient processing
             - Logs time ranges and variable names for debugging
         """
-        with xr.open_dataset(analysis_file) as dsa, xr.open_dataset(forecast_file) as dsf:
+        # Open with dask chunking to avoid loading entire dataset into memory
+        # Use chunks={'time': -1} to keep time dimension intact (needed for time operations)
+        # while chunking spatial dimensions automatically
+        # Use synchronous scheduler to avoid threading issues on macOS
+        with dask.config.set(scheduler='synchronous'), \
+             xr.open_dataset(analysis_file, chunks={'time': -1}) as dsa, \
+             xr.open_dataset(forecast_file, chunks={'time': -1}) as dsf:
             # Standardize time dimension names
             dsa = self._standardize_time_dimension(dsa)
             dsf = self._standardize_time_dimension(dsf)
@@ -498,6 +545,12 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # Temporal subsetting
             dsm = dsm.sel(time=slice(self.start_date, self.end_date))
 
+            # CRITICAL: Load the dataset into memory before exiting the `with` block.
+            # The merged dataset `dsm` is dask-backed and holds lazy references to
+            # the underlying files `dsa` and `dsf`. If we return without loading,
+            # those file handles get closed when exiting the `with` block, causing
+            # segfaults when to_netcdf() later tries to compute the data.
+            # Monthly chunks are small enough to fit in memory.
             return dsm.load()
 
     def _format_time_range(self, ds: xr.Dataset) -> str:
@@ -716,32 +769,43 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             return None
 
     def _convert_units(self, ds: xr.Dataset) -> xr.Dataset:
-        """Convert units to SUMMA standards."""
-        # Try to detect resolution from data first, fall back to hardcoded value
-        detected_seconds = self._detect_temporal_resolution_seconds(ds)
-        if detected_seconds is not None:
-            resolution_seconds = detected_seconds
-            logging.info(f"Using detected temporal resolution: {resolution_seconds/3600:.1f} hours")
-        else:
-            resolution_hours = self._get_temporal_resolution()
-            resolution_seconds = resolution_hours * 3600
-            logging.info(f"Using default temporal resolution: {resolution_hours} hours")
+        """Convert units to SUMMA standards.
 
-        # Precipitation: kg/m2 per leadtime -> m/s
+        CRITICAL: For accumulated variables (precipitation, radiation), the accumulation
+        period is the LEADTIME (typically 1 hour), NOT the temporal resolution of the
+        merged dataset (typically 3 hours). Using the wrong denominator causes a 3x error.
+
+        Example for CARRA:
+        - Leadtime: 1 hour (precipitation accumulated over 1 hour)
+        - Temporal resolution: 3 hours (timesteps in merged dataset)
+        - Correct divisor: 3600 seconds (1 hour leadtime)
+        - WRONG divisor: 10800 seconds (3 hour resolution) -> 3x too low!
+        """
+        # Use LEADTIME for accumulated variables, not temporal resolution
+        # This is critical: accumulated fields are per-leadtime, not per-timestep
+        leadtime_hours = int(self._get_leadtime_hour())
+        accumulation_seconds = leadtime_hours * 3600
+        logging.info(f"Using leadtime for accumulation conversion: {leadtime_hours} hour(s) = {accumulation_seconds} seconds")
+
+        # Precipitation: kg/m² (=mm) per leadtime -> kg/m²/s (= mm/s)
+        # CARRA/CERRA total_precipitation is in kg/m² (equivalent to mm) accumulated per LEADTIME
+        # Convert: mm/leadtime / seconds = mm/s = kg/m²/s
+        # NOTE: Do NOT multiply by 1000 - precipitation is already in mm, not meters
         if 'pptrate' in ds:
-            ds['pptrate'] = (ds['pptrate'] * 0.001) / resolution_seconds
+            ds['pptrate'] = ds['pptrate'] / accumulation_seconds
+            ds['pptrate'].attrs['units'] = 'kg m-2 s-1'
 
         # Radiation: J/m2 per leadtime -> W/m2
         if 'SWRadAtm' in ds:
-            ds['SWRadAtm'] = ds['SWRadAtm'] / resolution_seconds
+            ds['SWRadAtm'] = ds['SWRadAtm'] / accumulation_seconds
 
         if 'LWRadAtm' in ds:
-            ds['LWRadAtm'] = ds['LWRadAtm'] / resolution_seconds
+            ds['LWRadAtm'] = ds['LWRadAtm'] / accumulation_seconds
 
         return ds
 
     def _save_final_dataset(self, ds: xr.Dataset, output_dir: Path) -> Path:
-        """Save final processed dataset."""
+        """Save final processed dataset with compression."""
         final_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm',
                      'windspd', 'spechum', 'LWRadAtm']
         available_vars = [v for v in final_vars if v in ds.variables]
@@ -750,7 +814,10 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             f"{self.domain_name}_{self._get_dataset_id()}_"
             f"{self.start_date.year}-{self.end_date.year}.nc"
         )
-        ds[available_vars].to_netcdf(final_f)
+
+        # Add compression encoding for each variable
+        encoding = {var: {'zlib': True, 'complevel': 4} for var in available_vars}
+        ds[available_vars].to_netcdf(final_f, encoding=encoding)
 
         return final_f
 
@@ -1086,17 +1153,16 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
     def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
         """Return Magnus formula denominator for CARRA.
 
-        CARRA uses an empirically-tuned Magnus formula for better accuracy
-        in high latitudes. The standard formula (T + 243.5) is less accurate
-        above 60°N.
+        Uses standard Magnus-Tetens formula (T + 243.5) which is accurate
+        across all temperature ranges including high latitudes.
 
         Args:
             T_celsius: Temperature in Celsius
 
         Returns:
-            xr.DataArray: Denominator for Magnus formula (T - 29.65)
+            xr.DataArray: Denominator for Magnus formula (T + 243.5)
         """
-        return T_celsius - 29.65  # CARRA-specific formula for Arctic accuracy
+        return T_celsius + 243.5  # Standard Magnus formula
 
 
 @AcquisitionRegistry.register('CERRA')
