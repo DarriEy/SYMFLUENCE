@@ -7,6 +7,7 @@ Structural Errors) model outputs.
 
 from pathlib import Path
 from typing import cast, List, Dict
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -103,9 +104,22 @@ class FUSEResultExtractor(ModelResultExtractor):
         Returns:
             DataArray with spatial dimensions reduced
         """
-        # Select first param_set if present
+        # Select param_set with valid (non-NaN) data
+        # FUSE run_def writes to param_set 1, not 0
         if 'param_set' in var.dims:
-            var = var.isel(param_set=0)
+            n_param_sets = var.sizes.get('param_set', 1)
+            valid_param_set = 0
+            for ps in range(n_param_sets):
+                # Check if this param_set has non-NaN values
+                test_slice = var.isel(param_set=ps)
+                if 'latitude' in test_slice.dims:
+                    test_slice = test_slice.isel(latitude=0)
+                if 'longitude' in test_slice.dims:
+                    test_slice = test_slice.isel(longitude=0)
+                if not np.all(np.isnan(test_slice.values)):
+                    valid_param_set = ps
+                    break
+            var = var.isel(param_set=valid_param_set)
 
         # Select first latitude if present
         if 'latitude' in var.dims:

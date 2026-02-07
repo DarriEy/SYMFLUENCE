@@ -11,12 +11,18 @@ import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+import numpy as np
+
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import UnitConversion
 from symfluence.models.utilities.routing_decider import RoutingDecider
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
+from symfluence.models.fuse.calibration.multi_gauge_metrics import MultiGaugeMetrics
+from symfluence.models.fuse.calibration.parameter_regionalization import (
+    RegionalizationFactory
+)
 
 # Suppress xarray FutureWarning about timedelta64 decoding
 warnings.filterwarnings('ignore',
@@ -111,10 +117,22 @@ class FUSEWorker(BaseWorker):
 
             # =====================================================================
             # Update CONSTRAINTS FILE for consistency and run_pre mode
+            # Skip in regionalization mode (coefficients don't map to constraints)
             # =====================================================================
+            regionalization_method = config.get('PARAMETER_REGIONALIZATION', 'lumped') if config else 'lumped'
+            if config and config.get('USE_TRANSFER_FUNCTIONS', False):
+                regionalization_method = 'transfer_function'
+
             constraints_file = fuse_settings_dir / 'fuse_zConstraints_snow.txt'
 
-            if constraints_file.exists():
+            if regionalization_method != 'lumped':
+                # In regionalization mode, skip constraints update
+                # (coefficients like MAXWATR_1_a don't exist in constraints file)
+                self.logger.debug(
+                    f"Regionalization mode ({regionalization_method}): "
+                    f"skipping constraints file (using para_def.nc)"
+                )
+            elif constraints_file.exists():
                 params_updated_txt = self._update_constraints_file(constraints_file, params)
                 if params_updated_txt:
                     sample_params = list(params.items())[:3]
@@ -140,7 +158,26 @@ class FUSEWorker(BaseWorker):
 
                 # Find and update the para_def.nc file
                 para_def_path = fuse_settings_dir / f"{domain_name}_{fuse_id}_para_def.nc"
-                if para_def_path.exists():
+
+                # Check for parameter regionalization mode
+                regionalization_method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+                # Backward compatibility: USE_TRANSFER_FUNCTIONS overrides
+                if config.get('USE_TRANSFER_FUNCTIONS', False):
+                    regionalization_method = 'transfer_function'
+
+                if regionalization_method != 'lumped' and para_def_path.exists():
+                    # Use regionalization to generate spatially distributed parameters
+                    params_updated_nc = self._apply_regionalization(
+                        para_def_path, params, config
+                    )
+                    if params_updated_nc:
+                        self.logger.debug(
+                            f"APPLY: Updated {len(params_updated_nc)} distributed params "
+                            f"via {regionalization_method} regionalization"
+                        )
+                    else:
+                        self.logger.warning(f"APPLY_PARAMS: {regionalization_method} update failed")
+                elif para_def_path.exists():
                     params_updated_nc = self._update_para_def_nc(para_def_path, params)
                     if params_updated_nc:
                         self.logger.debug(f"APPLY: Updated {len(params_updated_nc)} params in {para_def_path.name}")
@@ -226,6 +263,165 @@ class FUSEWorker(BaseWorker):
                             )
             except Exception as e:
                 self.logger.debug(f"Could not verify para_def.nc write: {e}")
+
+        return params_updated
+
+    def _apply_regionalization(
+        self,
+        para_def_path: Path,
+        calibration_params: Dict[str, float],
+        config: Dict[str, Any]
+    ) -> set:
+        """
+        Apply parameter regionalization to generate spatially distributed parameters.
+
+        Supports multiple regionalization methods:
+        - lumped: Uniform parameters across all subcatchments
+        - transfer_function: Power-law functions based on catchment attributes
+        - zones: Shared parameters within predefined zones
+        - distributed: Independent parameters per subcatchment
+
+        Args:
+            para_def_path: Path to para_def.nc file
+            calibration_params: Calibration parameter/coefficient values
+            config: Configuration dictionary
+
+        Returns:
+            Set of parameter names that were updated
+        """
+        import netCDF4 as nc
+        import pandas as pd
+
+        params_updated: set[str] = set()
+
+        try:
+            # Get regionalization method
+            method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+
+            # For backward compatibility
+            if config.get('USE_TRANSFER_FUNCTIONS', False) and method == 'lumped':
+                method = 'transfer_function'
+
+            # Get original parameter bounds
+            param_bounds = config.get('FUSE_PARAM_BOUNDS', {})
+            if not param_bounds:
+                self.logger.error("FUSE_PARAM_BOUNDS not configured")
+                return params_updated
+
+            # Convert bounds from list to tuple format if needed
+            param_bounds_tuples = {
+                k: tuple(v) if isinstance(v, list) else v
+                for k, v in param_bounds.items()
+            }
+
+            # Load attributes if needed
+            attributes = None
+            if method == 'transfer_function':
+                attributes_path = config.get('TRANSFER_FUNCTION_ATTRIBUTES')
+                if attributes_path:
+                    attributes = pd.read_csv(attributes_path)
+                else:
+                    self.logger.error("TRANSFER_FUNCTION_ATTRIBUTES not configured")
+                    return params_updated
+
+            # Determine number of subcatchments
+            if attributes is not None:
+                n_subcatchments = len(attributes)
+            else:
+                # Try to get from para_def.nc
+                with nc.Dataset(para_def_path, 'r') as ds:
+                    n_subcatchments = ds.dimensions['par'].size
+
+            # Create regionalization strategy
+            regionalization = RegionalizationFactory.create(
+                method=method,
+                param_bounds=param_bounds_tuples,
+                n_subcatchments=n_subcatchments,
+                config=config,
+                attributes=attributes,
+                logger=self.logger
+            )
+
+            self.logger.debug(f"Using '{regionalization.name}' parameter regionalization")
+
+            # Convert calibration parameters to distributed values
+            param_array, param_names = regionalization.to_distributed(calibration_params)
+
+            self.logger.debug(
+                f"Regionalization: {len(param_names)} params x {n_subcatchments} subcatchments"
+            )
+
+            # Update para_def.nc with distributed values
+            with nc.Dataset(para_def_path, 'r') as ds:
+                par_size = ds.dimensions['par'].size
+                # Read existing variable names and attributes
+                existing_vars = {}
+                for vname in ds.variables:
+                    if vname == 'par':
+                        continue
+                    existing_vars[vname] = {
+                        'values': ds.variables[vname][:].copy(),
+                        'attrs': {a: ds.variables[vname].getncattr(a)
+                                  for a in ds.variables[vname].ncattrs()},
+                    }
+                global_attrs = {a: ds.getncattr(a) for a in ds.ncattrs()}
+
+            if par_size != n_subcatchments:
+                # Recreate para_def.nc with correct par dimension
+                self.logger.info(
+                    f"Resizing para_def.nc: par={par_size} -> {n_subcatchments}"
+                )
+                # Use a temporary file to avoid corruption
+                tmp_path = para_def_path.with_suffix('.tmp.nc')
+                with nc.Dataset(tmp_path, 'w', format='NETCDF4') as ds_new:
+                    ds_new.createDimension('par', n_subcatchments)
+                    ds_new.createVariable('par', 'i4', ('par',))
+                    ds_new.variables['par'][:] = np.arange(n_subcatchments)
+                    for attr_name, attr_val in global_attrs.items():
+                        ds_new.setncattr(attr_name, attr_val)
+
+                    for vname, vinfo in existing_vars.items():
+                        # Extract _FillValue (must be set at creation time)
+                        fill_value = vinfo['attrs'].get('_FillValue', None)
+                        ds_new.createVariable(vname, 'f8', ('par',), fill_value=fill_value)
+                        # Broadcast first parameter set value to all subcatchments
+                        ds_new.variables[vname][:] = np.full(
+                            n_subcatchments, float(vinfo['values'][0])
+                        )
+                        for attr_name, attr_val in vinfo['attrs'].items():
+                            if attr_name == '_FillValue':
+                                continue  # Already set during creation
+                            ds_new.variables[vname].setncattr(attr_name, attr_val)
+
+                import shutil
+                shutil.move(str(tmp_path), str(para_def_path))
+
+            # Now write the distributed values
+            with nc.Dataset(para_def_path, 'r+') as ds:
+                for i, param_name in enumerate(param_names):
+                    if param_name not in ds.variables:
+                        continue
+
+                    values = param_array[:, i]
+                    ds.variables[param_name][:] = values
+                    self.logger.debug(
+                        f"  {param_name}: distributed [{values.min():.3f}, {values.max():.3f}]"
+                    )
+                    params_updated.add(param_name)
+
+                ds.sync()
+
+            # Log summary of spatial variation
+            if params_updated:
+                self.logger.debug(
+                    f"Applied regionalization to {len(params_updated)} parameters: "
+                    f"{', '.join(sorted(params_updated))}"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error applying transfer functions: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
 
         return params_updated
 
@@ -331,10 +527,28 @@ class FUSEWorker(BaseWorker):
         try:
             import subprocess
 
-            # Use run_def mode for calibration - FUSE reads parameters from constraints file
-            # run_def regenerates para_def.nc from constraints and elevation bands
-            # Note: run_pre mode doesn't work with standard FUSE binary
-            mode = kwargs.get('mode', 'run_def')
+            # Determine FUSE run mode based on regionalization setting
+            # - run_def: regenerates para_def.nc from constraints file (default for lumped)
+            # - run_pre: reads parameters directly from para_def.nc (required for regionalization)
+            # NOTE: run_pre requires FUSE built from martynpclark/fuse bugfix/runpre branch
+
+            # Check for explicit FUSE_RUN_MODE first
+            explicit_mode = config.get('FUSE_RUN_MODE')
+            if explicit_mode:
+                mode = explicit_mode
+                self.logger.info(f"FUSE using explicit run mode from config: {mode}")
+            else:
+                # Auto-detect based on regionalization
+                regionalization_method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+                if config.get('USE_TRANSFER_FUNCTIONS', False):
+                    regionalization_method = 'transfer_function'
+
+                if regionalization_method != 'lumped':
+                    mode = kwargs.get('mode', 'run_pre')
+                    self.logger.info(f"FUSE auto-selected run_pre mode (regionalization={regionalization_method})")
+                else:
+                    mode = kwargs.get('mode', 'run_def')
+                    self.logger.debug("FUSE using run_def mode (lumped regionalization)")
 
             # Get FUSE executable path
             fuse_install = config.get('FUSE_INSTALL_PATH', 'default')
@@ -484,19 +698,22 @@ class FUSEWorker(BaseWorker):
             # cmd = [str(fuse_exe), str(filemanager_path.name), domain_name, mode]
             cmd = [str(fuse_exe), str(filemanager_path.name), fuse_run_id, mode]
 
-            # For run_pre mode, we need to pass the parameter file as argument
-            # For run_def mode, FUSE reads parameters from para_def.nc automatically
+            # For run_pre mode (with martynpclark/fuse bugfix/runpre branch):
+            # Command: fuse.exe filemanager dom_id run_pre para_def.nc [index]
+            # - 4th arg: parameter NetCDF file
+            # - 5th arg: parameter set index (optional, defaults to 1)
             if mode == 'run_pre':
                 # Use the short alias (fuse_run_id) to match the copied parameter file
-                # The param file was copied to {fuse_run_id}_{fuse_id}_para_def.nc
                 param_file = execution_cwd / f"{fuse_run_id}_{fuse_id}_para_def.nc"
                 if param_file.exists():
                     cmd.append(str(param_file.name))
+                    cmd.append('1')  # Parameter set index (always use first/only set)
                 else:
                     # Fallback to domain_name version if short alias not found
                     param_file_alt = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
                     if param_file_alt.exists():
                         cmd.append(str(param_file_alt.name))
+                        cmd.append('1')
                     else:
                         self.logger.error(f"Parameter file not found for run_pre: tried {param_file} and {param_file_alt}")
                         return False
@@ -908,14 +1125,14 @@ class FUSEWorker(BaseWorker):
                         mizu_output_files_fallback.sort(key=lambda f: f.stat().st_size, reverse=True)
                         sim_file_path = mizu_output_files_fallback[0]
                         use_routed_output = True
-                        self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path} (size: {sim_file_path.stat().st_size} bytes)")
+                        self.logger.debug(f"Using mizuRoute output for metrics calculation: {sim_file_path} (size: {sim_file_path.stat().st_size} bytes)")
                     else:
                         # Also try the older timestep naming convention
                         old_pattern = mizuroute_dir / f"{experiment_id}_timestep.nc"
                         if old_pattern.exists():
                             sim_file_path = old_pattern
                             use_routed_output = True
-                            self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path}")
+                            self.logger.debug(f"Using mizuRoute output for metrics calculation: {sim_file_path}")
 
             # If no routed output, use FUSE output
             if not use_routed_output:
@@ -949,15 +1166,44 @@ class FUSEWorker(BaseWorker):
 
                 self.logger.debug("Using FUSE output for metrics calculation")
 
+            # Check for multi-gauge calibration mode
+            multi_gauge_enabled = config.get('MULTI_GAUGE_CALIBRATION', False)
+            if multi_gauge_enabled and use_routed_output:
+                # Remove project_dir from kwargs if present (already passed explicitly)
+                kwargs_clean = {k: v for k, v in kwargs.items() if k != 'project_dir'}
+                return self._calculate_multi_gauge_metrics(
+                    config=config,
+                    mizuroute_output_path=sim_file_path,
+                    project_dir=project_dir,
+                    **kwargs_clean
+                )
+
             # Read simulations
             # Explicitly decode times to ensure proper DatetimeIndex conversion
             with xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True) as ds:
                 if use_routed_output:
                     # mizuRoute output is already in m³/s
+                    # Get the segment index for the configured reach ID
+                    sim_reach_id = config.get('SIM_REACH_ID')
+                    seg_idx = 0  # Default to first segment
+
+                    if sim_reach_id is not None and sim_reach_id != 'default':
+                        # Find the segment index matching the reach ID
+                        if 'reachID' in ds.variables:
+                            reach_ids = ds['reachID'].values
+                            matches = np.where(reach_ids == int(sim_reach_id))[0]
+                            if len(matches) > 0:
+                                seg_idx = int(matches[0])
+                                self.logger.debug(f"Using segment index {seg_idx} for reach ID {sim_reach_id}")
+                            else:
+                                self.logger.warning(f"Reach ID {sim_reach_id} not found in mizuRoute output, using segment 0")
+                        else:
+                            self.logger.warning("No reachID variable in mizuRoute output, using segment 0")
+
                     if 'IRFroutedRunoff' in ds.variables:
-                        simulated = ds['IRFroutedRunoff'].isel(seg=0)
+                        simulated = ds['IRFroutedRunoff'].isel(seg=seg_idx)
                     elif 'dlayRunoff' in ds.variables:
-                        simulated = ds['dlayRunoff'].isel(seg=0)
+                        simulated = ds['dlayRunoff'].isel(seg=seg_idx)
                     else:
                         self.logger.error(f"No routed runoff variable in mizuRoute output. Variables: {list(ds.variables.keys())}")
                         return {'kge': self.penalty_score}
@@ -973,9 +1219,10 @@ class FUSEWorker(BaseWorker):
                     simulated_streamflow = simulated_streamflow.resample('D').mean()
 
                 else:
-                    # FUSE dimensions: (time, param_set, latitude, longitude)
-                    # In distributed mode, latitude contains multiple subcatchments
+                    # FUSE dimensions: (time, latitude, longitude) or (time, param_set, latitude, longitude)
+                    # In distributed mode, subcatchments can be on latitude or longitude dimension
                     spatial_mode = config.get('FUSE_SPATIAL_MODE', 'lumped')
+                    subcatchment_dim = config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
 
                     if 'q_routed' in ds.variables:
                         runoff_var = ds['q_routed']
@@ -987,6 +1234,9 @@ class FUSEWorker(BaseWorker):
                         self.logger.error(f"No runoff variable found in FUSE output. Variables: {list(ds.variables.keys())}")
                         return {'kge': self.penalty_score}
 
+                    # Log actual dimensions for debugging
+                    self.logger.debug(f"FUSE output dimensions: {runoff_var.dims}, sizes: {dict(runoff_var.sizes)}")
+
                     # Diagnostic: Log raw FUSE output statistics
                     raw_mean = float(runoff_var.mean())
                     raw_max = float(runoff_var.max())
@@ -996,20 +1246,38 @@ class FUSEWorker(BaseWorker):
                             f"This may indicate FUSE is not reading calibration parameters correctly."
                         )
 
+                    # Determine which dimension has the subcatchments
+                    has_param_set = 'param_set' in runoff_var.dims
+                    n_subcatchments = runoff_var.sizes.get(subcatchment_dim, 1)
+
                     # Handle distributed mode: sum across all subcatchments
                     # FUSE output in mm/day represents depth over each subcatchment
-                    if spatial_mode == 'distributed' and 'latitude' in runoff_var.dims and runoff_var.sizes.get('latitude', 1) > 1:
+                    if spatial_mode == 'distributed' and n_subcatchments > 1:
                         # For distributed mode without routing, we need to aggregate subcatchments
                         # Sum the volumetric runoff (convert each subcatchment from mm/day to m3/s, then sum)
-                        # Or take area-weighted mean if areas are equal
-                        n_subcatchments = runoff_var.sizes['latitude']
-                        self.logger.info(f"Distributed mode: aggregating {n_subcatchments} subcatchments")
+                        self.logger.debug(f"Distributed mode: aggregating {n_subcatchments} subcatchments on '{subcatchment_dim}' dimension")
 
                         # Get individual subcatchment areas if available, otherwise assume equal distribution
                         total_area_km2 = self._get_catchment_area(config, project_dir)
 
-                        # Select param_set and longitude, keep latitude for aggregation
-                        runoff_selected = runoff_var.isel(param_set=0, longitude=0)
+                        # Select indices for non-subcatchment dimensions
+                        isel_kwargs = {}
+                        if has_param_set:
+                            # Find the param_set with valid (non-NaN) data
+                            n_param_sets = runoff_var.sizes.get('param_set', 1)
+                            valid_param_set = 0
+                            for ps in range(n_param_sets):
+                                test_vals = runoff_var.isel(param_set=ps).values
+                                if not np.all(np.isnan(test_vals)):
+                                    valid_param_set = ps
+                                    break
+                            isel_kwargs['param_set'] = valid_param_set
+                        # Select index 0 for the non-subcatchment spatial dimension
+                        other_spatial_dim = 'latitude' if subcatchment_dim == 'longitude' else 'longitude'
+                        if other_spatial_dim in runoff_var.dims:
+                            isel_kwargs[other_spatial_dim] = 0
+
+                        runoff_selected = runoff_var.isel(**isel_kwargs) if isel_kwargs else runoff_var
 
                         # For equal-area subcatchments: total flow = sum of individual flows
                         # Each subcatchment's mm/day * (total_area/n_subcatchments) / 86.4 gives m3/s
@@ -1017,12 +1285,30 @@ class FUSEWorker(BaseWorker):
                         subcatchment_area = total_area_km2 / n_subcatchments
 
                         # Convert each subcatchment to m3/s and sum
-                        simulated_cms = (runoff_selected * subcatchment_area / UnitConversion.MM_DAY_TO_CMS).sum(dim='latitude')
+                        simulated_cms = (runoff_selected * subcatchment_area / UnitConversion.MM_DAY_TO_CMS).sum(dim=subcatchment_dim)
                         simulated_streamflow = simulated_cms.to_pandas()
-                        self.logger.info(f"Aggregated distributed output: mean flow = {simulated_streamflow.mean():.2f} m³/s")
+                        self.logger.debug(f"Aggregated distributed output: mean flow = {simulated_streamflow.mean():.2f} m³/s")
                     else:
                         # Lumped mode or single subcatchment
-                        simulated = runoff_var.isel(param_set=0, latitude=0, longitude=0)
+                        isel_kwargs = {}
+                        if has_param_set:
+                            # Find the param_set with valid (non-NaN) data
+                            # FUSE run_def writes to param_set 1, not 0
+                            n_param_sets = runoff_var.sizes.get('param_set', 1)
+                            valid_param_set = 0
+                            for ps in range(n_param_sets):
+                                test_vals = runoff_var.isel(param_set=ps, latitude=0, longitude=0).values
+                                if not np.all(np.isnan(test_vals)):
+                                    valid_param_set = ps
+                                    break
+                            isel_kwargs['param_set'] = valid_param_set
+                            self.logger.debug(f"Using param_set {valid_param_set} (has valid data)")
+                        if 'latitude' in runoff_var.dims:
+                            isel_kwargs['latitude'] = 0
+                        if 'longitude' in runoff_var.dims:
+                            isel_kwargs['longitude'] = 0
+
+                        simulated = runoff_var.isel(**isel_kwargs) if isel_kwargs else runoff_var
                         simulated_streamflow = simulated.to_pandas()
 
                         # Get catchment area for unit conversion
@@ -1122,6 +1408,140 @@ class FUSEWorker(BaseWorker):
         domain_name = config.get('DOMAIN_NAME')
         return self._streamflow_metrics.get_catchment_area(config, project_dir, domain_name)
 
+    def _calculate_multi_gauge_metrics(
+        self,
+        config: Dict[str, Any],
+        mizuroute_output_path: Path,
+        project_dir: Path,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Calculate performance metrics across multiple stream gauges.
+
+        This method is used when MULTI_GAUGE_CALIBRATION is enabled in the config.
+        It extracts simulated streamflow at multiple gauge locations from mizuRoute
+        output and calculates aggregated KGE across all gauges.
+
+        Args:
+            config: Configuration dictionary
+            mizuroute_output_path: Path to mizuRoute output NetCDF
+            project_dir: Project directory path
+            **kwargs: Additional arguments (settings_dir, etc.)
+
+        Returns:
+            Dictionary with aggregated metrics and per-gauge details
+        """
+        try:
+            # Get multi-gauge configuration
+            gauge_mapping_path = config.get('GAUGE_SEGMENT_MAPPING')
+            obs_dir = config.get('MULTI_GAUGE_OBS_DIR')
+            gauge_ids = config.get('MULTI_GAUGE_IDS')  # None means all gauges
+            exclude_ids = config.get('MULTI_GAUGE_EXCLUDE_IDS', [])  # Gauges to exclude
+            aggregation = config.get('MULTI_GAUGE_AGGREGATION', 'mean')
+            min_gauges = config.get('MULTI_GAUGE_MIN_GAUGES', 5)
+
+            if not gauge_mapping_path:
+                self.logger.error("GAUGE_SEGMENT_MAPPING not configured for multi-gauge calibration")
+                return {'kge': self.penalty_score}
+
+            if not obs_dir:
+                self.logger.error("MULTI_GAUGE_OBS_DIR not configured for multi-gauge calibration")
+                return {'kge': self.penalty_score}
+
+            gauge_mapping_path = Path(gauge_mapping_path)
+            obs_dir = Path(obs_dir)
+
+            # Get topology file for segment lookup
+            settings_dir = kwargs.get('settings_dir')
+            topology_path = None
+            if settings_dir:
+                settings_dir = Path(settings_dir)
+                # Check for topology file in mizuRoute settings
+                mizu_settings = settings_dir / 'mizuRoute'
+                if mizu_settings.exists():
+                    topology_candidates = [
+                        mizu_settings / 'topology.nc',
+                        mizu_settings / 'network_topology.nc',
+                    ]
+                    for t in topology_candidates:
+                        if t.exists():
+                            topology_path = t
+                            break
+
+            # Get calibration period
+            calib_period = config.get('CALIBRATION_PERIOD', '')
+            start_date = None
+            end_date = None
+            if calib_period and ',' in str(calib_period):
+                try:
+                    start_date, end_date = [s.strip() for s in str(calib_period).split(',')]
+                except (ValueError, AttributeError):
+                    pass
+
+            # Create multi-gauge metrics calculator
+            multi_gauge = MultiGaugeMetrics(
+                gauge_segment_mapping_path=gauge_mapping_path,
+                obs_data_dir=obs_dir,
+                logger=self.logger
+            )
+
+            # Apply exclusion list if gauge_ids not explicitly set
+            if gauge_ids is None and exclude_ids:
+                all_gauge_ids = multi_gauge.gauge_mapping['id'].tolist()
+                gauge_ids = [gid for gid in all_gauge_ids if gid not in exclude_ids]
+                self.logger.debug(f"Excluded {len(exclude_ids)} gauges, using {len(gauge_ids)} gauges")
+
+            # Build quality filter config from config keys
+            filter_config = {}
+            max_dist = config.get('MULTI_GAUGE_MAX_DISTANCE')
+            if max_dist is not None:
+                filter_config['max_distance'] = float(max_dist)
+            min_cv = config.get('MULTI_GAUGE_MIN_OBS_CV')
+            if min_cv is not None:
+                filter_config['min_obs_cv'] = float(min_cv)
+            min_sq = config.get('MULTI_GAUGE_MIN_SPECIFIC_Q')
+            if min_sq is not None:
+                filter_config['min_specific_q'] = float(min_sq)
+
+            # Minimum overlap days (gauges with less are skipped as invalid)
+            min_overlap = int(config.get('MULTI_GAUGE_MIN_OVERLAP_DAYS', 10))
+
+            # Calculate metrics across all gauges
+            results = multi_gauge.calculate_multi_gauge_metrics(
+                mizuroute_output_path=mizuroute_output_path,
+                gauge_ids=gauge_ids,
+                start_date=start_date,
+                end_date=end_date,
+                topology_path=topology_path,
+                min_gauges=min_gauges,
+                aggregation=aggregation,
+                filter_config=filter_config if filter_config else None,
+                min_overlap_days=min_overlap
+            )
+
+            # Log summary
+            self.logger.info(
+                f"Multi-gauge calibration: KGE={results['kge']:.4f} "
+                f"({results['n_valid_gauges']}/{results['n_total_gauges']} valid gauges)"
+            )
+
+            # Return metrics in expected format
+            return {
+                'kge': results['kge'],
+                'kge_std': results.get('kge_std', 0.0),
+                'kge_min': results.get('kge_min', results['kge']),
+                'kge_max': results.get('kge_max', results['kge']),
+                'n_gauges': results['n_valid_gauges'],
+                'multi_gauge_details': results.get('per_gauge', {})
+            }
+
+        except FileNotFoundError as e:
+            self.logger.error(f"Multi-gauge file not found: {e}")
+            return {'kge': self.penalty_score}
+        except Exception as e:
+            self.logger.error(f"Error in multi-gauge metrics calculation: {e}")
+            return {'kge': self.penalty_score}
+
     def _convert_fuse_to_mizuroute_format(
         self,
         fuse_output_dir: Path,
@@ -1209,7 +1629,7 @@ class FUSEWorker(BaseWorker):
                 self.logger.error(f"mizuRoute control file not found: {control_file}")
                 return False
 
-            self.logger.debug(f"Using control file: {control_file}")
+            self.logger.debug(f"Using mizuRoute control file: {control_file}")
 
             # Execute mizuRoute
             cmd = [str(mizuroute_exe), str(control_file)]
@@ -1230,7 +1650,24 @@ class FUSEWorker(BaseWorker):
                 self.logger.error(f"STDERR: {result.stderr}")
                 return False
 
-            self.logger.debug("mizuRoute completed successfully")
+            # Log stdout on success at debug level
+            if result.stdout:
+                stdout_lines = result.stdout.strip().split('\n')
+                self.logger.debug(f"mizuRoute completed, stdout lines: {len(stdout_lines)}")
+                if len(stdout_lines) <= 20:
+                    for line in stdout_lines:
+                        if line.strip():
+                            self.logger.debug(f"  mizuRoute: {line}")
+                else:
+                    for line in stdout_lines[:5]:
+                        if line.strip():
+                            self.logger.debug(f"  mizuRoute: {line}")
+                    self.logger.debug(f"  ... ({len(stdout_lines) - 10} more lines) ...")
+                    for line in stdout_lines[-5:]:
+                        if line.strip():
+                            self.logger.debug(f"  mizuRoute: {line}")
+            else:
+                self.logger.debug("mizuRoute completed successfully (no stdout)")
             return True
 
         except subprocess.TimeoutExpired:

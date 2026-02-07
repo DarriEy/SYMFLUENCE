@@ -61,7 +61,16 @@ class FUSEParameterManager(BaseParameterManager):
     # ========================================================================
 
     def _get_parameter_names(self) -> List[str]:
-        """Return FUSE parameter names from config."""
+        """Return parameter/coefficient names depending on regionalization mode."""
+        regionalization = self.config_dict.get('PARAMETER_REGIONALIZATION', 'lumped')
+        if self.config_dict.get('USE_TRANSFER_FUNCTIONS', False):
+            regionalization = 'transfer_function'
+
+        if regionalization == 'transfer_function':
+            coeff_bounds = self.config_dict.get('TRANSFER_FUNCTION_COEFF_BOUNDS', {})
+            if coeff_bounds:
+                return list(coeff_bounds.keys())
+
         return self.fuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
@@ -69,11 +78,43 @@ class FUSEParameterManager(BaseParameterManager):
         Return FUSE parameter bounds, preferring config values over registry defaults.
 
         Priority:
-        1. FUSE_PARAM_BOUNDS from config (user-specified)
-        2. Registry defaults for any parameters not in config
+        1. TRANSFER_FUNCTION_COEFF_BOUNDS if regionalization enabled
+        2. FUSE_PARAM_BOUNDS from config (user-specified)
+        3. Registry defaults for any parameters not in config
         """
         # Get registry defaults first
         bounds = get_fuse_bounds()
+
+        # Check for parameter regionalization mode
+        regionalization = self.config_dict.get('PARAMETER_REGIONALIZATION', 'lumped')
+        use_transfer_functions = self.config_dict.get('USE_TRANSFER_FUNCTIONS', False)
+
+        if regionalization == 'transfer_function' or use_transfer_functions:
+            # Use transfer function coefficient bounds instead of raw parameter bounds
+            coeff_bounds = self.config_dict.get('TRANSFER_FUNCTION_COEFF_BOUNDS')
+            if coeff_bounds:
+                self.logger.info(
+                    f"Using transfer function coefficient bounds "
+                    f"({len(coeff_bounds)} coefficients)"
+                )
+                bounds = {}  # Replace all bounds with coefficient bounds
+                for coeff_name, coeff_range in coeff_bounds.items():
+                    if isinstance(coeff_range, (list, tuple)) and len(coeff_range) == 2:
+                        bounds[coeff_name] = {
+                            'min': float(coeff_range[0]),
+                            'max': float(coeff_range[1])
+                        }
+                    elif isinstance(coeff_range, dict):
+                        bounds[coeff_name] = {
+                            'min': float(coeff_range.get('min', 0)),
+                            'max': float(coeff_range.get('max', 1))
+                        }
+                return bounds
+            else:
+                self.logger.warning(
+                    "PARAMETER_REGIONALIZATION=transfer_function but "
+                    "TRANSFER_FUNCTION_COEFF_BOUNDS not configured"
+                )
 
         # Check for user-specified bounds in config
         # Use config_dict to handle both typed and dict configs
@@ -103,7 +144,23 @@ class FUSEParameterManager(BaseParameterManager):
 
         FUSE's run_def mode regenerates para_def.nc from the constraints file,
         so we must modify the constraints file to change parameter values.
+
+        When using parameter regionalization (transfer_function, zones, distributed),
+        the worker handles applying the coefficients via the regionalization system.
         """
+        # Check for parameter regionalization mode
+        regionalization = self.config_dict.get('PARAMETER_REGIONALIZATION', 'lumped')
+        use_transfer_functions = self.config_dict.get('USE_TRANSFER_FUNCTIONS', False)
+
+        if regionalization != 'lumped' or use_transfer_functions:
+            # In regionalization mode, the worker handles parameter application
+            # via _apply_regionalization(). Skip constraints file update here.
+            self.logger.debug(
+                f"Regionalization mode ({regionalization}): "
+                f"skipping constraints file update (handled by worker)"
+            )
+            return True
+
         return self._update_constraints_file(params)
 
     def _update_constraints_file(self, params: Dict[str, float]) -> bool:
@@ -354,12 +411,16 @@ class FUSEParameterManager(BaseParameterManager):
             return False
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
-        """Get initial parameter values from existing FUSE parameter file"""
+        """Get initial parameter values from existing FUSE parameter file or coefficient bounds."""
         try:
-            # First ensure files are properly structured
-            #if not self.verify_and_fix_parameter_files():
-            #    self.logger.warning("Parameter files need fixing - using default values")
-            #    return self._get_default_initial_values()
+            # Check for parameter regionalization mode
+            regionalization = self.config_dict.get('PARAMETER_REGIONALIZATION', 'lumped')
+            use_transfer_functions = self.config_dict.get('USE_TRANSFER_FUNCTIONS', False)
+
+            if regionalization != 'lumped' or use_transfer_functions:
+                # In regionalization mode, return initial guesses for coefficients
+                # (not raw parameters from file, since we're calibrating coefficients)
+                return self._get_default_initial_values()
 
             if not self.param_file_path.exists():
                 self.logger.warning(f"FUSE parameter file not found: {self.param_file_path}")
@@ -384,14 +445,15 @@ class FUSEParameterManager(BaseParameterManager):
             return self._get_default_initial_values()
 
     def _get_default_initial_values(self) -> Dict[str, float]:
-        """Get default initial parameter values"""
+        """Get default initial parameter values (or coefficient values in regionalization mode)."""
         params = {}
         bounds = self.param_bounds
 
-        for param_name in self.fuse_params:
-            param_bounds = bounds[param_name]
+        # In regionalization mode, param_bounds contains coefficient bounds
+        # In lumped mode, it contains original parameter bounds
+        for param_name, param_bounds_dict in bounds.items():
             # Use middle of bounds as default
-            params[param_name] = (param_bounds['min'] + param_bounds['max']) / 2
+            params[param_name] = (param_bounds_dict['min'] + param_bounds_dict['max']) / 2
 
         return params
 

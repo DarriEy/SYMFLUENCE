@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
+import pandas as pd
 import warnings
 
 # Suppress xarray FutureWarning about timedelta64 decoding
@@ -84,6 +85,12 @@ class FuseToMizurouteConverter:
             # Reshape dimensions
             q_fuse = self._reshape_dimensions(q_fuse, config)
 
+            # Filter to non-coastal GRUs and get correct IDs from mapping
+            gru_ids = None
+            mapping_file = self._find_mapping_file(fuse_output_dir, config)
+            if mapping_file is not None:
+                q_fuse, gru_ids = self._filter_coastal_grus(q_fuse, mapping_file)
+
             # Convert units
             q_fuse_values, target_units = self._convert_units(q_fuse.values, config)
 
@@ -92,7 +99,8 @@ class FuseToMizurouteConverter:
 
             # Create routing dataset
             ds_routing = self._create_routing_dataset(
-                q_fuse_values, time_values, routing_var, target_units
+                q_fuse_values, time_values, routing_var, target_units,
+                gru_ids=gru_ids
             )
 
             # Close input dataset before writing
@@ -178,7 +186,10 @@ class FuseToMizurouteConverter:
         if target_units in ('default', None, ''):
             target_units = 'm/s'
 
-        timestep_seconds = int(config.get('FORCING_TIME_STEP_SIZE', 86400))
+        # Use FUSE-specific output timestep if available, otherwise fall back to FORCING_TIME_STEP_SIZE
+        # FUSE typically outputs daily values even with hourly forcing
+        timestep_seconds = int(config.get('FUSE_OUTPUT_TIMESTEP_SECONDS',
+                                          config.get('FORCING_TIME_STEP_SIZE', 86400)))
 
         self.logger.debug(f"Converting FUSE runoff to {target_units} (timestep={timestep_seconds}s)")
 
@@ -223,12 +234,82 @@ class FuseToMizurouteConverter:
             self.logger.warning(f"Could not round times for mizuRoute: {e}")
             return ds['time'].values
 
+    def _find_mapping_file(
+        self,
+        fuse_output_dir: Path,
+        config: Dict[str, Any]
+    ) -> Optional[Path]:
+        """
+        Locate fuse_to_routing_mapping.csv in the settings directory.
+
+        Searches relative to fuse_output_dir (going up to project root)
+        or uses the SYMFLUENCE_DATA_DIR from config.
+        """
+        # Try deriving from fuse_output_dir:
+        # fuse_output_dir is typically <project>/simulations/<exp>/FUSE/
+        # mapping is at <project>/settings/mizuRoute/fuse_to_routing_mapping.csv
+        project_dir = fuse_output_dir
+        for _ in range(4):
+            project_dir = project_dir.parent
+            candidate = project_dir / 'settings' / 'mizuRoute' / 'fuse_to_routing_mapping.csv'
+            if candidate.exists():
+                self.logger.debug(f"Found routing mapping file: {candidate}")
+                return candidate
+
+        # Try from config
+        data_dir = config.get('SYMFLUENCE_DATA_DIR', '')
+        domain = config.get('DOMAIN_NAME', '')
+        if data_dir and domain:
+            candidate = Path(data_dir) / f'domain_{domain}' / 'settings' / 'mizuRoute' / 'fuse_to_routing_mapping.csv'
+            if candidate.exists():
+                self.logger.debug(f"Found routing mapping file: {candidate}")
+                return candidate
+
+        self.logger.warning("fuse_to_routing_mapping.csv not found — outputting all GRUs without filtering")
+        return None
+
+    def _filter_coastal_grus(self, q_fuse, mapping_file: Path):
+        """
+        Filter out coastal GRUs and return correct gruId values.
+
+        Args:
+            q_fuse: xarray DataArray with dims (time, gru)
+            mapping_file: Path to fuse_to_routing_mapping.csv
+
+        Returns:
+            Tuple of (filtered DataArray, gru_ids array matching topology hruId)
+        """
+        mapping = pd.read_csv(mapping_file)
+
+        non_coastal = mapping[~mapping['is_coastal']]
+        n_non_coastal = len(non_coastal)
+        n_total = q_fuse.sizes.get('gru', 0)
+
+        self.logger.debug(
+            f"Filtering coastal GRUs: {n_total} total → {n_non_coastal} non-coastal"
+        )
+
+        # Get the FUSE indices of non-coastal GRUs
+        fuse_indices = non_coastal['fuse_gru_idx'].values
+
+        # Subset the runoff array to non-coastal GRUs only
+        q_fuse = q_fuse.isel(gru=fuse_indices)
+
+        # Re-index gru dimension after subsetting
+        q_fuse = q_fuse.assign_coords(gru=np.arange(n_non_coastal))
+
+        # Get the gruId values that match topology hruId
+        gru_ids = non_coastal['gru_to_seg'].values.astype(np.int32)
+
+        return q_fuse, gru_ids
+
     def _create_routing_dataset(
         self,
         q_values: np.ndarray,
         time_values,
         routing_var: str,
-        units: str
+        units: str,
+        gru_ids: Optional[np.ndarray] = None
     ):
         """Create xarray Dataset for mizuRoute input."""
         import xarray as xr
@@ -246,7 +327,10 @@ class FuseToMizurouteConverter:
         ds_routing[routing_var].attrs['units'] = units
         ds_routing[routing_var].attrs['long_name'] = 'FUSE runoff for mizuRoute routing'
 
-        # Add gruId variable (1-indexed as expected by mizuRoute)
-        ds_routing['gruId'] = ('gru', np.arange(1, n_gru + 1))
+        # Add gruId variable — use provided IDs (matching topology hruId) or fall back to 1-indexed
+        if gru_ids is not None:
+            ds_routing['gruId'] = ('gru', gru_ids)
+        else:
+            ds_routing['gruId'] = ('gru', np.arange(1, n_gru + 1))
 
         return ds_routing
