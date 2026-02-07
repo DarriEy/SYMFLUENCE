@@ -23,9 +23,9 @@ OptimizationAlgorithmType = Literal[
     'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN'
 ]
 
-# Supported optimization metrics
+# Supported optimization metrics (uppercase for case-insensitive validation)
 OptimizationMetricType = Literal[
-    'KGE', 'KGEp', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'correlation'
+    'KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION'
 ]
 
 # Supported sampling methods

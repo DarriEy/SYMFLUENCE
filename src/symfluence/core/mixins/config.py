@@ -126,6 +126,10 @@ class ConfigMixin:
                 value = cfg.get(dict_key)
                 if value is not None:
                     return value
+            elif hasattr(cfg, 'get'):
+                value = cfg.get(dict_key)
+                if value is not None:
+                    return value
 
         return default
 

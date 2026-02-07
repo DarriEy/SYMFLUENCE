@@ -478,8 +478,8 @@ class SymfluenceConfig(BaseModel):
                 f"Valid algorithms: {', '.join(valid_algorithms)}"
             )
 
-        # Validate optimization metric
-        valid_metrics = ['KGE', 'KGEp', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'correlation']
+        # Validate optimization metric (uppercase for case-insensitive matching)
+        valid_metrics = ['KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION']
         if self.optimization.metric not in valid_metrics:
             errors.append(
                 f"OPTIMIZATION_METRIC '{self.optimization.metric}' not recognized. "
