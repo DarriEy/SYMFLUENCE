@@ -276,7 +276,11 @@ class ConfigurationUpdater(ConfigMixin):
             vname_qsim = 'averageRoutedRunoff'
         elif model_upper == 'FUSE':
             fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = 'q_routed'
+            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
+            if vname_qsim in ('default', None, ''):
+                vname_qsim = 'q_routed'
+            # FUSE outputs daily data
+            dt_qsim = '86400'
         elif model_upper == 'GR':
             domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
             fname_qsim = f"{domain_name}_{experiment_id}_runs_def.nc"
@@ -355,6 +359,32 @@ class ConfigurationUpdater(ConfigMixin):
                     f"<dt_qsim>               {mizu_config['dt_qsim']}    "
                     f"! Time interval of input runoff in seconds\n"
                 )
+            elif '<dname_hruid>' in line:
+                # FUSE converter outputs 'gru' dimension, SUMMA uses 'hru'
+                dim_name = 'gru' if mizu_config['model_name'].upper() == 'FUSE' else 'hru'
+                updated_lines.append(
+                    f"<dname_hruid>           {dim_name}     ! Dimension name for HM_HRU ID\n"
+                )
+            elif '<vname_hruid>' in line:
+                # FUSE converter outputs 'gruId' variable, SUMMA uses 'hruId'
+                var_name = 'gruId' if mizu_config['model_name'].upper() == 'FUSE' else 'hruId'
+                updated_lines.append(
+                    f"<vname_hruid>           {var_name}   ! Variable name for HM_HRU ID\n"
+                )
+            elif '<seg_outlet>' in line:
+                # Check if multi-gauge calibration is enabled
+                multi_gauge = self._get_config_value(
+                    lambda: self.config.calibration.multi_gauge,
+                    default=False,
+                    dict_key='MULTI_GAUGE_CALIBRATION'
+                )
+                if multi_gauge:
+                    # Route all segments for multi-gauge calibration
+                    updated_lines.append(
+                        "<seg_outlet>            -9999    ! Route all segments for multi-gauge calibration\n"
+                    )
+                else:
+                    updated_lines.append(line)
             elif '<sim_start>' in line:
                 match = re.search(r'(\d{4}-\d{2}-\d{2})', line)
                 if match:

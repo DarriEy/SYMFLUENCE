@@ -933,6 +933,7 @@ class MOEADDefaults:
     CR: float = 1.0  # Crossover rate
     F: float = 0.5   # DE scaling factor
     MUTATION: float = 0.1
+    NR: int = 2      # Max replacements per offspring (Zhang & Li 2007)
     DECOMPOSITION: str = 'tchebycheff'
 
     @staticmethod

@@ -441,7 +441,7 @@ class OptimizationManager(BaseManager):
                         if not results_df.empty and param_cols:
                             # Try to load best params from JSON file first (most reliable)
                             import json
-                            best_params_json = results_file.parent / f"{self.experiment_id}_{algorithm.lower()}_best_params.json"
+                            best_params_json = results_file.parent / f"{self.experiment_id}_{algorithm.lower().replace('/', '_')}_best_params.json"
                             if best_params_json.exists():
                                 try:
                                     with open(best_params_json, 'r') as f:

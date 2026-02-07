@@ -78,8 +78,9 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         is_multi_objective = evaluate_population_objectives is not None
 
         if is_multi_objective:
+            objective_names = kwargs.get('objective_names', ['KGE', 'NSE'])
             return self._optimize_multi_objective(
-                n_params, evaluate_population_objectives, denormalize_params,
+                n_params, evaluate_population_objectives, objective_names, denormalize_params,
                 record_iteration, update_best, log_progress, log_initial_population
             )
         else:
@@ -228,6 +229,7 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         self,
         n_params: int,
         evaluate_objectives: Callable,
+        objective_names: List[str],
         denormalize_params: Callable,
         record_iteration: Callable,
         update_best: Callable,
@@ -268,6 +270,13 @@ class MOEADAlgorithm(OptimizationAlgorithm):
             dict_key='MOEAD_MUTATION'
         )
 
+        # Max replacements per offspring (Zhang & Li 2007, Section III-C)
+        nr = self._get_config_value(
+            lambda: self.config.optimization.moead_nr,
+            default=MOEADDefaults.NR,
+            dict_key='MOEAD_NR'
+        )
+
         # Decomposition approach (Zhang & Li 2007, Section II-B)
         decomposition = self._get_config_value(
             lambda: self.config.optimization.moead_decomposition,
@@ -282,7 +291,7 @@ class MOEADAlgorithm(OptimizationAlgorithm):
 
         # Determine number of objectives from first evaluation
         test_solution = np.random.uniform(0, 1, n_params)
-        test_objectives = evaluate_objectives(test_solution.reshape(1, -1), 0)[0]
+        test_objectives = evaluate_objectives(test_solution.reshape(1, -1), objective_names, 0)[0]
         n_objectives = len(test_objectives)
 
         self.logger.info(f"Detected {n_objectives} objectives, decomposition={decomposition}")
@@ -296,7 +305,8 @@ class MOEADAlgorithm(OptimizationAlgorithm):
 
         # Initialize population
         population = np.random.uniform(0, 1, (actual_pop_size, n_params))
-        objectives = np.array([evaluate_objectives(p.reshape(1, -1), 0)[0] for p in population])
+        # Evaluate entire population at once to get proper individual_id assignment
+        objectives = evaluate_objectives(population, objective_names, 0)
 
         # Reference point (ideal point) - best value for each objective
         z_ideal = np.max(objectives, axis=0)
@@ -346,19 +356,25 @@ class MOEADAlgorithm(OptimizationAlgorithm):
                 offspring = np.clip(offspring, 0, 1)
 
                 # Evaluate offspring
-                offspring_obj = evaluate_objectives(offspring.reshape(1, -1), iteration)[0]
+                offspring_obj = evaluate_objectives(offspring.reshape(1, -1), objective_names, iteration)[0]
 
                 # Update ideal point
                 z_ideal = np.maximum(z_ideal, offspring_obj)
 
-                # Update neighbors using decomposition
-                for j in neighbors:
+                # Update neighbors using decomposition (limit to nr replacements)
+                shuffled_neighbors = list(neighbors)
+                np.random.shuffle(shuffled_neighbors)
+                n_replaced = 0
+                for j in shuffled_neighbors:
+                    if n_replaced >= nr:
+                        break
                     if self._is_better_decomposed(
                         offspring_obj, objectives[j], weights[j], z_ideal, decomposition
                     ):
                         population[j] = offspring.copy()
                         objectives[j] = offspring_obj.copy()
                         n_improved += 1
+                        n_replaced += 1
 
                 # Update archive
                 self._update_archive(archive, offspring, offspring_obj)
@@ -457,12 +473,20 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         z_ideal: np.ndarray,
         decomposition: str
     ) -> bool:
-        """Check if obj1 is better than obj2 under decomposition approach."""
+        """Check if obj1 is better than obj2 under decomposition approach.
+
+        For maximization problems (higher objective values are better):
+        - Tchebycheff: minimize max_i { w_i * (z*_i - f_i(x)) }
+          Lower scalarized value means closer to ideal point = better
+        - Weighted sum: maximize sum_i { w_i * f_i(x) }
+          Higher weighted sum = better
+        """
         if decomposition == 'tchebycheff':
             # Tchebycheff approach (maximization)
-            g1 = np.min(weight * (z_ideal - obj1))
-            g2 = np.min(weight * (z_ideal - obj2))
-            return g1 > g2  # Higher is better for maximization
+            # g = max weighted gap from ideal point; lower is better
+            g1 = np.max(weight * (z_ideal - obj1))
+            g2 = np.max(weight * (z_ideal - obj2))
+            return g1 < g2  # Lower gap from ideal is better
         else:
             # Weighted sum approach
             g1 = np.sum(weight * obj1)

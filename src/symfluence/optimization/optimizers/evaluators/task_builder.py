@@ -186,23 +186,31 @@ class TaskBuilder(ConfigMixin):
             task_dict['objective_names'] = objective_names
 
             # Add target types and metrics for multi-target optimization
-            # Support both NSGA2_* keys and legacy OPTIMIZATION_TARGET* keys
+            # Support NSGA2_*, MOEAD_*, and legacy OPTIMIZATION_TARGET* keys
             task_dict['multi_target_mode'] = True
             task_dict['primary_target_type'] = self.config.get(
                 'NSGA2_PRIMARY_TARGET',
-                self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
+                self.config.get('MOEAD_PRIMARY_TARGET',
+                    self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
+                )
             )
             task_dict['secondary_target_type'] = self.config.get(
                 'NSGA2_SECONDARY_TARGET',
-                self.config.get('OPTIMIZATION_TARGET2', 'tws')
+                self.config.get('MOEAD_SECONDARY_TARGET',
+                    self.config.get('OPTIMIZATION_TARGET2', 'tws')
+                )
             )
             task_dict['primary_metric'] = self.config.get(
                 'NSGA2_PRIMARY_METRIC',
-                self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC')
+                self.config.get('MOEAD_PRIMARY_METRIC',
+                    self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC')
+                )
             )
             task_dict['secondary_metric'] = self.config.get(
                 'NSGA2_SECONDARY_METRIC',
-                self.config.get('OPTIMIZATION_METRIC2', 'KGE')
+                self.config.get('MOEAD_SECONDARY_METRIC',
+                    self.config.get('OPTIMIZATION_METRIC2', 'KGE')
+                )
             )
 
         # Add random seed if provided

@@ -760,6 +760,18 @@ class BaseModelOptimizer(
         )
         return [str(primary_metric).upper(), str(secondary_metric).upper()]
 
+    def _get_moead_objective_names(self) -> List[str]:
+        """Resolve MOEA/D objective metric names in priority order."""
+        primary_metric = self._get_config_value(
+            lambda: self.config.optimization.moead_primary_metric, default=self.target_metric,
+            dict_key='MOEAD_PRIMARY_METRIC'
+        )
+        secondary_metric = self._get_config_value(
+            lambda: self.config.optimization.moead_secondary_metric, default=self.target_metric,
+            dict_key='MOEAD_SECONDARY_METRIC'
+        )
+        return [str(primary_metric).upper(), str(secondary_metric).upper()]
+
     def _supports_multi_objective(self) -> bool:
         """Check if this model supports multi-objective optimization (NSGA-II).
 
@@ -1392,6 +1404,61 @@ class BaseModelOptimizer(
     # Algorithm implementations
     # =========================================================================
 
+    def _save_pareto_front(self, result: Dict[str, Any], algorithm_name: str) -> Optional[Path]:
+        """Save Pareto front from multi-objective optimization results.
+
+        Args:
+            result: Algorithm result dict containing 'pareto_front' and 'pareto_objectives'
+            algorithm_name: Name of the algorithm
+
+        Returns:
+            Path to saved Pareto front CSV, or None if saving failed
+        """
+        import pandas as pd
+
+        pareto_solutions = result.get('pareto_front')
+        pareto_objectives = result.get('pareto_objectives')
+
+        if pareto_solutions is None or pareto_objectives is None:
+            return None
+
+        if len(pareto_solutions) == 0:
+            self.logger.warning("Pareto front is empty, nothing to save")
+            return None
+
+        # Build records with objectives and parameters
+        records = []
+        param_names = self.param_manager.all_param_names
+
+        for i, (solution, objectives) in enumerate(zip(pareto_solutions, pareto_objectives)):
+            record = {'solution_id': i}
+
+            # Add objectives
+            for j, obj in enumerate(objectives):
+                record[f'obj_{j}'] = obj
+
+            # Add denormalized parameters
+            params_dict = self.param_manager.denormalize_parameters(solution)
+            for param_name in param_names:
+                val = params_dict.get(param_name)
+                if isinstance(val, (list, np.ndarray)):
+                    val = val[0] if len(val) > 0 else None
+                record[param_name] = val
+
+            records.append(record)
+
+        df = pd.DataFrame(records)
+
+        # Generate filename (sanitize algorithm name for filesystem)
+        safe_algorithm = algorithm_name.lower().replace('/', '_')
+        filename = f"{self.experiment_id}_{safe_algorithm}_pareto_front.csv"
+        pareto_path = self.results_dir / filename
+
+        df.to_csv(pareto_path, index=False)
+        self.logger.info(f"Saved Pareto front ({len(records)} solutions) to {pareto_path}")
+
+        return pareto_path
+
     def _run_default_only(self, algorithm_name: str) -> Path:
         """
         Run a single default evaluation when no parameters are configured.
@@ -1510,11 +1577,11 @@ class BaseModelOptimizer(
         except (KeyError, AttributeError, ValueError) as e:
             self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
 
-        # Guard NSGA-II: only SUMMA supports multi-objective
-        if algorithm_name.lower() in ['nsga2', 'nsga-ii']:
+        # Guard multi-objective algorithms: only SUMMA supports multi-objective
+        if algorithm_name.lower() in ['nsga2', 'nsga-ii', 'moead', 'moea-d', 'moea_d']:
             if not self._supports_multi_objective():
                 raise OptimizationError(
-                    f"NSGA-II multi-objective optimization is not supported for {self._get_model_name()}. "
+                    f"{algorithm_name.upper()} multi-objective optimization is not supported for {self._get_model_name()}. "
                     f"Only SUMMA models have the worker infrastructure to return multiple objectives. "
                     f"Use single-objective algorithms like DDS, PSO, DE, or SCE-UA instead."
                 )
@@ -1525,6 +1592,15 @@ class BaseModelOptimizer(
             kwargs['objective_names'] = self._get_nsga2_objective_names()
             kwargs['multiobjective'] = bool(self._get_config_value(
                 lambda: self.config.optimization.nsga2.multi_target, default=False
+            ))
+
+        # For MOEA/D, add multi-objective support
+        if algorithm_name.lower() in ['moead', 'moea-d', 'moea_d']:
+            kwargs['evaluate_population_objectives'] = self._evaluate_population_objectives
+            kwargs['objective_names'] = self._get_moead_objective_names()
+            kwargs['multiobjective'] = bool(self._get_config_value(
+                lambda: self.config.optimization.moead_multi_target, default=False,
+                dict_key='MOEAD_MULTI_TARGET'
             ))
 
         # For gradient-based algorithms (Adam, L-BFGS), add native gradient support
@@ -1562,6 +1638,10 @@ class BaseModelOptimizer(
         results_path = self.save_results(algorithm.name, standard_filename=True)
         self.save_best_params(algorithm.name)
         self._visualize_progress(algorithm.name)
+
+        # Save Pareto front for multi-objective algorithms
+        if result.get('pareto_objectives') is not None and result.get('pareto_front') is not None:
+            self._save_pareto_front(result, algorithm.name)
 
         self.logger.info(f"{algorithm.name} completed in {self.format_elapsed_time()}")
 

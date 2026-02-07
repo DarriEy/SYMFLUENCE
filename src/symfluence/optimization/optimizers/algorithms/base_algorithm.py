@@ -279,11 +279,23 @@ class OptimizationAlgorithm(ConfigMixin, ABC):
 
         Args:
             gradient: Gradient vector (shape: n_params)
-            clip_value: Maximum L2 norm allowed (typically 1.0)
+            clip_value: Maximum L2 norm allowed. Set to 0 or negative to disable.
 
         Returns:
-            np.ndarray: Clipped gradient with ||g|| ≤ clip_value
+            np.ndarray: Clipped gradient with ||g|| ≤ clip_value (or unclipped if disabled)
         """
+        # Replace NaN gradients with zero
+        if np.any(np.isnan(gradient)):
+            nan_count = np.sum(np.isnan(gradient))
+            self.logger.warning(
+                f"NaN detected in {nan_count}/{len(gradient)} gradient elements, replacing with 0"
+            )
+            gradient = np.where(np.isnan(gradient), 0.0, gradient)
+
+        # clip_value <= 0 disables clipping
+        if clip_value <= 0:
+            return gradient
+
         norm = np.linalg.norm(gradient)
         if norm > clip_value:
             gradient = gradient * (clip_value / norm)

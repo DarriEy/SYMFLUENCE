@@ -249,8 +249,9 @@ class ResultsTrackingMixin(ConfigMixin):
             'timestamp': datetime.now().isoformat(),
         }
 
-        # Generate filename
-        filename = f"{experiment_id}_{algorithm.lower()}_best_params.json"
+        # Generate filename (sanitize algorithm name for filesystem)
+        safe_algorithm = algorithm.lower().replace('/', '_')
+        filename = f"{experiment_id}_{safe_algorithm}_best_params.json"
         params_path = self.results_dir / filename
 
         # Save to JSON

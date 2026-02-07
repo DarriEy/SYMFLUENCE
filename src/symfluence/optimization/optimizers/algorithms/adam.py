@@ -196,8 +196,13 @@ class AdamAlgorithm(OptimizationAlgorithm):
         else:
             self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
 
-        # Initialize at midpoint of normalized space
-        x = np.full(n_params, 0.5)
+        # Initialize from initial_guess if provided, otherwise midpoint
+        initial_guess = kwargs.get('initial_guess')
+        if initial_guess is not None and len(initial_guess) == n_params:
+            x = np.array(initial_guess, dtype=float)
+            self.logger.info("  Warm-starting from provided initial guess")
+        else:
+            x = np.full(n_params, 0.5)
 
         # Adam state
         m = np.zeros(n_params)  # First moment
@@ -211,7 +216,14 @@ class AdamAlgorithm(OptimizationAlgorithm):
             # Compute gradients using unified gradient function
             fitness, gradient = gradient_func(x)
 
-            # Clip gradient
+            # Check for NaN fitness — skip step entirely
+            if np.isnan(fitness):
+                self.logger.warning(f"ADAM step {step}: NaN fitness detected, skipping update")
+                if step % 10 == 0:
+                    log_progress(self.name, step, best_fitness)
+                continue
+
+            # Clip gradient (handles NaN elements internally)
             gradient = self._clip_gradient(gradient, gradient_clip)
 
             # Update best
