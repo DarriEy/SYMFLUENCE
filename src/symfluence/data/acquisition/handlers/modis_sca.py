@@ -1,13 +1,16 @@
 """
 MODIS Snow Cover Area (SCA) Acquisition Handler
 
-Acquires MOD10A1 (Terra) and MYD10A1 (Aqua) snow cover products via NASA AppEEARS API
-and merges them into a combined daily product with improved spatial/temporal coverage.
+Acquires MOD10A1 (Terra) and MYD10A1 (Aqua) snow cover products and merges them
+into a combined daily product with improved spatial/temporal coverage.
+
+Default method: earthaccess/CMR (fast, direct download)
+Fallback method: AppEEARS (slower, queue-based)
 
 References:
 - MOD10A1: https://nsidc.org/data/mod10a1
 - MYD10A1: https://nsidc.org/data/myd10a1
-- AppEEARS: https://appeears.earthdatacloud.nasa.gov/
+- earthaccess: https://github.com/nsidc/earthaccess
 """
 import requests
 import numpy as np
@@ -17,16 +20,17 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional, List
 from ..registry import AcquisitionRegistry
-from .appeears_base import BaseAppEEARSAcquirer
-
+from .earthaccess_base import BaseEarthaccessAcquirer
 
 
 @AcquisitionRegistry.register('MODIS_SCA')
 @AcquisitionRegistry.register('MODIS_SNOW_MERGED')
-class MODISSCAAcquirer(BaseAppEEARSAcquirer):
+class MODISSCAAcquirer(BaseEarthaccessAcquirer):
     """
     Acquires MODIS Snow Cover Area data from both Terra (MOD10A1) and Aqua (MYD10A1)
-    satellites via NASA AppEEARS API, then merges products for improved daily coverage.
+    satellites, then merges products for improved daily coverage.
+
+    Uses earthaccess/CMR for direct downloads (faster than AppEEARS).
 
     The merge strategy prioritizes:
     1. Cloud-free pixels from either satellite
@@ -34,11 +38,12 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
     3. Quality flags for filtering unreliable observations
 
     Configuration:
-        MODIS_SCA_PRODUCTS: List of products, default ['MOD10A1.061', 'MYD10A1.061']
+        MODIS_SCA_PRODUCTS: List of products, default ['MOD10A1', 'MYD10A1']
         MODIS_SCA_MERGE_STRATEGY: 'max' (default), 'mean', 'terra_priority', 'aqua_priority'
         MODIS_SCA_CLOUD_FILTER: True (default) - filter cloud-covered pixels
         MODIS_SCA_QA_FILTER: True (default) - filter by quality flags
         MODIS_SCA_MIN_VALID_RATIO: 0.1 (default) - minimum fraction of valid pixels
+        MODIS_SCA_USE_APPEEARS: False (default) - set True to use AppEEARS instead
         EARTHDATA_USERNAME/EARTHDATA_PASSWORD: NASA Earthdata credentials
     """
 
@@ -67,10 +72,13 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
             self.logger.info(f"Using existing merged SCA file: {merged_file}")
             return merged_file
 
-        # Get products to download
-        products = self._get_config_value(lambda: self.config.evaluation.modis_snow.products, default=['MOD10A1.061', 'MYD10A1.061'], dict_key='MODIS_SCA_PRODUCTS')
-        if isinstance(products, str):
-            products = [p.strip() for p in products.split(',')]
+        # Get products to download (strip version suffix for earthaccess)
+        products_config = self._get_config_value(lambda: self.config.evaluation.modis_snow.products, default=['MOD10A1', 'MYD10A1'], dict_key='MODIS_SCA_PRODUCTS')
+        if isinstance(products_config, str):
+            products_config = [p.strip() for p in products_config.split(',')]
+
+        # Normalize product names (remove .061 suffix if present)
+        products = [p.split('.')[0] for p in products_config]
 
         # Check for Earthdata credentials
         username, password = self._get_earthdata_credentials()
@@ -79,20 +87,61 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
                 "Earthdata credentials not found. Set EARTHDATA_USERNAME and EARTHDATA_PASSWORD "
                 "environment variables or add to ~/.netrc"
             )
-            # Fall back to legacy THREDDS method if available
             return self._download_via_thredds(output_dir, products[0])
 
-        # Download each product via AppEEARS
+        # Check if user wants to use AppEEARS (legacy mode)
+        use_appeears = self._get_config_value(lambda: self.config.evaluation.modis_snow.use_appeears, default=False, dict_key='MODIS_SCA_USE_APPEEARS')
+
         product_files = {}
-        for product in products:
-            try:
-                product_file = self._download_product_appeears(
-                    output_dir, product, username, password
-                )
-                if product_file and product_file.exists():
-                    product_files[product] = product_file
-            except Exception as e:
-                self.logger.warning(f"Failed to download {product}: {e}")
+
+        if use_appeears:
+            # Legacy AppEEARS mode
+            self.logger.info("Using AppEEARS mode (legacy)")
+            for product in products:
+                try:
+                    product_file = self._download_product_appeears(
+                        output_dir, product, username, password
+                    )
+                    if product_file and product_file.exists():
+                        product_files[product] = product_file
+                except Exception as e:
+                    self.logger.warning(f"Failed to download {product} via AppEEARS: {e}")
+        else:
+            # Default: earthaccess/CMR mode (faster)
+            self.logger.info("Using earthaccess/CMR mode (default)")
+            for product in products:
+                try:
+                    raw_dir = output_dir / "raw" / product.lower()
+                    raw_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Download via earthaccess
+                    files = self._download_granules_earthaccess(
+                        short_name=product,
+                        output_dir=raw_dir,
+                        version='61',  # MODIS Collection 6.1
+                        extensions=('.hdf',)
+                    )
+
+                    if files:
+                        # Process downloaded HDF files into NetCDF
+                        product_file = self._process_modis_hdf_files(
+                            files, output_dir, product
+                        )
+                        if product_file and product_file.exists():
+                            product_files[product] = product_file
+
+                except Exception as e:
+                    self.logger.warning(f"Failed to download {product} via earthaccess: {e}")
+                    # Try AppEEARS as fallback
+                    self.logger.info(f"Trying AppEEARS fallback for {product}")
+                    try:
+                        product_file = self._download_product_appeears(
+                            output_dir, product, username, password
+                        )
+                        if product_file and product_file.exists():
+                            product_files[product] = product_file
+                    except Exception as e2:
+                        self.logger.warning(f"AppEEARS fallback also failed: {e2}")
 
         if not product_files:
             raise RuntimeError("No MODIS SCA products could be downloaded")
@@ -109,6 +158,218 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
 
         self.logger.info(f"MODIS SCA acquisition complete: {merged_file}")
         return merged_file
+
+    def _process_modis_hdf_files(
+        self,
+        hdf_files: List[Path],
+        output_dir: Path,
+        product: str
+    ) -> Optional[Path]:
+        """Process downloaded MODIS HDF files into a single NetCDF."""
+        import re
+        from datetime import timedelta
+
+        if not hdf_files:
+            return None
+
+        output_file = output_dir / f"{self.domain_name}_{product}_raw.nc"
+
+        if output_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
+            return output_file
+
+        self.logger.info(f"Processing {len(hdf_files)} {product} HDF files")
+
+        records = []
+        for hdf_path in sorted(hdf_files):
+            try:
+                # Extract date from filename (e.g., MOD10A1.A2017001.h10v03...)
+                match = re.search(r'\.A(\d{7})\.', hdf_path.name)
+                if not match:
+                    continue
+
+                year = int(match.group(1)[:4])
+                doy = int(match.group(1)[4:])
+                date = datetime(year, 1, 1) + timedelta(days=doy - 1)
+
+                # Open HDF and extract NDSI snow cover
+                ds = xr.open_dataset(hdf_path, engine='netcdf4')
+
+                # Find the snow cover variable
+                sca_var = None
+                for var in ds.data_vars:
+                    if 'ndsi' in var.lower() or 'snow' in var.lower():
+                        sca_var = var
+                        break
+
+                if sca_var:
+                    data = ds[sca_var].values
+                    # Apply valid range mask
+                    data = np.where((data >= 0) & (data <= 100), data, np.nan)
+                    records.append({'date': date, 'data': data, 'coords': ds.coords})
+
+                ds.close()
+
+            except Exception as e:
+                self.logger.debug(f"Error processing {hdf_path.name}: {e}")
+                continue
+
+        if not records:
+            self.logger.warning(f"No valid data extracted from {product} files")
+            return None
+
+        # Create xarray dataset
+        records = sorted(records, key=lambda x: x['date'])
+        times = [r['date'] for r in records]
+        data_stack = np.stack([r['data'] for r in records], axis=0)
+
+        # Get coordinates from first record
+        first_coords = records[0]['coords']
+        lat_key = 'lat' if 'lat' in first_coords else 'y'
+        lon_key = 'lon' if 'lon' in first_coords else 'x'
+
+        coords = {'time': times}
+        if lat_key in first_coords:
+            coords[lat_key] = first_coords[lat_key].values
+        if lon_key in first_coords:
+            coords[lon_key] = first_coords[lon_key].values
+
+        da = xr.DataArray(
+            data_stack,
+            dims=['time', lat_key, lon_key],
+            coords=coords,
+            name='NDSI_Snow_Cover',
+            attrs={
+                'long_name': 'NDSI Snow Cover',
+                'units': 'percent',
+                'valid_range': [0, 100],
+                'source': f'{product} via earthaccess'
+            }
+        )
+
+        ds_out = xr.Dataset({'NDSI_Snow_Cover': da})
+        ds_out.to_netcdf(output_file)
+
+        self.logger.info(f"Processed {len(records)} timesteps to {output_file}")
+        return output_file
+
+    # ===== AppEEARS Fallback Methods =====
+    # These are kept for backwards compatibility and fallback when earthaccess fails
+
+    APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
+
+    def _appeears_login(self, username: str, password: str) -> Optional[str]:
+        """Login to AppEEARS and get authentication token."""
+        try:
+            response = requests.post(
+                f"{self.APPEEARS_BASE}/login",
+                auth=(username, password),
+                timeout=60
+            )
+            response.raise_for_status()
+            return response.json().get('token')
+        except Exception as e:
+            self.logger.error(f"AppEEARS login failed: {e}")
+            return None
+
+    def _appeears_logout(self, token: str) -> None:
+        """Logout from AppEEARS."""
+        try:
+            requests.post(
+                f"{self.APPEEARS_BASE}/logout",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30
+            )
+        except Exception:
+            pass
+
+    def _wait_for_task(self, token: str, task_id: str, timeout_hours: float = 6) -> bool:
+        """Wait for an AppEEARS task to complete."""
+        import time
+        self.logger.info(f"Waiting for AppEEARS task {task_id} to complete...")
+        start_time = time.time()
+        timeout_seconds = timeout_hours * 3600
+
+        while (time.time() - start_time) < timeout_seconds:
+            try:
+                response = requests.get(
+                    f"{self.APPEEARS_BASE}/task/{task_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=60
+                )
+                response.raise_for_status()
+                status = response.json()
+                task_status = status.get('status', '')
+
+                if task_status == 'done':
+                    return True
+                elif task_status in ['error', 'failed']:
+                    self.logger.error(f"Task failed: {status.get('error', 'Unknown')}")
+                    return False
+
+                time.sleep(30)
+            except Exception as e:
+                self.logger.warning(f"Error checking task: {e}")
+                time.sleep(30)
+
+        self.logger.error(f"Task {task_id} timed out after {timeout_hours} hours")
+        return False
+
+    def _download_task_results(self, token: str, task_id: str, output_dir: Path, prefix: str) -> List[Path]:
+        """Download results from completed AppEEARS task."""
+        downloaded = []
+        try:
+            response = requests.get(
+                f"{self.APPEEARS_BASE}/bundle/{task_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=60
+            )
+            response.raise_for_status()
+            files = response.json().get('files', [])
+
+            for file_info in files:
+                file_name = file_info.get('file_name', '')
+                file_id = file_info.get('file_id')
+                if not file_name.endswith('.nc'):
+                    continue
+
+                out_path = output_dir / f"{prefix}_{file_name}"
+                if out_path.exists():
+                    downloaded.append(out_path)
+                    continue
+
+                dl_response = requests.get(
+                    f"{self.APPEEARS_BASE}/bundle/{task_id}/{file_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    stream=True, timeout=600
+                )
+                dl_response.raise_for_status()
+                with open(out_path, 'wb') as f:
+                    for chunk in dl_response.iter_content(chunk_size=1024*1024):
+                        f.write(chunk)
+                downloaded.append(out_path)
+        except Exception as e:
+            self.logger.error(f"Download failed: {e}")
+        return downloaded
+
+    def _consolidate_appeears_output(self, output_dir: Path, prefix: str, output_file: Path) -> None:
+        """Consolidate multiple AppEEARS files into single NetCDF."""
+        import shutil
+        nc_files = list(output_dir.glob(f"{prefix}_*.nc"))
+        if not nc_files:
+            return
+        if len(nc_files) == 1:
+            shutil.copy(nc_files[0], output_file)
+            return
+        try:
+            datasets = [xr.open_dataset(f) for f in sorted(nc_files)]
+            merged = xr.concat(datasets, dim='time').sortby('time')
+            merged.to_netcdf(output_file)
+            for ds in datasets:
+                ds.close()
+        except Exception as e:
+            self.logger.error(f"Consolidation failed: {e}")
+            if nc_files:
+                shutil.copy(nc_files[0], output_file)
 
     def _generate_date_chunks(self, chunk_years: int = 4) -> List[tuple]:
         """Split the full date range into smaller chunks for AppEEARS."""

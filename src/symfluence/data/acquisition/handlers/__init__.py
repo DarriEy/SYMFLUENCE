@@ -49,6 +49,7 @@ _handler_modules = [
     'jrc_water',
     'ssebop',
     'viirs_snow',
+    'ims_snow',
     'canopy_height',
 ]
 

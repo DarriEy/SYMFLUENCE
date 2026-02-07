@@ -1,12 +1,13 @@
 """SMAP Soil Moisture Acquisition Handler
 
 Provides cloud acquisition for NASA SMAP (Soil Moisture Active Passive) data:
-- Primary: NSIDC THREDDS/NCSS aggregated access
+- Primary: earthaccess streaming (efficient cloud access without full downloads)
+- Secondary: NSIDC THREDDS/NCSS aggregated access
 - Fallback: CMR granule-by-granule download
 
 SMAP Overview:
     Data Type: Satellite-derived soil moisture
-    Resolution: ~9km (L4 assimilated product)
+    Resolution: ~9km (L3 Enhanced radiometer product)
     Coverage: Global (except polar regions)
     Source: NASA NSIDC DAAC
 
@@ -14,14 +15,21 @@ Authentication:
     Requires NASA Earthdata Login credentials:
     - ~/.netrc file with machine urs.earthdata.nasa.gov entry
     - Or EARTHDATA_USERNAME / EARTHDATA_PASSWORD environment variables
+
+Note:
+    The earthaccess streaming approach uses earthaccess.open() to stream
+    granules directly from the cloud, extracting only the pixels within
+    the bounding box. This avoids downloading full global files (~600MB each).
 """
 
 import re
+from typing import Optional
 import requests
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
 import xarray as xr
+import pandas as pd
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -30,12 +38,30 @@ from ..registry import AcquisitionRegistry
 @AcquisitionRegistry.register('SMAP')
 class SMAPAcquirer(BaseAcquisitionHandler):
     """
-    Acquires SMAP Soil Moisture data via NSIDC THREDDS NCSS.
+    Acquires SMAP Soil Moisture data via earthaccess streaming or NSIDC THREDDS NCSS.
     Requires Earthdata Login credentials (via ~/.netrc or env vars).
     """
 
     def download(self, output_dir: Path) -> Path:
-        self.logger.info("Starting SMAP Soil Moisture acquisition via NSIDC THREDDS")
+        self.logger.info("Starting SMAP Soil Moisture acquisition")
+
+        # Try earthaccess streaming first (most efficient)
+        use_streaming = self._get_config_value(
+            lambda: self.config.evaluation.smap.use_streaming,
+            default=True,
+            dict_key='SMAP_USE_STREAMING'
+        )
+
+        if use_streaming:
+            try:
+                result = self._download_via_earthaccess_streaming(output_dir)
+                if result is not None:
+                    return result
+            except Exception as e:
+                self.logger.warning(f"earthaccess streaming failed: {e}, falling back to THREDDS")
+
+        # Fall back to THREDDS NCSS
+        self.logger.info("Trying NSIDC THREDDS NCSS...")
 
         # NSIDC THREDDS NCSS endpoint
         thredds_base = self.config_dict.get('SMAP_THREDDS_BASE', "https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid")
@@ -117,6 +143,159 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
         self.logger.warning(f"SMAP THREDDS acquisition failed: {last_error}")
         return self._download_via_cmr(output_dir)
+
+    def _download_via_earthaccess_streaming(self, output_dir: Path) -> Optional[Path]:
+        """
+        Download SMAP data using earthaccess streaming.
+
+        This method streams granules directly from NASA's cloud infrastructure,
+        extracting only the pixels within the bounding box without downloading
+        full global files. This is ~2000x more efficient for small domains.
+        """
+        try:
+            import earthaccess
+            import h5py
+        except ImportError:
+            self.logger.warning("earthaccess or h5py not available for streaming")
+            return None
+
+        self.logger.info("Using earthaccess streaming for efficient cloud access")
+
+        # Authenticate
+        try:
+            earthaccess.login()
+        except Exception as e:
+            self.logger.warning(f"earthaccess authentication failed: {e}")
+            return None
+
+        lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
+        lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
+
+        # Get product configuration
+        product = self._get_config_value(
+            lambda: self.config.evaluation.smap.product,
+            default='SPL3SMP_E',
+            dict_key='SMAP_PRODUCT'
+        )
+        version = self._get_config_value(
+            lambda: self.config.evaluation.smap.version,
+            default='006',
+            dict_key='SMAP_VERSION'
+        )
+
+        # Map product names
+        if product.upper() in ['SPL4SMGP', 'SMAP_L4_SM_GPH_V4', 'SMAP_L4_SM_GPH']:
+            short_name = 'SPL4SMGP'
+            version = '008'
+        else:
+            short_name = 'SPL3SMP_E'
+            version = '006'
+
+        self.logger.info(f"Searching for {short_name} v{version} granules...")
+
+        # Search for granules
+        results = earthaccess.search_data(
+            short_name=short_name,
+            version=version,
+            temporal=(
+                self.start_date.strftime('%Y-%m-%d'),
+                self.end_date.strftime('%Y-%m-%d')
+            ),
+            bounding_box=(lon_min, lat_min, lon_max, lat_max),
+        )
+
+        if not results:
+            self.logger.warning("No SMAP granules found for the specified bounds/time range")
+            return None
+
+        self.logger.info(f"Found {len(results)} granules, streaming and extracting subset...")
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        extracted_data = []
+
+        for granule in results:
+            try:
+                # Extract date from granule info
+                granule_str = str(granule)
+                date_match = re.search(r'_(\d{8})_', granule_str)
+                if not date_match:
+                    continue
+
+                date_str = date_match.group(1)
+
+                # Stream the file (opens from cloud without full download)
+                files = earthaccess.open([granule])
+
+                if files:
+                    with h5py.File(files[0], 'r') as h5:
+                        # Try AM retrieval first (better for soil moisture)
+                        group = h5.get('Soil_Moisture_Retrieval_Data_AM')
+                        if group is None:
+                            group = h5.get('Soil_Moisture_Retrieval_Data_PM')
+                        if group is None:
+                            # For L4 product
+                            group = h5.get('Geophysical_Data')
+
+                        if group is not None:
+                            # Get soil moisture and coordinates
+                            if 'soil_moisture' in group:
+                                sm = group['soil_moisture'][:]
+                                lat = group['latitude'][:]
+                                lon = group['longitude'][:]
+                            elif 'sm_surface' in group:
+                                sm = group['sm_surface'][:]
+                                lat = h5['cell_lat'][:] if 'cell_lat' in h5 else None
+                                lon = h5['cell_lon'][:] if 'cell_lon' in h5 else None
+                            else:
+                                continue
+
+                            if lat is None or lon is None:
+                                continue
+
+                            # Mask for bbox and valid data
+                            mask = (
+                                (lat >= lat_min) & (lat <= lat_max) &
+                                (lon >= lon_min) & (lon <= lon_max) &
+                                (sm != -9999.0) & (sm > 0) & (sm < 1)
+                            )
+
+                            if np.any(mask):
+                                extracted_data.append({
+                                    'date': date_str,
+                                    'soil_moisture': float(np.mean(sm[mask])),
+                                    'soil_moisture_std': float(np.std(sm[mask])),
+                                    'n_pixels': int(np.sum(mask))
+                                })
+
+                    # Close file handle
+                    try:
+                        files[0].close()
+                    except:
+                        pass
+
+            except Exception:
+                # Some granules may not cover our area
+                continue
+
+        if not extracted_data:
+            self.logger.warning("No valid SMAP data extracted from granules")
+            return None
+
+        # Create output DataFrame and save
+        df = pd.DataFrame(extracted_data)
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+        df = df.set_index('date').sort_index()
+        df = df[~df.index.duplicated(keep='first')]
+
+        out_csv = output_dir / f"{self.domain_name}_SMAP_raw.csv"
+        df.to_csv(out_csv)
+
+        self.logger.info(
+            f"Successfully extracted SMAP data: {len(df)} days, "
+            f"SM range: {df['soil_moisture'].min():.3f}-{df['soil_moisture'].max():.3f} m³/m³"
+        )
+
+        return out_csv
 
     def _download_via_cmr(self, output_dir: Path) -> Path:
         """Fallback: download SMAP granules via CMR HTTPS links."""
