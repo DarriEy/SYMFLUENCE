@@ -136,6 +136,7 @@ For more help on a specific command:
         self._register_job_commands(subparsers)
         self._register_example_commands(subparsers)
         self._register_agent_commands(subparsers)
+        self._register_gui_commands(subparsers)
 
         return parser
 
@@ -549,6 +550,34 @@ For more help on a specific command:
         run_parser.add_argument('--verbose', action='store_true',
                               help='Show verbose agent output')
         run_parser.set_defaults(func=AgentCommands.run)
+
+    def _register_gui_commands(self, subparsers):
+        """Register GUI launch commands."""
+        from .commands import GUICommands
+
+        gui_parser = subparsers.add_parser(
+            'gui',
+            help='Graphical user interface',
+            description='Launch the SYMFLUENCE web-based GUI'
+        )
+        gui_subparsers = gui_parser.add_subparsers(
+            dest='action',
+            required=True,
+            help='GUI action',
+            metavar='<action>'
+        )
+
+        # gui launch
+        launch_parser = gui_subparsers.add_parser(
+            'launch',
+            help='Launch the Panel web GUI',
+            parents=[self.common_parser]
+        )
+        launch_parser.add_argument('--port', type=int, default=5006,
+                                   help='Server port (default: 5006)')
+        launch_parser.add_argument('--no-browser', action='store_true', dest='no_browser',
+                                   help='Do not auto-open a browser tab')
+        launch_parser.set_defaults(func=GUICommands.launch)
 
     def parse_args(self, args: Optional[List[str]] = None) -> argparse.Namespace:
         """

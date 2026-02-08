@@ -12,6 +12,7 @@ from .config_commands import ConfigCommands
 from .job_commands import JobCommands
 from .example_commands import ExampleCommands
 from .agent_commands import AgentCommands
+from .gui_commands import GUICommands
 
 __all__ = [
     'WorkflowCommands',
@@ -21,4 +22,5 @@ __all__ = [
     'JobCommands',
     'ExampleCommands',
     'AgentCommands',
+    'GUICommands',
 ]
