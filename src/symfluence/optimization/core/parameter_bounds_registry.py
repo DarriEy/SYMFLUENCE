@@ -305,16 +305,17 @@ class ParameterBoundsRegistry:
     # ========================================================================
     MESH_PARAMS: Dict[str, ParameterInfo] = {
         # CLASS.ini parameters - control runoff generation (most impactful)
-        'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
+        'KSAT': ParameterInfo(0.1, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
         'DRN': ParameterInfo(0.1, 10.0, '-', 'Drainage parameter', 'soil'),
         'SDEP': ParameterInfo(0.5, 5.0, 'm', 'Soil depth', 'soil'),
-        'XSLP': ParameterInfo(0.001, 0.3, '-', 'Slope for overland flow', 'surface'),
+        'XSLP': ParameterInfo(0.005, 0.3, '-', 'Slope for overland flow', 'surface'),
         'XDRAINH': ParameterInfo(0.01, 1.0, '-', 'Horizontal drainage coefficient', 'soil'),
         'MANN_CLASS': ParameterInfo(0.01, 0.5, '-', 'Manning coefficient for overland flow', 'surface'),
 
         # CLASS.ini vegetation parameters (control ET partitioning)
         'LAMX': ParameterInfo(0.3, 6.0, 'm²/m²', 'Maximum LAI for primary vegetation class', 'et'),
         'ROOT': ParameterInfo(0.1, 2.0, 'm', 'Root depth for primary vegetation class', 'et'),
+        'RSMIN': ParameterInfo(100.0, 800.0, 's/m', 'Minimum stomatal resistance (controls max transpiration rate)', 'et'),
 
         # Hydrology.ini parameters (snow/ponding)
         'ZSNL': ParameterInfo(0.001, 0.1, 'm', 'Limiting snow depth', 'snow'),
@@ -703,7 +704,7 @@ def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
         # CLASS.ini parameters (runoff generation)
         'KSAT', 'DRN', 'SDEP', 'XSLP', 'XDRAINH', 'MANN_CLASS',
         # CLASS.ini vegetation parameters (ET control)
-        'LAMX', 'ROOT',
+        'LAMX', 'ROOT', 'RSMIN',
         # Hydrology.ini parameters (snow/ponding)
         'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN', 'R2N', 'R1N',
         # Baseflow parameters

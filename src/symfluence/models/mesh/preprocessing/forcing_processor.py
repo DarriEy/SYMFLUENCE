@@ -77,7 +77,7 @@ class MESHForcingProcessor:
             from symfluence.core.exceptions import ModelExecutionError
             raise ModelExecutionError("Could not find spatial dimension")
 
-        n_spatial = ds.dims[spatial_dim]
+        n_spatial = ds.sizes[spatial_dim]
         self.logger.info(f"Found spatial dimension '{spatial_dim}' with {n_spatial} elements")
 
         forcing_path = self.forcing_dir / "MESH_forcing.nc"
@@ -225,7 +225,7 @@ class MESHForcingProcessor:
                     self.logger.warning("No spatial dimension found")
                     return
 
-                n_size = ds.dims[n_dim]
+                n_size = ds.sizes[n_dim]
                 time_data = ds['time'].values if 'time' in ds else None
 
                 # Get coordinate variables once

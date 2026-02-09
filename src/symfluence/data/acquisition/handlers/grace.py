@@ -32,8 +32,8 @@ class GRACEAcquirer(BaseAcquisitionHandler):
 
         datasets = {
             'jpl': {
-                'filename': 'GRCTellus.JPL.200204_202211.GLO.RL06M.MSCNv02CRI.nc',
-                'url': 'https://podaac-opendap.jpl.nasa.gov/opendap/allData/tellus/L3/grace/nasajpl/RL06_v02/GRCTellus.JPL.200204_202211.GLO.RL06M.MSCNv02CRI.nc'
+                'filename': 'GRCTellus.JPL.200204_202511.GLO.RL06.3M.MSCNv04CRI.nc',
+                'url': 'https://podaac-opendap.jpl.nasa.gov/opendap/allData/tellus/L3/grace/nasajpl/RL06.3_v04/GRCTellus.JPL.200204_202511.GLO.RL06.3M.MSCNv04CRI.nc'
             },
             'csr': {
                 'filename': 'CSR_GRACE_GRACE-FO_RL0603_Mascons_all-corrections.nc',

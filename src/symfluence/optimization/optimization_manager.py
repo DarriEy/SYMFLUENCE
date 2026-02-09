@@ -340,7 +340,7 @@ class OptimizationManager(BaseManager):
 
         try:
             # Initialize model-specific optimizer
-            self.logger.info(f"Using {algorithm} optimization for {model_name} (registry-based)")
+            self.logger.debug(f"Using {algorithm} optimization for {model_name} (registry-based)")
             optimizer = optimizer_cls(self.config, self.logger, None, reporting_manager=self.reporting_manager)
 
             # Map algorithm name to method

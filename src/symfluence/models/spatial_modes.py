@@ -134,7 +134,7 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
         requires_routing={
             SpatialMode.DISTRIBUTED: False,  # MESH has internal routing (WATFLOOD/PDMROF)
             SpatialMode.SEMI_DISTRIBUTED: False,
-            SpatialMode.LUMPED: False  # Uses noroute mode with CLASS output
+            SpatialMode.LUMPED: False  # Uses run_def mode (enables wf_lzs baseflow)
         },
         warning_message=None  # Lumped mode now fully supported
     ),

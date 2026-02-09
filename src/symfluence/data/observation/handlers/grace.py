@@ -124,7 +124,7 @@ class GRACEHandler(BaseObservationHandler):
         files = {}
         # Exact filenames matching GRACEAcquirer
         filenames = {
-            'jpl': 'GRCTellus.JPL.200204_202211.GLO.RL06M.MSCNv02CRI.nc',
+            'jpl': 'GRCTellus.JPL.200204_202511.GLO.RL06.3M.MSCNv04CRI.nc',
             'csr': 'CSR_GRACE_GRACE-FO_RL0603_Mascons_all-corrections.nc',
             'gsfc': 'gsfc.glb_.200204_202505_rl06v2.0_obp-ice6gd_halfdegree.nc'
         }

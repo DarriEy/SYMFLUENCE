@@ -216,14 +216,33 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         return cmd
 
     def _is_lumped_mode(self) -> bool:
-        """Check if running in lumped (noroute) mode."""
+        """Check if running in lumped (single-cell) mode.
+
+        Detects single-cell domains regardless of RUNMODE (noroute or run_def).
+        In lumped mode, Basin_average_water_balance.csv is the primary output
+        for metric calculation (avoids self-referential routing artifacts in
+        MESH_output_streamflow.csv for single-cell run_def domains).
+        """
+        # Check drainage database for single cell
+        ddb_path = self.forcing_mesh_path / 'MESH_drainage_database.nc'
+        if ddb_path.exists():
+            try:
+                import xarray as xr
+                with xr.open_dataset(ddb_path) as ds:
+                    for dim in ['subbasin', 'n', 'N']:
+                        if dim in ds.sizes and ds.sizes[dim] == 1:
+                            return True
+            except Exception:
+                pass
+
+        # Fallback: check RUNMODE for noroute (legacy)
         run_options = self.forcing_mesh_path / 'MESH_input_run_options.ini'
         if run_options.exists():
             try:
                 with open(run_options, 'r') as f:
                     content = f.read()
                     import re
-                    if re.search(r'RUNMODE\s+noroute', content):
+                    if re.search(r'RUNMODE\s*[:=]?\s*noroute', content, re.IGNORECASE):
                         return True
             except Exception:
                 pass
@@ -235,66 +254,84 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
         Checks for required output files in both the output directory and
         forcing directory (MESH writes outputs to its working directory).
-        In lumped (noroute) mode, accepts water balance output instead of
-        streamflow CSV.
+        In lumped (single-cell) mode, accepts water balance output
+        (primary) or streamflow CSV (secondary).
 
         Returns:
             bool: True if all required outputs found, False otherwise.
         """
         is_lumped = self._is_lumped_mode()
         expected_days = self._get_expected_days()
-
         if is_lumped:
-            # In lumped/noroute mode, accept either basin-average or GRU water balance.
-            required_outputs = [
+            # Lumped mode (noroute or run_def): accept water balance or streamflow.
+            # Basin_average is preferred (avoids self-referential routing artifacts).
+            output_candidates = [
                 'Basin_average_water_balance.csv',
                 'GRU_water_balance.csv',
+                'MESH_output_streamflow.csv',
             ]
         else:
-            required_outputs = [
+            # Accept any routed streamflow output supported by extractor/postprocessor.
+            output_candidates = [
                 'MESH_output_streamflow.csv',
+                'MESH_output_streamflow_ts.csv',
+                'MESH_streamflow_Gauge_*.txt',
             ]
 
         # Check in output directory (may be process-specific during parallel calibration)
         # or fall back to forcing directory (default MESH behavior)
         check_dirs = [self.output_dir, self.forcing_mesh_path, self.forcing_mesh_path / 'results']
 
+        def _candidate_paths(name: str):
+            if any(ch in name for ch in ['*', '?', '[']):
+                for d in check_dirs:
+                    yield from d.glob(name)
+            else:
+                for d in check_dirs:
+                    yield d / name
+
+        def _has_data(path: Path) -> bool:
+            if not path.exists():
+                return False
+            try:
+                if path.suffix.lower() == '.csv':
+                    data_rows = self._count_csv_rows(path)
+                    if data_rows <= 0:
+                        return False
+                    if expected_days is not None:
+                        if not self._has_full_coverage(path, data_rows, expected_days):
+                            self.logger.debug(
+                                f"Output time series appears truncated: {path} "
+                                f"(rows={data_rows}, expected_days={expected_days})"
+                            )
+                            return False
+                    return True
+
+                # For non-CSV outputs (e.g., gauge text files), just ensure there
+                # are non-empty, non-comment lines to avoid false negatives.
+                with open(path, 'r', errors='replace') as f:
+                    for line in f:
+                        if line.strip() and not line.lstrip().startswith('#'):
+                            return True
+                return False
+            except OSError:
+                return False
+
         found_any = False
-        for output_file in required_outputs:
-            found = False
-            for check_dir in check_dirs:
-                output_path = check_dir / output_file
-                if output_path.exists():
-                    # Ensure file has data (not just headers)
-                    try:
-                        data_rows = self._count_csv_rows(output_path)
-                        if data_rows > 0:
-                            if expected_days is not None:
-                                if not self._has_full_coverage(output_path, data_rows, expected_days):
-                                    self.logger.debug(
-                                        f"Output time series appears truncated: {output_path} "
-                                        f"(rows={data_rows}, expected_days={expected_days})"
-                                    )
-                                    continue
-                            found = True
-                            break
-                    except OSError:
-                        pass
+        for output_file in output_candidates:
+            for output_path in _candidate_paths(output_file):
+                if _has_data(output_path):
+                    found_any = True
+                    break
+            if found_any:
+                break
 
-            if not found:
-                # For lumped mode, allow either balance file to satisfy the requirement
-                if not is_lumped:
-                    self.logger.warning(f"Required output file not found: {output_file}")
-                    return False
-                # If lumped, only warn if neither is found by the end
-                continue
-            found_any = True
-
-        # For lumped, at least one balance file must be present
-        if is_lumped:
-            if not found_any:
+        if not found_any:
+            if is_lumped:
                 self.logger.debug("No lumped water balance outputs found (Basin_average or GRU).")
-            return found_any
+            else:
+                self.logger.warning("No routed MESH streamflow outputs found in expected locations.")
+            return False
 
         return True
 

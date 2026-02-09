@@ -246,22 +246,23 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             # Run FUSE simulations
             success = self._execute_fuse_workflow()
 
-            if success:
-                # Handle routing if needed
-                if self.needs_routing:
-                    self._convert_fuse_distributed_to_mizuroute_format()
-                    success = self._run_distributed_routing()
+            if not success:
+                raise ModelExecutionError(
+                    "FUSE simulation failed. Check log for convergence errors "
+                    "(e.g. 'STOP failed to converge in implicit_solve')."
+                )
 
-                if success:
-                    self._process_outputs()
-                    self.logger.debug("FUSE run completed successfully")
-                    return self.output_path
-                else:
-                    self.logger.error("FUSE routing failed")
-                    return None
+            # Handle routing if needed
+            if self.needs_routing:
+                self._convert_fuse_distributed_to_mizuroute_format()
+                success = self._run_distributed_routing()
+
+            if success:
+                self._process_outputs()
+                self.logger.debug("FUSE run completed successfully")
+                return self.output_path
             else:
-                self.logger.error("FUSE simulation failed")
-                return None
+                raise ModelExecutionError("FUSE routing (mizuRoute) failed after FUSE simulation.")
 
     def _check_routing_requirements(self) -> bool:
         """
@@ -321,10 +322,23 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         try:
             self.logger.debug("Running FUSE with complete distributed forcing dataset")
 
+            # Clear stale output files to prevent validation from matching
+            # previous run data if the current run fails silently
+            fuse_id = self._get_fuse_file_id()
+            for suffix in ['_runs_def.nc', '_runs_best.nc']:
+                stale = self.output_path / f"{self.domain_name}_{fuse_id}{suffix}"
+                if stale.exists():
+                    stale.unlink()
+                    self.logger.debug(f"Cleared stale output: {stale.name}")
+
             # Run FUSE with the distributed forcing file (all HRUs at once)
             success = self._execute_fuse_distributed()
 
             if success:
+                # Validate output before proceeding (catches silent convergence failures)
+                if not self._validate_fuse_output():
+                    self.logger.error("FUSE execution appeared to succeed but output validation failed")
+                    return False
                 self.logger.debug("Distributed FUSE run completed successfully")
                 return True
             else:
@@ -368,6 +382,24 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 )
 
             if result.returncode == 0:
+                # Fortran STOP returns exit code 0, so scan log for failures
+                if log_file.exists():
+                    try:
+                        with open(log_file, 'r', encoding='utf-8', errors='replace') as lf:
+                            log_content = lf.read()
+                        if 'STOP' in log_content:
+                            # Extract lines containing STOP for context
+                            stop_lines = [
+                                line.strip() for line in log_content.splitlines()
+                                if 'STOP' in line
+                            ]
+                            self.logger.error(
+                                f"FUSE log contains STOP statement(s) indicating Fortran-level failure: "
+                                f"{'; '.join(stop_lines[:5])}"
+                            )
+                            return False
+                    except OSError:
+                        pass  # If we can't read the log, proceed with output validation
                 self.logger.debug("Distributed FUSE execution completed successfully")
                 return True
             else:
@@ -381,6 +413,50 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             self.logger.error(f"Error executing distributed FUSE: {str(e)}")
             return False
 
+
+    def _validate_fuse_output(self) -> bool:
+        """
+        Validate that FUSE produced non-empty output.
+
+        FUSE's Fortran STOP statement returns exit code 0, so subprocess
+        won't detect convergence failures. This method checks the output
+        NetCDF to ensure timesteps were actually written.
+
+        Returns:
+            bool: True if output is valid, False if empty or missing.
+        """
+        fuse_id = self._get_fuse_file_id()
+        target_files = [
+            self.output_path / f"{self.domain_name}_{fuse_id}_runs_def.nc",
+            self.output_path / f"{self.domain_name}_{fuse_id}_runs_best.nc",
+        ]
+
+        target = None
+        for f in target_files:
+            if f.exists():
+                target = f
+                break
+
+        if target is None:
+            self.logger.error("FUSE output file not found - model may have failed silently")
+            return False
+
+        try:
+            with xr.open_dataset(target) as ds:
+                time_size = ds.sizes.get('time', 0)
+                if time_size == 0:
+                    self.logger.error(
+                        f"FUSE output has empty time dimension in {target.name}. "
+                        "This typically indicates the implicit solver failed to converge. "
+                        "Check fuse_zNumerix.txt: SOLUTION should be 1 (explicit Heun) "
+                        "and convergence tolerances should be relaxed (e.g. 1e-4)."
+                    )
+                    return False
+                self.logger.debug(f"FUSE output validated: {time_size} timesteps in {target.name}")
+                return True
+        except (OSError, ValueError) as e:
+            self.logger.error(f"Failed to validate FUSE output {target}: {e}")
+            return False
 
     def _create_subcatchment_settings(self, subcat_id: int, index: int) -> Path:
         """Create subcatchment-specific settings files. Delegates to SubcatchmentProcessor."""

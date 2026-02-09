@@ -638,7 +638,7 @@ class JFUSEWorker(InMemoryModelWorker):
             pet = pet[:, non_coastal_indices]
             self.logger.info(
                 f"Filtered to {n_non_coastal} non-coastal GRUs "
-                f"(from {ds.dims.get('longitude', '?')} total)"
+                f"(from {ds.sizes.get('longitude', '?')} total)"
             )
         else:
             # Assume first 6600 are non-coastal

@@ -184,7 +184,9 @@ class ObservationLoaderMixin:
             raise DataAcquisitionError(f"Could not identify discharge column. Columns: {list(df.columns)}")
 
         # Parse datetime and drop timezone to avoid tz-aware/naive comparisons
-        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce', dayfirst=True).dt.tz_convert(None)
+        # Note: dayfirst=False (default) is correct for ISO-format dates (YYYY-MM-DD)
+        # Using dayfirst=True silently misparses dates where day > 12, causing massive data loss
+        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce').dt.tz_convert(None)
 
         # Create series
         series = pd.Series(

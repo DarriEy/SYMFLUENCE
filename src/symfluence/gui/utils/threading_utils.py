@@ -92,7 +92,8 @@ class WorkflowThread:
         """Thread target for individual steps."""
         self._attach_logger()
         try:
-            pn.state.execute(self._set_running, True, step_names[0] if step_names else None)
+            step_label = step_names[0] if step_names else None
+            pn.state.execute(lambda: self._set_running(True, step_label))
             sf = self.state.initialize_symfluence()
             sf.run_individual_steps(step_names)
             pn.state.execute(lambda: self.state.append_log("Step(s) completed successfully.\n"))
@@ -100,14 +101,22 @@ class WorkflowThread:
             pn.state.execute(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
         finally:
             self._detach_logger()
-            pn.state.execute(self._set_running, False, None)
+            pn.state.execute(lambda: self._set_running(False, None))
             pn.state.execute(self.state.refresh_status)
+            # Signal results-producing steps so the Results tab auto-refreshes
+            _RESULTS_STEPS = {'calibrate_model', 'run_benchmarking', 'postprocess_results'}
+            if any(s in _RESULTS_STEPS for s in step_names):
+                exp_id = (self.state.typed_config.domain.experiment_id
+                          if self.state.typed_config else None)
+                pn.state.execute(
+                    lambda eid=exp_id: setattr(self.state, 'last_completed_run', eid)
+                )
 
     def _execute_full(self, force_rerun):
         """Thread target for full workflow."""
         self._attach_logger()
         try:
-            pn.state.execute(self._set_running, True, 'full_workflow')
+            pn.state.execute(lambda: self._set_running(True, 'full_workflow'))
             sf = self.state.initialize_symfluence()
             sf.run_workflow(force_run=force_rerun)
             pn.state.execute(lambda: self.state.append_log("Full workflow completed successfully.\n"))
@@ -115,8 +124,14 @@ class WorkflowThread:
             pn.state.execute(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
         finally:
             self._detach_logger()
-            pn.state.execute(self._set_running, False, None)
+            pn.state.execute(lambda: self._set_running(False, None))
             pn.state.execute(self.state.refresh_status)
+            # Full workflow includes calibration — signal for auto-refresh
+            exp_id = (self.state.typed_config.domain.experiment_id
+                      if self.state.typed_config else None)
+            pn.state.execute(
+                lambda eid=exp_id: setattr(self.state, 'last_completed_run', eid)
+            )
 
     def _set_running(self, running, step_name):
         self.state.is_running = running

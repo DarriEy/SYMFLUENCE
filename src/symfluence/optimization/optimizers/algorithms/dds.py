@@ -58,7 +58,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
         Returns:
             Optimization results dictionary
         """
-        self.logger.info(f"Starting DDS optimization with {n_params} parameters")
+        self.logger.debug(f"Starting DDS optimization with {n_params} parameters")
 
         # DDS perturbation range (default 0.2, higher values explore more)
         r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
@@ -72,7 +72,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
         initial_guess = kwargs.get('initial_guess')
         if initial_guess is not None and len(initial_guess) == n_params:
             x_best = np.array(initial_guess, dtype=float)
-            self.logger.info("Using provided initial guess for DDS")
+            self.logger.debug("Using provided initial guess for DDS")
         else:
             x_best = np.random.uniform(0, 1, n_params)
 
@@ -141,11 +141,16 @@ class DDSAlgorithm(OptimizationAlgorithm):
             f_new = evaluate_solution(x_new, 0)
 
             # Update if better (DDS is greedy)
+            # Don't count crashes toward stagnation — penalty scores indicate
+            # model failure (e.g. CLASS energy balance crash), not search
+            # exhaustion.  Counting them triggers perturbation doubling which
+            # generates more extreme parameter combos, causing more crashes.
+            is_crash = (f_new <= self.penalty_score)
             if f_new > f_best:
                 x_best = x_new
                 f_best = f_new
                 iterations_since_improvement = 0
-            else:
+            elif not is_crash:
                 iterations_since_improvement += 1
 
             # Record results

@@ -368,7 +368,7 @@ class FUSEWorker(BaseWorker):
 
             if par_size != n_subcatchments:
                 # Recreate para_def.nc with correct par dimension
-                self.logger.info(
+                self.logger.debug(
                     f"Resizing para_def.nc: par={par_size} -> {n_subcatchments}"
                 )
                 # Use a temporary file to avoid corruption
@@ -408,6 +408,28 @@ class FUSEWorker(BaseWorker):
                         f"  {param_name}: distributed [{values.min():.3f}, {values.max():.3f}]"
                     )
                     params_updated.add(param_name)
+
+                # Ensure numerical solver settings are reasonable
+                # (para_def.nc can inherit overly tight defaults like 1e-12)
+                numerix_defaults = {
+                    'SOLUTION': 1.0,       # Explicit Heun (avoid implicit convergence failures)
+                    'TIMSTEP_TYP': 1.0,    # Adaptive time steps (original ODE_INT handles this)
+                    'ERRITERFUNC': 1e-4,
+                    'ERR_ITER_DX': 1e-4,
+                    'NITER_TOTAL': 5000.0,
+                    'MIN_TSTEP': 0.001 / 1440.0,
+                }
+                for nvar, nval in numerix_defaults.items():
+                    if nvar in ds.variables:
+                        cur = float(ds.variables[nvar][0])
+                        if nvar in ('SOLUTION', 'TIMSTEP_TYP'):
+                            # Always enforce explicit solver + fixed time steps
+                            if cur != nval:
+                                ds.variables[nvar][:] = nval
+                                self.logger.debug(f"  Set {nvar}: {cur:.0f} -> {nval:.0f}")
+                        elif cur < nval * 0.01:  # Much tighter than target
+                            ds.variables[nvar][:] = nval
+                            self.logger.debug(f"  Relaxed {nvar}: {cur:.2e} -> {nval:.2e}")
 
                 ds.sync()
 
@@ -536,7 +558,7 @@ class FUSEWorker(BaseWorker):
             explicit_mode = config.get('FUSE_RUN_MODE')
             if explicit_mode:
                 mode = explicit_mode
-                self.logger.info(f"FUSE using explicit run mode from config: {mode}")
+                self.logger.debug(f"FUSE using explicit run mode from config: {mode}")
             else:
                 # Auto-detect based on regionalization
                 regionalization_method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
@@ -743,6 +765,15 @@ class FUSEWorker(BaseWorker):
                 self.logger.error(f"STDERR: {result.stderr}")
                 return False
 
+            # Detect Fortran STOP messages (FUSE returns exit code 0 on macOS even on STOP)
+            combined_output = (result.stdout or '') + (result.stderr or '')
+            if 'STOP' in combined_output and 'failed to converge' in combined_output:
+                self.logger.error(
+                    f"FUSE hit convergence failure (Fortran STOP with exit code 0). "
+                    f"Output: {combined_output[-300:]}"
+                )
+                return False
+
             # Log FUSE output only at DEBUG level to reduce spam
             if result.stdout:
                 self.logger.debug(f"FUSE stdout (last 500 chars): {result.stdout[-500:]}")
@@ -785,6 +816,23 @@ class FUSEWorker(BaseWorker):
                         self.logger.error(f"FUSE stdout: {result.stdout}")
                 return False
 
+            # Validate FUSE output has actual data (Fortran STOP returns exit code 0 on macOS)
+            try:
+                import xarray as xr
+                with xr.open_dataset(final_output_path, decode_times=False) as ds_check:
+                    time_dim = 'time' if 'time' in ds_check.dims else None
+                    if time_dim and ds_check.sizes[time_dim] == 0:
+                        self.logger.error(
+                            f"FUSE output has 0 time steps — model likely crashed silently "
+                            f"(Fortran STOP returns exit code 0). "
+                            f"Stderr: {(result.stderr or '')[:500]}"
+                        )
+                        return False
+                    n_time = ds_check.sizes.get(time_dim, 0) if time_dim else -1
+                    self.logger.debug(f"FUSE output validated: {n_time} time steps in {final_output_path.name}")
+            except Exception as e:
+                self.logger.warning(f"Could not validate FUSE output time dimension: {e}")
+
             self.logger.debug(f"FUSE completed successfully, output: {final_output_path}")
 
             # Run routing if needed
@@ -807,6 +855,17 @@ class FUSEWorker(BaseWorker):
 
                 mizuroute_dir.mkdir(parents=True, exist_ok=True)
 
+                # Clean stale mizuRoute output from previous iterations/runs
+                # to prevent calculate_metrics() from picking up old results
+                stale_mizu_files = list(mizuroute_dir.glob("proc_*.nc")) + list(mizuroute_dir.glob("*.h.*.nc"))
+                if stale_mizu_files:
+                    self.logger.debug(f"Cleaning {len(stale_mizu_files)} stale mizuRoute output file(s)")
+                    for stale_f in stale_mizu_files:
+                        try:
+                            stale_f.unlink()
+                        except OSError:
+                            pass
+
                 # Convert FUSE output to mizuRoute format
                 # Pass proc_id for correct filename generation in parallel calibration
                 if not self._convert_fuse_to_mizuroute_format(
@@ -824,8 +883,12 @@ class FUSEWorker(BaseWorker):
                     config, fuse_output_dir, mizuroute_dir,
                     settings_dir=settings_dir, proc_id=proc_id, **kwargs_filtered
                 ):
-                    self.logger.warning("Routing failed, but FUSE succeeded")
-                    # Continue - routing failure may be acceptable for some workflows
+                    if mode == 'run_pre':
+                        # Calibration mode: routing is required for multi-gauge metrics
+                        self.logger.error("Routing failed during calibration — returning failure")
+                        return False
+                    else:
+                        self.logger.warning("Routing failed, but FUSE succeeded (non-calibration mode)")
 
             return True
 
@@ -1506,6 +1569,12 @@ class FUSEWorker(BaseWorker):
             # Minimum overlap days (gauges with less are skipped as invalid)
             min_overlap = int(config.get('MULTI_GAUGE_MIN_OVERLAP_DAYS', 10))
 
+            # KGE floor: cap negative KGE values before aggregation to prevent
+            # structurally unfittable gauges from dominating the objective function
+            kge_floor = config.get('MULTI_GAUGE_KGE_FLOOR')
+            if kge_floor is not None:
+                kge_floor = float(kge_floor)
+
             # Calculate metrics across all gauges
             results = multi_gauge.calculate_multi_gauge_metrics(
                 mizuroute_output_path=mizuroute_output_path,
@@ -1516,11 +1585,12 @@ class FUSEWorker(BaseWorker):
                 min_gauges=min_gauges,
                 aggregation=aggregation,
                 filter_config=filter_config if filter_config else None,
-                min_overlap_days=min_overlap
+                min_overlap_days=min_overlap,
+                kge_floor=kge_floor
             )
 
             # Log summary
-            self.logger.info(
+            self.logger.debug(
                 f"Multi-gauge calibration: KGE={results['kge']:.4f} "
                 f"({results['n_valid_gauges']}/{results['n_total_gauges']} valid gauges)"
             )

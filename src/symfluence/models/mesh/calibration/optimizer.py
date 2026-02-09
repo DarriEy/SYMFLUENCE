@@ -105,6 +105,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
                         shutil.copy2(f, final_output_dir / f.name)
 
             # Use MESH worker's calculate_metrics (handles CSV output)
+            # Calibration period metrics (uses CALIBRATION_PERIOD from config)
             metrics = self.worker.calculate_metrics(
                 final_output_dir, self.config
             )
@@ -113,9 +114,30 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 self.logger.error("Failed to calculate final evaluation metrics")
                 return None
 
-            # Format metrics with Calib/Eval prefixes for consistency
+            # Format calibration metrics
             calib_metrics = {"KGE_Calib": metrics.get('kge'), "NSE_Calib": metrics.get('nse')}
+
+            # Evaluation period metrics (if EVALUATION_PERIOD is configured)
             eval_metrics: dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_raw = self.worker.calculate_metrics(
+                    final_output_dir, self.config, period=eval_period
+                )
+                if eval_raw and eval_raw.get('kge', -999) > -900:
+                    eval_metrics = {
+                        "KGE_Eval": float(eval_raw.get('kge', 0.0)),
+                        "NSE_Eval": float(eval_raw.get('nse', 0.0)),
+                    }
+                    self.logger.info(
+                        f"Evaluation period: KGE={eval_raw.get('kge', 'N/A'):.4f}, "
+                        f"NSE={eval_raw.get('nse', 'N/A'):.4f}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Could not compute evaluation-period metrics "
+                        f"for period '{eval_period}'"
+                    )
 
             self.logger.info(f"Final evaluation: KGE={metrics.get('kge', 'N/A'):.4f}, "
                            f"NSE={metrics.get('nse', 'N/A'):.4f}")

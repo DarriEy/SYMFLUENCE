@@ -1,8 +1,15 @@
 """
-SMAP soil moisture observation handler.
+Soil moisture observation handlers.
 
-Provides acquisition and preprocessing of NASA SMAP satellite soil moisture
-data for multivariate hydrological model calibration and validation.
+Provides acquisition and preprocessing of satellite soil moisture data
+for multivariate hydrological model calibration and validation.
+
+Supported products:
+    - SMAP: NASA L-band passive microwave (~3 km, 2015-present)
+    - ISMN: International Soil Moisture Network (in-situ, multi-depth)
+    - ESA CCI: ESA Climate Change Initiative merged product (~25 km, 1978-present)
+    - SMOS: ESA L-band passive microwave (~25 km, 2010-present)
+    - ASCAT: EUMETSAT C-band active microwave (~25 km, 2007-present)
 """
 
 import numpy as np
@@ -427,4 +434,319 @@ class ESACCISMHandler(BaseObservationHandler):
         df.to_csv(output_file, index=False)
 
         self.logger.info(f"ESA CCI SM processing complete: {output_file}")
+        return output_file
+
+
+@ObservationRegistry.register('smos')
+@ObservationRegistry.register('smos_sm')
+class SMOSSMHandler(BaseObservationHandler):
+    """
+    Handles SMOS (Soil Moisture and Ocean Salinity) data.
+
+    SMOS uses L-band passive microwave at ~25 km resolution.
+    Data is acquired via CDS satellite-soil-moisture (passive-only sensor type).
+    Available from 2010-present.
+    """
+
+    obs_type = "soil_moisture"
+    source_name = "ESA_SMOS"
+
+    def acquire(self) -> Path:
+        """Locate or download SMOS SM data."""
+        smos_path = self.config_dict.get('SMOS_SM_PATH')
+        if smos_path:
+            smos_dir = Path(smos_path)
+        else:
+            smos_dir = self.project_dir / "observations" / "soil_moisture" / "smos"
+        smos_dir.mkdir(parents=True, exist_ok=True)
+
+        data_access = self._get_config_value(
+            lambda: self.config.domain.data_access, default='local'
+        ).lower()
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False
+        )
+
+        if list(smos_dir.glob("*.nc")) and not force_download:
+            return smos_dir
+
+        # Check for extracted directory
+        extract_dir = smos_dir / "extracted"
+        if extract_dir.exists() and list(extract_dir.glob("*.nc")) and not force_download:
+            return extract_dir
+
+        if data_access == 'cloud':
+            self.logger.info("Triggering cloud acquisition for SMOS soil moisture")
+            from ...acquisition.registry import AcquisitionRegistry
+            acquirer = AcquisitionRegistry.get_handler('SMOS', self.config, self.logger)
+            return acquirer.download(smos_dir)
+
+        return smos_dir
+
+    def process(self, input_path: Path) -> Path:
+        """Process SMOS SM NetCDF data to catchment-average time series."""
+        self.logger.info(f"Processing SMOS Soil Moisture for domain: {self.domain_name}")
+
+        # Search input path and extracted subdirectory
+        nc_files = list(input_path.glob("*.nc"))
+        extract_dir = input_path / "extracted"
+        if extract_dir.exists():
+            nc_files.extend(extract_dir.glob("*.nc"))
+        if not nc_files:
+            self.logger.warning("No SMOS NetCDF files found")
+            return input_path
+
+        # Get bbox for spatial subsetting
+        north = south = west = east = None
+        if self.bbox:
+            north = self.bbox.get('lat_max')
+            south = self.bbox.get('lat_min')
+            west = self.bbox.get('lon_min')
+            east = self.bbox.get('lon_max')
+
+        all_data = []
+        for nc_file in nc_files:
+            try:
+                ds = self._open_dataset(nc_file)
+
+                # Identify SM variable
+                sm_var = None
+                for var in ['sm', 'Soil_Moisture', 'soil_moisture',
+                            'volumetric_surface_soil_moisture', 'SM']:
+                    if var in ds:
+                        sm_var = var
+                        break
+                if sm_var is None:
+                    ds.close()
+                    continue
+
+                # Identify coordinates
+                lat_var = 'lat' if 'lat' in ds.coords else 'latitude'
+                lon_var = 'lon' if 'lon' in ds.coords else 'longitude'
+
+                # Spatial subset with buffer for coarse resolution
+                buffer = 0.25
+                if all(v is not None for v in [north, south, west, east]):
+                    lat_mask = ((ds[lat_var] >= south - buffer) &
+                                (ds[lat_var] <= north + buffer))
+                    lon_mask = ((ds[lon_var] >= west - buffer) &
+                                (ds[lon_var] <= east + buffer))
+                    ds_subset = ds.where(lat_mask & lon_mask, drop=True)
+                else:
+                    ds_subset = ds
+
+                if ds_subset[sm_var].size == 0:
+                    ds.close()
+                    continue
+
+                sm_values = ds_subset[sm_var].values
+                times = pd.to_datetime(ds_subset['time'].values)
+
+                for i, t in enumerate(times):
+                    sm_slice = sm_values[i] if len(sm_values.shape) > 2 else sm_values
+                    valid_mask = (sm_slice > 0) & (sm_slice < 1) & (~np.isnan(sm_slice))
+                    if np.any(valid_mask):
+                        all_data.append({
+                            'date': t,
+                            'soil_moisture': float(np.nanmean(sm_slice[valid_mask])),
+                            'n_pixels': int(np.sum(valid_mask)),
+                        })
+
+                ds.close()
+            except Exception as e:
+                self.logger.warning(f"Error processing SMOS file {nc_file.name}: {e}")
+                continue
+
+        if not all_data:
+            self.logger.warning("No SMOS SM data could be extracted")
+            return input_path
+
+        df = pd.DataFrame(all_data)
+        df = df.set_index('date').sort_index()
+        df = df[~df.index.duplicated(keep='first')]
+
+        if self.start_date is not None and self.end_date is not None:
+            df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
+
+        output_dir = self.project_dir / "observations" / "soil_moisture" / "smos" / "processed"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_file = output_dir / f"{self.domain_name}_smos_processed.csv"
+        df.to_csv(output_file)
+
+        self.logger.info(f"SMOS processing complete: {output_file} ({len(df)} records)")
+        return output_file
+
+
+@ObservationRegistry.register('ascat')
+@ObservationRegistry.register('ascat_sm')
+class ASCATSMHandler(BaseObservationHandler):
+    """
+    Handles ASCAT (Advanced Scatterometer) soil moisture data.
+
+    ASCAT uses C-band active microwave at ~25 km resolution.
+    Natively provides degree of saturation; this handler converts to
+    volumetric SM using a configurable porosity value.
+    Data is acquired via CDS satellite-soil-moisture (active-only sensor type).
+    Available from 2007-present.
+    """
+
+    obs_type = "soil_moisture"
+    source_name = "EUMETSAT_ASCAT"
+
+    # Default porosity for saturation-to-volumetric conversion
+    DEFAULT_POROSITY = 0.45
+
+    def acquire(self) -> Path:
+        """Locate or download ASCAT SM data."""
+        ascat_path = self.config_dict.get('ASCAT_SM_PATH')
+        if ascat_path:
+            ascat_dir = Path(ascat_path)
+        else:
+            ascat_dir = self.project_dir / "observations" / "soil_moisture" / "ascat"
+        ascat_dir.mkdir(parents=True, exist_ok=True)
+
+        data_access = self._get_config_value(
+            lambda: self.config.domain.data_access, default='local'
+        ).lower()
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False
+        )
+
+        if list(ascat_dir.glob("*.nc")) and not force_download:
+            return ascat_dir
+
+        # Check for extracted directory
+        extract_dir = ascat_dir / "extracted"
+        if extract_dir.exists() and list(extract_dir.glob("*.nc")) and not force_download:
+            return extract_dir
+
+        if data_access == 'cloud':
+            self.logger.info("Triggering cloud acquisition for ASCAT soil moisture")
+            from ...acquisition.registry import AcquisitionRegistry
+            acquirer = AcquisitionRegistry.get_handler('ASCAT', self.config, self.logger)
+            return acquirer.download(ascat_dir)
+
+        return ascat_dir
+
+    def process(self, input_path: Path) -> Path:
+        """Process ASCAT SM NetCDF data to catchment-average time series.
+
+        ASCAT provides degree of saturation (0-1). This is converted to
+        volumetric SM by multiplying by porosity (configurable, default 0.45).
+        """
+        self.logger.info(f"Processing ASCAT Soil Moisture for domain: {self.domain_name}")
+
+        # Search input path and extracted subdirectory
+        nc_files = list(input_path.glob("*.nc"))
+        extract_dir = input_path / "extracted"
+        if extract_dir.exists():
+            nc_files.extend(extract_dir.glob("*.nc"))
+        if not nc_files:
+            self.logger.warning("No ASCAT NetCDF files found")
+            return input_path
+
+        # Get porosity for saturation-to-volumetric conversion
+        porosity = float(self.config_dict.get('ASCAT_POROSITY', self.DEFAULT_POROSITY))
+
+        # Get bbox for spatial subsetting
+        north = south = west = east = None
+        if self.bbox:
+            north = self.bbox.get('lat_max')
+            south = self.bbox.get('lat_min')
+            west = self.bbox.get('lon_min')
+            east = self.bbox.get('lon_max')
+
+        all_data = []
+        for nc_file in nc_files:
+            try:
+                ds = self._open_dataset(nc_file)
+
+                # Identify SM variable
+                sm_var = None
+                for var in ['sm', 'ssm', 'soil_moisture', 'surface_soil_moisture',
+                            'surface_soil_moisture_saturation',
+                            'volumetric_surface_soil_moisture']:
+                    if var in ds:
+                        sm_var = var
+                        break
+                if sm_var is None:
+                    for var in ds.data_vars:
+                        if 'sm' in var.lower() or 'soil' in var.lower():
+                            sm_var = var
+                            break
+                if sm_var is None:
+                    ds.close()
+                    continue
+
+                # Identify coordinates
+                lat_var = 'lat' if 'lat' in ds.coords else 'latitude'
+                lon_var = 'lon' if 'lon' in ds.coords else 'longitude'
+
+                # Spatial subset with buffer
+                buffer = 0.25
+                if all(v is not None for v in [north, south, west, east]):
+                    lat_mask = ((ds[lat_var] >= south - buffer) &
+                                (ds[lat_var] <= north + buffer))
+                    lon_mask = ((ds[lon_var] >= west - buffer) &
+                                (ds[lon_var] <= east + buffer))
+                    ds_subset = ds.where(lat_mask & lon_mask, drop=True)
+                else:
+                    ds_subset = ds
+
+                if ds_subset[sm_var].size == 0:
+                    ds.close()
+                    continue
+
+                sm_values = ds_subset[sm_var].values
+                times = pd.to_datetime(ds_subset['time'].values)
+
+                for i, t in enumerate(times):
+                    sm_slice = sm_values[i] if len(sm_values.shape) > 2 else sm_values
+                    valid_mask = ~np.isnan(sm_slice)
+                    if np.any(valid_mask):
+                        sm_valid = sm_slice[valid_mask]
+
+                        # Convert percentage to fraction if needed
+                        if np.nanmean(sm_valid) > 1.0:
+                            sm_valid = sm_valid / 100.0
+
+                        # Convert saturation to volumetric SM
+                        # If variable is saturation-type, multiply by porosity
+                        if 'saturation' in sm_var.lower() or np.nanmean(sm_valid) > 0.5:
+                            sm_valid = sm_valid * porosity
+
+                        # Filter physical range
+                        phys_mask = (sm_valid > 0) & (sm_valid < 1)
+                        if np.any(phys_mask):
+                            all_data.append({
+                                'date': t,
+                                'soil_moisture': float(np.mean(sm_valid[phys_mask])),
+                                'n_pixels': int(np.sum(phys_mask)),
+                            })
+
+                ds.close()
+            except Exception as e:
+                self.logger.warning(f"Error processing ASCAT file {nc_file.name}: {e}")
+                continue
+
+        if not all_data:
+            self.logger.warning("No ASCAT SM data could be extracted")
+            return input_path
+
+        df = pd.DataFrame(all_data)
+        df = df.set_index('date').sort_index()
+        df = df[~df.index.duplicated(keep='first')]
+
+        if self.start_date is not None and self.end_date is not None:
+            df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
+
+        output_dir = self.project_dir / "observations" / "soil_moisture" / "ascat" / "processed"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_file = output_dir / f"{self.domain_name}_ascat_processed.csv"
+        df.to_csv(output_file)
+
+        self.logger.info(
+            f"ASCAT processing complete: {output_file} ({len(df)} records, "
+            f"porosity={porosity})"
+        )
         return output_file

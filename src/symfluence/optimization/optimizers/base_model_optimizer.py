@@ -648,8 +648,10 @@ class BaseModelOptimizer(
         """Load best parameters from previous optimization runs (warm-start).
 
         Scans sibling run directories for best_params.json files and returns
-        the parameters from the run with the highest score, but only if the
-        parameter names match the current model's expected parameters.
+        the parameters from the run with the highest score.  Accepts partial
+        matches when at least 50% of expected parameters are present —
+        missing parameters are filled with log-aware midpoints from the
+        parameter manager.
         """
         import json
         parent_dir = self.results_dir.parent
@@ -658,10 +660,12 @@ class BaseModelOptimizer(
 
         # Get current model's expected parameter names for validation
         expected_params = set(self.param_manager.all_param_names)
+        min_overlap = max(1, len(expected_params) // 2)  # 50% threshold
 
         best_score = -float('inf')
         best_params = None
         best_run = None
+        best_missing: set = set()
 
         for run_dir in parent_dir.iterdir():
             if not run_dir.is_dir() or run_dir == self.results_dir:
@@ -673,31 +677,63 @@ class BaseModelOptimizer(
                         score = data.get('best_score', -float('inf'))
                         params = data.get('best_params')
                         if score > best_score and params:
-                            # Validate that loaded params cover all expected params.
-                            # A partial match (e.g. from a run with a different
-                            # parameter set) can poison the initial guess because
-                            # missing params default to 0.5 — the midpoint that
-                            # was never optimized for the current combination.
                             loaded_keys = set(params.keys())
+                            overlap = expected_params & loaded_keys
                             missing = expected_params - loaded_keys
-                            if missing:
+                            if len(overlap) < min_overlap:
                                 self.logger.debug(
-                                    f"Skipping {run_dir.name}: parameter set "
-                                    f"mismatch — missing {sorted(missing)} "
-                                    f"(loaded: {sorted(loaded_keys)})"
+                                    f"Skipping {run_dir.name}: insufficient "
+                                    f"overlap ({len(overlap)}/{len(expected_params)}, "
+                                    f"need {min_overlap})"
                                 )
                                 continue
                             best_score = score
                             best_params = params
                             best_run = run_dir.name
+                            best_missing = missing
                     except (json.JSONDecodeError, OSError):
                         continue
 
         if best_params is not None:
-            self.logger.info(
-                f"Warm-starting from {best_run} (KGE={best_score:.4f})"
-            )
-            return best_params
+            # Fill missing parameters with raw file values (not midpoints).
+            # These params weren't calibrated in the previous run, so their
+            # file values represent what the model was actually running with
+            # when it achieved its best score.
+            if best_missing:
+                try:
+                    defaults = self.param_manager.get_initial_parameters(
+                        skip_boundary_check=True
+                    ) or {}
+                except TypeError:
+                    # Model's param manager doesn't support the kwarg
+                    defaults = self.param_manager.get_initial_parameters() or {}
+                filled: Dict[str, float] = {}
+                for p in sorted(best_missing):
+                    if p in defaults:
+                        best_params[p] = defaults[p]
+                        filled[p] = defaults[p]
+                    else:
+                        # Fallback: midpoint from bounds
+                        bounds = self.param_manager.param_bounds.get(p, {'min': 0.1, 'max': 10.0})
+                        transform = bounds.get('transform', 'linear')
+                        if transform == 'log' and bounds['min'] > 0:
+                            import numpy as np
+                            mid = np.exp((np.log(bounds['min']) + np.log(bounds['max'])) / 2)
+                        else:
+                            mid = (bounds['min'] + bounds['max']) / 2
+                        best_params[p] = mid
+                        filled[p] = mid
+                self.logger.info(
+                    f"Warm-starting from {best_run} (KGE={best_score:.4f}); "
+                    f"filled {len(filled)} missing params: "
+                    + ", ".join(f"{k}={v:.4g}" for k, v in filled.items())
+                )
+            else:
+                self.logger.info(
+                    f"Warm-starting from {best_run} (KGE={best_score:.4f})"
+                )
+            # Only return expected params (drop any extra from previous run)
+            return {k: v for k, v in best_params.items() if k in expected_params}
         return None
 
     def _create_parameter_manager(self):
@@ -844,7 +880,7 @@ class BaseModelOptimizer(
                 sim_end = pd.Timestamp(sim_end)
                 overlap = obs_period[(obs_period.index >= sim_start) & (obs_period.index <= sim_end)]
 
-            self.logger.info(
+            self.logger.debug(
                 "Calibration data check | timestep=%s | obs=%d | calib_window=%d | overlap_with_sim=%d",
                 eval_timestep,
                 len(obs),
@@ -1570,7 +1606,7 @@ class BaseModelOptimizer(
                 if initial_params_dict is None:
                     initial_params_dict = self.param_manager.get_initial_parameters()
                     if initial_params_dict:
-                        self.logger.info("Using initial parameter guess for optimization seeding")
+                        self.logger.debug("Using initial parameter guess for optimization seeding")
             if initial_params_dict:
                 initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
                 kwargs['initial_guess'] = initial_guess

@@ -465,9 +465,9 @@ def _subset_irregular_grid(
 
     # Apply buffer and bounds checking
     y_min = max(0, y_idx.min() - buffer)
-    y_max = min(ds.dims[y_dim] - 1, y_idx.max() + buffer)
+    y_max = min(ds.sizes[y_dim] - 1, y_idx.max() + buffer)
     x_min = max(0, x_idx.min() - buffer)
-    x_max = min(ds.dims[x_dim] - 1, x_idx.max() + buffer)
+    x_max = min(ds.sizes[x_dim] - 1, x_idx.max() + buffer)
 
     return ds.isel({y_dim: slice(y_min, y_max + 1), x_dim: slice(x_min, x_max + 1)})
 

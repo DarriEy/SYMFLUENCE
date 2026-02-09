@@ -45,12 +45,19 @@ _handler_modules = [
     'gpm',
     'chirps',
     'sentinel1_sm',
+    'smos_sm',
+    'ascat_sm',
     'snodas',
     'jrc_water',
     'ssebop',
     'viirs_snow',
     'ims_snow',
+    'cmc_snow',
+    'gleam_et',
     'canopy_height',
+    'hydrolakes',
+    'gldas_tws',
+    'cnes_grgs_tws',
 ]
 
 for _module_name in _handler_modules:

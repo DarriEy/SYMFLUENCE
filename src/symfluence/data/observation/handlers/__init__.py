@@ -47,7 +47,7 @@ from .smhi import SMHIStreamflowHandler
 from .snodas import SNODASHandler
 from .snotel import SNOTELHandler
 from .ssebop import SSEBopHandler
-from .soil_moisture import SMAPHandler, ISMNHandler, ESACCISMHandler
+from .soil_moisture import SMAPHandler, ISMNHandler, ESACCISMHandler, SMOSSMHandler, ASCATSMHandler
 from .usgs import USGSStreamflowHandler, USGSGroundwaterHandler
 from .viirs_snow import VIIRSSnowHandler
 from .wsc import WSCStreamflowHandler
@@ -58,6 +58,10 @@ from .canopy_height import (
     GLADTreeHeightHandler,
 )
 from .canswe import CanSWEHandler, NorSWEHandler
+from .cmc_snow import CMCSnowHandler
+from .ims_snow import IMSSnowHandler
+from .gldas_tws import GLDASHandler
+from .cnes_grgs_tws import CNESGRGSHandler
 
 __all__ = [
     # CHIRPS
@@ -127,6 +131,8 @@ __all__ = [
     "SMAPHandler",
     "ISMNHandler",
     "ESACCISMHandler",
+    "SMOSSMHandler",
+    "ASCATSMHandler",
     # USGS
     "USGSStreamflowHandler",
     "USGSGroundwaterHandler",
@@ -142,4 +148,12 @@ __all__ = [
     # CanSWE / NorSWE
     "CanSWEHandler",
     "NorSWEHandler",
+    # CMC Snow
+    "CMCSnowHandler",
+    # IMS Snow
+    "IMSSnowHandler",
+    # GLDAS TWS
+    "GLDASHandler",
+    # CNES/GRGS TWS
+    "CNESGRGSHandler",
 ]

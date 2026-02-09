@@ -93,7 +93,7 @@ class FUSEParameterManager(BaseParameterManager):
             # Use transfer function coefficient bounds instead of raw parameter bounds
             coeff_bounds = self.config_dict.get('TRANSFER_FUNCTION_COEFF_BOUNDS')
             if coeff_bounds:
-                self.logger.info(
+                self.logger.debug(
                     f"Using transfer function coefficient bounds "
                     f"({len(coeff_bounds)} coefficients)"
                 )

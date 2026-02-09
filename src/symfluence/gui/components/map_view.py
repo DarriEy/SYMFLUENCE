@@ -6,18 +6,29 @@ callbacks (no JavaScript bridges needed).
 """
 
 import logging
+import time
 from math import log, tan, pi
+from pathlib import Path
 
 import panel as pn
 import param
 
-from bokeh.models import ColumnDataSource
+from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.plotting import figure
 
 logger = logging.getLogger(__name__)
 
 # Web Mercator helpers
 _R = 6378137.0  # Earth radius (m)
+
+# Network colours for gauge markers
+NETWORK_COLORS = {
+    'WSC': '#e74c3c',       # red
+    'USGS': '#3498db',      # blue
+    'SMHI': '#2ecc71',      # green
+    'LamaH-ICE': '#9b59b6', # purple
+}
+_DEFAULT_GAUGE_COLOR = '#95a5a6'
 
 
 def _lonlat_to_mercator(lon, lat):
@@ -43,6 +54,7 @@ class MapView(param.Parameterized):
     show_hrus = param.Boolean(default=False, doc="Show HRUs / catchments")
     show_rivers = param.Boolean(default=True, doc="Show river network")
     show_pour_point = param.Boolean(default=True, doc="Show pour point marker")
+    show_gauges = param.Boolean(default=True, doc="Show gauge station markers")
 
     def __init__(self, state, **kw):
         super().__init__(state=state, **kw)
@@ -52,6 +64,18 @@ class MapView(param.Parameterized):
         self._basin_source = ColumnDataSource(data=dict(xs=[], ys=[]))
         self._hru_source = ColumnDataSource(data=dict(xs=[], ys=[]))
         self._river_source = ColumnDataSource(data=dict(xs=[], ys=[]))
+        self._gauge_source = ColumnDataSource(data=dict(
+            x=[], y=[], station_id=[], name=[], network=[], river=[],
+            color=[], lat=[], lon=[],
+        ))
+
+        # Gauge data store (lazy)
+        self._gauge_store = None
+        self._gauge_loaded = False
+        self._network_filter = None  # will hold MultiChoice widget
+
+        # Guard: suppress tap-as-pour-point when a gauge was just clicked
+        self._gauge_click_ts = 0.0
 
         # Build the figure
         self._fig = self._build_figure()
@@ -59,6 +83,12 @@ class MapView(param.Parameterized):
         # Sync pour point from state
         if state.pour_point_lat is not None and state.pour_point_lon is not None:
             self._update_pour_point_marker(state.pour_point_lat, state.pour_point_lon)
+
+        # Watch pour point changes for auto-zoom
+        state.param.watch(self._on_pour_point_change, ['pour_point_lat', 'pour_point_lon'])
+
+        # Auto-load shapefiles when project_dir changes (e.g. config loaded)
+        state.param.watch(self._on_project_dir_change, ['project_dir'])
 
     def _build_figure(self):
         p = figure(
@@ -104,16 +134,54 @@ class MapView(param.Parameterized):
             legend_label='Rivers',
         )
 
+        # Gauge station markers
+        self._gauge_renderer = p.scatter(
+            'x', 'y', source=self._gauge_source,
+            size=8, color='color', alpha=0.75,
+            legend_label='Gauges',
+            nonselection_alpha=0.4,
+        )
+
+        # HoverTool for gauges
+        gauge_hover = HoverTool(
+            renderers=[self._gauge_renderer],
+            tooltips=[
+                ('Station', '@name'),
+                ('ID', '@station_id'),
+                ('Network', '@network'),
+                ('River', '@river'),
+                ('Lat/Lon', '@lat / @lon'),
+            ],
+        )
+        p.add_tools(gauge_hover)
+
         p.legend.click_policy = 'hide'
         p.legend.location = 'top_left'
 
         # Tap callback for setting pour point
         p.on_event('tap', self._on_tap)
 
+        # Selection callback for gauge clicks
+        self._gauge_source.selected.on_change('indices', self._on_gauge_selected)
+
         return p
 
+    # ------------------------------------------------------------------
+    # Click / selection handlers
+    # ------------------------------------------------------------------
+
     def _on_tap(self, event):
-        """Handle map tap - convert Web Mercator to lat/lon and update state."""
+        """Handle map tap — convert Web Mercator to lat/lon and update state.
+
+        Skipped when a gauge marker was just clicked (within 300ms) to
+        prevent the tap from also setting a pour point.
+        """
+        # Suppress if a gauge was just selected (callbacks fire in
+        # unpredictable order; the timestamp guard is more reliable than
+        # checking selected.indices which gets cleared immediately).
+        if time.monotonic() - self._gauge_click_ts < 0.3:
+            return
+
         lon, lat = _mercator_to_lonlat(event.x, event.y)
         self.state.pour_point_lat = round(lat, 6)
         self.state.pour_point_lon = round(lon, 6)
@@ -121,9 +189,64 @@ class MapView(param.Parameterized):
         self._update_pour_point_marker(lat, lon)
         self.state.append_log(f"Pour point set: {lat:.6f} / {lon:.6f}\n")
 
+    def _on_gauge_selected(self, attr, old, new):
+        """Handle gauge marker selection — populate state.selected_gauge."""
+        if not new:
+            return
+
+        # Timestamp so _on_tap knows to skip
+        self._gauge_click_ts = time.monotonic()
+
+        idx = new[0]
+        data = self._gauge_source.data
+        gauge_info = {
+            'station_id': data['station_id'][idx],
+            'name': data['name'][idx],
+            'lat': data['lat'][idx],
+            'lon': data['lon'][idx],
+            'network': data['network'][idx],
+            'river': data['river'][idx],
+        }
+        self.state.selected_gauge = gauge_info
+        self.state.append_log(
+            f"Gauge selected: {gauge_info['name']} ({gauge_info['station_id']}, "
+            f"{gauge_info['network']})\n"
+        )
+        # Clear selection so next tap can set pour point
+        self._gauge_source.selected.indices = []
+
+    def _on_project_dir_change(self, event):
+        """Auto-load shapefiles when project_dir becomes available."""
+        if event.new:
+            self.load_layers()
+
+    def _on_pour_point_change(self, *events):
+        """Auto-zoom to ~1 degree window around pour point when it changes."""
+        lat = self.state.pour_point_lat
+        lon = self.state.pour_point_lon
+        if lat is None or lon is None:
+            return
+        self._update_pour_point_marker(lat, lon)
+        # Only auto-zoom if no basins are loaded (basins provide better zoom)
+        if not self._basin_source.data.get('xs'):
+            self._zoom_to_point(lat, lon)
+
+    def _zoom_to_point(self, lat, lon, half_deg=0.5):
+        """Zoom the map to a window around the given lat/lon."""
+        x_min, y_min = _lonlat_to_mercator(lon - half_deg, lat - half_deg)
+        x_max, y_max = _lonlat_to_mercator(lon + half_deg, lat + half_deg)
+        self._fig.x_range.start = x_min
+        self._fig.x_range.end = x_max
+        self._fig.y_range.start = y_min
+        self._fig.y_range.end = y_max
+
     def _update_pour_point_marker(self, lat, lon):
         x, y = _lonlat_to_mercator(lon, lat)
         self._pour_source.data = dict(x=[x], y=[y])
+
+    # ------------------------------------------------------------------
+    # Shapefile loading
+    # ------------------------------------------------------------------
 
     def load_layers(self):
         """Load shapefiles from project directory and render on map."""
@@ -132,27 +255,28 @@ class MapView(param.Parameterized):
             self.state.append_log("No project directory — load a config first.\n")
             return
 
-        from pathlib import Path
         pdir = Path(project_dir)
-
         loaded = []
 
-        # Basin shapefile
-        basin_path = pdir / 'shapefiles' / 'river_basins' / 'river_basins.shp'
-        if basin_path.exists():
-            self._load_shapefile_to_source(basin_path, self._basin_source)
+        # Determine current discretization for preference matching
+        disc_hint = self._get_discretization_hint()
+
+        # Basin shapefile — glob *.shp in river_basins/
+        basin_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_basins', disc_hint)
+        if basin_shp:
+            self._load_shapefile_to_source(basin_shp, self._basin_source)
             loaded.append('basins')
 
         # HRU / catchment shapefile
-        hru_path = pdir / 'shapefiles' / 'catchment' / 'catchment.shp'
-        if hru_path.exists():
-            self._load_shapefile_to_source(hru_path, self._hru_source)
+        hru_shp = self._find_shapefile(pdir / 'shapefiles' / 'catchment', disc_hint)
+        if hru_shp:
+            self._load_shapefile_to_source(hru_shp, self._hru_source)
             loaded.append('HRUs')
 
         # River network shapefile
-        river_path = pdir / 'shapefiles' / 'river_network' / 'river_network.shp'
-        if river_path.exists():
-            self._load_line_shapefile(river_path, self._river_source)
+        river_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_network', disc_hint)
+        if river_shp:
+            self._load_line_shapefile(river_shp, self._river_source)
             loaded.append('rivers')
 
         if loaded:
@@ -160,6 +284,45 @@ class MapView(param.Parameterized):
             self._zoom_to_data()
         else:
             self.state.append_log("No shapefiles found in project directory.\n")
+
+    def _get_discretization_hint(self):
+        """Return the current discretization method from config, if available."""
+        try:
+            cfg = self.state.typed_config
+            if cfg and cfg.domain:
+                method = getattr(cfg.domain, 'definition_method', None)
+                if method:
+                    return method.lower()
+        except Exception:
+            pass
+        return None
+
+    def _find_shapefile(self, directory, disc_hint=None):
+        """Find a shapefile in *directory*, preferring one matching disc_hint.
+
+        Falls back to the legacy exact filename (dirname.shp), then to any
+        *.shp file found.
+        """
+        if not directory.is_dir():
+            return None
+
+        shp_files = sorted(directory.glob('*.shp'))
+        if not shp_files:
+            return None
+
+        # Legacy exact name (e.g. river_basins/river_basins.shp)
+        legacy = directory / f'{directory.name}.shp'
+        if legacy.exists():
+            return legacy
+
+        # Prefer file whose name contains the discretization hint
+        if disc_hint:
+            for f in shp_files:
+                if disc_hint in f.stem.lower():
+                    return f
+
+        # Fall back to first available
+        return shp_files[0]
 
     def _load_shapefile_to_source(self, path, source):
         """Load a polygon shapefile into a ColumnDataSource (xs/ys in Web Mercator)."""
@@ -220,26 +383,123 @@ class MapView(param.Parameterized):
             self._fig.y_range.start = min(all_y) - dy * pad
             self._fig.y_range.end = max(all_y) + dy * pad
 
+    # ------------------------------------------------------------------
+    # Gauge station loading
+    # ------------------------------------------------------------------
+
+    def load_gauges(self, networks=None):
+        """Load gauge stations from configured providers and display on map."""
+        try:
+            from symfluence.gui.data import GaugeStationStore
+        except ImportError:
+            self.state.append_log("Gauge data module not available.\n")
+            return
+
+        self.state.append_log("Loading gauge stations…\n")
+
+        if self._gauge_store is None:
+            self._gauge_store = GaugeStationStore()
+
+        import threading
+
+        def _fetch():
+            try:
+                df = self._gauge_store.load_all(networks=networks)
+                if df.empty:
+                    pn.state.execute(
+                        lambda: self.state.append_log("No gauge stations found.\n")
+                    )
+                    return
+                pn.state.execute(lambda d=df: self._push_gauges_to_map(d))
+            except Exception as exc:
+                pn.state.execute(
+                    lambda e=exc: self.state.append_log(f"Gauge load error: {e}\n")
+                )
+
+        t = threading.Thread(target=_fetch, daemon=True)
+        t.start()
+
+    def _push_gauges_to_map(self, df):
+        """Push a DataFrame of gauge stations to the Bokeh source."""
+        xs, ys = [], []
+        colors = []
+        for _, row in df.iterrows():
+            x, y = _lonlat_to_mercator(row['lon'], row['lat'])
+            xs.append(x)
+            ys.append(y)
+            colors.append(NETWORK_COLORS.get(row['network'], _DEFAULT_GAUGE_COLOR))
+
+        self._gauge_source.data = dict(
+            x=xs, y=ys,
+            station_id=df['station_id'].tolist(),
+            name=df['name'].tolist(),
+            network=df['network'].tolist(),
+            river=df['river_name'].tolist(),
+            color=colors,
+            lat=df['lat'].tolist(),
+            lon=df['lon'].tolist(),
+        )
+        self._gauge_loaded = True
+        self.state.append_log(f"Loaded {len(df)} gauge stations.\n")
+
+    def _update_gauge_visibility(self, networks):
+        """Filter visible gauges by selected networks."""
+        if not self._gauge_loaded or not self._gauge_store:
+            return
+        try:
+            if networks:
+                df = self._gauge_store.load_all(networks=networks)
+            else:
+                df = self._gauge_store.load_all()
+            self._push_gauges_to_map(df)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Panel layout
+    # ------------------------------------------------------------------
+
     def panel(self):
         """Return the Panel component for embedding in the app layout."""
         load_btn = pn.widgets.Button(name='Load Layers', button_type='primary', width=120)
         load_btn.on_click(lambda e: self.load_layers())
 
+        # Create network filter BEFORE the button that references it
+        self._network_filter = pn.widgets.MultiChoice(
+            name='Networks',
+            options=['WSC', 'USGS', 'SMHI', 'LamaH-ICE'],
+            value=[],
+            width=250,
+        )
+
+        load_gauges_btn = pn.widgets.Button(name='Load Gauges', button_type='success', width=120)
+        load_gauges_btn.on_click(lambda e: self.load_gauges(
+            networks=self._network_filter.value or None
+        ))
+
+        self._network_filter.param.watch(
+            lambda e: self._update_gauge_visibility(e.new) if self._gauge_loaded else None,
+            'value',
+        )
+
         toggle_basins = pn.widgets.Checkbox(name='Basins', value=True)
         toggle_hrus = pn.widgets.Checkbox(name='HRUs', value=False)
         toggle_rivers = pn.widgets.Checkbox(name='Rivers', value=True)
+        toggle_gauges = pn.widgets.Checkbox(name='Gauges', value=True)
 
-        def _toggle_visibility(event, renderer, attr_name):
+        def _toggle_visibility(event, renderer):
             renderer.visible = event.new
 
-        toggle_basins.param.watch(lambda e: _toggle_visibility(e, self._basin_renderer, 'show_basins'), 'value')
-        toggle_hrus.param.watch(lambda e: _toggle_visibility(e, self._hru_renderer, 'show_hrus'), 'value')
-        toggle_rivers.param.watch(lambda e: _toggle_visibility(e, self._river_renderer, 'show_rivers'), 'value')
+        toggle_basins.param.watch(lambda e: _toggle_visibility(e, self._basin_renderer), 'value')
+        toggle_hrus.param.watch(lambda e: _toggle_visibility(e, self._hru_renderer), 'value')
+        toggle_rivers.param.watch(lambda e: _toggle_visibility(e, self._river_renderer), 'value')
+        toggle_gauges.param.watch(lambda e: _toggle_visibility(e, self._gauge_renderer), 'value')
 
         self._hru_renderer.visible = False  # default hidden
 
         controls = pn.Row(
-            load_btn, toggle_basins, toggle_hrus, toggle_rivers,
+            load_btn, load_gauges_btn, self._network_filter,
+            toggle_basins, toggle_hrus, toggle_rivers, toggle_gauges,
             sizing_mode='stretch_width',
         )
         return pn.Column(
