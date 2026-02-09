@@ -56,7 +56,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         Returns:
             Optimization results dictionary
         """
-        self.logger.info(f"Starting Async DDS optimization with {n_params} parameters")
+        self.logger.debug(f"Starting Async DDS optimization with {n_params} parameters")
 
         # Async DDS parameters
         import sys

@@ -336,33 +336,53 @@ class FuseForcingProcessor(BaseForcingProcessor):
         """
         Calculate PET for distributed/semi-distributed modes.
 
+        Uses per-subcatchment latitude and temperature for spatially varying PET
+        via the Oudin formula. Falls back to single-centroid calculation if
+        per-subcatchment latitudes are unavailable or for non-Oudin methods.
+
         Args:
-            ds: xarray dataset with temperature data
+            ds: xarray dataset with temperature data (must contain 'temp')
             spatial_mode: Spatial mode ('semi_distributed', 'distributed')
             pet_method: PET calculation method
 
         Returns:
-            xr.DataArray: Calculated PET data
+            xr.DataArray: Calculated PET data with same shape as ds['temp']
         """
         self.logger.info(f"Calculating distributed PET for {spatial_mode} mode using {pet_method}")
 
         try:
-            # Get catchment for reference latitude
             catchment = gpd.read_file(self.catchment_path)
+
+            # Try vectorized per-subcatchment Oudin using center_lat column
+            if pet_method == 'oudin' and 'hru' in ds.dims and 'center_lat' in catchment.columns:
+                n_hru = ds.sizes['hru']
+                lats = catchment['center_lat'].values[:n_hru].astype(np.float64)
+
+                if len(lats) == n_hru:
+                    pet = self._vectorized_oudin(ds['temp'], lats)
+                    lat_std = np.std(lats)
+                    pet_spatial_std = float(pet.std(dim='hru').mean())
+                    self.logger.info(
+                        f"Spatially varying PET: {n_hru} HRUs, "
+                        f"lat range [{lats.min():.2f}, {lats.max():.2f}] (std={lat_std:.3f}), "
+                        f"PET spatial std={pet_spatial_std:.4f} mm/day"
+                    )
+                    return pet
+                else:
+                    self.logger.warning(
+                        f"center_lat count ({len(lats)}) != HRU count ({n_hru}), "
+                        f"falling back to single-centroid PET"
+                    )
+
+            # Fallback: single-centroid calculation (non-Oudin methods or missing center_lat)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
 
-            # For distributed modes, use the same latitude for all subcatchments/HRUs
             if 'hru' in ds.dims:
-                # Use the mean temperature across all HRUs to calculate PET once
                 temp_mean = ds['temp'].mean(dim='hru')
                 pet_base = self._calculate_pet(temp_mean, mean_lat, pet_method)
-
-                # Broadcast the PET calculation to all HRUs (more efficient than concat)
                 pet = pet_base.broadcast_like(ds['temp'])
-
-                self.logger.info(f"Calculated distributed PET with shape: {pet.shape}")
+                self.logger.info(f"Calculated distributed PET (single centroid) with shape: {pet.shape}")
             else:
-                # Use lumped calculation as fallback
                 pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
 
             return pet
@@ -372,6 +392,66 @@ class FuseForcingProcessor(BaseForcingProcessor):
             catchment = gpd.read_file(self.catchment_path)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             return self._calculate_pet(ds['temp'], mean_lat, pet_method)
+
+    def _vectorized_oudin(self, temp: xr.DataArray, lats: np.ndarray) -> xr.DataArray:
+        """
+        Vectorized Oudin PET across time and HRUs using numpy broadcasting.
+
+        PET = Ra * (T + 5) / 100  where T > -5 C, else 0.
+
+        Args:
+            temp: Temperature DataArray with dims (time, hru), in K or C
+            lats: Per-HRU latitudes in degrees, shape (n_hru,)
+
+        Returns:
+            xr.DataArray: PET in mm/day with same dims as temp
+        """
+        from symfluence.core.constants import PhysicalConstants
+
+        # Convert temperature to Celsius if needed
+        temp_vals = temp.values.astype(np.float64)  # (n_time, n_hru)
+        if np.nanmean(temp_vals) > 100.0:
+            temp_c = temp_vals - PhysicalConstants.KELVIN_OFFSET
+        else:
+            temp_c = temp_vals
+
+        # Day-of-year: shape (n_time,)
+        doy = temp.time.dt.dayofyear.values.astype(np.float64)
+
+        # Per-HRU latitude in radians: shape (n_hru,)
+        lat_rad = np.deg2rad(lats)
+
+        # Solar geometry — shapes annotated for broadcasting
+        # solar_decl: (n_time,)
+        solar_decl = 0.409 * np.sin((2.0 * np.pi / 365.0) * doy - 1.39)
+        # dr: (n_time,)
+        dr = 1.0 + 0.033 * np.cos((2.0 * np.pi / 365.0) * doy)
+
+        # Broadcast: (n_time, 1) x (n_hru,) -> (n_time, n_hru)
+        cos_arg = -np.tan(lat_rad)[np.newaxis, :] * np.tan(solar_decl)[:, np.newaxis]
+        cos_arg = np.clip(cos_arg, -1.0, 1.0)
+        sunset_angle = np.arccos(cos_arg)  # (n_time, n_hru)
+
+        # Extraterrestrial radiation Ra: (n_time, n_hru)
+        sin_lat = np.sin(lat_rad)[np.newaxis, :]
+        cos_lat = np.cos(lat_rad)[np.newaxis, :]
+        sin_decl = np.sin(solar_decl)[:, np.newaxis]
+        cos_decl = np.cos(solar_decl)[:, np.newaxis]
+        dr_2d = dr[:, np.newaxis]
+
+        Ra = ((24.0 * 60.0 / np.pi) * 0.082 * dr_2d *
+              (sunset_angle * sin_lat * sin_decl +
+               cos_lat * cos_decl * np.sin(sunset_angle)))
+
+        # Oudin formula
+        pet_vals = np.where(temp_c + 5.0 > 0.0, Ra * (temp_c + 5.0) / 100.0, 0.0)
+
+        return xr.DataArray(
+            pet_vals,
+            dims=temp.dims,
+            coords=temp.coords,
+            attrs={'units': 'mm/day', 'long_name': 'Potential evapotranspiration (Oudin)'}
+        )
 
     def _load_subcatchment_data(self) -> np.ndarray:
         """Load subcatchment information for semi-distributed mode"""

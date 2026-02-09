@@ -34,6 +34,14 @@ class WorkflowState(param.Parameterized):
     pour_point_lat = param.Number(default=None, allow_None=True, doc="Pour point latitude")
     pour_point_lon = param.Number(default=None, allow_None=True, doc="Pour point longitude")
 
+    # Gauge selection
+    selected_gauge = param.Dict(default=None, allow_None=True, doc="Currently selected gauge info dict")
+    domain_creation_active = param.Boolean(default=False, doc="True while gauge setup panel is shown")
+
+    # Results refresh trigger
+    last_completed_run = param.String(default=None, allow_None=True,
+                                      doc="Experiment ID of last completed run")
+
     # Project directory (derived from config)
     project_dir = param.String(default=None, allow_None=True, doc="Resolved project directory path")
 
@@ -52,7 +60,7 @@ class WorkflowState(param.Parameterized):
 
         # Derive project dir
         try:
-            root = str(config.paths.root_path)
+            root = str(config.system.data_dir)
             domain_name = config.domain.name
             self.project_dir = str(Path(root) / f"domain_{domain_name}")
         except Exception:

@@ -229,15 +229,21 @@ class MESHResultExtractor(ModelResultExtractor):
             'precipitation': ['PREC', 'PRECACC'],
         }
 
-        # For runoff/streamflow: compute RFF + DRAINSOL
-        # In noroute mode, RFF = surface runoff only (OVRFLW + LATFLW).
-        # DRAINSOL = soil drainage to deep zone, which becomes baseflow
-        # in routing mode. For lumped noroute, total discharge = RFF + DRAINSOL.
+        # For runoff/streamflow: compute total discharge from water balance.
+        # With run_def mode (wf_lzs baseflow active): total Q = RFF + LKG
+        #   RFF = surface runoff (OVRFLW + LATFLW)
+        #   LKG = lower zone discharge (baseflow from wf_lzs: dlz = FLZ * LZS^PWR)
+        # Fallback for noroute mode (LKG=0): total Q = RFF + DRAINSOL
+        #   DRAINSOL = soil drainage to deep zone (proxy for eventual baseflow)
         if variable_type in ('streamflow', 'runoff'):
             df.columns = df.columns.str.strip()
             if 'RFF' in df.columns:
                 total = df['RFF'].copy()
-                if 'DRAINSOL' in df.columns:
+                # Prefer LKG (actual baseflow) when available and non-zero
+                if 'LKG' in df.columns and df['LKG'].abs().sum() > 0:
+                    total = total + df['LKG']
+                elif 'DRAINSOL' in df.columns:
+                    # Fallback: noroute mode where LKG=0
                     total = total + df['DRAINSOL']
                 return pd.Series(
                     total.values,

@@ -196,7 +196,7 @@ class CFUSEModelOptimizer(BaseModelOptimizer):
                     'CFUSE',
                     self.experiment_id
                 )
-                self.logger.info("Copied and configured mizuRoute settings for parallel processes")
+                self.logger.debug("Copied and configured mizuRoute settings for parallel processes")
 
 
 # Backward compatibility alias

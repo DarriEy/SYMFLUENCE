@@ -26,6 +26,7 @@ class MultiGaugeMetrics:
     # Class-level cache for quality filter results — persists across instances
     # so that repeated DDS iterations don't re-compute and re-log the same filters
     _filter_cache: Optional[Tuple[tuple, List[int]]] = None
+    _first_eval_logged: bool = False
 
     def __init__(
         self,
@@ -287,7 +288,7 @@ class MultiGaugeMetrics:
             if max_distance is not None and 'distance_to_segment' in row.index:
                 dist = float(row['distance_to_segment'])
                 if dist > max_distance:
-                    self.logger.info(
+                    self.logger.debug(
                         f"Quality filter: excluding gauge {gauge_id} ({gauge_name}) "
                         f"— distance {dist:.4f}° > {max_distance}°"
                     )
@@ -302,7 +303,7 @@ class MultiGaugeMetrics:
                     if obs_mean > 0:
                         cv = float(obs_clean.std() / obs_mean)
                         if cv < min_obs_cv:
-                            self.logger.info(
+                            self.logger.debug(
                                 f"Quality filter: excluding gauge {gauge_id} ({gauge_name}) "
                                 f"— obs CV {cv:.3f} < {min_obs_cv} (low variability)"
                             )
@@ -317,7 +318,7 @@ class MultiGaugeMetrics:
                         obs_mean_m3s = float(obs.dropna().mean())
                         specific_q = (obs_mean_m3s * 86400 * 365) / (area_km2 * 1e6) * 1000
                         if specific_q < min_specific_q:
-                            self.logger.info(
+                            self.logger.debug(
                                 f"Quality filter: excluding gauge {gauge_id} ({gauge_name}) "
                                 f"— specific Q {specific_q:.0f} mm/yr < {min_specific_q} (groundwater loss)"
                             )
@@ -347,7 +348,8 @@ class MultiGaugeMetrics:
         aggregation: str = 'mean',
         weights: Optional[Dict[int, float]] = None,
         filter_config: Optional[Dict[str, Any]] = None,
-        min_overlap_days: int = 10
+        min_overlap_days: int = 10,
+        kge_floor: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Calculate KGE at multiple gauges and aggregate.
@@ -363,6 +365,10 @@ class MultiGaugeMetrics:
             weights: Optional weights for weighted aggregation (by gauge_id)
             filter_config: Optional quality filter configuration
             min_overlap_days: Minimum days of obs-sim overlap required per gauge
+            kge_floor: Optional minimum KGE value; gauges below this floor are
+                capped at the floor before aggregation. Prevents structurally
+                unfittable gauges (regulated rivers, glaciers) from dominating
+                the objective function. Recommended: -0.41 (KGE of mean predictor).
 
         Returns:
             Dictionary with aggregated metrics and per-gauge details
@@ -477,6 +483,53 @@ class MultiGaugeMetrics:
 
         results['n_valid_gauges'] = len(kge_values)
 
+        # Log per-gauge diagnostic on first evaluation to help identify problem gauges
+        if not MultiGaugeMetrics._first_eval_logged and kge_values:
+            MultiGaugeMetrics._first_eval_logged = True
+            # Sort gauges by KGE for diagnostic
+            gauge_kge_pairs = [
+                (gid, info.get('kge'), info.get('name', f'Gauge_{gid}'))
+                for gid, info in results['per_gauge'].items()
+                if info.get('kge') is not None and info['kge'] > -9998
+            ]
+            gauge_kge_pairs.sort(key=lambda x: x[1])
+
+            # Log invalid gauges
+            invalid = [
+                (gid, info.get('reason', 'unknown'), info.get('name', f'Gauge_{gid}'))
+                for gid, info in results['per_gauge'].items()
+                if info.get('kge') is None
+            ]
+            if invalid:
+                reasons: dict[str, int] = {}
+                for _, reason, _ in invalid:
+                    reasons[reason] = reasons.get(reason, 0) + 1
+                self.logger.debug(
+                    f"Multi-gauge diagnostic: {len(invalid)} invalid gauges — "
+                    + ", ".join(f"{r}: {c}" for r, c in reasons.items())
+                )
+
+            # Log worst and best gauges
+            if gauge_kge_pairs:
+                n_worst = min(5, len(gauge_kge_pairs))
+                n_best = min(5, len(gauge_kge_pairs))
+                self.logger.debug(
+                    f"Worst {n_worst} gauges: " +
+                    ", ".join(f"{name}(ID={gid}): {kge:.3f}"
+                             for gid, kge, name in gauge_kge_pairs[:n_worst])
+                )
+                self.logger.debug(
+                    f"Best {n_best} gauges: " +
+                    ", ".join(f"{name}(ID={gid}): {kge:.3f}"
+                             for gid, kge, name in gauge_kge_pairs[-n_best:])
+                )
+                n_negative = sum(1 for _, k, _ in gauge_kge_pairs if k < 0)
+                if n_negative > 0:
+                    self.logger.debug(
+                        f"  {n_negative}/{len(gauge_kge_pairs)} gauges have KGE < 0 "
+                        f"(worse than climatology). Consider excluding or using KGE floor."
+                    )
+
         # Check minimum gauges requirement
         if len(kge_values) < min_gauges:
             self.logger.warning(
@@ -487,6 +540,19 @@ class MultiGaugeMetrics:
         # Aggregate KGE values
         kge_array = np.array(kge_values)
         weight_array = np.array(valid_weights)
+
+        # Store raw statistics before any floor is applied
+        results['kge_std'] = float(np.std(kge_array))
+        results['kge_min'] = float(np.min(kge_array))
+        results['kge_max'] = float(np.max(kge_array))
+        results['kge_median'] = float(np.median(kge_array))
+
+        # Apply KGE floor if specified — prevents structurally unfittable gauges
+        # (regulated rivers, glacier-fed basins) from dominating the objective function
+        n_floored = 0
+        if kge_floor is not None:
+            n_floored = int(np.sum(kge_array < kge_floor))
+            kge_array = np.maximum(kge_array, kge_floor)
 
         if aggregation == 'mean':
             results['kge'] = float(np.mean(kge_array))
@@ -502,15 +568,11 @@ class MultiGaugeMetrics:
         else:
             results['kge'] = float(np.mean(kge_array))
 
-        # Additional statistics
-        results['kge_std'] = float(np.std(kge_array))
-        results['kge_min'] = float(np.min(kge_array))
-        results['kge_max'] = float(np.max(kge_array))
-        results['kge_median'] = float(np.median(kge_array))
-
+        floor_info = f", {n_floored} floored at {kge_floor}" if n_floored > 0 else ""
         self.logger.info(
             f"Multi-gauge metrics: KGE={results['kge']:.4f} ({aggregation}) "
-            f"from {len(kge_values)} gauges (range: {results['kge_min']:.3f}-{results['kge_max']:.3f})"
+            f"from {len(kge_values)} gauges "
+            f"(range: {results['kge_min']:.3f}-{results['kge_max']:.3f}{floor_info})"
         )
 
         return results

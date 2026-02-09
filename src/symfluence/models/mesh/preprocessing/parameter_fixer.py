@@ -134,18 +134,20 @@ class MESHParameterFixer(ConfigMixin):
             # Get RUNMODE from config (default to 'runrte' for routing)
             runmode = self._get_config_value('MESH_RUNMODE', 'runrte')
 
-            # For single-cell (lumped) domains, use noroute mode.
-            # run_def/runrte require IREACH and reservoir configuration that
-            # lumped domains typically don't have. The extractor compensates
-            # by summing RFF + DRAINSOL to capture total runoff including
-            # soil drainage that would become baseflow in routing mode.
+            # For single-cell (lumped) domains, use run_def mode.
+            # noroute sets NRVR=0 which prevents FLZ/PWR from being read
+            # from hydrology.ini (the "channel routing parameters per river
+            # class" section uses `do j = 1, NRVR`). With run_def and
+            # Next=1 (self-referential), NRVR=maxval(IAK)=1, so wf_lzs
+            # baseflow parameters are loaded and LKG > 0.
+            # The extractor uses RFF + LKG from Basin_average_water_balance.csv.
             num_cells = self._get_num_cells()
-            if num_cells == 1 and runmode != 'noroute':
+            if num_cells == 1 and runmode != 'run_def':
                 self.logger.info(
                     "Single-cell domain detected (lumped mode). "
-                    "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
+                    "Using RUNMODE 'run_def' to enable wf_lzs baseflow (NRVR=1)."
                 )
-                runmode = 'noroute'
+                runmode = 'run_def'
 
             # Determine output flags based on routing mode
             if runmode == 'noroute':
@@ -605,7 +607,7 @@ class MESHParameterFixer(ConfigMixin):
             with xr.open_dataset(self.ddb_path) as ds:
                 if 'NGRU' not in ds.dims:
                     return None
-                return int(ds.dims['NGRU'])
+                return int(ds.sizes['NGRU'])
         except (FileNotFoundError, OSError, ValueError, KeyError):
             return None
 
@@ -1704,7 +1706,7 @@ class MESHParameterFixer(ConfigMixin):
 
                 # Use netCDF4 directly to ensure proper encoding
                 from netCDF4 import Dataset as NC4Dataset
-                n_spatial = ds_safe.dims.get('subbasin', 1)
+                n_spatial = ds_safe.sizes.get('subbasin', 1)
 
                 with NC4Dataset(safe_forcing_nc, 'w', format='NETCDF4') as ncfile:
                     # Create dimensions

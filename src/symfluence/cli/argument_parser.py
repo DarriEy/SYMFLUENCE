@@ -137,6 +137,7 @@ For more help on a specific command:
         self._register_example_commands(subparsers)
         self._register_agent_commands(subparsers)
         self._register_gui_commands(subparsers)
+        self._register_data_commands(subparsers)
 
         return parser
 
@@ -577,7 +578,71 @@ For more help on a specific command:
                                    help='Server port (default: 5006)')
         launch_parser.add_argument('--no-browser', action='store_true', dest='no_browser',
                                    help='Do not auto-open a browser tab')
+        launch_parser.add_argument('--demo', type=str, default=None, metavar='NAME',
+                                   help='Load a built-in demo (e.g. "bow" for Bow at Banff)')
         launch_parser.set_defaults(func=GUICommands.launch)
+
+    def _register_data_commands(self, subparsers):
+        """Register standalone data acquisition commands."""
+        from .commands import DataCommands
+
+        data_parser = subparsers.add_parser(
+            'data',
+            help='Standalone data acquisition',
+            description='Download, list, and inspect acquisition datasets'
+        )
+        data_subparsers = data_parser.add_subparsers(
+            dest='action',
+            required=True,
+            help='Data action',
+            metavar='<action>'
+        )
+
+        # data download
+        download_parser = data_subparsers.add_parser(
+            'download',
+            help='Download a dataset',
+            parents=[self.common_parser]
+        )
+        download_parser.add_argument('dataset', type=str, metavar='DATASET',
+                                     help='Dataset name (e.g. modis_lai, era5, grace)')
+        download_parser.add_argument('--bbox', type=str, default=None,
+                                     metavar='LAT_MAX/LON_MIN/LAT_MIN/LON_MAX',
+                                     help='Bounding box as N/W/S/E (required unless --config)')
+        download_parser.add_argument('--start', type=str, default=None,
+                                     metavar='YYYY-MM-DD',
+                                     help='Start date (required unless --config)')
+        download_parser.add_argument('--end', type=str, default=None,
+                                     metavar='YYYY-MM-DD',
+                                     help='End date (required unless --config)')
+        download_parser.add_argument('--output', type=str, default=None,
+                                     metavar='PATH',
+                                     help='Output directory (default: ./data/<dataset>)')
+        download_parser.add_argument('--domain', dest='domain_name', type=str,
+                                     default='standalone',
+                                     help='Domain name for file naming (default: standalone)')
+        download_parser.add_argument('--force', action='store_true', default=False,
+                                     help='Force re-download existing data')
+        download_parser.add_argument('--extra', action='append', default=None,
+                                     metavar='KEY=VALUE',
+                                     help='Extra config keys (repeatable)')
+        download_parser.set_defaults(func=DataCommands.download)
+
+        # data list
+        list_parser = data_subparsers.add_parser(
+            'list',
+            help='List available datasets'
+        )
+        list_parser.set_defaults(func=DataCommands.list_datasets)
+
+        # data info
+        info_parser = data_subparsers.add_parser(
+            'info',
+            help='Show info about a dataset'
+        )
+        info_parser.add_argument('dataset', type=str, metavar='DATASET',
+                                 help='Dataset name to show info about')
+        info_parser.set_defaults(func=DataCommands.info)
 
     def parse_args(self, args: Optional[List[str]] = None) -> argparse.Namespace:
         """

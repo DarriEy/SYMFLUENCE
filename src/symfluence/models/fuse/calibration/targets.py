@@ -40,12 +40,26 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Find FUSE or mizuRoute output files."""
         if self.is_distributed:
-            # Look for mizuRoute files
-            patterns = [f"{self.experiment_id}_*.nc", f"*{self.experiment_id}*.nc", "*.nc"]
-            for pattern in patterns:
+            # For distributed mode, need mizuRoute routed output (not raw FUSE)
+            # mizuRoute files typically have proc_ prefix
+            fuse_suffixes = ('runs_def.nc', 'runs_pre.nc', 'runs_best.nc', 'runs_sce.nc')
+
+            # First: look for mizuRoute-specific patterns
+            for pattern in [f"proc_*{self.experiment_id}*.nc", "proc_*.nc"]:
                 files = list(sim_dir.glob(pattern))
                 if files:
                     return [max(files, key=lambda x: x.stat().st_mtime)]
+
+            # Second: any .nc file that is NOT a FUSE output
+            all_nc = list(sim_dir.glob("*.nc"))
+            non_fuse = [f for f in all_nc
+                        if not any(f.name.endswith(s) for s in fuse_suffixes)]
+            if non_fuse:
+                return [max(non_fuse, key=lambda x: x.stat().st_mtime)]
+
+            # Last resort: any nc file
+            if all_nc:
+                return [max(all_nc, key=lambda x: x.stat().st_mtime)]
             return []
         else:
             # Look for lumped FUSE files
@@ -67,8 +81,9 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
         sim_file = sim_files[0]
 
         if self.is_distributed:
-            # mizuRoute output is already in cms
-            return super()._extract_mizuroute_streamflow(sim_file)
+            # Use parent's auto-detection (mizuRoute → VIC → SUMMA fallback)
+            # rather than assuming file is always mizuRoute format
+            return super().extract_simulated_data(sim_files)
         else:
             # Lumped FUSE output is in mm/day, needs conversion to cms
             with xr.open_dataset(sim_file) as ds:

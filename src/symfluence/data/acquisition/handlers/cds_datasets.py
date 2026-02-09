@@ -645,7 +645,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             if len(y_idx) > 0:
                 ds = ds.isel(latitude=slice(y_idx.min(), y_idx.max() + 1),
                             longitude=slice(x_idx.min(), x_idx.max() + 1))
-                logging.info(f"Spatially subsetted 1D grid to {ds.dims['latitude']}x{ds.dims['longitude']}")
+                logging.info(f"Spatially subsetted 1D grid to {ds.sizes['latitude']}x{ds.sizes['longitude']}")
             return ds
 
         # Handle native 2D grid (usually with 'x' and 'y' dimensions)
@@ -672,12 +672,12 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
             if y_dim and x_dim:
                 y_min = max(0, y_idx.min() - buffer)
-                y_max = min(ds.dims[y_dim] - 1, y_idx.max() + buffer)
+                y_max = min(ds.sizes[y_dim] - 1, y_idx.max() + buffer)
                 x_min = max(0, x_idx.min() - buffer)
-                x_max = min(ds.dims[x_dim] - 1, x_idx.max() + buffer)
+                x_max = min(ds.sizes[x_dim] - 1, x_idx.max() + buffer)
 
                 ds = ds.isel({y_dim: slice(y_min, y_max + 1), x_dim: slice(x_min, x_max + 1)})
-                logging.info(f"Spatially subsetted to {ds.dims[y_dim]}x{ds.dims[x_dim]} grid")
+                logging.info(f"Spatially subsetted to {ds.sizes[y_dim]}x{ds.sizes[x_dim]} grid")
             else:
                 logging.warning(f"Could not find x/y dimensions for subsetting in {list(ds.dims)}")
         else:

@@ -1,43 +1,50 @@
 """
 MODIS LAI/FPAR Data Acquisition Handler
 
-Provides acquisition for MODIS MCD15A2H (combined Terra+Aqua) and
-MOD15A2H/MYD15A2H Leaf Area Index (LAI) and Fraction of Photosynthetically
-Active Radiation (FPAR) products via NASA AppEEARS API.
+Acquires MCD15A2H (combined Terra+Aqua), MOD15A2H (Terra), and MYD15A2H (Aqua)
+Leaf Area Index (LAI) and Fraction of Photosynthetically Active Radiation (FPAR)
+products via NASA earthaccess/CMR (default) or AppEEARS (fallback).
 
-MODIS LAI features:
-- 500m spatial resolution
-- 8-day composite temporal resolution
-- LAI and FPAR products
-- Global coverage
-- Combined Terra+Aqua (MCD) provides better coverage
+References:
+- MCD15A2H: https://lpdaac.usgs.gov/products/mcd15a2hv061/
+- MOD15A2H: https://lpdaac.usgs.gov/products/mod15a2hv061/
+- earthaccess: https://github.com/nsidc/earthaccess
+
+Products provide 8-day composite values at 500m resolution:
+- Lai_500m: Leaf Area Index (m²/m² after scaling by 0.1)
+- Fpar_500m: Fraction of PAR (0-1 after scaling by 0.01)
+- FparLai_QC: Quality Control flags
+
+Configuration:
+    MODIS_LAI_USE_APPEEARS: False (default) - Use earthaccess; True = use AppEEARS
+    MODIS_LAI_PRODUCT: MCD15A2H (default), MOD15A2H, MYD15A2H
+    MODIS_LAI_LAYERS: [Lai_500m, Fpar_500m] (default)
+    MODIS_LAI_QC: True (default) - Apply QC filtering
+    MODIS_LAI_CONVERT_TO_DAILY: True (default) - Interpolate 8-day to daily
 """
+import os
+import re
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-
 import requests
+import numpy as np
+import pandas as pd
+import xarray as xr
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
 
-from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-
-
-APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
+from .earthaccess_base import BaseEarthaccessAcquirer
 
 
 @AcquisitionRegistry.register('MODIS_LAI')
 @AcquisitionRegistry.register('MCD15')
-class MODISLAIAcquirer(BaseAcquisitionHandler):
+class MODISLAIAcquirer(BaseEarthaccessAcquirer):
     """
-    Handles MODIS LAI/FPAR data acquisition via NASA AppEEARS.
+    Acquires MODIS LAI/FPAR data (MCD15A2H / MOD15A2H / MYD15A2H).
 
-    Downloads 8-day composite LAI and FPAR data for specified
-    spatial extent and time period.
-
-    Configuration:
-        MODIS_LAI_PRODUCT: Product ID ('MCD15A2H', 'MOD15A2H', 'MYD15A2H')
-        MODIS_LAI_LAYERS: Layers to download (default: Lai_500m, Fpar_500m)
-        MODIS_LAI_QC: Include QC layers (default: True)
+    By default uses earthaccess for direct NASA Earthdata Cloud downloads.
+    Set MODIS_LAI_USE_APPEEARS: true for legacy AppEEARS API mode.
     """
 
     PRODUCTS = {
@@ -48,54 +55,259 @@ class MODISLAIAcquirer(BaseAcquisitionHandler):
 
     DEFAULT_LAYERS = ['Lai_500m', 'Fpar_500m', 'FparLai_QC']
 
+    # LAI/FPAR scaling and QC constants
+    LAI_SCALE_FACTOR = 0.1    # DN to m²/m²
+    FPAR_SCALE_FACTOR = 0.01  # DN to fraction (0-1)
+    FILL_VALUE = 255
+    LAI_VALID_RANGE = (0, 100)   # Valid DN range
+    FPAR_VALID_RANGE = (0, 100)  # Valid DN range
+
+    # FparLai_QC: bits 5-7 = algorithm path
+    # 0 = main (RT), 1 = backup (empirical), others = fill/not produced
+    # Bit 0 (MODLAND QC): 0 = good, 1 = other
+    QC_ALGORITHM_SHIFT = 5
+    QC_ALGORITHM_MASK = 0b111
+    QC_GOOD_ALGORITHMS = {0, 2}  # Main method and saturation
+
+    # AppEEARS URL (for fallback)
+    APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
+
     def download(self, output_dir: Path) -> Path:
-        """
-        Download MODIS LAI/FPAR data via AppEEARS.
+        """Download MODIS LAI/FPAR products."""
+        self.logger.info("Starting MODIS LAI/FPAR acquisition")
 
-        Args:
-            output_dir: Directory to save downloaded files
-
-        Returns:
-            Path to downloaded data
-        """
-        self.logger.info("Starting MODIS LAI/FPAR data acquisition via AppEEARS")
         output_dir.mkdir(parents=True, exist_ok=True)
+        processed_file = output_dir / f"{self.domain_name}_MODIS_LAI.nc"
 
-        # Check for existing data
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
-        existing_files = list(output_dir.glob("*LAI*.nc")) + list(output_dir.glob("*Lai*.nc"))
-        if existing_files and not force_download:
-            self.logger.info(f"MODIS LAI data already exists: {len(existing_files)} files")
-            return output_dir
+        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+            self.logger.info(f"Using existing MODIS LAI file: {processed_file}")
+            return processed_file
 
-        # Get credentials
-        username, password = self._get_earthdata_credentials()
-        if not username or not password:
-            raise ValueError(
-                "NASA Earthdata credentials required. Set via environment variables "
-                "(EARTHDATA_USERNAME, EARTHDATA_PASSWORD) or ~/.netrc"
+        # Check if AppEEARS mode is requested
+        use_appeears = self.config_dict.get('MODIS_LAI_USE_APPEEARS', False)
+
+        if use_appeears:
+            self.logger.info("Using AppEEARS API (legacy mode)")
+            return self._download_via_appeears(output_dir, processed_file)
+        else:
+            self.logger.info("Using earthaccess/CMR (recommended)")
+            return self._download_via_earthaccess(output_dir, processed_file)
+
+    # ===== Earthaccess/CMR Primary Pathway =====
+
+    def _download_via_earthaccess(self, output_dir: Path, processed_file: Path) -> Path:
+        """Download and process MODIS LAI/FPAR via earthaccess."""
+        raw_dir = output_dir / "raw"
+        raw_dir.mkdir(exist_ok=True)
+
+        product = self.config_dict.get('MODIS_LAI_PRODUCT', 'MCD15A2H')
+        self.logger.info(f"Acquiring {product} via earthaccess")
+
+        product_dir = raw_dir / product.lower()
+
+        # Search CMR
+        granules = self._search_granules_cmr(product, version='061')
+
+        if not granules:
+            self.logger.info("No granules with v061, trying v006...")
+            granules = self._search_granules_cmr(product, version='006')
+
+        if not granules:
+            raise RuntimeError(f"No {product} granules found via CMR")
+
+        # Get download URLs
+        urls = self._get_download_urls(granules, extensions=('.hdf',))
+        self.logger.info(f"Found {len(urls)} {product} files to download")
+
+        # Download
+        files = self._download_with_earthaccess(urls, product_dir)
+        self.logger.info(f"Downloaded {len(files)} {product} files")
+
+        if not files:
+            raise RuntimeError(f"No {product} files downloaded")
+
+        # Process HDF files
+        self._process_modis_hdf_files(files, processed_file)
+
+        return processed_file
+
+    def _process_modis_hdf_files(self, files: List[Path], output_file: Path):
+        """Process downloaded MODIS LAI/FPAR HDF files into NetCDF."""
+        from pyhdf.SD import SD, SDC
+
+        self.logger.info(f"Processing {len(files)} MODIS LAI HDF files...")
+
+        layers = self._get_layers()
+        qc_filter = self.config_dict.get('MODIS_LAI_QC', True)
+
+        results = []
+        for i, hdf_path in enumerate(sorted(files)):
+            if (i + 1) % 50 == 0:
+                self.logger.info(f"  Processing {i+1}/{len(files)}")
+
+            try:
+                # Extract date from filename: MCD15A2H.A2020001.h10v03.061.*.hdf
+                match = re.search(r'\.A(\d{7})\.', hdf_path.name)
+                if not match:
+                    continue
+
+                year = int(match.group(1)[:4])
+                doy = int(match.group(1)[4:])
+                date = datetime(year, 1, 1) + timedelta(days=doy - 1)
+
+                # Skip dates outside range
+                if date < self.start_date or date > self.end_date:
+                    continue
+
+                # Open HDF
+                hdf = SD(str(hdf_path), SDC.READ)
+                dataset_names = hdf.datasets().keys()
+
+                record = {'date': date}
+
+                # Extract LAI
+                lai_sds_name = self._find_sds_name(dataset_names, 'Lai_500m')
+                fpar_sds_name = self._find_sds_name(dataset_names, 'Fpar_500m')
+                qc_sds_name = self._find_sds_name(dataset_names, 'FparLai_QC')
+
+                # Read QC data for filtering
+                qc_data = None
+                if qc_filter and qc_sds_name:
+                    try:
+                        qc_sds = hdf.select(qc_sds_name)
+                        qc_data = qc_sds[:]
+                    except Exception:
+                        pass
+
+                # Process LAI
+                if lai_sds_name and 'Lai_500m' in layers:
+                    lai_val = self._extract_layer_mean(
+                        hdf, lai_sds_name, qc_data,
+                        self.LAI_VALID_RANGE, self.LAI_SCALE_FACTOR
+                    )
+                    record['lai'] = lai_val
+
+                # Process FPAR
+                if fpar_sds_name and 'Fpar_500m' in layers:
+                    fpar_val = self._extract_layer_mean(
+                        hdf, fpar_sds_name, qc_data,
+                        self.FPAR_VALID_RANGE, self.FPAR_SCALE_FACTOR
+                    )
+                    record['fpar'] = fpar_val
+
+                hdf.end()
+
+                # Only add if we got at least one valid value
+                if 'lai' in record or 'fpar' in record:
+                    results.append(record)
+
+            except Exception as e:
+                self.logger.debug(f"Error processing {hdf_path.name}: {e}")
+                continue
+
+        if not results:
+            raise RuntimeError("No valid LAI/FPAR data extracted from HDF files")
+
+        # Create DataFrame and Dataset
+        df = pd.DataFrame(results)
+        df = df.sort_values('date').drop_duplicates('date', keep='first')
+        df = df.set_index('date')
+
+        # Build xarray Dataset
+        time_values = pd.to_datetime(df.index).values
+        data_vars = {}
+        if 'lai' in df.columns:
+            data_vars['LAI'] = xr.DataArray(
+                df['lai'].values,
+                dims=['time'],
+                coords={'time': time_values},
+                attrs={
+                    'long_name': 'Leaf Area Index (domain mean)',
+                    'units': 'm2/m2',
+                    'scale_factor_applied': self.LAI_SCALE_FACTOR,
+                }
             )
 
-        # Get configuration
-        product = self.config_dict.get('MODIS_LAI_PRODUCT', 'MCD15A2H')
-        product_id = self.PRODUCTS.get(product, f"{product}.061")
-        layers = self._get_layers()
+        if 'fpar' in df.columns:
+            data_vars['FPAR'] = xr.DataArray(
+                df['fpar'].values,
+                dims=['time'],
+                coords={'time': time_values},
+                attrs={
+                    'long_name': 'Fraction of PAR (domain mean)',
+                    'units': 'fraction',
+                    'scale_factor_applied': self.FPAR_SCALE_FACTOR,
+                }
+            )
 
-        # Authenticate
-        token = self._get_appeears_token(username, password)
-        if not token:
-            raise RuntimeError("Failed to authenticate with AppEEARS")
+        ds = xr.Dataset(data_vars)
+        ds.attrs['title'] = 'MODIS LAI/FPAR'
+        ds.attrs['source'] = f'NASA MODIS {self.config_dict.get("MODIS_LAI_PRODUCT", "MCD15A2H")} v061'
+        ds.attrs['created'] = datetime.now().isoformat()
+        ds.attrs['domain'] = self.domain_name
+        ds.attrs['method'] = 'earthaccess'
 
-        # Submit task
-        task_id = self._submit_task(token, product_id, layers)
-        if not task_id:
-            raise RuntimeError("Failed to submit AppEEARS task")
+        ds.to_netcdf(output_file)
+        self.logger.info(f"Saved {len(df)} LAI/FPAR records to {output_file}")
+        self.logger.info(f"  Date range: {df.index.min()} to {df.index.max()}")
+        if 'lai' in df.columns:
+            self.logger.info(f"  LAI range: {df['lai'].min():.3f} - {df['lai'].max():.3f} m2/m2")
+        if 'fpar' in df.columns:
+            self.logger.info(f"  FPAR range: {df['fpar'].min():.3f} - {df['fpar'].max():.3f}")
 
-        # Wait for completion and download
-        self._wait_and_download(token, task_id, output_dir)
+        # Create CSV output for observation handler compatibility
+        self._create_csv_output(df, output_file.parent)
 
-        self.logger.info(f"MODIS LAI download complete: {output_dir}")
-        return output_dir
+        return output_file
+
+    def _find_sds_name(self, dataset_names, target: str) -> Optional[str]:
+        """Find SDS name matching target in HDF dataset names."""
+        for name in dataset_names:
+            if target in name:
+                return name
+        return None
+
+    def _extract_layer_mean(
+        self,
+        hdf,
+        sds_name: str,
+        qc_data: Optional[np.ndarray],
+        valid_range: tuple,
+        scale_factor: float
+    ) -> float:
+        """Extract domain spatial mean for a single layer from an HDF SDS."""
+        sds = hdf.select(sds_name)
+        data = sds[:].astype(float)
+
+        # Mask fill values
+        data[data == self.FILL_VALUE] = np.nan
+
+        # Apply valid range
+        data[(data < valid_range[0]) | (data > valid_range[1])] = np.nan
+
+        # Apply QC filter
+        if qc_data is not None:
+            algorithm_bits = (qc_data >> self.QC_ALGORITHM_SHIFT) & self.QC_ALGORITHM_MASK
+            good_quality = np.isin(algorithm_bits, list(self.QC_GOOD_ALGORITHMS))
+            data[~good_quality] = np.nan
+
+        # Apply scale factor
+        data = data * scale_factor
+
+        valid_mask = ~np.isnan(data)
+        if valid_mask.sum() > 0:
+            return float(np.nanmean(data))
+        return np.nan
+
+    def _create_csv_output(self, df: pd.DataFrame, output_dir: Path):
+        """Create CSV output for observation handler compatibility."""
+        csv_file = output_dir / f"{self.domain_name}_MODIS_LAI_timeseries.csv"
+
+        out_df = df.copy()
+        out_df.index.name = 'date'
+
+        out_df.to_csv(csv_file)
+        self.logger.info(f"Created CSV timeseries: {csv_file}")
 
     def _get_layers(self) -> List[str]:
         """Get layers to download."""
@@ -111,32 +323,109 @@ class MODISLAIAcquirer(BaseAcquisitionHandler):
 
         return layers
 
-    def _get_appeears_token(self, username: str, password: str) -> Optional[str]:
-        """Authenticate with AppEEARS and get token."""
+    # ===== AppEEARS Fallback Methods =====
+
+    def _download_via_appeears(self, output_dir: Path, processed_file: Path) -> Path:
+        """Download via AppEEARS API (legacy fallback)."""
+        username, password = self._get_earthdata_credentials()
+        if not username or not password:
+            raise RuntimeError(
+                "Earthdata credentials required. Set EARTHDATA_USERNAME and "
+                "EARTHDATA_PASSWORD environment variables or add to ~/.netrc"
+            )
+
+        product = self.config_dict.get('MODIS_LAI_PRODUCT', 'MCD15A2H')
+        product_id = self.PRODUCTS.get(product, f"{product}.061")
+        layers = self._get_layers()
+
+        token = self._appeears_login(username, password)
+        if not token:
+            raise RuntimeError("Failed to authenticate with AppEEARS")
+
+        try:
+            task_id = self._submit_appeears_task(token, product_id, layers)
+            if not task_id:
+                raise RuntimeError("Failed to submit AppEEARS task")
+
+            if not self._wait_for_appeears_task(token, task_id):
+                raise RuntimeError(f"AppEEARS task {task_id} did not complete")
+
+            self._download_appeears_results(token, task_id, output_dir)
+        finally:
+            self._appeears_logout(token)
+
+        # Check for downloaded files and create consolidated output
+        nc_files = list(output_dir.glob("*LAI*.nc")) + list(output_dir.glob("*Lai*.nc"))
+        nc_files += list(output_dir.glob("*MCD15*.nc")) + list(output_dir.glob("*MOD15*.nc"))
+
+        if nc_files:
+            # Mark as appeears output so observation handler can detect it
+            marker = output_dir / ".appeears_output"
+            marker.touch()
+
+        self.logger.info(f"MODIS LAI AppEEARS download complete: {output_dir}")
+        return output_dir
+
+    def _get_earthdata_credentials(self) -> Tuple[Optional[str], Optional[str]]:
+        """Get Earthdata credentials from environment or .netrc."""
+        username = os.environ.get('EARTHDATA_USERNAME')
+        password = os.environ.get('EARTHDATA_PASSWORD')
+
+        if not username or not password:
+            try:
+                import netrc
+                nrc = netrc.netrc()
+                auth = nrc.authenticators('urs.earthdata.nasa.gov')
+                if auth:
+                    username, _, password = auth
+            except Exception:
+                pass
+
+        return username, password
+
+    def _appeears_login(self, username: str, password: str) -> Optional[str]:
+        """Login to AppEEARS and get token."""
         try:
             response = requests.post(
-                f"{APPEEARS_BASE}/login",
+                f"{self.APPEEARS_BASE}/login",
                 auth=(username, password),
                 timeout=60
             )
             response.raise_for_status()
             return response.json().get('token')
         except Exception as e:
-            self.logger.error(f"AppEEARS authentication failed: {e}")
+            self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
-    def _submit_task(
+    def _appeears_logout(self, token: str):
+        """Logout from AppEEARS."""
+        try:
+            requests.post(
+                f"{self.APPEEARS_BASE}/logout",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30
+            )
+        except Exception:
+            pass
+
+    def _submit_appeears_task(
         self,
         token: str,
         product_id: str,
         layers: List[str]
     ) -> Optional[str]:
         """Submit AppEEARS task request."""
-        headers = {'Authorization': f'Bearer {token}'}
+        lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
+        lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
+
+        coordinates = [[
+            [lon_min, lat_min], [lon_max, lat_min],
+            [lon_max, lat_max], [lon_min, lat_max],
+            [lon_min, lat_min]
+        ]]
 
         layer_specs = [{'product': product_id, 'layer': layer} for layer in layers]
-
-        task_name = f"MODIS_LAI_{self.domain_name}_{self.start_date.strftime('%Y%m%d')}"
+        task_name = f"SYMFLUENCE_{self.domain_name}_LAI_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         task_request = {
             'task_type': 'area',
@@ -147,70 +436,59 @@ class MODISLAIAcquirer(BaseAcquisitionHandler):
                     'endDate': self.end_date.strftime('%m-%d-%Y'),
                 }],
                 'layers': layer_specs,
+                'geo': {
+                    'type': 'FeatureCollection',
+                    'features': [{
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Polygon',
+                            'coordinates': coordinates,
+                        },
+                        'properties': {}
+                    }]
+                },
                 'output': {
                     'format': {'type': 'netcdf4'},
                     'projection': 'geographic',
                 },
-                'geo': self._build_geo_spec(),
             }
         }
 
         try:
             response = requests.post(
-                f"{APPEEARS_BASE}/task",
-                headers=headers,
+                f"{self.APPEEARS_BASE}/task",
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json',
+                },
                 json=task_request,
                 timeout=120
             )
             response.raise_for_status()
             result = response.json()
             task_id = result.get('task_id')
-            self.logger.info(f"AppEEARS task submitted: {task_id}")
+            self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
         except Exception as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
-    def _build_geo_spec(self) -> Dict[str, Any]:
-        """Build geographic specification for task."""
-        if self.bbox:
-            return {
-                'type': 'FeatureCollection',
-                'features': [{
-                    'type': 'Feature',
-                    'geometry': {
-                        'type': 'Polygon',
-                        'coordinates': [[
-                            [self.bbox['lon_min'], self.bbox['lat_min']],
-                            [self.bbox['lon_max'], self.bbox['lat_min']],
-                            [self.bbox['lon_max'], self.bbox['lat_max']],
-                            [self.bbox['lon_min'], self.bbox['lat_max']],
-                            [self.bbox['lon_min'], self.bbox['lat_min']],
-                        ]]
-                    },
-                    'properties': {}
-                }]
-            }
-        else:
-            raise ValueError("Bounding box required for MODIS LAI acquisition")
-
-    def _wait_and_download(
+    def _wait_for_appeears_task(
         self,
         token: str,
         task_id: str,
-        output_dir: Path,
-        max_wait: int = 7200,
+        timeout: int = 7200,
         poll_interval: int = 30
-    ):
-        """Wait for task completion and download results."""
-        headers = {'Authorization': f'Bearer {token}'}
-        elapsed = 0
+    ) -> bool:
+        """Wait for AppEEARS task to complete."""
+        self.logger.info(f"Waiting for AppEEARS task {task_id} to complete...")
+        start_time = time.time()
 
-        while elapsed < max_wait:
+        while (time.time() - start_time) < timeout:
             try:
                 response = requests.get(
-                    f"{APPEEARS_BASE}/task/{task_id}",
-                    headers=headers,
+                    f"{self.APPEEARS_BASE}/task/{task_id}",
+                    headers={'Authorization': f'Bearer {token}'},
                     timeout=60
                 )
                 response.raise_for_status()
@@ -220,28 +498,29 @@ class MODISLAIAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"AppEEARS task status: {task_status}")
 
                 if task_status == 'done':
-                    self._download_results(token, task_id, output_dir)
-                    return
-                elif task_status in ['error', 'expired']:
-                    raise RuntimeError(f"AppEEARS task failed: {status.get('error', 'Unknown error')}")
+                    return True
+                elif task_status in ['error', 'expired', 'failed']:
+                    self.logger.error(
+                        f"AppEEARS task failed: {status.get('error', 'Unknown error')}"
+                    )
+                    return False
 
                 time.sleep(poll_interval)
-                elapsed += poll_interval
 
             except requests.RequestException as e:
                 self.logger.warning(f"Error checking task status: {e}")
                 time.sleep(poll_interval)
-                elapsed += poll_interval
 
-        raise RuntimeError(f"AppEEARS task timed out after {max_wait} seconds")
+        self.logger.error(f"AppEEARS task timed out after {timeout} seconds")
+        return False
 
-    def _download_results(self, token: str, task_id: str, output_dir: Path):
-        """Download completed task results."""
+    def _download_appeears_results(self, token: str, task_id: str, output_dir: Path):
+        """Download completed AppEEARS task results."""
         headers = {'Authorization': f'Bearer {token}'}
 
         try:
             response = requests.get(
-                f"{APPEEARS_BASE}/bundle/{task_id}",
+                f"{self.APPEEARS_BASE}/bundle/{task_id}",
                 headers=headers,
                 timeout=60
             )
@@ -265,7 +544,7 @@ class MODISLAIAcquirer(BaseAcquisitionHandler):
 
             try:
                 response = requests.get(
-                    f"{APPEEARS_BASE}/bundle/{task_id}/{file_id}",
+                    f"{self.APPEEARS_BASE}/bundle/{task_id}/{file_id}",
                     headers=headers,
                     stream=True,
                     timeout=300

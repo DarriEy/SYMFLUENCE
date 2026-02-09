@@ -32,15 +32,27 @@ class ConfigEditor(param.Parameterized):
             min_height=300,
         )
         self._advanced_mode = False
+        self._file_input = None  # set in panel()
 
         # Sync pour point from map clicks
         self.state.param.watch(self._on_pour_point_change, ['pour_point_lat', 'pour_point_lon'])
+
+        # Auto-refresh when config is loaded from any source (gauge setup, demo, etc.)
+        self.state.param.watch(self._on_config_loaded, ['config_path'])
 
     def _on_pour_point_change(self, *events):
         lat = self.state.pour_point_lat
         lon = self.state.pour_point_lon
         if lat is not None and lon is not None:
             self._basic_params.pour_point_coords = f"{lat}/{lon}"
+
+    def _on_config_loaded(self, event):
+        """React to config_path changes — refresh widgets and file input."""
+        if event.new:
+            self.load_from_state()
+            # Keep the file path text input in sync
+            if self._file_input is not None:
+                self._file_input.value = event.new
 
     def load_from_state(self):
         """Populate widgets from the current state.typed_config."""
@@ -117,7 +129,7 @@ class ConfigEditor(param.Parameterized):
     def panel(self):
         """Return the Panel layout for embedding in the sidebar."""
         # File picker row
-        file_input = pn.widgets.TextInput(
+        self._file_input = pn.widgets.TextInput(
             name='Config File',
             placeholder='Path to config YAML...',
             value=self.state.config_path or '',
@@ -128,11 +140,11 @@ class ConfigEditor(param.Parameterized):
         mode_toggle = pn.widgets.Toggle(name='Advanced YAML', value=False, width=130)
 
         def _on_load(event):
-            path = file_input.value.strip()
+            path = self._file_input.value.strip()
             if path:
                 try:
                     self.state.load_config(path)
-                    self.load_from_state()
+                    # load_from_state() is called by the config_path watcher
                 except Exception as exc:
                     self.state.append_log(f"Load failed: {exc}\n")
 
@@ -146,7 +158,7 @@ class ConfigEditor(param.Parameterized):
         save_btn.on_click(_on_save)
         mode_toggle.param.watch(_on_mode_toggle, 'value')
 
-        file_row = pn.Row(file_input, load_btn, save_btn, sizing_mode='stretch_width')
+        file_row = pn.Row(self._file_input, load_btn, save_btn, sizing_mode='stretch_width')
 
         # Basic param widgets
         basic_panel = pn.Param(

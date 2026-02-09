@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ModelDefaults
 
 if TYPE_CHECKING:
     pass
@@ -47,7 +48,7 @@ class TaskBuilder(ConfigMixin):
     - run_de (inline)
     """
 
-    DEFAULT_PENALTY_SCORE = -999.0
+    DEFAULT_PENALTY_SCORE = ModelDefaults.PENALTY_SCORE
 
     def __init__(
         self,
@@ -186,32 +187,63 @@ class TaskBuilder(ConfigMixin):
             task_dict['objective_names'] = objective_names
 
             # Add target types and metrics for multi-target optimization
-            # Support NSGA2_*, MOEAD_*, and legacy OPTIMIZATION_TARGET* keys
+            # Determine which algorithm is active to prioritize its keys.
+            # The flattened config includes Pydantic defaults for ALL algorithms
+            # (e.g., NSGA2_SECONDARY_TARGET='gw_depth' even in a MOEA/D run),
+            # so we must check the active algorithm's keys first.
+            is_moead = str(self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', '')).upper() in ('MOEAD', 'MOEA-D', 'MOEA_D')
+            is_nsga2 = str(self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', '')).upper() in ('NSGA2', 'NSGA-II', 'NSGA_II')
+
+            # Fallback target/metric from general config
+            fallback_target = self._get_config_value(
+                lambda: self.config.optimization.target, default='streamflow',
+                dict_key='OPTIMIZATION_TARGET'
+            )
+            fallback_metric = self._get_config_value(
+                lambda: self.config.optimization.metric, default='KGE',
+                dict_key='OPTIMIZATION_METRIC'
+            )
+
             task_dict['multi_target_mode'] = True
-            task_dict['primary_target_type'] = self.config.get(
-                'NSGA2_PRIMARY_TARGET',
-                self.config.get('MOEAD_PRIMARY_TARGET',
-                    self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
-                )
-            )
-            task_dict['secondary_target_type'] = self.config.get(
-                'NSGA2_SECONDARY_TARGET',
-                self.config.get('MOEAD_SECONDARY_TARGET',
-                    self.config.get('OPTIMIZATION_TARGET2', 'tws')
-                )
-            )
-            task_dict['primary_metric'] = self.config.get(
-                'NSGA2_PRIMARY_METRIC',
-                self.config.get('MOEAD_PRIMARY_METRIC',
-                    self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC')
-                )
-            )
-            task_dict['secondary_metric'] = self.config.get(
-                'NSGA2_SECONDARY_METRIC',
-                self.config.get('MOEAD_SECONDARY_METRIC',
-                    self.config.get('OPTIMIZATION_METRIC2', 'KGE')
-                )
-            )
+
+            if is_moead:
+                task_dict['primary_target_type'] = self.config.get(
+                    'MOEAD_PRIMARY_TARGET', fallback_target)
+                task_dict['secondary_target_type'] = self.config.get(
+                    'MOEAD_SECONDARY_TARGET',
+                    self.config.get('OPTIMIZATION_TARGET2', 'tws'))
+                task_dict['primary_metric'] = self.config.get(
+                    'MOEAD_PRIMARY_METRIC', fallback_metric)
+                task_dict['secondary_metric'] = self.config.get(
+                    'MOEAD_SECONDARY_METRIC',
+                    self.config.get('OPTIMIZATION_METRIC2', 'KGE'))
+            elif is_nsga2:
+                task_dict['primary_target_type'] = self.config.get(
+                    'NSGA2_PRIMARY_TARGET', fallback_target)
+                task_dict['secondary_target_type'] = self.config.get(
+                    'NSGA2_SECONDARY_TARGET',
+                    self.config.get('OPTIMIZATION_TARGET2', 'tws'))
+                task_dict['primary_metric'] = self.config.get(
+                    'NSGA2_PRIMARY_METRIC', fallback_metric)
+                task_dict['secondary_metric'] = self.config.get(
+                    'NSGA2_SECONDARY_METRIC',
+                    self.config.get('OPTIMIZATION_METRIC2', 'KGE'))
+            else:
+                # Generic fallback: try MOEAD then NSGA2 then legacy keys
+                task_dict['primary_target_type'] = self.config.get(
+                    'MOEAD_PRIMARY_TARGET',
+                    self.config.get('NSGA2_PRIMARY_TARGET', fallback_target))
+                task_dict['secondary_target_type'] = self.config.get(
+                    'MOEAD_SECONDARY_TARGET',
+                    self.config.get('NSGA2_SECONDARY_TARGET',
+                        self.config.get('OPTIMIZATION_TARGET2', 'tws')))
+                task_dict['primary_metric'] = self.config.get(
+                    'MOEAD_PRIMARY_METRIC',
+                    self.config.get('NSGA2_PRIMARY_METRIC', fallback_metric))
+                task_dict['secondary_metric'] = self.config.get(
+                    'MOEAD_SECONDARY_METRIC',
+                    self.config.get('NSGA2_SECONDARY_METRIC',
+                        self.config.get('OPTIMIZATION_METRIC2', 'KGE')))
 
         # Add random seed if provided
         if random_seed is not None:

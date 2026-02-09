@@ -205,7 +205,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             with xr.open_dataset(elev_bands_file) as ds:
                 # Get number of bands
                 if 'elevation_band' in ds.dims:
-                    n_bands = ds.dims['elevation_band']
+                    n_bands = ds.sizes['elevation_band']
                 else:
                     n_bands = 1
                 params['N_BANDS'] = float(n_bands)
@@ -665,7 +665,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                     'FUSE',
                     self.experiment_id
                 )
-                self.logger.info("Copied and configured mizuRoute settings for parallel processes")
+                self.logger.debug("Copied and configured mizuRoute settings for parallel processes")
 
 
 # Backward compatibility alias

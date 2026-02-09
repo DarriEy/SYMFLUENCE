@@ -40,8 +40,11 @@ class GUICommands(BaseCommand):
         config_path = BaseCommand.get_arg(args, 'config', None)
         port = BaseCommand.get_arg(args, 'port', 5006)
         no_browser = BaseCommand.get_arg(args, 'no_browser', False)
+        demo = BaseCommand.get_arg(args, 'demo', None)
 
         BaseCommand._console.info(f"Launching SYMFLUENCE GUI on port {port}...")
+        if demo:
+            BaseCommand._console.indent(f"Demo mode: {demo}")
         if config_path:
             BaseCommand._console.indent(f"Preloading config: {config_path}")
 
@@ -49,6 +52,7 @@ class GUICommands(BaseCommand):
             config_path=config_path,
             port=port,
             show=not no_browser,
+            demo=demo,
         )
 
         return ExitCode.SUCCESS

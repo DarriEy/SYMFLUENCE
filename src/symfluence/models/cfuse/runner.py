@@ -383,7 +383,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
             temp = ds['temp'].values
             pet = ds['pet'].values
             time_index = pd.to_datetime(ds.time.values)
-            hru_ids = ds['hru_id'].values if 'hru_id' in ds else np.arange(ds.dims['hru']) + 1
+            hru_ids = ds['hru_id'].values if 'hru_id' in ds else np.arange(ds.sizes['hru']) + 1
 
             n_times, n_hrus = precip.shape
             self.logger.info(f"Running simulation for {n_times} timesteps x {n_hrus} HRUs")

@@ -181,15 +181,16 @@ class MESHWorker(BaseWorker):
         from symfluence.models.mesh.extractor import MESHResultExtractor
 
         try:
-            # MESH output file for streamflow or runoff
-            # Check common MESH output file names - prefer Basin_average for lumped noroute
+            # MESH output file for streamflow or runoff.
+            # Basin_average is preferred for lumped domains (uses RFF + LKG,
+            # avoids self-referential routing artifacts in single-cell run_def).
             sim_file_candidates = [
-                # Lumped mode with noroute - Basin average water balance (daily)
+                # Primary: Basin average water balance (daily, RFF + LKG)
                 output_dir / 'Basin_average_water_balance.csv',
                 output_dir / 'results' / 'Basin_average_water_balance.csv',
-                # Lumped mode - GRU water balance (hourly, contains ROF)
+                # Fallback: GRU water balance (hourly, contains ROF)
                 output_dir / 'GRU_water_balance.csv',
-                # Standard routed output
+                # Routed output (multi-cell domains or verification)
                 output_dir / 'MESH_output_streamflow.csv',
                 output_dir / 'results' / 'MESH_output_streamflow.csv',
                 output_dir / 'streamflow.csv',
@@ -370,26 +371,29 @@ class MESHWorker(BaseWorker):
                         f"remaining={len(sim_df)} rows)"
                     )
 
-            # Filter to calibration period if specified (consistent with
-            # FUSE, RHESSys, HYPE, and HBV workers)
-            calib_period = config.get('CALIBRATION_PERIOD', '')
-            if calib_period and ',' in str(calib_period):
+            # Filter to requested period.  The caller can pass an explicit
+            # ``period`` kwarg (e.g. the evaluation period); otherwise fall
+            # back to CALIBRATION_PERIOD from the config dict.
+            period = kwargs.get('period', '')
+            if not period:
+                period = config.get('CALIBRATION_PERIOD', '')
+            if period and ',' in str(period):
                 try:
-                    start_str, end_str = [s.strip() for s in str(calib_period).split(',')]
-                    calib_start = pd.Timestamp(start_str)
-                    calib_end = pd.Timestamp(end_str)
+                    start_str, end_str = [s.strip() for s in str(period).split(',')]
+                    period_start = pd.Timestamp(start_str)
+                    period_end = pd.Timestamp(end_str)
                     sim_df = sim_df.loc[
-                        (sim_df.index >= calib_start) & (sim_df.index <= calib_end)
+                        (sim_df.index >= period_start) & (sim_df.index <= period_end)
                     ]
                     obs_daily = obs_daily.loc[
-                        (obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)
+                        (obs_daily.index >= period_start) & (obs_daily.index <= period_end)
                     ]
                     self.logger.debug(
-                        f"Applied calibration period filter: {calib_start.date()} to {calib_end.date()}, "
+                        f"Applied period filter: {period_start.date()} to {period_end.date()}, "
                         f"sim={len(sim_df)} obs={len(obs_daily)} rows"
                     )
                 except (ValueError, TypeError) as e:
-                    self.logger.warning(f"Could not parse calibration period '{calib_period}': {e}")
+                    self.logger.warning(f"Could not parse period '{period}': {e}")
 
             # Align simulation and observations
             common_idx = sim_df.index.intersection(obs_daily.index)

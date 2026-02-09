@@ -34,6 +34,7 @@ class MESHParameterManager(BaseParameterManager):
         'XSLP/XDRAINH/MANN/KSAT': (['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT'], 5),
         'FCAN': ([None, None, None, None, None, 'LAMX', None, None, None], 9),
         'ALIC': ([None, None, None, None, None, 'ROOT', None, None, None], 9),
+        'RSMN': (['RSMIN', None, None, None, None, None, None, None], 8),
     }
 
     # Default multipliers for landcover-specific parameter scaling
@@ -54,6 +55,7 @@ class MESHParameterManager(BaseParameterManager):
         # MESH-specific setup
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
+        self.project_dir = self._resolve_project_dir()
 
         # Parse MESH parameters to calibrate from config
         mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
@@ -70,6 +72,19 @@ class MESHParameterManager(BaseParameterManager):
             mesh_params_str = 'KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,ZSNL,ZPLS,RCHARG,WF_R2,R2N'
 
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
+
+        # Warn about routing parameters that are inert in noroute mode
+        routing_params_in_set = [p for p in self.mesh_params if p in ('WF_R2', 'R2N')]
+        if routing_params_in_set:
+            routing_mode = config.get('ROUTING_MODE', 'noroute')
+            if routing_mode == 'noroute':
+                self.logger.info(
+                    f"Routing parameters {routing_params_in_set} are in the "
+                    f"calibration set but ROUTING_MODE='noroute' — these "
+                    f"parameters have no effect on simulated discharge in "
+                    f"noroute mode. Consider removing them from "
+                    f"MESH_PARAMS_TO_CALIBRATE to reduce search dimensions."
+                )
 
         # Paths to parameter files
         # mesh_settings_dir is the base directory for model files in this run context
@@ -94,6 +109,7 @@ class MESHParameterManager(BaseParameterManager):
             # CLASS.ini vegetation parameters (control ET partitioning)
             'LAMX': 'CLASS',      # Max LAI for first veg class - Line 05, pos 5
             'ROOT': 'CLASS',      # Root depth (m) for first veg class - Line 08, pos 5
+            'RSMIN': 'CLASS',     # Minimum stomatal resistance (s/m) - Line 09, pos 0
             # Meshflow-generated parameters (MESH_parameters_hydrology.ini)
             'ZSNL': 'hydrology', 'ZPLG': 'hydrology', 'ZPLS': 'hydrology',
             'WF_R2': 'hydrology',  # Channel roughness coefficient
@@ -155,6 +171,7 @@ class MESHParameterManager(BaseParameterManager):
         defaults = {
             'LAMX': (5, 5, 9),    # Line 05: 5xFCAN + 4xLAMX, LAMX at pos 5
             'ROOT': (8, 5, 9),    # Line 08: 5xALIC + 4xROOT, ROOT at pos 5
+            'RSMIN': (9, 0, 8),   # Line 09: 4xRSMN + 4xQA50, RSMIN at pos 0
             'DRN': (12, 0, 4),
             'SDEP': (12, 1, 4),
             'XSLP': (13, 0, 5),
@@ -304,6 +321,28 @@ class MESHParameterManager(BaseParameterManager):
             i += 1
         return blocks
 
+    def _resolve_project_dir(self) -> Optional[Path]:
+        """Resolve the real project directory from config.
+
+        In parallel runs, mesh_settings_dir may point into process_N/forcing,
+        which does not contain attributes/gistool-outputs. Use the config's
+        SYMFLUENCE_DATA_DIR + DOMAIN_NAME to locate the true project dir.
+        """
+        domain_name = self.domain_name
+        if domain_name is None and 'domain' in self.config:
+            domain_name = self.config['domain'].get('name')
+
+        data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
+        if data_dir is None and 'system' in self.config:
+            data_dir = self.config['system'].get('data_dir')
+
+        if domain_name and data_dir:
+            project_dir = Path(data_dir) / f"domain_{domain_name}"
+            if project_dir.exists():
+                return project_dir
+
+        return None
+
     def _build_block_to_nalcms_mapping(self) -> Dict[int, int]:
         """Build mapping from CLASS.ini block index to NALCMS class ID.
 
@@ -316,7 +355,7 @@ class MESHParameterManager(BaseParameterManager):
         import pandas as pd
 
         # Look for landcover stats in various locations
-        project_dir = self.mesh_settings_dir.parent.parent
+        project_dir = self.project_dir or self.mesh_settings_dir.parent.parent
         possible_paths = [
             project_dir / 'forcing' / 'MESH_input' / 'temp_modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
             project_dir / 'attributes' / 'gistool-outputs' / 'modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
@@ -571,7 +610,7 @@ class MESHParameterManager(BaseParameterManager):
 
         return None
 
-    def get_initial_parameters(self) -> Optional[Dict[str, float]]:
+    def get_initial_parameters(self, skip_boundary_check: bool = False) -> Optional[Dict[str, float]]:
         """Get initial parameter values from .ini files or defaults.
 
         Values read from files are checked against parameter bounds.
@@ -582,6 +621,12 @@ class MESHParameterManager(BaseParameterManager):
         For log-transformed parameters, the boundary check and midpoint
         use log-space so the starting point is the geometric mean rather
         than the arithmetic mean.
+
+        Args:
+            skip_boundary_check: If True, return raw file values without
+                replacing near-boundary values with midpoints.  Used by
+                warm-start to preserve the values the model was actually
+                running with when it achieved its best score.
         """
         try:
             params: Dict[str, float] = {}
@@ -600,25 +645,26 @@ class MESHParameterManager(BaseParameterManager):
                 value = self._read_param_from_file(param_name)
 
                 if value is not None:
-                    # Check if value is near the boundary (bottom/top 5%)
-                    if is_log:
-                        log_range = np.log(bounds['max']) - np.log(bounds['min'])
-                        if log_range > 0 and value > 0:
-                            normalized = (np.log(max(value, bounds['min'])) - np.log(bounds['min'])) / log_range
+                    if not skip_boundary_check:
+                        # Check if value is near the boundary (bottom/top 5%)
+                        if is_log:
+                            log_range = np.log(bounds['max']) - np.log(bounds['min'])
+                            if log_range > 0 and value > 0:
+                                normalized = (np.log(max(value, bounds['min'])) - np.log(bounds['min'])) / log_range
+                            else:
+                                normalized = 0.5
                         else:
-                            normalized = 0.5
-                    else:
-                        param_range = bounds['max'] - bounds['min']
-                        normalized = (value - bounds['min']) / param_range if param_range > 0 else 0.5
+                            param_range = bounds['max'] - bounds['min']
+                            normalized = (value - bounds['min']) / param_range if param_range > 0 else 0.5
 
-                    if normalized < 0.05 or normalized > 0.95:
-                        self.logger.info(
-                            f"Initial {param_name}={value:.4g} is near boundary "
-                            f"[{bounds['min']:.4g}, {bounds['max']:.4g}] "
-                            f"(normalized={normalized:.3f}); "
-                            f"using midpoint {midpoint:.4g} for DDS start"
-                        )
-                        value = midpoint
+                        if normalized < 0.05 or normalized > 0.95:
+                            self.logger.info(
+                                f"Initial {param_name}={value:.4g} is near boundary "
+                                f"[{bounds['min']:.4g}, {bounds['max']:.4g}] "
+                                f"(normalized={normalized:.3f}); "
+                                f"using midpoint {midpoint:.4g} for DDS start"
+                            )
+                            value = midpoint
                     params[param_name] = value
                 else:
                     params[param_name] = midpoint
@@ -728,10 +774,36 @@ class MESHParameterManager(BaseParameterManager):
                 if self.use_landcover_multipliers and nalcms_class_id is not None:
                     multipliers = self.landcover_multipliers.get(nalcms_class_id, {})
 
+                # First pass: compute multiplied values and validate as a set
+                multiplied_params = {}
                 for param_name, base_value in params.items():
-                    # Apply landcover multiplier if available
                     multiplier = multipliers.get(param_name, 1.0)
-                    value = base_value * multiplier
+                    multiplied_params[param_name] = base_value * multiplier
+
+                # Enforce physical bounds on multiplied values (prevents crashes
+                # when landcover multipliers push parameters outside feasible range,
+                # e.g. Snow/Ice SDEP*0.3 or Barren KSAT*1.5)
+                m_sdep = multiplied_params.get('SDEP')
+                if m_sdep is not None and m_sdep < 0.5:
+                    multiplied_params['SDEP'] = 0.5
+                    m_sdep = 0.5
+                m_mann = multiplied_params.get('MANN_CLASS')
+                if m_mann is not None and m_mann < 0.01:
+                    multiplied_params['MANN_CLASS'] = 0.01
+                m_ksat = multiplied_params.get('KSAT')
+                m_drn = multiplied_params.get('DRN')
+                if m_ksat is not None and m_drn is not None:
+                    if m_ksat * m_drn > 400.0:
+                        multiplied_params['DRN'] = 400.0 / m_ksat
+                    if m_sdep is not None and m_ksat * multiplied_params['DRN'] / m_sdep > 250.0:
+                        multiplied_params['DRN'] = 250.0 * m_sdep / m_ksat
+                m_frzth = multiplied_params.get('FRZTH')
+                if m_frzth is not None and m_sdep is not None and m_frzth > m_sdep:
+                    multiplied_params['FRZTH'] = m_sdep
+
+                for param_name, base_value in params.items():
+                    multiplier = multipliers.get(param_name, 1.0)
+                    value = multiplied_params[param_name]
 
                     # Determine which line this parameter is on
                     if param_name in ['DRN', 'SDEP']:
@@ -846,19 +918,25 @@ class MESHParameterManager(BaseParameterManager):
                     # Handle array parameters (e.g., WF_R2 has one value per river class)
                     # Format: WF_R2  0.30    0.30    0.30  # comment
                     # Replace all numeric values on the line with the calibrated value
-                    pattern = rf'^({param_name}\s+)([\d\.\s\-\+eE]+)(#.*)?$'
+                    pattern = rf'^(?P<prefix>\s*{param_name}\s*(?:=|\s)\s*)(?P<vals>[\d\.\s\-\+eE]+)(?P<comment>\s*[!#].*)?$'
 
                     def replace_array_values(m, _value=value):
-                        prefix = m.group(1)
-                        values_str = m.group(2)
-                        comment = m.group(3) or ''
+                        prefix = m.group('prefix')
+                        values_str = m.group('vals')
+                        comment = m.group('comment') or ''
                         # Count how many values there were
                         num_values = len(re.findall(r'[\d\.\-\+eE]+', values_str))
                         # Create new values string with same count
                         new_values = '    '.join([f"{_value:.2f}"] * num_values)
-                        return prefix + new_values + '  ' + comment
+                        return prefix + new_values + comment
 
-                    content, n = re.subn(pattern, replace_array_values, content, count=1, flags=re.MULTILINE)
+                    content, n = re.subn(
+                        pattern,
+                        replace_array_values,
+                        content,
+                        count=1,
+                        flags=re.MULTILINE | re.IGNORECASE
+                    )
                 else:
                     # Match: KEY value (ignore comments starting with !)
                     # Use word boundary \b to avoid matching partial names

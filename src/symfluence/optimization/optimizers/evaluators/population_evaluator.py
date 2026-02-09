@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional, Callable
 import numpy as np
 
 from .task_builder import TaskBuilder
+from symfluence.core.constants import ModelDefaults
 
 
 class PopulationEvaluator:
@@ -24,7 +25,7 @@ class PopulationEvaluator:
     - Result extraction and error handling
     """
 
-    DEFAULT_PENALTY_SCORE = -999.0
+    DEFAULT_PENALTY_SCORE = ModelDefaults.PENALTY_SCORE
 
     def __init__(
         self,
