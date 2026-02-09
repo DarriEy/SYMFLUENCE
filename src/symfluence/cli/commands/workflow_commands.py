@@ -227,12 +227,17 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        from ..argument_parser import _STEP_ALIAS_REVERSE
+
         BaseCommand._console.info("Available workflow steps:")
         BaseCommand._console.rule()
         for i, (step_name, description) in enumerate(WorkflowCommands.WORKFLOW_STEPS.items(), 1):
-            BaseCommand._console.info(f"{i:2}. {step_name:30s} - {description}")
+            aliases = _STEP_ALIAS_REVERSE.get(step_name, [])
+            alias_str = f'  (aliases: {", ".join(aliases)})' if aliases else ''
+            BaseCommand._console.info(f"{i:2}. {step_name:35s} - {description}{alias_str}")
         BaseCommand._console.rule()
         BaseCommand._console.info(f"Total: {len(WorkflowCommands.WORKFLOW_STEPS)} steps")
+        BaseCommand._console.info("Tip: Use aliases for quicker typing, e.g. 'symfluence workflow step map'")
         return ExitCode.SUCCESS
 
     @staticmethod

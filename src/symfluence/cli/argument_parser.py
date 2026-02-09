@@ -43,6 +43,62 @@ WORKFLOW_STEPS = [
     'postprocess_results'
 ]
 
+# Short aliases for workflow steps (alias -> canonical name)
+STEP_ALIASES = {
+    'setup':          'setup_project',
+    'pour_point':     'create_pour_point',
+    'pp':             'create_pour_point',
+    'attributes':     'acquire_attributes',
+    'attrs':          'acquire_attributes',
+    'domain':         'define_domain',
+    'discretize':     'discretize_domain',
+    'obs_data':       'process_observed_data',
+    'obs':            'process_observed_data',
+    'forcings':       'acquire_forcings',
+    'agnostic_prep':  'model_agnostic_preprocessing',
+    'map':            'model_agnostic_preprocessing',
+    'specific_prep':  'model_specific_preprocessing',
+    'msp':            'model_specific_preprocessing',
+    'model':          'run_model',
+    'calibrate':      'calibrate_model',
+    'cal':            'calibrate_model',
+    'emulation':      'run_emulation',
+    'emu':            'run_emulation',
+    'benchmark':      'run_benchmarking',
+    'bench':          'run_benchmarking',
+    'decision':       'run_decision_analysis',
+    'sensitivity':    'run_sensitivity_analysis',
+    'sa':             'run_sensitivity_analysis',
+    'postprocess':    'postprocess_results',
+    'post':           'postprocess_results',
+}
+
+# Build reverse lookup: canonical name -> list of aliases
+_STEP_ALIAS_REVERSE: dict[str, list[str]] = {}
+for _alias, _canon in STEP_ALIASES.items():
+    _STEP_ALIAS_REVERSE.setdefault(_canon, []).append(_alias)
+
+
+def resolve_step_name(name: str) -> str:
+    """Resolve a step name or alias to the canonical workflow step name.
+
+    Accepts the full canonical name (e.g. 'model_agnostic_preprocessing')
+    or any registered alias (e.g. 'map', 'agnostic_prep').
+
+    Raises:
+        argparse.ArgumentTypeError: If the name is not recognised.
+    """
+    if name in WORKFLOW_STEPS:
+        return name
+    if name in STEP_ALIASES:
+        return STEP_ALIASES[name]
+    # Build a helpful error message
+    all_accepted = sorted(set(WORKFLOW_STEPS) | set(STEP_ALIASES.keys()))
+    raise argparse.ArgumentTypeError(
+        f"unknown step '{name}'. Valid steps and aliases:\n  "
+        + "\n  ".join(all_accepted)
+    )
+
 # Domain definition methods
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
@@ -175,8 +231,8 @@ For more help on a specific command:
             help='Run a single workflow step',
             parents=[self.common_parser]
         )
-        step_parser.add_argument('step_name', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
-                               help=f'Step to execute. Choices: {", ".join(WORKFLOW_STEPS)}')
+        step_parser.add_argument('step_name', type=resolve_step_name, metavar='STEP_NAME',
+                               help='Step to execute (use full name or alias; see "workflow list-steps")')
         step_parser.add_argument('--force-rerun', action='store_true', dest='force_rerun',
                                help='Force rerun of this step')
         step_parser.set_defaults(func=WorkflowCommands.run_step)
@@ -187,8 +243,8 @@ For more help on a specific command:
             help='Run multiple workflow steps',
             parents=[self.common_parser]
         )
-        steps_parser.add_argument('step_names', nargs='+', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
-                                help=f'Steps to execute in order. Choices: {", ".join(WORKFLOW_STEPS)}')
+        steps_parser.add_argument('step_names', nargs='+', type=resolve_step_name, metavar='STEP_NAME',
+                                help='Steps to execute in order (use full names or aliases; see "workflow list-steps")')
         steps_parser.add_argument('--force-rerun', action='store_true', dest='force_rerun',
                                 help='Force rerun of these steps')
         steps_parser.set_defaults(func=WorkflowCommands.run_steps)
@@ -222,8 +278,8 @@ For more help on a specific command:
             help='Resume workflow from a specific step',
             parents=[self.common_parser]
         )
-        resume_parser.add_argument('step_name', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
-                                 help=f'Step to resume from. Choices: {", ".join(WORKFLOW_STEPS)}')
+        resume_parser.add_argument('step_name', type=resolve_step_name, metavar='STEP_NAME',
+                                 help='Step to resume from (use full name or alias; see "workflow list-steps")')
         resume_parser.add_argument('--force-rerun', action='store_true', dest='force_rerun',
                                  help='Force rerun from this step')
         resume_parser.set_defaults(func=WorkflowCommands.resume)
@@ -245,8 +301,8 @@ For more help on a specific command:
             help='Run diagnostic plots on existing workflow outputs',
             parents=[self.common_parser]
         )
-        diagnose_parser.add_argument('--step', choices=WORKFLOW_STEPS, metavar='STEP',
-                                    help=f'Run diagnostics for a specific step. Choices: {", ".join(WORKFLOW_STEPS)}')
+        diagnose_parser.add_argument('--step', type=resolve_step_name, metavar='STEP',
+                                    help='Run diagnostics for a specific step (use full name or alias; see "workflow list-steps")')
         diagnose_parser.set_defaults(func=WorkflowCommands.diagnose)
 
     def _register_project_commands(self, subparsers):
@@ -609,6 +665,9 @@ For more help on a specific command:
         download_parser.add_argument('--bbox', type=str, default=None,
                                      metavar='LAT_MAX/LON_MIN/LAT_MIN/LON_MAX',
                                      help='Bounding box as N/W/S/E (required unless --config)')
+        download_parser.add_argument('--shapefile', type=str, default=None,
+                                     metavar='PATH',
+                                     help='Shapefile to extract bounding box from (alternative to --bbox)')
         download_parser.add_argument('--start', type=str, default=None,
                                      metavar='YYYY-MM-DD',
                                      help='Start date (required unless --config)')
