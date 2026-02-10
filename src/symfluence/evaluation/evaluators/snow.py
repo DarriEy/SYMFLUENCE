@@ -431,7 +431,15 @@ class SnowEvaluator(ModelEvaluator):
                 self.logger.warning(f"Could not find required columns in {obs_path}. Need Date and data column.")
                 return None
 
-            obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
+            # Try default parsing, then dayfirst=True; use whichever preserves more rows
+            # Handles DD/MM/YYYY formatted CSVs (e.g. SNOTEL processed data)
+            dt_default = pd.to_datetime(obs_df[date_col], errors='coerce')
+            dt_dayfirst = pd.to_datetime(obs_df[date_col], dayfirst=True, errors='coerce')
+            if dt_dayfirst.notna().sum() > dt_default.notna().sum():
+                obs_df['DateTime'] = dt_dayfirst
+                self.logger.debug("Using dayfirst=True for date parsing (more valid dates)")
+            else:
+                obs_df['DateTime'] = dt_default
             obs_df = obs_df.dropna(subset=['DateTime'])
             obs_df.set_index('DateTime', inplace=True)
 

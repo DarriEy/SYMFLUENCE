@@ -720,7 +720,13 @@ class ETEvaluator(ModelEvaluator):
                 self.logger.warning(f"Could not find date or data columns in {obs_path}")
                 return None
 
-            obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
+            # Try default parsing, then dayfirst=True; use whichever preserves more rows
+            dt_default = pd.to_datetime(obs_df[date_col], errors='coerce')
+            dt_dayfirst = pd.to_datetime(obs_df[date_col], dayfirst=True, errors='coerce')
+            if dt_dayfirst.notna().sum() > dt_default.notna().sum():
+                obs_df['DateTime'] = dt_dayfirst
+            else:
+                obs_df['DateTime'] = dt_default
             obs_df = obs_df.dropna(subset=['DateTime'])
             obs_df.set_index('DateTime', inplace=True)
 
