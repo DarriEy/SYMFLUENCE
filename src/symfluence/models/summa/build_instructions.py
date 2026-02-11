@@ -126,12 +126,38 @@ case "$(uname -s 2>/dev/null)" in
         ;;
 esac
 
-# Patch SUMMA source for SUNDIALS INDEX_SIZE=64 compatibility:
-# FIDASetMaxNumSteps expects INTEGER(8) with INDEX_SIZE=64, but
-# upstream SUMMA has int(max_steps) which gives INTEGER(4).
-if grep -q 'int(max_steps)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
-    echo "Patching summaSolve4ida.f90: int(max_steps) -> int(max_steps, kind=8)"
-    sed -i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
+# Patch SUMMA source for FIDASetMaxNumSteps integer kind.
+# The Fortran interface takes integer(C_LONG) for mxsteps:
+#   - Linux LP64:   C_LONG = 8 bytes -> need int(max_steps, kind=8)
+#   - Windows LLP64: C_LONG = 4 bytes -> upstream int(max_steps) is correct
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        # Windows: C_LONG=4; undo kind=8 if present from a previous build
+        if grep -q 'int(max_steps, kind=8)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
+            echo "Patching summaSolve4ida.f90: removing kind=8 (Windows C_LONG=4)"
+            sed -i 's/int(max_steps, kind=8)/int(max_steps)/g' build/source/engine/summaSolve4ida.f90
+        fi
+        ;;
+    *)
+        # Linux/macOS: C_LONG=8; add kind=8 if not already present
+        if grep -q 'int(max_steps)' build/source/engine/summaSolve4ida.f90 2>/dev/null && \
+           ! grep -q 'int(max_steps, kind=8)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
+            echo "Patching summaSolve4ida.f90: int(max_steps) -> int(max_steps, kind=8)"
+            sed -i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
+        fi
+        ;;
+esac
+
+# Patch uninitialized total_soil_depth in soilLiqFlx.f90.
+# The develop_sundials branch declares this variable but never assigns it.
+# On macOS/ARM the stack happens to contain a useful value; on Linux/gfortran
+# the stack is zeroed, causing 0/0 = NaN in the Green-Ampt infiltration formula.
+# Fix: compute total_soil_depth = sum(mLayerDepth) before first use.
+if grep -q 'total_soil_depth' build/source/engine/soilLiqFlx.f90 2>/dev/null; then
+    if ! grep -q 'total_soil_depth = ' build/source/engine/soilLiqFlx.f90 2>/dev/null; then
+        echo "Patching soilLiqFlx.f90: initializing total_soil_depth"
+        sed -i '/depthWettingFront = (rootZoneLiq\/availCapacity)/i\   total_soil_depth = sum(in_surfaceFlx % mLayerDepth)' build/source/engine/soilLiqFlx.f90
+    fi
 fi
 
 # On Windows, SUNDIALS is built static-only (DLLs don't export Fortran
@@ -141,6 +167,12 @@ case "$(uname -s 2>/dev/null)" in
         if grep -q 'fida_mod_shared' build/CMakeLists.txt 2>/dev/null; then
             echo "Patching CMakeLists.txt: using static SUNDIALS targets (Windows)"
             sed -i 's/fida_mod_shared/fida_mod_static/g; s/fkinsol_mod_shared/fkinsol_mod_static/g' build/CMakeLists.txt
+        fi
+        # Build SUMMA library as STATIC on Windows (DLLs don't export
+        # Fortran module symbols, so the exe can't link against the DLL).
+        if grep -q 'add_library(summa SHARED' build/CMakeLists.txt 2>/dev/null; then
+            echo "Patching CMakeLists.txt: SUMMA library SHARED -> STATIC (Windows)"
+            sed -i 's/add_library(summa SHARED/add_library(summa STATIC/' build/CMakeLists.txt
         fi
         ;;
 esac
@@ -185,7 +217,7 @@ esac
 cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_Fortran_FLAGS_RELEASE="-O2 -DNDEBUG" \
+  -DCMAKE_Fortran_FLAGS_RELEASE="-O2 -DNDEBUG -finit-real=zero -finit-integer=0 -finit-logical=false" \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
   -DCMAKE_PREFIX_PATH="${SUMMA_PREFIX_PATH}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
@@ -199,21 +231,25 @@ cmake -S build -B cmake_build \
 # Build all targets (repo scripts use 'all', not just 'summa_sundials')
 cmake --build cmake_build --target all -j ${NCORES:-4}
 
-# Stage binary into bin/ and provide standard name
-if [ -f "bin/summa_sundials.exe" ]; then
-    cd bin
-    ln -sf summa_sundials.exe summa.exe
-    cd ..
-elif [ -f "cmake_build/bin/summa_sundials.exe" ]; then
-    mkdir -p bin
-    cp cmake_build/bin/summa_sundials.exe bin/
-    cd bin
-    ln -sf summa_sundials.exe summa.exe
-    cd ..
-elif [ -f "cmake_build/bin/summa.exe" ]; then
-    mkdir -p bin
-    cp cmake_build/bin/summa.exe bin/
-fi
+# Stage binary into bin/ and provide standard name.
+# On Windows, cmake appends .exe to the target name "summa_sundials.exe",
+# producing "summa_sundials.exe.exe".  Normalise to summa_sundials.exe.
+mkdir -p bin
+for candidate in \
+    bin/summa_sundials.exe \
+    bin/summa_sundials.exe.exe \
+    cmake_build/bin/summa_sundials.exe \
+    cmake_build/bin/summa_sundials.exe.exe \
+    cmake_build/bin/summa.exe; do
+    if [ -f "$candidate" ]; then
+        cp -f "$candidate" bin/summa_sundials.exe
+        cd bin
+        ln -sf summa_sundials.exe summa.exe
+        cd ..
+        echo "Staged: $candidate -> bin/summa_sundials.exe"
+        break
+    fi
+done
             '''.strip()
         ],
         'dependencies': [],
