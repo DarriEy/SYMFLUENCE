@@ -1,0 +1,157 @@
+/* SYMFLUENCE TUI Theme
+   Brand color: #2c3e50 (from Panel GUI header)
+*/
+
+Screen {
+    background: $surface;
+}
+
+/* Header styling */
+Header {
+    background: #2c3e50;
+    color: white;
+}
+
+Footer {
+    background: #2c3e50;
+}
+
+/* Status classes */
+.status-completed {
+    color: $success;
+}
+
+.status-failed {
+    color: $error;
+}
+
+.status-running {
+    color: $warning;
+}
+
+.status-pending {
+    color: $text-muted;
+}
+
+/* Metric color classes */
+.metric-good {
+    color: $success;
+}
+
+.metric-poor {
+    color: $error;
+}
+
+.metric-neutral {
+    color: $text;
+}
+
+/* Stats bar on dashboard */
+.stats-bar {
+    height: 3;
+    padding: 0 1;
+    background: $panel;
+    border: solid $primary;
+}
+
+.stats-bar Static {
+    width: 1fr;
+    content-align: center middle;
+}
+
+/* Section headers */
+.section-header {
+    text-style: bold;
+    padding: 1 0 0 0;
+    color: $text;
+}
+
+/* Config tree */
+.config-tree {
+    height: 1fr;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+/* Log panel */
+.log-panel {
+    height: 1fr;
+    border: solid $primary;
+    background: $surface;
+}
+
+/* Run detail tabs */
+TabbedContent {
+    height: 1fr;
+}
+
+ContentSwitcher {
+    height: 1fr;
+}
+
+/* DataTable styling */
+DataTable {
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    text-style: bold;
+    background: $panel;
+}
+
+/* Filter bar */
+.filter-bar {
+    height: auto;
+    padding: 1;
+    layout: horizontal;
+}
+
+.filter-bar Input {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+.filter-bar Select {
+    width: 20;
+}
+
+/* Workflow launcher layout */
+.launcher-left {
+    width: 1fr;
+    padding: 1;
+}
+
+.launcher-right {
+    width: 1fr;
+    padding: 1;
+}
+
+/* Calibration screen */
+.cal-top {
+    height: auto;
+    layout: horizontal;
+    padding: 1;
+}
+
+.cal-top Select {
+    width: 30;
+    margin: 0 1 0 0;
+}
+
+/* Compare screen */
+.compare-controls {
+    height: auto;
+    padding: 1;
+    layout: horizontal;
+}
+
+.compare-controls SelectionList {
+    width: 40;
+    height: 10;
+}
+
+/* Sparkline widget */
+.sparkline {
+    height: 1;
+    padding: 0 1;
+}

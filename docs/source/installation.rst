@@ -3,30 +3,59 @@ Installation
 
 Overview
 --------
-SYMFLUENCE supports a one-command installer that creates an isolated Python 3.11
-environment and installs required packages. HPC environments vary; use the module
-recipes on your cluster as needed.
+SYMFLUENCE can be installed via npm (with pre-built model binaries), pip (Python
+framework only), or from source for development. HPC environments vary; use the
+module recipes on your cluster as needed.
 
 Quick Install
 -------------
-Run the built-in installer from the project root:
+
+**Option 1: npm (recommended — includes pre-built binaries)**
 
 .. code-block:: bash
 
+   # Install globally (includes SUMMA, mizuRoute, FUSE, NGEN, TauDEM)
+   npm install -g symfluence
+
+   # Verify installation
+   symfluence binary info
+
+   # Check system compatibility
+   symfluence binary doctor
+
+Requirements: Linux (Ubuntu 22.04+, RHEL 9+, Debian 12+ x86_64) or macOS 12+
+(Apple Silicon). System libraries NetCDF and HDF5 must be installed via your
+package manager.
+
+**Option 2: pip (Python framework only)**
+
+.. code-block:: bash
+
+   # Install Python framework
+   pip install symfluence
+
+   # Install modeling tools separately
+   symfluence binary install
+
+Development Installation
+------------------------
+For development or custom builds, clone the repository and use the built-in
+installer:
+
+.. code-block:: bash
+
+   git clone https://github.com/DarriEy/SYMFLUENCE.git
+   cd SYMFLUENCE
    ./scripts/symfluence-bootstrap --install
 
-Note: The npm package under ``tools/npm/`` is release-only packaging used to
-distribute prebuilt binaries. It is not required for local development when
-installing via pip.
-
 What this does:
+
 - Creates/updates ``.venv/`` (Python 3.11 recommended)
 - Installs Python dependencies with ``pip``
 - Reuses the environment on subsequent runs
 
-
 Manual Setup (Optional)
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 If you prefer to manage the environment yourself:
 
 .. code-block:: bash

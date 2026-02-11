@@ -81,7 +81,7 @@ configure_compilers() {
     esac
 
     # If CC/CXX are already set to conda compilers, trust them
-    # (symfluence --install sets these for ABI compatibility)
+    # (symfluence binary install sets these for ABI compatibility)
     if [ -n "$CC" ] && [[ "$CC" == *conda* ]]; then
         echo "Using pre-configured conda compiler: CC=$CC"
         [ -n "$CXX" ] && echo "  CXX=$CXX"

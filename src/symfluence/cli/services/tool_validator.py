@@ -118,7 +118,7 @@ class ToolValidator(BaseService):
                     validation_results["missing_tools"].append(tool_name)
                     self._console.error(f"Not found: {tool_path}")
                     self._console.indent(
-                        f"Try: python SYMFLUENCE.py --get_executables {tool_name}"
+                        f"Try: symfluence binary install {tool_name}"
                     )
                 else:
                     tool_result["executable"] = exe_path.name

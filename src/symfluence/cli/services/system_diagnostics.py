@@ -126,7 +126,7 @@ class SystemDiagnostics(BaseService):
             self._console.newline()
             self._console.warning("No binaries found. Install with:")
             self._console.indent("npm install -g symfluence (for pre-built binaries)")
-            self._console.indent("./symfluence --get_executables (to build from source)")
+            self._console.indent("symfluence binary install (to build from source)")
         else:
             self._console.newline()
             self._console.warning("Some components missing. Review output above.")
@@ -164,7 +164,7 @@ class SystemDiagnostics(BaseService):
             self._console.info("Toolchain metadata is generated during installation.")
             self._console.indent("Install binaries with:")
             self._console.indent("  npm install -g symfluence")
-            self._console.indent("  ./symfluence --get_executables")
+            self._console.indent("  symfluence binary install")
             return False
 
         return self._read_toolchain_metadata(toolchain_path)

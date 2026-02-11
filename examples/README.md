@@ -7,7 +7,7 @@ Each example includes configuration files, Jupyter notebooks, and optional batch
 
 ## Learning Path
 
-Examples are organized into three progressive stages. Follow them sequentially to build understanding and confidence with SYMFLUENCE.
+Examples are organized into four progressive stages. Follow them sequentially to build understanding and confidence with SYMFLUENCE.
 
 ### 01. Point-Scale Validation
 
@@ -37,6 +37,15 @@ Scales up to national and continental domains:
 
 Focuses on high-performance execution, large datasets, and scaling efficiency.
 
+### 04. Workshop Notebooks
+
+Hands-on workshop exercises for guided learning:
+
+- **04a** – Logan River watershed
+- **04b** – Provo River watershed
+
+Designed for classroom and workshop settings with step-by-step guidance.
+
 ---
 
 ## Quick Start
@@ -48,7 +57,7 @@ Focuses on high-performance execution, large datasets, and scaling efficiency.
 
 2. **Launch an example notebook** directly from the CLI:
    ```bash
-   symfluence --example_notebook 1a
+   symfluence example launch 1a
    ```
    This command automatically:
 
@@ -60,7 +69,7 @@ Focuses on high-performance execution, large datasets, and scaling efficiency.
 
 3. **Run complete workflows** via configuration:
    ```bash
-   symfluence --config config.yaml
+   symfluence workflow run --config config.yaml
    ```
 
 ---
@@ -69,10 +78,10 @@ Focuses on high-performance execution, large datasets, and scaling efficiency.
 
 Example data for **01a – 02c** are provided as a single ~200 MB bundle for quick testing.
 
-- **Download:** [GitHub Release – Example Data (01a–03a)](https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip)
+- **Download:** [GitHub Release – Example Data (01a–03a)](https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.7.0/example_data_v0.7.0.zip)
 
 If you have access to institutional storage (e.g. **FIR** or **UCalgary ARC**),
-you may instead point the symfluence config paths to your local MAF dataset.
+you may instead point the config paths to your local dataset and set `DATA_ACCESS: 'maf'`.
 
 https://app.globus.org/file-manager?origin_id=1062f558-f976-4d03-b4ef-f6c3b465ed66&origin_path=%2F
 

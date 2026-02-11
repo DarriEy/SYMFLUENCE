@@ -193,6 +193,7 @@ For more help on a specific command:
         self._register_example_commands(subparsers)
         self._register_agent_commands(subparsers)
         self._register_gui_commands(subparsers)
+        self._register_tui_commands(subparsers)
         self._register_data_commands(subparsers)
 
         return parser
@@ -637,6 +638,32 @@ For more help on a specific command:
         launch_parser.add_argument('--demo', type=str, default=None, metavar='NAME',
                                    help='Load a built-in demo (e.g. "bow" for Bow at Banff)')
         launch_parser.set_defaults(func=GUICommands.launch)
+
+    def _register_tui_commands(self, subparsers):
+        """Register TUI interactive terminal commands."""
+        from .commands import TUICommands
+
+        tui_parser = subparsers.add_parser(
+            'tui',
+            help='Interactive terminal user interface',
+            description='Launch the SYMFLUENCE interactive terminal UI'
+        )
+        tui_subparsers = tui_parser.add_subparsers(
+            dest='action',
+            required=True,
+            help='TUI action',
+            metavar='<action>'
+        )
+
+        # tui launch
+        launch_parser = tui_subparsers.add_parser(
+            'launch',
+            help='Launch the interactive terminal UI',
+            parents=[self.common_parser]
+        )
+        launch_parser.add_argument('--demo', type=str, default=None, metavar='NAME',
+                                   help='Load a built-in demo (e.g. "bow" for Bow at Banff)')
+        launch_parser.set_defaults(func=TUICommands.launch)
 
     def _register_data_commands(self, subparsers):
         """Register standalone data acquisition commands."""

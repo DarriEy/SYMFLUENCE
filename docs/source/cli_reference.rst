@@ -16,7 +16,7 @@ Overview
 
 The CLI follows a two-level hierarchical structure:
 
-- **Level 1**: Command categories (workflow, project, binary, config, job, example, agent)
+- **Level 1**: Command categories (workflow, project, binary, config, job, example, agent, gui, data)
 - **Level 2**: Specific actions within each category
 
 Basic usage:
@@ -471,6 +471,105 @@ Execute a single agent prompt.
 .. code-block:: bash
 
    symfluence agent run "What is the current SUMMA configuration?" --config config.yaml
+
+GUI Commands
+============
+
+Launch the Panel-based web GUI for interactive workflow management.
+
+gui launch
+----------
+
+Start the SYMFLUENCE web interface.
+
+.. code-block:: bash
+
+   symfluence gui launch [--port PORT] [--no-browser] [--demo NAME] [--config CONFIG]
+
+**Options:**
+
+- ``--port PORT``: Server port (default: 5006)
+- ``--no-browser``: Do not auto-open a browser tab
+- ``--demo NAME``: Load a built-in demo (e.g., "bow" for Bow at Banff)
+
+**Example:**
+
+.. code-block:: bash
+
+   # Launch with default settings
+   symfluence gui launch
+
+   # Launch on custom port without opening browser
+   symfluence gui launch --port 8080 --no-browser
+
+   # Launch with a demo configuration
+   symfluence gui launch --demo bow
+
+Data Commands
+=============
+
+Download datasets independently without a full project setup.
+
+data download
+-------------
+
+Download a specific dataset.
+
+.. code-block:: bash
+
+   symfluence data download DATASET [options]
+
+**Arguments:**
+
+- ``DATASET``: Dataset name (e.g., modis_lai, era5, grace)
+
+**Options:**
+
+- ``--bbox LAT_MAX/LON_MIN/LAT_MIN/LON_MAX``: Bounding box (required unless ``--config`` is provided)
+- ``--shapefile PATH``: Shapefile to derive bounding box from (alternative to ``--bbox``)
+- ``--start YYYY-MM-DD``: Start date (required unless ``--config`` is provided)
+- ``--end YYYY-MM-DD``: End date (required unless ``--config`` is provided)
+- ``--output PATH``: Output directory (default: ``./data/<dataset>``)
+- ``--domain NAME``: Domain name for file naming (default: standalone)
+- ``--force``: Force re-download of existing data
+- ``--extra KEY=VALUE``: Extra configuration keys (repeatable)
+
+**Examples:**
+
+.. code-block:: bash
+
+   # Download with explicit bounding box and dates
+   symfluence data download era5 --bbox 52/-116/50/-114 --start 2020-01-01 --end 2020-12-31
+
+   # Download using a shapefile for the bounding box
+   symfluence data download modis_lai --shapefile my_basin.shp --start 2020-01-01 --end 2020-12-31
+
+   # Download using settings from a config file
+   symfluence data download era5 --config my_config.yaml
+
+data list
+---------
+
+List all available datasets.
+
+.. code-block:: bash
+
+   symfluence data list
+
+data info
+---------
+
+Show details about a specific dataset.
+
+.. code-block:: bash
+
+   symfluence data info DATASET
+
+**Example:**
+
+.. code-block:: bash
+
+   symfluence data info era5
 
 Exit Codes
 ==========
