@@ -237,24 +237,27 @@ rm -f disable_mpi.pl
 echo "MPI disabling complete"
 
 # =====================================================
-# STEP 3: Pre-compile fixed-form Fortran
+# STEP 3: Run make
 # =====================================================
 echo ""
-echo "=== Step 3: Pre-compile fixed-form Fortran ==="
-FFLAGS_FIXED="-O2 -c -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error"
-${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || echo "Warning: sce_16plus.f compilation issue"
-
-# =====================================================
-# STEP 4: Run make (with our patched Makefile)
-# =====================================================
-echo ""
-echo "=== Step 4: Running make ==="
+echo "=== Step 3: Running make ==="
 
 # Clean first
 make clean 2>/dev/null || true
 
-# Run make with explicit variables
-make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}"
+# Pre-compile fixed-form Fortran AFTER make clean (which deletes .o files).
+# The Makefile's sce_16plus.o rule also handles this, but we pre-compile here
+# as a safety net with explicit flags.
+echo "Pre-compiling sce_16plus.f (fixed-form Fortran)..."
+FFLAGS_FIXED="-O2 -c -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error"
+${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || echo "Warning: sce_16plus.f pre-compilation issue"
+
+# IMPORTANT: Do NOT pass FC="<wrapper-path>" on the make command line.
+# The Makefile uses `ifeq "$(FC)" "gfortran"` to set FLAGS_FIXED, FLAGS_NORMA,
+# and NetCDF detection. Passing the full wrapper path breaks these conditionals.
+# Instead, the wrapper at $WRAPPER_DIR/gfortran is already first in $PATH,
+# so the Makefile's default `FC = gfortran` will find our wrapper automatically.
+make -j1 F_MASTER="${F_MASTER}" LIBRARIES="${LIBS}" INCLUDE="${INCLUDES}"
 
 # Check result
 if [ -f "fuse.exe" ] || [ -f "../bin/fuse.exe" ]; then
