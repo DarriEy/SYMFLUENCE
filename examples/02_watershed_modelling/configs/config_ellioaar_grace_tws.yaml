@@ -45,7 +45,7 @@ FORCING_MEASUREMENT_HEIGHT: 2
 # Observations - LamaH-ICE streamflow (Iceland)
 STATION_ID: '13'  # Elliðaár at Reykjavik
 STREAMFLOW_DATA_PROVIDER: LAMAH_ICE
-LAMAH_ICE_PATH: /Users/darrieythorsson/compHydro/data/lamah_ice
+LAMAH_ICE_PATH: default
 DOWNLOAD_LAMAH_ICE_DATA: true
 
 # Enable GRACE
@@ -56,17 +56,17 @@ GRACE_SUBSET: true
 ADDITIONAL_OBSERVATIONS: [GRACE, GLEAM_ET, GGMN]
 # GLEAM ET configuration
 GLEAM_ET_DOWNLOAD_URL: https://zenodo.org/api/records/7099512/files/E_GLEAM_v3.tar.gz/content
-GLEAM_ET_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/observations/et/gleam
+GLEAM_ET_PATH: default
 # ET observation paths (relative to project directory)
-ET_OBS_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/observations/et/preprocessed/ellioaar_iceland_gleam_et_processed.csv
+ET_OBS_PATH: default
 # Alternative ET sources (uncomment one if switching datasets):
 # For MODIS ET:
 # ADDITIONAL_OBSERVATIONS: [GRACE, MODIS_ET]
-# MODIS_ET_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/observations/et/modis
+# MODIS_ET_DIR: default
 # For FLUXCOM ET:
 # ADDITIONAL_OBSERVATIONS: [GRACE, FLUXCOM_ET]
-# FLUXCOM_ET_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/observations/et/fluxcom
-CATCHMENT_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/shapefiles/catchment
+# FLUXCOM_ET_PATH: default
+CATCHMENT_PATH: default
 CATCHMENT_SHP_NAME: ellioaar_iceland_HRUs_GRUs.shp
 
 # Disable other observation sources
@@ -118,8 +118,8 @@ PARAMETER_BOUNDS:
   critSoilTranspire: [0.15, 0.40]  # Guaranteed to be > theta_res (0.039) and < theta_sat (min 0.45)
 
 # Project paths
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 OUTPUT_DIR: default
 
 # Analysis and reporting

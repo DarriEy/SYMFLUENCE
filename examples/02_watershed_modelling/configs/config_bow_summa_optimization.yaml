@@ -1,5 +1,5 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 NUM_PROCESSES: 1
 DEBUG_MODE: false
 LOG_LEVEL: INFO

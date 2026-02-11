@@ -96,8 +96,8 @@ PARAMS_TO_CALIBRATE: snowfrz_scale,z0Snow,albedoMax,albedoMinWinter,albedoMaxVis
 BASIN_PARAMS_TO_CALIBRATE: ""
 
 # Project paths
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 OUTPUT_DIR: default
 
 # Analysis and reporting

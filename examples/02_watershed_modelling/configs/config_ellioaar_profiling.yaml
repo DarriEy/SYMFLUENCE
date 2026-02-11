@@ -44,7 +44,7 @@ FORCING_MEASUREMENT_HEIGHT: 2
 # Observations - LamaH-ICE streamflow (Iceland)
 STATION_ID: '13'  # Elliðaár at Reykjavik
 STREAMFLOW_DATA_PROVIDER: LAMAH_ICE
-LAMAH_ICE_PATH: /Users/darrieythorsson/compHydro/data/lamah_ice
+LAMAH_ICE_PATH: default
 DOWNLOAD_LAMAH_ICE_DATA: true
 
 # Disable other observation sources
@@ -88,8 +88,8 @@ NUMBER_OF_ITERATIONS: 20  # Very small for quick profiling test
 DDS_R: 0.2
 
 # Project paths
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 OUTPUT_DIR: default
 
 # Analysis and reporting

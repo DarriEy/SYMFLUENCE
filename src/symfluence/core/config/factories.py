@@ -20,6 +20,53 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
+def _resolve_default_code_dir() -> str:
+    """Resolve the default SYMFLUENCE_CODE_DIR.
+
+    Priority:
+    1. SYMFLUENCE_CODE_DIR environment variable
+    2. Repository root (detected from package location)
+    3. Current working directory
+    """
+    env_val = os.getenv('SYMFLUENCE_CODE_DIR')
+    if env_val:
+        return env_val
+
+    # Try to find repo root from package location
+    try:
+        import symfluence
+        pkg_dir = Path(symfluence.__file__).parent  # src/symfluence/
+        # Walk up to find repo root (contains pyproject.toml or .git)
+        candidate = pkg_dir
+        for _ in range(5):
+            candidate = candidate.parent
+            if (candidate / 'pyproject.toml').exists() or (candidate / '.git').exists():
+                return str(candidate)
+    except Exception:
+        pass
+
+    return str(Path.cwd())
+
+
+def _resolve_default_data_dir(code_dir: Optional[str] = None) -> str:
+    """Resolve the default SYMFLUENCE_DATA_DIR.
+
+    Priority:
+    1. SYMFLUENCE_DATA_DIR environment variable
+    2. Sibling directory to CODE_DIR named SYMFLUENCE_data
+    3. Current working directory / data
+    """
+    env_val = os.getenv('SYMFLUENCE_DATA_DIR')
+    if env_val:
+        return env_val
+
+    # Use sibling directory to code_dir
+    if code_dir is None:
+        code_dir = _resolve_default_code_dir()
+    code_path = Path(code_dir)
+    return str(code_path.parent / 'SYMFLUENCE_data')
+
+
 def _is_nested_config(config: Dict[str, Any]) -> bool:
     """
     Detect if a configuration dictionary is in nested format.
@@ -147,14 +194,20 @@ def from_file_factory(
         # Start with defaults
         config_dict = ConfigDefaults.get_defaults().copy()
 
-        # Add sensible defaults for required system paths if not in env
-        if 'SYMFLUENCE_DATA_DIR' not in config_dict:
-            config_dict['SYMFLUENCE_DATA_DIR'] = os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
+        # Add sensible defaults for required system paths
         if 'SYMFLUENCE_CODE_DIR' not in config_dict:
-            config_dict['SYMFLUENCE_CODE_DIR'] = os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
+            config_dict['SYMFLUENCE_CODE_DIR'] = _resolve_default_code_dir()
+        if 'SYMFLUENCE_DATA_DIR' not in config_dict:
+            config_dict['SYMFLUENCE_DATA_DIR'] = _resolve_default_data_dir(config_dict.get('SYMFLUENCE_CODE_DIR'))
 
         # Normalize keys from file config
         file_config = {_normalize_key(k): v for k, v in file_config.items()}
+
+        # Treat 'default' as sentinel: use computed defaults instead
+        for path_key in ('SYMFLUENCE_DATA_DIR', 'SYMFLUENCE_CODE_DIR'):
+            if file_config.get(path_key) == 'default':
+                del file_config[path_key]
+
         config_dict.update(file_config)
 
         # Override with environment variables
@@ -278,10 +331,10 @@ def from_preset_factory(
         preset_settings['SUMMA_DECISION_OPTIONS'] = preset['summa_decisions']
 
     # 2.5. Add sensible defaults for required system paths if not provided
-    if 'SYMFLUENCE_DATA_DIR' not in preset_settings:
-        preset_settings['SYMFLUENCE_DATA_DIR'] = os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
     if 'SYMFLUENCE_CODE_DIR' not in preset_settings:
-        preset_settings['SYMFLUENCE_CODE_DIR'] = os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
+        preset_settings['SYMFLUENCE_CODE_DIR'] = _resolve_default_code_dir()
+    if 'SYMFLUENCE_DATA_DIR' not in preset_settings:
+        preset_settings['SYMFLUENCE_DATA_DIR'] = _resolve_default_data_dir(preset_settings.get('SYMFLUENCE_CODE_DIR'))
 
     # 3. Apply user overrides (highest priority)
     preset_settings.update(overrides)
@@ -443,13 +496,13 @@ def from_minimal_factory(
         'FORCING_DATASET': forcing_dataset,
 
         # Required paths (from environment or defaults)
-        'SYMFLUENCE_DATA_DIR': normalized_overrides.get(
-            'SYMFLUENCE_DATA_DIR',
-            os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
-        ),
         'SYMFLUENCE_CODE_DIR': normalized_overrides.get(
             'SYMFLUENCE_CODE_DIR',
-            os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
+            _resolve_default_code_dir()
+        ),
+        'SYMFLUENCE_DATA_DIR': normalized_overrides.get(
+            'SYMFLUENCE_DATA_DIR',
+            _resolve_default_data_dir(normalized_overrides.get('SYMFLUENCE_CODE_DIR'))
         ),
 
         # Required domain settings (user should override, but provide safe defaults)
