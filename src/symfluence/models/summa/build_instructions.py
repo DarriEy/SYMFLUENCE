@@ -126,14 +126,8 @@ case "$(uname -s 2>/dev/null)" in
         ;;
 esac
 
-# Patch SUMMA source for SUNDIALS 7.x + INDEX_SIZE=32 compatibility:
-# FN_VMake_Serial expects sunindextype (32-bit with INDEX_SIZE=32),
-# but SUMMA passes nState as INTEGER(8). Cast down to int(nState).
-# FIDASetMaxNumSteps takes C long int (64-bit on LP64) — kind=8 is correct, don't touch it.
-if grep -q 'FN_VMake_Serial(nState' build/source/engine/summaSolve4kinsol.f90 2>/dev/null; then
-    echo "Patching summaSolve4kinsol.f90: cast nState to int32 for FN_VMake_Serial"
-    sed -i 's/FN_VMake_Serial(nState,/FN_VMake_Serial(int(nState),/g' build/source/engine/summaSolve4kinsol.f90
-fi
+# No SUMMA source patches needed — SUNDIALS is built with INDEX_SIZE=64
+# to match SUMMA's INTEGER(8) declarations for sunindextype arguments.
 
 # On Windows, SUNDIALS DLLs do not export Fortran module procedure symbols
 # (only the C wrapper functions are exported). We must link against the
