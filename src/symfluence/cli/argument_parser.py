@@ -13,6 +13,7 @@ Categories:
     - job: SLURM job submission for HPC environments
     - example: Launch tutorial notebooks
     - agent: AI assistant interface
+    - doctor: System diagnostics
 """
 
 import argparse
@@ -164,7 +165,7 @@ Examples:
   symfluence workflow step calibrate_model
   symfluence project init fuse-provo --scaffold
   symfluence binary install summa mizuroute
-  symfluence binary doctor
+  symfluence doctor
   symfluence project pour-point 51.1722/-115.5717 --domain-name Bow --definition delineate
 
 For more help on a specific command:
@@ -195,6 +196,7 @@ For more help on a specific command:
         self._register_gui_commands(subparsers)
         self._register_tui_commands(subparsers)
         self._register_data_commands(subparsers)
+        self._register_doctor_commands(subparsers)
 
         return parser
 
@@ -729,6 +731,17 @@ For more help on a specific command:
         info_parser.add_argument('dataset', type=str, metavar='DATASET',
                                  help='Dataset name to show info about')
         info_parser.set_defaults(func=DataCommands.info)
+
+    def _register_doctor_commands(self, subparsers):
+        """Register top-level doctor command."""
+        from .commands import DoctorCommands
+
+        doctor_parser = subparsers.add_parser(
+            'doctor',
+            help='Run system diagnostics',
+            description='Comprehensive environment, path resolution, and binary diagnostics'
+        )
+        doctor_parser.set_defaults(func=DoctorCommands.doctor, action='doctor')
 
     def parse_args(self, args: Optional[List[str]] = None) -> argparse.Namespace:
         """
