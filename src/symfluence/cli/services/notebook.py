@@ -69,7 +69,7 @@ class NotebookService(BaseService):
             prefix = raw.lower()
 
         if venv_candidates is None:
-            venv_candidates = [".venv", "venv", "env", ".conda", ".virtualenv"]
+            venv_candidates = ["venv", ".venv", "env", ".conda", ".virtualenv"]
 
         def _venv_python(venv: Path) -> Path:
             return venv / ("Scripts" if os.name == "nt" else "bin") / (
