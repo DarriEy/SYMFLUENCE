@@ -126,12 +126,12 @@ case "$(uname -s 2>/dev/null)" in
         ;;
 esac
 
-# Patch SUMMA source for SUNDIALS 7.x compatibility:
-# FIDASetMaxNumSteps expects 32-bit int (long int is 32-bit on Windows),
-# but SUMMA passes int(max_steps, kind=8) which is INTEGER(8).
-if grep -q 'kind=8' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
-    echo "Patching summaSolve4ida.f90 for SUNDIALS 7.x int32 compatibility"
-    sed -i 's/int(max_steps, kind=8)/int(max_steps)/' build/source/engine/summaSolve4ida.f90
+# Patch SUMMA source for SUNDIALS INDEX_SIZE=64 compatibility:
+# FIDASetMaxNumSteps expects INTEGER(8) with INDEX_SIZE=64, but
+# upstream SUMMA has int(max_steps) which gives INTEGER(4).
+if grep -q 'int(max_steps)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
+    echo "Patching summaSolve4ida.f90: int(max_steps) -> int(max_steps, kind=8)"
+    sed -i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
 fi
 
 # On Windows, SUNDIALS is built static-only (DLLs don't export Fortran
