@@ -28,7 +28,7 @@ def get_droute_build_instructions():
         'description': 'dRoute river routing library with AD support',
         'config_path_key': 'DROUTE_INSTALL_PATH',
         'config_exe_key': 'DROUTE_EXE',
-        'default_path_suffix': 'installs/droute/bin',
+        'default_path_suffix': 'installs/droute',
         'default_exe': 'droute',
         'repository': 'https://github.com/DarriEy/dRoute.git',
         'branch': 'main',

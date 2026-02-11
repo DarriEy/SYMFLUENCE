@@ -736,7 +736,7 @@ echo "RHESSys binary successfully built at ../bin/rhessys"
             '''.strip()
         ],
         'dependencies': ['gdal-config', 'proj', 'geos-config'],
-        'test_command': '-h',
+        'test_command': None,  # RHESSys requires a world file; cannot test without one
         'verify_install': {
             'file_paths': ['bin/rhessys', 'bin/rhessys.exe'],
             'check_type': 'exists_any'
