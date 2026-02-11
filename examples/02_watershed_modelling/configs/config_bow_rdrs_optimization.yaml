@@ -95,8 +95,8 @@ PARAMS_TO_CALIBRATE: k_soil,theta_sat,snowfrz_scale
 BASIN_PARAMS_TO_CALIBRATE: routingGammaScale
 
 # Project paths
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 OUTPUT_DIR: default
 
 # Analysis and reporting

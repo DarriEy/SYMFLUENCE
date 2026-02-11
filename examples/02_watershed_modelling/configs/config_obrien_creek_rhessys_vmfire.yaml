@@ -151,8 +151,8 @@ ROUTING_MODEL: none  # RHESSys handles internal routing
 # ------------------------------------------------------------------------------
 # Project Paths (adjust to your environment)
 # ------------------------------------------------------------------------------
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 OUTPUT_DIR: default
 
 # ------------------------------------------------------------------------------

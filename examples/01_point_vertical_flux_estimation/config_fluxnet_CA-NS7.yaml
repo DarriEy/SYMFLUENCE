@@ -1,5 +1,5 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE/examples/01_point_vertical_flux_estimation
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: CA-NS7
 EXPERIMENT_ID: run_fluxnet_1
 EXPERIMENT_TIME_START: 2001-01-01 01:00

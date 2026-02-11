@@ -3,8 +3,8 @@
 # Tests the complete glacier preprocessing pipeline from data acquisition to calibration
 
 # Global and Logging Settings
-SYMFLUENCE_DATA_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data"
-SYMFLUENCE_CODE_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE"
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: "Gulkana"
 EXPERIMENT_ID: glacier_pipeline_test
 EXPERIMENT_TIME_START: 2015-01-01 00:00

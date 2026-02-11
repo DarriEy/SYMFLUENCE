@@ -1,5 +1,5 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE/examples/03_large_domain_simulation
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: North_America
 EXPERIMENT_ID: regional_tutorial
 EXPERIMENT_TIME_START: 2018-01-01 01:00

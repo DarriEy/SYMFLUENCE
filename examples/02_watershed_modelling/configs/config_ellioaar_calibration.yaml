@@ -430,8 +430,8 @@ SUMMA_EXE: summa_sundials.exe
 SUMMA_INSTALL_PATH: default
 SUPPLEMENT_FORCING: false
 SWRMSIZE: 20
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: default
+SYMFLUENCE_DATA_DIR: default
 TAUDEM_DIR: default
 TOOL_CACHE: /path/to/cache/dir
 USE_DROP_ANALYSIS: false

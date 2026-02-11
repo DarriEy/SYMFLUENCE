@@ -3,8 +3,8 @@
 # Multi-objective calibration using NSGA-II for glacierized basin
 
 # Global and Logging Settings
-SYMFLUENCE_DATA_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data"
-SYMFLUENCE_CODE_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE"
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: "Gulkana"
 EXPERIMENT_ID: dual_calibration
 EXPERIMENT_TIME_START: 2015-01-01 00:00
@@ -56,7 +56,7 @@ GRACE_PRODUCT: RL06
 ADDITIONAL_OBSERVATIONS: [GRACE]
 
 # Catchment shapefile path (for GRACE processing)
-CATCHMENT_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_Gulkana/shapefiles/catchment
+CATCHMENT_PATH: default
 CATCHMENT_SHP_NAME: Gulkana_HRUs_elevation.shp
 
 # Model Configuration
