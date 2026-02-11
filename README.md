@@ -55,6 +55,24 @@ pip install symfluence
 symfluence binary install
 ```
 
+**Option 3: uv (Fast Python installer)**
+```bash
+# Into current environment
+uv pip install symfluence
+
+# As an isolated CLI tool
+uv tool install symfluence
+```
+
+**Option 4: pipx (Isolated CLI)**
+```bash
+pipx install symfluence
+```
+
+> **Note:** Options 2–4 install the Python orchestration layer only. External model
+> binaries (SUMMA, mizuRoute, etc.) still need `symfluence binary install` or
+> `npm install -g symfluence`.
+
 ### Development Installation
 
 For development or custom builds:

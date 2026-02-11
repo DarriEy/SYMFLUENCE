@@ -15,6 +15,7 @@ from .agent_commands import AgentCommands
 from .gui_commands import GUICommands
 from .tui_commands import TUICommands
 from .data_commands import DataCommands
+from .doctor_commands import DoctorCommands
 
 __all__ = [
     'WorkflowCommands',
@@ -27,4 +28,5 @@ __all__ = [
     'GUICommands',
     'TUICommands',
     'DataCommands',
+    'DoctorCommands',
 ]
