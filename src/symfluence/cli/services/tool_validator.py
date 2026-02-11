@@ -65,6 +65,7 @@ class ToolValidator(BaseService):
             "valid_tools": [],
             "missing_tools": [],
             "failed_tools": [],
+            "skipped_tools": [],
             "warnings": [],
             "summary": {},
         }
@@ -78,6 +79,7 @@ class ToolValidator(BaseService):
                 data_dir = self._get_data_dir(config)
                 opt_path = data_dir / tool_info.get("default_path_suffix", "")
                 if not opt_path.exists():
+                    validation_results["skipped_tools"].append(tool_name)
                     continue  # Skip optional tools that aren't installed
             self._console.newline()
             self._console.info(f"Checking {tool_name.upper()}:")
@@ -243,17 +245,13 @@ class ToolValidator(BaseService):
         Returns:
             True if check was performed (pass or fail), False otherwise.
         """
-        test_cmd = tool_info.get("test_command")
         try:
-            if test_cmd:
-                result = subprocess.run(
-                    test_cmd, shell=True, capture_output=True, text=True, timeout=15,  # nosec B602
-                )
-            else:
-                result = subprocess.run(
-                    [sys.executable, "-c", f"import {module_name}"],
-                    capture_output=True, text=True, timeout=15,
-                )
+            result = subprocess.run(
+                [sys.executable, "-c",
+                 f"import {module_name}; "
+                 f"print(getattr({module_name}, '__version__', 'installed'))"],
+                capture_output=True, text=True, timeout=15,
+            )
 
             if result.returncode == 0:
                 version = result.stdout.strip()[:100] if result.stdout.strip() else "Available"
@@ -398,12 +396,16 @@ class ToolValidator(BaseService):
             results: Validation results dictionary.
         """
         total_tools = len(self.external_tools)
+        skipped_count = len(results.get("skipped_tools", []))
+        checked_count = total_tools - skipped_count
         valid_count = len(results["valid_tools"])
         missing_count = len(results["missing_tools"])
         failed_count = len(results["failed_tools"])
 
         self._console.newline()
         self._console.info("Binary Validation Summary:")
-        self._console.indent(f"Valid: {valid_count}/{total_tools}")
-        self._console.indent(f"Missing: {missing_count}/{total_tools}")
-        self._console.indent(f"Failed: {failed_count}/{total_tools}")
+        self._console.indent(f"Valid: {valid_count}/{checked_count}")
+        if skipped_count:
+            self._console.indent(f"Skipped: {skipped_count} (optional, not installed)")
+        self._console.indent(f"Missing: {missing_count}/{checked_count}")
+        self._console.indent(f"Failed: {failed_count}/{checked_count}")
