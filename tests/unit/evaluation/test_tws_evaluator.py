@@ -30,6 +30,7 @@ def tws_evaluator(mock_config, tmp_path, mock_logger):
         '2010-01-01, 2015-12-31',
         '2016-01-01, 2018-12-31',
         'daily',
+        'stor_grace',
     ]):
         evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
         return evaluator
@@ -44,6 +45,7 @@ class TestTWSEvaluatorInit:
             '2010-01-01, 2015-12-31',
             '',
             'daily',
+            'stor_grace',
         ]):
             evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
             evaluator.config_dict = {}
@@ -58,6 +60,7 @@ class TestTWSEvaluatorInit:
             '2010-01-01, 2015-12-31',
             '',
             'daily',
+            'stor_grace',
         ]):
             evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
             evaluator.config_dict = {'TWS_DETREND': True}
