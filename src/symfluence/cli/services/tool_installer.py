@@ -5,7 +5,6 @@ Handles cloning repositories, running build commands, and verifying installation
 """
 
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -592,8 +591,6 @@ class ToolInstaller(BaseService):
         os.chdir(install_dir)
 
         try:
-            import tempfile
-
             combined_script = "\n".join(tool_info.get("build_commands", []))
 
             # Write the script to a temp file rather than passing via -c.
