@@ -182,6 +182,13 @@ class ToolValidator(BaseService):
         check_type = verify.get("check_type", "exists_all")
         candidates = [tool_path / p for p in verify.get("file_paths", [])]
 
+        if check_type in ("python_module", "python_import"):
+            module_name = verify.get("python_import", tool_name)
+            return self._check_python_module(
+                tool_name, module_name, tool_info, tool_path,
+                tool_result, validation_results,
+            )
+
         if check_type == "exists_any":
             found_path = None
             for p in candidates:
@@ -212,6 +219,70 @@ class ToolValidator(BaseService):
                 return True
 
         return False
+
+    def _check_python_module(
+        self,
+        tool_name: str,
+        module_name: str,
+        tool_info: Dict[str, Any],
+        tool_path: Path,
+        tool_result: Dict[str, Any],
+        validation_results: Dict[str, Any],
+    ) -> bool:
+        """
+        Check if a Python module is importable.
+
+        Args:
+            tool_name: Name of the tool.
+            module_name: Python module name to import.
+            tool_info: Tool configuration.
+            tool_path: Path to the tool installation.
+            tool_result: Result dictionary to update.
+            validation_results: Overall results to update.
+
+        Returns:
+            True if check was performed (pass or fail), False otherwise.
+        """
+        test_cmd = tool_info.get("test_command")
+        try:
+            if test_cmd:
+                result = subprocess.run(
+                    test_cmd, shell=True, capture_output=True, text=True, timeout=15,  # nosec B602
+                )
+            else:
+                result = subprocess.run(
+                    [sys.executable, "-c", f"import {module_name}"],
+                    capture_output=True, text=True, timeout=15,
+                )
+
+            if result.returncode == 0:
+                version = result.stdout.strip()[:100] if result.stdout.strip() else "Available"
+                tool_result["status"] = "valid"
+                tool_result["version"] = version
+                validation_results["valid_tools"].append(tool_name)
+                self._console.success(f"Found at: {tool_path}")
+                self._console.success("Status: Working")
+                validation_results["summary"][tool_name] = tool_result
+                return True
+            else:
+                tool_result["status"] = "missing"
+                error_msg = result.stderr.strip()[:200] if result.stderr else "Import failed"
+                tool_result["errors"].append(error_msg)
+                validation_results["missing_tools"].append(tool_name)
+                self._console.error(f"Python module '{module_name}' not importable")
+                self._console.indent(
+                    f"Try: symfluence binary install {tool_name}"
+                )
+                validation_results["summary"][tool_name] = tool_result
+                return True
+
+        except subprocess.TimeoutExpired:
+            tool_result["status"] = "timeout"
+            tool_result["errors"].append("Import test timed out")
+            validation_results["warnings"].append(f"{tool_name}: import test timed out")
+            self._console.warning(f"Import test timed out for: {module_name}")
+            validation_results["summary"][tool_name] = tool_result
+            return True
 
     def _get_executable_path(
         self,
