@@ -1,0 +1,72 @@
+name: symfluence
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.12
+
+  # ── HDF5 / NetCDF stack (single shared libhdf5) ──
+  - hdf5
+  - h5py
+  - netcdf4
+  - h5netcdf
+
+  # ── Geospatial (linked against the same libhdf5 + GDAL) ──
+  - gdal
+  - rasterio
+  - fiona
+  - geopandas
+  - pyproj
+  - shapely
+  - rasterstats
+  - contextily
+
+  # ── Core scientific stack ──
+  - numpy
+  - pandas
+  - scipy
+  - xarray
+  - cftime
+  - numexpr
+  - bottleneck
+  - networkx
+  - scikit-learn
+  - pint-xarray
+  - dask
+  - distributed
+
+  # ── PyTorch (CPU — change to pytorch-cuda for GPU) ──
+  - pytorch::pytorch
+  - pytorch::cpuonly
+
+  # ── Visualization ──
+  - matplotlib
+  - seaborn
+  - plotly
+
+  # ── Jupyter ──
+  - jupyterlab
+  - ipykernel
+
+  # ── Utilities available on conda-forge ──
+  - pyyaml
+  - requests
+  - psutil
+  - tqdm
+  - rich
+  - pydantic
+  - salib
+  - pvlib-python
+  - cdsapi
+
+  # ── Remaining deps installed via pip ──
+  - pip
+  - pip:
+      - easymore
+      - pyviscous
+      - hydrobm
+      - gcsfs
+      - intake-xarray
+      - s3fs
+      - openai
+      - cdo

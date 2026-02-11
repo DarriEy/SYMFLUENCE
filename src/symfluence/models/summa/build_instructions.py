@@ -48,51 +48,102 @@ export SUNDIALS_DIR="$(realpath ../sundials/install/sundials)"
 echo "Using SUNDIALS from: $SUNDIALS_DIR"
 
 # Ensure NetCDF paths are set correctly for CMake
-# CMAKE_PREFIX_PATH helps CMake find NetCDF libraries
+# On Windows conda, libraries live under CONDA_PREFIX/Library (not CONDA_PREFIX).
+CONDA_LIB_PREFIX="${CONDA_PREFIX}"
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        if [ -d "${CONDA_PREFIX}/Library/lib" ]; then
+            CONDA_LIB_PREFIX="${CONDA_PREFIX}/Library"
+        fi
+        ;;
+esac
+
 if [ -n "$CONDA_PREFIX" ]; then
-    export CMAKE_PREFIX_PATH="${CONDA_PREFIX}:${CMAKE_PREFIX_PATH:-}"
-    export NETCDF="${NETCDF:-$CONDA_PREFIX}"
-    export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$CONDA_PREFIX}"
+    export CMAKE_PREFIX_PATH="${CONDA_LIB_PREFIX}:${CMAKE_PREFIX_PATH:-}"
+    export NETCDF="${NETCDF:-$CONDA_LIB_PREFIX}"
+    export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$CONDA_LIB_PREFIX}"
     echo "Using conda NetCDF at: $NETCDF"
 fi
 
 # Validate NetCDF installation
 if [ ! -f "${NETCDF}/include/netcdf.h" ] && [ ! -f "${NETCDF}/include/netcdf.inc" ]; then
     echo "WARNING: NetCDF headers not found at ${NETCDF}/include"
-    echo "Available in CONDA_PREFIX:"
-    ls -la "${CONDA_PREFIX}/include" 2>/dev/null | head -10 || true
+    echo "Available:"
+    ls -la "${NETCDF}/include"/netcdf* 2>/dev/null | head -10 || true
 fi
 
 # Determine LAPACK strategy based on platform
 SPECIFY_LINKS=OFF
 
-# macOS: Use manual LAPACK specification (Homebrew OpenBLAS isn't reliably detected by CMake)
-if [ "$(uname)" == "Darwin" ]; then
-    echo "macOS detected - using manual LAPACK specification"
-    SPECIFY_LINKS=ON
-    export LIBRARY_LINKS='-llapack'
-# HPC with OpenBLAS module loaded
-elif command -v module >/dev/null 2>&1 && module list 2>&1 | grep -qi openblas; then
-    echo "OpenBLAS module loaded - using auto-detection"
-    SPECIFY_LINKS=OFF
-# Conda environment with OpenBLAS
-elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/lib/libopenblas.so" -o -f "$CONDA_PREFIX/lib/libopenblas.dylib" ]; then
-    echo "Conda OpenBLAS found at $CONDA_PREFIX/lib - adding to cmake search path"
-    SPECIFY_LINKS=OFF
-    export CMAKE_PREFIX_PATH="${CONDA_PREFIX}:${CMAKE_PREFIX_PATH:-}"
-    export LIBRARY_PATH="${CONDA_PREFIX}/lib:${LIBRARY_PATH:-}"
-    export OPENBLAS_ROOT="$CONDA_PREFIX"
-    export OpenBLAS_HOME="$CONDA_PREFIX"
-# Linux with system OpenBLAS
-elif pkg-config --exists openblas 2>/dev/null || [ -f "/usr/lib64/libopenblas.so" ] || [ -f "/usr/lib/libopenblas.so" ]; then
-    echo "System OpenBLAS found - using auto-detection"
-    SPECIFY_LINKS=OFF
-else
-    # Fallback to manual LAPACK
-    echo "Using manual LAPACK specification"
-    SPECIFY_LINKS=ON
-    export LIBRARY_LINKS='-llapack -lblas'
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        # Windows/MinGW: link directly against conda DLLs by full path.
+        # MinGW's linker can link against DLLs directly.
+        # NOTE: CMake uses semicolons as list separators — spaces would be
+        # treated as part of a single filename and break the build.
+        if [ -f "${CONDA_LIB_PREFIX}/bin/openblas.dll" ]; then
+            echo "Using OpenBLAS DLL directly (Windows/MinGW)"
+            SPECIFY_LINKS=ON
+            export LIBRARY_LINKS="${CONDA_LIB_PREFIX}/bin/openblas.dll"
+        elif [ -f "${CONDA_LIB_PREFIX}/bin/liblapack.dll" ]; then
+            echo "Using manual LAPACK specification (Windows/MinGW)"
+            SPECIFY_LINKS=ON
+            export LIBRARY_LINKS="${CONDA_LIB_PREFIX}/bin/liblapack.dll;${CONDA_LIB_PREFIX}/bin/libblas.dll"
+        else
+            echo "Using manual LAPACK specification (Windows fallback)"
+            SPECIFY_LINKS=ON
+            export LIBRARY_LINKS="-llapack;-lblas"
+        fi
+        ;;
+    Darwin)
+        echo "macOS detected - using manual LAPACK specification"
+        SPECIFY_LINKS=ON
+        export LIBRARY_LINKS='-llapack'
+        ;;
+    *)
+        # HPC with OpenBLAS module loaded
+        if command -v module >/dev/null 2>&1 && module list 2>&1 | grep -qi openblas; then
+            echo "OpenBLAS module loaded - using auto-detection"
+            SPECIFY_LINKS=OFF
+        # Conda environment with OpenBLAS
+        elif [ -n "$CONDA_PREFIX" ] && [ -f "${CONDA_LIB_PREFIX}/lib/libopenblas.so" -o -f "${CONDA_LIB_PREFIX}/lib/libopenblas.dylib" ]; then
+            echo "Conda OpenBLAS found at ${CONDA_LIB_PREFIX}/lib - adding to cmake search path"
+            SPECIFY_LINKS=OFF
+            export CMAKE_PREFIX_PATH="${CONDA_LIB_PREFIX}:${CMAKE_PREFIX_PATH:-}"
+            export LIBRARY_PATH="${CONDA_LIB_PREFIX}/lib:${LIBRARY_PATH:-}"
+            export OPENBLAS_ROOT="$CONDA_LIB_PREFIX"
+            export OpenBLAS_HOME="$CONDA_LIB_PREFIX"
+        # Linux with system OpenBLAS
+        elif pkg-config --exists openblas 2>/dev/null || [ -f "/usr/lib64/libopenblas.so" ] || [ -f "/usr/lib/libopenblas.so" ]; then
+            echo "System OpenBLAS found - using auto-detection"
+            SPECIFY_LINKS=OFF
+        else
+            # Fallback to manual LAPACK
+            echo "Using manual LAPACK specification"
+            SPECIFY_LINKS=ON
+            export LIBRARY_LINKS="-llapack;-lblas"
+        fi
+        ;;
+esac
+
+# Patch SUMMA source for SUNDIALS 7.x compatibility:
+# FIDASetMaxNumSteps expects 32-bit int, not kind=8
+if grep -q 'kind=8' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
+    echo "Patching summaSolve4ida.f90 for SUNDIALS 7.x int32 compatibility"
+    sed -i 's/int(max_steps, kind=8)/int(max_steps)/' build/source/engine/summaSolve4ida.f90
 fi
+
+# On Windows, SUNDIALS DLLs do not export Fortran module procedure symbols
+# (only the C wrapper functions are exported). We must link against the
+# static SUNDIALS libraries instead.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        if grep -q 'fida_mod_shared' build/CMakeLists.txt 2>/dev/null; then
+            echo "Patching CMakeLists.txt: using static SUNDIALS targets (Windows DLL export limitation)"
+            sed -i 's/fida_mod_shared/fida_mod_static/g; s/fkinsol_mod_shared/fkinsol_mod_static/g' build/CMakeLists.txt
+        fi
+        ;;
+esac
 
 rm -rf cmake_build && mkdir -p cmake_build
 
@@ -100,7 +151,7 @@ rm -rf cmake_build && mkdir -p cmake_build
 SUMMA_PREFIX_PATH="$SUNDIALS_DIR"
 SUMMA_EXTRA_CMAKE=""
 if [ -n "${CONDA_PREFIX:-}" ]; then
-    SUMMA_PREFIX_PATH="${CONDA_PREFIX};${SUMMA_PREFIX_PATH}"
+    SUMMA_PREFIX_PATH="${CONDA_LIB_PREFIX};${SUMMA_PREFIX_PATH}"
     # Pass OpenBLAS hints for SUMMA's FindOpenBLAS.cmake
     if [ -n "${OPENBLAS_ROOT:-}" ]; then
         SUMMA_EXTRA_CMAKE="-DOPENBLAS_ROOT=${OPENBLAS_ROOT} -DOpenBLAS_HOME=${OPENBLAS_ROOT}"
@@ -110,6 +161,7 @@ fi
 cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_Fortran_FLAGS_RELEASE="-O2 -DNDEBUG" \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
   -DCMAKE_PREFIX_PATH="${SUMMA_PREFIX_PATH}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
