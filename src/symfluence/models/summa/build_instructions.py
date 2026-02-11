@@ -126,20 +126,13 @@ case "$(uname -s 2>/dev/null)" in
         ;;
 esac
 
-# No SUMMA source patches needed — SUNDIALS is built with INDEX_SIZE=64
-# to match SUMMA's INTEGER(8) declarations for sunindextype arguments.
-
-# On Windows, SUNDIALS DLLs do not export Fortran module procedure symbols
-# (only the C wrapper functions are exported). We must link against the
-# static SUNDIALS libraries instead.
-case "$(uname -s 2>/dev/null)" in
-    MSYS*|MINGW*|CYGWIN*)
-        if grep -q 'fida_mod_shared' build/CMakeLists.txt 2>/dev/null; then
-            echo "Patching CMakeLists.txt: using static SUNDIALS targets (Windows DLL export limitation)"
-            sed -i 's/fida_mod_shared/fida_mod_static/g; s/fkinsol_mod_shared/fkinsol_mod_static/g' build/CMakeLists.txt
-        fi
-        ;;
-esac
+# Patch SUMMA source for SUNDIALS 7.x compatibility:
+# FIDASetMaxNumSteps expects 32-bit int (long int is 32-bit on Windows),
+# but SUMMA passes int(max_steps, kind=8) which is INTEGER(8).
+if grep -q 'kind=8' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
+    echo "Patching summaSolve4ida.f90 for SUNDIALS 7.x int32 compatibility"
+    sed -i 's/int(max_steps, kind=8)/int(max_steps)/' build/source/engine/summaSolve4ida.f90
+fi
 
 rm -rf cmake_build && mkdir -p cmake_build
 
@@ -154,10 +147,24 @@ if [ -n "${CONDA_PREFIX:-}" ]; then
     fi
 fi
 
+# On x86-64 Linux with gfortran, denormalized floats can propagate to NaN
+# in SUMMA's Jacobian. Link with -ffast-math to enable flush-to-zero (FTZ)
+# and denormals-are-zero (DAZ) via crtfastmath.o at startup, matching the
+# default behavior of ARM FPUs (macOS) and Intel Fortran compilers (HPCs).
+# This only affects the linker (startup code), not compilation math semantics.
+SUMMA_LINKER_FLAGS=""
+case "$(uname -m 2>/dev/null)" in
+    x86_64|amd64)
+        SUMMA_LINKER_FLAGS="-ffast-math"
+        echo "x86-64 detected: enabling FTZ/DAZ via linker for denormal safety"
+        ;;
+esac
+
 cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_Fortran_FLAGS_RELEASE="-O2 -DNDEBUG" \
+  -DCMAKE_EXE_LINKER_FLAGS="${SUMMA_LINKER_FLAGS}" \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
   -DCMAKE_PREFIX_PATH="${SUMMA_PREFIX_PATH}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
