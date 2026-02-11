@@ -16,6 +16,38 @@ from ..exit_codes import ExitCode
 logger = logging.getLogger(__name__)
 
 
+def _bbox_from_shapefile(shapefile_path: str) -> str:
+    """
+    Extract a bounding box string from a shapefile.
+
+    Reads the shapefile with geopandas, reprojects to EPSG:4326,
+    and returns the bounding box in SYMFLUENCE convention:
+    ``lat_max/lon_min/lat_min/lon_max``.
+
+    Args:
+        shapefile_path: Path to a .shp file.
+
+    Returns:
+        Bounding box string in ``lat_max/lon_min/lat_min/lon_max`` format.
+
+    Raises:
+        FileNotFoundError: If the shapefile does not exist.
+        RuntimeError: If geopandas is not installed or the file cannot be read.
+    """
+    import geopandas as gpd
+
+    path = Path(shapefile_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Shapefile not found: {shapefile_path}")
+
+    gdf = gpd.read_file(path)
+    if gdf.crs and gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs(epsg=4326)
+
+    lon_min, lat_min, lon_max, lat_max = gdf.total_bounds
+    return f"{lat_max}/{lon_min}/{lat_min}/{lon_max}"
+
+
 class DataCommands(BaseCommand):
     """Handlers for standalone data acquisition commands."""
 
@@ -39,6 +71,22 @@ class DataCommands(BaseCommand):
         import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
 
         dataset_name = args.dataset
+
+        # Resolve --shapefile to --bbox if provided
+        shapefile_path = getattr(args, 'shapefile', None)
+        if shapefile_path and not args.bbox:
+            try:
+                args.bbox = _bbox_from_shapefile(shapefile_path)
+                BaseCommand._console.info(f"Extracted bbox from shapefile: {args.bbox}")
+            except FileNotFoundError as exc:
+                BaseCommand._console.error(str(exc))
+                return ExitCode.VALIDATION_ERROR
+            except Exception as exc:
+                BaseCommand._console.error(f"Failed to read shapefile: {exc}")
+                return ExitCode.RUNTIME_ERROR
+            # Derive domain name from shapefile filename if still default
+            if getattr(args, 'domain_name', 'standalone') == 'standalone':
+                args.domain_name = Path(shapefile_path).stem
 
         # Determine output directory
         if args.output:

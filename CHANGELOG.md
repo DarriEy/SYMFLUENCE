@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] - 2026-02-10
+
+> **Breaking Change**: This release refactors the CLI to a subcommand architecture.
+> All existing CLI commands will need to be updated.
+
 ### Added
+- **New CLI Commands**
+  - `symfluence gui launch` - Panel-based web GUI for workflow management
+  - `symfluence data download|list|info` - Standalone dataset acquisition without a full project
+  - `--shapefile` option for `symfluence data download` to derive bounding box from a shapefile
+
 - **Documentation Improvements**
   - New CFuse model guide (experimental differentiable PyTorch-based FUSE)
   - New JFuse model guide (experimental JAX-based FUSE with gradient support)
@@ -40,49 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hydrograph signature metrics for multi-objective calibration
   - Enhanced optimizer with adaptive learning rates
 
-### Changed
-- **HBV Sub-Daily Parameter Scaling**
-  - Implemented exact exponential scaling for recession coefficients (K0, K1, K2)
-  - Formula: `k_sub = 1 - (1 - k_daily)^(dt/24)` replaces linear approximation
-  - Eliminates ~5-13% error in recession behavior at sub-daily timesteps
-  - Flux rate parameters (CFMAX, PERC) continue to use linear scaling
-  - Added `FLUX_RATE_PARAMS` and `RECESSION_PARAMS` constants
-
-- **MESH Preprocessing Consolidation**
-  - Moved configuration defaults to dedicated `config_defaults.py`
-  - Streamlined `config_generator.py` and `meshflow_manager.py`
-  - Expanded `parameter_fixer.py` with robust parameter handling
-  - Updated NALCMS to CLASS land cover mapping (wetland, snow/ice corrections)
-  - Added unit conversion utilities for forcing data
-  - Improved logging (replaced debug prints with proper logger calls)
-
-- **Reporting Module Cleanup**
-  - Simplified plotter implementations
-  - Improved shapefile handling
-
-### Fixed
-- Traceback handling in MESH postprocessor
-
-### Documentation
-- Added comprehensive sub-daily simulation section to HBV model guide
-- Documented parameter scaling approaches (exact vs linear)
-- Added validation methodology for sub-daily implementations
-
-### Planned
-- See [v0.7.0] for upcoming CLI changes
-
----
-
-## [0.7.0] - Upcoming
-
-> **Breaking Change**: This release refactors the CLI to a subcommand architecture.
-> All existing CLI commands will need to be updated.
+- New modular command structure in `src/symfluence/cli/`:
+  - `argument_parser.py` - Main parser with subcommand structure
+  - `validators.py` - Validation utilities
+  - `commands/` directory with category-specific handlers
 
 ### Changed
 - **Complete CLI Refactor**
   - Replaced flat flag-based interface with modern two-level subcommand architecture
   - New structure: `symfluence <category> <action>` instead of `symfluence --flag`
-  - 7 command categories: workflow, project, binary, config, job, example, agent
+  - 9 command categories: workflow, project, binary, config, job, example, agent, gui, data
   - Eliminated complex mode detection logic
   - Archived old `cli_argument_manager.py` for reference
 
@@ -119,13 +98,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   # Agent commands
   symfluence agent start
   symfluence agent run PROMPT
+
+  # GUI commands
+  symfluence gui launch
+
+  # Data commands
+  symfluence data download DATASET --bbox W S E N
+  symfluence data list
+  symfluence data info DATASET
   ```
 
-### Added
-- New modular command structure in `src/symfluence/cli/`:
-  - `argument_parser.py` - Main parser with subcommand structure
-  - `validators.py` - Validation utilities
-  - `commands/` directory with category-specific handlers
+- **HBV Sub-Daily Parameter Scaling**
+  - Implemented exact exponential scaling for recession coefficients (K0, K1, K2)
+  - Formula: `k_sub = 1 - (1 - k_daily)^(dt/24)` replaces linear approximation
+  - Eliminates ~5-13% error in recession behavior at sub-daily timesteps
+  - Flux rate parameters (CFMAX, PERC) continue to use linear scaling
+  - Added `FLUX_RATE_PARAMS` and `RECESSION_PARAMS` constants
+
+- **MESH Preprocessing Consolidation**
+  - Moved configuration defaults to dedicated `config_defaults.py`
+  - Streamlined `config_generator.py` and `meshflow_manager.py`
+  - Expanded `parameter_fixer.py` with robust parameter handling
+  - Updated NALCMS to CLASS land cover mapping (wetland, snow/ice corrections)
+  - Added unit conversion utilities for forcing data
+  - Improved logging (replaced debug prints with proper logger calls)
+
+- **FLUXCOM ET Acquisition Rework**
+  - Replaced stub ICOS downloader with fully functional `_download_from_icos()` using ICOS Carbon Portal metadata API
+  - Smart variable matching (exact name, then substring, then fallback)
+  - Automatic unit conversion (W/m2, mm/hr, mm/day)
+  - Nearest-neighbor fallback for basins smaller than the grid cell
+
+- **MODIS ET Acquisition Improvements**
+  - Spatial subsetting via sinusoidal projection for large tiles with small domains
+  - Improved special-value masking (all MODIS QC codes, not just fill value)
+  - SDS name matching now tries exact match before substring search
+
+- **Reporting Module Cleanup**
+  - Simplified plotter implementations
+  - Improved shapefile handling
+
+### Fixed
+- MESH lumped mode routing: switched from `run_def` to `noroute` mode to correctly preserve lower-zone baseflow (`wf_lzs`); `run_def` in MESH 1.5.6 bypasses `STGGW` storage, causing zero baseflow
+- Traceback handling in MESH postprocessor
+- Added missing `pydantic` runtime dependency to `pyproject.toml`
+- Fixed invalid escape sequences in `__init__.py` warning filters for Python 3.12+ compatibility
+- CI pipeline now correctly fails on unit/integration test regressions (removed `|| true` from pytest invocations)
+
+### Documentation
+- Added comprehensive sub-daily simulation section to HBV model guide
+- Documented parameter scaling approaches (exact vs linear)
+- Added validation methodology for sub-daily implementations
 
 ### Migration Guide
 

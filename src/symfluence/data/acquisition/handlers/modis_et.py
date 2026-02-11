@@ -54,8 +54,15 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
     QC_GOOD_MASK = 0b00000011
     QC_GOOD_VALUES = {0b00, 0b01}
     FILL_VALUE = 32767
+    # Special values for non-vegetated/invalid pixels (should be masked)
+    SPECIAL_VALUE_MIN = 32761  # 32761-32766: cloud, not processed, water, missing, barren, ice/snow
     SCALE_FACTOR = 0.1
     DAYS_IN_COMPOSITE = 8
+
+    # MODIS sinusoidal projection constants (for spatial subsetting)
+    _MODIS_R = 6371007.181        # Earth radius (m)
+    _MODIS_TILE_SIZE = 1111950.519667  # Tile extent in metres
+    _MODIS_NPIX = 2400            # Pixels per tile (500 m products)
 
     # AppEEARS URL (for fallback)
     APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
@@ -145,8 +152,8 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 self.logger.info(f"  Processing {i+1}/{len(files)}")
 
             try:
-                # Extract date from filename
-                # MOD16A2.A2020001.h10v03.061.*.hdf
+                # Extract date and tile h/v from filename
+                # MOD16A2GF.A2020001.h10v03.061.*.hdf
                 match = re.search(r'\.A(\d{7})\.', hdf_path.name)
                 if not match:
                     continue
@@ -159,17 +166,26 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 if date < self.start_date or date > self.end_date:
                     continue
 
+                # Extract tile h/v for spatial subsetting
+                tile_match = re.search(r'\.h(\d{2})v(\d{2})\.', hdf_path.name)
+                tile_h = int(tile_match.group(1)) if tile_match else None
+                tile_v = int(tile_match.group(2)) if tile_match else None
+
                 # Open HDF
                 hdf = SD(str(hdf_path), SDC.READ)
 
-                # Find ET variable (may have prefix)
-                et_sds_name = None
+                # Find ET variable — use exact name match first, then substring
+                sds_names = list(hdf.datasets().keys())
+                et_sds_name = variable if variable in sds_names else None
                 qc_sds_name = None
-                for name in hdf.datasets().keys():
-                    if variable in name or 'ET_500m' in name:
-                        if 'QC' not in name:
-                            et_sds_name = name
-                    if 'ET_QC' in name or 'QC_500m' in name:
+                if not et_sds_name:
+                    for name in sds_names:
+                        if name == variable or name.endswith(variable):
+                            if 'QC' not in name:
+                                et_sds_name = name
+                                break
+                for name in sds_names:
+                    if 'ET_QC' in name or name == 'QC_500m':
                         qc_sds_name = name
 
                 if not et_sds_name:
@@ -180,8 +196,8 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 et_sds = hdf.select(et_sds_name)
                 et_data = et_sds[:].astype(float)
 
-                # Apply fill value mask
-                et_data[et_data == self.FILL_VALUE] = np.nan
+                # Apply fill/special value mask (32761-32767 are all invalid)
+                et_data[et_data >= self.SPECIAL_VALUE_MIN] = np.nan
 
                 # Apply scale factor
                 et_data = et_data * self.SCALE_FACTOR
@@ -199,10 +215,18 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
                 hdf.end()
 
+                # Spatial subsetting: crop to basin bbox
+                if tile_h is not None and tile_v is not None and self.bbox:
+                    row_slice, col_slice = self._tile_pixel_window(
+                        tile_h, tile_v, self.bbox, et_data.shape[0]
+                    )
+                    if row_slice is not None:
+                        et_data = et_data[row_slice, col_slice]
+
                 # Get domain spatial mean
                 valid_mask = ~np.isnan(et_data)
                 if valid_mask.sum() > 0:
-                    domain_mean = np.nanmean(et_data)
+                    domain_mean = float(np.nanmean(et_data))
 
                     # Convert units
                     if target_units == 'mm_day' and convert_to_daily:
@@ -227,22 +251,24 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
         df = pd.DataFrame(results)
         df = df.sort_values('date').drop_duplicates('date', keep='first')
         df = df.set_index('date')
+        df.index.name = 'time'
 
         # Convert to xarray
         units = 'mm/day' if target_units == 'mm_day' and convert_to_daily else 'kg/m2/8day'
         long_name = 'Evapotranspiration (daily mean)' if convert_to_daily else 'Evapotranspiration (8-day)'
 
+        time_coords = pd.to_datetime(df.index)
         ds = xr.Dataset({
             'ET': xr.DataArray(
                 df['et'].values,
                 dims=['time'],
-                coords={'time': pd.to_datetime(df.index)},
+                coords={'time': time_coords},
                 attrs={'long_name': long_name, 'units': units}
             ),
             'valid_pixels': xr.DataArray(
                 df['valid_pixels'].values,
                 dims=['time'],
-                coords={'time': pd.to_datetime(df.index)},
+                coords={'time': time_coords},
                 attrs={'long_name': 'Number of valid pixels', 'units': 'count'}
             )
         })
@@ -274,6 +300,63 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
         out_df.to_csv(csv_file)
         self.logger.info(f"Created CSV timeseries: {csv_file}")
+
+    # ===== Spatial subsetting helpers =====
+
+    @staticmethod
+    def _latlon_to_sinu(lat: float, lon: float):
+        """Convert lat/lon (degrees) to MODIS sinusoidal x, y (metres)."""
+        lat_r = np.radians(lat)
+        lon_r = np.radians(lon)
+        R = MOD16ETAcquirer._MODIS_R
+        return R * lon_r * np.cos(lat_r), R * lat_r
+
+    def _tile_pixel_window(
+        self, h: int, v: int, bbox: dict, npix: int = 2400
+    ) -> Tuple[Optional[slice], Optional[slice]]:
+        """
+        Return (row_slice, col_slice) to crop a MODIS tile array to the
+        domain bounding box.  Returns (None, None) if the bbox does not
+        intersect the tile.
+        """
+        ts = self._MODIS_TILE_SIZE
+        pix = ts / npix  # pixel size in metres
+
+        # Tile extent in sinusoidal metres
+        tx0 = (h - 18) * ts
+        ty1 = (9 - v) * ts          # top (north)
+        tx1 = tx0 + ts
+        ty0 = ty1 - ts              # bottom (south)
+
+        # Convert bbox corners to sinusoidal
+        lat_min = bbox.get('lat_min', bbox.get('S', 0))
+        lat_max = bbox.get('lat_max', bbox.get('N', 0))
+        lon_min = bbox.get('lon_min', bbox.get('W', 0))
+        lon_max = bbox.get('lon_max', bbox.get('E', 0))
+
+        xs, ys = [], []
+        for lat in (lat_min, lat_max):
+            for lon in (lon_min, lon_max):
+                x, y = self._latlon_to_sinu(lat, lon)
+                xs.append(x)
+                ys.append(y)
+
+        bx0, bx1 = max(min(xs), tx0), min(max(xs), tx1)
+        by0, by1 = max(min(ys), ty0), min(max(ys), ty1)
+
+        if bx0 >= bx1 or by0 >= by1:
+            return None, None
+
+        # Rows count downward from top (north)
+        r0 = max(0, int((ty1 - by1) / pix))
+        r1 = min(npix, int(np.ceil((ty1 - by0) / pix)))
+        c0 = max(0, int((bx0 - tx0) / pix))
+        c1 = min(npix, int(np.ceil((bx1 - tx0) / pix)))
+
+        if r0 >= r1 or c0 >= c1:
+            return None, None
+
+        return slice(r0, r1), slice(c0, c1)
 
     # ===== AppEEARS Fallback Methods =====
 

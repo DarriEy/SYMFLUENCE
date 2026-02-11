@@ -81,12 +81,12 @@ warnings.filterwarnings(
 
 os.environ.setdefault(
     "PYTHONWARNINGS",
-    "ignore:Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.:UserWarning",
+    r"ignore:Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.:UserWarning",
 )
 
 warnings.filterwarnings(
     "ignore",
-    message="Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.",
+    message=r"Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.",
     category=UserWarning,
 )
 
