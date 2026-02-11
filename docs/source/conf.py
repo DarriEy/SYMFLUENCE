@@ -82,7 +82,7 @@ autodoc_mock_imports = [
 
 # Project information
 project = 'SYMFLUENCE'
-copyright = '2025, Darri Eythorsson'
+copyright = '2025-2026, Darri Eythorsson'
 author = 'Darri Eythorsson'
 
 # Read version from single source of truth (parse file directly to avoid import chain)

@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.0] - 2026-02-10
 
+> **Note**: This release jumps from the last tagged release v0.5.2 directly to v0.7.0.
+> Versions 0.5.3–0.6.0 were development milestones on the `develop` branch and were
+> never tagged or published to `main`. Their changes are included in this release and
+> documented below in the [0.6.0] and [0.5.x] sections for historical reference.
+
 > **Breaking Change**: This release refactors the CLI to a subcommand architecture.
 > All existing CLI commands will need to be updated.
 
@@ -137,6 +142,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reporting Module Cleanup**
   - Simplified plotter implementations
   - Improved shapefile handling
+
+- **Example Notebooks — Typed Config Migration**
+  - Migrated notebooks 02a–03b from legacy `yaml.safe_load` + flat dict pattern to `SymfluenceConfig.from_minimal()` typed config API
+  - All 9 example notebooks (01a–04b) now use the same typed, validated, frozen config pattern
+  - Removed MAF-specific language from all example notebooks; acquisition comments now reference `DATA_ACCESS: 'cloud'` or `'maf'` config setting
+  - Fixed pre-existing bugs: 02a `NameError` on config access, 03b `cf.managers` wrong variable name, 03b config overwrite bug, 03b outdated CLI syntax
 
 ### Fixed
 - MESH lumped mode routing: switched from `run_def` to `noroute` mode to correctly preserve lower-zone baseflow (`wf_lzs`); `run_def` in MESH 1.5.6 bypasses `STGGW` storage, causing zero baseflow

@@ -37,7 +37,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
 SYMFLUENCE uses a simple branching model for organized development:
 
 ```
-main          ← Protected, releases only (v0.5.0, v0.5.1, v1.0.0)
+main          ← Protected, releases only (v0.6.0, v0.7.0, v1.0.0)
   ↓
 develop       ← Active development, merge here first
   ↓
@@ -69,7 +69,7 @@ git push -u origin feature/my-feature
 # When develop is ready for release
 git checkout main
 git merge develop
-git tag -a v0.5.1 -m "Release v0.5.1"
+git tag -a v0.7.0 -m "Release v0.7.0"
 git push origin main --tags
 ```
 
@@ -81,7 +81,7 @@ git checkout -b hotfix/critical-bug main
 # Fix and commit
 git checkout main
 git merge hotfix/critical-bug
-git tag -a v0.5.1 -m "Hotfix: critical bug"
+git tag -a v0.7.1 -m "Hotfix: critical bug"
 git push origin main --tags
 
 # Merge back to develop
@@ -230,7 +230,7 @@ Example:
 Model setup fails on FIR cluster with NetCDF 4.9.2.
 
 ## Steps
-1. Run ./scripts/symfluence-bootstrap --setup_project
+1. Run `symfluence workflow step setup_project --config config.yaml`
 2. Error during model initialization
 
 ## Expected

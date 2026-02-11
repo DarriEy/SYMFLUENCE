@@ -13,6 +13,7 @@ from .job_commands import JobCommands
 from .example_commands import ExampleCommands
 from .agent_commands import AgentCommands
 from .gui_commands import GUICommands
+from .tui_commands import TUICommands
 from .data_commands import DataCommands
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     'ExampleCommands',
     'AgentCommands',
     'GUICommands',
+    'TUICommands',
     'DataCommands',
 ]
