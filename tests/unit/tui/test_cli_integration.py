@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytest.importorskip("textual", reason="textual not installed")
+
 pytestmark = [pytest.mark.unit, pytest.mark.tui, pytest.mark.cli, pytest.mark.quick]
 
 

@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pytest
 
+pytest.importorskip("textual", reason="textual not installed")
+
 pytestmark = [pytest.mark.unit, pytest.mark.tui, pytest.mark.quick]
 
 
