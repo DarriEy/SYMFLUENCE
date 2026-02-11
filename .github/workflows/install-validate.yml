@@ -265,7 +265,7 @@ jobs:
               echo "========================================="
               echo "Running unit tests..."
               echo "========================================="
-              pytest -v --tb=short -m "unit" tests/unit/ || true
+              pytest -v --tb=short -m "unit" tests/unit/
 
               # Run all ci_quick tests (includes smoke, binary validation, quick workflows)
               echo "========================================="
@@ -288,13 +288,13 @@ jobs:
               echo "========================================="
               echo "1/4: Running unit tests..."
               echo "========================================="
-              pytest -v --tb=short -m "unit" tests/unit/ || true
+              pytest -v --tb=short -m "unit" tests/unit/
 
               # Run integration tests
               echo "========================================="
               echo "2/4: Running integration tests..."
               echo "========================================="
-              pytest -v --tb=short -m "integration" tests/integration/ || true
+              pytest -v --tb=short -m "integration" tests/integration/
 
               # Run quick e2e tests
               echo "========================================="

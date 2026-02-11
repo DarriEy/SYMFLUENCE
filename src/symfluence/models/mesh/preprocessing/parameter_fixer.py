@@ -134,20 +134,20 @@ class MESHParameterFixer(ConfigMixin):
             # Get RUNMODE from config (default to 'runrte' for routing)
             runmode = self._get_config_value('MESH_RUNMODE', 'runrte')
 
-            # For single-cell (lumped) domains, use run_def mode.
-            # noroute sets NRVR=0 which prevents FLZ/PWR from being read
-            # from hydrology.ini (the "channel routing parameters per river
-            # class" section uses `do j = 1, NRVR`). With run_def and
-            # Next=1 (self-referential), NRVR=maxval(IAK)=1, so wf_lzs
-            # baseflow parameters are loaded and LKG > 0.
-            # The extractor uses RFF + LKG from Basin_average_water_balance.csv.
+            # For single-cell (lumped) domains, use noroute mode.
+            # Note: run_def was attempted to enable wf_lzs baseflow (NRVR=1),
+            # but in MESH 1.5.6 run_def routes drainage directly to the channel,
+            # bypassing the lower zone store (STGGW=0 → LKG=0). The baseflow
+            # module requires both NRVR>0 AND drainage→STGGW, which are mutually
+            # exclusive for single-cell domains. The extractor compensates by
+            # using RFF + DRAINSOL as the total runoff proxy.
             num_cells = self._get_num_cells()
-            if num_cells == 1 and runmode != 'run_def':
+            if num_cells == 1 and runmode != 'noroute':
                 self.logger.info(
                     "Single-cell domain detected (lumped mode). "
-                    "Using RUNMODE 'run_def' to enable wf_lzs baseflow (NRVR=1)."
+                    "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
                 )
-                runmode = 'run_def'
+                runmode = 'noroute'
 
             # Determine output flags based on routing mode
             if runmode == 'noroute':
@@ -1208,6 +1208,11 @@ class MESHParameterFixer(ConfigMixin):
             # Pre-populate calibratable parameters with physically reasonable defaults.
             # This prevents the optimizer from auto-injecting at mid-range on first
             # iteration, which wastes early DDS exploration budget.
+            # Note: RCHARG and FRZTH are appended after the GRU-dependent section.
+            # In noroute mode (single-cell), these are not read by MESH's positional
+            # parser but are present for the parameter_manager's regex-based updates.
+            # They become functional only in multi-cell run_def/runrte configurations
+            # where MESH reads them by keyword after the positional sections.
             calibratable_defaults = {
                 'RCHARG': (0.20, 'Recharge fraction to groundwater (typical 0.1-0.3)'),
                 'FRZTH': (0.10, 'Frozen soil infiltration threshold (m)'),

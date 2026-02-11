@@ -15,8 +15,8 @@ Products:
 
 Data Access Options:
     1. ICOS Carbon Portal (FLUXCOM-X): https://www.icos-cp.eu/data-products/2G60-ZHAK
-       - NetCDF files available for download after registration
-       - Daily/monthly LE (latent heat flux) which can be converted to ET
+       - NetCDF files, CC-BY 4.0 license (accepted programmatically)
+       - Monthly ET at 0.5° resolution, 2001-2021
 
     2. Max Planck BGI Data Portal (original FLUXCOM):
        - Requires registration and data request
@@ -29,13 +29,12 @@ Data Access Options:
 Configuration:
     FLUXCOM_DOWNLOAD_URL: Direct URL to download data file
     FLUXCOM_FILE_PATTERN: Pattern for local files (default: "*.nc")
-    FLUXCOM_VARIABLE: Variable to extract (default: "LE" for latent heat)
-    FLUXCOM_CONVERT_TO_ET: True (default) - convert LE to ET
-    FLUXCOM_VERSION: 'original' or 'x' (default: 'original')
+    FLUXCOM_VARIABLE: Variable to extract (default: "ET")
+    FLUXCOM_VERSION: 'original' or 'x' (default: 'x')
 
-Unit Conversion:
+Unit Conversion (automatic based on source units):
     LE (W/m²) to ET (mm/day): ET = LE * 86400 / (2.45e6)
-    where 2.45e6 J/kg is the latent heat of vaporization
+    ET (mm/hr) to ET (mm/day): ET = ET * 24
 
 References:
     - Jung et al. (2019): https://doi.org/10.1038/s41597-019-0076-8
@@ -47,7 +46,7 @@ import xarray as xr
 import requests
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -56,6 +55,7 @@ from ..registry import AcquisitionRegistry
 # Latent heat of vaporization (J/kg)
 LATENT_HEAT_VAPORIZATION = 2.45e6
 SECONDS_PER_DAY = 86400
+HOURS_PER_DAY = 24
 
 
 @AcquisitionRegistry.register('FLUXCOM_ET')
@@ -109,10 +109,10 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             downloaded_file = self._download_from_url(download_url, et_dir)
             return self._process_local_files([downloaded_file], processed_file)
 
-        # Option 3: Try ICOS Carbon Portal
-        icos_result = self._try_icos_carbon_portal(et_dir)
-        if icos_result:
-            return self._process_local_files([icos_result], processed_file)
+        # Option 3: Download from ICOS Carbon Portal (FLUXCOM-X 0.5° monthly)
+        icos_files = self._download_from_icos(et_dir)
+        if icos_files:
+            return self._process_local_files(icos_files, processed_file)
 
         # Fail with helpful instructions
         self._provide_data_access_instructions(et_dir)
@@ -148,43 +148,106 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             self.logger.error(f"Failed to download FLUXCOM data: {e}")
             raise
 
-    def _try_icos_carbon_portal(self, output_dir: Path) -> Optional[Path]:
+    def _download_from_icos(self, output_dir: Path) -> List[Path]:
         """
-        Try to access FLUXCOM-X from ICOS Carbon Portal.
+        Download FLUXCOM-X monthly ET (0.5°) from ICOS Carbon Portal.
 
-        Note: ICOS requires authentication for most data products.
-        This method checks if data is available and provides guidance.
+        Queries the ICOS CP metadata API for the FLUXCOM-X-BASE ET collection,
+        finds the 0.5° monthly files for each year in the requested time range,
+        and downloads them. Data is CC-BY 4.0, no authentication required.
+
+        Returns:
+            List of downloaded NetCDF file paths, empty if download fails.
         """
-        # ICOS Carbon Portal data objects for FLUXCOM-X
-        # These would require authentication tokens to download directly
-        self.logger.info("Checking ICOS Carbon Portal for FLUXCOM-X data...")
+        import json
+        import urllib.request
 
-        # The ICOS CP API requires authentication for downloads
-        # We can at least check if the data exists
+        COLLECTION_URL = "https://meta.icos-cp.eu/collections/_l85vWiIV81AifoxCkty50YI"
+
+        self.logger.info("Downloading FLUXCOM-X ET from ICOS Carbon Portal...")
+
+        start_year = self.start_date.year
+        end_year = self.end_date.year
+
         try:
-            # Check ICOS data portal landing page
-            icos_url = "https://meta.icos-cp.eu/collections/2G60-ZHAK"
-            response = requests.get(icos_url, timeout=30)
-
-            if response.status_code == 200:
-                self.logger.info(
-                    "FLUXCOM-X data available at ICOS Carbon Portal.\n"
-                    "Please register at https://cpauth.icos-cp.eu/ and download:\n"
-                    f"  https://www.icos-cp.eu/data-products/2G60-ZHAK\n"
-                    f"Place downloaded files in: {output_dir}"
-                )
-
+            req = urllib.request.Request(COLLECTION_URL, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
+                collection = json.loads(resp.read())
         except Exception as e:
-            self.logger.debug(f"Could not check ICOS portal: {e}")
+            self.logger.warning(f"Failed to query ICOS Carbon Portal: {e}")
+            return []
 
-        return None
+        downloaded = []
+        for member in sorted(collection.get("members", []), key=lambda m: m.get("name", "")):
+            # Extract year from name like "FLUXCOM-X-BASE evapotranspiration for 2016"
+            name = member.get("name", "")
+            year = None
+            for token in name.split():
+                if token.isdigit() and 2000 <= int(token) <= 2030:
+                    year = int(token)
+                    break
+            if year is None or year < start_year or year > end_year:
+                continue
+
+            # Fetch yearly sub-collection to find the 0.5° monthly file
+            year_url = member.get("res", "")
+            try:
+                req2 = urllib.request.Request(year_url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req2, timeout=60) as resp2:  # nosec B310
+                    year_data = json.loads(resp2.read())
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch {year} metadata: {e}")
+                continue
+
+            for item in year_data.get("members", []):
+                item_name = item.get("name", "")
+                if "0.5 degree" in item_name and "monthly" in item_name.lower():
+                    obj_hash = item.get("hash", "")
+                    out_file = output_dir / f"ET_{year}_monthly_halfdeg.nc"
+
+                    if out_file.exists() and not self.config_dict.get("FORCE_DOWNLOAD", False):
+                        self.logger.info(f"  {year}: already exists, skipping")
+                        downloaded.append(out_file)
+                        break
+
+                    self.logger.info(f"  {year}: downloading from ICOS CP...")
+                    try:
+                        # ICOS CP requires license acceptance via cookie.
+                        # Hit /licence_accept to get the cookie, which
+                        # redirects to the actual file download.
+                        import urllib.parse
+                        ids_param = urllib.parse.quote(json.dumps([obj_hash]))
+                        accept_url = f"https://data.icos-cp.eu/licence_accept?ids={ids_param}"
+
+                        session = requests.Session()
+                        resp3 = session.get(accept_url, stream=True, timeout=600)
+                        resp3.raise_for_status()
+
+                        # Verify we got binary data, not an HTML license page
+                        content_type = resp3.headers.get("content-type", "")
+                        if "html" in content_type:
+                            self.logger.warning(f"  {year}: got HTML instead of NetCDF, skipping")
+                            break
+
+                        tmp = out_file.with_suffix(".nc.part")
+                        with open(tmp, "wb") as f:
+                            for chunk in resp3.iter_content(chunk_size=1024 * 1024):
+                                f.write(chunk)
+                        tmp.replace(out_file)
+                        downloaded.append(out_file)
+                        self.logger.info(f"  {year}: OK ({out_file.stat().st_size / 1e6:.1f} MB)")
+                    except Exception as e:
+                        self.logger.warning(f"  {year}: download failed: {e}")
+                    break
+
+        self.logger.info(f"Downloaded {len(downloaded)} FLUXCOM-X yearly files")
+        return downloaded
 
     def _process_local_files(self, files: List[Path], output_file: Path) -> Path:
         """Process local FLUXCOM files."""
         self.logger.info(f"Processing {len(files)} FLUXCOM files...")
 
-        variable = self.config_dict.get('FLUXCOM_VARIABLE', 'LE')
-        convert_to_et = self.config_dict.get('FLUXCOM_CONVERT_TO_ET', True)
+        variable = self.config_dict.get('FLUXCOM_VARIABLE', 'ET')
 
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
@@ -194,15 +257,20 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             try:
                 ds = xr.open_dataset(f)
 
-                # Find the variable (LE, ET, etc.)
+                # Find the variable (ET, LE, etc.)
                 var_name = None
                 for v in ds.data_vars:
-                    if variable.lower() in v.lower():
+                    if variable.lower() == v.lower():
                         var_name = v
                         break
-                    if 'latent' in v.lower() or 'et' in v.lower():
-                        var_name = v
-                        break
+                if var_name is None:
+                    for v in ds.data_vars:
+                        if variable.lower() in v.lower():
+                            var_name = v
+                            break
+                        if 'et' in v.lower() or 'latent' in v.lower():
+                            var_name = v
+                            break
 
                 if not var_name:
                     self.logger.warning(f"Could not find {variable} in {f.name}")
@@ -229,6 +297,16 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                                lon_dim: slice(lon_min, lon_max)}
                         )
 
+                    # If bbox is smaller than grid resolution, use nearest neighbor
+                    if da.sizes.get(lat_dim, 0) == 0 or da.sizes.get(lon_dim, 0) == 0:
+                        self.logger.info("Basin smaller than grid cell, using nearest neighbor")
+                        lat_center = (lat_min + lat_max) / 2
+                        lon_center = (lon_min + lon_max) / 2
+                        da = ds[var_name].sel(
+                            **{lat_dim: lat_center, lon_dim: lon_center},
+                            method='nearest'
+                        )
+
                 datasets.append(da)
 
             except Exception as e:
@@ -246,15 +324,27 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
 
         combined = combined.sortby('time')
 
-        # Convert LE to ET if needed
-        if convert_to_et and 'le' in variable.lower():
-            # LE (W/m²) to ET (mm/day)
-            # ET = LE * seconds_per_day / latent_heat
+        # Convert to mm/day based on source units
+        source_units = combined.attrs.get('units', '').lower()
+        if 'w' in source_units and 'm' in source_units:
+            # LE (W/m²) → ET (mm/day)
+            self.logger.info("Converting LE (W/m²) to ET (mm/day)")
             combined = combined * SECONDS_PER_DAY / LATENT_HEAT_VAPORIZATION
             units = 'mm/day'
             long_name = 'Evapotranspiration'
+        elif 'mm' in source_units and 'hr' in source_units:
+            # ET (mm/hr) → ET (mm/day)
+            self.logger.info("Converting ET (mm/hr) to ET (mm/day)")
+            combined = combined * HOURS_PER_DAY
+            units = 'mm/day'
+            long_name = 'Evapotranspiration'
+        elif 'mm' in source_units and 'day' in source_units:
+            # Already mm/day
+            units = 'mm/day'
+            long_name = 'Evapotranspiration'
         else:
-            units = combined.attrs.get('units', 'W/m2')
+            self.logger.info(f"Unknown source units '{source_units}', keeping as-is")
+            units = combined.attrs.get('units', 'unknown')
             long_name = combined.attrs.get('long_name', variable)
 
         # Compute spatial mean
@@ -301,8 +391,12 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
         csv_file = output_dir / f"{self.domain_name}_FLUXCOM_ET_timeseries.csv"
 
         df = da.to_dataframe()
-        if 'ET' not in df.columns:
-            df.columns = ['ET']
+        # Keep only the ET column (drop scalar lat/lon from nearest-neighbor)
+        et_col = [c for c in df.columns if 'et' in c.lower()]
+        if et_col:
+            df = df[[et_col[0]]]
+        else:
+            df = df.iloc[:, :1]
 
         df.index.name = 'date'
         df.columns = ['et_mm_day']
