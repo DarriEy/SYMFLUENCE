@@ -134,6 +134,17 @@ if grep -q 'kind=8' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
     sed -i 's/int(max_steps, kind=8)/int(max_steps)/' build/source/engine/summaSolve4ida.f90
 fi
 
+# On Windows, SUNDIALS is built static-only (DLLs don't export Fortran
+# module symbols). Patch CMakeLists.txt to use static targets.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        if grep -q 'fida_mod_shared' build/CMakeLists.txt 2>/dev/null; then
+            echo "Patching CMakeLists.txt: using static SUNDIALS targets (Windows)"
+            sed -i 's/fida_mod_shared/fida_mod_static/g; s/fkinsol_mod_shared/fkinsol_mod_static/g' build/CMakeLists.txt
+        fi
+        ;;
+esac
+
 rm -rf cmake_build && mkdir -p cmake_build
 
 # Build CMAKE_PREFIX_PATH with all relevant paths
@@ -148,15 +159,26 @@ if [ -n "${CONDA_PREFIX:-}" ]; then
 fi
 
 # On x86-64 Linux with gfortran, denormalized floats can propagate to NaN
-# in SUMMA's Jacobian. Link with -ffast-math to enable flush-to-zero (FTZ)
-# and denormals-are-zero (DAZ) via crtfastmath.o at startup, matching the
-# default behavior of ARM FPUs (macOS) and Intel Fortran compilers (HPCs).
-# This only affects the linker (startup code), not compilation math semantics.
-SUMMA_LINKER_FLAGS=""
+# in SUMMA's Jacobian. Build a tiny shared library (libftz.so) that sets
+# the FTZ and DAZ bits in the x86 MXCSR register at load time, matching
+# the default behavior of ARM FPUs (macOS) and Intel Fortran (HPCs).
+# The SUMMA runner LD_PRELOADs this library at runtime.
 case "$(uname -m 2>/dev/null)" in
     x86_64|amd64)
-        SUMMA_LINKER_FLAGS="-ffast-math"
-        echo "x86-64 detected: enabling FTZ/DAZ via linker for denormal safety"
+        echo "x86-64 detected: building libftz.so for denormal flush-to-zero"
+        mkdir -p bin
+        cat > bin/ftz_daz.c << 'CEOF'
+#include <xmmintrin.h>
+#include <pmmintrin.h>
+__attribute__((constructor))
+static void enable_ftz_daz(void) {
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+}
+CEOF
+        gcc -shared -fPIC -o bin/libftz.so bin/ftz_daz.c -msse2
+        rm -f bin/ftz_daz.c
+        echo "Built bin/libftz.so"
         ;;
 esac
 
@@ -164,7 +186,6 @@ cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_Fortran_FLAGS_RELEASE="-O2 -DNDEBUG" \
-  -DCMAKE_EXE_LINKER_FLAGS="${SUMMA_LINKER_FLAGS}" \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
   -DCMAKE_PREFIX_PATH="${SUMMA_PREFIX_PATH}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
