@@ -75,8 +75,8 @@ class ToolValidator(BaseService):
         for tool_name, tool_info in self.external_tools.items():
             if tool_info.get('optional', False):
                 # Check if optional tool is installed before validating
-                data_dir = config.get("SYMFLUENCE_DATA_DIR", ".")
-                opt_path = Path(data_dir) / tool_info.get("default_path_suffix", "")
+                data_dir = self._get_data_dir(config)
+                opt_path = data_dir / tool_info.get("default_path_suffix", "")
                 if not opt_path.exists():
                     continue  # Skip optional tools that aren't installed
             self._console.newline()
@@ -98,8 +98,8 @@ class ToolValidator(BaseService):
                     config.get(config_path_key, "default") if config_path_key else "default"
                 )
                 if tool_path == "default":
-                    data_dir = config.get("SYMFLUENCE_DATA_DIR", ".")
-                    tool_path = Path(data_dir) / tool_info.get("default_path_suffix", "")
+                    data_dir = self._get_data_dir(config)
+                    tool_path = data_dir / tool_info.get("default_path_suffix", "")
                 else:
                     tool_path = Path(tool_path)
                 tool_result["path"] = str(tool_path)

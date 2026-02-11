@@ -69,14 +69,30 @@ class BaseService:
         """
         Get SYMFLUENCE data directory from environment or config.
 
+        Priority:
+        1. SYMFLUENCE_DATA_DIR environment variable
+        2. Config value (if not 'default')
+        3. Sibling SYMFLUENCE_data directory next to the repo root
+
         Args:
             config: Configuration dictionary.
 
         Returns:
             Path to data directory.
         """
-        data_dir = os.getenv("SYMFLUENCE_DATA") or config.get("SYMFLUENCE_DATA_DIR", ".")
-        return Path(data_dir)
+        # Check environment variables
+        data_dir = os.getenv("SYMFLUENCE_DATA_DIR") or os.getenv("SYMFLUENCE_DATA")
+        if data_dir:
+            return Path(data_dir)
+
+        # Check config value (skip 'default' sentinel)
+        config_val = config.get("SYMFLUENCE_DATA_DIR")
+        if config_val and config_val != "default":
+            return Path(config_val)
+
+        # Resolve from repo root: sibling SYMFLUENCE_data directory
+        from symfluence.core.config.factories import _resolve_default_data_dir
+        return Path(_resolve_default_data_dir())
 
     def _ensure_valid_config_paths(
         self, config: Dict[str, Any], config_path: Path
