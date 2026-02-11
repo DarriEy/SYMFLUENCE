@@ -80,9 +80,21 @@ class SummaRunner(UnifiedModelRunner):
     def _get_environment(self) -> Dict[str, str]:
         """Get environment variables for SUMMA."""
         import os
-        return {
+        import platform
+        env = {
             'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
         }
+        # On x86-64, preload libftz.so to flush denormals to zero.
+        # Without this, gfortran's Jacobian produces denormals that
+        # propagate to NaN (ARM and Intel Fortran do this by default).
+        if platform.machine() in ('x86_64', 'AMD64'):
+            summa_bin = self.model_exe.parent if hasattr(self, 'model_exe') else None
+            if summa_bin:
+                libftz = summa_bin / 'libftz.so'
+                if libftz.exists():
+                    existing = os.environ.get('LD_PRELOAD', '')
+                    env['LD_PRELOAD'] = f"{libftz}:{existing}" if existing else str(libftz)
+        return env
 
     def _validate_model_specific(self) -> List[str]:
         """Validate SUMMA-specific configuration."""
