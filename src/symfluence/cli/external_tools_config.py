@@ -178,7 +178,7 @@ mkdir -p ../bin
 
 # Debug: show what was built
 echo "Files in build directory:"
-find . -type f -executable 2>/dev/null | head -20 || find . -type f -perm +111 2>/dev/null | head -20 || ls -la
+find . -type f -name "pitremove" -o -name "streamnet" -o -name "aread8" 2>/dev/null || true
 
 # List of expected TauDEM tools (superset — some may not exist on older commits)
 tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold
@@ -187,10 +187,15 @@ tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf t
 copied=0
 for exe in $tools;
   do
-  # Find anywhere under build tree and copy if executable (try multiple find syntaxes)
-  p="$(find . -type f -executable -name "$exe" 2>/dev/null | head -n1)" || \
-  p="$(find . -type f -perm +111 -name "$exe" 2>/dev/null | head -n1)" || \
-  p="$(find . -type f -name "$exe" 2>/dev/null | head -n1)" || true
+  # Find by name (cross-platform: works on macOS, Linux, WSL)
+  # Note: piping through head masks find errors, so use sequential checks
+  p=""
+  # Try GNU find -executable first (Linux)
+  if [ -z "$p" ]; then p="$(find . -type f -executable -name "$exe" 2>/dev/null | head -n1 || true)"; fi
+  # Try POSIX -perm /111 (macOS/BSD/Linux)
+  if [ -z "$p" ]; then p="$(find . -type f -perm /111 -name "$exe" 2>/dev/null | head -n1 || true)"; fi
+  # Fallback: find by name only (then chmod +x below handles permissions)
+  if [ -z "$p" ]; then p="$(find . -type f -name "$exe" ! -path "*/CMakeFiles/*" 2>/dev/null | head -n1 || true)"; fi
   if [ -n "$p" ] && [ -f "$p" ]; then
     cp -f "$p" ../bin/
     chmod +x ../bin/$exe
