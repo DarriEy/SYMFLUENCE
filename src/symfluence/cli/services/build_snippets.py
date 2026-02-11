@@ -67,6 +67,19 @@ detect_hpc_environment
 # Respect pre-configured compilers for ABI compatibility with conda libraries.
 # The symfluence shell script sets CC/CXX to conda compilers when available.
 configure_compilers() {
+    # On MSYS2/MinGW (Windows), use bare compiler names so cmake can
+    # find them on PATH with the .exe extension.
+    case "$(uname -s 2>/dev/null)" in
+        MSYS*|MINGW*|CYGWIN*)
+            if command -v gcc >/dev/null 2>&1; then
+                export CC="gcc"
+                export CXX="g++"
+                echo "Using compilers: CC=gcc, CXX=g++ (MSYS2/MinGW)"
+                return 0
+            fi
+            ;;
+    esac
+
     # If CC/CXX are already set to conda compilers, trust them
     # (symfluence --install sets these for ABI compatibility)
     if [ -n "$CC" ] && [[ "$CC" == *conda* ]]; then
@@ -108,6 +121,21 @@ configure_compilers
 # ================================================================
 # Look for conda gfortran first (for ABI compatibility), then system gfortran
 configure_fortran() {
+    # On MSYS2/MinGW (Windows), use bare compiler names so that cmake
+    # can find them on PATH with the .exe extension.  MSYS2's
+    # "command -v" returns paths like /conda_bin/gfortran that cmake
+    # cannot resolve to a Windows executable.
+    case "$(uname -s 2>/dev/null)" in
+        MSYS*|MINGW*|CYGWIN*)
+            if command -v gfortran >/dev/null 2>&1; then
+                export FC="gfortran"
+                export FC_EXE="gfortran"
+                echo "Using Fortran compiler: FC=gfortran (MSYS2/MinGW)"
+                return 0
+            fi
+            ;;
+    esac
+
     # Already set and valid
     if [ -n "$FC" ] && [ -x "$FC" ]; then
         echo "Using FC=$FC"

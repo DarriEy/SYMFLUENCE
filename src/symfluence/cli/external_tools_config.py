@@ -82,10 +82,11 @@ SUNDIALS_PREFIX="${SUNDIALS_ROOT_DIR}/install/sundials"
 mkdir -p "${SUNDIALS_PREFIX}"
 
 rm -f "v${SUNDIALS_VER}.tar.gz" || true
-wget -q "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz" \
+wget -q -O "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz" \
   || curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz"
 
-tar -xzf "v${SUNDIALS_VER}.tar.gz"
+# Exclude doc directory — it contains symlinks that fail on Windows/MSYS2.
+tar -xzf "v${SUNDIALS_VER}.tar.gz" --exclude="*/doc/*"
 cd "sundials-${SUNDIALS_VER}"
 
 rm -rf build && mkdir build && cd build
@@ -95,7 +96,10 @@ cmake .. \
   -DCMAKE_INSTALL_PREFIX="${SUNDIALS_PREFIX}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=ON \
-  -DEXAMPLES_ENABLE=OFF \
+  -DSUNDIALS_INDEX_SIZE=32 \
+  -DEXAMPLES_ENABLE_C=OFF \
+  -DEXAMPLES_ENABLE_CXX=OFF \
+  -DEXAMPLES_ENABLE_F2003=OFF \
   -DBUILD_TESTING=OFF
 
 cmake --build . --target install -j ${NCORES:-4}

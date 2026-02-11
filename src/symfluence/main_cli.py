@@ -21,6 +21,15 @@ def main():
     Uses subcommand architecture for clean command organization.
     """
     import sys
+
+    # Windows consoles default to cp1252 which cannot encode Rich's Unicode
+    # box-drawing and emoji characters.  Reconfigure to UTF-8 so output
+    # renders correctly in modern terminals (Windows Terminal, VS Code, etc.).
+    if sys.platform == "win32":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+
     from symfluence.cli.argument_parser import CLIParser
 
     try:

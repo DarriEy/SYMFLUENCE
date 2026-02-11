@@ -24,6 +24,50 @@ For CLI usage:
 # src/symfluence/__init__.py
 
 # ============================================================================
+# CRITICAL: Windows conda DLL path fix
+# Must run BEFORE any C-extension imports (netCDF4, GDAL, HDF5, etc.).
+# Python 3.8+ on Windows no longer uses PATH for DLL search; we must
+# explicitly register conda's Library\bin via os.add_dll_directory().
+# Also sets GDAL_DATA if a conda environment is detected.
+# ============================================================================
+import os as _os
+import sys as _sys
+
+# Must be kept alive at module level — the DLL directory is removed if the
+# handle returned by os.add_dll_directory() is garbage-collected.
+_dll_directory_handles = []
+
+if _sys.platform == "win32":
+    _conda_prefix = _os.environ.get("CONDA_PREFIX", "")
+    if _conda_prefix:
+        _library_bin = _os.path.join(_conda_prefix, "Library", "bin")
+        if _os.path.isdir(_library_bin):
+            _dll_directory_handles.append(_os.add_dll_directory(_library_bin))
+
+        _gdal_data = _os.path.join(_conda_prefix, "Library", "share", "gdal")
+        if _os.path.isdir(_gdal_data):
+            _os.environ.setdefault("GDAL_DATA", _gdal_data)
+
+        _proj_data = _os.path.join(_conda_prefix, "Library", "share", "proj")
+        if _os.path.isdir(_proj_data):
+            _os.environ.setdefault("PROJ_DATA", _proj_data)
+
+    # Prevent OpenMP duplicate-library abort when pip-torch and conda
+    # co-exist (each ships its own OpenMP runtime).
+    _os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+    # PyTorch must be imported BEFORE conda's HDF5/netCDF4 libraries.
+    # Conda's h5py loads HDF5 DLLs that make torch's shm.dll unloadable
+    # if torch hasn't already loaded its own DLLs first.
+    try:
+        import torch as _torch  # noqa: F401
+        del _torch
+    except ImportError:
+        pass
+
+del _os, _sys
+
+# ============================================================================
 # CRITICAL: HDF5/netCDF4 thread safety fix
 # Must be set BEFORE any HDF5/netCDF4/xarray imports occur.
 # The netCDF4/HDF5 libraries are not thread-safe by default, and tqdm's

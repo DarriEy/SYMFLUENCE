@@ -5,8 +5,10 @@ Handles cloning repositories, running build commands, and verifying installation
 """
 
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -48,6 +50,147 @@ class ToolInstaller(BaseService):
             self._external_tools = get_external_tools_definitions()
         return self._external_tools
 
+    @staticmethod
+    def _find_bash() -> Optional[str]:
+        """
+        Locate a usable bash executable for building from source.
+
+        On Unix this is simply /bin/bash.  On Windows we prefer a native
+        bash that can use the conda-forge build toolchain (gfortran, cmake,
+        make) installed directly in the conda environment.  Search order:
+
+        1. Conda m2-bash  (CONDA_PREFIX/Library/usr/bin/bash.exe)
+        2. MSYS2           (C:/msys64/usr/bin/bash.exe)
+        3. Git Bash         (C:/Program Files/Git/usr/bin/bash.exe)
+        4. WSL              (last resort — uses a separate Linux filesystem)
+        5. Anything else on PATH
+
+        Returns:
+            Absolute path to bash, or None if not found.
+        """
+        if sys.platform != "win32":
+            if os.path.exists("/bin/bash"):
+                return "/bin/bash"
+            return shutil.which("bash")
+
+        # 1. Conda m2-bash — lives inside the active conda environment and
+        #    shares PATH with conda-forge gfortran/cmake/make.
+        conda_prefix = os.environ.get("CONDA_PREFIX", "")
+        if conda_prefix:
+            conda_bash = os.path.join(
+                conda_prefix, "Library", "usr", "bin", "bash.exe"
+            )
+            if os.path.isfile(conda_bash):
+                return conda_bash
+
+        # 2. MSYS2 (full Unix toolchain on Windows)
+        for candidate in [
+            r"C:\msys64\usr\bin\bash.exe",
+            r"C:\msys2\usr\bin\bash.exe",
+        ]:
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 3. Git Bash
+        for candidate in [
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ]:
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 4. WSL — last resort.  Provides a Linux environment but requires
+        #    separate toolchain installation inside the WSL distro.
+        wsl = shutil.which("wsl")
+        if wsl:
+            try:
+                probe = subprocess.run(
+                    [wsl, "-e", "bash", "-c", "echo ok"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if probe.returncode == 0 and "ok" in probe.stdout:
+                    return wsl  # handled specially in _run_build_commands
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+
+        # 5. Anything else on PATH
+        return shutil.which("bash")
+
+    def _preflight_check(self, tool_name: str) -> bool:
+        """
+        Verify that essential build tools are available before attempting a build.
+
+        Args:
+            tool_name: Name of the tool about to be built (for messaging).
+
+        Returns:
+            True if the environment looks viable, False otherwise.
+        """
+        bash = self._find_bash()
+        if bash is None:
+            self._console.error(
+                "No bash shell found.  Building from source requires bash "
+                "(Git for Windows, MSYS2, or WSL)."
+            )
+            if sys.platform == "win32":
+                self._console.indent(
+                    "Install Git for Windows (https://git-scm.com) which includes Git Bash,"
+                )
+                self._console.indent(
+                    "or use WSL: wsl --install"
+                )
+            return False
+
+        # Check for cmake and a Fortran compiler — needed by most builds.
+        # When using WSL, check inside the WSL environment, not Windows PATH.
+        is_wsl = (
+            sys.platform == "win32"
+            and os.path.basename(bash).lower() == "wsl.exe"
+        )
+        missing = []
+        for tool in ("cmake", "gfortran", "make"):
+            if is_wsl:
+                probe = subprocess.run(
+                    [bash, "-e", "bash", "-c", f"command -v {tool}"],
+                    capture_output=True, text=True,
+                )
+                if probe.returncode != 0:
+                    missing.append(tool)
+            elif not shutil.which(tool):
+                missing.append(tool)
+
+        if missing:
+            self._console.warning(
+                f"Missing build tools for {tool_name}: {', '.join(missing)}"
+            )
+            if sys.platform == "win32":
+                self._console.indent(
+                    "On Windows, install via conda-forge (recommended):"
+                )
+                self._console.indent(
+                    "  conda install -c conda-forge gfortran cmake m2-make m2-bash"
+                )
+                self._console.indent(
+                    "Or via MSYS2 (https://www.msys2.org):"
+                )
+                self._console.indent(
+                    "  pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc-fortran make"
+                )
+            else:
+                self._console.indent(
+                    "Install them with your system package manager, e.g.:"
+                )
+                self._console.indent(
+                    "  sudo apt install cmake gfortran make   # Debian/Ubuntu"
+                )
+                self._console.indent(
+                    "  brew install cmake gcc make             # macOS"
+                )
+            # Warn but don't block — the bash build script has its own
+            # detection logic and may still succeed (e.g. HPC modules).
+        return True
+
     def _get_clean_build_env(self) -> Dict[str, str]:
         """
         Get a clean environment for build processes.
@@ -59,41 +202,94 @@ class ToolInstaller(BaseService):
             Clean environment dictionary for subprocess calls.
         """
         env = os.environ.copy()
+        sep = os.pathsep  # ";" on Windows, ":" on Unix
 
         # Remove MAKE-related variables that can trigger unwanted make calls
         make_vars = ["MAKEFLAGS", "MAKELEVEL", "MAKE", "MFLAGS", "MAKEOVERRIDES"]
         for var in make_vars:
             env.pop(var, None)
 
-        # Check if conda compilers are available (required for ABI compatibility
-        # with conda-forge libraries like GDAL built with GCC 13+)
-        conda_prefix = env.get("CONDA_PREFIX", "")
-        conda_gcc = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-gcc")
-        conda_gxx = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-g++")
+        # On Windows, ensure conda's build-tool directories AND a source
+        # of standard Unix utilities (awk, mkdir, rm, uname, ...) are on PATH.
+        if sys.platform == "win32":
+            conda_prefix = env.get("CONDA_PREFIX", "")
+            if conda_prefix:
+                extra_dirs = [
+                    os.path.join(conda_prefix, "Library", "bin"),
+                    os.path.join(conda_prefix, "Library", "usr", "bin"),
+                    # MinGW binutils (ar, as, ld, ranlib, strip, nm, etc.)
+                    os.path.join(conda_prefix, "Library", "x86_64-w64-mingw32", "bin"),
+                ]
+                current_path = env.get("PATH", "")
+                for d in reversed(extra_dirs):
+                    if os.path.isdir(d) and d not in current_path:
+                        env["PATH"] = d + sep + env["PATH"]
 
-        if conda_prefix and os.path.exists(conda_gcc) and os.path.exists(conda_gxx):
-            # Use conda compilers for ABI compatibility with conda libraries
-            env["CC"] = conda_gcc
-            env["CXX"] = conda_gxx
-            # Ensure conda bin is first in PATH
-            conda_bin = os.path.join(conda_prefix, "bin")
-            if conda_bin not in env.get("PATH", "").split(":")[0]:
-                env["PATH"] = conda_bin + ":" + env.get("PATH", "")
-        elif os.path.exists("/srv/conda/envs/notebook"):
-            # 2i2c environment without conda compilers - try system compilers
-            # but warn that this may fail if conda GDAL needs newer ABI
-            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
-                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
-            if os.path.exists("/usr/bin/gcc"):
-                env["CC"] = "/usr/bin/gcc"
-            if os.path.exists("/usr/bin/g++"):
-                env["CXX"] = "/usr/bin/g++"
-            if os.path.exists("/usr/bin/ld"):
-                env["LD"] = "/usr/bin/ld"
-        else:
-            # Non-2i2c environment - ensure /usr/bin is accessible
-            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
-                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
+            # Conda's m2-bash only ships bash + make.  Standard Unix utils
+            # (awk, mkdir, rm, ls, uname, tar, ...) must come from Git Bash,
+            # MSYS2, or additional m2- conda packages.  Append the first
+            # available source of these utilities to PATH.
+            unix_util_dirs = [
+                # MSYS2 standalone install
+                r"C:\msys64\usr\bin",
+                r"C:\msys2\usr\bin",
+                # Git for Windows (most common on dev machines)
+                r"C:\Program Files\Git\usr\bin",
+                r"C:\Program Files (x86)\Git\usr\bin",
+            ]
+            current_path = env.get("PATH", "")
+            for d in unix_util_dirs:
+                if os.path.isdir(d) and d not in current_path:
+                    # Append (not prepend) so conda tools take priority
+                    env["PATH"] = env["PATH"] + sep + d
+                    break
+
+            # Tell cmake to use MSYS Makefiles generator and the MSYS2 make
+            # that ships with conda's m2-make package.
+            env.setdefault("CMAKE_GENERATOR", "MSYS Makefiles")
+            make_exe = shutil.which("make")
+            if make_exe:
+                env.setdefault("CMAKE_MAKE_PROGRAM", make_exe)
+
+            # Set compiler names (not MSYS2 paths) so cmake resolves them
+            # on PATH with the .exe extension.
+            if shutil.which("gcc"):
+                env.setdefault("CC", "gcc")
+                env.setdefault("CXX", "g++")
+            if shutil.which("gfortran"):
+                env.setdefault("FC", "gfortran")
+
+        # Compiler / PATH setup for Unix (conda compilers, 2i2c, etc.)
+        if sys.platform != "win32":
+            # Check if conda compilers are available (required for ABI compatibility
+            # with conda-forge libraries like GDAL built with GCC 13+)
+            conda_prefix = env.get("CONDA_PREFIX", "")
+            conda_gcc = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-gcc")
+            conda_gxx = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-g++")
+
+            if conda_prefix and os.path.exists(conda_gcc) and os.path.exists(conda_gxx):
+                # Use conda compilers for ABI compatibility with conda libraries
+                env["CC"] = conda_gcc
+                env["CXX"] = conda_gxx
+                # Ensure conda bin is first in PATH
+                conda_bin = os.path.join(conda_prefix, "bin")
+                if conda_bin not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = conda_bin + sep + env.get("PATH", "")
+            elif os.path.exists("/srv/conda/envs/notebook"):
+                # 2i2c environment without conda compilers - try system compilers
+                # but warn that this may fail if conda GDAL needs newer ABI
+                if "/usr/bin" not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = "/usr/bin" + sep + env.get("PATH", "")
+                if os.path.exists("/usr/bin/gcc"):
+                    env["CC"] = "/usr/bin/gcc"
+                if os.path.exists("/usr/bin/g++"):
+                    env["CXX"] = "/usr/bin/g++"
+                if os.path.exists("/usr/bin/ld"):
+                    env["LD"] = "/usr/bin/ld"
+            else:
+                # Non-2i2c environment - ensure /usr/bin is accessible
+                if "/usr/bin" not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = "/usr/bin" + sep + env.get("PATH", "")
 
         # Set SYMFLUENCE_PATCHED if patched mode is enabled
         if getattr(self, '_patched', False):
@@ -201,7 +397,26 @@ class ToolInstaller(BaseService):
                 # Remove existing if force reinstall
                 if tool_install_dir.exists() and force:
                     self._console.indent(f"Removing existing installation: {tool_install_dir}")
-                    shutil.rmtree(tool_install_dir)
+                    # On Windows, git repos contain read-only pack files and
+                    # may have broken symlinks/junctions (e.g. SUNDIALS docs).
+                    # This handler retries with permissions cleared, and
+                    # silently ignores paths that no longer exist.
+                    import stat
+                    def _force_remove_readonly(func, path, exc_info):
+                        try:
+                            os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+                            func(path)
+                        except FileNotFoundError:
+                            pass  # already gone — nothing to do
+                        except OSError:
+                            # Broken symlink / junction — try each removal method
+                            for remover in (os.unlink, os.rmdir):
+                                try:
+                                    remover(path)
+                                    return
+                                except OSError:
+                                    continue
+                    shutil.rmtree(tool_install_dir, onerror=_force_remove_readonly)
 
                 # Clone repository or create directory
                 if not self._clone_repository(
@@ -343,25 +558,62 @@ class ToolInstaller(BaseService):
         Returns:
             True if build successful, False otherwise.
         """
+        # Pre-flight: ensure bash and build tools are available
+        if not self._preflight_check(tool_name):
+            return False
+
+        bash = self._find_bash()
+        # _preflight_check already validated bash exists, but guard anyway
+        if bash is None:
+            self._console.error("Cannot locate bash — aborting build.")
+            return False
+
         self._console.indent("Running build commands...")
+
+        is_wsl = (
+            sys.platform == "win32"
+            and os.path.basename(bash).lower() == "wsl.exe"
+        )
+        if sys.platform == "win32":
+            if is_wsl:
+                self._console.indent("Using WSL build environment")
+            else:
+                self._console.indent(f"Using native bash: {bash}")
 
         original_dir = os.getcwd()
         os.chdir(install_dir)
 
         try:
+            import tempfile
+
             combined_script = "\n".join(tool_info.get("build_commands", []))
 
-            # Security note: shell=True is required here because build_commands
-            # are multi-line shell scripts that may contain shell-specific syntax
-            # (pipes, redirects, environment variables, etc.). The build commands
-            # come from internal tool definitions, not user input.
-            build_result = subprocess.run(  # nosec B602
-                combined_script,
-                shell=True,
+            # Write the script to a temp file rather than passing via -c.
+            # This avoids Windows command-line length limits (~32K) and
+            # quoting issues with long multi-line bash scripts.
+            script_file = Path(install_dir) / "_build.sh"
+            script_file.write_text(combined_script + "\n", encoding="utf-8", newline="\n")
+
+            # Security note: build_commands are multi-line bash scripts from
+            # internal tool definitions, not user input.
+            if is_wsl:
+                # Convert the Windows install_dir to a WSL path so the
+                # script runs in the correct directory.
+                wsl_dir = subprocess.run(
+                    [bash, "-e", "wslpath", "-a", str(install_dir)],
+                    capture_output=True, text=True,
+                ).stdout.strip()
+                wsl_script = f"{wsl_dir}/_build.sh"
+                cmd = [bash, "-e", "bash", wsl_script]
+            else:
+                # Direct bash invocation (Unix, Git Bash, MSYS2).
+                cmd = [bash, str(script_file)]
+
+            build_result = subprocess.run(  # nosec B603
+                cmd,
                 check=True,
                 capture_output=True,
                 text=True,
-                executable="/bin/bash",
                 env=self._get_clean_build_env(),
             )
 
