@@ -186,6 +186,60 @@ print_warning() { echo -e "${YELLOW}Warning:${NC} $1" >&2; }
 print_info()    { echo -e "${BLUE}Info:${NC} $1"; }
 print_success() { echo -e "${GREEN}Success:${NC} $1"; }
 
+# Extended formatting for structured output
+BOLD=''; DIM=''
+if [[ -t 1 ]]; then
+    BOLD='\033[1m'
+    DIM='\033[2m'
+fi
+
+print_header() {
+    # Section header with rule line: ━━ Title ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    local title="$1"
+    local width=45
+    local prefix="━━ "
+    local suffix=" "
+    local used=$(( ${#prefix} + ${#title} + ${#suffix} ))
+    local pad=""
+    local i
+    for (( i=0; i<width-used; i++ )); do pad="${pad}━"; done
+    echo ""
+    echo -e "${BOLD}${prefix}${title}${suffix}${pad}${NC}"
+}
+
+print_step() {
+    # Step indicator: [1/6] Doing something...
+    local current="$1"
+    local total="$2"
+    local msg="$3"
+    echo -e "  ${BLUE}[${current}/${total}]${NC} ${msg}"
+}
+
+print_banner() {
+    # Startup banner with platform and Python info
+    local python_version="${1:-unknown}"
+    local platform_label=""
+    case "$PLATFORM" in
+        macos)
+            local arch
+            arch="$(uname -m)"
+            case "$arch" in
+                arm64) platform_label="macOS (ARM64)" ;;
+                *)     platform_label="macOS (${arch})" ;;
+            esac
+            ;;
+        linux)   platform_label="Linux ($(uname -m))" ;;
+        windows) platform_label="Windows" ;;
+        *)       platform_label="$PLATFORM" ;;
+    esac
+    echo ""
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}  SYMFLUENCE Installer${NC}"
+    echo -e "  Platform: ${platform_label}"
+    echo -e "  Python:   ${python_version}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
 # ----------------------------------------------------------------------
 # Default path helpers (derive from current working directory)
 # ----------------------------------------------------------------------
@@ -338,7 +392,14 @@ setup_rpy2_compiler_flags() {
 
 check_rpy2_dependencies() {
     print_info "Checking for libraries required by rpy2..."
-    local required_libs=("lzma" "bz2" "z" "tirpc")
+
+    # On macOS, tirpc is not needed (it's a Linux/glibc thing)
+    local required_libs
+    if [[ "$PLATFORM" == "macos" ]]; then
+        required_libs=("lzma" "bz2" "z")
+    else
+        required_libs=("lzma" "bz2" "z" "tirpc")
+    fi
     local missing=() found=()
 
     if command -v ldconfig >/dev/null 2>&1; then
@@ -347,12 +408,24 @@ check_rpy2_dependencies() {
         done
     else
         local search=("/usr/lib" "/usr/lib64" "/lib" "/lib64")
-        [[ -n "$LD_LIBRARY_PATH" ]] && IFS=':' read -ra _a <<< "$LD_LIBRARY_PATH" && search+=("${_a[@]}")
-        [[ -n "$LIBRARY_PATH" ]] && IFS=':' read -ra _b <<< "$LIBRARY_PATH" && search+=("${_b[@]}")
+        [[ -n "${LD_LIBRARY_PATH:-}" ]] && IFS=':' read -ra _a <<< "$LD_LIBRARY_PATH" && search+=("${_a[@]}")
+        [[ -n "${LIBRARY_PATH:-}" ]] && IFS=':' read -ra _b <<< "$LIBRARY_PATH" && search+=("${_b[@]}")
+
+        # Add macOS Homebrew paths
+        if [[ "$PLATFORM" == "macos" ]]; then
+            local brew_prefix
+            brew_prefix="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
+            search+=("$brew_prefix/lib" "/usr/local/lib")
+        fi
+
         for lib in "${required_libs[@]}"; do
             local ok=false
             for p in "${search[@]}"; do
-                [[ -f "$p/lib${lib}.so" || -f "$p/lib${lib}.a" ]] && ok=true && break
+                if [[ -f "$p/lib${lib}.so" || -f "$p/lib${lib}.a" || \
+                      -f "$p/lib${lib}.dylib" || -f "$p/lib${lib}.tbd" ]]; then
+                    ok=true
+                    break
+                fi
             done
             $ok && found+=("$lib") || missing+=("$lib")
         done
@@ -361,16 +434,21 @@ check_rpy2_dependencies() {
     [[ ${#found[@]} -gt 0 ]] && print_success "Found libraries: ${found[*]}"
     if [[ ${#missing[@]} -gt 0 ]]; then
         print_warning "Could not detect libraries: ${missing[*]}"
-        print_info "Load modules providing these before install (examples):"
-        for lib in "${missing[@]}"; do
-            case "$lib" in
-                lzma)  print_info "  module load xz" ;;
-                bz2)   print_info "  module load bzip2" ;;
-                tirpc) print_info "  module load libtirpc" ;;
-                z)     print_info "  module load zlib" ;;
-            esac
-        done
-        read -p "Press Enter to continue anyway, or Ctrl+C to abort..." _tmp || true
+        if [[ "$PLATFORM" == "macos" ]]; then
+            print_info "You can install missing libraries with Homebrew:"
+            print_info "  brew install xz bzip2 zlib"
+        else
+            print_info "Load modules providing these before install (examples):"
+            for lib in "${missing[@]}"; do
+                case "$lib" in
+                    lzma)  print_info "  module load xz" ;;
+                    bz2)   print_info "  module load bzip2" ;;
+                    tirpc) print_info "  module load libtirpc" ;;
+                    z)     print_info "  module load zlib" ;;
+                esac
+            done
+        fi
+        print_warning "Continuing installation without these libraries"
     fi
 }
 
@@ -857,14 +935,9 @@ main() {
 
     # ---------------- Installation mode (enhanced) ----------------
     if [[ "$run_install" == "true" ]]; then
-        print_info "SYMFLUENCE installation mode"
-        print_info "Platform: $PLATFORM"
-        echo ""
-        print_info "Prerequisites:"
-        print_info "  - Python 3.11+"
-        print_info "  - R (optional, for rpy2 features)"
-        print_info "  - Required libs/modules (xz, bzip2, libtirpc, zlib, netcdf, gdal, etc.)"
-        echo ""
+        local py_ver
+        py_ver=$($python_cmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "unknown")
+        print_banner "$py_ver"
 
         # Setup Windows dependencies if on Windows
         if [[ "$PLATFORM" == "windows" ]]; then
@@ -875,6 +948,8 @@ main() {
 
         # Detect 2i2c/JupyterHub environment
         detect_2i2c_environment || true
+
+        print_header "Environment"
 
         # Create venv if needed, unless in a conda env or explicitly disabled
         local venv_path="${symfluence_dir}/venv"
@@ -941,7 +1016,8 @@ EOF
             resolve_python_scripts_path "$python_cmd" "$venv_path"
         fi
 
-        print_info "Upgrading pip and preparing environment..."
+        print_header "Dependencies"
+        print_info "Upgrading pip..."
         # Always use python -m pip to ensure correct Python version is used
         $python_cmd -m pip install --upgrade pip || print_warning "pip upgrade failed"
 
@@ -1013,7 +1089,7 @@ else:
             fi
         fi
 
-        print_success "Python environment setup complete"
+        print_header "Package"
 
         # Install SYMFLUENCE package in editable mode
         print_info "Installing SYMFLUENCE package..."
@@ -1027,6 +1103,7 @@ else:
         python -m pip install "rich>=13.0.0" --quiet || true
         print_success "SYMFLUENCE package installed"
 
+        print_header "Tools"
         # External tools - use installed symfluence command with full path
         # (bash may have cached the wrapper path before pip created the venv CLI)
         cd "$symfluence_dir"
@@ -1073,12 +1150,15 @@ else:
             exit 1
         }
 
-        echo ""
+        print_header "Done"
         print_success "Installation complete!"
+        echo ""
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
-            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
+            print_info "To use SYMFLUENCE:"
+            print_info "  conda activate ${CONDA_ENV_PATH:-${symfluence_dir}/.conda-env}"
         else
-            print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
+            print_info "To use SYMFLUENCE:"
+            print_info "  source ${venv_path}/${VENV_ACTIVATE}"
         fi
         exit 0
     fi
