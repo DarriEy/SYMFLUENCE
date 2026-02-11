@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+textual = pytest.importorskip("textual", reason="textual not installed")
+
 from symfluence.tui.app import SymfluenceTUI
 from symfluence.tui.services.data_dir import DataDirService
 from symfluence.tui.services.run_history import RunSummary
