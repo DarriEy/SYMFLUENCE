@@ -1066,20 +1066,19 @@ def test_ssebop_acquisition_and_processing(mock_config, tmp_path):
     ssebop_config['DATA_ACCESS'] = 'local'
     ssebop_config['SSEBOP_PRODUCT'] = 'conus'
 
-    dm = DataManager(ssebop_config, logger)
-
     # Verify handler is registered
     assert ObservationRegistry.is_registered('ssebop'), "ssebop handler not registered"
     assert ObservationRegistry.is_registered('ssebop_et'), "ssebop_et handler not registered"
 
-    dm.acquire_observations()
-    dm.process_observed_data()
+    # Use direct handler calls to avoid DataManager swallowing exceptions
+    handler = ObservationRegistry.get_handler('ssebop', ssebop_config, logger)
+    raw_path = handler.acquire()
+    processed_path = handler.process(raw_path)
 
     # Verify output
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "preprocessed" / "test_domain_ssebop_et_processed.csv"
-
-    assert processed_file.exists(), f"Processed SSEBop file not found at {processed_file}"
-    df = pd.read_csv(processed_file)
+    assert processed_path.exists(), f"Processed SSEBop file not found at {processed_path}"
+    assert processed_path.suffix == '.csv', f"Expected CSV output, got {processed_path.suffix}"
+    df = pd.read_csv(processed_path)
     assert 'datetime' in df.columns or 'time' in df.columns
     assert 'et_mm_day' in df.columns
     assert len(df) > 0
@@ -1402,10 +1401,12 @@ def test_lamah_ice_streamflow_processing(mock_config, tmp_path):
     """Test the LamaH-ICE streamflow processing with mocked local data."""
     logger = logging.getLogger("test_lamah")
 
-    # Create mock LamaH-ICE file (semicolon-delimited format)
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "streamflow" / "lamah_ice"
-    obs_dir.mkdir(parents=True, exist_ok=True)
-    mock_file = obs_dir / "ID_001_Q.csv"
+    # Create mock LamaH-ICE file at correct directory structure
+    # Handler expects: LAMAH_ICE_PATH / D_gauges / 2_timeseries / daily / ID_{station_id}.csv
+    lamah_path = tmp_path / "lamah_ice_data"
+    raw_dir = lamah_path / "D_gauges" / "2_timeseries" / "daily"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    mock_file = raw_dir / "ID_001.csv"
 
     lamah_data = """YYYY;MM;DD;qobs;qc_flag
 2020;01;01;15.5;0
@@ -1419,19 +1420,22 @@ def test_lamah_ice_streamflow_processing(mock_config, tmp_path):
 
     lamah_config = mock_config.copy()
     lamah_config['ADDITIONAL_OBSERVATIONS'] = 'lamah_ice_streamflow'
-    lamah_config['LAMAH_ICE_PATH'] = str(obs_dir)
+    lamah_config['LAMAH_ICE_PATH'] = str(lamah_path)
+    lamah_config['STATION_ID'] = '001'
     lamah_config['DATA_ACCESS'] = 'local'
-
-    dm = DataManager(lamah_config, logger)
 
     assert ObservationRegistry.is_registered('lamah_ice_streamflow'), "lamah_ice_streamflow handler not registered"
 
-    dm.acquire_observations()
-    dm.process_observed_data()
+    # Use direct handler calls to avoid DataManager swallowing exceptions
+    handler = ObservationRegistry.get_handler('lamah_ice_streamflow', lamah_config, logger)
+    raw_path = handler.acquire()
+    processed_path = handler.process(raw_path)
 
     # Check for processed output
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "streamflow"
-    assert processed_dir.exists(), "LamaH-ICE streamflow directory should exist"
+    assert processed_path.exists(), f"Processed LamaH-ICE file not found at {processed_path}"
+    df = pd.read_csv(processed_path)
+    assert 'discharge_cms' in df.columns, f"Expected discharge_cms column, got {df.columns.tolist()}"
+    assert len(df) > 0, "Processed data should not be empty"
 
 
 # =============================================================================
