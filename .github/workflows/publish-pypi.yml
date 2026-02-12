@@ -200,7 +200,9 @@ jobs:
           for i in 1 2 3 4 5 6 7 8; do
             echo "Attempt $i/8..."
             if pip install --no-deps "symfluence==$VERSION" 2>/dev/null; then
-              INSTALLED=$(python -c "from symfluence.symfluence_version import __version__; print(__version__)")
+              # Use importlib.metadata to check version without importing the package
+              # (importing triggers dependency chain that fails with --no-deps)
+              INSTALLED=$(python -c "from importlib.metadata import version; print(version('symfluence'))")
               echo "Installed version: $INSTALLED"
               if [ "$INSTALLED" = "$VERSION" ]; then
                 echo "PyPI verification passed"
