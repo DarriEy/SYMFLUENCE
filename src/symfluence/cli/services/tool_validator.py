@@ -78,7 +78,11 @@ class ToolValidator(BaseService):
                 # Check if optional tool is installed before validating
                 data_dir = self._get_data_dir(config)
                 opt_path = data_dir / tool_info.get("default_path_suffix", "")
-                if not opt_path.exists():
+                # Also check install_dir root (default_path_suffix may include
+                # subdirs like 'bin/' that don't exist for all build types)
+                install_dir = tool_info.get("install_dir", "")
+                install_root = data_dir / "installs" / install_dir if install_dir else None
+                if not opt_path.exists() and not (install_root and install_root.exists()):
                     validation_results["skipped_tools"].append(tool_name)
                     continue  # Skip optional tools that aren't installed
             self._console.newline()
@@ -182,7 +186,16 @@ class ToolValidator(BaseService):
             return False
 
         check_type = verify.get("check_type", "exists_all")
-        candidates = [tool_path / p for p in verify.get("file_paths", [])]
+        file_paths = verify.get("file_paths", [])
+        candidates = [tool_path / p for p in file_paths]
+
+        # Also try from install_dir root (handles cases where default_path_suffix
+        # includes a subdirectory like 'bin/' that overlaps with file_paths)
+        install_dir = tool_info.get("install_dir", "")
+        if install_dir:
+            data_dir = self._get_data_dir(self._load_config(None))
+            install_root = data_dir / "installs" / install_dir
+            candidates.extend(install_root / p for p in file_paths)
 
         if check_type in ("python_module", "python_import"):
             module_name = verify.get("python_import", tool_name)
@@ -312,6 +325,10 @@ class ToolValidator(BaseService):
         if exe_name.endswith(".so") and sys.platform == "darwin":
             exe_name = exe_name.replace(".so", ".dylib")
 
+        # Handle shared library extension on Windows
+        if exe_name.endswith(".so") and sys.platform == "win32":
+            exe_name = exe_name.replace(".so", ".dll")
+
         exe_path = tool_path / exe_name
         if exe_path.exists():
             return exe_path
@@ -321,6 +338,12 @@ class ToolValidator(BaseService):
         exe_path_no_ext = tool_path / exe_name_no_ext
         if exe_path_no_ext.exists():
             return exe_path_no_ext
+
+        # On Windows, try adding .exe extension
+        if sys.platform == "win32" and not exe_name.endswith(".exe"):
+            exe_path_win = tool_path / (exe_name + ".exe")
+            if exe_path_win.exists():
+                return exe_path_win
 
         return None
 
@@ -343,15 +366,20 @@ class ToolValidator(BaseService):
             validation_results: Overall results to update.
         """
         try:
+            # On Windows, shell scripts need to be run through bash
+            if sys.platform == "win32" and str(exe_path).endswith(".sh"):
+                cmd = ["bash", str(exe_path), test_cmd]
+            else:
+                cmd = [str(exe_path), test_cmd]
             result = subprocess.run(
-                [str(exe_path), test_cmd],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
             if (
                 result.returncode == 0
-                or test_cmd == "--help"
+                or test_cmd in ("--help", "-h", "--version")
                 or tool_name in ("taudem",)
             ):
                 tool_result["status"] = "valid"
