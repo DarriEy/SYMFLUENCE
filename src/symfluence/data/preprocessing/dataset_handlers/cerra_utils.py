@@ -417,6 +417,7 @@ class CERRAHandler(BaseDatasetHandler):
                     self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
 
             # Create GeoDataFrame
+            import geopandas as gpd
             self.logger.info("Creating GeoDataFrame")
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,

@@ -330,6 +330,17 @@ def _run_case_logic(cfg_path: Path, project_dir: Path, case: dict) -> None:
     config["EXPERIMENT_TIME_END"] = case["end"]
     config["EXPERIMENT_ID"] = f"cloud_{case['dataset'].lower().replace('-', '_')}"
 
+    # Copy catchment shapefiles from whatever prior experiment dir exists to the new one
+    domain_def = config.get("DOMAIN_DEFINITION_METHOD", "point")
+    catchment_parent = project_dir / "shapefiles" / "catchment" / domain_def
+    new_catchment = catchment_parent / config["EXPERIMENT_ID"]
+    if catchment_parent.exists() and not new_catchment.exists():
+        # Find any existing experiment subdirectory with shapefiles
+        existing = [d for d in catchment_parent.iterdir() if d.is_dir() and list(d.glob("*.shp"))]
+        if existing:
+            new_catchment.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(existing[0], new_catchment)
+
     # Ensure HYDROLOGICAL_MODEL stays as string (not list)
     if isinstance(config.get("HYDROLOGICAL_MODEL"), list):
         config["HYDROLOGICAL_MODEL"] = config["HYDROLOGICAL_MODEL"][0]
