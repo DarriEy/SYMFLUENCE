@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform: linux-x86_64
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -77,7 +77,7 @@ jobs:
           sudo apt-get install -y \
             build-essential gfortran cmake \
             openmpi-bin libopenmpi-dev \
-            gdal-bin libgdal-dev python3-gdal \
+            gdal-bin libgdal-dev \
             libnetcdf-dev libnetcdff-dev \
             libhdf5-dev libudunits2-dev
 
@@ -140,8 +140,8 @@ jobs:
           echo "Python location: $(which python3)"
           echo "Python version: $($PYTHON_CMD --version)"
 
-          # Install GDAL Python bindings (macOS needs this via pip)
-          if [ "$RUNNER_OS" = "macOS" ]; then
+          # Install GDAL Python bindings (needed when gdal-config is available)
+          if command -v gdal-config >/dev/null 2>&1; then
             echo "Installing GDAL Python bindings..."
             GDAL_VERSION=$(gdal-config --version)
             # Use strict version range to match system libgdal precisely
@@ -267,7 +267,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: build-and-release
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: success()
 
     steps:
@@ -339,7 +339,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform: linux-x86_64
           - os: macos-latest
             platform: macos-arm64
@@ -357,7 +357,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libnetcdf19 libnetcdff7 libhdf5-103 libgdal32
+          sudo apt-get install -y libnetcdf19t64 libnetcdff7 libhdf5-103-1t64 libgdal34t64
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
@@ -450,7 +450,7 @@ jobs:
   release-summary:
     name: Release Summary
     needs: [build-and-release, publish-npm, test-npm-install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: always()
 
     steps:

@@ -184,7 +184,7 @@ if [ "$PLATFORM" = "Linux" ]; then
 
                 # Check if it's too new
                 if echo "$MAX_GLIBC" | grep -qE "GLIBC_2\.(3[5-9]|[4-9][0-9])"; then
-                    print_success "glibc ≥ 2.35 (Ubuntu 22.04+)"
+                    print_success "glibc ≥ 2.35 (Ubuntu 24.04+)"
                     PASSED_CHECKS=$((PASSED_CHECKS + 1))
                 elif echo "$MAX_GLIBC" | grep -qE "GLIBC_2\.[0-2][0-9]"; then
                     print_success "glibc compatible with older systems"

@@ -185,7 +185,11 @@ print_info "Staging NGEN..."
 
 NGEN_DIR="$INSTALLS_DIR/ngen"
 if [ -d "$NGEN_DIR" ]; then
-    stage_binary "$NGEN_DIR/cmake_build/ngen" "ngen" "NGEN"
+    if [ -f "$NGEN_DIR/cmake_build/ngen" ]; then
+        stage_binary "$NGEN_DIR/cmake_build/ngen" "ngen" "NGEN"
+    else
+        print_warning "NGEN binary not found in $NGEN_DIR/cmake_build"
+    fi
     stage_license "$NGEN_DIR" "NGEN"
 else
     print_warning "NGEN not installed"
@@ -369,7 +373,7 @@ npm install -g symfluence
 See `toolchain.json` for build details.
 
 ### Linux
-- glibc ≥ 2.35
+- glibc ≥ 2.39
 - NetCDF ≥ 4.8
 - HDF5 ≥ 1.10
 
