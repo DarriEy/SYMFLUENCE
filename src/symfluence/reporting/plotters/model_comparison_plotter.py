@@ -460,7 +460,17 @@ class ModelComparisonPlotter(BasePlotter):
                 try:
                     ds = xr.open_dataset(summa_files[0])
                     if 'averageRoutedRunoff' in ds:
-                        streamflow = ds['averageRoutedRunoff'].to_pandas()
+                        var = ds['averageRoutedRunoff']
+
+                        # Semi-distributed: multiple HRUs → area-weighted mean
+                        if 'hru' in var.dims and var.sizes['hru'] > 1:
+                            if 'HRUarea' in ds:
+                                weights = ds['HRUarea'] / ds['HRUarea'].sum()
+                                streamflow = (var * weights).sum(dim='hru').to_pandas()
+                            else:
+                                streamflow = var.mean(dim='hru').to_pandas()
+                        else:
+                            streamflow = var.squeeze().to_pandas()
 
                         # Convert from m/s to m³/s using basin area
                         if basin_area_m2:

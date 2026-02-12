@@ -48,7 +48,7 @@ def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: st
             new_file_name = file.name.replace(old_name, new_name)
             new_file_path = file.parent / new_file_name
             if new_file_path != file:
-                file.rename(new_file_path)
+                file.replace(new_file_path)
                 # print(f"    Renamed: {file.name} -> {new_file_name}")
     return True
 

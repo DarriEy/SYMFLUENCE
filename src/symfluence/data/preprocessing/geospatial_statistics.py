@@ -481,7 +481,7 @@ class GeospatialStatistics(ConfigurableMixin):
         if not self.dem_path.exists() and domain_name == 'bow_banff_minimal':
             legacy_dem = self.dem_path.parent / "domain_Bow_at_Banff_lumped_elv.tif"
             if legacy_dem.exists():
-                legacy_dem.rename(self.dem_path)
+                legacy_dem.replace(self.dem_path)
                 self.logger.info(f"Renamed legacy DEM file to {self.dem_path.name}")
 
         # Load catchment shapefile
@@ -800,7 +800,7 @@ class GeospatialStatistics(ConfigurableMixin):
         if not soil_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
             legacy_soil = self.soil_path / "domain_Bow_at_Banff_lumped_soil_classes.tif"
             if legacy_soil.exists():
-                legacy_soil.rename(soil_raster)
+                legacy_soil.replace(soil_raster)
                 self.logger.info(f"Renamed legacy soil class file to {soil_name}")
 
         try:
@@ -919,7 +919,7 @@ class GeospatialStatistics(ConfigurableMixin):
         if not land_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
             legacy_land = self.land_path / "domain_Bow_at_Banff_lumped_land_classes.tif"
             if legacy_land.exists():
-                legacy_land.rename(land_raster)
+                legacy_land.replace(land_raster)
                 self.logger.info(f"Renamed legacy land class file to {land_name}")
 
         try:

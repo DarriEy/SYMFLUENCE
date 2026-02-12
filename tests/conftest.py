@@ -12,6 +12,7 @@ Additional fixtures are loaded via pytest_plugins from tests/fixtures/.
 # so if any import loads libhdf5 before this is set, it's too late.
 # ============================================================================
 import os
+import sys
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 os.environ['HDF5_DISABLE_VERSION_CHECK'] = '1'
 os.environ['NETCDF_DISABLE_LOCKING'] = '1'
@@ -20,8 +21,23 @@ os.environ.setdefault('OMP_NUM_THREADS', '1')
 os.environ.setdefault('MKL_NUM_THREADS', '1')
 os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 
+# ============================================================================
+# CRITICAL: Windows torch DLL conflict fix - must run BEFORE numpy imports.
+# Numpy loads conda's Library\bin\uv.dll into the process.  Torch's shm.dll
+# depends on a different (bundled) uv.dll.  If conda's version is already
+# loaded, shm.dll fails with STATUS_ENTRYPOINT_NOT_FOUND (WinError 127).
+# Importing torch first ensures torch's uv.dll is loaded and reused.
+# Fixture modules (geospatial_fixtures) import numpy at module level, so
+# this must come before pytest_plugins loads them.
+# ============================================================================
+if sys.platform == "win32":
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    try:
+        import torch  # noqa: F401
+    except (ImportError, OSError):
+        pass
+
 from pathlib import Path
-import sys
 import tempfile
 
 # ============================================================================
@@ -230,7 +246,9 @@ def symfluence_data_root(symfluence_code_dir):
             try:
                 installs_dst.symlink_to(installs_src)
             except OSError:
-                pass
+                # Windows without admin/Developer Mode — use junction or copy
+                import shutil
+                shutil.copytree(installs_src, installs_dst, dirs_exist_ok=True)
         return fallback_root
 
 

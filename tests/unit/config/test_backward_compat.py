@@ -49,8 +49,8 @@ class TestDictLikeAccess:
 
     def test_getitem_system_fields(self, sample_config):
         """Test bracket access to system fields"""
-        assert str(sample_config['SYMFLUENCE_DATA_DIR']) == '/data'
-        assert str(sample_config['SYMFLUENCE_CODE_DIR']) == '/code'
+        assert Path(str(sample_config['SYMFLUENCE_DATA_DIR'])).as_posix().endswith('/data')
+        assert Path(str(sample_config['SYMFLUENCE_CODE_DIR'])).as_posix().endswith('/code')
         assert sample_config['NUM_PROCESSES'] == 4
         assert sample_config['DEBUG_MODE'] is True
 
@@ -133,7 +133,7 @@ class TestToDictMethod:
 
         # Paths should be strings
         assert isinstance(flat['SYMFLUENCE_DATA_DIR'], str)
-        assert flat['SYMFLUENCE_DATA_DIR'] == '/data'
+        assert Path(flat['SYMFLUENCE_DATA_DIR']).as_posix().endswith('/data')
 
     def test_to_dict_flatten_false(self, sample_config):
         """Test to_dict(flatten=False) returns nested structure"""
@@ -218,7 +218,7 @@ class TestBackwardCompatibilityPatterns:
         """Test common pattern: Path(config.get('PATH'))"""
         # Should work even though internal representation is Path
         data_dir = Path(sample_config.get('SYMFLUENCE_DATA_DIR'))
-        assert data_dir == Path('/data')
+        assert Path(str(data_dir)).as_posix().endswith('/data')
 
     def test_pattern_conditional_access(self, sample_config):
         """Test common pattern: if 'KEY' in config: value = config['KEY']"""

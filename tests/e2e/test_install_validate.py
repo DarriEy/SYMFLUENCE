@@ -335,7 +335,8 @@ def _setup_installs_symlink(tmp_path: Path, symfluence_data_root: Path) -> Path:
         try:
             installs_dst.symlink_to(installs_src)
         except OSError:
-            pass
+            # Windows without admin/Developer Mode — use copy
+            shutil.copytree(installs_src, installs_dst, dirs_exist_ok=True)
     return installs_dst
 
 

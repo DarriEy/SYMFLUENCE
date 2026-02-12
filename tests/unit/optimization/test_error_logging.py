@@ -393,7 +393,7 @@ class TestSerializationHelpers:
 
         result = _serialize_debug_info(debug_info)
 
-        assert result['single_path'] == '/single/path'
+        assert Path(result['single_path']) == Path('/single/path')
         assert all(isinstance(f, str) for f in result['files_checked'])
 
 

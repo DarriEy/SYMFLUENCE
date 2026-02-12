@@ -1,6 +1,7 @@
 """Unit tests for wizard prompt wrappers."""
 
 from io import StringIO
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -302,7 +303,7 @@ class TestAskPathQuestion:
 
         answer, action = prompts.ask(question, state)
 
-        assert answer == '/home/user/data'
+        assert Path(answer) == Path('/home/user/data')
         assert action == 'continue'
 
     @patch('symfluence.cli.wizard.prompts.Prompt.ask')

@@ -86,11 +86,15 @@ def _ensure_summa_binary(data_root: Path, symfluence_code_dir: Path) -> None:
     dest_dir = data_root / "installs" / "summa" / "bin"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / "summa_sundials.exe"
+    if source == dest:
+        return  # Binary already present at destination
     if dest.exists() or dest.is_symlink():
         dest.unlink()
-    if source == dest:
-        pytest.skip("Skipping cloud forcing tests: SUMMA binary resolves to temp destination")
-    dest.symlink_to(source)
+    try:
+        dest.symlink_to(source)
+    except OSError:
+        # Windows requires admin/Developer Mode for symlinks — fall back to copy
+        shutil.copy2(source, dest)
 
 @pytest.fixture(scope="module")
 def base_config(tmp_path_factory, symfluence_code_dir):

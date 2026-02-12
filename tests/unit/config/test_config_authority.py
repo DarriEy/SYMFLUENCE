@@ -37,7 +37,7 @@ class TestConfigAuthority:
     @pytest.fixture
     def documented_settings(self, config_template_path):
         """Extract all documented configuration settings from YAML template."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Extract all YAML keys (lines starting with uppercase/lowercase alphanumeric followed by :)
@@ -53,7 +53,7 @@ class TestConfigAuthority:
             if model_file.name.startswith('__'):
                 continue
 
-            with open(model_file, 'r') as f:
+            with open(model_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # Find all alias definitions in Field()
@@ -72,14 +72,14 @@ class TestConfigAuthority:
     def test_config_template_is_valid_yaml(self, config_template_path):
         """Test that the comprehensive config template is valid YAML."""
         try:
-            with open(config_template_path, 'r') as f:
+            with open(config_template_path, 'r', encoding='utf-8') as f:
                 yaml.safe_load(f)
         except yaml.YAMLError as e:
             pytest.fail(f"Config template is not valid YAML: {e}")
 
     def test_no_duplicate_keys_in_template(self, config_template_path):
         """Test that there are no duplicate configuration keys."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Find all YAML keys
@@ -117,7 +117,7 @@ class TestConfigAuthority:
 
     def test_all_template_settings_have_type_hint(self, config_template_path):
         """Test that all settings in template have type hint documentation."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         # Find all config entries (lines starting with alphanumeric)
@@ -140,7 +140,7 @@ class TestConfigAuthority:
 
     def test_all_template_settings_have_default(self, config_template_path):
         """Test that all settings in template have default value documentation."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         issues = []
@@ -162,7 +162,7 @@ class TestConfigAuthority:
 
     def test_all_template_settings_have_source_reference(self, config_template_path):
         """Test that all settings reference their source Pydantic model."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         issues = []
@@ -184,7 +184,7 @@ class TestConfigAuthority:
 
     def test_config_sections_are_organized(self, config_template_path):
         """Test that settings are organized into logical sections."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Count section headers
@@ -195,7 +195,7 @@ class TestConfigAuthority:
 
     def test_required_sections_exist(self, config_template_path):
         """Test that all essential sections are present."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         required_sections = [
@@ -229,7 +229,7 @@ class TestConfigConsistency:
     @pytest.fixture
     def template_settings(self, config_template_path):
         """Extract settings from template with their metadata."""
-        with open(config_template_path, 'r') as f:
+        with open(config_template_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         settings = {}
@@ -288,7 +288,7 @@ class TestConfigConsistency:
             if model_file.name.startswith('__'):
                 continue
 
-            with open(model_file, 'r') as f:
+            with open(model_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # Find Field definitions
@@ -310,7 +310,7 @@ class TestConfigConsistency:
             if model_file.name.startswith('__'):
                 continue
 
-            with open(model_file, 'r') as f:
+            with open(model_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             matches = re.findall(r"alias='([^']+)'", content)
@@ -350,7 +350,7 @@ class TestQuickstartTemplates:
 
     def test_quickstart_minimal_has_required_fields(self, quickstart_minimal_path):
         """Test that flat-style quickstart has all 10 required fields."""
-        with open(quickstart_minimal_path, 'r') as f:
+        with open(quickstart_minimal_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         required = [
@@ -372,7 +372,7 @@ class TestQuickstartTemplates:
 
     def test_quickstart_nested_has_required_fields(self, quickstart_nested_path):
         """Test that nested-style quickstart has all 10 required fields."""
-        with open(quickstart_nested_path, 'r') as f:
+        with open(quickstart_nested_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         required = [
@@ -398,14 +398,14 @@ class TestQuickstartTemplates:
         """Test that both quickstart templates are valid YAML."""
         for template_path in [quickstart_minimal_path, quickstart_nested_path]:
             try:
-                with open(template_path, 'r') as f:
+                with open(template_path, 'r', encoding='utf-8') as f:
                     yaml.safe_load(f)
             except yaml.YAMLError as e:
                 pytest.fail(f"Quickstart template {template_path.name} is not valid YAML: {e}")
 
     def test_quickstart_has_documentation(self, quickstart_minimal_path):
         """Test that quickstart template includes helpful documentation."""
-        with open(quickstart_minimal_path, 'r') as f:
+        with open(quickstart_minimal_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Should have comments explaining each required field
