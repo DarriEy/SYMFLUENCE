@@ -343,7 +343,8 @@ fi
         'test_command': 'python -c "import cfuse; print(cfuse.__version__)"',
         'verify_install': {
             'python_import': 'cfuse',
-            'check_type': 'python_module'
+            'check_type': 'python_module',
+            'pre_imports': ['torch'],  # torch must load first on Windows (DLL search order)
         },
         'order': 15,
         'optional': True,  # Not installed by default with --install

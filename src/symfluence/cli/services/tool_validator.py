@@ -4,6 +4,7 @@ Tool validation service for SYMFLUENCE.
 Validates that required binary executables exist and are functional.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -259,11 +260,26 @@ class ToolValidator(BaseService):
             True if check was performed (pass or fail), False otherwise.
         """
         try:
+            # Build import snippet, honouring optional pre-imports
+            # (e.g. cfuse requires torch to be imported first on Windows
+            #  so that the correct DLL search paths are established)
+            verify = tool_info.get("verify_install") or {}
+            pre_imports = verify.get("pre_imports", [])
+            import_lines = "".join(f"import {m}; " for m in pre_imports)
+            import_snippet = (
+                f"{import_lines}"
+                f"import {module_name}; "
+                f"print(getattr({module_name}, '__version__', 'installed'))"
+            )
+
+            # Set KMP_DUPLICATE_LIB_OK to avoid OpenMP runtime conflicts
+            # on Windows when multiple libraries bundle their own OpenMP
+            env = {**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"}
+
             result = subprocess.run(
-                [sys.executable, "-c",
-                 f"import {module_name}; "
-                 f"print(getattr({module_name}, '__version__', 'installed'))"],
+                [sys.executable, "-c", import_snippet],
                 capture_output=True, text=True, timeout=15,
+                env=env,
             )
 
             if result.returncode == 0:

@@ -55,6 +55,54 @@ fi
 echo "Using Python: $PYTHON_CMD"
 $PYTHON_CMD --version
 
+# Patch upstream bug: simulation.py imports rasterize_geometries but io.py
+# only defines rasterize_polygons. Add the missing function.
+if [ -f "ignacio/io.py" ] && ! grep -q "def rasterize_geometries" ignacio/io.py; then
+    echo "Patching upstream bug: adding missing rasterize_geometries to io.py"
+    cat >> ignacio/io.py << 'PATCH'
+
+
+def rasterize_geometries(
+    gdf,
+    reference,
+    value=1,
+    fill=0,
+    dtype="uint8",
+):
+    """
+    Rasterize geometries from a GeoDataFrame onto a reference grid.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        GeoDataFrame with geometries to rasterize.
+    reference : RasterData
+        Reference raster for extent and resolution.
+    value : int or float
+        Value to burn for all geometries.
+    fill : int or float
+        Fill value for areas outside geometries.
+    dtype : str
+        Output data type.
+
+    Returns
+    -------
+    np.ndarray
+        Rasterized array matching reference dimensions.
+    """
+    from rasterio.features import rasterize as _rasterize
+
+    shapes = [(geom, value) for geom in gdf.geometry]
+    return _rasterize(
+        shapes=shapes,
+        out_shape=reference.shape,
+        transform=reference.transform,
+        fill=fill,
+        dtype=dtype,
+    )
+PATCH
+fi
+
 # Install in editable mode with pip
 echo "Installing IGNACIO in editable mode..."
 $PYTHON_CMD -m pip install -e . --quiet
@@ -64,16 +112,9 @@ echo "Verifying installation..."
 if $PYTHON_CMD -c "import ignacio; print(f'IGNACIO version: {getattr(ignacio, \"__version__\", \"0.1.0\")}')" 2>/dev/null; then
     echo "IGNACIO Python package installed successfully"
 else
-    # Check if package is at least pip-installed (import may fail due to upstream code issues)
-    if $PYTHON_CMD -m pip show ignacio >/dev/null 2>&1; then
-        echo "WARNING: IGNACIO pip package installed but import failed (may be an upstream code issue)"
-        echo "Package is installed - import errors may resolve with a repository update"
-    else
-        echo "ERROR: IGNACIO Python package installation failed"
-        echo "Attempting verbose install for debugging..."
-        $PYTHON_CMD -m pip install -e . -v 2>&1 | tail -30
-        exit 1
-    fi
+    echo "ERROR: IGNACIO Python package installation failed"
+    $PYTHON_CMD -c "import ignacio" 2>&1 | tail -5
+    exit 1
 fi
 
 # Verify CLI is available (may not be in PATH for editable installs)
