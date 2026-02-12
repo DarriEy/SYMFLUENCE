@@ -189,6 +189,16 @@ fi
 echo "Using C compiler: $CC"
 
 # Apply patches for compiler compatibility
+
+# Fix types.h: GCC 15 (C23 default) makes bool/true/false keywords.
+# Remove the conflicting typedef and constants - the compiler provides them.
+echo "Patching include/types.h to remove bool/true/false redefinitions..."
+perl -i.bak -0777 -pe '
+    s{typedef\s+short\s+bool;\s*\n\s*static\s+const\s+short\s+true\s*=\s*1;\s*\n\s*static\s+const\s+short\s+false\s*=\s*0;}
+    {/* bool/true/false provided by compiler (C23) or stdbool.h */\n#include <stdbool.h>}s
+' include/types.h
+grep -q "stdbool.h" include/types.h && echo "types.h patched" || echo "WARNING: types.h patch may not have applied"
+
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*e1\s*,\s*void\s*\*\s*e2\s*\)/int key_compare(const void *e1, const void *e2)/' util/key_compare.c
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c
 perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c
@@ -574,6 +584,31 @@ fi
 # This allows building without glib-2.0 which is required only for tests
 echo "Patching makefile to skip test dependency..."
 sed -i.bak 's/^rhessys: \$(OBJECTS) test$/rhessys: $(OBJECTS)/' makefile
+
+# On Windows, python3 triggers the Microsoft Store stub; conda provides 'python'
+# Also add strndup polyfill (not in MinGW C runtime)
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        echo "Patching makefile: python3 -> python (Windows conda)..."
+        sed -i 's/python3 /python /' makefile
+
+        echo "Adding strndup polyfill for MinGW..."
+        cat > ${TMPDIR:-/tmp}/_strndup_patch.pl << 'PERLEOF'
+use strict; use warnings;
+my $f = $ARGV[0];
+open my $fh,'<',$f or die $!;
+my $c = do{local $/;<$fh>};
+close $fh;
+# Insert polyfill right after the last #include line
+my $poly = qq{\n#ifdef __MINGW32__\n#include <stdlib.h>\nchar *strndup(const char *s, size_t n) {\n    size_t len = strnlen(s, n);\n    char *d = (char *)malloc(len + 1);\n    if (d) { memcpy(d, s, len); d[len] = 0; }\n    return d;\n}\n#endif\n};
+$c =~ s/(#include\s*"strings\.h")/$1$poly/;
+open $fh,'>',$f or die $!;
+print $fh $c;
+close $fh;
+PERLEOF
+        perl ${TMPDIR:-/tmp}/_strndup_patch.pl util/strings.c
+        ;;
+esac
 grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully" || echo "Warning: Makefile patch may not have applied"
 
 # Build with detected flags - explicitly pass CC to override Makefile's clang default
@@ -668,13 +703,15 @@ fi
 make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
 
 mkdir -p ../bin
-# Try multiple possible locations for rhessys binary (handles .exe on Windows)
+# Try multiple possible locations for rhessys binary (handles .exe and versioned names)
 RHESSYS_BIN=""
-for candidate in rhessys/rhessys.exe rhessys/rhessys rhessys.exe rhessys; do
-    if [ -f "$candidate" ]; then
-        RHESSYS_BIN="$candidate"
-        break
-    fi
+for candidate in rhessys.exe rhessys rhessys7*.exe rhessys7* rhessys/rhessys.exe rhessys/rhessys; do
+    for match in $candidate; do
+        if [ -f "$match" ]; then
+            RHESSYS_BIN="$match"
+            break 2
+        fi
+    done
 done
 
 if [ -n "$RHESSYS_BIN" ]; then
