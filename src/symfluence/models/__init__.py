@@ -120,6 +120,11 @@ except ImportError as e:
     logger.warning(f"Could not import hbv: {e}")
 
 try:
+    from . import sacsma
+except ImportError as e:
+    logger.warning(f"Could not import sacsma: {e}")
+
+try:
     from . import jfuse
 except ImportError as e:
     logger.warning(f"Could not import jfuse: {e}")
