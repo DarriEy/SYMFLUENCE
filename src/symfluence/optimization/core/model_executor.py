@@ -130,7 +130,7 @@ class ModelExecutor(ConfigMixin):
             else:
                 mizu_path = Path(mizu_path)
 
-            mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuroute.exe', dict_key='EXE_NAME_MIZUROUTE')
+            mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuRoute.exe', dict_key='EXE_NAME_MIZUROUTE')
             control_file = settings_dir / self._get_config_value(lambda: self.config.model.mizuroute.control_file, default='mizuroute.control', dict_key='SETTINGS_MIZU_CONTROL_FILE')
 
             # 1) Find SUMMA timestep file actually produced for this run

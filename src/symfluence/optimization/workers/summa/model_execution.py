@@ -324,7 +324,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         else:
             mizu_path = Path(mizu_path)
 
-        mizu_exe = mizu_path / config.get('EXE_NAME_MIZUROUTE', 'mizuroute.exe')
+        mizu_exe = mizu_path / config.get('EXE_NAME_MIZUROUTE', 'mizuRoute.exe')
         control_file = Path(task_data['mizuroute_settings_dir']) / 'mizuroute.control'
 
         # Verify files exist

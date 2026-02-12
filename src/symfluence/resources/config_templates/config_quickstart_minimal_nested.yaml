@@ -187,7 +187,7 @@ model:
 # model:
 #   routing_model: "mizuRoute"
 #   mizuroute:
-#     exe: "mizuroute.exe"
+#     exe: "mizuRoute.exe"
 #     install_path: "/path/to/mizuroute"
 #     settings_path: "/path/to/mizuroute/settings"
 

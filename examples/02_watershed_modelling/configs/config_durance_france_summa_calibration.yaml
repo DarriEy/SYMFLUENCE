@@ -85,7 +85,7 @@ SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
 
 # Routing
 ROUTING_MODEL: mizuroute
-ROUTING_EXE: mizuroute.exe
+ROUTING_EXE: mizuRoute.exe
 
 # SUMMA decision files - Snow-focused for alpine catchment
 SUMMA_DECISIONS:
