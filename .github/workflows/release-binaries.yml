@@ -1,8 +1,10 @@
 name: Release Binaries
 
 on:
-  release:
-    types: [created, published]
+  # Trigger on v* tag pushes (not example-data or other tags)
+  push:
+    tags:
+      - 'v[0-9]*'
   workflow_dispatch:
     inputs:
       tag:
@@ -266,7 +268,7 @@ jobs:
     name: Publish to npm
     needs: build-and-release
     runs-on: ubuntu-22.04
-    if: success() && !github.event.release.prerelease
+    if: success()
 
     steps:
       - name: Checkout
@@ -284,7 +286,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag }}"
           else
-            TAG="${{ github.ref_name }}"
+            TAG="${GITHUB_REF#refs/tags/}"
           fi
 
           # Remove 'v' prefix from tag
@@ -318,10 +320,10 @@ jobs:
           echo "   2. Create a release (not workflow_dispatch)"
 
       - name: Publish to npm (production)
-        if: github.event_name == 'release'
+        if: github.event_name == 'push'
         working-directory: npm
         run: |
-          echo "📦 Publishing to npm registry..."
+          echo "Publishing to npm registry..."
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
