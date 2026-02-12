@@ -132,7 +132,10 @@ echo "=== Build complete ==="
         'dependencies': [],
         'test_command': None,
         'verify_install': {
-            'file_paths': ['install/bin/dmc_route_run.exe'],
+            'file_paths': [
+                'install/bin/dmc_route_run',      # Linux/macOS
+                'install/bin/dmc_route_run.exe',   # Windows
+            ],
             'check_type': 'exists_any'
         },
         'order': 4,
