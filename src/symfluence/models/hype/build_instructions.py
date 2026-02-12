@@ -62,14 +62,20 @@ else
     }
 fi
 
-# Stage binary
-if [ -f "hype" ]; then
+# Stage binary (handles both Linux 'hype' and Windows 'hype.exe')
+if [ -f "hype.exe" ]; then
+    mv hype.exe bin/hype
+elif [ -f "hype" ]; then
     mv hype bin/
-elif [ ! -f "bin/hype" ]; then
+elif [ ! -f "bin/hype" ] && [ ! -f "bin/hype.exe" ]; then
     echo "HYPE binary not found after build"
     exit 1
 fi
-chmod +x bin/hype
+# Normalise name: ensure bin/hype exists (may be bin/hype.exe on Windows)
+if [ ! -f "bin/hype" ] && [ -f "bin/hype.exe" ]; then
+    cp bin/hype.exe bin/hype
+fi
+chmod +x bin/hype 2>/dev/null || true
 echo "HYPE build successful"
             '''.strip()
         ],

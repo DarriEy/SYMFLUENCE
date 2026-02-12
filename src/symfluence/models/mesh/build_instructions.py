@@ -49,14 +49,19 @@ mkdir -p bin
 
 # Detect NetCDF Fortran library
 echo "=== NetCDF Detection ==="
+# On Windows conda, libraries are under $CONDA_PREFIX/Library
+clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
 if command -v nf-config >/dev/null 2>&1; then
     NETCDF_FORTRAN="$(nf-config --prefix)"
     echo "Found nf-config, using: ${NETCDF_FORTRAN}"
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$clp/bin/nf-config" ]; then
+    NETCDF_FORTRAN="$clp"
+    echo "Found conda nf-config, using: ${NETCDF_FORTRAN}"
 elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
     echo "Using NETCDF_FORTRAN: ${NETCDF_FORTRAN}"
 elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
     NETCDF_FORTRAN="${NETCDF}"
-    echo "Using NETCDF: ${NETCDF_TO_USE}"
+    echo "Using NETCDF: ${NETCDF}"
 else
     # Try common locations
     for try_path in /opt/homebrew/opt/netcdf-fortran /usr/local/opt/netcdf-fortran /usr; do
@@ -99,7 +104,8 @@ if [ -f "$GETENVC_FILE" ]; then
 #define F2Cl int
 
 /* Define f77name macro for Fortran name mangling */
-#if defined(__APPLE__) || defined(__linux__)
+/* MinGW/MSYS2 gfortran uses trailing underscore like Linux/macOS */
+#if defined(__APPLE__) || defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__) || defined(__CYGWIN__)
 #define f77name(x) x##_
 #else
 #define f77name(x) x
@@ -232,7 +238,7 @@ fi
 # Find and move the binary to bin/
 echo "Locating built binary..."
 MESH_BINARY=""
-for candidate in "${BUILT_BINARY}" "sa_mesh" "mpi_sa_mesh"; do
+for candidate in "${BUILT_BINARY}" "${BUILT_BINARY}.exe" "sa_mesh" "sa_mesh.exe" "mpi_sa_mesh" "mpi_sa_mesh.exe"; do
     if [ -f "$candidate" ]; then
         MESH_BINARY="$candidate"
         break
@@ -241,7 +247,7 @@ done
 
 if [ -z "$MESH_BINARY" ]; then
     # Search in common build directories
-    MESH_BINARY=$(find . -maxdepth 2 -name "sa_mesh" -o -name "mpi_sa_mesh" -o -name "mesh.exe" 2>/dev/null | head -1)
+    MESH_BINARY=$(find . -maxdepth 2 -name "sa_mesh" -o -name "sa_mesh.exe" -o -name "mpi_sa_mesh" -o -name "mesh.exe" 2>/dev/null | head -1)
 fi
 
 if [ -n "$MESH_BINARY" ] && [ -f "$MESH_BINARY" ]; then
