@@ -340,14 +340,21 @@ class LocalScratchManager(ConfigMixin):
             # Ensure destination exists
             dest.mkdir(parents=True, exist_ok=True)
 
-            # Use rsync for efficient copying (handles existing files better)
-            subprocess.run(
-                ['rsync', '-a', '--delete', f'{source}/', f'{dest}/'],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            self.logger.debug(f"  Copied: {source} -> {dest}")
+            if os.name != 'nt':
+                # Use rsync for efficient copying (handles existing files better)
+                subprocess.run(
+                    ['rsync', '-a', '--delete', f'{source}/', f'{dest}/'],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                self.logger.debug(f"  Copied: {source} -> {dest}")
+            else:
+                # Windows: no rsync, use shutil directly
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(source, dest)
+                self.logger.debug(f"  Copied: {source} -> {dest}")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             self.logger.warning(f"Rank {self.mpi_rank}: rsync failed, falling back to shutil.copytree: {e}")
             # Fallback to shutil if rsync not available

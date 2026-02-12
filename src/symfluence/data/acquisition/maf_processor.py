@@ -7,6 +7,7 @@ automated data acquisition workflows.
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, Any
 
@@ -298,8 +299,12 @@ class DataAcquisitionProcessor(ConfigMixin):
         maf_script = self.root_path / "installs/MAF/02_model_agnostic_component/model-agnostic.sh"
 
         #Run the MAF script
+        # On Windows, .sh scripts need an explicit bash interpreter
+        maf_command = [str(maf_script), str(json_path)]
+        if sys.platform == "win32":
+            maf_command = ["bash"] + maf_command
         try:
-            subprocess.run([str(maf_script), str(json_path)], check=True)
+            subprocess.run(maf_command, check=True)
             self.logger.info("Model Agnostic Framework completed successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Error running Model Agnostic Framework: {e}")

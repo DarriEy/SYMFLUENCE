@@ -7,6 +7,7 @@ Executes tasks using MPI (mpirun) for distributed computing.
 import logging
 import os
 import pickle  # nosec B403 - Used for trusted internal MPI task serialization
+import shutil
 import subprocess
 import sys
 import uuid
@@ -95,7 +96,8 @@ class MPIExecutionStrategy(ExecutionStrategy):
                 worker_script, tasks_file, results_file,
                 worker_module, worker_function
             )
-            worker_script.chmod(0o755)
+            if os.name != 'nt':
+                worker_script.chmod(0o755)
 
             # Determine number of processes
             num_procs = min(max_workers, self.num_processes, len(tasks))
@@ -152,13 +154,15 @@ class MPIExecutionStrategy(ExecutionStrategy):
         python_exe = sys.executable
         self.logger.debug(f"sys.executable: {python_exe}, exists: {Path(python_exe).exists()}")
 
-        # Check for venv Python
+        # Check for venv Python (platform-aware: Scripts on Windows, bin on Unix)
+        venv_bin = "Scripts" if os.name == "nt" else "bin"
+        pkg_root = Path(__file__).parent.parent.parent.parent.parent.parent
         venv_paths = [
-            Path(__file__).parent.parent.parent.parent.parent.parent / "venv" / "bin" / "python",
-            Path(__file__).parent.parent.parent.parent.parent.parent / "venv" / "bin" / "python3",
-            Path(__file__).parent.parent.parent.parent.parent.parent / "venv" / "bin" / "python3.11",
-            Path.home() / "venv" / "bin" / "python",
-            Path.home() / "venv" / "bin" / "python3",
+            pkg_root / "venv" / venv_bin / "python",
+            pkg_root / "venv" / venv_bin / "python3",
+            pkg_root / "venv" / venv_bin / "python3.11",
+            Path.home() / "venv" / venv_bin / "python",
+            Path.home() / "venv" / venv_bin / "python3",
         ]
 
         for venv_path in venv_paths:
@@ -169,6 +173,16 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
         return python_exe
 
+    @staticmethod
+    def _detect_mpi_launcher() -> str:
+        """Detect available MPI launcher (srun > mpirun > mpiexec)."""
+        for candidate in ("srun", "mpirun", "mpiexec"):
+            if shutil.which(candidate):
+                return candidate
+        raise RuntimeError(
+            "No MPI launcher found. Install OpenMPI, MS-MPI, or run under SLURM."
+        )
+
     def _build_mpi_command(
         self,
         python_exe: str,
@@ -177,18 +191,29 @@ class MPIExecutionStrategy(ExecutionStrategy):
         tasks_file: Path,
         results_file: Path
     ) -> list:
-        """Build the mpirun command."""
-        return [
-            'mpirun',
-            '-x', 'OMP_NUM_THREADS',
-            '-x', 'HDF5_USE_FILE_LOCKING',
-            '-x', 'MKL_NUM_THREADS',
+        """Build the MPI launch command with platform-aware launcher detection."""
+        launcher = self._detect_mpi_launcher()
+        self.logger.debug(f"Using MPI launcher: {launcher}")
+
+        cmd = [launcher]
+
+        # Only OpenMPI's mpirun supports -x for env forwarding;
+        # srun and mpiexec (MS-MPI) do not.
+        if launcher == "mpirun":
+            cmd.extend([
+                '-x', 'OMP_NUM_THREADS',
+                '-x', 'HDF5_USE_FILE_LOCKING',
+                '-x', 'MKL_NUM_THREADS',
+            ])
+
+        cmd.extend([
             '-n', str(num_processes),
             python_exe,
             str(worker_script),
             str(tasks_file),
             str(results_file)
-        ]
+        ])
+        return cmd
 
     def _build_mpi_environment(self) -> Dict[str, str]:
         """Build environment for MPI execution."""
@@ -198,7 +223,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
         src_path = str(Path(__file__).parent.parent.parent.parent.parent)
         current_pythonpath = mpi_env.get('PYTHONPATH', '')
         if current_pythonpath:
-            mpi_env['PYTHONPATH'] = f"{src_path}:{current_pythonpath}"
+            mpi_env['PYTHONPATH'] = f"{src_path}{os.pathsep}{current_pythonpath}"
         else:
             mpi_env['PYTHONPATH'] = src_path
 
