@@ -172,3 +172,85 @@ class ConfigCommands(BaseCommand):
         else:
             BaseCommand._console.success("Environment validation passed")
             return ExitCode.SUCCESS
+
+    @staticmethod
+    @cli_exception_handler
+    def resolve(args: Namespace) -> int:
+        """
+        Execute: symfluence config resolve
+
+        Show the fully resolved configuration after merging all sources
+        (defaults, file, env vars, overrides).
+
+        Args:
+            args: Parsed arguments namespace
+
+        Returns:
+            Exit code (0 for success, non-zero for failure)
+        """
+        import json
+        import yaml
+
+        flat_mode = BaseCommand.get_arg(args, 'flat', False)
+        json_mode = BaseCommand.get_arg(args, 'as_json', False)
+        diff_mode = BaseCommand.get_arg(args, 'diff', False)
+        section = BaseCommand.get_arg(args, 'section', None)
+
+        # --section and --flat are incompatible
+        if section and flat_mode:
+            BaseCommand._console.error(
+                "--section and --flat cannot be combined. "
+                "Sections apply to the nested config structure only."
+            )
+            return ExitCode.USAGE_ERROR
+
+        config_path = BaseCommand.get_config_path(args)
+        config = BaseCommand.load_typed_config(config_path, required=True)
+        if config is None:
+            return ExitCode.CONFIG_ERROR
+
+        # Build the output dict
+        if flat_mode:
+            output = config.to_dict(flatten=True)
+        else:
+            output = config.to_dict(flatten=False)
+
+        # Apply --diff: keep only values that differ from defaults
+        if diff_mode:
+            from symfluence.core.config.defaults import ConfigDefaults
+            defaults = ConfigDefaults.get_defaults()
+
+            if flat_mode:
+                # Filter flat dict: keep keys where value differs from default
+                output = {
+                    k: v for k, v in output.items()
+                    if k not in defaults or defaults[k] != v
+                }
+            else:
+                # For nested mode: compare via flat dicts, then rebuild nested
+                flat_resolved = config.to_dict(flatten=True)
+                changed_keys = {
+                    k for k, v in flat_resolved.items()
+                    if k not in defaults or defaults[k] != v
+                }
+                from symfluence.core.config.transformers import transform_flat_to_nested
+                changed_flat = {k: flat_resolved[k] for k in changed_keys}
+                output = transform_flat_to_nested(changed_flat)
+
+        # Apply --section filter (nested mode only)
+        if section:
+            if section in output:
+                output = {section: output[section]}
+            else:
+                output = {section: {}}
+
+        # Format and print
+        if json_mode:
+            text = json.dumps(output, indent=2, default=str)
+        else:
+            text = yaml.dump(output, default_flow_style=False, sort_keys=True)
+
+        # Print raw output (pipeable, no prefixes)
+        print(text, end='' if not json_mode else '\n')
+
+        return ExitCode.SUCCESS

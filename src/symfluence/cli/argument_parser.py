@@ -492,6 +492,24 @@ For more help on a specific command:
         )
         validate_env_parser.set_defaults(func=ConfigCommands.validate_env)
 
+        # config resolve
+        resolve_parser = config_subparsers.add_parser(
+            'resolve',
+            help='Show fully resolved configuration after merging all sources',
+            parents=[self.common_parser]
+        )
+        resolve_parser.add_argument('--flat', action='store_true',
+                                    help='Show flat UPPERCASE keys (what models see)')
+        resolve_parser.add_argument('--json', action='store_true', dest='as_json',
+                                    help='Output as JSON (machine-readable)')
+        resolve_parser.add_argument('--diff', action='store_true',
+                                    help='Only show values that differ from defaults')
+        resolve_parser.add_argument('--section', type=str, choices=[
+                                    'system', 'domain', 'data', 'forcing',
+                                    'model', 'optimization', 'evaluation', 'paths'],
+                                    help='Show only a specific config section')
+        resolve_parser.set_defaults(func=ConfigCommands.resolve)
+
     def _register_job_commands(self, subparsers):
         """Register SLURM job submission commands."""
         from .commands import JobCommands
