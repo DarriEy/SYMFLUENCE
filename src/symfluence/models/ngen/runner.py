@@ -180,11 +180,11 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     ngen_venv_bin = str(ngen_venv / "bin")
                     if 'PATH' in env:
                         # Remove other venvs from PATH, then prepend ngen_venv
-                        path_parts = env['PATH'].split(':')
+                        path_parts = env['PATH'].split(os.pathsep)
                         filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
                                           and '/.venv' not in p.lower()
                                           and '/envs/' not in p.lower()]
-                        env['PATH'] = ngen_venv_bin + ':' + ':'.join(filtered_parts)
+                        env['PATH'] = ngen_venv_bin + os.pathsep + os.pathsep.join(filtered_parts)
                     else:
                         env['PATH'] = ngen_venv_bin
                 else:
@@ -198,12 +198,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     # Remove virtual environment from PATH so NGEN finds system Python
                     # This prevents NumPy version mismatch errors
                     if 'PATH' in env:
-                        path_parts = env['PATH'].split(':')
+                        path_parts = env['PATH'].split(os.pathsep)
                         # Filter out venv bin directories
                         filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
                                           and '/.venv' not in p.lower()
                                           and '/envs/' not in p.lower()]
-                        env['PATH'] = ':'.join(filtered_parts)
+                        env['PATH'] = os.pathsep.join(filtered_parts)
 
                 # Ensure library paths are set for BMI modules
                 # This is especially important for MPI/multiprocessing workers
@@ -224,12 +224,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 lib_paths.append("/opt/homebrew/lib")
 
                 # Set library path based on OS
-                lib_path_str = ':'.join(lib_paths)
+                lib_path_str = os.pathsep.join(lib_paths)
 
                 # Set both for safety, though only one might be used by the linker
                 for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
                     existing_path = env.get(var, '')
-                    env[var] = f"{lib_path_str}:{existing_path}" if existing_path else lib_path_str
+                    env[var] = f"{lib_path_str}{os.pathsep}{existing_path}" if existing_path else lib_path_str
 
                 self.logger.debug(f"Executing ngen with DYLD_LIBRARY_PATH={env.get('DYLD_LIBRARY_PATH')}")
 

@@ -171,6 +171,18 @@ class ModelExecutor(ABC):
         if env:
             run_env.update(env)
 
+        # Windows: prepend conda Library\bin to PATH so compiled model
+        # executables find the correct DLL versions (netCDF, HDF5,
+        # gfortran runtime, openblas, etc.) before any conflicting
+        # copies (e.g. Git for Windows bundles its own MinGW runtime)
+        if os.name == 'nt':
+            conda_prefix = run_env.get('CONDA_PREFIX', '')
+            if conda_prefix:
+                conda_lib_bin = os.path.join(conda_prefix, 'Library', 'bin')
+                current_path = run_env.get('PATH', '')
+                # Always prepend to ensure conda DLLs take priority
+                run_env['PATH'] = f"{conda_lib_bin}{os.pathsep}{current_path}"
+
         # Ensure log directory exists
         log_file = Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -753,7 +765,8 @@ class ModelExecutor(ABC):
             # Write script
             script_path = log_file.parent / f"{slurm_config.job_name}.sh"
             script_path.write_text(script_content)
-            script_path.chmod(0o755)
+            if os.name != 'nt':
+                script_path.chmod(0o755)
 
             # Submit
             return self.submit_slurm_job(

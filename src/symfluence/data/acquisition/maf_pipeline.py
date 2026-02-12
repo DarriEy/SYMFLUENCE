@@ -73,6 +73,7 @@ References:
 """
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, Any
 import time
@@ -231,6 +232,9 @@ class gistoolRunner(ConfigMixin):
     def execute_gistool_command(self, gistool_command):
 
         #Run the gistool command
+        # On Windows, .sh scripts need an explicit bash interpreter
+        if sys.platform == "win32":
+            gistool_command = ["bash"] + list(gistool_command)
         try:
             subprocess.run(gistool_command, check=True)
             self.logger.info("gistool completed successfully.")
@@ -437,6 +441,9 @@ class datatoolRunner(ConfigMixin):
         This simplified implementation focuses on tracking the specific job ID
         until it's no longer present in the Slurm queue.
         """
+        # On Windows, .sh scripts need an explicit bash interpreter
+        if sys.platform == "win32":
+            datatool_command = ["bash"] + list(datatool_command)
         try:
             # Submit the array job
             self.logger.info("Submitting datatool job")

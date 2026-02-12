@@ -138,8 +138,8 @@ setup_2i2c_conda_env() {
     else
         # Fallback to system compilers if conda compilers not available
         print_warning "Conda compilers not found, falling back to system compilers"
-        export CC=/usr/bin/gcc
-        export CXX=/usr/bin/g++
+        export CC="$(command -v gcc || echo "gcc")"
+        export CXX="$(command -v g++ || echo "g++")"
         export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
     fi
     # Set Fortran compiler if available
@@ -972,10 +972,10 @@ main() {
             python_cmd="python"
         elif [[ -n "${CONDA_DEFAULT_ENV:-}" && "${CONDA_DEFAULT_ENV}" != "base" ]]; then
             print_info "Using active Conda environment: ${CONDA_DEFAULT_ENV}"
-            VENV_BIN_PATH=$(dirname "$(which python)")
+            VENV_BIN_PATH=$(dirname "$(command -v python)")
         elif [[ "${SYMFLUENCE_NO_VENV:-}" == "true" ]]; then
             print_info "Virtual environment creation disabled by SYMFLUENCE_NO_VENV"
-            VENV_BIN_PATH=$(dirname "$(which python)")
+            VENV_BIN_PATH=$(dirname "$(command -v python)")
         elif [[ ! -d "$venv_path" ]]; then
             print_info "Creating Python virtual environment..."
             if ! $python_cmd -m venv "$venv_path"; then
@@ -1059,7 +1059,7 @@ else:
                 # Also exclude torch from requirements - install CPU-only version separately
                 # to avoid pulling ~5-8 GB of CUDA/nvidia packages
                 print_info "Installing pip dependencies (excluding conda-provided and torch packages)..."
-                local filtered_req="/tmp/requirements_filtered.txt"
+                local filtered_req="$(mktemp "${TMPDIR:-/tmp}/requirements_filtered_XXXXXX.txt")"
                 grep -viE "^(gdal|rpy2|torch)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
                 python -m pip install -r "$filtered_req" || {
                     print_error "Dependency installation failed"; exit 1;
@@ -1125,8 +1125,8 @@ else:
                 export CXX="$conda_gxx"
                 print_info "Using conda compilers: CC=$CC"
             else
-                export CC=/usr/bin/gcc
-                export CXX=/usr/bin/g++
+                export CC="$(command -v gcc || echo "gcc")"
+                export CXX="$(command -v g++ || echo "g++")"
                 export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
                 print_warning "Falling back to system compilers"
             fi
