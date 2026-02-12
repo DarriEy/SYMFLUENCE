@@ -47,7 +47,14 @@ cd src/troute-network 2>/dev/null || {
     exit 0
 }
 
-PYTHON_BIN="${SYMFLUENCE_PYTHON:-python3}"
+# On Windows, python3 triggers MS Store redirect; conda provides python
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/python.exe" ]; then
+    PYTHON_BIN="$CONDA_PREFIX/python.exe"
+elif command -v python >/dev/null 2>&1 && python --version >/dev/null 2>&1; then
+    PYTHON_BIN="${SYMFLUENCE_PYTHON:-python}"
+else
+    PYTHON_BIN="${SYMFLUENCE_PYTHON:-python3}"
+fi
 
 # Upgrade tools quietly; failure is allowed
 "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel >/dev/null 2>&1 || true
