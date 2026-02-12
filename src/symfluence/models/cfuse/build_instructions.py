@@ -52,7 +52,7 @@ if ! command -v cmake >/dev/null 2>&1; then
 fi
 echo "CMake found: $(cmake --version | head -1)"
 
-# Check for Python - prefer environment variable, then venv, then system
+# Check for Python - prefer environment variable, then venv/conda, then system
 if [ -n "$PYTHON_EXECUTABLE" ] && [ -x "$PYTHON_EXECUTABLE" ]; then
     PYTHON_CMD="$PYTHON_EXECUTABLE"
     echo "Using PYTHON_EXECUTABLE: $PYTHON_CMD"
@@ -62,10 +62,13 @@ elif [ -n "$VIRTUAL_ENV" ] && [ -x "$VIRTUAL_ENV/bin/python3" ]; then
 elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
     PYTHON_CMD="$CONDA_PREFIX/bin/python"
     echo "Using conda Python: $PYTHON_CMD"
+elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/python.exe" ]; then
+    PYTHON_CMD="$CONDA_PREFIX/python.exe"
+    echo "Using conda Python (Windows): $PYTHON_CMD"
+elif command -v python >/dev/null 2>&1 && python --version >/dev/null 2>&1; then
+    PYTHON_CMD=python
 elif command -v python3 >/dev/null 2>&1; then
     PYTHON_CMD=python3
-elif command -v python >/dev/null 2>&1; then
-    PYTHON_CMD=python
 else
     echo "ERROR: Python not found (tried python3 and python)"
     exit 1
@@ -175,6 +178,13 @@ if [ -z "$CXX_COMPILER" ]; then
     if command -v g++ >/dev/null 2>&1; then
         CXX_COMPILER=$(which g++)
         C_COMPILER=$(which gcc)
+        # On Windows/MSYS2, CMake needs .exe extension
+        case "$(uname -s 2>/dev/null)" in
+            MSYS*|MINGW*|CYGWIN*)
+                [ -f "${CXX_COMPILER}.exe" ] && CXX_COMPILER="${CXX_COMPILER}.exe"
+                [ -f "${C_COMPILER}.exe" ] && C_COMPILER="${C_COMPILER}.exe"
+                ;;
+        esac
         echo "Using GCC: $(g++ --version | head -1)"
         echo "Note: Enzyme AD requires Clang. Using numerical gradients."
     else

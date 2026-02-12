@@ -38,14 +38,20 @@ def get_droute_build_instructions():
 # Build dRoute with Python bindings and AD support
 
 # Check for CMake
-if ! command -v cmake &> /dev/null; then
+if ! command -v cmake >/dev/null 2>&1; then
     echo "ERROR: CMake not found. Please install CMake >= 3.14"
     exit 1
 fi
 
-# Check for Python
-PYTHON_EXE="${PYTHON_EXE:-python3}"
-if ! command -v "$PYTHON_EXE" &> /dev/null; then
+# Check for Python - handle Windows conda where python3 triggers MS Store
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/python.exe" ]; then
+    PYTHON_EXE="$CONDA_PREFIX/python.exe"
+elif command -v python >/dev/null 2>&1 && python --version >/dev/null 2>&1; then
+    PYTHON_EXE="${PYTHON_EXE:-python}"
+else
+    PYTHON_EXE="${PYTHON_EXE:-python3}"
+fi
+if ! command -v "$PYTHON_EXE" >/dev/null 2>&1; then
     echo "ERROR: Python not found"
     exit 1
 fi
@@ -75,7 +81,8 @@ cmake .. \
 
 # Build
 echo "Building..."
-make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+make -j$NCORES
 
 # Install
 echo "Installing..."
