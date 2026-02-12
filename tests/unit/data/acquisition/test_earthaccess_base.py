@@ -289,6 +289,7 @@ class TestDownloadWithEarthaccess:
 
     def test_skips_existing_files(self, acquirer_instance, tmp_path):
         """Should skip already-downloaded files when skip_existing=True."""
+        pytest.importorskip("earthaccess")
         output_dir = tmp_path / "downloads"
         output_dir.mkdir()
 
@@ -311,6 +312,7 @@ class TestDownloadWithEarthaccess:
 
     def test_creates_output_directory(self, acquirer_instance, tmp_path):
         """Should create output directory if missing."""
+        pytest.importorskip("earthaccess")
         output_dir = tmp_path / "new_dir"
         assert not output_dir.exists()
 
