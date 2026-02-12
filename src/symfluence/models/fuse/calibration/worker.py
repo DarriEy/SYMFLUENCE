@@ -687,8 +687,10 @@ class FUSEWorker(BaseWorker):
                     try:
                         link_path.symlink_to(src)
                         self.logger.debug(f"Created symlink: {link_path} -> {src}")
-                    except Exception as e:
-                        self.logger.warning(f"Failed to create symlink {link_path}: {e}")
+                    except OSError:
+                        # Windows without admin/Developer Mode — fall back to copy
+                        shutil.copy2(src, link_path)
+                        self.logger.debug(f"Copied (symlink unavailable): {src} -> {link_path}")
                 else:
                     self.logger.warning(f"Symlink source not found: {src}")
 

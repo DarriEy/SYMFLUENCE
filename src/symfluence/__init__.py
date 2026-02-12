@@ -56,13 +56,27 @@ if _sys.platform == "win32":
     # co-exist (each ships its own OpenMP runtime).
     _os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
+    # Register torch's own DLL directory so its bundled copies of
+    # uv.dll / libiomp5md.dll are found before conda's versions.
+    try:
+        import importlib.util as _ilu
+        _torch_spec = _ilu.find_spec("torch")
+        if _torch_spec and _torch_spec.submodule_search_locations:
+            _torch_lib = _os.path.join(
+                list(_torch_spec.submodule_search_locations)[0], "lib"
+            )
+            if _os.path.isdir(_torch_lib):
+                _dll_directory_handles.append(_os.add_dll_directory(_torch_lib))
+    except Exception:
+        pass
+
     # PyTorch must be imported BEFORE conda's HDF5/netCDF4 libraries.
     # Conda's h5py loads HDF5 DLLs that make torch's shm.dll unloadable
     # if torch hasn't already loaded its own DLLs first.
     try:
         import torch as _torch  # noqa: F401
         del _torch
-    except ImportError:
+    except (ImportError, OSError):
         pass
 
 del _os, _sys

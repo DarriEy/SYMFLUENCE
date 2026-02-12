@@ -58,7 +58,7 @@ class TestReportingManager:
 
         assert manager.visualize is True
         # Use endswith to avoid platform-specific symlink issues (e.g., /tmp -> /private/tmp on macOS)
-        assert str(manager.project_dir).endswith('symfluence_data/domain_test_domain')
+        assert manager.project_dir.as_posix().endswith('symfluence_data/domain_test_domain')
 
         # With cached_property, components are lazy-loaded and don't have _attributes
         # Verify that accessing the properties works and creates them lazily
