@@ -42,6 +42,7 @@ def __getattr__(name):
         'SUMMAWorker': 'symfluence.models.summa.calibration.worker',
         'GNNWorker': 'symfluence.models.gnn.calibration.worker',
         'LSTMWorker': 'symfluence.models.lstm.calibration.worker',
+        'SacSmaWorker': 'symfluence.models.sacsma.calibration.worker',
     }
 
     if name in worker_mapping:

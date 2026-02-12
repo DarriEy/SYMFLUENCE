@@ -432,6 +432,47 @@ class ParameterBoundsRegistry:
     }
 
     # ========================================================================
+    # SAC-SMA + SNOW-17 PARAMETERS
+    # ========================================================================
+    SACSMA_PARAMS: Dict[str, ParameterInfo] = {
+        # Snow-17 parameters
+        'SCF': ParameterInfo(0.7, 1.4, '-', 'Snowfall correction factor', 'snow'),
+        'PXTEMP': ParameterInfo(-2.0, 2.0, '°C', 'Rain/snow threshold temperature', 'snow'),
+        'MFMAX': ParameterInfo(0.5, 2.0, 'mm/°C/6hr', 'Max melt factor (Jun 21)', 'snow'),
+        'MFMIN': ParameterInfo(0.05, 0.6, 'mm/°C/6hr', 'Min melt factor (Dec 21)', 'snow'),
+        'NMF': ParameterInfo(0.05, 0.5, 'mm/°C/6hr', 'Negative melt factor', 'snow'),
+        'MBASE': ParameterInfo(0.0, 1.0, '°C', 'Base melt temperature', 'snow'),
+        'TIPM': ParameterInfo(0.01, 1.0, '-', 'Antecedent temperature index weight', 'snow'),
+        'UADJ': ParameterInfo(0.01, 0.2, 'mm/mb/6hr', 'Rain-on-snow wind function', 'snow'),
+        'PLWHC': ParameterInfo(0.01, 0.3, '-', 'Liquid water holding capacity', 'snow'),
+        'DAYGM': ParameterInfo(0.0, 0.3, 'mm/day', 'Daily ground melt', 'snow'),
+
+        # SAC-SMA upper zone parameters
+        'UZTWM': ParameterInfo(1.0, 150.0, 'mm', 'Upper zone tension water max', 'soil'),
+        'UZFWM': ParameterInfo(1.0, 150.0, 'mm', 'Upper zone free water max', 'soil'),
+        'UZK': ParameterInfo(0.1, 0.75, '1/day', 'Upper zone lateral depletion', 'soil'),
+
+        # SAC-SMA lower zone parameters
+        'LZTWM': ParameterInfo(1.0, 500.0, 'mm', 'Lower zone tension water max', 'soil'),
+        'LZFPM': ParameterInfo(1.0, 1000.0, 'mm', 'Lower zone primary free water max', 'baseflow', 'log'),
+        'LZFSM': ParameterInfo(1.0, 1000.0, 'mm', 'Lower zone supplemental free water max', 'baseflow', 'log'),
+        'LZPK': ParameterInfo(0.001, 0.05, '1/day', 'Primary baseflow depletion', 'baseflow', 'log'),
+        'LZSK': ParameterInfo(0.01, 0.25, '1/day', 'Supplemental baseflow depletion', 'baseflow', 'log'),
+
+        # SAC-SMA percolation parameters
+        'ZPERC': ParameterInfo(1.0, 350.0, '-', 'Maximum percolation rate scaling', 'soil', 'log'),
+        'REXP': ParameterInfo(1.0, 5.0, '-', 'Percolation curve exponent', 'soil'),
+        'PFREE': ParameterInfo(0.0, 0.8, '-', 'Fraction percolation to free water', 'soil'),
+
+        # SAC-SMA area fractions
+        'PCTIM': ParameterInfo(0.0, 0.1, '-', 'Permanent impervious area fraction', 'soil'),
+        'ADIMP': ParameterInfo(0.0, 0.4, '-', 'Additional impervious area fraction', 'soil'),
+        'RIVA': ParameterInfo(0.0, 0.2, '-', 'Riparian vegetation ET fraction', 'et'),
+        'SIDE': ParameterInfo(0.0, 0.5, '-', 'Deep recharge fraction', 'baseflow'),
+        'RSERV': ParameterInfo(0.0, 0.4, '-', 'Lower zone free water reserve fraction', 'baseflow'),
+    }
+
+    # ========================================================================
     # HBV-96 PARAMETERS
     # ========================================================================
     HBV_PARAMS: Dict[str, ParameterInfo] = {
@@ -476,6 +517,7 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.GR_PARAMS)
         self._all_params.update(self.VIC_PARAMS)
         self._all_params.update(self.HBV_PARAMS)
+        self._all_params.update(self.SACSMA_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict]:
         """
@@ -797,3 +839,20 @@ def get_vic_bounds() -> Dict[str, Dict[str, float]]:
         'bulk_density', 'snow_rough',
     ]
     return get_registry().get_bounds_for_params(vic_params)
+
+
+def get_sacsma_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all SAC-SMA + Snow-17 parameter bounds.
+
+    Returns:
+        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
+    """
+    sacsma_params = [
+        # Snow-17
+        'SCF', 'PXTEMP', 'MFMAX', 'MFMIN', 'NMF', 'MBASE', 'TIPM', 'UADJ', 'PLWHC', 'DAYGM',
+        # SAC-SMA
+        'UZTWM', 'UZFWM', 'UZK', 'LZTWM', 'LZFPM', 'LZFSM', 'LZPK', 'LZSK',
+        'ZPERC', 'REXP', 'PFREE', 'PCTIM', 'ADIMP', 'RIVA', 'SIDE', 'RSERV',
+    ]
+    return get_registry().get_bounds_for_params(sacsma_params)

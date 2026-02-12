@@ -128,6 +128,13 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
         )
     ),
 
+    'SACSMA': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=None
+    ),
+
     'MESH': ModelSpatialCapability(
         supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
         default_mode=SpatialMode.DISTRIBUTED,

@@ -38,6 +38,7 @@ def _register_optimizers():
         'symfluence.models.troute.calibration.optimizer',
         'symfluence.models.jfuse.calibration.optimizer',
         'symfluence.models.cfuse.calibration.optimizer',
+        'symfluence.models.sacsma.calibration.optimizer',
     ]
 
     for module_path in canonical_modules:

@@ -38,6 +38,7 @@ def _register_parameter_managers():
         'symfluence.models.mesh.calibration.parameter_manager',
         'symfluence.models.rhessys.calibration.parameter_manager',
         'symfluence.models.gnn.calibration.parameter_manager',  # ML parameter manager
+        'symfluence.models.sacsma.calibration.parameter_manager',
     ]
 
     for module_path in canonical_modules:
@@ -65,6 +66,7 @@ from symfluence.models.ngen.calibration.parameter_manager import NgenParameterMa
 from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
 from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
 from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
+from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
 
 __all__ = [
     'FUSEParameterManager',
@@ -76,4 +78,5 @@ __all__ = [
     'RHESSysParameterManager',
     'SUMMAParameterManager',
     'MLParameterManager',
+    'SacSmaParameterManager',
 ]
