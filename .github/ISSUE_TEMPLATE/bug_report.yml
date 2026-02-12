@@ -27,4 +27,3 @@ body:
     attributes:
       label: Relevant logs or screenshots
       render: shell
-

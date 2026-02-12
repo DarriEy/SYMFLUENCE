@@ -1,0 +1,1335 @@
+################################################################################
+#
+#  SYMFLUENCE Configuration Template (Comprehensive - Nested Style)
+#
+#  Authoritative configuration template containing ALL 406+ configuration
+#  options supported by SYMFLUENCE, organized in nested YAML format following
+#  hydrological modeling best practices.
+#
+#  Organization Philosophy:
+#    This template follows the hydrological modeling workflow:
+#    1. System     - Infrastructure (paths, logging, execution)
+#    2. Domain     - Watershed definition (extent, timing, discretization)
+#    3. Data       - Geospatial inputs (DEM, soils, landcover)
+#    4. Forcing    - Meteorological drivers (ERA5, RDRS, etc.)
+#    5. Model      - Process representation (SUMMA, FUSE, GR, etc.)
+#    6. Optimization - Parameter calibration (PSO, DE, DDS, etc.)
+#    7. Evaluation - Model assessment (streamflow, snow, ET, etc.)
+#    8. Paths      - File/directory locations
+#
+#  Authority Chain Position:
+#    This template provides comprehensive documentation for all nested config
+#    options. When loading configs, precedence follows:
+#      CLI Overrides > Environment Variables > Config File > Pydantic Defaults
+#
+#  Usage:
+#    1. Copy this template: cp config_template_comprehensive_nested.yaml my_config.yaml
+#    2. Uncomment and modify sections relevant to your workflow
+#    3. Run: python run_symfluence.py my_config.yaml
+#
+################################################################################
+
+
+# ==============================================================================
+# 1. SYSTEM CONFIGURATION
+# ==============================================================================
+# Infrastructure settings: paths, logging, parallelization, and execution control.
+# These settings configure how SYMFLUENCE operates, not what it computes.
+
+system:
+  # ---------------------------------------------------------------------------
+  # Core Paths (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # Root directory for all SYMFLUENCE data files (forcing, observations, outputs)
+  data_dir: "/path/to/your/data/directory"
+
+  # Root directory for SYMFLUENCE code and model executables
+  code_dir: "/path/to/your/code/directory"
+
+  # ---------------------------------------------------------------------------
+  # Parallelization
+  # ---------------------------------------------------------------------------
+  # Number of MPI processes for parallel model execution
+  # Set > 1 for distributed domain runs or ensemble simulations
+  num_processes: 1
+
+  # ---------------------------------------------------------------------------
+  # Logging Configuration
+  # ---------------------------------------------------------------------------
+  # Logging verbosity: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_level: "INFO"
+
+  # Log output format: "detailed" or "simple"
+  log_format: "detailed"
+
+  # Write logs to file (in addition to console)
+  log_to_file: true
+
+  # ---------------------------------------------------------------------------
+  # Execution Control
+  # ---------------------------------------------------------------------------
+  # Enable verbose debugging output
+  debug_mode: false
+
+  # Stop execution on first error (vs. continue with warnings)
+  stop_on_error: true
+
+  # Force re-download of existing data files
+  force_download: false
+
+  # Force re-run of all workflow steps (ignore cached results)
+  force_run_all_steps: false
+
+  # Random seed for reproducibility (null for non-deterministic)
+  random_seed: null
+
+  # Use local scratch directory for intermediate files (HPC optimization)
+  use_local_scratch: false
+
+
+# ==============================================================================
+# 2. DOMAIN CONFIGURATION
+# ==============================================================================
+# Watershed/domain definition: spatial extent, temporal boundaries, and
+# discretization strategy. This defines WHERE and WHEN you are modeling.
+
+domain:
+  # ---------------------------------------------------------------------------
+  # Core Domain Identity (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # Unique identifier for your watershed/modeling domain
+  name: "example_basin"
+
+  # Unique identifier for this experiment/run (allows multiple runs per domain)
+  experiment_id: "run_001"
+
+  # ---------------------------------------------------------------------------
+  # Temporal Boundaries (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # Simulation time period (must include spin-up if needed)
+  # Format: "YYYY-MM-DD HH:MM"
+  time_start: "2010-01-01 00:00"
+  time_end: "2020-12-31 23:00"
+
+  # Calibration period for parameter optimization
+  # Format: "YYYY-MM-DD, YYYY-MM-DD" (start, end)
+  calibration_period: null
+  calibration_start_date: null
+  calibration_end_date: null
+
+  # Independent validation period
+  evaluation_period: null
+
+  # Model warm-up period (excluded from evaluation)
+  spinup_period: null
+
+  # ---------------------------------------------------------------------------
+  # Spatial Definition Method (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # How the domain is defined:
+  #   point            - Single point location (FLUXNET sites, tower sites)
+  #   lumped           - Single catchment, no spatial discretization
+  #   semidistributed  - Subcatchment delineation from DEM via TauDEM
+  #   distributed      - Grid-based representation with D8 routing
+  #
+  # Legacy values (auto-mapped for backwards compatibility):
+  #   delineate -> semidistributed, distribute -> distributed
+  definition_method: "lumped"
+
+  # Extract domain from existing geofabric instead of delineating
+  # Requires geofabric_type to be set in delineation section
+  subset_from_geofabric: false
+
+  # Grid creation method for distributed domain
+  #   generate - Create grid from bounding box with grid_cell_size
+  #   native   - Match forcing data resolution (e.g., ERA5 grid)
+  grid_source: "generate"
+
+  # Dataset identifier for native grid source (only when grid_source='native')
+  native_grid_dataset: "era5"
+
+  # ---------------------------------------------------------------------------
+  # Discretization Strategy (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # How to spatially subdivide the domain into response units:
+  #   elevation   - Elevation bands (most common for mountain basins)
+  #   aspect      - Slope aspect classes
+  #   soilclass   - Soil type boundaries
+  #   landclass   - Land cover boundaries
+  #   radiation   - Solar radiation zones
+  #   grus        - Pre-defined geographic response units
+  #   combined    - Multiple criteria: "elevation,landclass"
+  discretization: "elevation"
+
+  # Elevation band size (meters) for elevation-based discretization
+  elevation_band_size: 200.0
+
+  # Number of aspect classes for aspect-based discretization
+  aspect_class_number: 1
+  aspect_path: default
+
+  # Number of radiation classes
+  radiation_class_number: 1
+
+  # Minimum GRU/HRU sizes (km²) - filter out small units
+  min_gru_size: 0.0
+  min_hru_size: 0.0
+
+  # Grid cell size for distributed models (meters)
+  grid_cell_size: 1000.0
+
+  # Whether to clip grid cells to watershed boundary
+  clip_grid_to_watershed: true
+
+  # ---------------------------------------------------------------------------
+  # Spatial Coordinates
+  # ---------------------------------------------------------------------------
+  # Pour point coordinates for lumped/semidistributed methods
+  # Format: "latitude/longitude"
+  pour_point_coords: null
+
+  # Bounding box for regional domains
+  # Format: "north/west/south/east"
+  bounding_box_coords: null
+
+  # ---------------------------------------------------------------------------
+  # Data Access Mode
+  # ---------------------------------------------------------------------------
+  # Where to source geospatial data:
+  #   cloud  - Download from cloud services (default)
+  #   local  - Use local pre-processed files
+  data_access: "cloud"
+
+  # ---------------------------------------------------------------------------
+  # Geospatial Data Sources
+  # ---------------------------------------------------------------------------
+  # DEM source: fabdem, copernicus, nasadem, merit, srtm
+  dem_source: "fabdem"
+  download_dem: true
+
+  # Land cover source: modis, nlcd, esa_cci
+  land_class_source: "modis"
+  land_class_name: default
+  download_land_cover: true
+
+  # Soil data source
+  soilgrids_layer: "wrb_0-5cm_mode"
+  download_soil: true
+
+  # ---------------------------------------------------------------------------
+  # Delineation Configuration
+  # ---------------------------------------------------------------------------
+  # Settings for automatic watershed delineation (when definition_method="semidistributed")
+  delineation:
+    # Delineation method: stream_threshold, multi_scale, slope_area
+    method: "stream_threshold"
+
+    # Stream threshold (number of upstream cells to initiate stream)
+    stream_threshold: 5000.0
+
+    # Minimum source area threshold
+    min_source_threshold: 100
+
+    # Maximum distance (m) to move pour point to nearest stream
+    move_outlets_max_distance: 200.0
+
+    # Delineate by pour point (vs. all outlets)
+    delineate_by_pourpoint: true
+
+    # Include coastal watersheds (draining to ocean)
+    delineate_coastal_watersheds: false
+
+    # Lumped watershed delineation tool: TauDEM, pysheds
+    lumped_watershed_method: "TauDEM"
+
+    # Routing network delineation: lumped, distributed
+    routing_delineation: "lumped"
+
+    # Pre-defined geofabric type: na, merit, nwm
+    geofabric_type: "na"
+
+    # Drop analysis for optimal threshold selection
+    use_drop_analysis: false
+    drop_analysis_min_threshold: 100
+    drop_analysis_max_threshold: 10000
+    drop_analysis_num_thresholds: 10
+    drop_analysis_log_spacing: true
+
+    # Multi-scale thresholds (comma-separated)
+    multi_scale_thresholds: null
+
+    # Slope-area analysis parameters
+    slope_area_threshold: 100.0
+    slope_area_exponent: 2.0
+    area_exponent: 1.0
+    curvature_threshold: 0.0
+
+    # Clean up intermediate files after delineation
+    cleanup_intermediate_files: false
+
+
+# ==============================================================================
+# 3. DATA CONFIGURATION
+# ==============================================================================
+# Geospatial data sources and acquisition settings.
+# Defines what static datasets to use for domain characterization.
+
+data:
+  # ---------------------------------------------------------------------------
+  # Observation Data Downloads
+  # ---------------------------------------------------------------------------
+  # Additional observation datasets to download
+  additional_observations: null
+
+  # Streamflow station ID (USGS or WSC)
+  streamflow_station_id: null
+  usgs_site_code: null
+
+  # LamaH-Ice dataset path
+  lamah_ice_path: null
+  download_lamah_ice_data: false
+
+  # ISMN soil moisture data
+  download_ismn: false
+
+  # Glacier data from Randolph Glacier Inventory
+  download_glacier_data: false
+
+  # SMHI (Swedish) streamflow data
+  download_smhi_data: false
+
+  # Elevation processing parameters
+  elev_chunk_size: 10000
+  elev_tile_target: 50000
+
+  # ---------------------------------------------------------------------------
+  # SoilGrids Configuration
+  # ---------------------------------------------------------------------------
+  geospatial:
+    soilgrids:
+      wcs_map: "/map/wcs/soilgrids.map"
+      coverage_id: null
+      hs_cache_dir: default
+      hs_resource_id: "1361509511e44adfba814f6950c6e742"
+      hs_api_url: null
+
+    # -------------------------------------------------------------------------
+    # MODIS Landcover Configuration
+    # -------------------------------------------------------------------------
+    modis_landcover:
+      year: null
+      years: null
+      start_year: null
+      end_year: null
+      local_file: null
+      base_url: "https://zenodo.org/records/8367523/files"
+      cache_dir: default
+
+    # -------------------------------------------------------------------------
+    # NLCD (National Land Cover Database) Configuration
+    # -------------------------------------------------------------------------
+    nlcd:
+      coverage_id: "NLCD_2019_Land_Cover_L48"
+
+    # -------------------------------------------------------------------------
+    # NASADEM Configuration
+    # -------------------------------------------------------------------------
+    nasadem:
+      local_dir: null
+
+
+# ==============================================================================
+# 4. FORCING DATA CONFIGURATION
+# ==============================================================================
+# Meteorological forcing data: the atmospheric boundary conditions that drive
+# the hydrological model. Settings for data acquisition and preprocessing.
+
+forcing:
+  # ---------------------------------------------------------------------------
+  # Dataset Selection (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # Primary forcing dataset:
+  #   ERA5       - ECMWF Reanalysis 5 (global, ~0.25°, 1979-present)
+  #   RDRS       - Regional Deterministic Reanalysis System (Canada, ~10km)
+  #   NLDAS      - North American Land Data Assimilation (CONUS, ~12km)
+  #   CONUS404   - High-resolution convection-permitting WRF (CONUS, 4km)
+  #   NEX-GDDP   - NASA downscaled climate projections
+  #   EM-Earth   - Ensemble gridded climate data
+  #   custom     - User-provided forcing data
+  dataset: "ERA5"
+
+  # ---------------------------------------------------------------------------
+  # Temporal Settings
+  # ---------------------------------------------------------------------------
+  # Forcing timestep in seconds (default: 3600 = 1 hour)
+  time_step_size: 3600
+
+  # Variables to extract (default = all required for model)
+  variables: default
+
+  # ---------------------------------------------------------------------------
+  # Spatial Settings
+  # ---------------------------------------------------------------------------
+  # Coordinate variable names in forcing files
+  shape_lat_name: "lat"
+  shape_lon_name: "lon"
+
+  # Measurement height for wind/temperature (meters)
+  measurement_height: 2
+
+  # ---------------------------------------------------------------------------
+  # Elevation Corrections
+  # ---------------------------------------------------------------------------
+  # Apply temperature lapse rate correction for elevation differences
+  apply_lapse_rate: true
+
+  # Temperature lapse rate (°C/m, negative = cooling with elevation)
+  lapse_rate: 0.0065
+
+  # ---------------------------------------------------------------------------
+  # PET Calculation
+  # ---------------------------------------------------------------------------
+  # Potential evapotranspiration method:
+  #   oudin      - Temperature-based (Oudin et al., 2005)
+  #   penman     - Full Penman-Monteith
+  #   priestley  - Priestley-Taylor
+  pet_method: "oudin"
+
+  # ---------------------------------------------------------------------------
+  # Supplemental Forcing
+  # ---------------------------------------------------------------------------
+  # Use secondary dataset for missing variables
+  supplement_forcing: false
+
+  # ---------------------------------------------------------------------------
+  # ERA5 Configuration
+  # ---------------------------------------------------------------------------
+  era5:
+    # Use CDS API for download (vs. Google Earth Engine)
+    use_cds: null
+
+    # Path to ERA5 Zarr archive (for pre-downloaded data)
+    zarr_path: ""
+
+    # ERA5 native timestep (hours)
+    time_step_hours: 1
+
+    # Variables to download
+    vars: ['u10', 'v10', 't2m', 'sp', 'd2m', 'ssrd', 'strd', 'tp']
+
+  # ---------------------------------------------------------------------------
+  # EM-Earth Configuration
+  # ---------------------------------------------------------------------------
+  em_earth:
+    data_type: "deterministic"
+    max_expansion: 0.2
+    min_bbox_size: 0.1
+    prcp_dir: null
+    tmean_dir: null
+    prcp: "prcp"
+
+  # ---------------------------------------------------------------------------
+  # NEX-GDDP Configuration
+  # ---------------------------------------------------------------------------
+  nex:
+    ensembles: null
+    models: null
+    scenarios: null
+    variables: null
+
+
+# ==============================================================================
+# 5. MODEL CONFIGURATION
+# ==============================================================================
+# Hydrological model settings. This is the core of the modeling system,
+# defining how water moves through the landscape.
+#
+# Model Hierarchy (complexity):
+#   GR       - Conceptual lumped (4-6 params, fast, minimal data needs)
+#   FUSE     - Flexible structure (modular, medium complexity)
+#   SUMMA    - Full physics (energy balance, multi-layer, research-grade)
+#   MESH     - Distributed energy balance (Canadian operational)
+#   NGEN     - Community multi-model framework
+#   HYPE     - Semi-distributed (Nordic focus, water quality capable)
+#   RHESSys  - Ecohydrology with fire coupling
+#   LSTM/GNN - Data-driven emulators
+
+model:
+  # ---------------------------------------------------------------------------
+  # Model Selection (REQUIRED)
+  # ---------------------------------------------------------------------------
+  # Primary hydrological model(s):
+  #   SUMMA, FUSE, GR, HYPE, NGEN, MESH, LSTM, RHESSys, GNN
+  # For multiple models: "SUMMA, FUSE" or ["SUMMA", "FUSE"]
+  hydrological_model: "SUMMA"
+
+  # Routing model for distributed/semi-distributed setups
+  routing_model: null
+
+  # ---------------------------------------------------------------------------
+  # SUMMA Configuration
+  # ---------------------------------------------------------------------------
+  # Structure for Unifying Multiple Modeling Alternatives
+  # Full physics-based model with explicit energy balance
+  summa:
+    # Executable settings
+    exe: "summa_sundials.exe"
+    install_path: default
+    settings_path: default
+
+    # Output paths
+    experiment_output: default
+    experiment_log: default
+
+    # Model structure decisions (empty = use defaults)
+    decision_options: {}
+
+    # Parameter file settings
+    attributes: "attributes.nc"
+    coldstate: "coldState.nc"
+    trialparams: "trialParams.nc"
+    filemanager: "fileManager.txt"
+    forcing_list: "forcingFileList.txt"
+    output: "outputControl.txt"
+    local_params_file: "localParamInfo.txt"
+    basin_params_file: "basinParamInfo.txt"
+
+    # HRU connectivity (lateral flow between HRUs)
+    connect_hrus: true
+
+    # Parameters to calibrate (comma-separated list)
+    params_to_calibrate: "tempCritRain,k_soil,vGn_n,theta_sat,theta_res,rootingDepth,zScale_TOPMODEL,k_macropore,albedoDecayRate,newSnowDenMultTemp,albedoMinSpring,aquiferBaseflowExp,aquiferBaseflowRate,Frad_vis,heightCanopyTop,windReductionParam,leafExchangeCoeff,frozenPrecipMultip,Fcapil,k_snow,heightCanopyBottom"
+
+    # Basin-level parameters (routing)
+    basin_params_to_calibrate: "routingGammaScale,routingGammaShape"
+
+    # Soil depth calibration
+    calibrate_depth: false
+    depth_shape_factor_bounds: null
+    depth_total_mult_bounds: null
+
+    # Glacier mode
+    glacier_mode: false
+    glacier_attributes: "attributes_glac.nc"
+    glacier_coldstate: "coldState_glac.nc"
+
+    # Execution settings
+    timeout: 7200
+    cpus_per_task: 32
+    mem: 5
+    time_limit: "01:00:00"
+    gru_count: 85
+    gru_per_job: 5
+
+    # Parallel SUMMA (actors framework)
+    use_parallel_summa: false
+    parallel_exe: "summa_actors.exe"
+    parallel_path: default
+
+    # Trial parameters
+    trialparam_1: ""
+    trialparam_n: 0
+
+  # ---------------------------------------------------------------------------
+  # FUSE Configuration
+  # ---------------------------------------------------------------------------
+  # Framework for Understanding Structural Errors
+  # Modular model with flexible structure combinations
+  fuse:
+    exe: "fuse.exe"
+    install_path: default
+    settings_path: default
+    filemanager: default
+    experiment_output: default
+
+    # Spatial mode: lumped, distributed
+    spatial_mode: "distributed"
+
+    # Routing integration: default, mizuRoute
+    routing_integration: default
+
+    # Subcatchment dimension for distributed runs
+    subcatchment_dim: "longitude"
+
+    # Model structure decisions
+    decision_options: {}
+
+    # File identifier for FUSE output
+    file_id: null
+
+    # Number of elevation bands
+    n_elevation_bands: 1
+
+    # Parameters to calibrate
+    params_to_calibrate: "MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE"
+
+    # Execution timeout
+    timeout: 3600
+
+  # ---------------------------------------------------------------------------
+  # GR Configuration
+  # ---------------------------------------------------------------------------
+  # GR4J/GR5J French conceptual models
+  # Simple, fast, excellent for benchmarking
+  gr:
+    exe: "GR.r"
+    install_path: default
+    settings_path: default
+    control: default
+
+    # Spatial mode: auto, lumped, distributed
+    spatial_mode: "auto"
+
+    # Routing integration: none, mizuRoute
+    routing_integration: "none"
+
+    # Parameters to calibrate
+    params_to_calibrate: "X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff"
+
+  # ---------------------------------------------------------------------------
+  # HYPE Configuration
+  # ---------------------------------------------------------------------------
+  # HYdrological Predictions for the Environment
+  # Semi-distributed, Nordic focus, water quality capable
+  hype:
+    exe: "hype"
+    install_path: default
+    settings_path: default
+    info: "info.txt"
+
+    # Spin-up period (days)
+    spinup_days: 365
+
+    # Parameters to calibrate
+    params_to_calibrate: "ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp"
+
+  # ---------------------------------------------------------------------------
+  # NGEN Configuration
+  # ---------------------------------------------------------------------------
+  # Next Generation Water Resources Modeling Framework
+  # Community multi-model framework (NOAA NWM successor)
+  ngen:
+    exe: "ngen"
+    install_path: default
+
+    # Active catchment for single-catchment runs
+    active_catchment_id: null
+
+    # Modules to calibrate: CFE, NOAH, PET
+    modules_to_calibrate: "CFE"
+
+    # CFE module parameters
+    cfe_params_to_calibrate: "maxsmc,satdk,bb,slop"
+
+    # NOAH module parameters
+    noah_params_to_calibrate: "refkdt,slope,smcmax,dksat"
+
+    # PET module parameters
+    pet_params_to_calibrate: ""
+
+  # ---------------------------------------------------------------------------
+  # MESH Configuration
+  # ---------------------------------------------------------------------------
+  # Modélisation Environnementale-Surface Hydrology
+  # Canadian distributed energy balance model
+  mesh:
+    exe: "mesh.exe"
+    install_path: default
+    settings_path: default
+    settings_input: default
+    experiment_output: default
+
+    # Spatial mode: lumped, distributed
+    spatial_mode: "distributed"
+
+    # GRU/HRU dimensions
+    gru_dim: default
+    hru_dim: default
+    gru_min_total: 0.0
+
+    # Outlet configuration
+    main_id: default
+    ds_main_id: default
+    outlet_value: default
+
+    # Forcing configuration
+    forcing_path: default
+    forcing_vars: default
+    forcing_units: default
+    forcing_to_units: default
+
+    # DDB (drainage database) configuration
+    ddb_vars: default
+    ddb_units: default
+    ddb_to_units: default
+    ddb_min_values: default
+
+    # Landcover configuration
+    landcover_classes: default
+    landcover_stats_dir: default
+    landcover_stats_file: default
+    landcover_stats_path: default
+
+    # Spin-up period (days)
+    spinup_days: 365
+
+    # Parameters to calibrate
+    params_to_calibrate: "ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR"
+
+  # ---------------------------------------------------------------------------
+  # RHESSys Configuration
+  # ---------------------------------------------------------------------------
+  # Regional Hydro-Ecologic Simulation System
+  # Ecohydrology model with fire module coupling
+  rhessys:
+    exe: "rhessys"
+    install_path: default
+    settings_path: default
+    experiment_output: default
+    forcing_path: default
+
+    # Template files
+    world_template: "world.template"
+    flow_template: "flow.template"
+
+    # Skip calibration (use default parameters)
+    skip_calibration: true
+
+    # Parameters to calibrate
+    params_to_calibrate: "sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef"
+
+    # WMFire integration (wildfire spread modeling)
+    use_wmfire: false
+    wmfire_install_path: "installs/wmfire/lib"
+    wmfire_lib: "libwmfire.so"
+
+    # Legacy VMFire integration
+    use_vmfire: false
+    vmfire_install_path: "installs/wmfire/lib"
+
+    # Execution timeout
+    timeout: 7200
+
+  # ---------------------------------------------------------------------------
+  # LSTM Configuration
+  # ---------------------------------------------------------------------------
+  # Long Short-Term Memory neural network emulator
+  # Data-driven approach for fast ensemble runs
+  lstm:
+    # Load pre-trained model (vs. train new)
+    load: false
+
+    # Network architecture
+    hidden_size: 128
+    num_layers: 3
+    lookback: 700
+
+    # Training settings
+    epochs: 300
+    batch_size: 64
+    learning_rate: 0.001
+    learning_patience: 30
+    dropout: 0.2
+    l2_regularization: "1e-6"
+
+    # Optional features
+    use_attention: true
+    use_snow: false
+    train_through_routing: false
+
+  # ---------------------------------------------------------------------------
+  # GNN Configuration
+  # ---------------------------------------------------------------------------
+  # Graph Neural Network for spatially-distributed emulation
+  gnn:
+    load: false
+
+    # Network architecture
+    hidden_size: 128
+    num_layers: 3
+
+    # Training settings
+    epochs: 300
+    batch_size: 64
+    learning_rate: 0.001
+    learning_patience: 30
+    dropout: 0.2
+    l2_regularization: "1e-6"
+
+    # Parameters and bounds
+    params_to_calibrate: "precip_mult,temp_offset,routing_velocity"
+    parameter_bounds: null
+
+  # ---------------------------------------------------------------------------
+  # mizuRoute Configuration
+  # ---------------------------------------------------------------------------
+  # River routing model for streamflow simulation
+  mizuroute:
+    exe: "mizuRoute.exe"
+    install_path: default
+    settings_path: default
+    experiment_output: default
+    experiment_log: default
+
+    # Control and parameter files
+    control_file: "mizuroute.control"
+    parameters: "param.nml.default"
+    parameter_file: "param.nml.default"
+    topology: "topology.nc"
+    topology_file: "topology.nc"
+
+    # Remapping configuration
+    needs_remap: false
+    remap: "routing_remap.nc"
+    remap_file: "routing_remap.nc"
+
+    # Routing scheme (route_opt):
+    #   0 = accumRunoff (no routing delays - NOT recommended)
+    #   1 = IRF-UH (Impulse Response + Unit Hydrograph - RECOMMENDED)
+    #   2 = IRF-KW (IRF + Kinematic Wave)
+    #   3 = KW-IRF
+    #   4 = MC-IRF (Muskingum-Cunge + IRF)
+    output_vars: 1
+    output_var: "IRFroutedRunoff"
+
+    # Output configuration
+    output_freq: "single"
+
+    # Routing timestep (seconds)
+    routing_dt: 3600
+    routing_var: "averageRoutedRunoff"
+    routing_units: "m/s"
+
+    # Outlet configuration
+    make_outlet: "n/a"
+    within_basin: 0
+
+    # Source model for runoff
+    from_model: default
+
+    # Calibration settings
+    calibrate: false
+    params_to_calibrate: "velo,diff"
+    timeout: 3600
+
+
+# ==============================================================================
+# 6. OPTIMIZATION CONFIGURATION
+# ==============================================================================
+# Parameter calibration and optimization settings.
+# Configure how model parameters are tuned to match observations.
+
+optimization:
+  # ---------------------------------------------------------------------------
+  # Algorithm Selection
+  # ---------------------------------------------------------------------------
+  # Optimization methods to use (can be list for comparison)
+  methods: []
+
+  # Primary algorithm:
+  #   PSO    - Particle Swarm Optimization (global, population-based)
+  #   DE     - Differential Evolution (global, robust)
+  #   DDS    - Dynamically Dimensioned Search (efficient for expensive models)
+  #   SCE-UA - Shuffled Complex Evolution (proven for hydrology)
+  #   NSGA2  - Multi-objective genetic algorithm
+  algorithm: "PSO"
+
+  # Iterations/generations for optimization
+  iterations: 1000
+
+  # Population size (PSO, DE, SCE-UA) or swarm size
+  population_size: 50
+
+  # ---------------------------------------------------------------------------
+  # Objective Function
+  # ---------------------------------------------------------------------------
+  # Performance metric to optimize:
+  #   KGE    - Kling-Gupta Efficiency (RECOMMENDED)
+  #   NSE    - Nash-Sutcliffe Efficiency
+  #   RMSE   - Root Mean Square Error
+  #   MAE    - Mean Absolute Error
+  #   PBIAS  - Percent Bias
+  metric: "KGE"
+
+  # Optimization target variable
+  target: "streamflow"
+
+  # Calibration variable (alias for target)
+  calibration_variable: "streamflow"
+
+  # Calibration timestep: hourly, daily, monthly
+  calibration_timestep: "daily"
+
+  # ---------------------------------------------------------------------------
+  # Execution Settings
+  # ---------------------------------------------------------------------------
+  # Clean up parallel directories after optimization
+  cleanup_parallel_dirs: true
+
+  # Keep trial parameter files
+  params_keep_trials: false
+
+  # Stop on model failure during calibration
+  stop_on_model_failure: false
+
+  # Error logging: none, file, database
+  error_logging_mode: "none"
+  error_log_dir: "error_logs"
+
+  # Numerical method for final evaluation: be (backward Euler), etc.
+  final_evaluation_numerical_method: "be"
+
+  # ---------------------------------------------------------------------------
+  # PSO Configuration
+  # ---------------------------------------------------------------------------
+  # Particle Swarm Optimization
+  pso:
+    # Swarm size (number of particles)
+    swrmsize: 20
+
+    # Cognitive parameter (particle memory weight)
+    cognitive_param: 1.5
+
+    # Social parameter (swarm best weight)
+    social_param: 1.5
+
+    # Inertia weight (momentum)
+    inertia_weight: 0.7
+
+    # Inertia reduction schedule: LINEAR, EXPONENTIAL, CONSTANT
+    inertia_schedule: "LINEAR"
+
+    # Inertia reduction rate (for EXPONENTIAL schedule)
+    inertia_reduction_rate: 0.99
+
+  # ---------------------------------------------------------------------------
+  # DE Configuration
+  # ---------------------------------------------------------------------------
+  # Differential Evolution
+  de:
+    # Scaling factor (mutation strength)
+    scaling_factor: 0.5
+
+    # Crossover rate
+    crossover_rate: 0.9
+
+  # ---------------------------------------------------------------------------
+  # DDS Configuration
+  # ---------------------------------------------------------------------------
+  # Dynamically Dimensioned Search
+  dds:
+    # Perturbation neighborhood size (fraction of range)
+    r: 0.2
+
+    # Async DDS settings (for parallel execution)
+    async_batch_size: 10
+    async_pool_size: 10
+
+    # Stagnation detection
+    max_stagnation_batches: 10
+
+  # ---------------------------------------------------------------------------
+  # SCE-UA Configuration
+  # ---------------------------------------------------------------------------
+  # Shuffled Complex Evolution
+  sce_ua:
+    # Number of complexes
+    number_of_complexes: 2
+
+    # Evolution steps per complex
+    number_of_evolution_steps: 20
+
+    # Points per subcomplex
+    points_per_subcomplex: 5
+
+    # Convergence criteria
+    percent_change_threshold: 0.01
+    evolution_stagnation: 5
+
+  # ---------------------------------------------------------------------------
+  # NSGA2 Configuration
+  # ---------------------------------------------------------------------------
+  # Multi-objective optimization (Non-dominated Sorting Genetic Algorithm II)
+  nsga2:
+    # Enable multi-target optimization
+    multi_target: false
+
+    # Primary objective
+    primary_target: "streamflow"
+    primary_metric: "KGE"
+
+    # Secondary objective
+    secondary_target: "gw_depth"
+    secondary_metric: "KGE"
+
+    # Crossover settings
+    crossover_rate: 0.9
+    eta_c: 20
+
+    # Mutation settings
+    mutation_rate: 0.1
+    eta_m: 20
+
+  # ---------------------------------------------------------------------------
+  # Emulation Configuration
+  # ---------------------------------------------------------------------------
+  # Settings for surrogate model construction
+  emulation:
+    # Number of training samples
+    num_samples: 100
+
+    # Maximum iterations for emulator refinement
+    max_iterations: 3
+
+    # Sampling method: lhs, random, sobol
+    sampling_method: "lhs"
+
+    # Random seed for reproducibility
+    seed: 22
+
+    # Parallel ensemble runs
+    parallel_ensemble: false
+    max_parallel_jobs: 100
+
+    # Skip mizuRoute for emulator training
+    skip_mizuroute: false
+
+    # Include catchment attributes as features
+    use_attributes: false
+
+
+# ==============================================================================
+# 7. EVALUATION CONFIGURATION
+# ==============================================================================
+# Model assessment settings. Configure observation datasets for
+# multi-variate calibration and validation across the water cycle.
+
+evaluation:
+  # ---------------------------------------------------------------------------
+  # General Settings
+  # ---------------------------------------------------------------------------
+  # Reach ID for routing output comparison
+  sim_reach_id: null
+
+  # HRU to gauge mapping file
+  hru_gauge_mapping: null
+
+  # Evaluation datasets to use
+  evaluation_data: []
+
+  # Analyses to perform
+  analyses: []
+
+  # ---------------------------------------------------------------------------
+  # Streamflow Observations
+  # ---------------------------------------------------------------------------
+  # The primary hydrological observable
+  streamflow:
+    # Data provider: usgs, wsc, smhi
+    data_provider: null
+
+    # Station identifier
+    station_id: null
+
+    # Download settings
+    download_usgs: false
+    download_wsc: false
+
+    # File paths
+    hydat_path: default
+    raw_path: default
+    raw_name: default
+    processed_path: default
+
+  # ---------------------------------------------------------------------------
+  # SNOTEL Snow Observations
+  # ---------------------------------------------------------------------------
+  # Snowpack Telemetry network (Western US)
+  snotel:
+    # SNOTEL station ID (e.g., "1050:CO:SNTL")
+    station: null
+
+    # Path to pre-downloaded data
+    path: null
+
+    # Download new data
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # FluxNet Eddy Covariance
+  # ---------------------------------------------------------------------------
+  # Tower-based energy and carbon flux observations
+  fluxnet:
+    # FluxNet station ID (e.g., "US-Ha1")
+    station: null
+
+    # Path to pre-downloaded data
+    path: null
+
+    # Download new data
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # USGS Groundwater
+  # ---------------------------------------------------------------------------
+  usgs_gw:
+    # USGS groundwater station ID
+    station: null
+
+    # Download new data
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # SMAP Soil Moisture
+  # ---------------------------------------------------------------------------
+  # NASA Soil Moisture Active Passive mission
+  smap:
+    # Data path
+    path: default
+
+    # SMAP product: SPL4SMGP, SPL3SMP, etc.
+    product: "SPL4SMGP"
+
+    # Download settings
+    download: false
+    max_granules: null
+    use_opendap: false
+
+    # Depth settings (meters)
+    surface_depth_m: 0.05
+    rootzone_depth_m: 1.0
+
+  # ---------------------------------------------------------------------------
+  # ISMN Soil Moisture
+  # ---------------------------------------------------------------------------
+  # International Soil Moisture Network (in-situ stations)
+  ismn:
+    # Data path
+    path: default
+
+    # API settings
+    api_base: "https://ismn.earth/dataviewer"
+    metadata_url: "https://ismn.earth/static/dataviewer/network_station_details.json"
+    variable_list_url: null
+    data_url_template: null
+
+    # Station selection
+    max_stations: 3
+    search_radius_km: null
+
+    # Data processing
+    target_depth_m: 0.05
+    temporal_aggregation: "daily_mean"
+
+  # ---------------------------------------------------------------------------
+  # GRACE Total Water Storage
+  # ---------------------------------------------------------------------------
+  # Gravity Recovery and Climate Experiment
+  grace:
+    # Data path
+    path: default
+    data_dir: default
+
+    # GRACE product version
+    product: "RL06"
+
+    # Download new data
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # MODIS Snow Cover
+  # ---------------------------------------------------------------------------
+  # Moderate Resolution Imaging Spectroradiometer
+  modis_snow:
+    # Data paths
+    path: default
+    dir: default
+
+    # Product settings
+    product: "MOD10A1.006"
+    sca_products: ['MOD10A1.061', 'MYD10A1.061']
+
+    # Processing options
+    min_pixels: 100
+    sca_merge: true
+    sca_merge_strategy: "max"
+    sca_cloud_filter: true
+    sca_min_valid_ratio: 0.1
+    sca_normalize: true
+    sca_use_catchment_mask: false
+
+    # Download settings
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # MODIS Evapotranspiration
+  # ---------------------------------------------------------------------------
+  modis_et:
+    # Data path
+    path: default
+    dir: default
+
+    # Product
+    product: "MOD16A2.061"
+
+    # Download settings
+    download: false
+
+  # ---------------------------------------------------------------------------
+  # Catchment Attributes
+  # ---------------------------------------------------------------------------
+  # Static watershed characteristics
+  attributes:
+    # Data directories
+    data_dir: default
+    output_dir: default
+
+    # Attribute source paths
+    merit_path: default
+    worldclim_path: default
+    soilgrids_path: default
+    modis_path: default
+    pelletier_path: default
+    glclu_path: default
+    glim_path: default
+    glwd_path: default
+    hydrolakes_path: default
+    groundwater_path: default
+    forest_height_path: default
+    streamflow_path: default
+
+
+# ==============================================================================
+# 8. PATHS CONFIGURATION
+# ==============================================================================
+# File and directory paths. Organized by data type.
+# Use "default" to let SYMFLUENCE construct paths automatically.
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Output Directories
+  # ---------------------------------------------------------------------------
+  output_dir: default
+  output_basins_path: default
+  output_rivers_path: default
+  observations_path: default
+  simulations_path: default
+
+  # ---------------------------------------------------------------------------
+  # DEM and Topography
+  # ---------------------------------------------------------------------------
+  dem_path: default
+  dem_name: default
+  intersect_dem_path: default
+  intersect_dem_name: default
+  taudem_dir: default
+  radiation_path: default
+
+  # ---------------------------------------------------------------------------
+  # Soil Data
+  # ---------------------------------------------------------------------------
+  soil_class_path: default
+  soil_class_name: default
+  intersect_soil_path: default
+  intersect_soil_name: default
+
+  # ---------------------------------------------------------------------------
+  # Land Cover
+  # ---------------------------------------------------------------------------
+  land_class_path: default
+  intersect_land_path: default
+  intersect_land_name: default
+
+  # ---------------------------------------------------------------------------
+  # Routing Network
+  # ---------------------------------------------------------------------------
+  intersect_routing_path: default
+  intersect_routing_name: default
+
+  # ---------------------------------------------------------------------------
+  # Shapefile Configuration
+  # ---------------------------------------------------------------------------
+  shapefiles:
+    # Catchment shapefile
+    catchment:
+      path: default
+      name: default
+      hruid: "HRU_ID"
+      gruid: "GRU_ID"
+      area: "HRU_area"
+      lat: "center_lat"
+      lon: "center_lon"
+      plot_dir: default
+
+    # Pour point shapefile
+    pour_point:
+      path: default
+      name: default
+
+    # River basins shapefile
+    river_basins:
+      path: default
+      name: default
+      area: "GRU_area"
+      rm_gruid: "GRU_ID"
+      hru_to_seg: "gru_to_seg"
+
+    # River network shapefile
+    river_network:
+      path: default
+      name: default
+      segid: "LINKNO"
+      downsegid: "DSLINKNO"
+      length: "Length"
+      slope: "Slope"
+
+  # ---------------------------------------------------------------------------
+  # Source Geofabric
+  # ---------------------------------------------------------------------------
+  source_geofabric_basins_path: default
+  source_geofabric_rivers_path: default
+
+  # ---------------------------------------------------------------------------
+  # Forcing Data
+  # ---------------------------------------------------------------------------
+  forcing_path: default
+
+  # ---------------------------------------------------------------------------
+  # External Tools
+  # ---------------------------------------------------------------------------
+  # EASYMORE remapping tool
+  easymore_cache: "/path/to/cache/dir"
+  easymore_client: "easymore cli"
+  easymore_job_conf: "/path/to/esmr/job_config"
+
+  # GISTool geospatial processing
+  gistool_path: default
+  gistool_lib_path: "/path/to/r-env/"
+  gistool_dataset_root: "/path/to/geospatial-data/"
+
+  # DataTool meteorological processing
+  datatool_path: default
+  datatool_dataset_root: "/path/to/meteorological-data/"
+
+  # General tool cache
+  tool_cache: "/path/to/cache/dir"
+
+  # Cluster configuration (HPC)
+  cluster_json: "/path/to/cluster.json"
+
+
+################################################################################
+#
+#  Configuration Complete
+#
+#  This template contains ALL supported SYMFLUENCE configuration options
+#  organized by hydrological workflow.
+#
+#  For quick-start minimal configs, see:
+#    - config_quickstart_minimal.yaml (flat style)
+#    - config_quickstart_minimal_nested.yaml (nested style)
+#
+#  For flat-style comprehensive reference:
+#    - config_template_comprehensive.yaml
+#
+################################################################################

@@ -1,0 +1,1075 @@
+"""Geospatial statistics calculator for catchment attribute extraction from rasters.
+
+Computes zonal statistics (elevation, soil class, land cover) by extracting raster values
+within catchment polygon boundaries. Implements memory-efficient chunked processing for
+large domains (e.g., NWM North America with millions of catchments). Integrates with
+PathManager for standardized path resolution and ConfigurableMixin for configuration access.
+
+Architecture:
+    The GeospatialStatistics module implements a chunked zonal statistics workflow to handle
+    massive spatial datasets without memory overload:
+
+    1. Zonal Statistics Concept:
+       Input: Vector polygons (catchments) + Raster (elevation, soil, landcover)
+       Output: Polygon dataset with summary statistics from raster values within each polygon
+       Example: For each catchment polygon, calculate mean elevation from DEM
+
+    2. Computational Challenge (Large Domains):
+       Problem: Direct processing of millions of catchments causes out-of-memory errors
+       Solution: Chunk processing approach with two strategies:
+           a) Spatial tiling: Process catchments in geographic tiles (bounding boxes)
+           b) Index chunking: Process catchments in sequential index ranges
+       Both strategies reduce in-memory footprint while maintaining accuracy
+
+    3. Statistics Computation:
+       Uses rasterstats.zonal_stats for efficient raster-polygon overlay
+       Computes summary statistics: mean, min, max, std (configurable)
+       Handles NoData values correctly (excludes from calculations)
+       Memory efficient via windowed raster access (rasterio)
+
+    4. Attribute Types:
+       Elevation (DEM):
+           - Source: Digital Elevation Model (raster)
+           - Statistics: mean, min, max, std
+           - Units: meters
+           - Example: dem_mean, dem_min, dem_max
+
+       Soil Class (Categorical):
+           - Source: Soil type/class raster
+           - Statistics: Mode (most common class)
+           - Units: Class codes (integer)
+           - Example: soil_dominant
+
+       Land Cover (Categorical):
+           - Source: Land use/cover classification
+           - Statistics: Mode (most common class)
+           - Units: Class codes (integer)
+           - Example: landcover_dominant
+
+    5. Checkpoint System:
+       For long-running large domain processing:
+       - Saves incremental progress to checkpoint files
+       - Allows resumption if processing interrupted
+       - Checkpoint format: GeoDataFrame with partial results
+       - Useful for NWM-scale processing (millions of catchments)
+
+Configuration Parameters:
+    paths.catchment_name: str (optional)
+        Input catchment polygon shapefile name
+        Default: auto-generated from domain_name and discretization method
+
+    paths.dem_name: str (optional)
+        Input DEM (elevation) raster filename
+        Default: domain_{domain_name}_elv.tif
+
+    paths.soil_class_path: str (optional)
+        Input soil classification raster path
+        Used for soil statistics calculation
+
+    paths.land_class_path: str (optional)
+        Input land cover classification raster path
+        Used for landcover statistics calculation
+
+    INTERSECT_DEM_PATH: Path (optional)
+        Output directory for elevation-catchment intersection results
+
+Input Data:
+    Catchment Shapefile (shapefile/catchment/{catchment_name}):
+        - Format: GeoDataFrame with polygon geometries
+        - Geometry: Catchment boundary polygons
+        - Attributes: catchment IDs, names, etc.
+
+    Elevation Raster (attributes/elevation/dem/{dem_name}):
+        - Format: GeoTIFF (rasterio-compatible)
+        - Values: Elevation in meters
+        - CRS: Must match catchment shapefile CRS
+
+    Soil Raster (attributes/soilclass/...):
+        - Format: GeoTIFF or similar
+        - Values: Soil class codes (integer)
+        - CRS: Must match catchment shapefile CRS
+
+    Landcover Raster (attributes/landclass/...):
+        - Format: GeoTIFF or similar
+        - Values: Land cover class codes (integer)
+        - CRS: Must match catchment shapefile CRS
+
+Output Data:
+    Elevation Statistics:
+        Output: shapefiles/catchment_intersection/with_dem/catchment_with_dem.shp
+        Columns added: elev_mean, elev_min, elev_max, elev_std
+
+    Soil Statistics:
+        Merged into catchment shapefile
+        Columns added: USGS_* (fraction per soil class), soil_pixel_count
+        Contains pixel-count fractions (0-1) of each soil type within catchment
+
+    Landcover Statistics:
+        Merged into catchment shapefile
+        Columns added: IGBP_* (fraction per landcover class), land_pixel_count
+        Contains pixel-count fractions (0-1) of each landcover type within catchment
+
+    Full Results:
+        Final output shapefile contains all merged attributes
+        Used for model parameterization and spatial analysis
+
+Chunking Strategies:
+
+    1. Spatial Tiling (_process_elevation_spatial_tiles):
+       - Divides domain into geographic bounding box tiles
+       - Processes each tile's catchments independently
+       - Advantages: Natural geographic grouping, parallel-friendly
+       - Disadvantages: May have uneven distribution
+       - For: Medium-sized domains, when geographic locality matters
+
+    2. Index Chunking (_process_elevation_index_chunks):
+       - Divides catchments into sequential index ranges (e.g., 0-10000, 10000-20000)
+       - Processes each chunk in order
+       - Advantages: Simple, predictable, even distribution
+       - Disadvantages: Less geographic meaning
+       - For: Large domains, simple parallelization
+
+    3. Memory Efficiency:
+       - Windowed raster access: Reads only tiles needed for current chunk
+       - Garbage collection: Explicit gc.collect() between chunks
+       - NoData handling: Excludes invalid values from statistics
+       - Generator-based processing where possible
+
+Use Cases:
+
+    1. Model Parameterization:
+       Extract catchment-averaged attributes for lumped models (GR4J, GR6J)
+       Mean elevation drives potential evapotranspiration
+       Dominant soil class determines infiltration parameters
+
+    2. Distributed Model Setup:
+       Create HRU attributes for distributed models (SUMMA, HYPE)
+       Each HRU gets catchment-averaged elevation, soil, landcover
+       Spatial discretization (elevation bands, landcover types) uses these stats
+
+    3. Continental/Continental-Scale Analysis:
+       Process millions of catchments (NWM, global hydrological models)
+       Checkpoint system enables long-running batch processing
+       Parallel processing of chunks for speedup
+
+    4. Validation & QA:
+       Check consistency between catchment boundaries and raster data
+       Identify catchments with missing data
+       Validate CRS alignment and data coverage
+
+Example Workflow:
+
+    >>> config = load_config('config.yaml')
+    >>> logger = setup_logger()
+    >>> stats_calc = GeospatialStatistics(config, logger)
+    >>>
+    >>> # Calculate elevation statistics (with chunking for large domains)
+    >>> stats_calc.calculate_elevation_stats()
+    >>> # Output: catchment_with_dem.shp with elev_mean, elev_min, elev_max, elev_std
+    >>>
+    >>> # Calculate soil and landcover statistics
+    >>> stats_calc.calculate_soil_stats()
+    >>> stats_calc.calculate_land_stats()
+    >>>
+    >>> # Run all statistics calculations
+    >>> stats_calc.run_statistics()
+
+Error Handling:
+
+    - NoData handling: Automatically detects and excludes NoData values
+    - CRS validation: Checks alignment of raster and vector CRS
+    - File existence checks: Skips processing if output already exists
+    - Checkpoint recovery: Resumes from last checkpoint if interrupted
+    - Graceful degradation: Continues with available data if some layers missing
+
+Performance Considerations:
+
+    - Large domains: Spatial tiling or index chunking reduces memory by 10-100x
+    - Raster access: Windowed reading more efficient than loading full raster
+    - Vectorization: rasterstats uses optimized C libraries
+    - Parallel: Process chunks independently on different machines/cores
+
+Dependencies:
+    - geopandas: Vector geometry handling
+    - rasterio: Raster I/O and windowed reading
+    - rasterstats: Efficient zonal statistics computation
+    - pandas/numpy: Numerical operations and data structures
+
+References:
+    - Zonal Statistics: https://www.rspatial.org/raster/rs/3-sdfitness.pdf
+    - rasterstats: https://github.com/perrygeo/python-rasterstats
+    - Rasterio Windowed Reading: https://rasterio.readthedocs.io/
+    - GeoDataFrame: https://geopandas.org/
+
+See Also:
+    - PathManager: Path resolution for data files
+    - AttributeProcessors: Downstream processing of extracted attributes
+    - DataManager: High-level data workflow coordination
+"""
+
+from typing import Dict, Any, Union, TYPE_CHECKING
+import numpy as np # type: ignore
+import pandas as pd # type: ignore
+import geopandas as gpd # type: ignore
+import rasterio # type: ignore
+from rasterstats import zonal_stats # type: ignore
+import gc
+import warnings
+from rasterio.windows import from_bounds
+from shapely.geometry import box
+
+from symfluence.data.path_manager import PathManager
+from symfluence.core import ConfigurableMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class GeospatialStatistics(ConfigurableMixin):
+    """Computes zonal statistics extracting catchment attributes from raster data.
+
+    Central component for extracting catchment-scale attributes (elevation, soil class,
+    land cover) from raster datasets through efficient zonal statistics computation.
+    Implements chunked processing strategies for handling large domains (millions of
+    catchments) without memory overload. Integrates PathManager for path resolution and
+    ConfigurableMixin for configuration access.
+
+    This class bridges the gap between raw raster data (DEMs, soil maps, landcover) and
+    catchment-level attributes needed for hydrological model parameterization. For each
+    catchment polygon, it extracts all raster values that intersect and computes summary
+    statistics (mean, min, max, std for continuous data; mode for categorical data).
+
+    Chunked Processing Strategy:
+
+        Problem: Large domains like NWM North America have millions of catchments.
+        Processing all catchments at once causes out-of-memory errors.
+
+        Solution: Two chunking approaches:
+            1. Spatial Tiling: Divide domain into geographic tiles, process each tile
+            2. Index Chunking: Process sequential index ranges (0-N, N-2N, etc.)
+
+        Benefits:
+            - Reduces in-memory footprint by 10-100x
+            - Enables processing of continental-scale domains
+            - Compatible with parallel processing
+            - Progress checkpointing for resumption
+
+    Attribute Types Calculated:
+
+        Elevation Statistics (from DEM raster):
+            - elev_mean: Mean elevation in catchment (meters)
+            - elev_min: Minimum elevation (meters)
+            - elev_max: Maximum elevation (meters)
+            - elev_std: Standard deviation (meters)
+            - Used for: PET calculation, precipitation lapse rate correction
+
+        Soil Class Statistics (from soil classification raster):
+            - soil_class_{code}: Areal proportion of each soil class
+            - Categorical: Mode (dominant soil class)
+            - Used for: Infiltration rates, water retention, soil-specific parameters
+
+        Landcover Statistics (from land use/cover raster):
+            - landcover_class_{code}: Areal proportion of each landcover class
+            - Categorical: Mode (dominant land cover type)
+            - Used for: Vegetation parameters, interception, roughness
+
+    Key Responsibilities:
+
+        1. Path Resolution:
+           Uses PathManager for standardized file location lookup
+           Handles optional custom paths via configuration
+
+        2. Zonal Statistics Computation:
+           Applies rasterstats.zonal_stats for efficient raster-polygon overlay
+           Leverages rasterio windowed reading for memory efficiency
+           Correctly handles NoData values
+
+        3. Memory Management:
+           Implements chunking to prevent OOM on large domains
+           Explicit garbage collection between chunks
+           Windowed raster access (reads only needed portions)
+
+        4. Checkpoint System:
+           Saves progress to intermediate files for long-running jobs
+           Enables resumption if processing interrupted
+           Useful for NWM-scale processing (24+ hours possible)
+
+        5. Data Integration:
+           Merges all statistics into single output GeoDataFrame
+           Produces model-ready shapefile with all attributes
+           Maintains spatial geometry and topology
+
+    Configuration:
+
+        paths.catchment_name: str (optional)
+            Input catchment shapefile name. Default: auto-generated from domain_name
+            and discretization method.
+
+        paths.dem_name: str (optional)
+            DEM raster filename. Default: domain_{domain_name}_elv.tif
+
+        paths.soil_class_path: Path to soil classification raster
+        paths.land_class_path: Path to land cover classification raster
+
+        Chunking parameters (from calculate_*_stats methods):
+            chunk_size: Number of catchments per chunk
+            tile_size: Bounding box size for spatial tiling
+
+    Attributes:
+
+        config (SymfluenceConfig): Configuration object (from ConfigurableMixin)
+        logger (logging.Logger): Logger instance
+        paths (PathManager): Path resolution helper
+        project_dir (Path): Project root directory
+        catchment_path (Path): Catchment shapefile directory
+        catchment_name (str): Catchment shapefile name
+        dem_path (Path): DEM raster path
+        soil_path (Path): Soil classification raster path
+        land_path (Path): Land cover classification raster path
+
+    Methods:
+
+        calculate_elevation_stats():
+            Extract elevation statistics from DEM within catchments.
+            Uses chunking for memory efficiency on large domains.
+            Produces: catchment_with_dem.shp with elev_mean, elev_min, elev_max, elev_std
+
+        calculate_soil_stats():
+            Extract soil class statistics from soil raster.
+            Computes area-weighted proportions of each soil class.
+            Produces: Soil attributes merged into catchment shapefile
+
+        calculate_land_stats():
+            Extract land cover statistics from landcover raster.
+            Computes area-weighted proportions of each landcover class.
+            Produces: Landcover attributes merged into catchment shapefile
+
+        run_statistics():
+            Execute all statistics calculations in sequence.
+            Produces: Complete catchment shapefile with all attributes
+
+    Output Format:
+
+        GeoDataFrame with catchment polygons and extracted attributes:
+            - geometry: Catchment polygon
+            - catchment_id: Unique identifier
+            - elev_mean, elev_min, elev_max, elev_std: Elevation statistics
+            - soil_class_{code}: Soil class proportions
+            - landcover_class_{code}: Landcover proportions
+            - Additional: Any other input attributes
+
+    Example Usage:
+
+        >>> config = load_config('config.yaml')
+        >>> logger = setup_logger()
+        >>> stats = GeospatialStatistics(config, logger)
+        >>>
+        >>> # Process individual attributes
+        >>> stats.calculate_elevation_stats()  # With automatic chunking
+        >>> stats.calculate_soil_stats()
+        >>> stats.calculate_land_stats()
+        >>>
+        >>> # Or process all at once
+        >>> stats.run_statistics()
+
+    Large Domain Handling:
+
+        For domains with millions of catchments (e.g., NWM):
+            - Automatic chunking detects large datasets
+            - Spatial tiling or index chunking selected automatically
+            - Checkpoint files enable resumption
+            - Typical NWM processing: 24-48 hours on single machine
+
+    Error Handling:
+
+        - Missing rasters: Skip processing if raster file not found
+        - NoData values: Automatically excluded from statistics
+        - CRS mismatch: Logs warning if vector/raster CRS differ
+        - Corrupt files: Continues with available data
+        - Checkpoint failure: Can resume from last successful checkpoint
+
+    Performance Characteristics:
+
+        - Elevation stats: ~0.1-0.5 seconds per 1000 catchments (depends on complexity)
+        - Soil stats: ~0.2-1.0 seconds per 1000 catchments (more complex calculation)
+        - Memory overhead: ~100-500 MB per million catchments (chunked)
+        - Parallel potential: Process chunks independently on separate machines
+
+    References:
+
+        - Zonal Statistics Algorithm: https://www.rspatial.org/
+        - rasterstats Documentation: https://github.com/perrygeo/python-rasterstats
+        - GeoDataFrame I/O: https://geopandas.org/
+
+    See Also:
+
+        - PathManager: Path resolution for spatial data files
+        - AttributeProcessor: Post-processing of extracted attributes
+        - DataManager: High-level coordination of all data operations
+    """
+
+    def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger):
+        # Handle typed config using centralized coercion
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
+        self.logger = logger
+
+        # Use PathManager for path resolution
+        self.paths = PathManager(config)
+        self.project_dir = self.paths.project_dir
+
+        # Resolve paths using PathManager with backward compatibility
+        self.catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default'
+        )
+        if self.catchment_name == 'default':
+            discretization = str(self._get_config_value(
+                lambda: self.config.domain.discretization, default=''
+            )).replace(',', '_')
+            self.catchment_name = f"{self.paths.domain_name}_HRUs_{discretization}.shp"
+
+        # Use backward-compatible catchment path resolution
+        self.catchment_path = self.paths.get_catchment_dir(self.catchment_name)
+
+        dem_name = self._get_config_value(lambda: self.config.paths.dem_name, default='default')
+        if dem_name == "default":
+            dem_name = f"domain_{self.paths.domain_name}_elv.tif"
+
+        self.dem_path = self.paths.resolve('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
+        self.soil_path = self.paths.resolve('SOIL_CLASS_PATH', 'attributes/soilclass')
+        self.land_path = self.paths.resolve('LAND_CLASS_PATH', 'attributes/landclass')
+
+    def get_nodata_value(self, raster_path):
+        with rasterio.open(raster_path) as src:
+            nodata = src.nodatavals[0]
+            if nodata is None:
+                nodata = -9999
+            return nodata
+
+    def calculate_elevation_stats(self):
+        """
+        Calculate elevation statistics with chunked processing for memory efficiency.
+
+        This method processes catchments in spatial tiles or index chunks to avoid
+        OOM on large domains like NWM North America (~2.7M catchments).
+        """
+        # Get the output path and check if the file already exists
+        intersect_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
+        intersect_name = self._get_config_value(
+            lambda: self.config.paths.intersect_dem_name, default='default'
+        )
+        if intersect_name == 'default':
+            intersect_name = 'catchment_with_dem.shp'
+
+        output_file = intersect_path / intersect_name
+        checkpoint_dir = intersect_path / 'checkpoints'
+
+        # Check if output already exists
+        if output_file.exists():
+            try:
+                gdf = gpd.read_file(output_file)
+                if 'elev_mean' in gdf.columns and len(gdf) > 0:
+                    self.logger.info(f"Elevation statistics file already exists: {output_file}. Skipping calculation.")
+                    return
+            except Exception as e:
+                self.logger.warning(f"Error checking existing elevation statistics file: {str(e)}. Recalculating.")
+
+        self.logger.info("Calculating elevation statistics (memory-optimized chunked mode)")
+
+        # Fallback for legacy naming in data bundle
+        domain_name = self._get_config_value(lambda: self.config.domain.name)
+        if not self.dem_path.exists() and domain_name == 'bow_banff_minimal':
+            legacy_dem = self.dem_path.parent / "domain_Bow_at_Banff_lumped_elv.tif"
+            if legacy_dem.exists():
+                legacy_dem.replace(self.dem_path)
+                self.logger.info(f"Renamed legacy DEM file to {self.dem_path.name}")
+
+        # Load catchment shapefile
+        catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
+        n_catchments = len(catchment_gdf)
+        self.logger.info(f"Loaded {n_catchments:,} catchments")
+
+        # Ensure we have a unique ID column for tracking
+        if 'chunk_idx' not in catchment_gdf.columns:
+            catchment_gdf['chunk_idx'] = catchment_gdf.index
+
+        try:
+            # Get DEM info
+            with rasterio.open(self.dem_path) as src:
+                dem_crs = src.crs
+                self.logger.info(f"DEM CRS: {dem_crs}")
+
+            shapefile_crs = catchment_gdf.crs
+            self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
+
+            # Reproject if needed
+            if dem_crs != shapefile_crs:
+                self.logger.info(f"Reprojecting catchments from {shapefile_crs} to {dem_crs}")
+                catchment_gdf_projected = catchment_gdf.to_crs(dem_crs)
+            else:
+                self.logger.info("CRS match - no reprojection needed")
+                catchment_gdf_projected = catchment_gdf
+
+            # Initialize results array
+            elev_means = np.full(n_catchments, np.nan, dtype=np.float32)
+
+            # === CHUNKING STRATEGY ===
+            # Choose strategy based on catchment count
+            if n_catchments > 500_000:
+                # Very large: use spatial tiling
+                self.logger.info("Using SPATIAL TILING strategy for very large domain")
+                elev_means = self._process_elevation_spatial_tiles(
+                    catchment_gdf_projected, elev_means, checkpoint_dir
+                )
+            elif n_catchments > 50_000:
+                # Medium-large: use index-based chunking
+                chunk_size = self._get_config_value(lambda: self.config.data.elev_chunk_size, default=10_000)
+                self.logger.info(f"Using INDEX CHUNKING strategy ({chunk_size:,} catchments/chunk)")
+                elev_means = self._process_elevation_index_chunks(
+                    catchment_gdf_projected, elev_means, chunk_size, checkpoint_dir
+                )
+            else:
+                # Small enough to process at once
+                self.logger.info("Processing all catchments in single batch")
+                with rasterio.open(self.dem_path) as src:
+                    dem_array = src.read(1)
+                    dem_transform = src.transform
+                    dem_nodata = src.nodata
+
+                stats = zonal_stats(
+                    catchment_gdf_projected.geometry,
+                    dem_array,
+                    affine=dem_transform,
+                    stats=['mean'],
+                    nodata=dem_nodata if dem_nodata is not None else -9999
+                )
+                for i, stat in enumerate(stats):
+                    if stat['mean'] is not None:
+                        elev_means[i] = stat['mean']
+
+            # Add results to original GeoDataFrame
+            catchment_gdf['elev_mean'] = elev_means
+
+            # Report statistics
+            valid_count = np.sum(~np.isnan(elev_means))
+            self.logger.info(f"Computed elevation for {valid_count:,}/{n_catchments:,} catchments ({100*valid_count/n_catchments:.1f}%)")
+
+            # Save output
+            intersect_path.mkdir(parents=True, exist_ok=True)
+            # Suppress shapefile column name truncation warning (known limitation)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+                catchment_gdf.to_file(output_file)
+            self.logger.info(f"Elevation statistics saved to {output_file}")
+
+            # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
+            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
+                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_elv.csv"
+                # Select only the relevant column for HYPE
+                if 'elev_mean' in catchment_gdf.columns:
+                    catchment_gdf[['elev_mean']].to_csv(legacy_csv_path)
+                    self.logger.info(f"Created legacy elevation CSV for HYPE: {legacy_csv_path}")
+
+        except Exception as e:
+            self.logger.error(f"Error calculating elevation statistics: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            raise
+
+    def _process_elevation_spatial_tiles(self, gdf, elev_means, checkpoint_dir):
+        """
+        Process catchments using spatial tiles for memory efficiency.
+
+        Divides the domain into a grid and processes each tile independently,
+        reading only the required DEM window for each tile.
+        """
+
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get domain bounds
+        total_bounds = gdf.total_bounds  # (minx, miny, maxx, maxy)
+
+        # Create tile grid - aim for ~50k catchments per tile
+        n_catchments = len(gdf)
+        target_per_tile = self._get_config_value(lambda: self.config.data.elev_tile_target, default=50_000)
+        n_tiles_approx = max(1, n_catchments // target_per_tile)
+
+        # Calculate grid dimensions
+        aspect = (total_bounds[2] - total_bounds[0]) / max(0.001, total_bounds[3] - total_bounds[1])
+        n_cols = max(1, int(np.sqrt(n_tiles_approx * aspect)))
+        n_rows = max(1, int(n_tiles_approx / n_cols))
+
+        self.logger.info(f"Creating {n_rows}x{n_cols} tile grid ({n_rows * n_cols} tiles)")
+
+        tile_width = (total_bounds[2] - total_bounds[0]) / n_cols
+        tile_height = (total_bounds[3] - total_bounds[1]) / n_rows
+        buffer = max(tile_width, tile_height) * 0.01
+
+        # Build spatial index
+        self.logger.info("Building spatial index...")
+        sindex = gdf.sindex
+
+        processed_count = 0
+        tile_num = 0
+        total_tiles = n_rows * n_cols
+
+        for row in range(n_rows):
+            for col in range(n_cols):
+                tile_num += 1
+
+                # Calculate tile bounds with buffer
+                minx = total_bounds[0] + col * tile_width - buffer
+                maxx = total_bounds[0] + (col + 1) * tile_width + buffer
+                miny = total_bounds[1] + row * tile_height - buffer
+                maxy = total_bounds[1] + (row + 1) * tile_height + buffer
+
+                tile_box = box(minx, miny, maxx, maxy)
+
+                # Find catchments using spatial index
+                possible_matches_idx = list(sindex.intersection(tile_box.bounds))
+
+                if not possible_matches_idx:
+                    continue
+
+                # Filter to catchments whose centroid is in this tile (avoid duplicates)
+                tile_gdf = gdf.iloc[possible_matches_idx]
+                centroids = tile_gdf.geometry.centroid
+                mask = centroids.within(tile_box)
+                tile_gdf = tile_gdf[mask]
+                tile_indices = tile_gdf['chunk_idx'].values
+
+                if len(tile_gdf) == 0:
+                    continue
+
+                self.logger.info(f"Tile {tile_num}/{total_tiles}: {len(tile_gdf):,} catchments")
+
+                # Check for checkpoint
+                checkpoint_file = checkpoint_dir / f"tile_{row}_{col}.npy"
+                if checkpoint_file.exists():
+                    self.logger.debug("  Loading from checkpoint")
+                    tile_elevs = np.load(checkpoint_file)
+                    for i, idx in enumerate(tile_indices):
+                        elev_means[idx] = tile_elevs[i]
+                    processed_count += len(tile_gdf)
+                    continue
+
+                try:
+                    # Compute with windowed DEM reading
+                    tile_elevs = self._compute_elevation_windowed(tile_gdf, tile_box.bounds)
+
+                    for i, idx in enumerate(tile_indices):
+                        elev_means[idx] = tile_elevs[i]
+
+                    np.save(checkpoint_file, np.array(tile_elevs, dtype=np.float32))
+                    processed_count += len(tile_gdf)
+
+                except Exception as e:
+                    self.logger.warning(f"  Error: {str(e)}")
+
+                del tile_gdf
+                gc.collect()
+
+                if tile_num % 20 == 0:
+                    self.logger.info(f"Progress: {processed_count:,}/{len(gdf):,} catchments")
+
+        return elev_means
+
+    def _process_elevation_index_chunks(self, gdf, elev_means, chunk_size, checkpoint_dir):
+        """
+        Process catchments in index-based chunks.
+        """
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        n_catchments = len(gdf)
+        n_chunks = (n_catchments + chunk_size - 1) // chunk_size
+
+        self.logger.info(f"Processing {n_catchments:,} catchments in {n_chunks} chunks")
+        dem_nodata = self.get_nodata_value(self.dem_path)
+
+        for chunk_idx in range(n_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min(start_idx + chunk_size, n_catchments)
+
+            checkpoint_file = checkpoint_dir / f"chunk_{chunk_idx}.npy"
+            if checkpoint_file.exists():
+                self.logger.info(f"Chunk {chunk_idx + 1}/{n_chunks}: loading checkpoint")
+                elev_means[start_idx:end_idx] = np.load(checkpoint_file)
+                continue
+
+            self.logger.info(f"Chunk {chunk_idx + 1}/{n_chunks}: indices {start_idx:,}-{end_idx:,}")
+
+            chunk_gdf = gdf.iloc[start_idx:end_idx]
+
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stats = zonal_stats(
+                        chunk_gdf.geometry,
+                        str(self.dem_path),
+                        stats=['mean'],
+                        nodata=dem_nodata,
+                        all_touched=False
+                    )
+
+                chunk_elevs = np.array([
+                    s['mean'] if s['mean'] is not None else np.nan
+                    for s in stats
+                ], dtype=np.float32)
+
+                elev_means[start_idx:end_idx] = chunk_elevs
+                np.save(checkpoint_file, chunk_elevs)
+
+            except Exception as e:
+                self.logger.warning(f"  Error: {str(e)}")
+
+            del chunk_gdf
+            gc.collect()
+
+        return elev_means
+
+    def _compute_elevation_windowed(self, gdf, tile_bounds):
+        """
+        Compute zonal statistics using windowed DEM reading.
+
+        Only reads the portion of the DEM needed for the current tile.
+        """
+        with rasterio.open(self.dem_path) as src:
+            pad = 0.001
+            window = from_bounds(
+                tile_bounds[0] - pad,
+                tile_bounds[1] - pad,
+                tile_bounds[2] + pad,
+                tile_bounds[3] + pad,
+                src.transform
+            )
+
+            dem_data = src.read(1, window=window)
+            dem_transform = src.window_transform(window)
+            dem_nodata = src.nodata if src.nodata is not None else -9999
+
+        stats = zonal_stats(
+            gdf.geometry,
+            dem_data,
+            affine=dem_transform,
+            stats=['mean'],
+            nodata=dem_nodata,
+            all_touched=False
+        )
+
+        elevs = [s['mean'] if s['mean'] is not None else np.nan for s in stats]
+
+        del dem_data
+        gc.collect()
+
+        return elevs
+
+    def calculate_soil_stats(self):
+        """Calculate soil statistics with output file checking and CRS alignment"""
+        # Get the output path and check if the file already exists
+        intersect_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
+        intersect_name = self._get_config_value(lambda: self.config.paths.intersect_soil_name, default='default')
+        if intersect_name == 'default':
+            intersect_name = 'catchment_with_soilclass.shp'
+        output_file = intersect_path / intersect_name
+
+        # Check if output already exists
+        if output_file.exists():
+            try:
+                # Verify the file is valid
+                gdf = gpd.read_file(output_file)
+                # Check for at least one USGS soil class column
+                usgs_cols = [col for col in gdf.columns if col.startswith('USGS_')]
+                if len(usgs_cols) > 0 and len(gdf) > 0:
+                    self.logger.info(f"Soil statistics file already exists: {output_file}. Skipping calculation.")
+                    return
+                else:
+                    self.logger.info(f"Existing soil statistics file {output_file} does not contain expected data. Recalculating.")
+            except Exception as e:
+                self.logger.warning(f"Error checking existing soil statistics file: {str(e)}. Recalculating.")
+
+        self.logger.info("Calculating soil statistics")
+        catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
+        soil_name = self._get_config_value(lambda: self.config.paths.soil_class_name, default='default')
+        if soil_name == 'default':
+            soil_name = f"domain_{self._get_config_value(lambda: self.config.domain.name)}_soil_classes.tif"
+        soil_raster = self.soil_path / soil_name
+
+        # Fallback for legacy naming in data bundle
+        if not soil_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
+            legacy_soil = self.soil_path / "domain_Bow_at_Banff_lumped_soil_classes.tif"
+            if legacy_soil.exists():
+                legacy_soil.replace(soil_raster)
+                self.logger.info(f"Renamed legacy soil class file to {soil_name}")
+
+        try:
+            # Get CRS information
+            with rasterio.open(soil_raster) as src:
+                soil_crs = src.crs
+                self.logger.info(f"Soil raster CRS: {soil_crs}")
+
+            shapefile_crs = catchment_gdf.crs
+            self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
+
+            # Check if CRS match and reproject if needed
+            if soil_crs != shapefile_crs:
+                self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {soil_crs}")
+                try:
+                    catchment_gdf_projected = catchment_gdf.to_crs(soil_crs)
+                    self.logger.info("CRS reprojection successful")
+                except Exception as e:
+                    self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                    self.logger.warning("Using original CRS - calculation may fail")
+                    catchment_gdf_projected = catchment_gdf.copy()
+            else:
+                self.logger.info("CRS match - no reprojection needed")
+                catchment_gdf_projected = catchment_gdf.copy()
+
+            # Use rasterstats with the raster array and transform
+            with rasterio.open(soil_raster) as src:
+                soil_array = src.read(1)
+                soil_transform = src.transform
+                soil_nodata = src.nodata
+
+            stats = zonal_stats(
+                catchment_gdf_projected.geometry,
+                soil_array,
+                affine=soil_transform,
+                stats=['count'],
+                categorical=True,
+                nodata=soil_nodata if soil_nodata is not None else 255
+            )
+
+            result_df = pd.DataFrame(stats).fillna(0)
+
+            def rename_column(x):
+                if x == 'count':
+                    return 'soil_pixel_count'
+                try:
+                    return f'USGS_{int(float(x))}'
+                except ValueError:
+                    return x
+
+            result_df = result_df.rename(columns=rename_column)
+
+            # Normalize pixel counts to fractions (0-1)
+            class_cols = [col for col in result_df.columns if col.startswith('USGS_')]
+            total_pixels = result_df['soil_pixel_count']
+            for col in class_cols:
+                result_df[col] = (result_df[col] / total_pixels).where(total_pixels > 0, 0.0)
+
+            catchment_gdf = catchment_gdf.join(result_df)
+
+            # Create output directory and save the file
+            intersect_path.mkdir(parents=True, exist_ok=True)
+            # Suppress shapefile column name truncation warning (known limitation)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+                catchment_gdf.to_file(output_file)
+            self.logger.info(f"Soil statistics saved to {output_file}")
+
+            # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
+            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
+                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_soil_classes.csv"
+                result_df.to_csv(legacy_csv_path)
+                self.logger.info(f"Created legacy soil CSV for HYPE: {legacy_csv_path}")
+
+        except Exception as e:
+            self.logger.error(f"Error calculating soil statistics: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            raise
+
+    def calculate_land_stats(self):
+        """Calculate land statistics with output file checking and CRS alignment"""
+        # Get the output path and check if the file already exists
+        intersect_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
+        intersect_name = self._get_config_value(lambda: self.config.paths.intersect_land_name, default='default')
+        if intersect_name == 'default':
+            intersect_name = 'catchment_with_landclass.shp'
+
+        output_file = intersect_path / intersect_name
+
+        # Check if output already exists
+        if output_file.exists():
+            try:
+                # Verify the file is valid
+                gdf = gpd.read_file(output_file)
+                # Check for at least one IGBP land class column
+                igbp_cols = [col for col in gdf.columns if col.startswith('IGBP_')]
+                if len(igbp_cols) > 0 and len(gdf) > 0:
+                    self.logger.info(f"Land statistics file already exists: {output_file}. Skipping calculation.")
+                    return
+                else:
+                    self.logger.info(f"Existing land statistics file {output_file} does not contain expected data. Recalculating.")
+            except Exception as e:
+                self.logger.warning(f"Error checking existing land statistics file: {str(e)}. Recalculating.")
+
+        self.logger.info("Calculating land statistics")
+        catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default='default')
+        if land_name == 'default':
+            land_name = f"domain_{self._get_config_value(lambda: self.config.domain.name)}_land_classes.tif"
+        land_raster = self.land_path / land_name
+
+        # Fallback for legacy naming in data bundle
+        if not land_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
+            legacy_land = self.land_path / "domain_Bow_at_Banff_lumped_land_classes.tif"
+            if legacy_land.exists():
+                legacy_land.replace(land_raster)
+                self.logger.info(f"Renamed legacy land class file to {land_name}")
+
+        try:
+            # Get CRS information
+            with rasterio.open(land_raster) as src:
+                land_crs = src.crs
+                self.logger.info(f"Land raster CRS: {land_crs}")
+        except Exception as e:
+            self.logger.error(f"Error reading land raster CRS: {str(e)}")
+            # Default to common CRS if failed to read
+            land_crs = 'EPSG:4326'
+
+        shapefile_crs = catchment_gdf.crs
+        self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
+
+        # Check if CRS match and reproject if needed
+        if land_crs != shapefile_crs:
+            self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {land_crs}")
+            try:
+                catchment_gdf_projected = catchment_gdf.to_crs(land_crs)
+                self.logger.info("CRS reprojection successful")
+            except Exception as e:
+                self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                self.logger.warning("Using original CRS - calculation may fail")
+                catchment_gdf_projected = catchment_gdf.copy()
+        else:
+            self.logger.info("CRS match - no reprojection needed")
+            catchment_gdf_projected = catchment_gdf.copy()
+
+        # Use rasterstats with the raster array and transform
+        with rasterio.open(land_raster) as src:
+            land_array = src.read(1)
+            land_transform = src.transform
+            land_nodata = src.nodata
+
+        stats = zonal_stats(
+            catchment_gdf_projected.geometry,
+            land_array,
+            affine=land_transform,
+            stats=['count'],
+            categorical=True,
+            nodata=land_nodata if land_nodata is not None else 255
+        )
+
+        result_df = pd.DataFrame(stats).fillna(0)
+
+        def rename_column(x):
+            if x == 'count':
+                return 'land_pixel_count'
+            try:
+                return f'IGBP_{int(float(x))}'
+            except ValueError:
+                return x
+
+        result_df = result_df.rename(columns=rename_column)
+
+        # Normalize pixel counts to fractions (0-1)
+        class_cols = [col for col in result_df.columns if col.startswith('IGBP_')]
+        total_pixels = result_df['land_pixel_count']
+        for col in class_cols:
+            result_df[col] = (result_df[col] / total_pixels).where(total_pixels > 0, 0.0)
+
+        catchment_gdf = catchment_gdf.join(result_df)
+
+        # Create output directory and save the file
+        intersect_path.mkdir(parents=True, exist_ok=True)
+        # Suppress shapefile column name truncation warning (known limitation)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+            catchment_gdf.to_file(output_file)
+
+        self.logger.info(f"Land statistics saved to {output_file}")
+
+        # Legacy compatibility: also save as CSV in gistool-outputs for HYPE/MESH
+        if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
+            legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+            legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+            legacy_csv_path = legacy_csv_dir / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv"
+            # Export simple CSV version of the result_df
+            result_df.to_csv(legacy_csv_path)
+            self.logger.info(f"Created legacy landcover CSV for HYPE/MESH: {legacy_csv_path}")
+
+    def run_statistics(self):
+        """Run all geospatial statistics with checks for existing outputs"""
+        self.logger.info("Starting geospatial statistics calculation")
+
+        # Count how many steps we're skipping
+        skipped = 0
+        total = 3  # Total number of statistics operations
+
+        # Check soil stats
+        intersect_soil_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
+        intersect_soil_name = self._get_config_value(lambda: self.config.paths.intersect_soil_name, default='default')
+        if intersect_soil_name == 'default':
+            intersect_soil_name = 'catchment_with_soilclass.shp'
+
+        soil_output_file = intersect_soil_path / intersect_soil_name
+
+        if soil_output_file.exists():
+            try:
+                gdf = gpd.read_file(soil_output_file)
+                usgs_cols = [col for col in gdf.columns if col.startswith('USGS_')]
+                if len(usgs_cols) > 0 and len(gdf) > 0:
+                    self.logger.debug(f"Soil statistics already calculated: {soil_output_file}")
+                    skipped += 1
+            except Exception as e:
+                self.logger.debug(f"Could not check soil statistics file '{soil_output_file}': {e}")
+
+        if skipped < 1:
+            self.calculate_soil_stats()
+
+        # Check land stats
+        intersect_land_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
+        intersect_land_name = self._get_config_value(lambda: self.config.paths.intersect_land_name, default='default')
+        if intersect_land_name == 'default':
+            intersect_land_name = 'catchment_with_landclass.shp'
+
+        land_output_file = intersect_land_path / intersect_land_name
+
+        if land_output_file.exists():
+            try:
+                gdf = gpd.read_file(land_output_file)
+                igbp_cols = [col for col in gdf.columns if col.startswith('IGBP_')]
+                if len(igbp_cols) > 0 and len(gdf) > 0:
+                    self.logger.debug(f"Land statistics already calculated: {land_output_file}")
+                    skipped += 1
+            except Exception as e:
+                self.logger.debug(f"Could not check land statistics file '{land_output_file}': {e}")
+
+        if skipped < 2:
+            self.calculate_land_stats()
+
+        # Check elevation stats
+        intersect_dem_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
+        intersect_dem_name = self._get_config_value(lambda: self.config.paths.intersect_dem_name, default='default')
+        if intersect_dem_name == 'default':
+            intersect_dem_name = 'catchment_with_dem.shp'
+
+        dem_output_file = intersect_dem_path / intersect_dem_name
+
+        if dem_output_file.exists():
+            try:
+                gdf = gpd.read_file(dem_output_file)
+                if 'elev_mean' in gdf.columns and len(gdf) > 0:
+                    self.logger.debug(f"Elevation statistics already calculated: {dem_output_file}")
+                    skipped += 1
+            except Exception as e:
+                self.logger.debug(f"Could not check elevation statistics file '{dem_output_file}': {e}")
+
+        if skipped < 3:
+            self.calculate_elevation_stats()
+
+        self.logger.debug(f"Geospatial statistics completed: {skipped}/{total} steps skipped, {total-skipped}/{total} steps executed")

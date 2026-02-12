@@ -1,0 +1,50 @@
+/* Custom styles for SYMFLUENCE documentation */
+
+/* Card styling */
+.sd-card {
+    border-radius: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sd-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sd-card-title {
+    font-weight: 600;
+}
+
+/* Better sidebar spacing */
+.bd-sidebar-primary {
+    padding-top: 1rem;
+}
+
+/* Dark mode adjustments for hero text */
+html[data-theme="dark"] div[style*="text-align: center"] h1 {
+    color: #e9ecef !important;
+}
+
+html[data-theme="dark"] div[style*="text-align: center"] p {
+    color: #adb5bd !important;
+}
+
+/* Horizontal rules */
+hr {
+    border: none;
+    border-top: 1px solid #dee2e6;
+    margin: 2rem 0;
+}
+
+html[data-theme="dark"] hr {
+    border-top-color: #495057;
+}
+
+/* Grid cards - equal height */
+.sd-row .sd-col {
+    display: flex;
+}
+
+.sd-card {
+    width: 100%;
+}

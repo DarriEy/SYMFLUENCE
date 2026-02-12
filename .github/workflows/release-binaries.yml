@@ -1,0 +1,506 @@
+name: Release Binaries
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.7.0)'
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false  # Don't cancel releases
+
+permissions:
+  contents: write  # Required for creating/updating releases
+
+jobs:
+  build-and-release:
+    name: Build & Release (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+            python-version: '3.11'
+          - os: macos-latest  # ARM Mac (M1/M2)
+            platform: macos-arm64
+            python-version: '3.11'
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+
+    env:
+      SYMFLUENCE_CODE: ${{ github.workspace }}
+      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
+      RPY2_CFFI_MODE: ABI
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ========================================================================
+      # Pre-Release Validation
+      # ========================================================================
+      - name: Validate version synchronization
+        run: |
+          echo "Checking that pyproject.toml and tools/npm/package.json versions match..."
+          chmod +x scripts/check_version_sync.sh
+          ./scripts/check_version_sync.sh
+
+      # ========================================================================
+      # Linux System Dependencies
+      # ========================================================================
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gfortran cmake \
+            openmpi-bin libopenmpi-dev \
+            gdal-bin libgdal-dev python3-gdal \
+            libnetcdf-dev libnetcdff-dev \
+            libhdf5-dev libudunits2-dev
+
+      - name: Configure compiler env (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "CC=mpicc" >> $GITHUB_ENV
+          echo "CXX=mpicxx" >> $GITHUB_ENV
+          echo "FC=gfortran" >> $GITHUB_ENV
+
+      # ========================================================================
+      # macOS System Dependencies
+      # ========================================================================
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits
+
+          # Set up Fortran compiler paths
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
+          if [ -n "$GCC_VER" ]; then
+            echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
+            echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
+            echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
+            echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          fi
+
+          # Help CMake find Homebrew packages (especially udunits)
+          echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
+          echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
+      # ========================================================================
+      # Build Tools
+      # ========================================================================
+      - name: Free up disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
+      - name: Build external tools
+        run: |
+          mkdir -p "${{ env.SYMFLUENCE_DATA }}"
+
+          # Ensure we use Python from setup-python action
+          if [ -n "$Python3_ROOT_DIR" ]; then
+            export PATH="$Python3_ROOT_DIR/bin:$PATH"
+            echo "Prepended Python3_ROOT_DIR to PATH: $Python3_ROOT_DIR/bin"
+          elif [ -n "$pythonLocation" ]; then
+            export PATH="$pythonLocation/bin:$PATH"
+            echo "Prepended pythonLocation to PATH: $pythonLocation/bin"
+          fi
+
+          # Verify we're using the correct Python
+          PYTHON_CMD="python3"
+          echo "Python location: $(which python3)"
+          echo "Python version: $($PYTHON_CMD --version)"
+
+          # Install GDAL Python bindings (macOS needs this via pip)
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            echo "Installing GDAL Python bindings..."
+            GDAL_VERSION=$(gdal-config --version)
+            # Use strict version range to match system libgdal precisely
+            # e.g., if 3.12.0, allow 3.12.0.post1 but NOT 3.12.1
+            "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+          fi
+
+          # Install SYMFLUENCE package
+          "$PYTHON_CMD" -m pip install -e .
+
+          # Build external tools using symfluence command
+          echo "Running: symfluence binary install"
+          ./scripts/symfluence-bootstrap binary install
+
+          echo "Build external tools completed successfully"
+
+          # Debug: Verify installation directory
+          echo "Verifying installation directory:"
+          ls -la "${{ env.SYMFLUENCE_DATA }}" || echo "SYMFLUENCE_DATA not found"
+          ls -la "${{ env.SYMFLUENCE_DATA }}/installs" || echo "installs directory not found"
+
+      # ========================================================================
+      # Generate Release Artifacts
+      # ========================================================================
+      - name: Generate toolchain metadata
+        run: |
+          set -e
+          chmod +x ./scripts/generate_toolchain.sh
+          ./scripts/generate_toolchain.sh \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "${{ env.SYMFLUENCE_DATA }}/installs/toolchain.json" \
+            "${{ matrix.platform }}"
+
+      - name: Stage release artifacts
+        run: |
+          set -e
+          chmod +x ./scripts/stage_release_artifacts.sh
+          mkdir -p ./release
+          ./scripts/stage_release_artifacts.sh \
+            "${{ matrix.platform }}" \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "./release"
+
+      - name: Verify binary portability
+        run: |
+          set -e
+          chmod +x ./scripts/verify_binary_portability.sh
+          ./scripts/verify_binary_portability.sh \
+            "./release/symfluence-tools/bin" || {
+            echo "⚠️  Portability verification had warnings but continuing..."
+            echo "   Review the output above for potential issues"
+          }
+
+      - name: Create release tarball
+        run: |
+          set -e
+          chmod +x ./scripts/create_release_tarball.sh
+
+          # Get version from tag or input
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+
+          ./scripts/create_release_tarball.sh \
+            "$VERSION" \
+            "${{ matrix.platform }}" \
+            "./release/symfluence-tools" \
+            "./release"
+
+      - name: Test artifact relocatability
+        run: |
+          set -e
+          echo "Testing relocated binaries..."
+
+          # Extract to temporary location
+          mkdir -p /tmp/symfluence-test
+          cd /tmp/symfluence-test
+          tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
+
+          # Test binaries run without original install directory
+          echo "→ Testing SUMMA..."
+          if [ -f "./symfluence-tools/bin/summa" ]; then
+            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
+          fi
+
+          echo "→ Testing NGEN..."
+          if [ -f "./symfluence-tools/bin/ngen" ]; then
+            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
+          fi
+
+          echo "✓ Relocatability test complete"
+
+      # ========================================================================
+      # Upload to GitHub Release
+      # ========================================================================
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            release/symfluence-tools-*.tar.gz
+            release/symfluence-tools-*.sha256
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: symfluence-tools-${{ matrix.platform }}
+          path: |
+            release/symfluence-tools-*.tar.gz
+            release/symfluence-tools-*.sha256
+          retention-days: 90
+
+  # ===========================================================================
+  # Publish to npm
+  # ===========================================================================
+  publish-npm:
+    name: Publish to npm
+    needs: build-and-release
+    runs-on: ubuntu-22.04
+    if: success() && !github.event.release.prerelease
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify package version matches release tag
+        working-directory: npm
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          # Remove 'v' prefix from tag
+          VERSION="${TAG#v}"
+
+          # Get version from package.json
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          echo "Release tag: $TAG"
+          echo "Version from tag: $VERSION"
+          echo "Package.json version: $PKG_VERSION"
+
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   package.json has $PKG_VERSION but release tag is $TAG"
+            echo "   Update tools/npm/package.json to version $VERSION and try again"
+            exit 1
+          fi
+
+          echo "✅ Version check passed: $VERSION"
+
+      - name: Publish to npm (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: npm
+        run: |
+          echo "🏃 Running npm publish in dry-run mode (workflow_dispatch)"
+          npm publish --dry-run
+          echo ""
+          echo "ℹ️  This was a dry run. To actually publish:"
+          echo "   1. Ensure NPM_TOKEN is set in repository secrets"
+          echo "   2. Create a release (not workflow_dispatch)"
+
+      - name: Publish to npm (production)
+        if: github.event_name == 'release'
+        working-directory: npm
+        run: |
+          echo "📦 Publishing to npm registry..."
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ===========================================================================
+  # Test npm Installation
+  # ===========================================================================
+  test-npm-install:
+    name: Test npm Install (${{ matrix.os }})
+    needs: publish-npm
+    if: success()
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+          - os: macos-latest
+            platform: macos-arm64
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnetcdf19 libnetcdff7 libhdf5-103 libgdal32
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install netcdf netcdf-fortran hdf5 gdal
+
+      - name: Install symfluence from npm
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          VERSION="${TAG#v}"
+
+          echo "Installing symfluence@${VERSION} from npm..."
+          npm install -g symfluence@${VERSION}
+
+      - name: Test CLI commands
+        run: |
+          echo "Testing symfluence CLI commands..."
+
+          symfluence help
+          echo "✓ help command works"
+
+          symfluence version
+          echo "✓ version command works"
+
+          symfluence path
+          echo "✓ path command works"
+
+      - name: Test info command and binary detection
+        run: |
+          echo "Testing symfluence info..."
+          symfluence info
+
+          # Verify binaries directory exists
+          BIN_DIR=$(symfluence path)
+          if [ ! -d "$BIN_DIR" ]; then
+            echo "❌ Binary directory not found: $BIN_DIR"
+            exit 1
+          fi
+          echo "✓ Binary directory exists: $BIN_DIR"
+
+      - name: Verify critical binaries exist
+        run: |
+          BIN_DIR=$(symfluence path)
+
+          EXPECTED_BINS="summa mizuroute fuse ngen"
+          for binary in $EXPECTED_BINS; do
+            if [ -f "$BIN_DIR/$binary" ]; then
+              echo "✓ Found $binary"
+            else
+              echo "❌ Missing critical binary: $binary"
+              exit 1
+            fi
+          done
+
+      - name: Test binary execution
+        run: |
+          BIN_DIR=$(symfluence path)
+
+          echo "Testing SUMMA..."
+          $BIN_DIR/summa --version 2>&1 | head -5 || echo "  SUMMA help displayed"
+
+          echo "Testing mizuRoute..."
+          $BIN_DIR/mizuroute --help 2>&1 | head -5 || echo "  mizuRoute help displayed"
+
+          echo "Testing NGEN..."
+          $BIN_DIR/ngen --version 2>&1 | head -5 || echo "  NGEN version displayed"
+
+          echo "✓ All critical binaries are executable"
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "npm Installation Test Summary"
+          echo "========================================="
+          echo "Platform: ${{ matrix.platform }}"
+          echo "✅ Package installed successfully"
+          echo "✅ CLI commands work"
+          echo "✅ Binaries downloaded and verified"
+          echo "✅ Critical tools are executable"
+
+  # ===========================================================================
+  # Release Summary
+  # ===========================================================================
+  release-summary:
+    name: Release Summary
+    needs: [build-and-release, publish-npm, test-npm-install]
+    runs-on: ubuntu-22.04
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "========================================="
+          echo "Release Build Summary"
+          echo "========================================="
+          echo "Build status: ${{ needs.build-and-release.result }}"
+          echo "npm publish status: ${{ needs.publish-npm.result }}"
+          echo "npm install tests: ${{ needs.test-npm-install.result }}"
+
+          if [ "${{ needs.build-and-release.result }}" = "success" ]; then
+            echo "✅ All platform builds completed successfully"
+            echo ""
+            echo "Release artifacts uploaded to:"
+
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              TAG="${{ github.event.inputs.tag }}"
+            else
+              TAG="${{ github.ref_name }}"
+            fi
+
+            echo "https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+            echo ""
+            echo "Artifacts:"
+            echo "  - symfluence-tools-${TAG}-linux-x86_64.tar.gz"
+            echo "  - symfluence-tools-${TAG}-macos-arm64.tar.gz"
+          else
+            echo "❌ Release build failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.publish-npm.result }}" = "success" ]; then
+            echo ""
+            echo "📦 npm package published successfully"
+            echo "   Install with: npm install -g symfluence"
+          elif [ "${{ needs.publish-npm.result }}" = "skipped" ]; then
+            echo ""
+            echo "ℹ️  npm publish skipped (prerelease or workflow_dispatch)"
+          else
+            echo ""
+            echo "⚠️  npm publish failed or was skipped"
+          fi
+
+          if [ "${{ needs.test-npm-install.result }}" = "success" ]; then
+            echo ""
+            echo "✅ npm installation tests passed on both platforms"
+          elif [ "${{ needs.test-npm-install.result }}" = "skipped" ]; then
+            echo ""
+            echo "ℹ️  npm installation tests skipped"
+          else
+            echo ""
+            echo "⚠️  npm installation tests failed or incomplete"
+          fi

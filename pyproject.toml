@@ -2,63 +2,134 @@
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build]
+packages = ["src/symfluence"]
+
 [project]
 name = "symfluence"
-version = "0.5.0"         # <- static to avoid plugin issues
 description = "SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [{ name = "SYMFLUENCE Team", email = "dev@symfluence.org" }]
+dynamic = ["version"]
 
-# Start with an empty list to unblock; we’ll fill runtime deps later.
+# Runtime dependencies with version constraints for stability
 dependencies = [
-  "numpy",
-  "pandas",
-  "scipy",
-  "xarray",
+  # Core scientific stack - constrained to major versions
+  # NumPy 2.0+ required for ABI compatibility with compiled extensions
+  "numpy>=2.0.0,<3.0.0",
+  "pandas>=2.0.0,<3.0.0",
+  "scipy>=1.10.0,<2.0.0",
+  "xarray>=2023.0.0,<2026.0.0",
   "pint_xarray",
   "distributed",
   "pyviscous",
-  "torch",
-  "scikit-learn",
-  "pyswarms",
-  "geopandas",
-  "rasterio",
-  "pyproj",
-  "shapely",
-  "fiona",
+  # Machine learning - PyTorch major version constrained
+  "torch>=2.0.0,<3.0.0",
+  "scikit-learn>=1.2.0,<2.0.0",
+  # Geospatial - GDAL requires system installation, see README
+  "gdal>=3.6.0,<4.0.0",
+  "geopandas>=0.13.0,<1.0.0",
+  "rasterio>=1.3.0,<2.0.0",
+  "pyproj>=3.5.0,<4.0.0",
+  "shapely>=2.0.0,<3.0.0",
+  "fiona>=1.9.0,<2.0.0",
   "easymore",
   "rasterstats",
   "pvlib",
-  "cdo",
-  "seaborn",
-  "plotly",
-  "findlibs",
-  "netCDF4",
-  "hydrobm",
-  "baseflow",
-  "matplotlib",
-  "SALib",
-  "psutil",
-  "alive-progress",
-  "tqdm",
+  "cdo>=1.6.0,<3.0.0",
+  # Visualization
+  "seaborn>=0.12.0,<1.0.0",
+  "plotly>=5.0.0,<6.0.0",
+  "matplotlib>=3.7.0,<4.0.0",
   "contextily",
-  "pyyaml",
-  "requests",
-  "cdsapi",
-  "hs_restclient",
-  "numexpr",
-  "cftime",
-  "pytest", 
-  "sphinx", 
-  "jupyterlab", 
-  "ipykernel"
+  # Cloud and data access
+  "gcsfs>=2023.0.0",
+  "intake-xarray",
+  "netCDF4>=1.6.0,<2.0.0",
+  "h5netcdf>=1.1.0,<2.0.0",
+  "cdsapi>=0.6.0,<1.0.0",
+  "s3fs>=2023.0.0",
+  "cftime>=1.6.0,<2.0.0",
+  # Hydrology specific
+  "hydrobm",
+  # Note: baseflow is optional due to Python version constraints (see [project.optional-dependencies])
+  # Utilities
+  "SALib>=1.4.0,<2.0.0",
+  "psutil>=5.9.0,<6.0.0",
+  "tqdm>=4.64.0,<5.0.0",
+  "pyyaml>=6.0.0,<7.0.0",
+  "requests>=2.28.0,<3.0.0",
+  "numexpr>=2.8.0,<3.0.0",
+  "bottleneck>=1.3.0,<2.0.0",
+  "networkx>=3.0.0,<4.0.0",
+  # AI/LLM integration
+  "openai>=1.0.0,<2.0.0",
+  # CLI
+  "rich>=13.0.0,<14.0.0",
+  # Configuration models
+  "pydantic>=2.0.0,<3.0.0"
+]
+
+[project.optional-dependencies]
+# NOTE: MESH model support requires additional packages not on PyPI.
+# Install manually after symfluence:
+#   uv pip install git+https://github.com/kasra-keshavarz/hydrant.git
+#   uv pip install git+https://github.com/CH-Earth/meshflow.git@main
+# Baseflow separation (requires Python <3.10 due to numba constraints)
+baseflow = [
+  "baseflow",
+]
+# R integration (requires R and libgcc to be installed)
+r = [
+  "rpy2>=3.5.0,<4.0.0",
+]
+# Development tools
+dev = [
+  "ruff>=0.1.0",
+  "mypy>=1.0.0",
+  "pre-commit>=3.0.0",
+]
+# Testing dependencies
+test = [
+  "pytest>=7.0.0,<10.0.0",
+  "pytest-xdist>=3.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-timeout>=2.0.0",
+]
+# Documentation tools
+docs = [
+  "sphinx>=7.0.0",
+  "pydata-sphinx-theme>=0.15.0",
+  "sphinx-design>=0.5.0",
+  "myst-parser>=2.0.0",
+]
+# Interactive development
+notebook = [
+  "jupyterlab>=4.0.0,<5.0.0",
+  "ipykernel>=6.20.0,<7.0.0",
+]
+# Panel-based web GUI
+gui = [
+  "panel>=1.3.0,<2.0.0",
+  "bokeh>=3.3.0,<4.0.0",
+]
+# Textual-based terminal UI
+tui = [
+  "textual>=0.47.0,<1.0.0",
+]
+# All development dependencies
+all = [
+  "symfluence[r,dev,test,docs,notebook,gui,tui]",
 ]
 
 [project.scripts]
 # thin wrapper that delegates to your existing CLI
-symfluence = "symfluence.cli:main"
+symfluence = "symfluence.main_cli:main"
 
 [project.urls]
 Homepage = "https://symfluence.org"
@@ -67,19 +138,93 @@ Issues = "https://github.com/DarriEy/SYMFLUENCE/issues"
 Documentation = "https://symfluence.org/"
 
 [tool.hatch.build.targets.wheel]
-# ship both the wrapper and your existing utils package (no moves)
-packages = ["src/symfluence", "utils"]
+packages = ["src/symfluence"]
+# Note: package data in src/symfluence/data/ is automatically included
 
 [tool.hatch.build.targets.sdist]
 include = [
   "src/symfluence",
-  "utils",
   "README.md",
   "LICENSE",
   "MANIFEST.in",
   "requirements.txt",
-  "symfluence_version.py" 
+  "examples/"
 ]
 
-[tool.hatch.build.targets.wheel.force-include]
-"symfluence_version.py" = "symfluence_version.py"
+# NOTE: pytest configuration is in pytest.ini (authoritative source)
+# This avoids duplication and ensures consistent test configuration
+
+[tool.hatch.version]
+path = "src/symfluence/symfluence_version.py"
+
+[tool.ruff]
+# Target Python 3.11
+target-version = "py311"
+
+# Line length to match common conventions
+line-length = 120
+
+# Exclude common non-source directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "examples",  # Notebooks can be informal
+]
+
+[tool.ruff.lint]
+# Select rules to enforce
+select = [
+    "F",   # Pyflakes (undefined names, unused imports, etc.)
+]
+
+# Ignore rules that are intentional patterns or have many pre-existing violations
+ignore = [
+    # F401 (unused imports) - FIXED
+    "F403",  # Star imports - intentional for re-exports in __init__.py
+    "F405",  # Name may be undefined from star import - related to F403
+    # F601 (duplicate dict keys) - FIXED
+    # F821 (undefined names) - FIXED
+    # F841 (unused variables) - FIXED
+    "E701",  # Multiple statements on one line (colon) - common guard clause pattern
+    # E702 (semicolon statements) - FIXED
+    "E402",  # Module level import not at top - intentional for optional deps/deprecation
+    # E722 (bare except) - FIXED (0 violations)
+    # E712 (comparison to True/False) - FIXED
+    # E741 (ambiguous variable name) - FIXED
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can have more relaxed rules for imports and unused variables
+"tests/**/*.py" = ["F401", "F841"]
+# Init files often have unused imports for re-export
+"**/__init__.py" = ["F401", "F403"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "examples", "venv", ".venv"]
+skips = [
+    "B101",  # Allow assert statements
+    "B110",  # try_except_pass - used for optional error handling
+    "B112",  # try_except_continue - used for optional error handling in loops
+    "B311",  # random - not used for security/cryptographic purposes
+    "B404",  # subprocess import - required for external model execution
+    "B603",  # subprocess calls - required for external model execution
+    "B607",  # partial paths - safe for known system commands
+]
+
+[tool.mypy]
+python_version = "3.11"
+show_error_codes = true
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+# Ignore the most common noisy errors for now
+disable_error_code = ["attr-defined", "no-any-return", "operator", "arg-type", "assignment", "union-attr"]
+exclude = ["examples/", "tests/"]

@@ -1,0 +1,1 @@
+"""CLI component unit tests."""
