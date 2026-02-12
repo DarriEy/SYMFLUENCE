@@ -114,7 +114,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-domains", Static)
-                assert "2" in str(stat.content)
+                assert "2" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -126,7 +126,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-runs", Static)
-                assert "2" in str(stat.content)
+                assert "2" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -138,7 +138,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-slurm", Static)
-                assert "N/A" in str(stat.content)
+                assert "N/A" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -344,8 +344,8 @@ class TestSlurmMonitorScreen:
                 from textual.widgets import Static
                 status = app.screen.query_one("#slurm-status", Static)
                 # On non-HPC, should show "not available"
-                assert "not available" in str(status.content).lower() or \
-                       "0 job" in str(status.content).lower()
+                assert "not available" in str(status.renderable).lower() or \
+                       "0 job" in str(status.renderable).lower()
 
         asyncio.run(_test())
 
