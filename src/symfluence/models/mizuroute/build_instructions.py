@@ -51,9 +51,11 @@ F_MASTER_PATH="$(cd .. && pwd)"
 echo "F_MASTER: $F_MASTER_PATH/"
 
 # Ensure NetCDF paths are set, preferring conda installation
-if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nf-config" ]; then
-    export NETCDF_FORTRAN="$CONDA_PREFIX"
-    export NETCDF_C="${NETCDF_C:-$CONDA_PREFIX}"
+# CONDA_LIB_PREFIX is set by the common build environment snippet
+# and handles Windows conda layout (Library/ subdir).
+if [ -n "$CONDA_PREFIX" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nf-config" ]; then
+    export NETCDF_FORTRAN="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+    export NETCDF_C="${NETCDF_C:-${CONDA_LIB_PREFIX:-$CONDA_PREFIX}}"
     echo "Using conda NetCDF-Fortran at: $NETCDF_FORTRAN"
 fi
 

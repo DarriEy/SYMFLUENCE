@@ -72,19 +72,35 @@ export GIT_CONFIG_SYSTEM=/dev/null
 
 # Fix for conda GCC 14: ensure libstdc++ is found
 # GCC 14 from conda-forge requires explicit library path for C++ runtime
-if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
-    export LIBRARY_PATH="${CONDA_PREFIX}/lib:${LIBRARY_PATH:-}"
-    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
-    echo "Added conda lib to library paths: $CONDA_PREFIX/lib"
+clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
+    export LIBRARY_PATH="$clp/lib:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="$clp/lib:${LD_LIBRARY_PATH:-}"
+    echo "Added conda lib to library paths: $clp/lib"
 fi
+
+# On Windows/MSYS2, ensure CMake uses MSYS Makefiles generator
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        export CMAKE_GENERATOR="MSYS Makefiles"
+        echo "Windows detected: using MSYS Makefiles generator"
+        ;;
+esac
 
 # Detect venv Python - prefer VIRTUAL_ENV, otherwise use which python3
 if [ -n "$VIRTUAL_ENV" ]; then
   PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
 elif [ -n "$CONDA_PREFIX" ]; then
-  PYTHON_EXE="$CONDA_PREFIX/bin/python3"
+  # On Windows conda, python3 might be at Scripts/python or just python
+  if [ -x "$CONDA_PREFIX/bin/python3" ]; then
+    PYTHON_EXE="$CONDA_PREFIX/bin/python3"
+  elif [ -x "$CONDA_PREFIX/python.exe" ]; then
+    PYTHON_EXE="$CONDA_PREFIX/python.exe"
+  else
+    PYTHON_EXE=$(which python3 || which python)
+  fi
 else
-  PYTHON_EXE=$(which python3)
+  PYTHON_EXE=$(which python3 || which python)
 fi
 echo "Using Python: $PYTHON_EXE"
 $PYTHON_EXE -c "import numpy as np; print('Using NumPy:', np.__version__)"
@@ -156,9 +172,9 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 # conda's GCC 14 emits __cxa_call_terminate which only exists in its own libstdc++
 # We must pass this through CMAKE_EXE_LINKER_FLAGS since CMake ignores LDFLAGS for the final link
 CONDA_LINKER_CMAKE_ARGS=""
-if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
+if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
     EXTRA_LIBS="-lstdc++"
-    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${CONDA_PREFIX}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${CONDA_PREFIX}/lib -lstdc++'"
+    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${clp}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${clp}/lib -lstdc++'"
     echo "Adding conda libstdc++ linker flags for GCC 14 compatibility"
 fi
 
@@ -281,10 +297,12 @@ fi
 echo "Building ngen..."
 cmake --build cmake_build --target ngen -j ${NCORES:-4}
 
-# Verify ngen binary
-if [ -x "cmake_build/ngen" ]; then
+# Verify ngen binary (handles .exe on Windows)
+if [ -x "cmake_build/ngen" ] || [ -f "cmake_build/ngen.exe" ]; then
   echo "ngen built successfully"
-  ./cmake_build/ngen --help 2>/dev/null | head -5 || true
+  NGEN_BIN="cmake_build/ngen"
+  [ -f "cmake_build/ngen.exe" ] && NGEN_BIN="cmake_build/ngen.exe"
+  ./$NGEN_BIN --help 2>/dev/null | head -5 || true
 else
   echo "ngen binary not found"
   exit 1
@@ -475,7 +493,7 @@ echo ""
 echo "=============================================="
 echo "ngen build summary:"
 echo "=============================================="
-echo "ngen binary: $([ -x cmake_build/ngen ] && echo 'OK' || echo 'MISSING')"
+echo "ngen binary: $(([ -x cmake_build/ngen ] || [ -f cmake_build/ngen.exe ]) && echo 'OK' || echo 'MISSING')"
 echo "SLOTH:       $([ -f extern/sloth/cmake_build/libslothmodel.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
 echo "CFE:         $([ -f extern/cfe/cmake_build/libcfebmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
 echo "PET:         $([ -f extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
@@ -487,8 +505,8 @@ echo "=============================================="
         'dependencies': [],
         'test_command': '--help',
         'verify_install': {
-            'file_paths': ['cmake_build/ngen'],
-            'check_type': 'exists'
+            'file_paths': ['cmake_build/ngen', 'cmake_build/ngen.exe'],
+            'check_type': 'exists_any'
         },
         'order': 9
     }

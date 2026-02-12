@@ -172,27 +172,41 @@ configure_fortran
 # ================================================================
 # Library Discovery
 # ================================================================
+# On Windows conda, executables and libraries live under
+# CONDA_PREFIX/Library (not CONDA_PREFIX).  CONDA_LIB_PREFIX is
+# the correct root for include/, lib/, bin/ lookups.
+export CONDA_LIB_PREFIX="${CONDA_PREFIX}"
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        if [ -n "$CONDA_PREFIX" ] && [ -d "${CONDA_PREFIX}/Library/lib" ]; then
+            export CONDA_LIB_PREFIX="${CONDA_PREFIX}/Library"
+        fi
+        ;;
+esac
+
 # Discover libraries - prefer conda prefix if available
 configure_libraries() {
+    local clp="${CONDA_LIB_PREFIX}"
+
     # NetCDF: prefer conda installation
-    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nc-config" ]; then
-        export NETCDF="$CONDA_PREFIX"
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$clp/bin/nc-config" ]; then
+        export NETCDF="$clp"
         echo "Using conda NetCDF: $NETCDF"
     else
         export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
     fi
 
     # NetCDF-Fortran: prefer conda installation
-    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nf-config" ]; then
-        export NETCDF_FORTRAN="$CONDA_PREFIX"
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$clp/bin/nf-config" ]; then
+        export NETCDF_FORTRAN="$clp"
         echo "Using conda NetCDF-Fortran: $NETCDF_FORTRAN"
     else
         export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
     fi
 
     # HDF5: prefer conda installation
-    if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ] && ls "$CONDA_PREFIX/lib"/libhdf5* >/dev/null 2>&1; then
-        export HDF5_ROOT="$CONDA_PREFIX"
+    if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ] && ls "$clp/lib"/*hdf5* >/dev/null 2>&1; then
+        export HDF5_ROOT="$clp"
         echo "Using conda HDF5: $HDF5_ROOT"
     else
         export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print \$2}" || echo /usr)}"
@@ -234,8 +248,10 @@ detect_netcdf() {
         NETCDF_FORTRAN="${NETCDF_DIR}"
         echo "Found NetCDF via NETCDF_DIR at: ${NETCDF_FORTRAN}"
     # Check conda environment (second priority for ABI compatibility)
-    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nf-config" ]; then
-        NETCDF_FORTRAN="${CONDA_PREFIX}"
+    # CONDA_LIB_PREFIX is set by get_common_build_environment() and handles
+    # Windows conda layout (CONDA_PREFIX/Library vs CONDA_PREFIX).
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nf-config" ]; then
+        NETCDF_FORTRAN="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
         echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
     # Try nf-config (NetCDF Fortran config tool)
     elif command -v nf-config >/dev/null 2>&1; then
@@ -274,8 +290,8 @@ detect_netcdf() {
         NETCDF_C="${NETCDF_ROOT}"
     elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/lib" ]; then
         NETCDF_C="${NETCDF_DIR}"
-    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nc-config" ]; then
-        NETCDF_C="${CONDA_PREFIX}"
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nc-config" ]; then
+        NETCDF_C="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
     elif command -v nc-config >/dev/null 2>&1; then
         local nc_prefix
         nc_prefix="$(nc-config --prefix 2>/dev/null)"
@@ -311,6 +327,15 @@ detect_hdf5() {
     # Try h5cc config tool first
     if command -v h5cc >/dev/null 2>&1; then
         HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
+    fi
+
+    # Try conda environment (CONDA_LIB_PREFIX handles Windows layout)
+    if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
+        local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+        if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ] && ls "$clp/lib"/*hdf5* >/dev/null 2>&1; then
+            HDF5_ROOT="$clp"
+            echo "Found conda HDF5 at: $HDF5_ROOT"
+        fi
     fi
 
     # Fallback detection
@@ -492,6 +517,24 @@ detect_geos_proj() {
         fi
     fi
 
+    # Windows conda fallback (GEOS/PROJ from conda-forge)
+    if [ -z "$GEOS_CFLAGS" ] && [ -n "$CONDA_PREFIX" ]; then
+        local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+        if [ -f "$clp/lib/geos_c.lib" ] || [ -f "$clp/lib/libgeos_c.dll.a" ] || [ -f "$clp/lib/libgeos_c.so" ]; then
+            GEOS_CFLAGS="-I$clp/include"
+            GEOS_LDFLAGS="-L$clp/lib -lgeos_c"
+            echo "GEOS found in conda at: $clp"
+        fi
+    fi
+    if [ -z "$PROJ_CFLAGS" ] && [ -n "$CONDA_PREFIX" ]; then
+        local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+        if [ -f "$clp/lib/proj.lib" ] || [ -f "$clp/lib/libproj.dll.a" ] || [ -f "$clp/lib/libproj.so" ]; then
+            PROJ_CFLAGS="-I$clp/include"
+            PROJ_LDFLAGS="-L$clp/lib -lproj"
+            echo "PROJ found in conda at: $clp"
+        fi
+    fi
+
     # Common path fallback
     if [ -z "$GEOS_CFLAGS" ]; then
         for path in /usr/local /usr; do
@@ -558,19 +601,25 @@ detect_or_build_udunits2() {
     fi
 
     # Check conda environment (second priority)
-    if [ "$UDUNITS2_FOUND" = false ] && [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/include/udunits2.h" ]; then
-        UDUNITS2_DIR="$CONDA_PREFIX"
-        UDUNITS2_INCLUDE_DIR="$CONDA_PREFIX/include"
-        if [ -f "$CONDA_PREFIX/lib/libudunits2.so" ]; then
-            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.so"
-        elif [ -f "$CONDA_PREFIX/lib/libudunits2.dylib" ]; then
-            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.dylib"
-        else
-            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.a"
+    # CONDA_LIB_PREFIX handles Windows conda layout (Library/ subdir)
+    if [ "$UDUNITS2_FOUND" = false ] && [ -n "$CONDA_PREFIX" ]; then
+        local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+        if [ -f "$clp/include/udunits2.h" ]; then
+            UDUNITS2_DIR="$clp"
+            UDUNITS2_INCLUDE_DIR="$clp/include"
+            if [ -f "$clp/lib/libudunits2.so" ]; then
+                UDUNITS2_LIBRARY="$clp/lib/libudunits2.so"
+            elif [ -f "$clp/lib/libudunits2.dylib" ]; then
+                UDUNITS2_LIBRARY="$clp/lib/libudunits2.dylib"
+            elif [ -f "$clp/lib/udunits2.lib" ]; then
+                UDUNITS2_LIBRARY="$clp/lib/udunits2.lib"
+            else
+                UDUNITS2_LIBRARY="$clp/lib/libudunits2.a"
+            fi
+            EXPAT_LIB_DIR="$clp/lib"
+            echo "Found conda UDUNITS2 at: ${UDUNITS2_DIR}"
+            UDUNITS2_FOUND=true
         fi
-        EXPAT_LIB_DIR="$CONDA_PREFIX/lib"
-        echo "Found conda UDUNITS2 at: ${UDUNITS2_DIR}"
-        UDUNITS2_FOUND=true
     fi
 
     # Try pkg-config (system install)
@@ -759,10 +808,11 @@ detect_or_build_bison() {
     BISON_FOUND=false
 
     # Check conda environment first (highest priority)
-    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/bison" ]; then
-        echo "Found conda bison: $CONDA_PREFIX/bin/bison"
-        "$CONDA_PREFIX/bin/bison" --version | head -1
-        export PATH="$CONDA_PREFIX/bin:$PATH"
+    local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+    if [ -n "$CONDA_PREFIX" ] && ([ -x "$clp/bin/bison" ] || [ -x "$clp/bin/bison.exe" ]); then
+        echo "Found conda bison: $clp/bin/bison"
+        "$clp/bin/bison" --version | head -1
+        export PATH="$clp/bin:$PATH"
         BISON_FOUND=true
         return 0
     fi
@@ -848,16 +898,17 @@ detect_or_build_flex() {
     LIBFL_FOUND=false
 
     # Check conda environment first (highest priority)
-    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/flex" ]; then
-        echo "Found conda flex: $CONDA_PREFIX/bin/flex"
-        "$CONDA_PREFIX/bin/flex" --version | head -1
-        export PATH="$CONDA_PREFIX/bin:$PATH"
+    local clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+    if [ -n "$CONDA_PREFIX" ] && ([ -x "$clp/bin/flex" ] || [ -x "$clp/bin/flex.exe" ]); then
+        echo "Found conda flex: $clp/bin/flex"
+        "$clp/bin/flex" --version | head -1
+        export PATH="$clp/bin:$PATH"
         FLEX_FOUND=true
         # Conda flex package includes libfl
-        if [ -f "$CONDA_PREFIX/lib/libfl.a" ] || [ -f "$CONDA_PREFIX/lib/libfl.so" ]; then
+        if [ -f "$clp/lib/libfl.a" ] || [ -f "$clp/lib/libfl.so" ]; then
             echo "Found conda libfl"
             LIBFL_FOUND=true
-            export FLEX_LIB_DIR="$CONDA_PREFIX/lib"
+            export FLEX_LIB_DIR="$clp/lib"
             export LDFLAGS="${LDFLAGS:-} -L${FLEX_LIB_DIR}"
             export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH:-}"
         fi

@@ -259,6 +259,14 @@ class ToolInstaller(BaseService):
             if shutil.which("gfortran"):
                 env.setdefault("FC", "gfortran")
 
+            # Ensure temp directory is set for Fortran compiler backends
+            # (cc1.exe/f951.exe). Without TMP/TEMP, gfortran falls back to
+            # C:\Windows which is not writable by normal users.
+            import tempfile
+            tmp_dir = tempfile.gettempdir()
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                env.setdefault(var, tmp_dir)
+
         # Compiler / PATH setup for Unix (conda compilers, 2i2c, etc.)
         if sys.platform != "win32":
             # Check if conda compilers are available (required for ABI compatibility

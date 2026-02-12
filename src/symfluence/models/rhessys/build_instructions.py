@@ -87,8 +87,9 @@ fi
 
 # Fallback to manual detection if nc-config didn't work
 if [ -z "$NETCDF_LDFLAGS" ] && [ -n "$NETCDF_C" ]; then
-    for libdir in "$NETCDF_C/lib64" "$NETCDF_C/lib" "$CONDA_PREFIX/lib"; do
-        if [ -n "$libdir" ] && ([ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ] || [ -f "$libdir/libnetcdf.dylib" ]); then
+    clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+    for libdir in "$NETCDF_C/lib64" "$NETCDF_C/lib" "$clp/lib"; do
+        if [ -n "$libdir" ] && ([ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ] || [ -f "$libdir/libnetcdf.dylib" ] || [ -f "$libdir/libnetcdf.dll.a" ] || [ -f "$libdir/netcdf.lib" ]); then
             NETCDF_LDFLAGS="-L$libdir -lnetcdf"
             echo "Found netcdf library in: $libdir"
             break
@@ -111,7 +112,7 @@ FLEX_LDFLAGS=""
 # Check HPC module environment variable first (EasyBuild)
 if [ -n "${EBROOTFLEX:-}" ]; then
     for libdir in "$EBROOTFLEX/lib64" "$EBROOTFLEX/lib"; do
-        if [ -f "$libdir/libfl.so" ] || [ -f "$libdir/libfl.a" ]; then
+        if [ -f "$libdir/libfl.so" ] || [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.dll.a" ]; then
             FLEX_LDFLAGS="-L$libdir -lfl"
             echo "Found HPC module flex library in: $libdir"
             break
@@ -121,7 +122,7 @@ fi
 
 # Use FLEX_LIB_DIR if set by flex_detect snippet
 if [ -z "$FLEX_LDFLAGS" ] && [ -n "${FLEX_LIB_DIR:-}" ] && [ -d "${FLEX_LIB_DIR}" ]; then
-    if [ -f "${FLEX_LIB_DIR}/libfl.a" ] || [ -f "${FLEX_LIB_DIR}/libfl.so" ]; then
+    if [ -f "${FLEX_LIB_DIR}/libfl.a" ] || [ -f "${FLEX_LIB_DIR}/libfl.so" ] || [ -f "${FLEX_LIB_DIR}/libfl.dll.a" ]; then
         FLEX_LDFLAGS="-L${FLEX_LIB_DIR} -lfl"
         echo "FLEX_LDFLAGS: $FLEX_LDFLAGS (from FLEX_LIB_DIR)"
     fi
@@ -130,13 +131,25 @@ fi
 # Check if flex was built locally in the install directory (one level up from rhessys source)
 if [ -z "$FLEX_LDFLAGS" ]; then
     for flexlib in "../flex/lib" "../../flex/lib"; do
-        if [ -f "$flexlib/libfl.a" ] || [ -f "$flexlib/libfl.so" ]; then
+        if [ -f "$flexlib/libfl.a" ] || [ -f "$flexlib/libfl.so" ] || [ -f "$flexlib/libfl.dll.a" ]; then
             # Convert to absolute path
             FLEX_LIB_ABS=$(cd "$flexlib" && pwd)
             FLEX_LDFLAGS="-L${FLEX_LIB_ABS} -lfl"
             echo "Found locally-built flex library at: $FLEX_LIB_ABS"
             export LIBRARY_PATH="${FLEX_LIB_ABS}:${LIBRARY_PATH:-}"
             export LD_LIBRARY_PATH="${FLEX_LIB_ABS}:${LD_LIBRARY_PATH:-}"
+            break
+        fi
+    done
+fi
+
+# Check conda environment for flex library
+if [ -z "$FLEX_LDFLAGS" ] && [ -n "$CONDA_PREFIX" ]; then
+    clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+    for libdir in "$clp/lib"; do
+        if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ] || [ -f "$libdir/libfl.dll.a" ]; then
+            FLEX_LDFLAGS="-L$libdir -lfl"
+            echo "Found flex library in conda: $libdir"
             break
         fi
     done
@@ -185,7 +198,7 @@ perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhess
 # The is_approximately() function is defined in util/alloc.c under #ifdef LIU_NETCDF_READER,
 # which is enabled via the makefile's DEFINES. We just need to comment out the broken lon/lat condition.
 echo "Patching assign_base_station_xy.c for missing struct members..."
-cat > /tmp/rhessys_xy_patch.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/rhessys_xy_patch.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -204,11 +217,11 @@ print $fh $content;
 close($fh);
 print "Patched $file\n";
 PERLSCRIPT
-perl /tmp/rhessys_xy_patch.pl init/assign_base_station_xy.c
+perl ${TMPDIR:-/tmp}/rhessys_xy_patch.pl init/assign_base_station_xy.c
 
 # Fix construct_netcdf_grid.c - use perl for reliable pattern replacement
 echo "Patching construct_netcdf_grid.c for missing struct members..."
-cat > /tmp/rhessys_grid_patch.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/rhessys_grid_patch.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -234,12 +247,12 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes replacements\n";
 PERLSCRIPT
-perl /tmp/rhessys_grid_patch.pl init/construct_netcdf_grid.c
+perl ${TMPDIR:-/tmp}/rhessys_grid_patch.pl init/construct_netcdf_grid.c
 echo "Patched construct_netcdf_grid.c"
 
 # Fix construct_netcdf_header.c - use perl for reliable pattern replacement
 echo "Patching construct_netcdf_header.c for missing struct members..."
-cat > /tmp/rhessys_header_patch.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/rhessys_header_patch.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -270,7 +283,7 @@ if ($content =~ /basestations.*\.(lon|lat)/) {
     print "WARNING: Some basestations.lon/lat patterns may remain\n";
 }
 PERLSCRIPT
-perl /tmp/rhessys_header_patch.pl init/construct_netcdf_header.c
+perl ${TMPDIR:-/tmp}/rhessys_header_patch.pl init/construct_netcdf_header.c
 
 # Verify the patch worked - should NOT find .lon or .lat with basestations
 if grep -q 'basestations\[.*\]\.lon\|basestations\[.*\]\.lat' init/construct_netcdf_header.c 2>/dev/null; then
@@ -303,7 +316,7 @@ fi
 
 # Fix handle_event.c to include WMFire event handler (missing in source)
 echo "Patching handle_event.c to add fire_grid_on support..."
-cat > /tmp/rhessys_event_patch.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/rhessys_event_patch.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -329,7 +342,7 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/rhessys_event_patch.pl tec/handle_event.c
+perl ${TMPDIR:-/tmp}/rhessys_event_patch.pl tec/handle_event.c
 
 # =============================================================
 # SYMFLUENCE Patches for enhanced hydrological functionality
@@ -348,7 +361,7 @@ echo "Applying SYMFLUENCE patches (--patched flag enabled)..."
 # SYMFLUENCE Patch 1: Add subsurface_gw_flag to rhessys.h
 # -------------------------------------------------------------
 echo "Patching rhessys.h for subsurface_gw_flag..."
-cat > /tmp/symfluence_rhessys_h.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/symfluence_rhessys_h.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -368,13 +381,13 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/symfluence_rhessys_h.pl include/rhessys.h
+perl ${TMPDIR:-/tmp}/symfluence_rhessys_h.pl include/rhessys.h
 
 # -------------------------------------------------------------
 # SYMFLUENCE Patch 1 (cont): Initialize subsurface_gw_flag in construct_command_line.c
 # -------------------------------------------------------------
 echo "Patching construct_command_line.c for flag initialization and parsing..."
-cat > /tmp/symfluence_cmdline.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/symfluence_cmdline.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -411,13 +424,13 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/symfluence_cmdline.pl init/construct_command_line.c
+perl ${TMPDIR:-/tmp}/symfluence_cmdline.pl init/construct_command_line.c
 
 # -------------------------------------------------------------
 # SYMFLUENCE Patch 1 (cont): Add valid options
 # -------------------------------------------------------------
 echo "Patching valid_option.c for new flags..."
-cat > /tmp/symfluence_valid.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/symfluence_valid.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -439,13 +452,13 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/symfluence_valid.pl tec/valid_option.c
+perl ${TMPDIR:-/tmp}/symfluence_valid.pl tec/valid_option.c
 
 # -------------------------------------------------------------
 # SYMFLUENCE Patch 1 (cont): Add subsurface-to-GW recharge in patch_daily_F.c
 # -------------------------------------------------------------
 echo "Patching patch_daily_F.c for subsurface-to-GW recharge..."
-cat > /tmp/symfluence_patch_daily.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/symfluence_patch_daily.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -485,13 +498,13 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/symfluence_patch_daily.pl cycle/patch_daily_F.c
+perl ${TMPDIR:-/tmp}/symfluence_patch_daily.pl cycle/patch_daily_F.c
 
 # -------------------------------------------------------------
 # SYMFLUENCE Patch 2: NaN/negative sat_deficit guard
 # -------------------------------------------------------------
 echo "Patching compute_subsurface_routing.c for NaN guards..."
-cat > /tmp/symfluence_nan_guard.pl << 'PERLSCRIPT'
+cat > ${TMPDIR:-/tmp}/symfluence_nan_guard.pl << 'PERLSCRIPT'
 use strict;
 use warnings;
 my $file = $ARGV[0];
@@ -539,7 +552,7 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/symfluence_nan_guard.pl hydro/compute_subsurface_routing.c
+perl ${TMPDIR:-/tmp}/symfluence_nan_guard.pl hydro/compute_subsurface_routing.c
 
 # Verify SYMFLUENCE patches applied
 echo "Verifying SYMFLUENCE patches..."
@@ -578,11 +591,17 @@ mkdir -p ../lib
 
 # Look for WMFire library in common locations
 OS=$(uname -s)
-if [ "$OS" = "Darwin" ]; then
-    WMFIRE_LIB_NAME="libwmfire.dylib"
-else
-    WMFIRE_LIB_NAME="libwmfire.so"
-fi
+case "$OS" in
+    Darwin)
+        WMFIRE_LIB_NAME="libwmfire.dylib"
+        ;;
+    MSYS*|MINGW*|CYGWIN*)
+        WMFIRE_LIB_NAME="libwmfire.dll"
+        ;;
+    *)
+        WMFIRE_LIB_NAME="libwmfire.so"
+        ;;
+esac
 
 # Check if WMFire was already built in the wmfire install directory
 WMFIRE_INSTALL_DIR="${INSTALLS_DIR:-../..}/wmfire/lib"
@@ -610,18 +629,18 @@ if [ -z "$WMFIRE_FLAG" ] && [ -d "../FIRE" ]; then
 
         # Find Boost headers
         BOOST_INCLUDE=""
-        for boost_dir in "$CONDA_PREFIX/include" /opt/homebrew/include /usr/local/include /usr/include; do
+        clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+        for boost_dir in "$clp/include" "$CONDA_PREFIX/include" /opt/homebrew/include /usr/local/include /usr/include; do
             if [ -d "$boost_dir/boost" ]; then
                 BOOST_INCLUDE="-I$boost_dir"
                 break
             fi
         done
 
-        if [ "$OS" = "Darwin" ]; then
-            SHARED_FLAG="-dynamiclib"
-        else
-            SHARED_FLAG="-shared"
-        fi
+        case "$OS" in
+            Darwin)  SHARED_FLAG="-dynamiclib" ;;
+            *)       SHARED_FLAG="-shared" ;;
+        esac
 
         $CXX -c -fPIC $BOOST_INCLUDE -O2 -o RanNums.o RanNums.cpp 2>/dev/null || echo "WMFire build requires Boost headers"
         $CXX -c -fPIC $BOOST_INCLUDE -O2 -o WMFire.o WMFire.cpp 2>/dev/null || true
@@ -649,31 +668,41 @@ fi
 make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
 
 mkdir -p ../bin
-# Try multiple possible locations for rhessys binary
-if [ -f rhessys/rhessys ]; then
-    mv rhessys/rhessys ../bin/rhessys
-elif [ -f rhessys ]; then
-    mv rhessys ../bin/rhessys
-else
-    # Pattern match for rhessys*
-    mv rhessys* ../bin/rhessys 2>/dev/null || true
-fi
+# Try multiple possible locations for rhessys binary (handles .exe on Windows)
+RHESSYS_BIN=""
+for candidate in rhessys/rhessys.exe rhessys/rhessys rhessys.exe rhessys; do
+    if [ -f "$candidate" ]; then
+        RHESSYS_BIN="$candidate"
+        break
+    fi
+done
 
-# Verify binary exists
-if [ ! -f ../bin/rhessys ]; then
+if [ -n "$RHESSYS_BIN" ]; then
+    cp -f "$RHESSYS_BIN" ../bin/rhessys
+    echo "Staged: $RHESSYS_BIN -> ../bin/rhessys"
+else
     echo "ERROR: rhessys binary not found after build"
     exit 1
 fi
 
-chmod +x ../bin/rhessys
+# On Windows, also ensure bin/rhessys.exe exists for native tools
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        if [ ! -f ../bin/rhessys.exe ] && [ -f ../bin/rhessys ]; then
+            cp ../bin/rhessys ../bin/rhessys.exe
+        fi
+        ;;
+esac
+
+chmod +x ../bin/rhessys 2>/dev/null || true
 echo "RHESSys binary successfully built at ../bin/rhessys"
             '''.strip()
         ],
         'dependencies': ['gdal-config', 'proj', 'geos-config'],
         'test_command': '-h',
         'verify_install': {
-            'file_paths': ['bin/rhessys'],
-            'check_type': 'exists'
+            'file_paths': ['bin/rhessys', 'bin/rhessys.exe'],
+            'check_type': 'exists_any'
         },
         'order': 14
     }

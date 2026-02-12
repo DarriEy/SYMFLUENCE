@@ -90,13 +90,26 @@ tar -xzf "v${SUNDIALS_VER}.tar.gz" --exclude="*/doc/*"
 cd "sundials-${SUNDIALS_VER}"
 
 rm -rf build && mkdir build && cd build
+
+# On Windows/MinGW, SUNDIALS DLLs do not export Fortran module procedure
+# symbols (only C wrapper functions). Build static-only to avoid this issue.
+# Also, Windows LLP64 uses 4-byte long, so INDEX_SIZE must be 32.
+SUNDIALS_SHARED=ON
+SUNDIALS_IDX_SIZE=64
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        SUNDIALS_SHARED=OFF
+        SUNDIALS_IDX_SIZE=32
+        ;;
+esac
+
 cmake .. \
   -DBUILD_FORTRAN_MODULE_INTERFACE=ON \
   -DCMAKE_Fortran_COMPILER="$FC" \
   -DCMAKE_INSTALL_PREFIX="${SUNDIALS_PREFIX}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_SHARED_LIBS=ON \
-  -DSUNDIALS_INDEX_SIZE=64 \
+  -DBUILD_SHARED_LIBS=$SUNDIALS_SHARED \
+  -DSUNDIALS_INDEX_SIZE=$SUNDIALS_IDX_SIZE \
   -DEXAMPLES_ENABLE_C=OFF \
   -DEXAMPLES_ENABLE_CXX=OFF \
   -DEXAMPLES_ENABLE_F2003=OFF \
@@ -224,8 +237,8 @@ echo "TauDEM executables staged"
         'dependencies': [],
         'test_command': None,
         'verify_install': {
-            'file_paths': ['bin/pitremove'],
-            'check_type': 'exists'
+            'file_paths': ['bin/pitremove', 'bin/pitremove.exe'],
+            'check_type': 'exists_any'
         },
         'order': 6
     })

@@ -51,22 +51,30 @@ cd RHESSys/FIRE
 
 # Detect platform
 OS=$(uname -s)
-if [ "$OS" = "Darwin" ]; then
-    WMFIRE_LIB="libwmfire.dylib"
-    SHARED_FLAG="-dynamiclib"
-else
-    WMFIRE_LIB="libwmfire.so"
-    SHARED_FLAG="-shared"
-fi
+case "$OS" in
+    Darwin)
+        WMFIRE_LIB="libwmfire.dylib"
+        SHARED_FLAG="-dynamiclib"
+        ;;
+    MSYS*|MINGW*|CYGWIN*)
+        WMFIRE_LIB="libwmfire.dll"
+        SHARED_FLAG="-shared"
+        ;;
+    *)
+        WMFIRE_LIB="libwmfire.so"
+        SHARED_FLAG="-shared"
+        ;;
+esac
 
 # Find Boost headers
 # Check common locations for Boost
 BOOST_INCLUDE=""
 
-# Check if boost is in conda environment
-if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/include/boost" ]; then
-    BOOST_INCLUDE="-I$CONDA_PREFIX/include"
-    echo "Found Boost in conda environment: $CONDA_PREFIX/include"
+# Check if boost is in conda environment (CONDA_LIB_PREFIX handles Windows)
+clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/include/boost" ]; then
+    BOOST_INCLUDE="-I$clp/include"
+    echo "Found Boost in conda environment: $clp/include"
 fi
 
 # Check homebrew on macOS
@@ -144,7 +152,7 @@ fi
         'dependencies': [],
         'test_command': None,  # Library, not executable
         'verify_install': {
-            'file_paths': ['lib/libwmfire.so', 'lib/libwmfire.dylib'],
+            'file_paths': ['lib/libwmfire.so', 'lib/libwmfire.dylib', 'lib/libwmfire.dll'],
             'check_type': 'exists_any'
         },
         'order': 13,  # Build before RHESSys (order 14)
