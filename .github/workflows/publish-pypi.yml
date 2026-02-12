@@ -127,6 +127,8 @@ jobs:
     name: Publish to TestPyPI
     needs: build
     if: github.event_name == 'push'
+    # TestPyPI is best-effort staging; don't block production PyPI
+    continue-on-error: true
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     environment: testpypi
@@ -146,56 +148,11 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   # ===========================================================================
-  # Verify TestPyPI
-  # ===========================================================================
-  verify-testpypi:
-    name: Verify TestPyPI
-    needs: [build, publish-testpypi]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-
-    steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Determine version
-        id: version
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for TestPyPI index and verify install
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "Waiting for symfluence==$VERSION on TestPyPI..."
-
-          for i in 1 2 3 4 5 6; do
-            echo "Attempt $i/6..."
-            if pip install --no-deps --index-url https://test.pypi.org/simple/ \
-                 "symfluence==$VERSION" 2>/dev/null; then
-              INSTALLED=$(python -c "from symfluence.symfluence_version import __version__; print(__version__)")
-              echo "Installed version: $INSTALLED"
-              if [ "$INSTALLED" = "$VERSION" ]; then
-                echo "TestPyPI verification passed"
-                exit 0
-              fi
-            fi
-            echo "Not available yet, waiting 30s..."
-            sleep 30
-          done
-
-          echo "::error::symfluence==$VERSION not found on TestPyPI after 3 minutes"
-          exit 1
-
-  # ===========================================================================
   # Publish to Production PyPI
   # ===========================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: [build, verify-testpypi]
+    needs: [build]
     if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
