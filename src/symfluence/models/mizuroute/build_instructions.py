@@ -73,6 +73,16 @@ if [ -z "${NETCDF_FORTRAN}" ] || [ ! -d "${NETCDF_FORTRAN}/include" ]; then
     exit 1
 fi
 
+# On Windows (MSYS2/MinGW), convert backslash paths to forward slashes.
+# Perl interprets \U, \e, \c etc. as escape sequences in replacement strings,
+# corrupting Windows paths like C:\Users\... into C:SERS...
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        NETCDF_FORTRAN="${NETCDF_FORTRAN//\\//}"
+        NETCDF_C="${NETCDF_C//\\//}"
+        ;;
+esac
+
 # Edit the Makefile in-place
 echo "=== Configuring Makefile ==="
 perl -i -pe "s|^FC\s*=.*$|FC = gnu|" Makefile
