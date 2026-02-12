@@ -340,7 +340,7 @@ fi
             '''.strip()
         ],
         'dependencies': ['pytorch', 'numpy'],
-        'test_command': 'python3 -c "import cfuse; print(cfuse.__version__)"',
+        'test_command': 'python -c "import cfuse; print(cfuse.__version__)"',
         'verify_install': {
             'python_import': 'cfuse',
             'check_type': 'python_module'
