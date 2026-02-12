@@ -710,17 +710,23 @@ class BaseModelOptimizer(
                 filled: Dict[str, float] = {}
                 for p in sorted(best_missing):
                     if p in defaults:
-                        best_params[p] = defaults[p]
-                        filled[p] = defaults[p]
+                        val = defaults[p]
+                        try:
+                            val = float(val)
+                        except (TypeError, ValueError):
+                            import numpy as np
+                            val = float(np.asarray(val).flat[0])
+                        best_params[p] = val
+                        filled[p] = val
                     else:
                         # Fallback: midpoint from bounds
                         bounds = self.param_manager.param_bounds.get(p, {'min': 0.1, 'max': 10.0})
                         transform = bounds.get('transform', 'linear')
                         if transform == 'log' and bounds['min'] > 0:
                             import numpy as np
-                            mid = np.exp((np.log(bounds['min']) + np.log(bounds['max'])) / 2)
+                            mid = float(np.exp((np.log(bounds['min']) + np.log(bounds['max'])) / 2))
                         else:
-                            mid = (bounds['min'] + bounds['max']) / 2
+                            mid = float((bounds['min'] + bounds['max']) / 2)
                         best_params[p] = mid
                         filled[p] = mid
                 self.logger.info(

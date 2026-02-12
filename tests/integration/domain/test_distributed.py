@@ -87,6 +87,8 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     config["DOWNLOAD_WSC_DATA"] = False
 
     # Calibration settings - use 3 iterations to verify algorithm actually runs
+    config["OPTIMIZATION_METHODS"] = ['iteration']
+    config["ITERATIVE_OPTIMIZATION_ALGORITHM"] = "DDS"
     config["NUMBER_OF_ITERATIONS"] = 3
     config["RANDOM_SEED"] = 42
 

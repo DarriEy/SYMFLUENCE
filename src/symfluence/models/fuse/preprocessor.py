@@ -156,12 +156,19 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.synthetic_data_generator = FuseSyntheticDataGenerator(logger=self.logger)
 
     def _get_fuse_file_id(self) -> str:
-        """Get a short file ID for FUSE outputs and settings."""
+        """Get a short file ID for FUSE outputs and settings.
+
+        FUSE Fortran uses a CHARACTER(LEN=6) buffer for FMODEL_ID,
+        so the ID must be kept to 6 chars max to avoid truncation.
+        """
         fuse_id = self.config_dict.get('FUSE_FILE_ID')
         if not fuse_id:
             experiment_id = self.config_dict.get('EXPERIMENT_ID', '')
             fuse_id = experiment_id if experiment_id else 'fuse'
-            self.config_dict['FUSE_FILE_ID'] = fuse_id
+        if len(fuse_id) > 6:
+            import hashlib
+            fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
+        self.config_dict['FUSE_FILE_ID'] = fuse_id
         return fuse_id
 
     def _get_timestep_config(self):

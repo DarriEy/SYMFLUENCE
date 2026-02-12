@@ -361,12 +361,13 @@ class BaseParameterManager(ConfigMixin, ABC):
 
         Override this for custom extraction logic (e.g., median instead of mean).
         """
-        if isinstance(value, np.ndarray):
-            if len(value) == 1:
-                return float(value[0])
+        if isinstance(value, (np.ndarray, list)):
+            arr = np.asarray(value)
+            if arr.size == 1:
+                return float(arr.flat[0])
             else:
                 # Use mean for multi-element arrays
-                return float(np.mean(value))
+                return float(np.mean(arr))
         return float(value)
 
     def _format_parameter_value(self, param_name: str, value: float) -> Any:

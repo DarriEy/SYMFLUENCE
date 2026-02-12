@@ -110,11 +110,19 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     print(f"✓ mizuRoute found: {mizu_path}")
 
     # Check for TauDEM tools (required for domain preprocessing)
+    taudem_install_path = config.get("TAUDEM_INSTALL_PATH", "default")
+    if taudem_install_path == "default":
+        taudem_install_path = data_dir / "installs" / "TauDEM" / "bin"
+    else:
+        taudem_install_path = Path(taudem_install_path)
+
     taudem_tools = ["pitremove", "d8flowdir", "aread8", "threshold", "streamnet", "gagewatershed"]
     print(f"✓ Checking {len(taudem_tools)} TauDEM tools...")
     for tool in taudem_tools:
         tool_path = shutil.which(tool)
-        assert tool_path is not None, f"TauDEM tool '{tool}' not found in PATH"
+        if not tool_path:
+            tool_path = taudem_install_path / tool
+            assert tool_path.exists(), f"TauDEM tool '{tool}' not found in PATH or {taudem_install_path}"
     print(f"  All {len(taudem_tools)} TauDEM tools found")
 
     # Optional binaries

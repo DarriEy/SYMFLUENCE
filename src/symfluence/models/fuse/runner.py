@@ -91,8 +91,16 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         return self._subcatchment_processor
 
     def _get_fuse_file_id(self) -> str:
-        """Return a short file ID for FUSE outputs/settings."""
+        """Return a short file ID for FUSE outputs/settings.
+
+        FUSE Fortran uses a CHARACTER(LEN=6) buffer for FMODEL_ID,
+        so the ID must be kept to 6 chars max to avoid truncation.
+        """
         fuse_id: str = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        if len(fuse_id) > 6:
+            import hashlib
+            fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
+            self.config_dict['FUSE_FILE_ID'] = fuse_id
         return fuse_id
 
     def _setup_model_specific_paths(self) -> None:
