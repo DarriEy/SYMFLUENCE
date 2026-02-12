@@ -69,11 +69,8 @@ exit 0
         'dependencies': [],
         'test_command': None,
         'verify_install': {
-            'file_paths': [
-                'src/troute-network/troute/network/__init__.py',
-                'troute/network/__init__.py',
-            ],
-            'check_type': 'exists_any'
+            'python_import': 'troute.network',
+            'check_type': 'python_import'
         },
         'order': 4
     }
