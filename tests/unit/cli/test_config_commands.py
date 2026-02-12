@@ -188,3 +188,132 @@ class TestConfigValidateEnv:
         # In practice, we can just verify it doesn't crash
         result = ConfigCommands.validate_env(args)
         assert isinstance(result, ExitCode)
+
+
+class TestConfigResolve:
+    """Test config resolve command."""
+
+    def _make_args(self, config='/some/config.yaml', flat=False, as_json=False,
+                   diff=False, section=None, debug=False):
+        return Namespace(
+            config=config, flat=flat, as_json=as_json,
+            diff=diff, section=section, debug=debug
+        )
+
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_success(self, mock_load_config, capsys):
+        """Test successful config resolve with default (nested YAML) output."""
+        mock_config = MagicMock()
+        mock_config.to_dict.return_value = {
+            'domain': {'name': 'test_basin'},
+            'model': {'hydrological_model': 'SUMMA'}
+        }
+        mock_load_config.return_value = mock_config
+
+        result = ConfigCommands.resolve(self._make_args())
+
+        assert result == ExitCode.SUCCESS
+        captured = capsys.readouterr()
+        assert 'test_basin' in captured.out
+        assert 'SUMMA' in captured.out
+        mock_config.to_dict.assert_called_with(flatten=False)
+
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_flat_format(self, mock_load_config, capsys):
+        """Test resolve with --flat flag outputs uppercase keys."""
+        mock_config = MagicMock()
+        mock_config.to_dict.return_value = {
+            'DOMAIN_NAME': 'test_basin',
+            'HYDROLOGICAL_MODEL': 'SUMMA'
+        }
+        mock_load_config.return_value = mock_config
+
+        result = ConfigCommands.resolve(self._make_args(flat=True))
+
+        assert result == ExitCode.SUCCESS
+        captured = capsys.readouterr()
+        assert 'DOMAIN_NAME' in captured.out
+        assert 'test_basin' in captured.out
+        mock_config.to_dict.assert_called_with(flatten=True)
+
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_json_format(self, mock_load_config, capsys):
+        """Test resolve with --json flag outputs valid JSON."""
+        import json
+
+        mock_config = MagicMock()
+        mock_config.to_dict.return_value = {
+            'domain': {'name': 'test_basin'}
+        }
+        mock_load_config.return_value = mock_config
+
+        result = ConfigCommands.resolve(self._make_args(as_json=True))
+
+        assert result == ExitCode.SUCCESS
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed['domain']['name'] == 'test_basin'
+
+    @patch('symfluence.core.config.transformers.transform_flat_to_nested')
+    @patch('symfluence.core.config.defaults.ConfigDefaults.get_defaults')
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_diff_mode(self, mock_load_config, mock_get_defaults, mock_transform, capsys):
+        """Test resolve with --diff shows only non-default values."""
+        mock_config = MagicMock()
+        # Nested output for the default (non-flat) path
+        mock_config.to_dict.side_effect = lambda flatten: (
+            {'DOMAIN_NAME': 'my_custom', 'NUM_PROCESSES': 1}
+            if flatten else {'domain': {'name': 'my_custom'}}
+        )
+        mock_load_config.return_value = mock_config
+        mock_get_defaults.return_value = {
+            'DOMAIN_NAME': 'default_domain',
+            'NUM_PROCESSES': 1  # same as resolved → should be filtered out
+        }
+        mock_transform.return_value = {'domain': {'name': 'my_custom'}}
+
+        result = ConfigCommands.resolve(self._make_args(diff=True))
+
+        assert result == ExitCode.SUCCESS
+        # The transform should have been called with only changed keys
+        mock_transform.assert_called_once()
+        call_args = mock_transform.call_args[0][0]
+        assert 'DOMAIN_NAME' in call_args
+        assert 'NUM_PROCESSES' not in call_args
+
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_section_filter(self, mock_load_config, capsys):
+        """Test resolve with --section filters to a single section."""
+        mock_config = MagicMock()
+        mock_config.to_dict.return_value = {
+            'domain': {'name': 'test_basin', 'definition_method': 'lumped'},
+            'model': {'hydrological_model': 'SUMMA'},
+            'system': {'num_processes': 1}
+        }
+        mock_load_config.return_value = mock_config
+
+        result = ConfigCommands.resolve(self._make_args(section='domain'))
+
+        assert result == ExitCode.SUCCESS
+        captured = capsys.readouterr()
+        assert 'test_basin' in captured.out
+        # Other sections should not appear
+        assert 'SUMMA' not in captured.out
+        assert 'num_processes' not in captured.out
+
+    @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
+    def test_resolve_invalid_config(self, mock_load_config):
+        """Test resolve with invalid config returns CONFIG_ERROR."""
+        mock_load_config.return_value = None
+
+        result = ConfigCommands.resolve(self._make_args())
+
+        assert result == ExitCode.CONFIG_ERROR
+
+    def test_resolve_section_with_flat_error(self):
+        """Test --section combined with --flat returns USAGE_ERROR."""
+        result = ConfigCommands.resolve(
+            self._make_args(flat=True, section='domain')
+        )
+
+        assert result == ExitCode.USAGE_ERROR
