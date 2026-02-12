@@ -471,7 +471,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 install_path_key=install_path_key,
                 default_install_subpath='installs/mizuRoute/route/bin',
                 exe_name_key=exe_name_key,
-                default_exe_name='mizuroute.exe',
+                default_exe_name='mizuRoute.exe',
                 must_exist=True
             )
             settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')

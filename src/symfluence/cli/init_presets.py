@@ -123,7 +123,7 @@ _LEGACY_PRESETS = {
 
             # mizuRoute settings
             'INSTALL_PATH_MIZUROUTE': 'default',
-            'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
+            'EXE_NAME_MIZUROUTE': 'mizuRoute.exe',
             'SETTINGS_MIZU_PATH': 'default',
             'SETTINGS_MIZU_WITHIN_BASIN': 0,
             'SETTINGS_MIZU_ROUTING_DT': 3600,
