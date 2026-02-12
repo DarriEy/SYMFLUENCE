@@ -1,12 +1,13 @@
 # Publish SYMFLUENCE to PyPI using Trusted Publishers (OIDC)
 #
-# Triggered automatically when a GitHub Release is published (via auto-release.yml).
+# Triggered on v* tag pushes directly — this avoids the GITHUB_TOKEN limitation
+# where releases created by auto-release.yml can't trigger downstream workflows.
 # Also supports manual workflow_dispatch for dry-run testing.
 #
 # Job graph:
 #   build (version check + python -m build + twine check)
-#     ├── [release] → publish-testpypi → verify-testpypi → publish-pypi → verify-pypi
-#     └── [dispatch] → dry-run (inspect artifacts only)
+#     ├── [tag push] → publish-testpypi → verify-testpypi → publish-pypi → verify-pypi
+#     └── [dispatch]  → dry-run (inspect artifacts only)
 #
 # ============================================================================
 # ONE-TIME SETUP REQUIRED (before first release)
@@ -29,8 +30,10 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  # Trigger on version tag pushes (not example-data or other tags)
+  push:
+    tags:
+      - 'v[0-9]*'
   workflow_dispatch:
     inputs:
       tag:
@@ -75,7 +78,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag }}"
           else
-            TAG="${{ github.event.release.tag_name }}"
+            # For push events, extract tag from ref
+            TAG="${GITHUB_REF#refs/tags/}"
           fi
 
           # Strip 'v' prefix
@@ -122,7 +126,7 @@ jobs:
   publish-testpypi:
     name: Publish to TestPyPI
     needs: build
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     environment: testpypi
@@ -147,7 +151,7 @@ jobs:
   verify-testpypi:
     name: Verify TestPyPI
     needs: [build, publish-testpypi]
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 
@@ -160,7 +164,7 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${GITHUB_REF#refs/tags/}"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Wait for TestPyPI index and verify install
@@ -192,7 +196,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build, verify-testpypi]
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     environment: pypi
@@ -215,7 +219,7 @@ jobs:
   verify-pypi:
     name: Verify PyPI
     needs: [build, publish-pypi]
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 15
 
@@ -228,7 +232,7 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${GITHUB_REF#refs/tags/}"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Wait for PyPI index and verify install
@@ -283,4 +287,4 @@ jobs:
           sha256sum dist/* || shasum -a 256 dist/*
           echo ""
           echo "This was a dry run. No packages were published."
-          echo "To publish, create a GitHub Release (tag push)."
+          echo "To publish, push a version tag (e.g., git tag v0.8.0 && git push origin v0.8.0)."
