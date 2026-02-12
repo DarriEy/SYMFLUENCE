@@ -69,7 +69,8 @@ def main():
         print(plan)
         return 0
 
-    # TODO: Call our orchestrator here to execute the plan.
-    print("🚀 Execution plan (orchestrator hook point):")
-    print(plan)
-    return 0
+    # Legacy CLI stub — the new subcommand CLI (symfluence.main_cli:main)
+    # handles workflow execution via WorkflowCommands.run().
+    print("This legacy CLI entry point is deprecated.", file=sys.stderr)
+    print("Use: symfluence workflow run --config <path>", file=sys.stderr)
+    return 1

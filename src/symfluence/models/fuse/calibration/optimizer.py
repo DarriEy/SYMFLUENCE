@@ -1,0 +1,672 @@
+"""
+FUSE Model Optimizer
+
+FUSE-specific optimizer inheriting from BaseModelOptimizer.
+Provides unified interface for all optimization algorithms with FUSE.
+"""
+
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+
+from symfluence.core.file_utils import copy_file
+from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
+from symfluence.optimization.registry import OptimizerRegistry
+from .worker import FUSEWorker  # noqa: F401 - Import to trigger worker registration
+
+
+@OptimizerRegistry.register_optimizer('FUSE')
+class FUSEModelOptimizer(BaseModelOptimizer):
+    """
+    FUSE-specific optimizer using the unified BaseModelOptimizer framework.
+
+    Provides access to all optimization algorithms:
+    - run_dds(): Dynamically Dimensioned Search
+    - run_pso(): Particle Swarm Optimization
+    - run_sce(): Shuffled Complex Evolution
+    - run_de(): Differential Evolution
+    - run_adam(): Adam gradient-based optimization
+    - run_lbfgs(): L-BFGS gradient-based optimization
+
+    Example:
+        optimizer = FUSEModelOptimizer(config, logger)
+        results_path = optimizer.run_pso()
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        logger: logging.Logger,
+        optimization_settings_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None
+    ):
+        """
+        Initialize FUSE optimizer.
+
+        Args:
+            config: Configuration dictionary
+            logger: Logger instance
+            optimization_settings_dir: Optional path to optimization settings
+            reporting_manager: ReportingManager instance
+        """
+        # Initialize FUSE-specific paths before super().__init__
+        # because parent calls _setup_parallel_dirs()
+        # Note: experiment_id is a read-only property from ConfigMixin, so we use a local var
+        exp_id = config.get('EXPERIMENT_ID')
+        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.domain_name = config.get('DOMAIN_NAME')
+        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+
+        self.fuse_sim_dir = self.project_dir / 'simulations' / exp_id / 'FUSE'
+        self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
+        self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
+        # Use 'or' to treat None as "not set" and fallback to exp_id
+        self.fuse_id = config.get('FUSE_FILE_ID') or exp_id
+
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
+
+        self.logger.debug("FUSEModelOptimizer initialized")
+
+    def _get_fuse_executable_path_pre_init(self, config: Dict[str, Any]) -> Path:
+        """Helper to get FUSE executable path before full initialization."""
+        fuse_install = config.get('FUSE_INSTALL_PATH', 'default')
+        if fuse_install == 'default':
+            return self.data_dir / 'installs' / 'fuse' / 'bin' / 'fuse.exe'
+        return Path(fuse_install) / 'fuse.exe'
+
+    def _get_model_name(self) -> str:
+        """Return model name."""
+        return 'FUSE'
+
+    def _create_parameter_manager(self):
+        """Create FUSE parameter manager."""
+        from .parameter_manager import FUSEParameterManager
+        return FUSEParameterManager(
+            self.config,
+            self.logger,
+            self.fuse_setup_dir
+        )
+
+    def _create_para_def_nc(self, param_file: Path) -> bool:
+        """
+        Create a fresh para_def.nc file with default parameter values.
+
+        FUSE's run_def mode reads parameters from para_def.nc, so this file
+        must exist for calibration to work. This method creates a properly
+        structured NetCDF file with all calibration parameters set to their
+        default (middle of bounds) values.
+
+        Note: Elevation band parameters (N_BANDS, Z_FORCING, etc.) are NOT
+        included here - FUSE reads them directly from the elevation bands file.
+
+        Args:
+            param_file: Path where para_def.nc should be created
+
+        Returns:
+            True if file was created successfully
+        """
+        try:
+            import netCDF4 as nc
+
+            # Ensure parent directory exists
+            param_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get parameters to calibrate from config
+            fuse_params_str = self.config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE', '')
+            if not fuse_params_str or fuse_params_str == 'default':
+                fuse_params_str = 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE'
+            fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
+
+            # Get parameter bounds from config or use defaults
+            from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
+            bounds = get_fuse_bounds()
+
+            # Override with config bounds if specified
+            config_bounds = self.config.get('FUSE_PARAM_BOUNDS', {})
+            for param, bound_list in config_bounds.items():
+                if isinstance(bound_list, list) and len(bound_list) == 2:
+                    bounds[param] = {'min': float(bound_list[0]), 'max': float(bound_list[1])}
+
+            # CRITICAL: Include elevation band parameters (N_BANDS, Z_MID, AF) in para_def.nc
+            # FUSE's run_def mode reads ALL parameters from para_def.nc, including elevation bands.
+            # If these are missing, FUSE defaults them to 0, which causes zero runoff output!
+            elev_params = self._get_elevation_band_params()
+            self.logger.debug(f"Adding elevation band params to para_def.nc: {elev_params}")
+
+            # Create NetCDF file
+            with nc.Dataset(param_file, 'w', format='NETCDF4') as ds:
+                # Create dimensions - CRITICAL: Use size 1 for single parameter set
+                ds.createDimension('par', 1)
+
+                # Create coordinate variable
+                par_var = ds.createVariable('par', 'i4', ('par',))
+                par_var[:] = [0]  # 0-based indexing
+
+                # Create parameter variables with default values (middle of bounds)
+                for param_name in fuse_params:
+                    param_var = ds.createVariable(param_name, 'f8', ('par',))
+                    if param_name in bounds:
+                        default_val = (bounds[param_name]['min'] + bounds[param_name]['max']) / 2.0
+                    else:
+                        default_val = 1.0  # Fallback
+                    param_var[:] = [default_val]
+                    self.logger.debug(f"  Created param {param_name} = {default_val:.4f}")
+
+                # Add elevation band parameters (CRITICAL for non-zero runoff!)
+                for param_name, value in elev_params.items():
+                    if param_name not in ds.variables:
+                        param_var = ds.createVariable(param_name, 'f8', ('par',))
+                        param_var[:] = [value]
+                        self.logger.debug(f"  Created elev param {param_name} = {value:.4f}")
+
+                # Add global attributes
+                ds.setncattr('title', 'FUSE parameter file for calibration')
+                ds.setncattr('created_by', 'SYMFLUENCE FUSEModelOptimizer')
+
+                ds.sync()
+
+            self.logger.info(f"Created para_def.nc with {len(fuse_params)} calibration parameters and {len(elev_params)} elevation band parameters")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to create para_def.nc: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+
+    def _get_elevation_band_params(self) -> Dict[str, float]:
+        """
+        Read elevation band parameters from the elevation bands file.
+
+        These parameters are required for FUSE's run_def mode to properly
+        aggregate band-level snow results to catchment totals.
+
+        Returns:
+            Dictionary with N_BANDS, Z_FORCING, Z_MIDxx, AFxx parameters
+        """
+        import xarray as xr
+
+        params: Dict[str, float] = {}
+
+        try:
+            # Find the elevation bands file
+            forcing_dir = self.project_dir / 'forcing' / 'FUSE_input'
+            elev_bands_file = forcing_dir / f"{self.domain_name}_elev_bands.nc"
+
+            if not elev_bands_file.exists():
+                self.logger.warning(f"Elevation bands file not found: {elev_bands_file}")
+                # Use defaults for single band
+                params['N_BANDS'] = 1.0
+                params['Z_FORCING'] = 1000.0  # Default forcing elevation
+                params['Z_MID01'] = 1000.0
+                params['AF01'] = 1.0
+                return params
+
+            with xr.open_dataset(elev_bands_file) as ds:
+                # Get number of bands
+                if 'elevation_band' in ds.dims:
+                    n_bands = ds.sizes['elevation_band']
+                else:
+                    n_bands = 1
+                params['N_BANDS'] = float(n_bands)
+
+                # Get mean elevations and area fractions for each band
+                if 'mean_elev' in ds:
+                    mean_elevs = ds['mean_elev'].values.flatten()
+                    for i, elev in enumerate(mean_elevs[:n_bands]):
+                        params[f'Z_MID{i+1:02d}'] = float(elev)
+
+                if 'area_frac' in ds:
+                    area_fracs = ds['area_frac'].values.flatten()
+                    for i, af in enumerate(area_fracs[:n_bands]):
+                        params[f'AF{i+1:02d}'] = float(af)
+
+                # Z_FORCING: elevation of forcing data
+                # This can be set from config or default to catchment elevation
+                # (same as Z_MID01 = no lapse correction) or use ERA5 orography
+                z_forcing = self.config.get('FUSE_FORCING_ELEVATION', None)
+                if z_forcing is not None:
+                    params['Z_FORCING'] = float(z_forcing)
+                elif 'Z_MID01' in params:
+                    # Default: same as catchment elevation (no lapse correction)
+                    # User should set FUSE_FORCING_ELEVATION for proper lapse rate
+                    params['Z_FORCING'] = params['Z_MID01']
+                else:
+                    params['Z_FORCING'] = 1000.0
+
+            self.logger.info(f"Read elevation band params: N_BANDS={params.get('N_BANDS')}, "
+                           f"Z_FORCING={params.get('Z_FORCING'):.0f}, Z_MID01={params.get('Z_MID01', 'N/A')}")
+
+        except Exception as e:
+            self.logger.warning(f"Error reading elevation bands: {e}. Using defaults.")
+            params['N_BANDS'] = 1.0
+            params['Z_FORCING'] = 1000.0
+            params['Z_MID01'] = 1000.0
+            params['AF01'] = 1.0
+
+        return params
+
+    def _find_complete_fuse_template(self) -> Optional[Path]:
+        """
+        Find an existing complete FUSE para_def.nc template with all required variables.
+
+        FUSE's run_pre mode requires a para_def.nc with all ~89 variables including:
+        - Calibration parameters (MAXWATR_1, BASERTE, etc.)
+        - Derived parameters (MAXTENS_1, MAXFREE_1, etc.)
+        - Numerix settings (SOLUTION, TIMSTEP_TYP, etc.)
+        - Statistics placeholders (nash_sutt, kge, etc.)
+
+        This method searches for existing FUSE-generated templates that contain
+        all required variables. If found, this template should be used instead of
+        creating a minimal file via _create_para_def_nc().
+
+        Search locations (in priority order):
+        0. User-specified FUSE_TEMPLATE_PATH (highest priority)
+        1. Current simulation directory (from previous run)
+        2. Other simulation directories in the project
+        3. Parallel process directories (from calibration runs)
+
+        Returns:
+            Path to complete template if found, None otherwise
+        """
+        import netCDF4 as nc
+
+        # Minimum number of variables expected in a complete FUSE template
+        # FUSE generates ~89 variables; we require at least 70 to be safe
+        MIN_REQUIRED_VARS = 70
+
+        def is_complete_template(path: Path) -> bool:
+            """Check if a para_def.nc has all required variables."""
+            try:
+                with nc.Dataset(path, 'r') as ds:
+                    n_vars = len([v for v in ds.variables if v != 'par'])
+                    if n_vars >= MIN_REQUIRED_VARS:
+                        self.logger.debug(f"Found complete template with {n_vars} vars: {path}")
+                        return True
+                    else:
+                        self.logger.debug(f"Template {path} has only {n_vars} vars (need {MIN_REQUIRED_VARS}+)")
+                        return False
+            except Exception as e:
+                self.logger.debug(f"Could not check template {path}: {e}")
+                return False
+
+        # 0. Check for user-specified template path (highest priority)
+        user_template = self._get_config_value(
+            lambda: self.config.model.fuse.template_path,
+            default=None,
+            dict_key='FUSE_TEMPLATE_PATH'
+        )
+        if user_template:
+            user_template_path = Path(user_template)
+            if user_template_path.exists() and is_complete_template(user_template_path):
+                self.logger.info(f"Using user-specified FUSE template: {user_template_path}")
+                return user_template_path
+            else:
+                self.logger.warning(
+                    f"User-specified FUSE_TEMPLATE_PATH '{user_template}' does not exist "
+                    f"or is not a complete template. Searching for alternatives..."
+                )
+
+        # Search locations
+        search_paths: List[Path] = []
+
+        # 1. Current simulation directory
+        if self.fuse_sim_dir.exists():
+            search_paths.extend(self.fuse_sim_dir.glob("*_para_def.nc"))
+            search_paths.extend(self.fuse_sim_dir.glob("sim_*_para_def.nc"))
+
+        # 2. Other simulation directories
+        sim_base = self.project_dir / 'simulations'
+        if sim_base.exists():
+            for sim_dir in sim_base.iterdir():
+                if sim_dir.is_dir() and sim_dir.name != self.experiment_id:
+                    fuse_dir = sim_dir / 'FUSE'
+                    if fuse_dir.exists():
+                        search_paths.extend(fuse_dir.glob("*_para_def.nc"))
+                        search_paths.extend(fuse_dir.glob("sim_*_para_def.nc"))
+
+        # 3. Parallel process directories (may have FUSE-generated templates)
+        run_dirs = list(sim_base.glob("run_*/process_*/settings/FUSE"))
+        for run_dir in run_dirs:
+            if run_dir.exists():
+                search_paths.extend(run_dir.glob("sim_*_para_def.nc"))
+
+        # Check each path for completeness
+        for path in search_paths:
+            if path.exists() and is_complete_template(path):
+                self.logger.info(f"Found complete FUSE template: {path}")
+                return path
+
+        self.logger.debug("No complete FUSE template found")
+        return None
+
+    def _add_elevation_params_to_constraints(self, constraints_file: Path) -> bool:
+        """
+        Add or update elevation band parameters in the FUSE constraints file as FIXED parameters.
+
+        CRITICAL: FUSE's run_def mode needs elevation band parameters in the constraints
+        file to properly initialize the aggregation from band-level results (swe_z01)
+        to catchment totals (swe_tot, eff_ppt). Without these, run_def mode will compute
+        band-level snow but fail to aggregate it, causing massive flow underestimation.
+
+        This method will UPDATE existing values if parameters already exist, ensuring
+        correct elevations are used even if the file was previously modified with wrong values.
+
+        Args:
+            constraints_file: Path to fuse_zConstraints_snow.txt
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Get elevation band parameters from the elevation bands file
+            elev_params = self._get_elevation_band_params()
+
+            if not constraints_file.exists():
+                self.logger.warning(f"Constraints file not found: {constraints_file}")
+                return False
+
+            # Read existing constraints file with encoding fallback
+            try:
+                with open(constraints_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                self.logger.warning(
+                    f"UTF-8 decode error reading {constraints_file}, falling back to latin-1"
+                )
+                with open(constraints_file, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
+
+            # Define all elevation parameter names we want to manage
+            # Format: (L1,1X,I1,1X,3(F9.3,1X),F3.2,1X,F5.1,1X,3(I1,1X),I2,1X,2(I1,1X),3(A9,1X))
+            # F 0   value    lower    upper  frac scale t1 t2 t3 nL im nH NAME      CHILD1    CHILD2
+            elev_param_names = ['N_BANDS', 'Z_FORCING']
+            for i in range(1, 11):  # Support up to 10 bands
+                elev_param_names.append(f'Z_MID{i:02d}')
+                elev_param_names.append(f'AF{i:02d}')
+
+            # Create new line for each elevation parameter
+            def make_elev_line(param_name: str, val: float, comment: str) -> str:
+                return f"F 0 {val:9.3f} {val:9.3f} {val:9.3f} .10   1.0 0 0 0  0 0 0 {param_name:9s} NO_CHILD1 NO_CHILD2 ! {comment}\n"
+
+            # Process lines: update existing or track for adding
+            new_lines = []
+            found_params = set()
+            insert_pos = len(lines)
+
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+
+                # Track where description section starts
+                if stripped.startswith('*****'):
+                    insert_pos = min(insert_pos, i)
+                    new_lines.append(line)
+                    continue
+
+                # Skip non-parameter lines
+                if stripped.startswith('(') or stripped.startswith('!') or not stripped:
+                    new_lines.append(line)
+                    continue
+
+                # Try to parse parameter name from line
+                parts = line.split()
+                if len(parts) >= 14:
+                    param_name = parts[13]
+
+                    # Check if this is an elevation parameter we manage
+                    if param_name in elev_param_names:
+                        found_params.add(param_name)
+
+                        # Update with correct value if we have it
+                        if param_name in elev_params:
+                            val = elev_params[param_name]
+                            if param_name == 'N_BANDS':
+                                new_lines.append(make_elev_line(param_name, val, "number of elevation bands"))
+                            elif param_name == 'Z_FORCING':
+                                new_lines.append(make_elev_line(param_name, val, "elevation of forcing data (m)"))
+                            elif param_name.startswith('Z_MID'):
+                                band_num = int(param_name[5:])
+                                new_lines.append(make_elev_line(param_name, val, f"elevation of band {band_num} (m)"))
+                            elif param_name.startswith('AF'):
+                                band_num = int(param_name[2:])
+                                new_lines.append(make_elev_line(param_name, val, f"area fraction of band {band_num}"))
+                            else:
+                                new_lines.append(line)  # Keep original if unknown
+                        else:
+                            new_lines.append(line)  # Keep original if no value
+                        continue
+
+                # Keep other lines unchanged
+                new_lines.append(line)
+
+            # Add any elevation parameters that weren't in the file
+            elev_lines_to_add = []
+            for param_name in ['N_BANDS', 'Z_FORCING']:
+                if param_name not in found_params and param_name in elev_params:
+                    val = elev_params[param_name]
+                    if param_name == 'N_BANDS':
+                        elev_lines_to_add.append(make_elev_line(param_name, val, "number of elevation bands"))
+                    else:
+                        elev_lines_to_add.append(make_elev_line(param_name, val, "elevation of forcing data (m)"))
+
+            # Add Z_MID and AF parameters for each band
+            n_bands = int(elev_params.get('N_BANDS', 1))
+            for i in range(1, n_bands + 1):
+                z_mid_name = f'Z_MID{i:02d}'
+                af_name = f'AF{i:02d}'
+
+                if z_mid_name not in found_params and z_mid_name in elev_params:
+                    elev_lines_to_add.append(make_elev_line(z_mid_name, elev_params[z_mid_name], f"elevation of band {i} (m)"))
+
+                if af_name not in found_params and af_name in elev_params:
+                    elev_lines_to_add.append(make_elev_line(af_name, elev_params[af_name], f"area fraction of band {i}"))
+
+            # Insert new elevation parameters before the description section
+            if elev_lines_to_add:
+                # Find insert position in new_lines (before ***** section)
+                new_insert_pos = len(new_lines)
+                for i, line in enumerate(new_lines):
+                    if line.strip().startswith('*****'):
+                        new_insert_pos = i
+                        break
+                new_lines = new_lines[:new_insert_pos] + elev_lines_to_add + new_lines[new_insert_pos:]
+
+            # Write updated constraints file
+            with open(constraints_file, 'w') as f:
+                f.writelines(new_lines)
+
+            updated_count = len(found_params)
+            added_count = len(elev_lines_to_add)
+            self.logger.info(f"Elevation params in constraints: updated {updated_count}, added {added_count}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to add elevation params to constraints file: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+
+    def _check_routing_needed(self) -> bool:
+        """
+        Determine if routing is needed for FUSE calibration.
+
+        Returns:
+            True if mizuRoute routing should be used
+        """
+        # Check FUSE routing integration setting
+        routing_integration = self._get_config_value(lambda: self.config.model.fuse.routing_integration, default='none', dict_key='FUSE_ROUTING_INTEGRATION')
+
+        # If 'default', inherit from ROUTING_MODEL
+        if routing_integration == 'default':
+            routing_model = self._get_config_value(lambda: self.config.model.routing_model, default='none', dict_key='ROUTING_MODEL')
+            routing_integration = 'mizuRoute' if routing_model == 'mizuRoute' else routing_integration
+
+        if routing_integration != 'mizuRoute':
+            return False
+
+        # Check calibration variable (only streamflow calibration uses routing)
+        calibration_var = self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow', dict_key='CALIBRATION_VARIABLE')
+        if calibration_var != 'streamflow':
+            return False
+
+        # Check spatial mode and routing delineation
+        spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default='lumped', dict_key='FUSE_SPATIAL_MODE')
+        routing_delineation = self._get_config_value(lambda: self.config.domain.delineation.routing, default='lumped', dict_key='ROUTING_DELINEATION')
+
+        # Distributed or semi-distributed modes need routing
+        if spatial_mode in ['semi_distributed', 'distributed']:
+            return True
+
+        # Lumped with river network routing needs routing
+        if spatial_mode == 'lumped' and routing_delineation == 'river_network':
+            return True
+
+        return False
+
+    def _copy_default_initial_params_to_sce(self):
+        """Helper to ensure para_sce.nc exists by copying para_def.nc."""
+        if self.fuse_sim_dir.exists():
+            default_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
+            sce_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_sce.nc"
+            if default_params.exists() and not sce_params.exists():
+                copy_file(default_params, sce_params)
+                self.logger.info("Initialized para_sce.nc from default parameters")
+
+    def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
+        """
+        Apply best parameters for final evaluation.
+
+        Overrides base class to use param_manager which knows the correct
+        FUSE parameter file path (in simulations dir, not settings dir).
+        """
+        try:
+            # Use param_manager.update_model_files() which uses the correct path
+            # (self.fuse_sim_dir / domain_name_fuse_id_para_def.nc)
+            return self.param_manager.update_model_files(best_params)
+        except Exception as e:
+            self.logger.error(f"Error applying FUSE parameters for final evaluation: {e}")
+            return False
+
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run FUSE for final evaluation."""
+        self._copy_default_initial_params_to_sce()
+        # Use run_pre mode to preserve elevation band parameters in para_def.nc
+        # run_def mode regenerates para_def.nc and can overwrite AF01, Z_MID01 to 0
+        return self.worker.run_model(
+            self.config,
+            self.fuse_setup_dir,
+            output_dir,
+            mode='run_pre'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to FUSE file manager."""
+        fuse_fm = self._get_config_value(lambda: self.config.model.fuse.filemanager, default='fm_catch.txt', dict_key='SETTINGS_FUSE_FILEMANAGER')
+        if fuse_fm == 'default':
+            fuse_fm = 'fm_catch.txt'
+        return self.fuse_setup_dir / fuse_fm
+
+    def _setup_parallel_dirs(self) -> None:
+        """Setup FUSE-specific parallel directories."""
+        # Use algorithm-specific directory (consistent with SUMMA)
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        self.parallel_dirs = self.setup_parallel_processing(
+            base_dir,
+            'FUSE',
+            self.experiment_id
+        )
+
+        # Copy FUSE settings to each parallel directory
+        if self.fuse_setup_dir.exists():
+            self.copy_base_settings(self.fuse_setup_dir, self.parallel_dirs, 'FUSE')
+
+        # Copy parameter file to each parallel directory
+        # This is critical for parallel workers to modify parameters in isolation
+        # Use 'or' to treat None as "not set" and fallback to experiment_id
+        fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, dict_key='FUSE_FILE_ID') or self.experiment_id
+        param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
+
+        # If para_def.nc doesn't exist, try to find a complete FUSE template
+        # CRITICAL: For run_pre mode, FUSE requires all ~89 variables including:
+        # - Derived parameters (MAXTENS_*, MAXFREE_*, etc.)
+        # - Numerix settings (SOLUTION, TIMSTEP_TYP, etc.)
+        # - Statistics placeholders (nash_sutt, kge, etc.)
+        # A minimal file created by _create_para_def_nc() will NOT work for run_pre!
+        if not param_file.exists():
+            # First, try to find an existing complete FUSE template
+            template_path = self._find_complete_fuse_template()
+
+            if template_path is not None:
+                # Copy the complete template to the expected location
+                self.logger.info(f"Using complete FUSE template from: {template_path}")
+                param_file.parent.mkdir(parents=True, exist_ok=True)
+                copy_file(template_path, param_file)
+            else:
+                # No complete template found - create minimal file
+                # This will work for run_def mode but NOT for run_pre mode
+                self.logger.warning(
+                    "No complete FUSE template found. Creating minimal para_def.nc. "
+                    "This will work for run_def mode, but run_pre mode requires a complete "
+                    "template with all ~89 variables. To generate a complete template, first "
+                    "run FUSE in run_def or calib_sce mode, or provide FUSE_TEMPLATE_PATH in config."
+                )
+                self._create_para_def_nc(param_file)
+
+                # Check if run_pre mode is requested and warn
+                fuse_mode = self._get_config_value(
+                    lambda: self.config.model.fuse.run_mode,
+                    default='run_def',
+                    dict_key='FUSE_RUN_MODE'
+                )
+                if fuse_mode == 'run_pre':
+                    self.logger.error(
+                        "FUSE run_pre mode is configured but no complete template was found! "
+                        "Calibration will likely fail. Please either:\n"
+                        "  1. Run FUSE once in run_def mode to generate a complete para_def.nc\n"
+                        "  2. Set FUSE_TEMPLATE_PATH to an existing complete para_def.nc\n"
+                        "  3. Switch to run_def mode (but note: run_def regenerates parameters)"
+                    )
+
+        if param_file.exists():
+            for proc_id, dirs in self.parallel_dirs.items():
+                # Copy directly to settings_dir (which already includes model name, e.g., .../settings/FUSE)
+                dest_file = dirs['settings_dir'] / param_file.name
+                try:
+                    copy_file(param_file, dest_file)
+                    self.logger.debug(f"Copied parameter file to {dest_file}")
+                except Exception as e:
+                    self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}")
+        else:
+            self.logger.error(f"Failed to create parameter file: {param_file} - FUSE calibration will fail")
+
+        # NOTE: Do NOT add elevation band parameters to constraints file!
+        # FUSE reads N_BANDS, Z_MID, AF etc. from the elevation bands file (_elev_bands.nc)
+        # directly, not from the constraints. Adding them to constraints causes FUSE to
+        # error with "parameter name (N_BANDS) does not exist" because it then expects
+        # them in para_def.nc in a specific FUSE-internal format.
+        # The ellioaar_iceland working example confirms this: constraints has NO elevation
+        # params, but FUSE calib_sce creates para_def.nc with them from _elev_bands.nc.
+
+        # If routing needed, also copy and configure mizuRoute settings
+        if self._check_routing_needed():
+            mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
+            if mizu_settings.exists():
+                for proc_id, dirs in self.parallel_dirs.items():
+                    mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
+                    mizu_dest.mkdir(parents=True, exist_ok=True)
+                    for item in mizu_settings.iterdir():
+                        if item.is_file():
+                            copy_file(item, mizu_dest / item.name)
+
+                # Update mizuRoute control files with process-specific paths
+                self.update_mizuroute_controls(
+                    self.parallel_dirs,
+                    'FUSE',
+                    self.experiment_id
+                )
+                self.logger.debug("Copied and configured mizuRoute settings for parallel processes")
+
+
+# Backward compatibility alias
+FUSEOptimizer = FUSEModelOptimizer

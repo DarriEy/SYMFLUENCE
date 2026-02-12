@@ -1,0 +1,414 @@
+"""
+System diagnostics service for SYMFLUENCE.
+
+Provides system health checks, toolchain information, and library detection.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from .base import BaseService
+from ..console import Console
+
+
+class SystemDiagnostics(BaseService):
+    """
+    Service for running system diagnostics.
+
+    Handles:
+    - Binary status checks
+    - Toolchain metadata reading
+    - System library detection
+    - npm binary detection
+    """
+
+    def __init__(
+        self,
+        external_tools: Optional[Dict[str, Any]] = None,
+        console: Optional[Console] = None,
+    ):
+        """
+        Initialize the SystemDiagnostics.
+
+        Args:
+            external_tools: Dictionary of tool definitions. If None, loads on demand.
+            console: Console instance for output.
+        """
+        super().__init__(console=console)
+        self._external_tools = external_tools
+
+    @property
+    def external_tools(self) -> Dict[str, Any]:
+        """Lazy load external tools definitions."""
+        if self._external_tools is None:
+            from ..external_tools_config import get_external_tools_definitions
+            self._external_tools = get_external_tools_definitions()
+        return self._external_tools
+
+    def run_diagnostics(self) -> bool:
+        """
+        Run system diagnostics: check binaries, toolchain, and system libraries.
+
+        Returns:
+            True if diagnostics completed successfully.
+        """
+        self._console.rule()
+
+        # Check binaries
+        self._console.newline()
+        self._console.info("Checking binaries...")
+        self._console.rule()
+
+        config = self._load_config()
+        symfluence_data = str(self._get_data_dir(config))
+
+        npm_bin_dir = self.detect_npm_binaries()
+
+        if npm_bin_dir:
+            self._console.info(f"Detected npm-installed binaries: {npm_bin_dir}")
+        if symfluence_data:
+            self._console.info(f"Checking source installs in: {symfluence_data}")
+
+        found_binaries = 0
+        total_binaries = 0
+
+        # Build table rows for binary status
+        binary_rows = self._check_binary_status(symfluence_data, npm_bin_dir)
+        for row in binary_rows:
+            total_binaries += 1
+            if "[green]OK[/green]" in row[1]:
+                found_binaries += 1
+
+        self._console.table(
+            columns=["Tool", "Status", "Location"],
+            rows=binary_rows,
+            title="Binary Status",
+        )
+
+        # Check toolchain metadata
+        self._console.newline()
+        self._console.info("Toolchain metadata...")
+        self._console.rule()
+
+        toolchain_found = self._check_toolchain_metadata(symfluence_data, npm_bin_dir)
+
+        # Check system libraries
+        self._console.newline()
+        self._console.info("System libraries...")
+        self._console.rule()
+
+        lib_rows, found_libs, total_libs = self._check_system_libraries()
+
+        self._console.table(
+            columns=["Library", "Status", "Location"],
+            rows=lib_rows,
+            title="System Libraries",
+        )
+
+        # Summary
+        self._console.newline()
+        self._console.rule()
+        self._console.info("Summary:")
+        self._console.indent(f"Binaries: {found_binaries}/{total_binaries} found")
+        tc_status = "[green]Found[/green]" if toolchain_found else "[red]Not found[/red]"
+        self._console.indent(f"Toolchain metadata: {tc_status}")
+        self._console.indent(f"System libraries: {found_libs}/{total_libs} found")
+
+        if found_binaries == total_binaries and toolchain_found and found_libs >= 3:
+            self._console.newline()
+            self._console.success("System is ready for SYMFLUENCE!")
+        elif found_binaries == 0:
+            self._console.newline()
+            self._console.warning("No binaries found. Install with:")
+            self._console.indent("npm install -g symfluence (for pre-built binaries)")
+            self._console.indent("symfluence binary install (to build from source)")
+        else:
+            self._console.newline()
+            self._console.warning("Some components missing. Review output above.")
+
+        self._console.rule()
+        return True
+
+    def get_tools_info(self) -> bool:
+        """
+        Display installed tools information from toolchain metadata.
+
+        Returns:
+            True if tools info was displayed, False if no metadata found.
+        """
+        symfluence_data = os.getenv("SYMFLUENCE_DATA")
+        npm_bin_dir = self.detect_npm_binaries()
+
+        toolchain_locations = []
+        if symfluence_data:
+            toolchain_locations.append(
+                Path(symfluence_data) / "installs" / "toolchain.json"
+            )
+        if npm_bin_dir:
+            toolchain_locations.append(npm_bin_dir.parent / "toolchain.json")
+
+        toolchain_path = None
+        for path in toolchain_locations:
+            if path.exists():
+                toolchain_path = path
+                break
+
+        if not toolchain_path:
+            self._console.error("No toolchain metadata found.")
+            self._console.newline()
+            self._console.info("Toolchain metadata is generated during installation.")
+            self._console.indent("Install binaries with:")
+            self._console.indent("  npm install -g symfluence")
+            self._console.indent("  symfluence binary install")
+            return False
+
+        return self._read_toolchain_metadata(toolchain_path)
+
+    def detect_npm_binaries(self) -> Optional[Path]:
+        """
+        Detect if SYMFLUENCE binaries are installed via npm.
+
+        Returns:
+            Path to npm-installed binaries, or None if not found.
+        """
+        try:
+            result = subprocess.run(
+                ["npm", "root", "-g"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+            if result.returncode == 0:
+                npm_root = Path(result.stdout.strip())
+                npm_bin_dir = npm_root / "symfluence" / "dist" / "bin"
+
+                if npm_bin_dir.exists() and npm_bin_dir.is_dir():
+                    return npm_bin_dir
+
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+
+        return None
+
+    def _check_binary_status(
+        self, symfluence_data: str, npm_bin_dir: Optional[Path]
+    ) -> List[List[str]]:
+        """
+        Check status of all binaries.
+
+        Args:
+            symfluence_data: Path to SYMFLUENCE data directory.
+            npm_bin_dir: Path to npm binary directory if available.
+
+        Returns:
+            List of table rows [name, status, location].
+        """
+        binary_rows = []
+
+        for name, tool_info in self.external_tools.items():
+            if name == "sundials":
+                continue  # Skip library-only tool
+
+            found = False
+            location = None
+
+            # 1. Check in SYMFLUENCE_DATA (installed from source)
+            if symfluence_data:
+                rel_path_suffix = tool_info.get("default_path_suffix", "")
+                exe_name = tool_info.get("default_exe", "")
+
+                full_path = Path(symfluence_data) / rel_path_suffix
+
+                if name in ("taudem",):
+                    if full_path.exists() and full_path.is_dir():
+                        found = True
+                        location = full_path
+                elif exe_name:
+                    if exe_name.endswith(".so") and sys.platform == "darwin":
+                        exe_name_mac = exe_name.replace(".so", ".dylib")
+                        candidates = [exe_name, exe_name_mac]
+                    else:
+                        candidates = [exe_name]
+
+                    for cand in candidates:
+                        exe_path = full_path / cand
+                        if exe_path.exists():
+                            found = True
+                            location = exe_path
+                            break
+
+                        exe_path_no_ext = full_path / cand.replace(".exe", "")
+                        if exe_path_no_ext.exists():
+                            found = True
+                            location = exe_path_no_ext
+                            break
+
+            # 2. Check npm installation as fallback
+            if not found and npm_bin_dir:
+                npm_path = npm_bin_dir / name
+                if npm_path.exists():
+                    found = True
+                    location = npm_path
+                else:
+                    exe_name = tool_info.get("default_exe", "")
+                    if exe_name:
+                        for candidate in [exe_name, exe_name.replace(".exe", "")]:
+                            npm_exe_path = npm_bin_dir / candidate
+                            if npm_exe_path.exists():
+                                found = True
+                                location = npm_exe_path
+                                break
+
+            status = "[green]OK[/green]" if found else "[red]MISSING[/red]"
+            loc_str = str(location) if location else "-"
+            binary_rows.append([name, status, loc_str])
+
+        return binary_rows
+
+    def _check_toolchain_metadata(
+        self, symfluence_data: str, npm_bin_dir: Optional[Path]
+    ) -> bool:
+        """
+        Check for and display toolchain metadata.
+
+        Args:
+            symfluence_data: Path to SYMFLUENCE data directory.
+            npm_bin_dir: Path to npm binary directory if available.
+
+        Returns:
+            True if toolchain metadata found, False otherwise.
+        """
+        toolchain_locations = []
+        if symfluence_data:
+            toolchain_locations.append(
+                Path(symfluence_data) / "installs" / "toolchain.json"
+            )
+        if npm_bin_dir:
+            toolchain_locations.append(npm_bin_dir.parent / "toolchain.json")
+
+        for toolchain_path in toolchain_locations:
+            if toolchain_path.exists():
+                try:
+                    with open(toolchain_path) as f:
+                        toolchain = json.load(f)
+
+                    platform = toolchain.get("platform", "unknown")
+                    build_date = toolchain.get("build_date", "unknown")
+                    fortran = toolchain.get("compilers", {}).get("fortran", "unknown")
+
+                    self._console.success(f"Found: {toolchain_path}")
+                    self._console.indent(f"Platform: {platform}")
+                    self._console.indent(f"Build date: {build_date}")
+                    self._console.indent(f"Fortran: {fortran}")
+                    return True
+                except Exception as e:
+                    self._console.warning(f"Error reading {toolchain_path}: {e}")
+
+        self._console.error("No toolchain metadata found")
+        return False
+
+    def _check_system_libraries(self) -> tuple:
+        """
+        Check system library availability.
+
+        Returns:
+            Tuple of (rows, found_count, total_count).
+        """
+        system_tools = {
+            "nc-config": "NetCDF",
+            "nf-config": "NetCDF-Fortran",
+            "h5cc": "HDF5",
+            "gdal-config": "GDAL",
+            "mpirun": "MPI",
+        }
+
+        lib_rows = []
+        found_libs = 0
+        for tool, name in system_tools.items():
+            location = shutil.which(tool)
+            if location:
+                lib_rows.append([name, "[green]OK[/green]", location])
+                found_libs += 1
+            else:
+                lib_rows.append([name, "[red]MISSING[/red]", "-"])
+
+        return lib_rows, found_libs, len(system_tools)
+
+    def _read_toolchain_metadata(self, toolchain_path: Path) -> bool:
+        """
+        Read and display toolchain metadata from file.
+
+        Args:
+            toolchain_path: Path to toolchain.json file.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            with open(toolchain_path) as f:
+                toolchain = json.load(f)
+
+            self._console.rule()
+            self._console.info(f"Platform: {toolchain.get('platform', 'unknown')}")
+            self._console.info(f"Build Date: {toolchain.get('build_date', 'unknown')}")
+            self._console.info(f"Toolchain file: {toolchain_path}")
+
+            # Compilers
+            if "compilers" in toolchain:
+                self._console.newline()
+                self._console.info("Compilers:")
+                self._console.rule()
+                compilers = toolchain["compilers"]
+                compiler_rows = [
+                    [key.capitalize(), value] for key, value in compilers.items()
+                ]
+                self._console.table(
+                    columns=["Compiler", "Version"], rows=compiler_rows
+                )
+
+            # Libraries
+            if "libraries" in toolchain:
+                self._console.newline()
+                self._console.info("Libraries:")
+                self._console.rule()
+                libraries = toolchain["libraries"]
+                lib_rows = [[key.capitalize(), value] for key, value in libraries.items()]
+                self._console.table(columns=["Library", "Version"], rows=lib_rows)
+
+            # Tools
+            if "tools" in toolchain:
+                self._console.newline()
+                self._console.info("Installed Tools:")
+                self._console.rule()
+                for tool_name, tool_info in toolchain["tools"].items():
+                    self._console.newline()
+                    self._console.info(f"  {tool_name.upper()}:")
+                    if "commit" in tool_info:
+                        commit_short = (
+                            tool_info.get("commit", "")[:8]
+                            if len(tool_info.get("commit", "")) > 8
+                            else tool_info.get("commit", "")
+                        )
+                        self._console.indent(f"Commit: {commit_short}", level=2)
+                    if "branch" in tool_info:
+                        self._console.indent(
+                            f"Branch: {tool_info.get('branch', '')}", level=2
+                        )
+                    if "executable" in tool_info:
+                        self._console.indent(
+                            f"Executable: {tool_info.get('executable', '')}", level=2
+                        )
+
+            self._console.newline()
+            self._console.rule()
+            return True
+
+        except Exception as e:
+            self._console.error(f"Error reading toolchain file: {e}")
+            return False

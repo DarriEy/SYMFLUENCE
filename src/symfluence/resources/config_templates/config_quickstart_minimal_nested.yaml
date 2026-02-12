@@ -1,0 +1,282 @@
+################################################################################
+#
+#  SYMFLUENCE Quick-Start Configuration (Minimal - New Nested Style)
+#
+#  This is a minimal configuration template in the NEW nested YAML format
+#  containing ONLY the required settings that cannot have defaults.
+#  All other settings will use SYMFLUENCE's built-in defaults.
+#
+#  ⚠️  REQUIRED: You must set ALL options in this file.
+#      OPTIONAL: Leave sections commented if not needed.
+#
+#  Format: Hierarchical nested structure (domain-specific groups)
+#
+#  Usage:
+#    1. Copy this file and rename: cp config_quickstart_minimal_nested.yaml my_config.yaml
+#    2. Fill in ALL required values below
+#    3. Optionally uncomment sections for additional customization
+#    4. Run: python run_symfluence.py my_config.yaml
+#
+################################################################################
+
+## ============================================================================
+## REQUIRED SYSTEM CONFIGURATION
+## ============================================================================
+## Section: System-level settings (paths, logging, execution)
+
+system:
+  # Root directory for all SYMFLUENCE data files
+  # Must contain forcing data, observations, outputs, etc.
+  data_dir: "/path/to/your/data/directory"
+
+  # Root directory for SYMFLUENCE code and executables
+  # Must contain SUMMA, FUSE, and other model executables
+  code_dir: "/path/to/your/code/directory"
+
+
+## ============================================================================
+## REQUIRED DOMAIN CONFIGURATION
+## ============================================================================
+## Section: Watershed/domain definition and temporal setup
+
+domain:
+  # Unique identifier for your watershed/modeling domain
+  # Used in output filenames and logging
+  name: "MyBasin"
+
+  # Unique identifier for this experiment/run
+  # Allows multiple runs on same domain
+  experiment_id: "run_001"
+
+  # Simulation time period (must include spin-up if needed)
+  time_start: "2010-01-01 00:00"  # Format: YYYY-MM-DD HH:MM
+  time_end: "2020-12-31 23:00"    # Format: YYYY-MM-DD HH:MM
+
+  # Domain definition method:
+  #   point            - Single point location (FLUXNET sites)
+  #   lumped           - Single catchment, no spatial discretization
+  #   semidistributed  - Subcatchment delineation from DEM via TauDEM
+  #   distributed      - Grid-based spatial representation with D8 routing
+  #
+  # Additional options:
+  #   subset_from_geofabric: true  - Extract from existing geofabric
+  #   grid_source: generate/native - For distributed: create grid or match forcing
+  definition_method: "lumped"
+
+  # Spatial discretization strategy (how to divide the domain):
+  #   elevation     - Discretize by elevation bands
+  #   aspect        - Discretize by slope aspect
+  #   soilclass     - Discretize by soil type
+  #   landclass     - Discretize by land cover
+  #   radiation     - Discretize by radiation zones
+  #   grus          - Use pre-defined geographic response units
+  #   combined      - Multiple criteria (e.g., "elevation,landclass")
+  discretization: "elevation"
+
+
+## ============================================================================
+## REQUIRED FORCING DATA CONFIGURATION
+## ============================================================================
+## Section: Meteorological forcing data source and settings
+
+forcing:
+  # Primary forcing dataset to use:
+  #   ERA5       - ECMWF Reanalysis 5 (global, ~0.25°)
+  #   RDRS       - Canadian Regional Data Assimilation System
+  #   NLDAS      - North American Land Data Assimilation System (CONUS only)
+  #   CONUS404   - Dynamically downscaled climate data (CONUS only)
+  #   custom     - Your own forcing data (must be properly formatted)
+  dataset: "ERA5"
+
+
+## ============================================================================
+## REQUIRED HYDROLOGICAL MODEL CONFIGURATION
+## ============================================================================
+## Section: Model selection and basic execution settings
+
+model:
+  # Hydrological model(s) to use:
+  #
+  #   SUMMA    - Structure for Unifying Multiple Modeling Alternatives
+  #              (Full physics, distributed, research-grade)
+  #
+  #   FUSE     - Framework for Understanding Structural Errors
+  #              (Flexible structure, lumped/distributed, modular)
+  #
+  #   GR       - GR4J/GR5J (French conceptual rainfall-runoff models)
+  #              (Lumped, simple, fast, minimal calibration)
+  #
+  #   HYPE     - HYdrological Predictions for the Environment
+  #              (Semi-distributed, Nordic focus)
+  #
+  #   NGEN     - Next Generation Water Resources Framework
+  #              (Community model, multi-module capability)
+  #
+  #   MESH     - Modélisation Environnementale-Surface Hydrology
+  #              (Canadian model, distributed, research-grade)
+  #
+  #   LSTM     - Long Short-Term Memory neural network emulator
+  #              (Data-driven, fast, learning-based)
+  #
+  # For multiple models: "SUMMA, FUSE" or ["SUMMA", "FUSE"]
+  hydrological_model: "SUMMA"
+
+  # SUMMA-specific settings (required when hydrological_model includes SUMMA)
+  summa:
+    exe: "summa_sundials.exe"
+    install_path: "default"
+    settings_path: "default"
+
+
+## ============================================================================
+## OPTIONAL: ADDITIONAL RECOMMENDED SETTINGS
+## ============================================================================
+
+# Temporal periods (optional, but recommended)
+# domain:
+#   calibration_period: "2010-01-01, 2015-12-31"  # For parameter optimization
+#   evaluation_period: "2016-01-01, 2020-12-31"   # For validation testing
+#   spinup_period: "2008-01-01, 2009-12-31"       # Warm-up period
+
+# System execution settings (optional)
+# system:
+#   num_processes: 4                # Number of parallel processes
+#   debug_mode: false               # Verbose debugging output
+#   log_level: "INFO"               # Log detail: DEBUG, INFO, WARNING, ERROR
+#   random_seed: 42                 # For reproducibility
+
+
+## ============================================================================
+## OPTIONAL: SPATIAL LOCATION
+## ============================================================================
+
+# Uncomment these if using point-based or delineation methods:
+
+# domain:
+#   # Pour point coordinates (required for point/delineate methods)
+#   # Format: "latitude/longitude"
+#   pour_point_coords: "51.1722/-115.5717"
+#
+#   # Bounding box (for regional domains)
+#   # Format: "north/west/south/east"
+#   bounding_box_coords: "60.0/-120.0/50.0/-110.0"
+
+
+## ============================================================================
+## OPTIONAL: MODEL-SPECIFIC SETTINGS
+## ============================================================================
+
+# Uncomment the sections for models you're using:
+
+# SUMMA-specific settings (required when using SUMMA model):
+# Note: This should be ADDED to the existing model: section above, not replace it
+# model:
+#   summa:
+#     exe: "summa_sundials.exe"
+#     install_path: "default"
+#     settings_path: "default"
+
+# FUSE-specific settings (if using FUSE model):
+# model:
+#   fuse:
+#     exe: "fuse.exe"
+#     install_path: "/path/to/fuse"
+#     settings_path: "/path/to/fuse/settings"
+
+# Routing model (optional, recommended for spatial models):
+# model:
+#   routing_model: "mizuRoute"
+#   mizuroute:
+#     exe: "mizuRoute.exe"
+#     install_path: "/path/to/mizuroute"
+#     settings_path: "/path/to/mizuroute/settings"
+
+
+## ============================================================================
+## OPTIONAL: EVALUATION DATA (OBSERVATIONS)
+## ============================================================================
+
+# Uncomment to enable observation data downloads and evaluation:
+
+# evaluation:
+#   streamflow:
+#     download_usgs: false
+#     station_id: "USGS_STATION_ID"
+#
+#   snotel:
+#     download: false
+#     station: "SNOTEL_STATION_ID"
+#
+#   smap:
+#     download: false
+#
+#   grace:
+#     download: false
+#
+#   modis_snow:
+#     download: false
+
+
+## ============================================================================
+## OPTIONAL: OPTIMIZATION & CALIBRATION
+## ============================================================================
+
+# Uncomment if you want to calibrate/optimize model parameters:
+
+# optimization:
+#   methods: ["PSO"]                          # Optimization method
+#   algorithm: "PSO"                          # PSO, DE, DDS, SCE-UA, NSGA2
+#   metric: "KGE"                             # KGE, NSE, RMSE, PBIAS, MAE
+#   iterations: 1000                          # Number of iterations
+#   population_size: 50                       # Population size
+#
+#   pso:
+#     swrmsize: 20                            # Swarm size
+#     cognitive_param: 1.5                    # Cognitive parameter
+#     social_param: 1.5                       # Social parameter
+#     inertia_weight: 0.7                     # Inertia weight
+
+
+## ============================================================================
+## OPTIONAL: FORCING DATA CUSTOMIZATION
+## ============================================================================
+
+# Uncomment to customize forcing data handling:
+
+# forcing:
+#   time_step_size: 3600              # Seconds (default: 1 hour)
+#   variables: "default"               # Which variables to extract
+#   measurement_height: 2              # Height of met station (meters)
+#   apply_lapse_rate: true            # Apply elevation temperature correction
+#   lapse_rate: -0.0065               # Temperature lapse rate (°C/m)
+#   pet_method: "oudin"               # PET calculation method
+
+
+################################################################################
+#
+#  That's it! These 10 required settings are all you need to get started.
+#
+#  Required Fields Summary:
+#    ✓ system.data_dir
+#    ✓ system.code_dir
+#    ✓ domain.name
+#    ✓ domain.experiment_id
+#    ✓ domain.time_start
+#    ✓ domain.time_end
+#    ✓ domain.definition_method
+#    ✓ domain.discretization
+#    ✓ forcing.dataset
+#    ✓ model.hydrological_model
+#
+#  Next steps:
+#    1. Update all REQUIRED values with your actual configuration
+#    2. Optionally uncomment and customize OPTIONAL sections
+#    3. Run: python run_symfluence.py my_config.yaml
+#
+#  For more information:
+#    - config_template_comprehensive_nested.yaml (all 406+ options, nested style)
+#    - config_template_comprehensive.yaml (all 406+ options, flat style)
+#    - config_quickstart_minimal.yaml (legacy flat style)
+#    - CONFIG_AUDIT_REPORT.md (detailed documentation)
+#
+################################################################################

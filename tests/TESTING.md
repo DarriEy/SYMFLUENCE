@@ -1,0 +1,350 @@
+# SYMFLUENCE Testing Strategy
+
+## Overview
+
+SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to ensure code quality and functionality across all components.
+
+## Testing Philosophy
+
+### Real Data Over Mocks
+- **File I/O tests** use real data from `tests/data/domain_Bow_at_Banff/` (~5MB)
+- **Algorithm tests** may still use synthetic data or mocks for isolation
+- **Cloud API tests** remain mocked for network isolation
+
+### Test Tiers
+1. **Unit tests** - Fast, isolated function tests (may use real data fixtures)
+2. **Integration tests** - Module interaction tests using local Bow domain data
+3. **E2E tests** - Single validation test (`test_install_validate.py`) for binary validation, smoke tests, and calibration
+
+### Test Data Available
+```
+tests/data/domain_Bow_at_Banff/
+├── attributes/
+│   ├── elevation/dem/domain_Bow_at_Banff_elv.tif (3.4 MB)
+│   ├── landclass/domain_Bow_at_Banff_land_classes.tif (478 KB)
+│   └── soilclass/domain_Bow_at_Banff_soil_classes.tif (28 KB)
+├── forcing/raw_data/
+│   └── domain_Bow_at_Banff_ERA5_merged_200401.nc (737 KB, Jan 2004)
+└── observations/streamflow/preprocessed/
+    └── Bow_at_Banff_streamflow_processed.csv (253 KB, full 2004)
+```
+
+### Real Data Fixtures
+Available in `tests/fixtures/real_data_fixtures.py`:
+- `test_data_root` - Root directory for all test data
+- `bow_test_data` - Complete Bow at Banff test domain
+- `real_forcing_nc` - Real ERA5 forcing NetCDF
+- `real_dem_tif` - Real DEM GeoTIFF
+- `real_landclass_tif` - Real land classification GeoTIFF
+- `real_soilclass_tif` - Real soil classification GeoTIFF
+- `real_streamflow_csv` - Real streamflow observations
+
+## CI Workflows
+
+### 1. CI - Lint Only (`.github/workflows/ci.yml`)
+**Triggers:** Every push/PR to main or develop
+**Duration:** ~2 minutes
+**Purpose:** Fast feedback on code style
+
+**What it does:**
+- Runs `ruff` linter on all Python code
+- Checks code style and common issues
+- No installation of external binaries required
+
+### 2. SYMFLUENCE - Parallel Install & Validate (`.github/workflows/install-validate-parallel.yml`)
+**Triggers:**
+- Push/PR to main or develop (runs **quick** tests)
+- Manual dispatch with test level selection (smoke/quick/full)
+- Weekly schedule on Sundays (runs **full** tests)
+- Main branch pushes (runs **full** tests)
+
+**What it does:**
+- **Phase 1:** Install dependencies on multi-platform matrix (~20-30 min)
+  - Quick mode: 2 jobs (ubuntu-latest + macos-latest × Python 3.11)
+  - Full mode: 5 jobs (ubuntu × [3.9, 3.10, 3.11] + macos × [3.10, 3.11])
+  - Platform-specific dependency installation (apt vs brew)
+  - Build SUMMA, mizuRoute, TauDEM, FUSE
+  - Package as platform-specific artifacts
+- **Phase 2:** Run tests in parallel (~45 min for full)
+  - Unit Tests (runs on all platform/Python combos)
+  - Binary Validation (ubuntu-latest only)
+  - Integration Tests (ubuntu-latest only)
+  - E2E Quick (3-hour SUMMA, ubuntu-latest only)
+  - E2E Full (1-month workflows + calibration, ubuntu-latest only)
+
+**Performance:** 33-60% faster than sequential execution
+
+**Multi-Platform Support:**
+- Tests builds on both Linux (x86_64) and macOS (ARM)
+- Validates unit tests across Python 3.9, 3.10, 3.11
+- Platform-specific compiler configurations
+- Artifact naming: `symfluence-installation-{os}-py{version}`
+
+### 3. Cross-Platform Testing (`.github/workflows/cross-platform.yml`)
+**Triggers:** Every push/PR to main or develop
+**Duration:** ~20-30 minutes
+**Purpose:** Ensure compatibility across OS and Python versions
+
+**What it does:**
+- **Unit Tests Matrix:** All OS × All Python versions
+  - Ubuntu (Linux)
+  - macOS latest (ARM/M1/M2/M3)
+  - Python 3.9, 3.10, 3.11
+- **Binary Validation Matrix:** All platforms
+  - Validates SUMMA, mizuRoute, TauDEM work on each OS
+- **Integration Tests:** Subset (Linux + macOS ARM)
+  - Basic workflow tests on each platform
+
+### 4. SYMFLUENCE - Full Install & Validate (`.github/workflows/install-validate.yml`)
+**Status:** Legacy sequential workflow (kept for comparison)
+**Duration:** ~90 minutes for full tests
+**Will be deprecated** once parallel workflow is validated
+
+## Test Levels
+
+### Smoke Tests (~5 minutes)
+**Command:** `pytest -m "smoke"`
+**When:** Manual dispatch only
+**Coverage:**
+- ✅ Binary validation
+  - Required: SUMMA, mizuRoute, TauDEM
+  - Optional: FUSE, NGEN (if installed)
+- ✅ Package imports
+- ✅ 3-hour SUMMA workflow
+
+### Quick Tests (~20 minutes) **[DEFAULT for develop branch]**
+**Command:** Multiple pytest commands
+**When:** Every push/PR to develop
+**Coverage:**
+- ✅ All unit tests
+- ✅ Binary validation (SUMMA, mizuRoute, TauDEM + optional FUSE/NGEN)
+- ✅ Package imports
+- ✅ Basic integration tests
+- ✅ 3-hour SUMMA workflow (quick e2e)
+
+Note: tests marked `requires_data`, `requires_cloud`, or `requires_acquisition` are skipped by
+default unless `--run-data` or `--run-cloud` (or `--run-full`) is provided.
+
+### Full Tests (~90 minutes) **[For main branch & weekly]**
+**Command:** Multiple pytest commands
+**When:** Push to main, weekly schedule
+**Coverage:**
+- ✅ All unit tests
+- ✅ All integration tests
+- ✅ Binary validation (all models: SUMMA, mizuRoute, TauDEM, FUSE, NGEN)
+- ✅ Package imports
+- ✅ 3-hour SUMMA workflow
+- ✅ 1-month SUMMA + mizuRoute workflow
+- ✅ Calibration workflow
+
+## Test Markers
+
+Tests are organized using pytest markers defined in `pytest.ini`:
+
+### Test Type Markers
+- `@pytest.mark.unit` - Unit tests (fast, isolated functions)
+- `@pytest.mark.integration` - Integration tests (module interactions)
+- `@pytest.mark.e2e` - End-to-end tests (full workflows)
+
+### Speed Markers
+- `@pytest.mark.quick` - Quick tests (<5s)
+- `@pytest.mark.slow` - Slow tests (>30s)
+
+### Requirement Markers
+- `@pytest.mark.requires_data` - Requires local data bundles (skipped unless `--run-data`)
+- `@pytest.mark.requires_cloud` - Requires cloud API credentials
+- `@pytest.mark.requires_binaries` - Requires external binaries (SUMMA, etc.)
+
+### Component Markers
+- `@pytest.mark.domain` - Domain workflow tests
+- `@pytest.mark.data` - Data acquisition/processing tests
+- `@pytest.mark.models` - Model execution tests
+- `@pytest.mark.calibration` - Calibration/optimization tests
+
+### Model-Specific Markers
+- `@pytest.mark.summa` - SUMMA-specific tests
+- `@pytest.mark.fuse` - FUSE-specific tests
+- `@pytest.mark.ngen` - NGEN-specific tests
+- `@pytest.mark.gr` - GR-specific tests
+
+### CI Markers
+- `@pytest.mark.smoke` - Smoke tests (minimal validation)
+- `@pytest.mark.ci_quick` - Quick CI validation
+- `@pytest.mark.ci_full` - Full CI validation
+
+## Test Structure
+
+```
+tests/
+├── configs/                   # Test configuration YAML files
+├── e2e/                       # End-to-end workflow tests
+├── fixtures/                  # Shared test fixtures
+├── integration/               # Module interaction tests
+│   ├── calibration/
+│   ├── cli/
+│   ├── data/
+│   ├── domain/
+│   └── preprocessing/
+├── performance/               # Performance benchmarks
+├── unit/                      # Fast, isolated unit tests
+│   ├── cli/                   # CLI component tests
+│   ├── common/                # Common utilities tests
+│   ├── config/                # Configuration tests
+│   ├── data/                  # Data processing tests
+│   ├── evaluation/            # Evaluation & metrics tests
+│   ├── geospatial/            # Geospatial utilities tests
+│   ├── models/                # Model preprocessor tests
+│   │   └── base/              # Base model class tests
+│   ├── optimization/          # Optimization & calibration tests
+│   ├── preprocessing/         # Preprocessing tests
+│   │   └── attribute_processing/
+│   ├── project/               # Project workflow tests
+│   └── reporting/             # Reporting & plotting tests
+└── utils/                     # Test utilities & helpers
+```
+
+## Writing Tests
+
+### Unit Tests
+```python
+import pytest
+from symfluence.module import function
+
+pytestmark = [pytest.mark.unit, pytest.mark.quick]
+
+def test_function_behavior():
+    """Test isolated function behavior."""
+    result = function(input_data)
+    assert result == expected_output
+```
+
+### Integration Tests
+```python
+import pytest
+from symfluence import SYMFLUENCE
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.models,
+    pytest.mark.requires_data
+]
+
+def test_model_integration(symfluence_instance):
+    """Test model preprocessing and execution."""
+    symfluence_instance.preprocess()
+    results = symfluence_instance.run_model()
+    assert results.exists()
+```
+
+### E2E Tests
+```python
+import pytest
+
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.ci_quick,
+    pytest.mark.smoke,
+    pytest.mark.requires_binaries
+]
+
+def test_complete_workflow(tmp_path):
+    """Test complete workflow from setup to results."""
+    # Full workflow test
+    pass
+```
+
+## Running Tests Locally
+
+### Run all unit tests (fast)
+```bash
+pytest -v -m "unit"
+```
+
+### Run quick tests (like CI quick mode)
+```bash
+pytest -v -m "unit"
+pytest -v -m "ci_quick"
+```
+
+### Run integration tests
+```bash
+pytest -v -m "integration"
+```
+
+### Run all tests except those requiring data
+```bash
+pytest -v -m "not requires_data"
+pytest -v --run-data -m "requires_data and not requires_cloud"
+```
+
+### Run smoke tests
+```bash
+pytest -v -m "smoke"
+```
+
+### Run specific component tests
+```bash
+pytest -v -m "models and summa"
+pytest -v -m "calibration"
+pytest -v -m "domain"
+```
+
+## Test Coverage Goals
+
+### Current Coverage
+- ✅ Binary validation
+- ✅ Package imports
+- ✅ Configuration loading and validation
+- ✅ SUMMA quick workflows (3-hour)
+- ✅ SUMMA full workflows (1-month)
+- ✅ Calibration workflows
+
+### Areas to Expand
+- 🔄 Unit tests for all utility modules
+- 🔄 Integration tests for data acquisition (CARRA, CERRA, ERA5, etc.)
+- 🔄 Integration tests for domain workflows (distributed, lumped, regional, etc.)
+- 🔄 FUSE model tests
+- 🔄 mizuRoute standalone tests
+- 🔄 TauDEM preprocessing tests
+- 🔄 Multi-model comparison tests
+- 🔄 Sensitivity analysis tests
+
+## Best Practices
+
+1. **Mark tests appropriately** - Use all relevant markers
+2. **Use fixtures** - Share setup code via `conftest.py`
+3. **Test one thing** - Each test should validate one specific behavior
+4. **Use descriptive names** - Test names should describe what they validate
+5. **Document test purpose** - Include docstrings explaining test intent
+6. **Mock external dependencies** - Use mocks for cloud APIs, external data
+7. **Clean up resources** - Use `tmp_path` fixtures and clean up test data
+
+## Debugging Failed Tests
+
+### View test output
+```bash
+pytest -v --tb=short
+```
+
+### Run specific failing test
+```bash
+pytest -v tests/path/to/test.py::test_name
+```
+
+### Run with full traceback
+```bash
+pytest -v --tb=long tests/path/to/test.py::test_name
+```
+
+### See print statements
+```bash
+pytest -v -s tests/path/to/test.py::test_name
+```
+
+## CI Artifacts
+
+When tests fail, the workflow uploads artifacts:
+- **test-outputs** - Simulation outputs, forcing data, settings
+- **pytest-logs** - pytest cache and log files
+
+Download these from the GitHub Actions UI to debug failures.

@@ -5,6 +5,9 @@ __pycache__/
 *.so
 .Python
 build/
+
+# Requirements - auto-generated from pyproject.toml
+requirements.txt
 develop-eggs/
 dist/
 downloads/
@@ -20,6 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 examples/*/.ipynb_checkpoints/
+examples/*/data/
 .confluence_env
 mpi_*
 
@@ -30,13 +34,13 @@ ENV/
 env/
 .env/
 .venv/
+.venv-docs/
+.conda-env/
 
-# Ignore everything in 0_config_files
+# Ignore everything in 0_config_files (user workspace)
 0_config_files/*
 
-
-# But keep config_template.yaml
-!0_config_files/config_template.yaml
+# Keep only the README explaining the new structure
 !0_config_files/README.md
 
 
@@ -72,9 +76,29 @@ Icon
 temp/
 logs/
 
+# Development artifacts (root directory)
+*_log_tail.txt
+*_job_log.txt
+test_*.R
+
 # Distribution
 *.manifest
 *.spec
+node_modules/
+npm/*.tgz
+
+# Generated run logs in user data directory
+/data/**/_workLog*/
+/data/
+
+# Test data bundles
+tests/data/
+
+# Data files (NetCDF, HDF, etc.)
+default/*.nc
+default/*.hdf
+default/*.h5
+*.dat
 
 # Unit test / coverage reports
 htmlcov/
@@ -90,5 +114,41 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/*.nc
-*.err
-*.err
+
+# Linting and type checking caches
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# Docs build artifacts
+docs/_build/
+config_template.yaml
+
+# Benchmark results (auto-generated)
+benchmark_results/
+plots/
+results/
+
+# Temporary calibration/comparison outputs
+hbv_calibration_comparison/
+*_calibration_comparison/
+
+# Development scripts (not for distribution)
+download_era5_forcing.py
+scripts/run_hbv_daily_v_hourly_comparison.py
+
+# Microsoft Word documents and temp files
+*.docx
+~$*.docx
+
+# Shell wrapper is now tracked for CI compatibility
+installs/
+scripts/studies/
+
+# Paper source files (kept locally, not tracked)
+paper/
+
+# Local data directories
+SYMFLUENCE_data/
+**/SYMFLUENCE_data/

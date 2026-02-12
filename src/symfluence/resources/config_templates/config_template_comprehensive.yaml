@@ -1,0 +1,4382 @@
+################################################################################
+#
+#  SYMFLUENCE Configuration Template (Comprehensive)
+#
+#  Authoritative configuration template containing 406 configuration
+#  options supported by SYMFLUENCE. All options are organized by logical
+#  sections with full documentation and source code references.
+#
+#  Configuration Naming Conventions:
+#    Old style (SCREAMING_SNAKE_CASE): 404 settings, 4737 usages
+#    New style (lowercase_snake_case): 2 settings, 20 usages
+#
+#  Configuration Hierarchy:
+#    Level 1: Top-level sections (system, domain, forcing, model, etc.)
+#    Level 2: Logical grouping (e.g., SUMMA-specific, optimization methods)
+#    Level 3: Individual parameters with type hints, ranges, and usage counts
+#
+#  Usage:
+#    1. Copy this template to your own config file
+#    2. Uncomment the sections you need
+#    3. Update values according to your setup
+#    4. Refer to docstrings for parameter descriptions
+#
+#  Usage Counts: Each setting includes a 'Usage:' count showing how many times
+#    it is referenced in the codebase. Higher usage indicates more active settings.
+#
+################################################################################
+
+
+# 1. System & Directories
+# ================================================================================
+
+# DEBUG_MODE
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+#   Usage:      4
+DEBUG_MODE: false
+
+# FORCE_DOWNLOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+#   Usage:      15
+FORCE_DOWNLOAD: false
+
+# ADDITIONAL_OBSERVATIONS
+#   Type:        List[str]
+#   Default:     None
+#   Source:      DataConfig (data.py)
+#   Usage:      16
+ADDITIONAL_OBSERVATIONS: null
+
+# FORCE_RUN_ALL_STEPS
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+#   Usage:      14
+FORCE_RUN_ALL_STEPS: false
+
+# LOG_FORMAT
+#   Type:        str
+#   Default:     detailed
+#   Source:      SystemConfig (system.py)
+#   Usage:      2
+LOG_FORMAT: "detailed"
+
+# LOG_LEVEL
+#   Type:        Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+#   Default:     INFO
+#   Source:      SystemConfig (system.py)
+#   Usage:      6
+LOG_LEVEL: "INFO"
+
+# LOG_TO_FILE
+#   Type:        bool
+#   Default:     True
+#   Source:      SystemConfig (system.py)
+#   Usage:      3
+LOG_TO_FILE: true
+
+# NUM_PROCESSES
+#   Type:        int
+#   Default:     1
+#   Source:      SystemConfig (system.py)
+#   Usage:      20
+NUM_PROCESSES: 1
+
+# RANDOM_SEED
+#   Type:        int
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+#   Usage:      8
+RANDOM_SEED: null
+
+# STOP_ON_ERROR
+#   Type:        bool
+#   Default:     True
+#   Source:      SystemConfig (system.py)
+#   Usage:      8
+STOP_ON_ERROR: true
+
+# SYMFLUENCE_CODE_DIR
+#   Type:        Path
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+#   Usage:      29
+SYMFLUENCE_CODE_DIR: "default"
+
+# SYMFLUENCE_DATA_DIR
+#   Type:        Path
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+#   Usage:      103
+SYMFLUENCE_DATA_DIR: "default"
+
+# USE_LOCAL_SCRATCH
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+#   Usage:      5
+USE_LOCAL_SCRATCH: false
+
+
+# 10. HYPE Model Configuration
+# ================================================================================
+
+# HYPE_EXE
+#   Type:        str
+#   Default:     hype
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      5
+HYPE_EXE: "hype"
+
+# HYPE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      6
+HYPE_INSTALL_PATH: default
+
+# SETTINGS_HYPE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_HYPE_PATH: default
+
+# SETTINGS_HYPE_INFO
+#   Type:        str
+#   Default:     info.txt
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_HYPE_INFO: "info.txt"
+
+# HYPE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      5
+HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp
+
+# HYPE_SPINUP_DAYS
+#   Type:        int
+#   Default:     365
+#   Source:      HYPEConfig (model_configs.py)
+#   Usage:      3
+HYPE_SPINUP_DAYS: 365
+
+
+# 11. NGEN Model Configuration
+# ================================================================================
+
+# NGEN_ACTIVE_CATCHMENT_ID
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      5
+NGEN_ACTIVE_CATCHMENT_ID: null
+
+# NGEN_CFE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      3
+NGEN_CFE_PARAMS_TO_CALIBRATE: maxsmc,satdk,bb,slop,Cgw,max_gw_storage,K_nash,K_lf,soil_depth
+
+# NGEN_EXE
+#   Type:        str
+#   Default:     ngen
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      5
+NGEN_EXE: "ngen"
+
+# NGEN_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      7
+NGEN_INSTALL_PATH: default
+
+# NGEN_MODULES_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      3
+NGEN_MODULES_TO_CALIBRATE: CFE
+
+# NGEN_NOAH_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      3
+NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat,bexp
+
+# NGEN_PET_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+#   Usage:      3
+NGEN_PET_PARAMS_TO_CALIBRATE: ""
+
+
+# 12. MESH Model Configuration
+# ================================================================================
+
+# EXPERIMENT_OUTPUT_MESH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_MESH: default
+
+# MESH_DDB_MIN_VALUES
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_DDB_MIN_VALUES: default
+
+# MESH_DDB_TO_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_DDB_TO_UNITS: default
+
+# MESH_DDB_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_DDB_UNITS: default
+
+# MESH_DDB_VARS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_DDB_VARS: default
+
+# MESH_DS_MAIN_ID
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_DS_MAIN_ID: default
+
+# MESH_EXE
+#   Type:        str
+#   Default:     mesh.exe
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      7
+MESH_EXE: "mesh.exe"
+
+# MESH_FORCING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_FORCING_PATH: default
+
+# MESH_FORCING_TO_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_FORCING_TO_UNITS: default
+
+# MESH_FORCING_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_FORCING_UNITS: default
+
+# MESH_FORCING_VARS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_FORCING_VARS: default
+
+# MESH_GRU_DIM
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_GRU_DIM: default
+
+# MESH_HRU_DIM
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_HRU_DIM: default
+
+# MESH_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      6
+MESH_INSTALL_PATH: default
+
+# MESH_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      MESH spatial discretization mode (lumped, distributed)
+MESH_SPATIAL_MODE: distributed
+
+# MESH_LANDCOVER_CLASSES
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_LANDCOVER_CLASSES: default
+
+# MESH_LANDCOVER_STATS_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_LANDCOVER_STATS_DIR: default
+
+# MESH_LANDCOVER_STATS_FILE
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_LANDCOVER_STATS_FILE: default
+
+# MESH_LANDCOVER_STATS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_LANDCOVER_STATS_PATH: default
+
+# MESH_MAIN_ID
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_MAIN_ID: default
+
+# MESH_OUTLET_VALUE
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_OUTLET_VALUE: default
+
+# SETTINGS_MESH_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_MESH_PATH: default
+
+# SETTINGS_MESH_INPUT
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MESH_INPUT: default
+
+# MESH_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      5 — Include KSAT,DRN,SDEP (runoff) + FLZ,PWR (baseflow) + FRZTH,XDRAINH,MANN_CLASS. DTMINUSR should NOT be calibrated.
+MESH_PARAMS_TO_CALIBRATE: KSAT,DRN,SDEP,XSLP,FLZ,PWR,ZSNL,ZPLS,RCHARG,FRZTH,XDRAINH,MANN_CLASS
+
+# MESH_SPINUP_DAYS
+#   Type:        int
+#   Default:     365
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_SPINUP_DAYS: 365
+
+# MESH_GRU_MIN_TOTAL
+#   Type:        float
+#   Default:     0.0
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      3
+MESH_GRU_MIN_TOTAL: 0.0
+
+# MESH_FORCE_SINGLE_GRU
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Force single GRU mode for MESH preprocessing
+MESH_FORCE_SINGLE_GRU: true
+
+# MESH_APPLY_PARAMS_ALL_GRUS
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Apply calibration parameters to all GRUs uniformly
+MESH_APPLY_PARAMS_ALL_GRUS: true
+
+# MESH_USE_LANDCOVER_MULTIPLIERS
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Use landcover-based parameter multipliers
+MESH_USE_LANDCOVER_MULTIPLIERS: true
+
+# MESH_ENABLE_FROZEN_SOIL
+#   Type:        bool
+#   Default:     True
+#   Source:      MESHConfig (model_configs.py)
+#   Usage:      Enable frozen soil physics in MESH
+MESH_ENABLE_FROZEN_SOIL: true
+
+
+# 13. Routing Model (mizuRoute)
+# ================================================================================
+
+# MIZUROUTE_EXE
+#   Type:        str
+#   Default:     mizuRoute.exe
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      9
+MIZUROUTE_EXE: "mizuRoute.exe"
+
+# EXE_NAME_MIZUROUTE (DEPRECATED - use MIZUROUTE_EXE instead)
+#   Type:        str
+#   Default:     mizuRoute.exe
+#   Source:      MizuRouteConfig (model_configs.py)
+#   DEPRECATED:  Will be removed in v2.0. Use MIZUROUTE_EXE instead.
+EXE_NAME_MIZUROUTE: "mizuRoute.exe"
+
+# EXPERIMENT_LOG_MIZUROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_LOG_MIZUROUTE: default
+
+# EXPERIMENT_OUTPUT_MIZUROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      7
+EXPERIMENT_OUTPUT_MIZUROUTE: default
+
+# MIZUROUTE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      9
+MIZUROUTE_INSTALL_PATH: default
+
+# INSTALL_PATH_MIZUROUTE (DEPRECATED - use MIZUROUTE_INSTALL_PATH instead)
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   DEPRECATED:  Will be removed in v2.0. Use MIZUROUTE_INSTALL_PATH instead.
+INSTALL_PATH_MIZUROUTE: default
+
+# MIZU_FROM_MODEL
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      8
+MIZU_FROM_MODEL: default
+
+# SETTINGS_MIZU_CONTROL_FILE
+#   Type:        str
+#   Default:     mizuroute.control
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      7
+SETTINGS_MIZU_CONTROL_FILE: "mizuroute.control"
+
+# SETTINGS_MIZU_MAKE_OUTLET
+#   Type:        str
+#   Default:     n/a
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_MIZU_MAKE_OUTLET: "n/a"
+
+# SETTINGS_MIZU_NEEDS_REMAP
+#   Type:        bool
+#   Default:     False
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_MIZU_NEEDS_REMAP: false
+
+# SETTINGS_MIZU_OUTPUT_FREQ
+#   Type:        str
+#   Default:     single
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MIZU_OUTPUT_FREQ: "single"
+
+# SETTINGS_MIZU_OUTPUT_VARS
+#   Description: mizuRoute routing scheme (route_opt). Controls how runoff is routed through the river network.
+#   Options:
+#     0 = accumRunoff   - Instantaneous upstream accumulation (no routing delays, NOT recommended for evaluation)
+#     1 = IRF-UH        - Impulse Response Function with Unit Hydrograph (RECOMMENDED for most applications)
+#     2 = IRF-KW        - IRF combined with Kinematic Wave
+#     3 = KW-IRF        - Kinematic Wave combined with IRF
+#     4 = MC-IRF        - Muskingum-Cunge combined with IRF
+#   Note: Option 1 (IRF-UH) produces 'IRFroutedRunoff' output variable which is used for model evaluation.
+#         Option 0 only produces 'sumUpstreamRunoff' which lacks proper routing delays.
+#   Type:        str
+#   Default:     1
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:       3
+SETTINGS_MIZU_OUTPUT_VARS: 1
+
+# SETTINGS_MIZU_PARAMETERS
+#   Type:        str
+#   Default:     param.nml.default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_MIZU_PARAMETERS: "param.nml.default"
+
+# SETTINGS_MIZU_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_MIZU_PATH: default
+
+# SETTINGS_MIZU_REMAP
+#   Type:        str
+#   Default:     routing_remap.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      6
+SETTINGS_MIZU_REMAP: "routing_remap.nc"
+
+# SETTINGS_MIZU_ROUTING_DT
+#   Type:        int
+#   Default:     3600
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      6
+SETTINGS_MIZU_ROUTING_DT: 3600
+
+# SETTINGS_MIZU_ROUTING_UNITS
+#   Type:        str
+#   Default:     m/s
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      8
+SETTINGS_MIZU_ROUTING_UNITS: "m/s"
+
+# SETTINGS_MIZU_ROUTING_VAR
+#   Type:        str
+#   Default:     averageRoutedRunoff
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      15
+SETTINGS_MIZU_ROUTING_VAR: "averageRoutedRunoff"
+
+# SETTINGS_MIZU_TOPOLOGY
+#   Type:        str
+#   Default:     topology.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      9
+SETTINGS_MIZU_TOPOLOGY: "topology.nc"
+
+# SETTINGS_MIZU_WITHIN_BASIN
+#   Type:        int
+#   Default:     0
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_MIZU_WITHIN_BASIN: 0
+
+# SETTINGS_MIZU_OUTPUT_VAR
+#   Type:        str
+#   Default:     IRFroutedRunoff
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MIZU_OUTPUT_VAR: "IRFroutedRunoff"
+
+# SETTINGS_MIZU_PARAMETER_FILE
+#   Type:        str
+#   Default:     param.nml.default
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MIZU_PARAMETER_FILE: "param.nml.default"
+
+# SETTINGS_MIZU_REMAP_FILE
+#   Type:        str
+#   Default:     routing_remap.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MIZU_REMAP_FILE: "routing_remap.nc"
+
+# SETTINGS_MIZU_TOPOLOGY_FILE
+#   Type:        str
+#   Default:     topology.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_MIZU_TOPOLOGY_FILE: "topology.nc"
+
+# MIZUROUTE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+MIZUROUTE_PARAMS_TO_CALIBRATE: velo,diff
+
+# CALIBRATE_MIZUROUTE
+#   Type:        bool
+#   Default:     False
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+CALIBRATE_MIZUROUTE: false
+
+# MIZUROUTE_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Usage:      3
+MIZUROUTE_TIMEOUT: 3600
+
+# MIZUROUTE_TIME_ROUNDING_FREQ
+#   Type:        str
+#   Default:     h
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Description: Frequency for rounding time values (e.g., "h" for hour, "min" for minute, "none" to disable)
+MIZUROUTE_TIME_ROUNDING_FREQ: "h"
+
+
+# 14. dRoute Configuration (EXPERIMENTAL)
+# ================================================================================
+# dRoute is a C++ river routing library with Python bindings that offers:
+# - Multiple routing methods (Muskingum-Cunge, IRF, Lag, Diffusive Wave, KWT)
+# - Native automatic differentiation for gradient-based calibration
+# - mizuRoute-compatible network topology format
+
+# DROUTE_EXECUTION_MODE
+#   Type:        Literal['python', 'subprocess']
+#   Default:     python
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Execution mode - python API (preferred) or subprocess fallback
+DROUTE_EXECUTION_MODE: "python"
+
+# DROUTE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path to dRoute installation directory
+DROUTE_INSTALL_PATH: "default"
+
+# DROUTE_EXE
+#   Type:        str
+#   Default:     droute
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: dRoute executable name
+DROUTE_EXE: "droute"
+
+# SETTINGS_DROUTE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path to dRoute settings directory
+SETTINGS_DROUTE_PATH: "default"
+
+# DROUTE_ROUTING_METHOD
+#   Type:        Literal['muskingum_cunge', 'irf', 'lag', 'diffusive_wave', 'kwt']
+#   Default:     muskingum_cunge
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Routing scheme to use
+DROUTE_ROUTING_METHOD: "muskingum_cunge"
+
+# DROUTE_ROUTING_DT
+#   Type:        int
+#   Default:     3600
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Routing timestep in seconds (60-86400)
+DROUTE_ROUTING_DT: 3600
+
+# DROUTE_ENABLE_GRADIENTS
+#   Type:        bool
+#   Default:     false
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Enable automatic differentiation for gradient-based calibration
+DROUTE_ENABLE_GRADIENTS: false
+
+# DROUTE_AD_BACKEND
+#   Type:        Literal['codipack', 'enzyme']
+#   Default:     codipack
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: AD backend (requires dRoute compiled with AD support)
+DROUTE_AD_BACKEND: "codipack"
+
+# DROUTE_TOPOLOGY_FILE
+#   Type:        str
+#   Default:     topology.nc
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Network topology filename
+DROUTE_TOPOLOGY_FILE: "topology.nc"
+
+# DROUTE_TOPOLOGY_FORMAT
+#   Type:        Literal['netcdf', 'geojson', 'csv']
+#   Default:     netcdf
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Format of topology file
+DROUTE_TOPOLOGY_FORMAT: "netcdf"
+
+# DROUTE_CONFIG_FILE
+#   Type:        str
+#   Default:     droute_config.yaml
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: dRoute configuration filename
+DROUTE_CONFIG_FILE: "droute_config.yaml"
+
+# DROUTE_FROM_MODEL
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Source model for runoff input (SUMMA, FUSE, GR, etc.)
+DROUTE_FROM_MODEL: "default"
+
+# EXPERIMENT_OUTPUT_DROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path for dRoute experiment output
+EXPERIMENT_OUTPUT_DROUTE: "default"
+
+# EXPERIMENT_LOG_DROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path for dRoute experiment logs
+EXPERIMENT_LOG_DROUTE: "default"
+
+# DROUTE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     velocity,diffusivity
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Comma-separated list of dRoute parameters to calibrate
+DROUTE_PARAMS_TO_CALIBRATE: "velocity,diffusivity"
+
+# CALIBRATE_DROUTE
+#   Type:        bool
+#   Default:     false
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Enable dRoute calibration
+CALIBRATE_DROUTE: false
+
+# DROUTE_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Maximum execution time in seconds (60-86400)
+DROUTE_TIMEOUT: 3600
+
+
+# 15. LSTM Emulator Configuration
+# ================================================================================
+
+# LSTM_BATCH_SIZE
+#   Type:        int
+#   Default:     64
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_BATCH_SIZE: 64
+
+# LSTM_DROPOUT
+#   Type:        float
+#   Default:     0.2
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_DROPOUT: 0.2
+
+# LSTM_EPOCHS
+#   Type:        int
+#   Default:     300
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_EPOCHS: 300
+
+# LSTM_HIDDEN_SIZE
+#   Type:        int
+#   Default:     128
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      4
+LSTM_HIDDEN_SIZE: 128
+
+# LSTM_L2_REGULARIZATION
+#   Type:        float
+#   Default:     1e-6
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_L2_REGULARIZATION: "1e-6"
+
+# LSTM_LEARNING_PATIENCE
+#   Type:        int
+#   Default:     30
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_LEARNING_PATIENCE: 30
+
+# LSTM_LEARNING_RATE
+#   Type:        float
+#   Default:     0.001
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_LEARNING_RATE: 0.001
+
+# LSTM_LOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_LOAD: false
+
+# LSTM_LOOKBACK
+#   Type:        int
+#   Default:     700
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_LOOKBACK: 700
+
+# LSTM_NUM_LAYERS
+#   Type:        int
+#   Default:     3
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      4
+LSTM_NUM_LAYERS: 3
+
+# LSTM_USE_ATTENTION
+#   Type:        bool
+#   Default:     True
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      2
+LSTM_USE_ATTENTION: true
+
+# LSTM_USE_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+#   Usage:      3
+LSTM_USE_SNOW: false
+
+# LSTM_TRAIN_THROUGH_ROUTING
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+#   Description: Train LSTM through dRoute routing for distributed models
+LSTM_TRAIN_THROUGH_ROUTING: false
+
+# lstm
+#   Type:        LSTMConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Usage:      19
+lstm: null
+
+
+# 15. Optimization & Calibration
+# ================================================================================
+
+# ASYNC_DDS_BATCH_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+#   Usage:      4
+ASYNC_DDS_BATCH_SIZE: 10
+
+# ASYNC_DDS_POOL_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+#   Usage:      4
+ASYNC_DDS_POOL_SIZE: 10
+
+# CALIBRATION_TIMESTEP
+#   Type:        str
+#   Default:     daily
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      5
+CALIBRATION_TIMESTEP: "daily"
+
+# OPTIMIZATION_METHODS
+#   Type:        Union[str, List[str]]
+#   Default:     []
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      12
+OPTIMIZATION_METHODS: []
+
+# DDS_R
+#   Type:        float
+#   Default:     0.2
+#   Source:      DDSConfig (optimization.py)
+#   Usage:      10
+DDS_R: 0.2
+
+# DE_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      DEConfig (optimization.py)
+#   Usage:      5
+DE_CROSSOVER_RATE: 0.9
+
+# DE_SCALING_FACTOR
+#   Type:        float
+#   Default:     0.5
+#   Source:      DEConfig (optimization.py)
+#   Usage:      5
+DE_SCALING_FACTOR: 0.5
+
+# EMULATION_MAX_ITERATIONS
+#   Type:        int
+#   Default:     3
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_MAX_ITERATIONS: 3
+
+# EMULATION_MAX_PARALLEL_JOBS
+#   Type:        int
+#   Default:     100
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_MAX_PARALLEL_JOBS: 100
+
+# EMULATION_NUM_SAMPLES
+#   Type:        int
+#   Default:     100
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_NUM_SAMPLES: 100
+
+# EMULATION_PARALLEL_ENSEMBLE
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_PARALLEL_ENSEMBLE: false
+
+# EMULATION_SAMPLING_METHOD
+#   Type:        str
+#   Default:     lhs
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_SAMPLING_METHOD: "lhs"
+
+# EMULATION_SEED
+#   Type:        int
+#   Default:     22
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_SEED: 22
+
+# EMULATION_SKIP_MIZUROUTE
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_SKIP_MIZUROUTE: false
+
+# EMULATION_USE_ATTRIBUTES
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+#   Usage:      2
+EMULATION_USE_ATTRIBUTES: false
+
+# EVOLUTION_STAGNATION
+#   Type:        int
+#   Default:     5
+#   Source:      SCEUAConfig (optimization.py)
+#   Usage:      2
+EVOLUTION_STAGNATION: 5
+
+# INERTIA_SCHEDULE
+#   Type:        str
+#   Default:     LINEAR
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      3
+INERTIA_SCHEDULE: "LINEAR"
+
+# ITERATIVE_OPTIMIZATION_ALGORITHM
+#   Type:        str
+#   Default:     PSO
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      17
+ITERATIVE_OPTIMIZATION_ALGORITHM: "PSO"
+
+#   Type:        int
+#   Default:     32
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        int
+#   Default:     100
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        int
+#   Default:     50
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        float
+#   Default:     0.15
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        str
+#   Default:     SUMMA_AUTODIFF
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        float
+#   Default:     0.15
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        str
+#   Default:     Adam
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        float
+#   Default:     0.2
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        float
+#   Default:     0.5
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        int
+#   Default:     500
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        int
+#   Default:     1000
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+#   Type:        int
+#   Default:     100
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      3
+
+#   Type:        float
+#   Default:     None
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+# NSGA2_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      5
+NSGA2_CROSSOVER_RATE: 0.9
+
+# NSGA2_ETA_C
+#   Type:        int
+#   Default:     20
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      4
+NSGA2_ETA_C: 20
+
+# NSGA2_ETA_M
+#   Type:        int
+#   Default:     20
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      4
+NSGA2_ETA_M: 20
+
+# NSGA2_MULTI_TARGET
+#   Type:        bool
+#   Default:     False
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      3
+NSGA2_MULTI_TARGET: false
+
+# NSGA2_MUTATION_RATE
+#   Type:        float
+#   Default:     0.1
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      5
+NSGA2_MUTATION_RATE: 0.1
+
+# NSGA2_PRIMARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      3
+NSGA2_PRIMARY_METRIC: "KGE"
+
+# NSGA2_PRIMARY_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      3
+NSGA2_PRIMARY_TARGET: "streamflow"
+
+# NSGA2_SECONDARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      3
+NSGA2_SECONDARY_METRIC: "KGE"
+
+# NSGA2_SECONDARY_TARGET
+#   Type:        str
+#   Default:     gw_depth
+#   Source:      NSGA2Config (optimization.py)
+#   Usage:      3
+NSGA2_SECONDARY_TARGET: "gw_depth"
+
+# MOEAD_MULTI_TARGET
+#   Type:        bool
+#   Default:     False
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Enable multi-target optimization for MOEA/D
+MOEAD_MULTI_TARGET: false
+
+# MOEAD_PRIMARY_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Primary optimization target for MOEA/D
+MOEAD_PRIMARY_TARGET: "streamflow"
+
+# MOEAD_PRIMARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Primary metric for MOEA/D multi-target optimization
+MOEAD_PRIMARY_METRIC: "KGE"
+
+# MOEAD_SECONDARY_TARGET
+#   Type:        str
+#   Default:     gw_depth
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Secondary optimization target for MOEA/D
+MOEAD_SECONDARY_TARGET: "gw_depth"
+
+# MOEAD_SECONDARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Secondary metric for MOEA/D multi-target optimization
+MOEAD_SECONDARY_METRIC: "KGE"
+
+# NUMBER_OF_ITERATIONS
+#   Type:        int
+#   Default:     1000
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      10
+NUMBER_OF_ITERATIONS: 1000
+
+# OPTIMIZATION_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      14
+OPTIMIZATION_METRIC: "KGE"
+
+# OPTIMIZATION_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      17
+OPTIMIZATION_TARGET: "streamflow"
+
+# CALIBRATION_VARIABLE
+#   Type:        str
+#   Default:     streamflow
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      1
+CALIBRATION_VARIABLE: "streamflow"
+
+# CLEANUP_PARALLEL_DIRS
+#   Type:        bool
+#   Default:     true
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      1
+CLEANUP_PARALLEL_DIRS: true
+
+# ERROR_LOG_DIR
+#   Type:        str
+#   Default:     error_logs
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Directory for error logs during optimization
+ERROR_LOG_DIR: "error_logs"
+
+# ERROR_LOGGING_MODE
+#   Type:        str
+#   Default:     none
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Error logging mode: 'none', 'file', or 'database'
+ERROR_LOGGING_MODE: "none"
+
+# PARAMS_KEEP_TRIALS
+#   Type:        bool
+#   Default:     false
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Whether to keep trial parameter files after optimization
+PARAMS_KEEP_TRIALS: false
+
+# STOP_ON_MODEL_FAILURE
+#   Type:        bool
+#   Default:     false
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Whether to stop optimization on model failure
+STOP_ON_MODEL_FAILURE: false
+
+# FINAL_EVALUATION_NUMERICAL_METHOD
+#   Type:        str
+#   Default:     be
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      1
+FINAL_EVALUATION_NUMERICAL_METHOD: "be"
+
+# GRADIENT_CLIP_VALUE
+#   Type:        float
+#   Default:     1.0
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Maximum gradient L2 norm for gradient clipping (prevents exploding gradients)
+GRADIENT_CLIP_VALUE: 1.0
+
+# GRADIENT_EPSILON
+#   Type:        float
+#   Default:     1e-4
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Perturbation size for finite-difference gradient approximation
+GRADIENT_EPSILON: 1e-4
+
+# GRADIENT_MODE
+#   Type:        str
+#   Default:     auto
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Gradient computation method for Adam/L-BFGS: 'auto', 'native', or 'finite_difference'
+GRADIENT_MODE: "auto"
+
+# PERCENT_CHANGE_THRESHOLD
+#   Type:        float
+#   Default:     0.01
+#   Source:      SCEUAConfig (optimization.py)
+#   Usage:      2
+PERCENT_CHANGE_THRESHOLD: 0.01
+
+# POINTS_PER_SUBCOMPLEX
+#   Type:        int
+#   Default:     5
+#   Source:      SCEUAConfig (optimization.py)
+#   Usage:      2
+POINTS_PER_SUBCOMPLEX: 5
+
+# POPULATION_SIZE
+#   Type:        int
+#   Default:     50
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      8
+POPULATION_SIZE: 50
+
+# PSO_COGNITIVE_PARAM
+#   Type:        float
+#   Default:     1.5
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      4
+PSO_COGNITIVE_PARAM: 1.5
+
+# PSO_INERTIA_REDUCTION_RATE
+#   Type:        float
+#   Default:     0.99
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      3
+PSO_INERTIA_REDUCTION_RATE: 0.99
+
+# PSO_INERTIA_WEIGHT
+#   Type:        float
+#   Default:     0.7
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      4
+PSO_INERTIA_WEIGHT: 0.7
+
+# PSO_SOCIAL_PARAM
+#   Type:        float
+#   Default:     1.5
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      4
+PSO_SOCIAL_PARAM: 1.5
+
+# SWRMSIZE
+#   Type:        int
+#   Default:     20
+#   Source:      PSOConfig (optimization.py)
+#   Usage:      3
+SWRMSIZE: 20
+
+#   Type:        str
+#   Default:     SUMMA_AUTODIFF_FD
+#   Source:      LargeDomainConfig (optimization.py)
+#   Usage:      2
+
+# NUMBER_OF_COMPLEXES
+#   Type:        int
+#   Default:     2
+#   Source:      SCEUAConfig (optimization.py)
+#   Usage:      2
+NUMBER_OF_COMPLEXES: 2
+
+# NUMBER_OF_EVOLUTION_STEPS
+#   Type:        int
+#   Default:     20
+#   Source:      SCEUAConfig (optimization.py)
+#   Usage:      2
+NUMBER_OF_EVOLUTION_STEPS: 20
+
+# ABC_PARTICLES
+#   Type:        int
+#   Default:     100
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Number of particles in ABC-SMC population
+ABC_PARTICLES: 100
+
+# ABC_GENERATIONS
+#   Type:        int
+#   Default:     20
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Maximum number of ABC-SMC generations
+ABC_GENERATIONS: 20
+
+# ABC_INITIAL_TOLERANCE
+#   Type:        float
+#   Default:     0.5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Initial acceptance tolerance for ABC-SMC
+ABC_INITIAL_TOLERANCE: 0.5
+
+# ABC_FINAL_TOLERANCE
+#   Type:        float
+#   Default:     0.05
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Target final tolerance for ABC-SMC
+ABC_FINAL_TOLERANCE: 0.05
+
+# ABC_TOLERANCE_QUANTILE
+#   Type:        float
+#   Default:     0.75
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Quantile for adaptive tolerance schedule
+ABC_TOLERANCE_QUANTILE: 0.75
+
+# ABC_TOLERANCE_DECAY
+#   Type:        float
+#   Default:     0.9
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Maximum tolerance reduction per generation
+ABC_TOLERANCE_DECAY: 0.9
+
+# ABC_PERTURBATION_SCALE
+#   Type:        float
+#   Default:     2.0
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Scaling factor for perturbation kernel bandwidth
+ABC_PERTURBATION_SCALE: 2.0
+
+# ABC_KERNEL_TYPE
+#   Type:        Literal['gaussian', 'uniform', 'component_wise']
+#   Default:     component_wise
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Type of perturbation kernel
+ABC_KERNEL_TYPE: "component_wise"
+
+# ABC_USE_OLCM
+#   Type:        bool
+#   Default:     True
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Use Optimal Local Covariance Matrix adaptation
+ABC_USE_OLCM: true
+
+# ABC_MIN_ACCEPTANCE_RATE
+#   Type:        float
+#   Default:     0.05
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum acceptance rate before stopping
+ABC_MIN_ACCEPTANCE_RATE: 0.05
+
+# ABC_MIN_ESS_RATIO
+#   Type:        float
+#   Default:     0.5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum effective sample size ratio
+ABC_MIN_ESS_RATIO: 0.5
+
+# ABC_CONVERGENCE_THRESHOLD
+#   Type:        float
+#   Default:     0.001
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Convergence threshold for stopping
+ABC_CONVERGENCE_THRESHOLD: 0.001
+
+# ABC_MIN_GENERATIONS
+#   Type:        int
+#   Default:     5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum generations before checking convergence
+ABC_MIN_GENERATIONS: 5
+
+
+# 16. Evaluation & Observation Data
+# ================================================================================
+
+# ATTRIBUTES_DATA_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_DATA_DIR: default
+
+# ATTRIBUTES_FOREST_HEIGHT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_FOREST_HEIGHT_PATH: default
+
+# ATTRIBUTES_GLCLU_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_GLCLU_PATH: default
+
+# ATTRIBUTES_GLIM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_GLIM_PATH: default
+
+# ATTRIBUTES_GLWD_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_GLWD_PATH: default
+
+# ATTRIBUTES_GROUNDWATER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_GROUNDWATER_PATH: default
+
+# ATTRIBUTES_HYDROLAKES_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_HYDROLAKES_PATH: default
+
+# ATTRIBUTES_MERIT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_MERIT_PATH: default
+
+# ATTRIBUTES_MODIS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_MODIS_PATH: default
+
+# ATTRIBUTES_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_OUTPUT_DIR: default
+
+# ATTRIBUTES_PELLETIER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_PELLETIER_PATH: default
+
+# ATTRIBUTES_SOILGRIDS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_SOILGRIDS_PATH: default
+
+# ATTRIBUTES_STREAMFLOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      2
+ATTRIBUTES_STREAMFLOW_PATH: default
+
+# ATTRIBUTES_WORLDCLIM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+#   Usage:      3
+ATTRIBUTES_WORLDCLIM_PATH: default
+
+# FLUXNET_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      FluxNetConfig (evaluation.py)
+#   Usage:      4
+FLUXNET_PATH: null
+
+# FLUXNET_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      FluxNetConfig (evaluation.py)
+#   Usage:      4
+FLUXNET_STATION: null
+
+# GRACE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRACEConfig (evaluation.py)
+#   Usage:      2
+GRACE_PATH: default
+
+# GRACE_PRODUCT
+#   Type:        str
+#   Default:     RL06
+#   Source:      GRACEConfig (evaluation.py)
+#   Usage:      2
+GRACE_PRODUCT: "RL06"
+
+# GRACE_DATA_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      GRACEConfig (evaluation.py)
+#   Usage:      3
+GRACE_DATA_DIR: default
+
+# HYDAT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      4
+HYDAT_PATH: default
+
+# MODIS_SNOW
+#   Type:        MODISSnowConfig
+#   Default:     MODISSnowConfig
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      7
+MODIS_SNOW: "MODISSnowConfig"
+
+# MODIS_SNOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      2
+MODIS_SNOW_PATH: default
+
+# MODIS_SNOW_PRODUCT
+#   Type:        str
+#   Default:     MOD10A1.006
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      3
+MODIS_SNOW_PRODUCT: "MOD10A1.006"
+
+# MODIS_SNOW_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      3
+MODIS_SNOW_DIR: default
+
+# MODIS_MIN_PIXELS
+#   Type:        int
+#   Default:     100
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      3
+MODIS_MIN_PIXELS: 100
+
+# MODIS_SCA_PRODUCTS
+#   Type:        list
+#   Default:     ['MOD10A1.061', 'MYD10A1.061']
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      MODIS snow cover area products
+MODIS_SCA_PRODUCTS: ['MOD10A1.061', 'MYD10A1.061']
+
+# MODIS_SCA_MERGE
+#   Type:        bool
+#   Default:     true
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Whether to merge Terra and Aqua products
+MODIS_SCA_MERGE: true
+
+# MODIS_SCA_MERGE_STRATEGY
+#   Type:        str
+#   Default:     max
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Strategy for merging products (max, mean, etc.)
+MODIS_SCA_MERGE_STRATEGY: max
+
+# MODIS_SCA_CLOUD_FILTER
+#   Type:        bool
+#   Default:     true
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Whether to filter cloud-covered pixels
+MODIS_SCA_CLOUD_FILTER: true
+
+# MODIS_SCA_MIN_VALID_RATIO
+#   Type:        float
+#   Default:     0.1
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Minimum ratio of valid pixels required
+MODIS_SCA_MIN_VALID_RATIO: 0.1
+
+# MODIS_SCA_NORMALIZE
+#   Type:        bool
+#   Default:     true
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Whether to normalize SCA values (0-1)
+MODIS_SCA_NORMALIZE: true
+
+# MODIS_SCA_USE_CATCHMENT_MASK
+#   Type:        bool
+#   Default:     false
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      Whether to mask SCA to catchment boundary
+MODIS_SCA_USE_CATCHMENT_MASK: false
+
+# ========================================
+# MODIS Evapotranspiration (MOD16)
+# ========================================
+
+# DOWNLOAD_MODIS_ET
+#   Type:        bool
+#   Default:     False
+#   Source:      MODISETConfig (evaluation.py)
+#   Usage:      3
+DOWNLOAD_MODIS_ET: false
+
+# MODIS_ET_PRODUCT
+#   Type:        str
+#   Default:     MOD16A2.061
+#   Source:      MODISETConfig (evaluation.py)
+#   Usage:      3
+MODIS_ET_PRODUCT: "MOD16A2.061"
+
+# MODIS_ET_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MODISETConfig (evaluation.py)
+#   Usage:      3
+MODIS_ET_PATH: default
+
+# MOD16_ET_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      MODISETConfig (evaluation.py)
+#   Usage:      3
+MOD16_ET_DIR: default
+
+# SIM_REACH_ID
+#   Type:        int
+#   Default:     None
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      17
+SIM_REACH_ID: null
+
+# SMAP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      3
+SMAP_PATH: default
+
+# SMAP_PRODUCT
+#   Type:        str
+#   Default:     SPL4SMGP
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      3
+SMAP_PRODUCT: "SPL4SMGP"
+
+# SMAP_MAX_GRANULES
+#   Type:        int
+#   Default:     None
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      Maximum number of granules to download
+SMAP_MAX_GRANULES: null
+
+# SMAP_USE_OPENDAP
+#   Type:        bool
+#   Default:     false
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      Whether to use OPeNDAP for data access
+SMAP_USE_OPENDAP: false
+
+# SMAP_SURFACE_DEPTH_M
+#   Type:        float
+#   Default:     0.05
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      Surface layer depth in meters
+SMAP_SURFACE_DEPTH_M: 0.05
+
+# SMAP_ROOTZONE_DEPTH_M
+#   Type:        float
+#   Default:     1.0
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      Root zone depth in meters
+SMAP_ROOTZONE_DEPTH_M: 1.0
+
+# SNOTEL_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+#   Usage:      5
+SNOTEL_PATH: null
+
+# SNOTEL_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+#   Usage:      7
+SNOTEL_STATION: null
+
+# STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      13
+STATION_ID: null
+
+# STREAMFLOW_STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      DataConfig (data.py)
+#   Usage:      3
+STREAMFLOW_STATION_ID: null
+
+# LAMAH_ICE_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      LAMAHICEConfig (evaluation.py)
+#   Usage:      1
+LAMAH_ICE_PATH: null
+
+# LAMAH_ICE_STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      LAMAHICEConfig (evaluation.py)
+#   Usage:      LamaH-Ice station identifier for Iceland basins
+LAMAH_ICE_STATION_ID: null
+
+# ========================================
+# SMHI (Swedish Meteorological and Hydrological Institute)
+# ========================================
+
+# SMHI_STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      SMHIConfig (evaluation.py)
+#   Usage:      SMHI station identifier for Swedish streamflow data
+SMHI_STATION_ID: null
+
+# SMHI_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SMHIConfig (evaluation.py)
+#   Usage:      Path to SMHI data directory
+SMHI_PATH: default
+
+# ========================================
+# Glacier Data (RGI)
+# ========================================
+
+# GLACIER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GlacierConfig (evaluation.py)
+#   Usage:      Path to glacier data directory
+GLACIER_PATH: default
+
+# GLACIER_SOURCE
+#   Type:        str
+#   Default:     RGI
+#   Source:      GlacierConfig (evaluation.py)
+#   Usage:      Glacier data source (e.g., RGI for Randolph Glacier Inventory)
+GLACIER_SOURCE: RGI
+
+# ========================================
+# ISMN (International Soil Moisture Network)
+# ========================================
+
+# ISMN_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Path to ISMN data directory
+ISMN_PATH: default
+
+# ISMN_API_BASE
+#   Type:        str
+#   Default:     https://ismn.earth/dataviewer
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Base URL for ISMN API
+ISMN_API_BASE: "https://ismn.earth/dataviewer"
+
+# ISMN_METADATA_URL
+#   Type:        str
+#   Default:     https://ismn.earth/static/dataviewer/network_station_details.json
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      URL for ISMN station metadata
+ISMN_METADATA_URL: "https://ismn.earth/static/dataviewer/network_station_details.json"
+
+# ISMN_VARIABLE_LIST_URL
+#   Type:        str
+#   Default:     None
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      URL for ISMN variable list
+ISMN_VARIABLE_LIST_URL: null
+
+# ISMN_DATA_URL_TEMPLATE
+#   Type:        str
+#   Default:     None
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      URL template for ISMN data download
+ISMN_DATA_URL_TEMPLATE: null
+
+# ISMN_MAX_STATIONS
+#   Type:        int
+#   Default:     3
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Maximum number of ISMN stations to use
+ISMN_MAX_STATIONS: 3
+
+# ISMN_SEARCH_RADIUS_KM
+#   Type:        float
+#   Default:     None
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Search radius for finding ISMN stations (km)
+ISMN_SEARCH_RADIUS_KM: null
+
+# ISMN_TARGET_DEPTH_M
+#   Type:        float
+#   Default:     0.05
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Target soil depth for ISMN data (m)
+ISMN_TARGET_DEPTH_M: 0.05
+
+# ISMN_TEMPORAL_AGGREGATION
+#   Type:        str
+#   Default:     daily_mean
+#   Source:      ISMNConfig (evaluation.py)
+#   Usage:      Temporal aggregation method for ISMN data
+ISMN_TEMPORAL_AGGREGATION: daily_mean
+
+# STREAMFLOW_DATA_PROVIDER
+#   Type:        str
+#   Default:     None
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      6
+STREAMFLOW_DATA_PROVIDER: null
+
+# USGS_SITE_CODE
+#   Type:        str
+#   Default:     None
+#   Source:      DataConfig (data.py)
+#   Usage:      USGS station site code for streamflow data download
+USGS_SITE_CODE: null
+
+# STREAMFLOW_PROCESSED_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      3
+STREAMFLOW_PROCESSED_PATH: default
+
+# STREAMFLOW_RAW_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      6
+STREAMFLOW_RAW_NAME: default
+
+# STREAMFLOW_RAW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      3
+STREAMFLOW_RAW_PATH: default
+
+# USGS_GW
+#   Type:        USGSGWConfig
+#   Default:     USGSGWConfig
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      5
+USGS_GW: "USGSGWConfig"
+
+# USGS_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+#   Usage:      4
+USGS_STATION: null
+
+# ANALYSES
+#   Type:        List[str]
+#   Default:     []
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      3
+ANALYSES: []
+
+# EVALUATION_DATA
+#   Type:        List[str]
+#   Default:     []
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      2
+EVALUATION_DATA: []
+
+# HRU_GAUGE_MAPPING
+#   Type:        str
+#   Default:     None
+#   Source:      EvaluationConfig (evaluation.py)
+#   Usage:      2
+HRU_GAUGE_MAPPING: null
+
+
+# 17. Paths & Data Locations
+# ================================================================================
+
+# CATCHMENT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      31
+CATCHMENT_PATH: default
+
+# CATCHMENT_PLOT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      2
+CATCHMENT_PLOT_DIR: default
+
+# CATCHMENT_SHP_AREA
+#   Type:        str
+#   Default:     HRU_area
+#   Source:      PathsConfig (paths.py)
+#   Usage:      4
+CATCHMENT_SHP_AREA: "HRU_area"
+
+# CATCHMENT_SHP_ELEV
+#   Type:        str
+#   Default:     elev_mean
+#   Source:      PathsConfig (paths.py)
+#   Usage:      Elevation attribute name in catchment shapefile
+CATCHMENT_SHP_ELEV: "elev_mean"
+
+# CATCHMENT_SHP_GRUID
+#   Type:        str
+#   Default:     GRU_ID
+#   Source:      PathsConfig (paths.py)
+#   Usage:      10
+CATCHMENT_SHP_GRUID: "GRU_ID"
+
+# CATCHMENT_SHP_HRUID
+#   Type:        str
+#   Default:     HRU_ID
+#   Source:      PathsConfig (paths.py)
+#   Usage:      36
+CATCHMENT_SHP_HRUID: "HRU_ID"
+
+# CATCHMENT_SHP_LAT
+#   Type:        str
+#   Default:     center_lat
+#   Source:      PathsConfig (paths.py)
+#   Usage:      8
+CATCHMENT_SHP_LAT: "center_lat"
+
+# CATCHMENT_SHP_LON
+#   Type:        str
+#   Default:     center_lon
+#   Source:      PathsConfig (paths.py)
+#   Usage:      10
+CATCHMENT_SHP_LON: "center_lon"
+
+# CATCHMENT_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      35
+CATCHMENT_SHP_NAME: default
+
+# CATCHMENT_SHP_SLOPE
+#   Type:        str
+#   Default:     slope
+#   Source:      PathsConfig (paths.py)
+#   Usage:      Slope attribute name in catchment shapefile
+CATCHMENT_SHP_SLOPE: "slope"
+
+# CLUSTER_JSON
+#   Type:        str
+#   Default:     /path/to/cluster.json
+#   Source:      PathsConfig (paths.py)
+#   Usage:      4
+CLUSTER_JSON: "/path/to/cluster.json"
+
+# DATATOOL_DATASET_ROOT
+#   Type:        str
+#   Default:     /path/to/meteorological-data/
+#   Source:      PathsConfig (paths.py)
+#   Usage:      4
+DATATOOL_DATASET_ROOT: "/path/to/meteorological-data/"
+
+# DATATOOL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      5
+DATATOOL_PATH: default
+
+# EASYMORE_CACHE
+#   Type:        str
+#   Default:     /path/to/cache/dir
+#   Source:      PathsConfig (paths.py)
+#   Usage:      2
+EASYMORE_CACHE: "/path/to/cache/dir"
+
+# EASYMORE_CLIENT
+#   Type:        str
+#   Default:     easymore cli
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+EASYMORE_CLIENT: "easymore cli"
+
+# EASYMORE_JOB_CONF
+#   Type:        str
+#   Default:     /path/to/esmr/job_config
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+EASYMORE_JOB_CONF: "/path/to/esmr/job_config"
+
+# GISTOOL_DATASET_ROOT
+#   Type:        str
+#   Default:     /path/to/geospatial-data/
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+GISTOOL_DATASET_ROOT: "/path/to/geospatial-data/"
+
+# GISTOOL_LIB_PATH
+#   Type:        str
+#   Default:     /path/to/r-env/
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+GISTOOL_LIB_PATH: "/path/to/r-env/"
+
+# GISTOOL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      4
+GISTOOL_PATH: default
+
+# INTERSECT_DEM_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_DEM_NAME: default
+
+# INTERSECT_DEM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_DEM_PATH: default
+
+# INTERSECT_LAND_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_LAND_NAME: default
+
+# INTERSECT_LAND_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_LAND_PATH: default
+
+# INTERSECT_ROUTING_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+INTERSECT_ROUTING_NAME: default
+
+# INTERSECT_ROUTING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+INTERSECT_ROUTING_PATH: default
+
+# INTERSECT_SOIL_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_SOIL_NAME: default
+
+# INTERSECT_SOIL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+INTERSECT_SOIL_PATH: default
+
+# OUTPUT_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      7
+OUTPUT_BASINS_PATH: default
+
+# OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      2
+OUTPUT_DIR: default
+
+# OUTPUT_RIVERS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      7
+OUTPUT_RIVERS_PATH: default
+
+# POUR_POINT_COORDS
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      15
+POUR_POINT_COORDS: null
+
+# POUR_POINT_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      8
+POUR_POINT_SHP_NAME: default
+
+# POUR_POINT_SHP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      9
+POUR_POINT_SHP_PATH: default
+
+# RIVER_BASINS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      26
+RIVER_BASINS_NAME: default
+
+# RIVER_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      19
+RIVER_BASINS_PATH: default
+
+# RIVER_BASIN_SHP_AREA
+#   Type:        str
+#   Default:     GRU_area
+#   Source:      PathsConfig (paths.py)
+#   Usage:      13
+RIVER_BASIN_SHP_AREA: "GRU_area"
+
+# RIVER_BASIN_SHP_HRU_TO_SEG
+#   Type:        str
+#   Default:     gru_to_seg
+#   Source:      PathsConfig (paths.py)
+#   Usage:      8
+RIVER_BASIN_SHP_HRU_TO_SEG: "gru_to_seg"
+
+# RIVER_BASIN_SHP_RM_GRUID
+#   Type:        str
+#   Default:     GRU_ID
+#   Source:      PathsConfig (paths.py)
+#   Usage:      12
+RIVER_BASIN_SHP_RM_GRUID: "GRU_ID"
+
+# RIVER_NETWORK_SHP_DOWNSEGID
+#   Type:        str
+#   Default:     DSLINKNO
+#   Source:      PathsConfig (paths.py)
+#   Usage:      12
+RIVER_NETWORK_SHP_DOWNSEGID: "DSLINKNO"
+
+# RIVER_NETWORK_SHP_LENGTH
+#   Type:        str
+#   Default:     Length
+#   Source:      PathsConfig (paths.py)
+#   Usage:      8
+RIVER_NETWORK_SHP_LENGTH: "Length"
+
+# RIVER_NETWORK_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      7
+RIVER_NETWORK_SHP_NAME: default
+
+# RIVER_NETWORK_SHP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      7
+RIVER_NETWORK_SHP_PATH: default
+
+# RIVER_NETWORK_SHP_SEGID
+#   Type:        str
+#   Default:     LINKNO
+#   Source:      PathsConfig (paths.py)
+#   Usage:      15
+RIVER_NETWORK_SHP_SEGID: "LINKNO"
+
+# RIVER_NETWORK_SHP_SLOPE
+#   Type:        str
+#   Default:     Slope
+#   Source:      PathsConfig (paths.py)
+#   Usage:      7
+RIVER_NETWORK_SHP_SLOPE: "Slope"
+
+# SOILGRIDS_LAYER
+#   Type:        str
+#   Default:     wrb_0-5cm_mode
+#   Source:      DomainConfig (domain.py)
+#   Usage:      3
+SOILGRIDS_LAYER: "wrb_0-5cm_mode"
+
+# SOILGRIDS_WCS_MAP
+#   Type:        str
+#   Default:     /map/wcs/soilgrids.map
+#   Source:      SoilgridsConfig (data.py)
+#   Usage:      3
+SOILGRIDS_WCS_MAP: "/map/wcs/soilgrids.map"
+
+# SOILGRIDS_COVERAGE_ID
+#   Type:        str
+#   Default:     None
+#   Source:      SoilgridsConfig (data.py)
+#   Usage:      3
+SOILGRIDS_COVERAGE_ID: null
+
+# SOILGRIDS_HS_CACHE_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      SoilgridsConfig (data.py)
+#   Usage:      3
+SOILGRIDS_HS_CACHE_DIR: default
+
+# SOILGRIDS_HS_RESOURCE_ID
+#   Type:        str
+#   Default:     1361509511e44adfba814f6950c6e742
+#   Source:      SoilgridsConfig (data.py)
+#   Usage:      3
+SOILGRIDS_HS_RESOURCE_ID: "1361509511e44adfba814f6950c6e742"
+
+# SOILGRIDS_HS_API_URL
+#   Type:        str
+#   Default:     None
+#   Source:      SoilgridsConfig (data.py)
+#   Usage:      3
+SOILGRIDS_HS_API_URL: null
+
+# SOIL_CLASS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+SOIL_CLASS_NAME: default
+
+# SOIL_CLASS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+SOIL_CLASS_PATH: default
+
+# SOURCE_GEOFABRIC_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+SOURCE_GEOFABRIC_BASINS_PATH: default
+
+# SOURCE_GEOFABRIC_RIVERS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+SOURCE_GEOFABRIC_RIVERS_PATH: default
+
+# TAUDEM_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      3
+TAUDEM_DIR: default
+
+# TOOL_CACHE
+#   Type:        str
+#   Default:     /path/to/cache/dir
+#   Source:      PathsConfig (paths.py)
+#   Usage:      5
+TOOL_CACHE: "/path/to/cache/dir"
+
+# OBSERVATIONS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      10
+OBSERVATIONS_PATH: default
+
+# SIMULATIONS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      5
+SIMULATIONS_PATH: default
+
+
+# 2. Domain Configuration
+# ================================================================================
+
+# CALIBRATION_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      14
+CALIBRATION_PERIOD: null
+
+# CALIBRATION_START_DATE
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      3
+CALIBRATION_START_DATE: null
+
+# CALIBRATION_END_DATE
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      3
+CALIBRATION_END_DATE: null
+
+# DOMAIN_DEFINITION_METHOD - Spatial domain method (point/lumped/semidistributed/distributed)
+#   Legacy: delineate->semidistributed, distribute->distributed, subset/discretized->semidistributed
+#   Type:        Literal['point', 'lumped', 'semidistributed', 'distributed']
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+DOMAIN_DEFINITION_METHOD: "lumped"
+
+# SUBSET_FROM_GEOFABRIC - Extract domain from existing geofabric (requires GEOFABRIC_TYPE)
+#   Type:        bool
+#   Default:     false
+#   Source:      DomainConfig (domain.py)
+SUBSET_FROM_GEOFABRIC: false
+
+# GRID_SOURCE - Grid creation method for distributed domain (generate/native)
+#   Type:        Literal['generate', 'native']
+#   Default:     generate
+#   Source:      DomainConfig (domain.py)
+GRID_SOURCE: "generate"
+
+# NATIVE_GRID_DATASET - Dataset identifier when GRID_SOURCE='native' (e.g., era5)
+#   Type:        str
+#   Default:     era5
+#   Source:      DomainConfig (domain.py)
+NATIVE_GRID_DATASET: "era5"
+
+# SUB_GRID_DISCRETIZATION
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      46
+SUB_GRID_DISCRETIZATION: "elevation"
+
+# DOMAIN_NAME
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      176
+DOMAIN_NAME: "example_basin"
+
+# BOUNDING_BOX_COORDS
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      26
+BOUNDING_BOX_COORDS: null
+
+# EVALUATION_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      7
+EVALUATION_PERIOD: null
+
+# EXPERIMENT_ID
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      116
+EXPERIMENT_ID: "run_1"
+
+# EXPERIMENT_TIME_END
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      54
+EXPERIMENT_TIME_END: "2020-12-31 23:00"
+
+# EXPERIMENT_TIME_START
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      59
+EXPERIMENT_TIME_START: "2010-01-01 01:00"
+
+# SPINUP_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      8
+SPINUP_PERIOD: null
+
+
+# 3. Delineation & Discretization
+# ================================================================================
+
+# AREA_EXPONENT
+#   Type:        float
+#   Default:     1.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+AREA_EXPONENT: 1.0
+
+# CLEANUP_INTERMEDIATE_FILES
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      6
+CLEANUP_INTERMEDIATE_FILES: false
+
+# CURVATURE_THRESHOLD
+#   Type:        float
+#   Default:     0.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      2
+CURVATURE_THRESHOLD: 0.0
+
+# DELINEATE_BY_POURPOINT
+#   Type:        bool
+#   Default:     True
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+DELINEATE_BY_POURPOINT: true
+
+# DELINEATE_COASTAL_WATERSHEDS
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      8
+DELINEATE_COASTAL_WATERSHEDS: false
+
+# DELINEATION_METHOD
+#   Type:        str
+#   Default:     stream_threshold
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+DELINEATION_METHOD: "stream_threshold"
+
+# DROP_ANALYSIS_LOG_SPACING
+#   Type:        bool
+#   Default:     True
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+DROP_ANALYSIS_LOG_SPACING: true
+
+# DROP_ANALYSIS_MAX_THRESHOLD
+#   Type:        int
+#   Default:     10000
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      4
+DROP_ANALYSIS_MAX_THRESHOLD: 10000
+
+# DROP_ANALYSIS_MIN_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      4
+DROP_ANALYSIS_MIN_THRESHOLD: 100
+
+# DROP_ANALYSIS_NUM_THRESHOLDS
+#   Type:        int
+#   Default:     10
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      4
+DROP_ANALYSIS_NUM_THRESHOLDS: 10
+
+# GEOFABRIC_TYPE
+#   Type:        str
+#   Default:     na
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      10
+GEOFABRIC_TYPE: "na"
+
+# LUMPED_WATERSHED_METHOD
+#   Type:        str
+#   Default:     TauDEM
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      4
+LUMPED_WATERSHED_METHOD: "TauDEM"
+
+# MIN_SOURCE_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+MIN_SOURCE_THRESHOLD: 100
+
+# MOVE_OUTLETS_MAX_DISTANCE
+#   Type:        float
+#   Default:     200.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      7
+MOVE_OUTLETS_MAX_DISTANCE: 200.0
+
+# MULTI_SCALE_THRESHOLDS
+#   Type:        str
+#   Default:     None
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+MULTI_SCALE_THRESHOLDS: null
+
+# ROUTING_DELINEATION
+#   Type:        str
+#   Default:     lumped
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      26
+ROUTING_DELINEATION: "lumped"
+
+# SLOPE_AREA_EXPONENT
+#   Type:        float
+#   Default:     2.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+SLOPE_AREA_EXPONENT: 2.0
+
+# SLOPE_AREA_THRESHOLD
+#   Type:        float
+#   Default:     100.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+SLOPE_AREA_THRESHOLD: 100.0
+
+# STREAM_THRESHOLD
+#   Type:        float
+#   Default:     5000.0
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      8
+STREAM_THRESHOLD: 5000.0
+
+# USE_DROP_ANALYSIS
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+#   Usage:      3
+USE_DROP_ANALYSIS: false
+
+
+# 4. Geospatial Data Sources
+# ================================================================================
+
+# ASPECT_CLASS_NUMBER
+#   Type:        int
+#   Default:     1
+#   Source:      DomainConfig (domain.py)
+#   Usage:      5
+ASPECT_CLASS_NUMBER: 1
+
+# ASPECT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+ASPECT_PATH: default
+
+# DATA_ACCESS
+#   Type:        str
+#   Default:     cloud
+#   Source:      DomainConfig (domain.py)
+#   Usage:      18
+DATA_ACCESS: "cloud"
+
+# DEM_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      19
+DEM_NAME: default
+
+# DEM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      21
+DEM_PATH: default
+
+# NASADEM_LOCAL_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      NASADEMConfig (data.py)
+#   Usage:      3
+NASADEM_LOCAL_DIR: null
+
+# ELEV_CHUNK_SIZE
+#   Type:        int
+#   Default:     10000
+#   Source:      DataConfig (data.py)
+#   Usage:      Chunk size for elevation processing
+ELEV_CHUNK_SIZE: 10000
+
+# ELEV_TILE_TARGET
+#   Type:        int
+#   Default:     50000
+#   Source:      DataConfig (data.py)
+#   Usage:      Target tile size for elevation processing
+ELEV_TILE_TARGET: 50000
+
+# DEM_SOURCE
+#   Type:        str
+#   Default:     fabdem
+#   Source:      DomainConfig (domain.py)
+#   Usage:      8
+DEM_SOURCE: "fabdem"
+
+# DOWNLOAD_DEM
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+DOWNLOAD_DEM: true
+
+# DOWNLOAD_FLUXNET
+#   Type:        bool
+#   Default:     False
+#   Source:      FluxNetConfig (evaluation.py)
+#   Usage:      3
+DOWNLOAD_FLUXNET: false
+
+# DOWNLOAD_GRACE
+#   Type:        bool
+#   Default:     False
+#   Source:      GRACEConfig (evaluation.py)
+#   Usage:      3
+DOWNLOAD_GRACE: false
+
+# DOWNLOAD_LAMAH_ICE_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      DataConfig (data.py)
+#   Usage:      1
+DOWNLOAD_LAMAH_ICE_DATA: false
+
+# DOWNLOAD_ISMN
+#   Type:        bool
+#   Default:     False
+#   Source:      DataConfig (data.py)
+#   Usage:      Whether to download ISMN soil moisture data
+DOWNLOAD_ISMN: false
+
+# DOWNLOAD_GLACIER_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      DataConfig (data.py)
+#   Usage:      Whether to download glacier data from RGI
+DOWNLOAD_GLACIER_DATA: false
+
+# DOWNLOAD_SMHI_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      DataConfig (data.py)
+#   Usage:      1
+DOWNLOAD_SMHI_DATA: false
+
+# DOWNLOAD_LAND_COVER
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+DOWNLOAD_LAND_COVER: true
+
+# DOWNLOAD_MODIS_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      MODISSnowConfig (evaluation.py)
+#   Usage:      4
+DOWNLOAD_MODIS_SNOW: false
+
+# DOWNLOAD_SMAP
+#   Type:        bool
+#   Default:     False
+#   Source:      SMAPConfig (evaluation.py)
+#   Usage:      2
+DOWNLOAD_SMAP: false
+
+# DOWNLOAD_SNOTEL
+#   Type:        bool
+#   Default:     False
+#   Source:      SNOTELConfig (evaluation.py)
+#   Usage:      6
+DOWNLOAD_SNOTEL: false
+
+# DOWNLOAD_SOIL
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+DOWNLOAD_SOIL: true
+
+# DOWNLOAD_USGS_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      6
+DOWNLOAD_USGS_DATA: false
+
+# DOWNLOAD_USGS_GW
+#   Type:        bool
+#   Default:     False
+#   Source:      USGSGWConfig (evaluation.py)
+#   Usage:      5
+DOWNLOAD_USGS_GW: false
+
+# DOWNLOAD_WSC_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      StreamflowConfig (evaluation.py)
+#   Usage:      3
+DOWNLOAD_WSC_DATA: false
+
+# ELEVATION_BAND_SIZE
+#   Type:        float
+#   Default:     200.0
+#   Source:      DomainConfig (domain.py)
+#   Usage:      7
+ELEVATION_BAND_SIZE: 200.0
+
+# LAND_CLASS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      DomainConfig (domain.py)
+#   Usage:      10
+LAND_CLASS_NAME: default
+
+# LANDCOVER_YEAR
+#   Type:        int
+#   Default:     None
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+LANDCOVER_YEAR: null
+
+# LANDCOVER_LOCAL_FILE
+#   Type:        str
+#   Default:     None
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+LANDCOVER_LOCAL_FILE: null
+
+# MODIS_LANDCOVER_YEARS
+#   Type:        List[int]
+#   Default:     None
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+MODIS_LANDCOVER_YEARS: null
+
+# MODIS_LANDCOVER_START_YEAR
+#   Type:        int
+#   Default:     None
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+MODIS_LANDCOVER_START_YEAR: null
+
+# MODIS_LANDCOVER_END_YEAR
+#   Type:        int
+#   Default:     None
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+MODIS_LANDCOVER_END_YEAR: null
+
+# MODIS_LANDCOVER_BASE_URL
+#   Type:        str
+#   Default:     https://zenodo.org/records/8367523/files
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+MODIS_LANDCOVER_BASE_URL: "https://zenodo.org/records/8367523/files"
+
+# MODIS_LANDCOVER_CACHE_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      MODISLandcoverConfig (data.py)
+#   Usage:      3
+MODIS_LANDCOVER_CACHE_DIR: default
+
+# NLCD_COVERAGE_ID
+#   Type:        str
+#   Default:     NLCD_2019_Land_Cover_L48
+#   Source:      NLCDConfig (data.py)
+#   Usage:      3
+NLCD_COVERAGE_ID: "NLCD_2019_Land_Cover_L48"
+
+# LAND_CLASS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      6
+LAND_CLASS_PATH: default
+
+# LAND_CLASS_SOURCE
+#   Type:        str
+#   Default:     modis
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+LAND_CLASS_SOURCE: "modis"
+
+# MAX_STAGNATION_BATCHES
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+#   Usage:      3
+MAX_STAGNATION_BATCHES: 10
+
+# MIN_GRU_SIZE
+#   Type:        float
+#   Default:     0.0
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+MIN_GRU_SIZE: 0.0
+
+# MIN_HRU_SIZE
+#   Type:        float
+#   Default:     0.0
+#   Source:      DomainConfig (domain.py)
+#   Usage:      4
+MIN_HRU_SIZE: 0.0
+
+# GRID_CELL_SIZE
+#   Type:        float
+#   Default:     1000.0
+#   Source:      DomainConfig (domain.py)
+#   Usage:      Grid cell size for distributed models (m)
+GRID_CELL_SIZE: 1000.0
+
+# CLIP_GRID_TO_WATERSHED
+#   Type:        bool
+#   Default:     true
+#   Source:      DomainConfig (domain.py)
+#   Usage:      Whether to clip grid cells to watershed boundary
+CLIP_GRID_TO_WATERSHED: true
+
+# RADIATION_CLASS_NUMBER
+#   Type:        int
+#   Default:     1
+#   Source:      DomainConfig (domain.py)
+#   Usage:      5
+RADIATION_CLASS_NUMBER: 1
+
+# RADIATION_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      4
+RADIATION_PATH: default
+
+
+# 5. Forcing Data Configuration
+# ================================================================================
+
+# APPLY_LAPSE_RATE
+#   Type:        bool
+#   Default:     True
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      3
+APPLY_LAPSE_RATE: true
+
+# EM_EARTH
+#   Type:        EMEarthConfig
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      1
+EM_EARTH: null
+
+# EM_EARTH_DATA_TYPE
+#   Type:        str
+#   Default:     deterministic
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      3
+EM_EARTH_DATA_TYPE: "deterministic"
+
+# EM_EARTH_MAX_EXPANSION
+#   Type:        float
+#   Default:     0.2
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      2
+EM_EARTH_MAX_EXPANSION: 0.2
+
+# EM_EARTH_MIN_BBOX_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      4
+EM_EARTH_MIN_BBOX_SIZE: 0.1
+
+# EM_EARTH_PRCP_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      3
+EM_EARTH_PRCP_DIR: null
+
+# EM_EARTH_TMEAN_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      3
+EM_EARTH_TMEAN_DIR: null
+
+# ERA5_USE_CDS
+#   Type:        bool
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      3
+ERA5_USE_CDS: null
+
+# ERA5_ZARR_PATH
+#   Type:        str
+#   Default:     ''
+#   Source:      ERA5Config (forcing.py)
+#   Usage:      3
+ERA5_ZARR_PATH: ""
+
+# ERA5_TIME_STEP_HOURS
+#   Type:        int
+#   Default:     1
+#   Source:      ERA5Config (forcing.py)
+#   Usage:      3
+ERA5_TIME_STEP_HOURS: 1
+
+# ERA5_VARS
+#   Type:        List[str]
+#   Default:     ['u10', 'v10', 't2m', 'sp', 'd2m', 'ssrd', 'strd', 'tp']
+#   Source:      ERA5Config (forcing.py)
+#   Usage:      ERA5 variables to download
+ERA5_VARS: ['u10', 'v10', 't2m', 'sp', 'd2m', 'ssrd', 'strd', 'tp']
+
+# FORCING_DATASET
+#   Type:        str
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      56
+FORCING_DATASET: "ERA5"
+
+# FORCING_MEASUREMENT_HEIGHT
+#   Type:        int
+#   Default:     2
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      3
+FORCING_MEASUREMENT_HEIGHT: 2
+
+# FORCING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Usage:      11
+FORCING_PATH: default
+
+# FORCING_SHAPE_LAT_NAME
+#   Type:        str
+#   Default:     lat
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      16
+FORCING_SHAPE_LAT_NAME: "lat"
+
+# FORCING_SHAPE_LON_NAME
+#   Type:        str
+#   Default:     lon
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      18
+FORCING_SHAPE_LON_NAME: "lon"
+
+# FORCING_TIME_STEP_SIZE
+#   Type:        int
+#   Default:     3600
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      23
+FORCING_TIME_STEP_SIZE: 3600
+
+# FORCING_VARIABLES
+#   Type:        str
+#   Default:     default
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      6
+FORCING_VARIABLES: default
+
+# LAPSE_RATE
+#   Type:        float
+#   Default:     0.0065
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      4
+LAPSE_RATE: 0.0065
+
+# NEX_ENSEMBLES
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+#   Usage:      3
+NEX_ENSEMBLES: null
+
+# NEX_MODELS
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+#   Usage:      4
+NEX_MODELS: null
+
+# NEX_SCENARIOS
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+#   Usage:      3
+NEX_SCENARIOS: null
+
+# NEX_VARIABLES
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+#   Usage:      3
+NEX_VARIABLES: null
+
+# PET_METHOD
+#   Type:        str
+#   Default:     oudin
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      3
+PET_METHOD: "oudin"
+
+# SUPPLEMENT_FORCING
+#   Type:        bool
+#   Default:     False
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      9
+SUPPLEMENT_FORCING: false
+
+# KEEP_RAW_FORCING
+#   Type:        bool
+#   Default:     True
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      1
+KEEP_RAW_FORCING: true
+
+# EM_PRCP
+#   Type:        str
+#   Default:     prcp
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      3
+EM_PRCP: "prcp"
+
+
+# 6. Model Selection
+# ================================================================================
+
+# HYDROLOGICAL_MODEL
+#   Type:        Union[str, List[str]]
+#   Default:     SUMMA
+#   Source:      ModelConfig (model_configs.py)
+#   Usage:      33
+HYDROLOGICAL_MODEL: "SUMMA"
+
+# ROUTING_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Usage:      13
+ROUTING_MODEL: null
+
+# FIRE_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Fire model selection (e.g., 'ignacio', 'wmfire')
+FIRE_MODEL: null
+
+
+# 7. SUMMA Model Configuration
+# ================================================================================
+
+# BASIN_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      6
+BASIN_PARAMS_TO_CALIBRATE: routingGammaScale,routingGammaShape
+
+# CALIBRATE_DEPTH
+#   Type:        bool
+#   Default:     False
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      6
+CALIBRATE_DEPTH: false
+
+# DEPTH_SHAPE_FACTOR_BOUNDS
+#   Type:        List[float]
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+DEPTH_SHAPE_FACTOR_BOUNDS: null
+
+# DEPTH_TOTAL_MULT_BOUNDS
+#   Type:        List[float]
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+DEPTH_TOTAL_MULT_BOUNDS: null
+
+# EXPERIMENT_LOG_SUMMA
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      5
+EXPERIMENT_LOG_SUMMA: default
+
+# EXPERIMENT_OUTPUT_SUMMA
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      9
+EXPERIMENT_OUTPUT_SUMMA: default
+
+# PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      8
+PARAMS_TO_CALIBRATE: tempCritRain,k_soil,vGn_n,theta_sat,theta_res,rootingDepth,zScale_TOPMODEL,k_macropore,albedoDecayRate,newSnowDenMultTemp,albedoMinSpring,aquiferBaseflowExp,aquiferBaseflowRate,Frad_vis,heightCanopyTop,windReductionParam,leafExchangeCoeff,frozenPrecipMultip,Fcapil,k_snow,heightCanopyBottom
+
+# SUMMA_DECISION_OPTIONS
+#   Type:        Dict[str, List[str]]
+#   Default:     {}
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      4
+SUMMA_DECISION_OPTIONS: {}
+
+# SETTINGS_SUMMA_ATTRIBUTES
+#   Type:        str
+#   Default:     attributes.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_SUMMA_ATTRIBUTES: "attributes.nc"
+
+# SETTINGS_SUMMA_BASIN_PARAMS_FILE
+#   Type:        str
+#   Default:     basinParamInfo.txt
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_BASIN_PARAMS_FILE: "basinParamInfo.txt"
+
+# SETTINGS_SUMMA_COLDSTATE
+#   Type:        str
+#   Default:     coldState.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      7
+SETTINGS_SUMMA_COLDSTATE: "coldState.nc"
+
+# SETTINGS_SUMMA_CONNECT_HRUS
+#   Type:        bool
+#   Default:     True
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_SUMMA_CONNECT_HRUS: true
+
+# SETTINGS_SUMMA_CPUS_PER_TASK
+#   Type:        int
+#   Default:     32
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_CPUS_PER_TASK: 32
+
+# SETTINGS_SUMMA_FILEMANAGER
+#   Type:        str
+#   Default:     fileManager.txt
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      11
+SETTINGS_SUMMA_FILEMANAGER: "fileManager.txt"
+
+# SETTINGS_SUMMA_FORCING_LIST
+#   Type:        str
+#   Default:     forcingFileList.txt
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_SUMMA_FORCING_LIST: "forcingFileList.txt"
+
+# SETTINGS_SUMMA_GLACIER_ATTRIBUTES
+#   Type:        str
+#   Default:     attributes_glac.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Glacier-specific attributes file for SUMMA glacier simulations
+SETTINGS_SUMMA_GLACIER_ATTRIBUTES: "attributes_glac.nc"
+
+# SETTINGS_SUMMA_GLACIER_COLDSTATE
+#   Type:        str
+#   Default:     coldState_glac.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Glacier-specific initial conditions file for SUMMA glacier simulations
+SETTINGS_SUMMA_GLACIER_COLDSTATE: "coldState_glac.nc"
+
+# SETTINGS_SUMMA_GLACIER_MODE
+#   Type:        bool
+#   Default:     False
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Enable glacier preprocessing for SUMMA model runs
+SETTINGS_SUMMA_GLACIER_MODE: false
+
+# SETTINGS_SUMMA_GRU_COUNT
+#   Type:        int
+#   Default:     85
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_GRU_COUNT: 85
+
+# SETTINGS_SUMMA_GRU_PER_JOB
+#   Type:        int
+#   Default:     5
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_GRU_PER_JOB: 5
+
+# SETTINGS_SUMMA_LOCAL_PARAMS_FILE
+#   Type:        str
+#   Default:     localParamInfo.txt
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_LOCAL_PARAMS_FILE: "localParamInfo.txt"
+
+# SETTINGS_SUMMA_MEM
+#   Type:        int
+#   Default:     5
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_MEM: 5
+
+# SETTINGS_SUMMA_OUTPUT
+#   Type:        str
+#   Default:     outputControl.txt
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
+
+# SETTINGS_SUMMA_PARALLEL_EXE
+#   Type:        str
+#   Default:     summa_actors.exe
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_PARALLEL_EXE: "summa_actors.exe"
+
+# SETTINGS_SUMMA_PARALLEL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_PARALLEL_PATH: default
+
+# SETTINGS_SUMMA_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      9
+SETTINGS_SUMMA_PATH: default
+
+# SETTINGS_SUMMA_TIME_LIMIT
+#   Type:        str
+#   Default:     01:00:00
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_TIME_LIMIT: "01:00:00"
+
+# SETTINGS_SUMMA_TRIALPARAMS
+#   Type:        str
+#   Default:     trialParams.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_SUMMA_TRIALPARAMS: "trialParams.nc"
+
+# SETTINGS_SUMMA_TRIALPARAM_1
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_SUMMA_TRIALPARAM_1: ""
+
+# SETTINGS_SUMMA_TRIALPARAM_N
+#   Type:        int
+#   Default:     0
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_SUMMA_TRIALPARAM_N: 0
+
+# SETTINGS_SUMMA_USE_PARALLEL_SUMMA
+#   Type:        bool
+#   Default:     False
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      8
+SETTINGS_SUMMA_USE_PARALLEL_SUMMA: false
+
+# SUMMA_EXE
+#   Type:        str
+#   Default:     summa_sundials.exe
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      14
+SUMMA_EXE: "summa_sundials.exe"
+
+# SUMMA_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      16
+SUMMA_INSTALL_PATH: default
+
+# SUMMA_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      SUMMAConfig (model_configs.py)
+#   Usage:      Model execution timeout in seconds
+SUMMA_TIMEOUT: 7200
+
+
+# 8. FUSE Model Configuration
+# ================================================================================
+
+# EXPERIMENT_OUTPUT_FUSE
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      8
+EXPERIMENT_OUTPUT_FUSE: default
+
+# FUSE_DECISION_OPTIONS
+#   Type:        Dict[str, List[str]]
+#   Default:     {}
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      5
+FUSE_DECISION_OPTIONS: {}
+
+# FUSE_EXE
+#   Type:        str
+#   Default:     fuse.exe
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      11
+FUSE_EXE: "fuse.exe"
+
+# FUSE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      12
+FUSE_INSTALL_PATH: default
+
+# FUSE_ROUTING_INTEGRATION
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      10
+FUSE_ROUTING_INTEGRATION: default
+
+# FUSE_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      22
+FUSE_SPATIAL_MODE: "distributed"
+
+# FUSE_SUBCATCHMENT_DIM
+#   Type:        str
+#   Default:     longitude
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Dimension for subcatchment extraction in distributed FUSE runs
+FUSE_SUBCATCHMENT_DIM: "longitude"
+
+# SETTINGS_FUSE_FILEMANAGER
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      8
+SETTINGS_FUSE_FILEMANAGER: default
+
+# SETTINGS_FUSE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      8
+SETTINGS_FUSE_PARAMS_TO_CALIBRATE: MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE
+
+# SETTINGS_FUSE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      7
+SETTINGS_FUSE_PATH: default
+
+# FUSE_FILE_ID
+#   Type:        str
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      3
+FUSE_FILE_ID: null
+
+# FUSE_N_ELEVATION_BANDS
+#   Type:        int
+#   Default:     1
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      3
+FUSE_N_ELEVATION_BANDS: 1
+
+# FUSE_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      Model execution timeout in seconds
+FUSE_TIMEOUT: 3600
+
+# FUSE_RUN_INTERNAL_CALIBRATION
+#   Type:        bool
+#   Default:     True
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      Whether to run FUSE's internal calibration
+FUSE_RUN_INTERNAL_CALIBRATION: true
+
+
+# 9. GR Model Configuration
+# ================================================================================
+
+# GR_EXE
+#   Type:        str
+#   Default:     GR.r
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      4
+GR_EXE: "GR.r"
+
+# GR_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      3
+GR_INSTALL_PATH: default
+
+# GR_SPATIAL_MODE
+#   Values:      auto, lumped, distributed
+#   Description: When 'auto', spatial mode is inferred from DOMAIN_DEFINITION_METHOD:
+#                - 'delineate' -> 'distributed' (run for each HRU)
+#                - others -> 'lumped' (single basin)
+#   Type:        str
+#   Default:     auto
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      14
+GR_SPATIAL_MODE: "auto"
+
+# GR_ROUTING_INTEGRATION
+#   Values:      none, mizuRoute
+#   Description: When 'mizuRoute', enables routing of distributed GR output
+#                through mizuRoute. Auto-enabled when ROUTING_MODEL=mizuRoute
+#                and spatial_mode is 'distributed'.
+#   Type:        str
+#   Default:     none
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      5
+GR_ROUTING_INTEGRATION: "none"
+
+# SETTINGS_GR_CONTROL
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      2
+SETTINGS_GR_CONTROL: default
+
+# SETTINGS_GR_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_GR_PATH: default
+
+# GR_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      GRConfig (model_configs.py)
+#   Usage:      5
+GR_PARAMS_TO_CALIBRATE: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
+
+# GR_ALLOW_DUMMY_OBSERVATIONS
+#   Type:        bool
+#   Default:     False
+#   Source:      GRConfig (model_configs.py)
+#   Description: If True, use zero-filled dummy observations when no streamflow data found
+GR_ALLOW_DUMMY_OBSERVATIONS: false
+
+# GR_ALLOW_DEFAULT_AREA
+#   Type:        bool
+#   Default:     False
+#   Source:      GRConfig (model_configs.py)
+#   Description: If True, use 1.0 km² default area when basin shapefile not found
+GR_ALLOW_DEFAULT_AREA: false
+
+
+# 9.4. HBV Model Configuration
+# ================================================================================
+
+# HBV_SPATIAL_MODE
+#   Values:      auto, lumped, distributed
+#   Description: Spatial modeling mode. 'auto' infers from domain definition.
+#   Type:        str
+#   Default:     auto
+#   Source:      HBVConfig (hbv/config.py)
+HBV_SPATIAL_MODE: "auto"
+
+# HBV_ROUTING_INTEGRATION
+#   Values:      none, mizuRoute
+#   Description: Routing model integration. 'mizuRoute' for distributed routing.
+#   Type:        str
+#   Default:     none
+#   Source:      HBVConfig (hbv/config.py)
+HBV_ROUTING_INTEGRATION: "none"
+
+# HBV_BACKEND
+#   Values:      jax, numpy
+#   Description: Computation backend. 'jax' for autodiff/JIT, 'numpy' for fallback.
+#   Type:        str
+#   Default:     jax
+#   Source:      HBVConfig (hbv/config.py)
+HBV_BACKEND: "jax"
+
+# HBV_USE_GPU
+#   Description: Use GPU acceleration (requires JAX with CUDA support).
+#   Type:        bool
+#   Default:     False
+#   Source:      HBVConfig (hbv/config.py)
+HBV_USE_GPU: false
+
+# HBV_JIT_COMPILE
+#   Description: JIT compile model for faster execution (JAX backend only).
+#   Type:        bool
+#   Default:     True
+#   Source:      HBVConfig (hbv/config.py)
+HBV_JIT_COMPILE: true
+
+# HBV_WARMUP_DAYS
+#   Description: Number of warmup days for model spinup.
+#   Type:        int
+#   Default:     365
+#   Source:      HBVConfig (hbv/config.py)
+HBV_WARMUP_DAYS: 365
+
+# HBV_PARAMS_TO_CALIBRATE
+#   Description: Comma-separated list of parameters to calibrate.
+#   Type:        str
+#   Default:     tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas
+#   Source:      HBVConfig (hbv/config.py)
+HBV_PARAMS_TO_CALIBRATE: "tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas"
+
+# HBV_USE_GRADIENT_CALIBRATION
+#   Description: Use gradient-based optimization (requires JAX). Falls back to evolutionary if False.
+#   Type:        bool
+#   Default:     True
+#   Source:      HBVConfig (hbv/config.py)
+HBV_USE_GRADIENT_CALIBRATION: true
+
+# HBV_CALIBRATION_METRIC
+#   Values:      KGE, NSE
+#   Description: Objective function for calibration.
+#   Type:        str
+#   Default:     KGE
+#   Source:      HBVConfig (hbv/config.py)
+HBV_CALIBRATION_METRIC: "KGE"
+
+# HBV_INITIAL_SNOW
+#   Description: Initial snow storage (mm SWE).
+#   Type:        float
+#   Default:     0.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_INITIAL_SNOW: 0.0
+
+# HBV_INITIAL_SM
+#   Description: Initial soil moisture (mm).
+#   Type:        float
+#   Default:     150.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_INITIAL_SM: 150.0
+
+# HBV_INITIAL_SUZ
+#   Description: Initial upper zone storage (mm).
+#   Type:        float
+#   Default:     10.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_INITIAL_SUZ: 10.0
+
+# HBV_INITIAL_SLZ
+#   Description: Initial lower zone storage (mm).
+#   Type:        float
+#   Default:     10.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_INITIAL_SLZ: 10.0
+
+# HBV_PET_METHOD
+#   Values:      input, hamon, thornthwaite
+#   Description: PET calculation method. 'input' uses provided PET, others compute from temperature.
+#   Type:        str
+#   Default:     input
+#   Source:      HBVConfig (hbv/config.py)
+HBV_PET_METHOD: "input"
+
+# HBV_LATITUDE
+#   Description: Catchment latitude for PET calculation (required for Hamon/Thornthwaite).
+#   Type:        float
+#   Default:     None
+#   Source:      HBVConfig (hbv/config.py)
+HBV_LATITUDE: null
+
+# HBV_ALLOW_UNIT_HEURISTICS
+#   Description: Allow magnitude-based unit detection for precip/PET when units are missing or ambiguous.
+#   Type:        bool
+#   Default:     False
+#   Source:      HBVConfig (hbv/config.py)
+HBV_ALLOW_UNIT_HEURISTICS: false
+
+# HBV_SAVE_STATES
+#   Description: Save internal state variables (snow, soil moisture, etc.) to output.
+#   Type:        bool
+#   Default:     False
+#   Source:      HBVConfig (hbv/config.py)
+HBV_SAVE_STATES: false
+
+# HBV_OUTPUT_FREQUENCY
+#   Values:      daily, timestep
+#   Description: Output frequency. 'timestep' preserves sub-daily resolution if available.
+#   Type:        str
+#   Default:     daily
+#   Source:      HBVConfig (hbv/config.py)
+HBV_OUTPUT_FREQUENCY: "daily"
+
+# HBV_TIMESTEP_HOURS
+#   Range:       1-24
+#   Description: Simulation timestep in hours. Use 24 for daily, 1 for hourly.
+#   Type:        int
+#   Default:     24
+#   Source:      HBVConfig (model_configs.py)
+HBV_TIMESTEP_HOURS: 24
+
+# HBV_DEFAULT_TT
+#   Description: Default threshold temperature (°C).
+#   Type:        float
+#   Default:     0.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_TT: 0.0
+
+# HBV_DEFAULT_CFMAX
+#   Description: Default degree-day factor (mm/°C/day).
+#   Type:        float
+#   Default:     3.5
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_CFMAX: 3.5
+
+# HBV_DEFAULT_SFCF
+#   Description: Default snowfall correction factor.
+#   Type:        float
+#   Default:     0.9
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_SFCF: 0.9
+
+# HBV_DEFAULT_CFR
+#   Description: Default refreezing coefficient.
+#   Type:        float
+#   Default:     0.05
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_CFR: 0.05
+
+# HBV_DEFAULT_CWH
+#   Description: Default snow water holding capacity.
+#   Type:        float
+#   Default:     0.1
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_CWH: 0.1
+
+# HBV_DEFAULT_FC
+#   Description: Default field capacity (mm).
+#   Type:        float
+#   Default:     250.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_FC: 250.0
+
+# HBV_DEFAULT_LP
+#   Description: Default LP threshold (fraction of FC).
+#   Type:        float
+#   Default:     0.7
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_LP: 0.7
+
+# HBV_DEFAULT_BETA
+#   Description: Default soil shape coefficient.
+#   Type:        float
+#   Default:     2.5
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_BETA: 2.5
+
+# HBV_DEFAULT_K0
+#   Description: Default surface runoff coefficient (1/day).
+#   Type:        float
+#   Default:     0.3
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_K0: 0.3
+
+# HBV_DEFAULT_K1
+#   Description: Default interflow coefficient (1/day).
+#   Type:        float
+#   Default:     0.1
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_K1: 0.1
+
+# HBV_DEFAULT_K2
+#   Description: Default baseflow coefficient (1/day).
+#   Type:        float
+#   Default:     0.01
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_K2: 0.01
+
+# HBV_DEFAULT_UZL
+#   Description: Default upper zone threshold (mm).
+#   Type:        float
+#   Default:     30.0
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_UZL: 30.0
+
+# HBV_DEFAULT_PERC
+#   Description: Default percolation rate (mm/day).
+#   Type:        float
+#   Default:     2.5
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_PERC: 2.5
+
+# HBV_DEFAULT_MAXBAS
+#   Description: Default routing length (days).
+#   Type:        float
+#   Default:     2.5
+#   Source:      HBVConfig (hbv/config.py)
+HBV_DEFAULT_MAXBAS: 2.5
+
+
+# 9.5. VIC Model Configuration
+# ================================================================================
+
+# VIC_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+VIC_INSTALL_PATH: default
+
+# VIC_EXE
+#   Type:        str
+#   Default:     vic_image.exe
+#   Source:      VICConfig (model_configs.py)
+VIC_EXE: "vic_image.exe"
+
+# VIC_DRIVER
+#   Type:        str
+#   Default:     image
+#   Source:      VICConfig (model_configs.py)
+VIC_DRIVER: "image"
+
+# SETTINGS_VIC_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+SETTINGS_VIC_PATH: default
+
+# VIC_GLOBAL_PARAM_FILE
+#   Type:        str
+#   Default:     vic_global.txt
+#   Source:      VICConfig (model_configs.py)
+VIC_GLOBAL_PARAM_FILE: "vic_global.txt"
+
+# VIC_DOMAIN_FILE
+#   Type:        str
+#   Default:     vic_domain.nc
+#   Source:      VICConfig (model_configs.py)
+VIC_DOMAIN_FILE: "vic_domain.nc"
+
+# VIC_PARAMS_FILE
+#   Type:        str
+#   Default:     vic_params.nc
+#   Source:      VICConfig (model_configs.py)
+VIC_PARAMS_FILE: "vic_params.nc"
+
+# VIC_SPATIAL_MODE
+#   Type:        str
+#   Default:     auto
+#   Source:      VICConfig (model_configs.py)
+VIC_SPATIAL_MODE: auto
+
+# EXPERIMENT_OUTPUT_VIC
+#   Type:        str
+#   Default:     default
+#   Source:      VICConfig (model_configs.py)
+EXPERIMENT_OUTPUT_VIC: default
+
+# VIC_OUTPUT_PREFIX
+#   Type:        str
+#   Default:     vic_output
+#   Source:      VICConfig (model_configs.py)
+VIC_OUTPUT_PREFIX: "vic_output"
+
+# VIC_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     null
+#   Source:      VICConfig (model_configs.py)
+VIC_PARAMS_TO_CALIBRATE: null
+
+# VIC_FULL_ENERGY
+#   Description: Enable full energy balance mode (critical for snow-dominated catchments).
+#   Type:        bool
+#   Default:     True
+#   Source:      VICConfig (model_configs.py)
+VIC_FULL_ENERGY: True
+
+# VIC_FROZEN_SOIL
+#   Description: Enable frozen soil algorithm.
+#   Type:        bool
+#   Default:     True
+#   Source:      VICConfig (model_configs.py)
+VIC_FROZEN_SOIL: True
+
+# VIC_SNOW_BAND
+#   Type:        bool
+#   Default:     False
+#   Source:      VICConfig (model_configs.py)
+VIC_SNOW_BAND: False
+
+# VIC_N_SNOW_BANDS
+#   Description: Number of elevation bands for snow modelling.
+#   Type:        int
+#   Default:     10
+#   Source:      VICConfig (model_configs.py)
+VIC_N_SNOW_BANDS: 10
+
+# VIC_PFACTOR_PER_KM
+#   Description: Orographic precipitation factor per metre of elevation difference.
+#   Type:        float
+#   Default:     0.002
+#   Source:      VICConfig (model_configs.py)
+VIC_PFACTOR_PER_KM: 0.0005
+
+# VIC_STEPS_PER_DAY
+#   Type:        int
+#   Default:     24
+#   Source:      VICConfig (model_configs.py)
+VIC_STEPS_PER_DAY: 24
+
+# VIC_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      VICConfig (model_configs.py)
+VIC_TIMEOUT: 7200
+
+
+# 9.6. RHESSys Model Configuration
+# ================================================================================
+
+# RHESSYS_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      5
+RHESSYS_INSTALL_PATH: default
+
+# RHESSYS_EXE
+#   Type:        str
+#   Default:     rhessys
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      5
+RHESSYS_EXE: "rhessys"
+
+# SETTINGS_RHESSYS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+SETTINGS_RHESSYS_PATH: default
+
+# EXPERIMENT_OUTPUT_RHESSYS
+#   Type:        str
+#   Default:     default
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_RHESSYS: default
+
+# FORCING_RHESSYS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+FORCING_RHESSYS_PATH: default
+
+# RHESSYS_WORLD_TEMPLATE
+#   Type:        str
+#   Default:     world.template
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+RHESSYS_WORLD_TEMPLATE: "world.template"
+
+# RHESSYS_FLOW_TEMPLATE
+#   Type:        str
+#   Default:     flow.template
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+RHESSYS_FLOW_TEMPLATE: "flow.template"
+
+# RHESSYS_LNA_AREA_CAP_M2
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Maximum area cap for log-normal accumulation in RHESSys (m2)
+RHESSYS_LNA_AREA_CAP_M2: null
+
+# RHESSYS_LNA_MIN
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Minimum log-normal accumulation value for RHESSys
+RHESSYS_LNA_MIN: null
+
+# RHESSYS_LNA_MAX
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Maximum log-normal accumulation value for RHESSys
+RHESSYS_LNA_MAX: null
+
+# RHESSYS_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+RHESSYS_PARAMS_TO_CALIBRATE: "sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef"
+
+# RHESSYS_SKIP_CALIBRATION
+#   Type:        bool
+#   Default:     True
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+RHESSYS_SKIP_CALIBRATION: true
+
+# RHESSYS_USE_WMFIRE
+#   Type:        bool
+#   Default:     False
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      WMFire wildfire spread module integration
+RHESSYS_USE_WMFIRE: false
+
+# RHESSYS_USE_GROW_MODE
+#   Type:        bool
+#   Default:     True
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Enable vegetation growth mode in RHESSys
+RHESSYS_USE_GROW_MODE: true
+
+# WMFIRE_INSTALL_PATH
+#   Type:        str
+#   Default:     installs/wmfire/lib
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+WMFIRE_INSTALL_PATH: "installs/wmfire/lib"
+
+# WMFIRE_LIB
+#   Type:        str
+#   Default:     libwmfire.so
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+WMFIRE_LIB: "libwmfire.so"
+
+# WMFIRE_GRID_RESOLUTION
+#   Type:        int
+#   Default:     30
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fire grid cell resolution in meters (30, 60, or 90 recommended)
+WMFIRE_GRID_RESOLUTION: 30
+
+# WMFIRE_TIMESTEP_HOURS
+#   Type:        int
+#   Default:     24
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fire spread timestep in hours (1-24)
+WMFIRE_TIMESTEP_HOURS: 24
+
+# WMFIRE_NDAYS_AVERAGE
+#   Type:        float
+#   Default:     30.0
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel moisture averaging window in days
+WMFIRE_NDAYS_AVERAGE: 30.0
+
+# WMFIRE_FUEL_SOURCE
+#   Type:        str (Literal['static', 'rhessys_litter'])
+#   Default:     static
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Source of fuel load data: static values or RHESSys litter pools
+WMFIRE_FUEL_SOURCE: "static"
+
+# WMFIRE_MOISTURE_SOURCE
+#   Type:        str (Literal['static', 'rhessys_soil'])
+#   Default:     static
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Source of moisture data: static values or RHESSys soil moisture
+WMFIRE_MOISTURE_SOURCE: "static"
+
+# WMFIRE_CARBON_TO_FUEL_RATIO
+#   Type:        float
+#   Default:     2.0
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Conversion factor from kg carbon to kg fuel
+WMFIRE_CARBON_TO_FUEL_RATIO: 2.0
+
+# WMFIRE_IGNITION_SHAPEFILE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Path to ignition point shapefile (overrides ignition_point if set)
+WMFIRE_IGNITION_SHAPEFILE: null
+
+# WMFIRE_IGNITION_POINT
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Ignition point as "lat/lon" (e.g., "51.2096/-115.7539")
+WMFIRE_IGNITION_POINT: null
+
+# WMFIRE_IGNITION_DATE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Ignition date as "YYYY-MM-DD" for fire simulation start
+WMFIRE_IGNITION_DATE: null
+
+# WMFIRE_IGNITION_NAME
+#   Type:        str (optional)
+#   Default:     ignition
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Name for the ignition point (used in output shapefile)
+WMFIRE_IGNITION_NAME: "ignition"
+
+# WMFIRE_PERIMETER_SHAPEFILE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Path to observed fire perimeter shapefile for validation
+WMFIRE_PERIMETER_SHAPEFILE: null
+
+# WMFIRE_PERIMETER_DIR
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Directory containing fire perimeter shapefiles for comparison
+WMFIRE_PERIMETER_DIR: null
+
+# WMFIRE_WRITE_GEOTIFF
+#   Type:        bool
+#   Default:     True
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Write georeferenced GeoTIFF outputs for visualization
+WMFIRE_WRITE_GEOTIFF: true
+
+# WMFIRE_LOAD_K1
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel load coefficient k1 (default 3.9)
+WMFIRE_LOAD_K1: null
+
+# WMFIRE_LOAD_K2
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel load coefficient k2 (default 0.07)
+WMFIRE_LOAD_K2: null
+
+# WMFIRE_MOISTURE_K1
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Moisture coefficient k1 (default 3.8)
+WMFIRE_MOISTURE_K1: null
+
+# WMFIRE_MOISTURE_K2
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Moisture coefficient k2 (default 0.27)
+WMFIRE_MOISTURE_K2: null
+
+# WMFIRE_IGN_DEF_MOD
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Ignition probability modifier (default 1.0, increase for more fires)
+WMFIRE_IGN_DEF_MOD: null
+
+# WMFIRE_MEAN_IGN
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Mean ignition events per timestep (default 1.0)
+WMFIRE_MEAN_IGN: null
+
+# WMFIRE_WINDMAX
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Maximum wind speed multiplier (default 1.0)
+WMFIRE_WINDMAX: null
+
+# WMFIRE_SLOPE_K1
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Slope effect coefficient k1 (default 0.91)
+WMFIRE_SLOPE_K1: null
+
+# RHESSYS_USE_VMFIRE
+#   Type:        bool
+#   Default:     False
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Legacy VMFire integration
+RHESSYS_USE_VMFIRE: false
+
+# VMFIRE_INSTALL_PATH
+#   Type:        str
+#   Default:     installs/wmfire/lib
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+VMFIRE_INSTALL_PATH: "installs/wmfire/lib"
+
+# RHESSYS_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      Model execution timeout in seconds
+RHESSYS_TIMEOUT: 7200
+
+
+# 9.5.1. IGNACIO Fire Model Configuration
+# ================================================================================
+
+# IGNACIO_PROJECT_NAME
+#   Type:        str
+#   Default:     ignacio_run
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Name for the IGNACIO simulation project
+IGNACIO_PROJECT_NAME: "ignacio_run"
+
+# IGNACIO_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Output directory for IGNACIO results
+IGNACIO_OUTPUT_DIR: "default"
+
+# IGNACIO_DEM_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to DEM raster file
+IGNACIO_DEM_PATH: null
+
+# IGNACIO_FUEL_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to fuel type raster
+IGNACIO_FUEL_PATH: null
+
+# IGNACIO_DEFAULT_FUEL
+#   Type:        str
+#   Default:     C-2
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Default FBP fuel type code
+IGNACIO_DEFAULT_FUEL: "C-2"
+
+# IGNACIO_IGNITION_SHAPEFILE
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to ignition point shapefile
+IGNACIO_IGNITION_SHAPEFILE: null
+
+# IGNACIO_IGNITION_DATE
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Ignition date/time as YYYY-MM-DD HH:MM:SS
+IGNACIO_IGNITION_DATE: null
+
+# IGNACIO_STATION_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to weather station CSV file
+IGNACIO_STATION_PATH: null
+
+# IGNACIO_CALCULATE_FWI
+#   Type:        bool
+#   Default:     True
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Calculate FWI from weather data
+IGNACIO_CALCULATE_FWI: true
+
+# IGNACIO_DT
+#   Type:        float
+#   Default:     1.0
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Simulation timestep in minutes
+IGNACIO_DT: 1.0
+
+# IGNACIO_MAX_DURATION
+#   Type:        int
+#   Default:     480
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Maximum simulation duration in minutes
+IGNACIO_MAX_DURATION: 480
+
+# IGNACIO_SAVE_PERIMETERS
+#   Type:        bool
+#   Default:     True
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Save fire perimeter shapefiles
+IGNACIO_SAVE_PERIMETERS: true
+
+# IGNACIO_COMPARE_WMFIRE
+#   Type:        bool
+#   Default:     False
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Compare fire perimeters with WMFire results
+IGNACIO_COMPARE_WMFIRE: false
+
+
+# 9.6. GNN Model Configuration
+# ================================================================================
+
+# GNN_LOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_LOAD: false
+
+# GNN_HIDDEN_SIZE
+#   Type:        int
+#   Default:     128
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      4
+GNN_HIDDEN_SIZE: 128
+
+# GNN_NUM_LAYERS
+#   Type:        int
+#   Default:     3
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      4
+GNN_NUM_LAYERS: 3
+
+# GNN_EPOCHS
+#   Type:        int
+#   Default:     300
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_EPOCHS: 300
+
+# GNN_BATCH_SIZE
+#   Type:        int
+#   Default:     64
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_BATCH_SIZE: 64
+
+# GNN_LEARNING_RATE
+#   Type:        float
+#   Default:     0.001
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_LEARNING_RATE: 0.001
+
+# GNN_LEARNING_PATIENCE
+#   Type:        int
+#   Default:     30
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_LEARNING_PATIENCE: 30
+
+# GNN_DROPOUT
+#   Type:        float
+#   Default:     0.2
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_DROPOUT: 0.2
+
+# GNN_L2_REGULARIZATION
+#   Type:        float
+#   Default:     1e-6
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_L2_REGULARIZATION: "1e-6"
+
+# GNN_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      3
+GNN_PARAMS_TO_CALIBRATE: precip_mult,temp_offset,routing_velocity
+
+# GNN_PARAMETER_BOUNDS
+#   Type:        Dict[str, List[float]]
+#   Default:     None
+#   Source:      GNNConfig (model_configs.py)
+#   Usage:      Parameter bounds for GNN calibration
+GNN_PARAMETER_BOUNDS: null

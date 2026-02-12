@@ -1,0 +1,780 @@
+"""
+Tool installation service for SYMFLUENCE.
+
+Handles cloning repositories, running build commands, and verifying installations.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from .base import BaseService
+from ..console import Console
+
+
+class ToolInstaller(BaseService):
+    """
+    Service for installing external tools from source.
+
+    Handles:
+    - Repository cloning
+    - Build command execution
+    - Dependency resolution
+    - Installation verification
+    """
+
+    def __init__(
+        self,
+        external_tools: Optional[Dict[str, Any]] = None,
+        console: Optional[Console] = None,
+    ):
+        """
+        Initialize the ToolInstaller.
+
+        Args:
+            external_tools: Dictionary of tool definitions. If None, loads on demand.
+            console: Console instance for output.
+        """
+        super().__init__(console=console)
+        self._external_tools = external_tools
+
+    @property
+    def external_tools(self) -> Dict[str, Any]:
+        """Lazy load external tools definitions."""
+        if self._external_tools is None:
+            from ..external_tools_config import get_external_tools_definitions
+            self._external_tools = get_external_tools_definitions()
+        return self._external_tools
+
+    @staticmethod
+    def _find_bash() -> Optional[str]:
+        """
+        Locate a usable bash executable for building from source.
+
+        On Unix this is simply /bin/bash.  On Windows we prefer a native
+        bash that can use the conda-forge build toolchain (gfortran, cmake,
+        make) installed directly in the conda environment.  Search order:
+
+        1. Conda m2-bash  (CONDA_PREFIX/Library/usr/bin/bash.exe)
+        2. MSYS2           (C:/msys64/usr/bin/bash.exe)
+        3. Git Bash         (C:/Program Files/Git/usr/bin/bash.exe)
+        4. WSL              (last resort — uses a separate Linux filesystem)
+        5. Anything else on PATH
+
+        Returns:
+            Absolute path to bash, or None if not found.
+        """
+        if sys.platform != "win32":
+            if os.path.exists("/bin/bash"):
+                return "/bin/bash"
+            return shutil.which("bash")
+
+        # 1. Conda m2-bash — lives inside the active conda environment and
+        #    shares PATH with conda-forge gfortran/cmake/make.
+        conda_prefix = os.environ.get("CONDA_PREFIX", "")
+        if conda_prefix:
+            conda_bash = os.path.join(
+                conda_prefix, "Library", "usr", "bin", "bash.exe"
+            )
+            if os.path.isfile(conda_bash):
+                return conda_bash
+
+        # 2. MSYS2 (full Unix toolchain on Windows)
+        for candidate in [
+            r"C:\msys64\usr\bin\bash.exe",
+            r"C:\msys2\usr\bin\bash.exe",
+        ]:
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 3. Git Bash
+        for candidate in [
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ]:
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 4. WSL — last resort.  Provides a Linux environment but requires
+        #    separate toolchain installation inside the WSL distro.
+        wsl = shutil.which("wsl")
+        if wsl:
+            try:
+                probe = subprocess.run(
+                    [wsl, "-e", "bash", "-c", "echo ok"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if probe.returncode == 0 and "ok" in probe.stdout:
+                    return wsl  # handled specially in _run_build_commands
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+
+        # 5. Anything else on PATH
+        return shutil.which("bash")
+
+    def _preflight_check(self, tool_name: str) -> bool:
+        """
+        Verify that essential build tools are available before attempting a build.
+
+        Args:
+            tool_name: Name of the tool about to be built (for messaging).
+
+        Returns:
+            True if the environment looks viable, False otherwise.
+        """
+        bash = self._find_bash()
+        if bash is None:
+            self._console.error(
+                "No bash shell found.  Building from source requires bash "
+                "(Git for Windows, MSYS2, or WSL)."
+            )
+            if sys.platform == "win32":
+                self._console.indent(
+                    "Install Git for Windows (https://git-scm.com) which includes Git Bash,"
+                )
+                self._console.indent(
+                    "or use WSL: wsl --install"
+                )
+            return False
+
+        # Check for cmake and a Fortran compiler — needed by most builds.
+        # When using WSL, check inside the WSL environment, not Windows PATH.
+        is_wsl = (
+            sys.platform == "win32"
+            and os.path.basename(bash).lower() == "wsl.exe"
+        )
+        missing = []
+        for tool in ("cmake", "gfortran", "make"):
+            if is_wsl:
+                probe = subprocess.run(
+                    [bash, "-e", "bash", "-c", f"command -v {tool}"],
+                    capture_output=True, text=True,
+                )
+                if probe.returncode != 0:
+                    missing.append(tool)
+            elif not shutil.which(tool):
+                missing.append(tool)
+
+        if missing:
+            self._console.warning(
+                f"Missing build tools for {tool_name}: {', '.join(missing)}"
+            )
+            if sys.platform == "win32":
+                self._console.indent(
+                    "On Windows, install via conda-forge (recommended):"
+                )
+                self._console.indent(
+                    "  conda install -c conda-forge gfortran cmake m2-make m2-bash"
+                )
+                self._console.indent(
+                    "Or via MSYS2 (https://www.msys2.org):"
+                )
+                self._console.indent(
+                    "  pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc-fortran make"
+                )
+            else:
+                self._console.indent(
+                    "Install them with your system package manager, e.g.:"
+                )
+                self._console.indent(
+                    "  sudo apt install cmake gfortran make   # Debian/Ubuntu"
+                )
+                self._console.indent(
+                    "  brew install cmake gcc make             # macOS"
+                )
+            # Warn but don't block — the bash build script has its own
+            # detection logic and may still succeed (e.g. HPC modules).
+        return True
+
+    def _get_clean_build_env(self) -> Dict[str, str]:
+        """
+        Get a clean environment for build processes.
+
+        Removes MAKE-related variables that can cause spurious make calls
+        during git submodule operations (common issue in 2i2c/JupyterHub).
+
+        Returns:
+            Clean environment dictionary for subprocess calls.
+        """
+        env = os.environ.copy()
+        sep = os.pathsep  # ";" on Windows, ":" on Unix
+
+        # Remove MAKE-related variables that can trigger unwanted make calls
+        make_vars = ["MAKEFLAGS", "MAKELEVEL", "MAKE", "MFLAGS", "MAKEOVERRIDES"]
+        for var in make_vars:
+            env.pop(var, None)
+
+        # On Windows, ensure conda's build-tool directories AND a source
+        # of standard Unix utilities (awk, mkdir, rm, uname, ...) are on PATH.
+        if sys.platform == "win32":
+            conda_prefix = env.get("CONDA_PREFIX", "")
+            if conda_prefix:
+                extra_dirs = [
+                    os.path.join(conda_prefix, "Library", "bin"),
+                    os.path.join(conda_prefix, "Library", "usr", "bin"),
+                    # MinGW binutils (ar, as, ld, ranlib, strip, nm, etc.)
+                    os.path.join(conda_prefix, "Library", "x86_64-w64-mingw32", "bin"),
+                ]
+                current_path = env.get("PATH", "")
+                for d in reversed(extra_dirs):
+                    if os.path.isdir(d) and d not in current_path:
+                        env["PATH"] = d + sep + env["PATH"]
+
+            # Conda's m2-bash only ships bash + make.  Standard Unix utils
+            # (awk, mkdir, rm, ls, uname, tar, ...) must come from Git Bash,
+            # MSYS2, or additional m2- conda packages.  Append the first
+            # available source of these utilities to PATH.
+            unix_util_dirs = [
+                # MSYS2 standalone install
+                r"C:\msys64\usr\bin",
+                r"C:\msys2\usr\bin",
+                # Git for Windows (most common on dev machines)
+                r"C:\Program Files\Git\usr\bin",
+                r"C:\Program Files (x86)\Git\usr\bin",
+            ]
+            current_path = env.get("PATH", "")
+            for d in unix_util_dirs:
+                if os.path.isdir(d) and d not in current_path:
+                    # Append (not prepend) so conda tools take priority
+                    env["PATH"] = env["PATH"] + sep + d
+                    break
+
+            # Tell cmake to use MSYS Makefiles generator and the MSYS2 make
+            # that ships with conda's m2-make package.
+            env.setdefault("CMAKE_GENERATOR", "MSYS Makefiles")
+            make_exe = shutil.which("make")
+            if make_exe:
+                env.setdefault("CMAKE_MAKE_PROGRAM", make_exe)
+
+            # Set compiler names (not MSYS2 paths) so cmake resolves them
+            # on PATH with the .exe extension.
+            if shutil.which("gcc"):
+                env.setdefault("CC", "gcc")
+                env.setdefault("CXX", "g++")
+            if shutil.which("gfortran"):
+                env.setdefault("FC", "gfortran")
+
+            # Ensure temp directory is set for Fortran compiler backends
+            # (cc1.exe/f951.exe). Without TMP/TEMP, gfortran falls back to
+            # C:\Windows which is not writable by normal users.
+            import tempfile
+            tmp_dir = tempfile.gettempdir()
+            for var in ("TMPDIR", "TMP", "TEMP"):
+                env.setdefault(var, tmp_dir)
+
+        # Compiler / PATH setup for Unix (conda compilers, 2i2c, etc.)
+        if sys.platform != "win32":
+            # Check if conda compilers are available (required for ABI compatibility
+            # with conda-forge libraries like GDAL built with GCC 13+)
+            conda_prefix = env.get("CONDA_PREFIX", "")
+            conda_gcc = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-gcc")
+            conda_gxx = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-g++")
+
+            if conda_prefix and os.path.exists(conda_gcc) and os.path.exists(conda_gxx):
+                # Use conda compilers for ABI compatibility with conda libraries
+                env["CC"] = conda_gcc
+                env["CXX"] = conda_gxx
+                # Ensure conda bin is first in PATH
+                conda_bin = os.path.join(conda_prefix, "bin")
+                if conda_bin not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = conda_bin + sep + env.get("PATH", "")
+            elif os.path.exists("/srv/conda/envs/notebook"):
+                # 2i2c environment without conda compilers - try system compilers
+                # but warn that this may fail if conda GDAL needs newer ABI
+                if "/usr/bin" not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = "/usr/bin" + sep + env.get("PATH", "")
+                if os.path.exists("/usr/bin/gcc"):
+                    env["CC"] = "/usr/bin/gcc"
+                if os.path.exists("/usr/bin/g++"):
+                    env["CXX"] = "/usr/bin/g++"
+                if os.path.exists("/usr/bin/ld"):
+                    env["LD"] = "/usr/bin/ld"
+            else:
+                # Non-2i2c environment - ensure /usr/bin is accessible
+                if "/usr/bin" not in env.get("PATH", "").split(sep)[0]:
+                    env["PATH"] = "/usr/bin" + sep + env.get("PATH", "")
+
+        # Set SYMFLUENCE_PATCHED if patched mode is enabled
+        if getattr(self, '_patched', False):
+            env["SYMFLUENCE_PATCHED"] = "1"
+
+        return env
+
+    def install(
+        self,
+        specific_tools: Optional[List[str]] = None,
+        symfluence_instance=None,
+        force: bool = False,
+        dry_run: bool = False,
+        patched: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Clone and install external tool repositories with dependency resolution.
+
+        Args:
+            specific_tools: List of specific tools to install. If None, installs all.
+            symfluence_instance: Optional SYMFLUENCE instance with config.
+            force: If True, reinstall even if already exists.
+            dry_run: If True, only show what would be done.
+            patched: If True, apply SYMFLUENCE patches (e.g., RHESSys GW recharge).
+
+        Returns:
+            Dictionary with installation results.
+        """
+        # Store patched flag for use in _get_clean_build_env
+        self._patched = patched
+        action = "Planning" if dry_run else "Installing"
+        self._console.panel(f"{action} External Tools", style="blue")
+
+        if dry_run:
+            self._console.info("[DRY RUN] No actual installation will occur")
+            self._console.rule()
+
+        installation_results = {
+            "successful": [],
+            "failed": [],
+            "skipped": [],
+            "errors": [],
+            "dry_run": dry_run,
+        }
+
+        config = self._load_config(symfluence_instance)
+        install_base_dir = self._get_data_dir(config) / "installs"
+
+        self._console.info(f"Installation directory: {install_base_dir}")
+
+        if not dry_run:
+            install_base_dir.mkdir(parents=True, exist_ok=True)
+
+        # Determine which tools to install
+        if specific_tools is None:
+            # Install all non-optional tools by default
+            tools_to_install = [
+                name for name, info in self.external_tools.items()
+                if not info.get('optional', False)
+            ]
+        else:
+            tools_to_install = []
+            for tool in specific_tools:
+                if tool in self.external_tools:
+                    tools_to_install.append(tool)
+                else:
+                    self._console.warning(f"Unknown tool: {tool}")
+                    installation_results["errors"].append(f"Unknown tool: {tool}")
+
+        # Resolve dependencies and sort by install order
+        tools_to_install = self._resolve_dependencies(tools_to_install)
+
+        self._console.info(f"Installing tools in order: {', '.join(tools_to_install)}")
+
+        # Install each tool
+        for tool_name in tools_to_install:
+            tool_info = self.external_tools[tool_name]
+            self._console.newline()
+            self._console.info(f"[bold]{action} {tool_name.upper()}:[/bold]")
+            self._console.indent(tool_info.get("description", ""))
+
+            tool_install_dir = install_base_dir / tool_info.get("install_dir", tool_name)
+            repository_url = tool_info.get("repository")
+            branch = tool_info.get("branch")
+
+            try:
+                # Check if already exists
+                if tool_install_dir.exists() and not force:
+                    self._console.indent(f"Skipping - already exists at: {tool_install_dir}")
+                    self._console.indent("Use --force to reinstall")
+                    installation_results["skipped"].append(tool_name)
+                    continue
+
+                if dry_run:
+                    self._console.indent(f"Would clone: {repository_url}")
+                    if branch:
+                        self._console.indent(f"Would checkout branch: {branch}")
+                    self._console.indent(f"Target directory: {tool_install_dir}")
+                    self._console.indent("Would run build commands:")
+                    for cmd in tool_info.get("build_commands", []):
+                        self._console.indent(f"  {cmd[:100]}...", level=2)
+                    installation_results["successful"].append(f"{tool_name} (dry run)")
+                    continue
+
+                # Remove existing if force reinstall
+                if tool_install_dir.exists() and force:
+                    self._console.indent(f"Removing existing installation: {tool_install_dir}")
+                    # On Windows, git repos contain read-only pack files and
+                    # may have broken symlinks/junctions (e.g. SUNDIALS docs).
+                    # This handler retries with permissions cleared, and
+                    # silently ignores paths that no longer exist.
+                    import stat
+                    def _force_remove_readonly(func, path, exc_info):
+                        try:
+                            os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+                            func(path)
+                        except FileNotFoundError:
+                            pass  # already gone — nothing to do
+                        except OSError:
+                            # Broken symlink / junction — try each removal method
+                            for remover in (os.unlink, os.rmdir):
+                                try:
+                                    remover(path)
+                                    return
+                                except OSError:
+                                    continue
+                    shutil.rmtree(tool_install_dir, onerror=_force_remove_readonly)
+
+                # Clone repository or create directory
+                if not self._clone_repository(
+                    repository_url, branch, tool_install_dir
+                ):
+                    installation_results["failed"].append(tool_name)
+                    continue
+
+                # Check dependencies
+                missing_deps = self._check_system_dependencies(
+                    tool_info.get("dependencies", [])
+                )
+                if missing_deps:
+                    self._console.warning(
+                        f"Missing system dependencies: {', '.join(missing_deps)}"
+                    )
+                    self._console.indent(
+                        "These may be available as modules - check with 'module avail'"
+                    )
+                    installation_results["errors"].append(
+                        f"{tool_name}: missing system dependencies {missing_deps}"
+                    )
+
+                # Check required tools
+                if tool_info.get("requires"):
+                    required_tools = tool_info.get("requires", [])
+                    for req_tool in required_tools:
+                        req_tool_info = self.external_tools.get(req_tool, {})
+                        req_tool_dir = install_base_dir / req_tool_info.get(
+                            "install_dir", req_tool
+                        )
+                        if not req_tool_dir.exists():
+                            error_msg = (
+                                f"{tool_name} requires {req_tool} but it's not installed"
+                            )
+                            self._console.error(error_msg)
+                            installation_results["errors"].append(error_msg)
+                            installation_results["failed"].append(tool_name)
+                            continue
+
+                # Run build commands
+                if tool_info.get("build_commands"):
+                    success = self._run_build_commands(
+                        tool_name, tool_info, tool_install_dir
+                    )
+                    if success:
+                        installation_results["successful"].append(tool_name)
+                    else:
+                        installation_results["failed"].append(tool_name)
+                        installation_results["errors"].append(f"{tool_name} build failed")
+                else:
+                    self._console.success("No build required")
+                    installation_results["successful"].append(tool_name)
+
+                # Verify installation
+                self._verify_installation(tool_name, tool_info, tool_install_dir)
+
+            except subprocess.CalledProcessError as e:
+                if repository_url:
+                    error_msg = f"Failed to clone {repository_url}: {e.stderr if e.stderr else str(e)}"
+                else:
+                    error_msg = f"Failed during installation: {e.stderr if e.stderr else str(e)}"
+                self._console.error(error_msg)
+                installation_results["failed"].append(tool_name)
+                installation_results["errors"].append(f"{tool_name}: {error_msg}")
+
+            except Exception as e:
+                error_msg = f"Installation error: {str(e)}"
+                self._console.error(error_msg)
+                installation_results["failed"].append(tool_name)
+                installation_results["errors"].append(f"{tool_name}: {error_msg}")
+
+        # Print summary
+        self._print_installation_summary(installation_results, dry_run)
+
+        return installation_results
+
+    def _clone_repository(
+        self,
+        repository_url: Optional[str],
+        branch: Optional[str],
+        target_dir: Path,
+    ) -> bool:
+        """
+        Clone a git repository.
+
+        Args:
+            repository_url: URL of the repository to clone.
+            branch: Branch to checkout. If None, uses default branch.
+            target_dir: Target directory for the clone.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        if repository_url:
+            self._console.indent(f"Cloning from: {repository_url}")
+            if branch:
+                self._console.indent(f"Checking out branch: {branch}")
+                clone_cmd = [
+                    "git",
+                    "clone",
+                    "-b",
+                    branch,
+                    repository_url,
+                    str(target_dir),
+                ]
+            else:
+                clone_cmd = ["git", "clone", repository_url, str(target_dir)]
+
+            subprocess.run(
+                clone_cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=self._get_clean_build_env(),
+            )
+            self._console.success("Clone successful")
+        else:
+            self._console.indent("Creating installation directory")
+            target_dir.mkdir(parents=True, exist_ok=True)
+            self._console.success(f"Directory created: {target_dir}")
+
+        return True
+
+    def _run_build_commands(
+        self,
+        tool_name: str,
+        tool_info: Dict[str, Any],
+        install_dir: Path,
+    ) -> bool:
+        """
+        Run build commands for a tool.
+
+        Args:
+            tool_name: Name of the tool being built.
+            tool_info: Tool configuration dictionary.
+            install_dir: Installation directory.
+
+        Returns:
+            True if build successful, False otherwise.
+        """
+        # Pre-flight: ensure bash and build tools are available
+        if not self._preflight_check(tool_name):
+            return False
+
+        bash = self._find_bash()
+        # _preflight_check already validated bash exists, but guard anyway
+        if bash is None:
+            self._console.error("Cannot locate bash — aborting build.")
+            return False
+
+        self._console.indent("Running build commands...")
+
+        is_wsl = (
+            sys.platform == "win32"
+            and os.path.basename(bash).lower() == "wsl.exe"
+        )
+        if sys.platform == "win32":
+            if is_wsl:
+                self._console.indent("Using WSL build environment")
+            else:
+                self._console.indent(f"Using native bash: {bash}")
+
+        original_dir = os.getcwd()
+        os.chdir(install_dir)
+
+        try:
+            combined_script = "\n".join(tool_info.get("build_commands", []))
+
+            # Write the script to a temp file rather than passing via -c.
+            # This avoids Windows command-line length limits (~32K) and
+            # quoting issues with long multi-line bash scripts.
+            script_file = Path(install_dir) / "_build.sh"
+            script_file.write_text(combined_script + "\n", encoding="utf-8", newline="\n")
+
+            # Security note: build_commands are multi-line bash scripts from
+            # internal tool definitions, not user input.
+            if is_wsl:
+                # Convert the Windows install_dir to a WSL path so the
+                # script runs in the correct directory.
+                wsl_dir = subprocess.run(
+                    [bash, "-e", "wslpath", "-a", str(install_dir)],
+                    capture_output=True, text=True,
+                ).stdout.strip()
+                wsl_script = f"{wsl_dir}/_build.sh"
+                cmd = [bash, "-e", "bash", wsl_script]
+            else:
+                # Direct bash invocation (Unix, Git Bash, MSYS2).
+                cmd = [bash, str(script_file)]
+
+            build_result = subprocess.run(  # nosec B603
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._get_clean_build_env(),
+            )
+
+            # Show output for critical tools
+            if tool_name in ["summa", "sundials", "mizuroute", "fuse", "ngen"]:
+                if build_result.stdout:
+                    self._console.indent("=== Build Output ===", level=2)
+                    for line in build_result.stdout.strip().split("\n"):
+                        self._console.indent(line, level=3)
+            else:
+                if build_result.stdout:
+                    lines = build_result.stdout.strip().split("\n")
+                    for line in lines[-10:]:
+                        self._console.indent(line, level=3)
+
+            self._console.success("Build successful")
+            return True
+
+        except subprocess.CalledProcessError as build_error:
+            self._console.error(f"Build failed: {build_error}")
+            if build_error.stdout:
+                self._console.indent("=== Build Output ===", level=2)
+                for line in build_error.stdout.strip().split("\n"):
+                    self._console.indent(line, level=3)
+            if build_error.stderr:
+                self._console.indent("=== Error Output ===", level=2)
+                for line in build_error.stderr.strip().split("\n"):
+                    self._console.indent(line, level=3)
+            return False
+
+        finally:
+            os.chdir(original_dir)
+
+    def _verify_installation(
+        self, tool_name: str, tool_info: Dict[str, Any], install_dir: Path
+    ) -> bool:
+        """
+        Verify that a tool was installed correctly.
+
+        Args:
+            tool_name: Name of the tool.
+            tool_info: Tool configuration dictionary.
+            install_dir: Installation directory.
+
+        Returns:
+            True if verification passed, False otherwise.
+        """
+        try:
+            verify = tool_info.get("verify_install")
+            if verify and isinstance(verify, dict):
+                check_type = verify.get("check_type", "exists_all")
+                candidates = [install_dir / p for p in verify.get("file_paths", [])]
+
+                if check_type == "exists_any":
+                    ok = any(p.exists() for p in candidates)
+                elif check_type in ("exists_all", "exists"):
+                    ok = all(p.exists() for p in candidates)
+                else:
+                    ok = False
+
+                status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
+                self._console.indent(f"Install verification ({check_type}): {status}")
+                for p in candidates:
+                    check = "[green]Y[/green]" if p.exists() else "[red]N[/red]"
+                    self._console.indent(f"  {check} {p}", level=2)
+                return ok
+
+            exe_name = tool_info.get("default_exe")
+            if not exe_name:
+                return False
+
+            possible_paths = [
+                install_dir / exe_name,
+                install_dir / "bin" / exe_name,
+                install_dir / "build" / exe_name,
+                install_dir / "route" / "bin" / exe_name,
+                install_dir / exe_name.replace(".exe", ""),
+                install_dir / "install" / "sundials" / exe_name,
+            ]
+
+            for exe_path in possible_paths:
+                if exe_path.exists():
+                    self._console.success(f"Executable/library found: {exe_path}")
+                    return True
+
+            return False
+
+        except Exception as e:
+            self._console.warning(f"Verification error: {str(e)}")
+            return False
+
+    def _resolve_dependencies(self, tools: List[str]) -> List[str]:
+        """
+        Resolve dependencies between tools and return sorted list.
+
+        Args:
+            tools: List of tool names to install.
+
+        Returns:
+            Sorted list with dependencies included.
+        """
+        tools_with_deps = set(tools)
+        for tool in tools:
+            if tool in self.external_tools and self.external_tools.get(tool, {}).get(
+                "requires"
+            ):
+                required = self.external_tools.get(tool, {}).get("requires", [])
+                tools_with_deps.update(required)
+
+        return sorted(
+            tools_with_deps,
+            key=lambda t: (self.external_tools.get(t, {}).get("order", 999), t),
+        )
+
+    def _check_system_dependencies(self, dependencies: List[str]) -> List[str]:
+        """
+        Check which system dependencies are missing.
+
+        Args:
+            dependencies: List of required system binaries.
+
+        Returns:
+            List of missing dependencies.
+        """
+        missing_deps = []
+        for dep in dependencies:
+            if not shutil.which(dep):
+                missing_deps.append(dep)
+        return missing_deps
+
+    def _print_installation_summary(
+        self, results: Dict[str, Any], dry_run: bool
+    ) -> None:
+        """
+        Print installation summary.
+
+        Args:
+            results: Installation results dictionary.
+            dry_run: Whether this was a dry run.
+        """
+        successful_count = len(results["successful"])
+        failed_count = len(results["failed"])
+        skipped_count = len(results["skipped"])
+
+        self._console.newline()
+        self._console.info("Installation Summary:")
+        if dry_run:
+            self._console.indent(f"Would install: {successful_count} tools")
+            self._console.indent(f"Would skip: {skipped_count} tools")
+        else:
+            self._console.indent(f"Successful: {successful_count} tools")
+            self._console.indent(f"Failed: {failed_count} tools")
+            self._console.indent(f"Skipped: {skipped_count} tools")
+
+        if results["errors"]:
+            self._console.newline()
+            self._console.error("Errors encountered:")
+            for error in results["errors"]:
+                self._console.indent(f"- {error}")
