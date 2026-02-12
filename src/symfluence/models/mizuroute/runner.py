@@ -94,7 +94,8 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'FUSE'
             else:
                 experiment_output_dir = Path(experiment_output_fuse)
-            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+            fuse_file_id = self.config_dict.get('FUSE_FILE_ID', self.config_dict.get('EXPERIMENT_ID'))
+            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{fuse_file_id}_runs_def.nc"
         elif 'GR' in active_models:
             self.logger.info("Fixing GR time precision for mizuRoute compatibility")
             experiment_output_gr = self.config_dict.get('EXPERIMENT_OUTPUT_GR', 'default')
