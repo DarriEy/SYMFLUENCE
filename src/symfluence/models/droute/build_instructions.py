@@ -35,7 +35,33 @@ def get_droute_build_instructions():
         'install_dir': 'droute',
         'build_commands': [
             r'''
-# Build dRoute with Python bindings and AD support
+# Build dRoute with AD support
+set -e
+
+# ── Windows toolchain fixes ──
+CMAKE_EXTRA_ARGS=""
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        # Fix 1: TMP/TEMP must point to a writable Windows directory.
+        # MSYS2 defaults /tmp which the compiler cannot use.
+        _WINTMP="$(cmd.exe //c echo %TEMP% 2>/dev/null | tr -d '\r')"
+        if [ -n "$_WINTMP" ] && [ -d "$_WINTMP" ]; then
+            export TMP="$_WINTMP"
+            export TEMP="$_WINTMP"
+            export TMPDIR="$_WINTMP"
+            echo "Set TMP=$TMP (Windows temp directory)"
+        fi
+
+        # Fix 2: Use MSYS Makefiles generator (default NMake fails)
+        CMAKE_EXTRA_ARGS="-G \"MSYS Makefiles\""
+
+        # Fix 3: cmake needs explicit ar/ranlib paths on conda-forge GCC
+        _AR="$(find "$CONDA_PREFIX/Library" -name ar.exe 2>/dev/null | head -1)"
+        _RANLIB="$(find "$CONDA_PREFIX/Library" -name ranlib.exe 2>/dev/null | head -1)"
+        [ -n "$_AR" ] && CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DCMAKE_AR=$_AR"
+        [ -n "$_RANLIB" ] && CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DCMAKE_RANLIB=$_RANLIB"
+        ;;
+esac
 
 # Check for CMake
 if ! command -v cmake >/dev/null 2>&1; then
@@ -56,66 +82,58 @@ if ! command -v "$PYTHON_EXE" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Get Python info for pybind11
-PYTHON_INCLUDE=$("$PYTHON_EXE" -c "import sysconfig; print(sysconfig.get_path('include'))")
-PYTHON_SITE=$("$PYTHON_EXE" -c "import site; print(site.getsitepackages()[0])")
-
 echo "=== Building dRoute ==="
 echo "Python: $PYTHON_EXE"
-echo "Python include: $PYTHON_INCLUDE"
-echo "Python site-packages: $PYTHON_SITE"
 
 # Create build directory
+rm -rf build
 mkdir -p build
 cd build
 
 # Configure with CMake
-# Enable Python bindings and AD (CoDiPack)
-cmake .. \
+# Use DMC_ prefix options (the actual CMake variable names)
+eval cmake .. \
+    $CMAKE_EXTRA_ARGS \
     -DCMAKE_BUILD_TYPE=Release \
-    -DDROUTE_BUILD_PYTHON=ON \
-    -DDROUTE_ENABLE_AD=ON \
-    -DDROUTE_AD_BACKEND=codipack \
+    -DDMC_ENABLE_AD=ON \
+    -DDMC_BUILD_PYTHON=OFF \
     -DPYTHON_EXECUTABLE="$PYTHON_EXE" \
     -DCMAKE_INSTALL_PREFIX="../install"
 
-# Build
+# Fix 4: conda netCDF cmake config injects MSVC-only /utf-8 flag.
+# Strip it from generated flags files so GCC doesn't choke.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        find . -name "flags.make" -exec sed -i 's| /utf-8||g' {} +
+        echo "Stripped MSVC /utf-8 flag from GCC build"
+        ;;
+esac
+
+# Build using cmake --build (avoids MSYS make environment issues)
 echo "Building..."
 NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-make -j$NCORES
+cmake --build . -j$NCORES || cmake --build .
 
 # Install
 echo "Installing..."
-make install
-
-# Install Python package
-if [ -f "droute*.so" ] || [ -f "droute*.pyd" ]; then
-    echo "Installing Python bindings..."
-    cp droute*.so "$PYTHON_SITE/" 2>/dev/null || \
-    cp droute*.pyd "$PYTHON_SITE/" 2>/dev/null || \
-    echo "Warning: Could not copy Python module"
-fi
+cmake --install .
 
 # Verify installation
 echo "=== Verifying installation ==="
-if [ -f "../install/bin/droute" ]; then
-    echo "dRoute executable: ../install/bin/droute"
+if [ -f "../install/bin/dmc_route_run" ] || [ -f "../install/bin/dmc_route_run.exe" ]; then
+    echo "dRoute executable found"
 else
-    echo "Warning: Executable not found"
+    echo "Warning: CLI executable not found (library-only build)"
 fi
-
-# Test Python import
-"$PYTHON_EXE" -c "import droute; print(f'dRoute version: {droute.__version__}')" 2>/dev/null || \
-    echo "Warning: Python bindings not importable (may need manual installation)"
 
 echo "=== Build complete ==="
             '''.strip()
         ],
         'dependencies': [],
-        'test_command': 'python -c "import droute; print(droute.__version__)"',
+        'test_command': None,
         'verify_install': {
-            'python_import': 'droute',
-            'check_type': 'python_module'
+            'file_paths': ['install/bin/dmc_route_run.exe'],
+            'check_type': 'exists_any'
         },
         'order': 4,
         'optional': True,  # Not installed by default with --install
