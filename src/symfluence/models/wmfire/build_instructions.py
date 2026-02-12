@@ -41,13 +41,19 @@ def get_wmfire_build_instructions():
 set -e
 echo "Building WMFire library..."
 
-# The WMFire source is in the FIRE directory of the RHESSys repo
-if [ ! -d "RHESSys" ]; then
-    echo "ERROR: RHESSys directory not found. WMFire source is in RHESSys/FIRE"
+# Save install root for output paths
+INSTALL_ROOT="$(pwd)"
+
+# The WMFire source is in the FIRE directory of the RHESSys repo.
+# When cloned by tool_installer, repo contents are directly in the install dir.
+if [ -d "FIRE" ]; then
+    cd FIRE
+elif [ -d "RHESSys/FIRE" ]; then
+    cd RHESSys/FIRE
+else
+    echo "ERROR: FIRE directory not found (checked FIRE/ and RHESSys/FIRE/)"
     exit 1
 fi
-
-cd RHESSys/FIRE
 
 # Detect platform
 OS=$(uname -s)
@@ -132,17 +138,17 @@ echo "Linking $WMFIRE_LIB..."
 $CXX $SHARED_FLAG -fPIC -o $WMFIRE_LIB RanNums.o WMFire.o
 
 # Install to destination
-mkdir -p ../../lib
-mv $WMFIRE_LIB ../../lib/
+mkdir -p $INSTALL_ROOT/lib
+mv $WMFIRE_LIB $INSTALL_ROOT/lib/
 echo "Installed $WMFIRE_LIB to lib/"
 
 # Clean up object files
 rm -f RanNums.o WMFire.o
 
 # Verify build
-if [ -f "../../lib/$WMFIRE_LIB" ]; then
+if [ -f "$INSTALL_ROOT/lib/$WMFIRE_LIB" ]; then
     echo "WMFire library successfully built: lib/$WMFIRE_LIB"
-    ls -la ../../lib/$WMFIRE_LIB
+    ls -la $INSTALL_ROOT/lib/$WMFIRE_LIB
 else
     echo "ERROR: WMFire library not found after build"
     exit 1

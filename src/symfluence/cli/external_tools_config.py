@@ -82,11 +82,18 @@ SUNDIALS_PREFIX="${SUNDIALS_ROOT_DIR}/install/sundials"
 mkdir -p "${SUNDIALS_PREFIX}"
 
 rm -f "v${SUNDIALS_VER}.tar.gz" || true
-wget -q -O "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz" \
-  || curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz"
+curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz" \
+  || wget -q -O "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz"
 
-# Exclude doc directory — it contains symlinks that fail on Windows/MSYS2.
-tar -xzf "v${SUNDIALS_VER}.tar.gz" --exclude="*/doc/*"
+# Exclude doc directory (contains symlinks that fail on Windows/MSYS2)
+# and examples (not needed, and CXX_parallel paths are too long for Windows).
+# Allow tar errors for non-critical files (LICENSE/NOTICE on Windows).
+tar -xzf "v${SUNDIALS_VER}.tar.gz" --exclude="*/doc/*" --exclude="*/examples/*" || true
+# Verify core source was extracted
+if [ ! -d "sundials-${SUNDIALS_VER}/src" ]; then
+    echo "ERROR: SUNDIALS source extraction failed"
+    exit 1
+fi
 cd "sundials-${SUNDIALS_VER}"
 
 rm -rf build && mkdir build && cd build
@@ -193,9 +200,15 @@ cmake --build . --target moveoutletstostreams gagewatershed -j 2 || true
 echo "Staging executables..."
 mkdir -p ../bin
 
+# Detect Windows .exe extension
+EXE_SUFFIX=""
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) EXE_SUFFIX=".exe" ;;
+esac
+
 # Debug: show what was built
 echo "Files in build directory:"
-find . -type f -name "pitremove" -o -name "streamnet" -o -name "aread8" 2>/dev/null || true
+find . -type f -name "pitremove${EXE_SUFFIX}" -o -name "streamnet${EXE_SUFFIX}" -o -name "aread8${EXE_SUFFIX}" 2>/dev/null || true
 
 # List of expected TauDEM tools (superset — some may not exist on older commits)
 tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold
@@ -204,20 +217,21 @@ tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf t
 copied=0
 for exe in $tools;
   do
-  # Find by name (cross-platform: works on macOS, Linux, WSL)
+  exe_name="${exe}${EXE_SUFFIX}"
+  # Find by name (cross-platform: works on macOS, Linux, WSL, Windows/MSYS2)
   # Note: piping through head masks find errors, so use sequential checks
   p=""
   # Try GNU find -executable first (Linux)
-  if [ -z "$p" ]; then p="$(find . -type f -executable -name "$exe" 2>/dev/null | head -n1 || true)"; fi
+  if [ -z "$p" ]; then p="$(find . -type f -executable -name "$exe_name" 2>/dev/null | head -n1 || true)"; fi
   # Try POSIX -perm /111 (macOS/BSD/Linux)
-  if [ -z "$p" ]; then p="$(find . -type f -perm /111 -name "$exe" 2>/dev/null | head -n1 || true)"; fi
+  if [ -z "$p" ]; then p="$(find . -type f -perm /111 -name "$exe_name" 2>/dev/null | head -n1 || true)"; fi
   # Fallback: find by name only (then chmod +x below handles permissions)
-  if [ -z "$p" ]; then p="$(find . -type f -name "$exe" ! -path "*/CMakeFiles/*" 2>/dev/null | head -n1 || true)"; fi
+  if [ -z "$p" ]; then p="$(find . -type f -name "$exe_name" ! -path "*/CMakeFiles/*" 2>/dev/null | head -n1 || true)"; fi
   if [ -n "$p" ] && [ -f "$p" ]; then
     cp -f "$p" ../bin/
-    chmod +x ../bin/$exe
+    chmod +x "../bin/$exe_name"
     copied=$((copied+1))
-    echo "  Copied: $exe"
+    echo "  Copied: $exe_name"
   fi
 done
 
@@ -225,10 +239,10 @@ echo "Copied $copied executables"
 
 # Final sanity
 ls -la ../bin/ || true
-if [ ! -f "../bin/pitremove" ] || [ ! -f "../bin/streamnet" ]; then
+if [ ! -f "../bin/pitremove${EXE_SUFFIX}" ] || [ ! -f "../bin/streamnet${EXE_SUFFIX}" ]; then
   echo "TauDEM stage failed: core binaries missing" >&2
   echo "Build directory contents:"
-  find . -name "pitremove" -o -name "streamnet" 2>/dev/null || true
+  find . -name "pitremove*" -o -name "streamnet*" 2>/dev/null || true
   exit 1
 fi
 echo "TauDEM executables staged"

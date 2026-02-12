@@ -143,6 +143,14 @@ git_clean submodule update --init --recursive -- extern/iso_c_fortran_bmi || tru
 echo "Checking Fortran compiler..."
 if command -v gfortran >/dev/null 2>&1; then
   export FC=$(command -v gfortran)
+  # On Windows, CMake needs the full path with .exe extension
+  case "$(uname -s 2>/dev/null)" in
+      MSYS*|MINGW*|CYGWIN*)
+          if [ -f "${FC}.exe" ]; then
+              export FC="${FC}.exe"
+          fi
+          ;;
+  esac
   echo "Using Fortran compiler: $FC"
   $FC --version | head -1
 else
@@ -151,6 +159,43 @@ else
 fi
 
 rm -rf cmake_build
+
+# On Windows/MSYS2, apply platform patches for building
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        echo "Patching CMakeLists.txt for Windows/MSYS2 build..."
+        # Allow Windows platform (upstream blocks WIN32)
+        sed -i 's/message(FATAL_ERROR "Windows platforms are not currently supported")/set(NGEN_SHARED_LIB_EXTENSION "dll")/' CMakeLists.txt
+        # Fix ngen_multiline_message: backslashes in Windows paths cause CMake
+        # string parse errors. Replace with a simple message() call.
+        sed -i '/macro(ngen_multiline_message/,/endmacro/c\macro(ngen_multiline_message)\n    message(STATUS "NGen configuration complete")\nendmacro()' CMakeLists.txt
+        # Fix FindUDUNITS2: on Windows, SHARED IMPORTED targets need IMPORTED_IMPLIB
+        # The .lib file is the import library; set it as IMPLIB and use the DLL as LOCATION
+        sed -i 's/IMPORTED_LOCATION "${UDUNITS2_LIBRARY}"/IMPORTED_IMPLIB "${UDUNITS2_LIBRARY}"/' cmake/FindUDUNITS2.cmake
+        # Create a POSIX compat header for functions missing in MinGW (strsep, etc.)
+        cat > mingw_posix_compat.h << 'COMPAT_EOF'
+#ifndef MINGW_POSIX_COMPAT_H
+#define MINGW_POSIX_COMPAT_H
+#ifdef __MINGW32__
+#include <string.h>
+#include <stdlib.h>
+static inline char *strsep(char **stringp, const char *delim) {
+    char *start = *stringp;
+    char *p;
+    if (start == NULL) return NULL;
+    p = strpbrk(start, delim);
+    if (p) { *p = '\0'; *stringp = p + 1; }
+    else { *stringp = NULL; }
+    return start;
+}
+#endif
+#endif
+COMPAT_EOF
+        # Force-include the compat header in all C compilations
+        export CFLAGS=$(echo "${CFLAGS:-} -include $(pwd)/mingw_posix_compat.h" | sed 's/\\/\//g')
+        export CXXFLAGS=$(echo "${CXXFLAGS:-}" | sed 's/\\/\//g')
+        ;;
+esac
 
 # Debug: show environment
 echo "=== Environment Debug ==="
@@ -168,27 +213,41 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
+# On Windows, disable tests (symlinks require admin privileges) and UDUNITS2
+# (import library handling issues on MinGW)
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_TESTS=OFF"
+        CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_UDUNITS=OFF"
+        ;;
+esac
+
 # Fix for conda GCC 14: explicitly link against conda's libstdc++ to resolve __cxa_call_terminate
 # conda's GCC 14 emits __cxa_call_terminate which only exists in its own libstdc++
 # We must pass this through CMAKE_EXE_LINKER_FLAGS since CMake ignores LDFLAGS for the final link
 CONDA_LINKER_CMAKE_ARGS=""
 if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
     EXTRA_LIBS="-lstdc++"
-    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${clp}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${clp}/lib -lstdc++'"
+    _clp_fwd=$(echo "$clp" | sed 's/\\/\//g')
+    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${_clp_fwd}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${_clp_fwd}/lib -lstdc++'"
     echo "Adding conda libstdc++ linker flags for GCC 14 compatibility"
 fi
 
 # Add UDUNITS2 paths if available (from detection/build snippet)
 if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
-  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
-  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
-  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+  # On Windows, convert backslash paths to forward slashes for CMake
+  _U2_DIR=$(echo "$UDUNITS2_DIR" | sed 's/\\/\//g')
+  _U2_INC=$(echo "$UDUNITS2_INCLUDE_DIR" | sed 's/\\/\//g')
+  _U2_LIB=$(echo "$UDUNITS2_LIBRARY" | sed 's/\\/\//g')
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$_U2_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$_U2_INC"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$_U2_LIB"
 
-  # Also add to compiler flags
-  export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
-  export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
+  # Also add to compiler flags (use forward-slash path)
+  export CXXFLAGS="${CXXFLAGS:-} -I${_U2_INC}"
+  export CFLAGS="${CFLAGS:-} -I${_U2_INC}"
 
-  echo "Using UDUNITS2 from: $UDUNITS2_DIR"
+  echo "Using UDUNITS2 from: $_U2_DIR"
 fi
 
 # Add extra linker flags for conda GCC 14 and expat (needed by locally-built UDUNITS2)
@@ -266,6 +325,12 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_SQLITE3=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
+  case "$(uname -s 2>/dev/null)" in
+      MSYS*|MINGW*|CYGWIN*)
+          FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_TESTS=OFF"
+          FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_UDUNITS=OFF"
+          ;;
+  esac
 
   # Conda linker flags are in CONDA_LINKER_CMAKE_ARGS (set above)
 
