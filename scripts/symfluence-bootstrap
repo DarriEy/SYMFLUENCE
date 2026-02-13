@@ -832,15 +832,33 @@ setup_windows_dependencies() {
         print_info "Attempting to use system conda if available..."
 
         # Check CONDA env var first (set by setup-miniconda and most CI setups)
+        # On Windows, $CONDA is a Windows path (C:\Users\...) — convert to Unix
+        # for reliable shell operations (Windows colons break PATH splitting,
+        # backslashes break echo -e, etc.)
         if [[ -n "${CONDA:-}" ]]; then
-            for conda_subdir in "condabin" "Scripts" "bin"; do
-                if [[ -f "$CONDA/$conda_subdir/conda" ]] || [[ -f "$CONDA/$conda_subdir/conda.exe" ]]; then
-                    print_info "Found conda via CONDA env var at: $CONDA/$conda_subdir"
-                    export PATH="$CONDA/$conda_subdir:$PATH"
+            local conda_root
+            conda_root="$(cygpath -u "$CONDA" 2>/dev/null || echo "$CONDA")"
+
+            # Try to source conda.sh to get the conda function
+            if [[ -f "$conda_root/etc/profile.d/conda.sh" ]]; then
+                source "$conda_root/etc/profile.d/conda.sh" 2>/dev/null || true
+                if command -v conda >/dev/null 2>&1; then
+                    print_info "Activated conda from CONDA env var"
                     CONDA_CMD="conda"
-                    break
                 fi
-            done
+            fi
+            # Fallback: use full path to conda executable
+            if [[ -z "${CONDA_CMD:-}" ]]; then
+                for conda_subdir in "condabin" "Scripts" "bin"; do
+                    for conda_name in "conda" "conda.exe"; do
+                        if [[ -f "$conda_root/$conda_subdir/$conda_name" ]]; then
+                            print_info "Found conda at: $conda_root/$conda_subdir/$conda_name"
+                            CONDA_CMD="$conda_root/$conda_subdir/$conda_name"
+                            break 2
+                        fi
+                    done
+                done
+            fi
         fi
 
         # Try common conda locations as fallback
