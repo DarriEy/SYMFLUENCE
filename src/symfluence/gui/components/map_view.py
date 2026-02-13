@@ -6,6 +6,7 @@ callbacks (no JavaScript bridges needed).
 """
 
 import logging
+import threading
 import time
 from math import log, tan, pi
 from pathlib import Path
@@ -15,6 +16,8 @@ import param
 
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.plotting import figure
+
+from ..utils.threading_utils import run_on_ui_thread
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,11 @@ class MapView(param.Parameterized):
         self._gauge_store = None
         self._gauge_loaded = False
         self._network_filter = None  # will hold MultiChoice widget
+        self._load_layers_btn = None
+        self._load_gauges_btn = None
+        self._status_pane = None
+        self._layers_loading = False
+        self._gauges_loading = False
 
         # Guard: suppress tap-as-pour-point when a gauge was just clicked
         self._gauge_click_ts = 0.0
@@ -254,36 +262,52 @@ class MapView(param.Parameterized):
         if not project_dir:
             self.state.append_log("No project directory — load a config first.\n")
             return
+        if self._layers_loading:
+            self.state.append_log("Map layers are already loading.\n")
+            return
 
         pdir = Path(project_dir)
-        loaded = []
-
-        # Determine current discretization for preference matching
         disc_hint = self._get_discretization_hint()
+        self._set_layers_loading(True)
+        self.state.append_log("Loading map layers…\n")
 
-        # Basin shapefile — glob *.shp in river_basins/
-        basin_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_basins', disc_hint)
-        if basin_shp:
-            self._load_shapefile_to_source(basin_shp, self._basin_source)
-            loaded.append('basins')
+        def _worker():
+            loaded = []
+            basin_data: dict[str, list[list[float]]] = dict(xs=[], ys=[])
+            hru_data: dict[str, list[list[float]]] = dict(xs=[], ys=[])
+            river_data: dict[str, list[list[float]]] = dict(xs=[], ys=[])
+            try:
+                basin_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_basins', disc_hint)
+                if basin_shp:
+                    basin_data = self._read_polygon_shapefile(basin_shp)
+                    if basin_data['xs']:
+                        loaded.append('basins')
 
-        # HRU / catchment shapefile
-        hru_shp = self._find_shapefile(pdir / 'shapefiles' / 'catchment', disc_hint)
-        if hru_shp:
-            self._load_shapefile_to_source(hru_shp, self._hru_source)
-            loaded.append('HRUs')
+                hru_shp = self._find_shapefile(pdir / 'shapefiles' / 'catchment', disc_hint)
+                if hru_shp:
+                    hru_data = self._read_polygon_shapefile(hru_shp)
+                    if hru_data['xs']:
+                        loaded.append('HRUs')
 
-        # River network shapefile
-        river_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_network', disc_hint)
-        if river_shp:
-            self._load_line_shapefile(river_shp, self._river_source)
-            loaded.append('rivers')
+                river_shp = self._find_shapefile(pdir / 'shapefiles' / 'river_network', disc_hint)
+                if river_shp:
+                    river_data = self._read_line_shapefile(river_shp)
+                    if river_data['xs']:
+                        loaded.append('rivers')
 
-        if loaded:
-            self.state.append_log(f"Loaded layers: {', '.join(loaded)}\n")
-            self._zoom_to_data()
-        else:
-            self.state.append_log("No shapefiles found in project directory.\n")
+                run_on_ui_thread(
+                    lambda b=basin_data, h=hru_data, r=river_data, names=loaded: self._apply_layer_data(
+                        b, h, r, names
+                    )
+                )
+            except Exception as exc:
+                run_on_ui_thread(
+                    lambda e=exc: self.state.append_log(f"Layer load error: {e}\n")
+                )
+            finally:
+                run_on_ui_thread(lambda: self._set_layers_loading(False))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _get_discretization_hint(self):
         """Return the current discretization method from config, if available."""
@@ -324,8 +348,8 @@ class MapView(param.Parameterized):
         # Fall back to first available
         return shp_files[0]
 
-    def _load_shapefile_to_source(self, path, source):
-        """Load a polygon shapefile into a ColumnDataSource (xs/ys in Web Mercator)."""
+    def _read_polygon_shapefile(self, path):
+        """Read a polygon shapefile into Bokeh patch coordinates."""
         try:
             import geopandas as gpd
             gdf = gpd.read_file(path).to_crs(epsg=3857)
@@ -341,12 +365,13 @@ class MapView(param.Parameterized):
                     for poly in geom.geoms:
                         xs.append(list(poly.exterior.coords.xy[0]))
                         ys.append(list(poly.exterior.coords.xy[1]))
-            source.data = dict(xs=xs, ys=ys)
+            return dict(xs=xs, ys=ys)
         except Exception as exc:
             logger.warning(f"Failed to load shapefile {path}: {exc}")
+            return dict(xs=[], ys=[])
 
-    def _load_line_shapefile(self, path, source):
-        """Load a line shapefile into a ColumnDataSource."""
+    def _read_line_shapefile(self, path):
+        """Read a line shapefile into Bokeh multi-line coordinates."""
         try:
             import geopandas as gpd
             gdf = gpd.read_file(path).to_crs(epsg=3857)
@@ -362,9 +387,21 @@ class MapView(param.Parameterized):
                     for line in geom.geoms:
                         xs.append(list(line.coords.xy[0]))
                         ys.append(list(line.coords.xy[1]))
-            source.data = dict(xs=xs, ys=ys)
+            return dict(xs=xs, ys=ys)
         except Exception as exc:
             logger.warning(f"Failed to load line shapefile {path}: {exc}")
+            return dict(xs=[], ys=[])
+
+    def _apply_layer_data(self, basin_data, hru_data, river_data, loaded_names):
+        """Apply loaded layer coordinates to map sources."""
+        self._basin_source.data = basin_data
+        self._hru_source.data = hru_data
+        self._river_source.data = river_data
+        if loaded_names:
+            self.state.append_log(f"Loaded layers: {', '.join(loaded_names)}\n")
+            self._zoom_to_data()
+        else:
+            self.state.append_log("No shapefiles found in project directory.\n")
 
     def _zoom_to_data(self):
         """Auto-zoom to the extent of loaded basin data."""
@@ -389,35 +426,38 @@ class MapView(param.Parameterized):
 
     def load_gauges(self, networks=None):
         """Load gauge stations from configured providers and display on map."""
+        if self._gauges_loading:
+            self.state.append_log("Gauge stations are already loading.\n")
+            return
         try:
             from symfluence.gui.data import GaugeStationStore
         except ImportError:
             self.state.append_log("Gauge data module not available.\n")
             return
 
+        self._set_gauges_loading(True)
         self.state.append_log("Loading gauge stations…\n")
 
         if self._gauge_store is None:
             self._gauge_store = GaugeStationStore()
 
-        import threading
-
         def _fetch():
             try:
                 df = self._gauge_store.load_all(networks=networks)
                 if df.empty:
-                    pn.state.execute(
+                    run_on_ui_thread(
                         lambda: self.state.append_log("No gauge stations found.\n")
                     )
                     return
-                pn.state.execute(lambda d=df: self._push_gauges_to_map(d))
+                run_on_ui_thread(lambda d=df: self._push_gauges_to_map(d))
             except Exception as exc:
-                pn.state.execute(
+                run_on_ui_thread(
                     lambda e=exc: self.state.append_log(f"Gauge load error: {e}\n")
                 )
+            finally:
+                run_on_ui_thread(lambda: self._set_gauges_loading(False))
 
-        t = threading.Thread(target=_fetch, daemon=True)
-        t.start()
+        threading.Thread(target=_fetch, daemon=True).start()
 
     def _push_gauges_to_map(self, df):
         """Push a DataFrame of gauge stations to the Bokeh source."""
@@ -444,7 +484,7 @@ class MapView(param.Parameterized):
 
     def _update_gauge_visibility(self, networks):
         """Filter visible gauges by selected networks."""
-        if not self._gauge_loaded or not self._gauge_store:
+        if not self._gauge_loaded or not self._gauge_store or self._gauges_loading:
             return
         try:
             if networks:
@@ -459,10 +499,34 @@ class MapView(param.Parameterized):
     # Panel layout
     # ------------------------------------------------------------------
 
+    def _update_loading_ui(self):
+        """Update loading controls and status message."""
+        if self._load_layers_btn is not None:
+            self._load_layers_btn.disabled = self._layers_loading
+        if self._load_gauges_btn is not None:
+            self._load_gauges_btn.disabled = self._gauges_loading
+        if self._network_filter is not None:
+            self._network_filter.disabled = self._gauges_loading
+        if self._status_pane is not None:
+            if self._layers_loading:
+                self._status_pane.object = "Loading map layers..."
+            elif self._gauges_loading:
+                self._status_pane.object = "Loading gauges..."
+            else:
+                self._status_pane.object = ""
+
+    def _set_layers_loading(self, loading):
+        self._layers_loading = loading
+        self._update_loading_ui()
+
+    def _set_gauges_loading(self, loading):
+        self._gauges_loading = loading
+        self._update_loading_ui()
+
     def panel(self):
         """Return the Panel component for embedding in the app layout."""
-        load_btn = pn.widgets.Button(name='Load Layers', button_type='primary', width=120)
-        load_btn.on_click(lambda e: self.load_layers())
+        self._load_layers_btn = pn.widgets.Button(name='Load Layers', button_type='primary', width=120)
+        self._load_layers_btn.on_click(lambda e: self.load_layers())
 
         # Create network filter BEFORE the button that references it
         self._network_filter = pn.widgets.MultiChoice(
@@ -472,8 +536,8 @@ class MapView(param.Parameterized):
             width=250,
         )
 
-        load_gauges_btn = pn.widgets.Button(name='Load Gauges', button_type='success', width=120)
-        load_gauges_btn.on_click(lambda e: self.load_gauges(
+        self._load_gauges_btn = pn.widgets.Button(name='Load Gauges', button_type='success', width=120)
+        self._load_gauges_btn.on_click(lambda e: self.load_gauges(
             networks=self._network_filter.value or None
         ))
 
@@ -496,14 +560,17 @@ class MapView(param.Parameterized):
         toggle_gauges.param.watch(lambda e: _toggle_visibility(e, self._gauge_renderer), 'value')
 
         self._hru_renderer.visible = False  # default hidden
+        self._status_pane = pn.pane.Str("", sizing_mode='stretch_width')
+        self._update_loading_ui()
 
         controls = pn.Row(
-            load_btn, load_gauges_btn, self._network_filter,
+            self._load_layers_btn, self._load_gauges_btn, self._network_filter,
             toggle_basins, toggle_hrus, toggle_rivers, toggle_gauges,
             sizing_mode='stretch_width',
         )
         return pn.Column(
             controls,
+            self._status_pane,
             pn.pane.Bokeh(self._fig, sizing_mode='stretch_both'),
             sizing_mode='stretch_both',
         )

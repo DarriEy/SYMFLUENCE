@@ -12,6 +12,14 @@ import threading
 import panel as pn
 
 
+def run_on_ui_thread(callback):
+    """Execute callback in the Panel UI context when available."""
+    try:
+        pn.state.execute(callback)
+    except Exception:
+        callback()
+
+
 class GUILogHandler(logging.Handler):
     """
     Logging handler that routes records into WorkflowState.log_text.
@@ -28,7 +36,7 @@ class GUILogHandler(logging.Handler):
     def emit(self, record):
         try:
             msg = self.format(record) + '\n'
-            pn.state.execute(lambda m=msg: self.state.append_log(m))
+            run_on_ui_thread(lambda m=msg: self.state.append_log(m))
         except Exception:
             pass  # never crash the logger
 
@@ -53,7 +61,8 @@ class WorkflowThread:
 
     def run_steps(self, step_names, force_rerun=False):
         """Launch step execution in a background thread."""
-        if self.alive:
+        step_label = step_names[0] if step_names else None
+        if self.alive or not self.state.try_begin_run(step_label):
             self.state.append_log("A workflow is already running.\n")
             return
 
@@ -62,11 +71,15 @@ class WorkflowThread:
             args=(step_names, force_rerun),
             daemon=True,
         )
-        self._thread.start()
+        try:
+            self._thread.start()
+        except Exception:
+            self.state.end_run()
+            raise
 
     def run_workflow(self, force_rerun=False):
         """Launch full workflow in a background thread."""
-        if self.alive:
+        if self.alive or not self.state.try_begin_run('full_workflow'):
             self.state.append_log("A workflow is already running.\n")
             return
 
@@ -75,7 +88,11 @@ class WorkflowThread:
             args=(force_rerun,),
             daemon=True,
         )
-        self._thread.start()
+        try:
+            self._thread.start()
+        except Exception:
+            self.state.end_run()
+            raise
 
     def _attach_logger(self):
         """Attach GUILogHandler to the symfluence root logger."""
@@ -92,23 +109,27 @@ class WorkflowThread:
         """Thread target for individual steps."""
         self._attach_logger()
         try:
-            step_label = step_names[0] if step_names else None
-            pn.state.execute(lambda: self._set_running(True, step_label))
             sf = self.state.initialize_symfluence()
+            if force_rerun:
+                run_on_ui_thread(
+                    lambda: self.state.append_log(
+                        "Force re-run is always applied for individual steps in the current workflow engine.\n"
+                    )
+                )
             sf.run_individual_steps(step_names)
-            pn.state.execute(lambda: self.state.append_log("Step(s) completed successfully.\n"))
+            run_on_ui_thread(lambda: self.state.append_log("Step(s) completed successfully.\n"))
         except Exception as exc:
-            pn.state.execute(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
+            run_on_ui_thread(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
         finally:
             self._detach_logger()
-            pn.state.execute(lambda: self._set_running(False, None))
-            pn.state.execute(self.state.refresh_status)
+            run_on_ui_thread(self.state.end_run)
+            run_on_ui_thread(self.state.refresh_status)
             # Signal results-producing steps so the Results tab auto-refreshes
             _RESULTS_STEPS = {'calibrate_model', 'run_benchmarking', 'postprocess_results'}
             if any(s in _RESULTS_STEPS for s in step_names):
                 exp_id = (self.state.typed_config.domain.experiment_id
                           if self.state.typed_config else None)
-                pn.state.execute(
+                run_on_ui_thread(
                     lambda eid=exp_id: setattr(self.state, 'last_completed_run', eid)
                 )
 
@@ -116,23 +137,18 @@ class WorkflowThread:
         """Thread target for full workflow."""
         self._attach_logger()
         try:
-            pn.state.execute(lambda: self._set_running(True, 'full_workflow'))
             sf = self.state.initialize_symfluence()
             sf.run_workflow(force_run=force_rerun)
-            pn.state.execute(lambda: self.state.append_log("Full workflow completed successfully.\n"))
+            run_on_ui_thread(lambda: self.state.append_log("Full workflow completed successfully.\n"))
         except Exception as exc:
-            pn.state.execute(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
+            run_on_ui_thread(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
         finally:
             self._detach_logger()
-            pn.state.execute(lambda: self._set_running(False, None))
-            pn.state.execute(self.state.refresh_status)
+            run_on_ui_thread(self.state.end_run)
+            run_on_ui_thread(self.state.refresh_status)
             # Full workflow includes calibration — signal for auto-refresh
             exp_id = (self.state.typed_config.domain.experiment_id
                       if self.state.typed_config else None)
-            pn.state.execute(
+            run_on_ui_thread(
                 lambda eid=exp_id: setattr(self.state, 'last_completed_run', eid)
             )
-
-    def _set_running(self, running, step_name):
-        self.state.is_running = running
-        self.state.running_step = step_name
