@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   install-validate:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
 
     env:
@@ -75,14 +75,7 @@ jobs:
       - name: Install system build deps
         run: |
           set -e
-          # Add the UbuntuGIS PPA to get a stable, compatible suite of geospatial libraries
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
-
-          # Now install all dependencies.
-          # The GDAL and other related packages will now be pulled from the stable PPA.
           sudo apt-get install -y \
             build-essential gfortran cmake make pkg-config \
             ninja-build autoconf automake libtool \
@@ -93,7 +86,7 @@ jobs:
             libhdf5-dev hdf5-tools libudunits2-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
-            python3-dev python3-pip python3-numpy python3-gdal cdo
+            python3-dev python3-pip python3-numpy cdo
           mpicc --version
           mpirun --version
           gdal-config --version
@@ -431,7 +424,7 @@ jobs:
 
   step_tests:
     needs: install-validate
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       TZ: UTC
       CI: "1"
@@ -475,13 +468,7 @@ jobs:
       - name: Install system dependencies
         run: |
           set -e
-          # Add the UbuntuGIS PPA to get a stable, compatible suite of geospatial libraries
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
-
-          # Install all build dependencies needed for tool compilation
           sudo apt-get install -y \
             build-essential gfortran cmake make pkg-config \
             ninja-build autoconf automake libtool \
@@ -492,7 +479,7 @@ jobs:
             libhdf5-dev hdf5-tools libudunits2-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
-            python3-dev python3-pip python3-numpy python3-gdal cdo
+            python3-dev python3-pip python3-numpy cdo
 
       - name: Configure compiler and library env
         run: |
