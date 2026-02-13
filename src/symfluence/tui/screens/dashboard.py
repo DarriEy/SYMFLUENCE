@@ -3,6 +3,7 @@ Dashboard screen — domain overview and quick stats.
 """
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
@@ -12,6 +13,13 @@ from ..widgets.domain_list import DomainListWidget
 
 class DashboardScreen(Screen):
     """Home screen showing domain overview and summary statistics."""
+
+    BINDINGS = [
+        Binding("d", "load_demo", "Load Demo"),
+        Binding("s", "set_data_dir", "Set Data Dir"),
+        Binding("o", "open_docs", "Docs"),
+        Binding("r", "refresh_dashboard", "Refresh"),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -23,6 +31,7 @@ class DashboardScreen(Screen):
                 classes="stats-bar",
             ),
             Static("Domains", classes="section-header"),
+            Static("", id="onboarding-panel", classes="onboarding-panel"),
             DomainListWidget(id="domain-table"),
         )
         yield Footer()
@@ -60,9 +69,42 @@ class DashboardScreen(Screen):
         else:
             self.sub_title = "No SYMFLUENCE_DATA_DIR set"
 
+        onboarding = self.query_one("#onboarding-panel", Static)
+        if not data_dir:
+            onboarding.display = True
+            onboarding.update(
+                "First run setup:\n"
+                "  d  Load Bow demo and jump to Workflow Launcher\n"
+                "  s  Set your SYMFLUENCE data directory\n"
+                "  o  Open in-app help and docs"
+            )
+        elif not domains:
+            onboarding.display = True
+            onboarding.update(
+                "Data directory is configured but no domain_* projects were found.\n"
+                "  d  Load Bow demo\n"
+                "  s  Change data directory\n"
+                "  o  Open help and docs"
+            )
+        else:
+            onboarding.display = False
+
     def on_data_table_row_selected(self, event) -> None:
         """Navigate to run browser filtered for the selected domain."""
         row_key = event.row_key
         if row_key:
             self.app.set_run_browser_domain_filter(str(row_key))
             self.app.switch_mode("run_browser")
+
+    def action_load_demo(self) -> None:
+        if not self.app.run_demo("bow"):
+            self.app.notify("Built-in demo 'bow' is not available.", severity="error")
+
+    def action_set_data_dir(self) -> None:
+        self.app.prompt_set_data_dir()
+
+    def action_open_docs(self) -> None:
+        self.app.action_show_help()
+
+    def action_refresh_dashboard(self) -> None:
+        self._refresh_data()

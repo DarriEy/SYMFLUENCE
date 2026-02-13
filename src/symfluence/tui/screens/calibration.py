@@ -42,7 +42,7 @@ class CalibrationScreen(Screen):
 
     def on_mount(self) -> None:
         self._populate_domains()
-        self._timer = self.set_interval(30, self._auto_refresh)
+        self._timer = self.set_interval(30, self._refresh_active_calibration)
 
     def on_screen_resume(self) -> None:
         if self._timer is not None:
@@ -130,7 +130,7 @@ class CalibrationScreen(Screen):
             metrics_table.add_columns("Metric", "Value")
             metrics_table.add_row("(no data)", "-")
 
-    def _auto_refresh(self) -> None:
+    def _refresh_active_calibration(self) -> None:
         """Periodic refresh for running calibrations."""
         domain_select = self.query_one("#cal-domain", Select)
         exp_select = self.query_one("#cal-experiment", Select)

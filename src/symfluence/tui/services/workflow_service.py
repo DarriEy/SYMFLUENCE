@@ -18,6 +18,7 @@ class WorkflowService:
     def __init__(self):
         self._sf = None
         self._config_path: Optional[Path] = None
+        self._last_error: str = ""
 
     @property
     def is_loaded(self) -> bool:
@@ -26,6 +27,10 @@ class WorkflowService:
     @property
     def config_path(self) -> Optional[Path]:
         return self._config_path
+
+    @property
+    def last_error(self) -> str:
+        return self._last_error
 
     def load_config(self, config_path: str) -> bool:
         """Load a SYMFLUENCE config and initialize the system.
@@ -36,9 +41,11 @@ class WorkflowService:
             from symfluence import SYMFLUENCE
             self._config_path = Path(config_path)
             self._sf = SYMFLUENCE(config_input=self._config_path)
+            self._last_error = ""
             return True
         except Exception as exc:
-            logger.error(f"Failed to load config: {exc}")
+            self._last_error = str(exc)
+            logger.error("Failed to load config: %s", exc)
             self._sf = None
             return False
 
@@ -49,7 +56,8 @@ class WorkflowService:
         try:
             return self._sf.get_workflow_status()
         except Exception as exc:
-            logger.error(f"Failed to get status: {exc}")
+            self._last_error = str(exc)
+            logger.error("Failed to get status: %s", exc)
             return {}
 
     def get_step_names(self) -> List[str]:

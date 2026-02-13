@@ -3,6 +3,7 @@ Workflow Launcher screen — load config, select steps, execute.
 """
 
 import logging
+from datetime import datetime
 from functools import partial
 from typing import Any, Dict, List
 
@@ -36,6 +37,10 @@ class WorkflowLauncherScreen(Screen):
         self._workflow_svc = WorkflowService()
         self._log_handler = None
         self._known_step_names = [step for step, _ in WORKFLOW_STEPS]
+        self._workflow_worker: Worker | None = None
+        self._run_started_at: datetime | None = None
+        self._run_timer = None
+        self._run_summary_text = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -66,7 +71,12 @@ class WorkflowLauncherScreen(Screen):
                     id="launcher-help",
                 ),
                 Static(""),
-                Button("Run", id="btn-run", variant="success", disabled=True),
+                Horizontal(
+                    Button("Run", id="btn-run", variant="success", disabled=True),
+                    Button("Cancel", id="btn-cancel-run", variant="warning", disabled=True),
+                    classes="run-actions",
+                ),
+                Static("Active: idle", id="active-task"),
                 Static("", id="status-text"),
                 classes="launcher-left",
             ),
@@ -81,13 +91,11 @@ class WorkflowLauncherScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        # Pre-fill config path if provided via CLI
-        if self.app.config_path:
-            config_input = self.query_one("#config-path", Input)
-            config_input.value = self.app.config_path
-            self._do_load_config(self.app.config_path)
-
+        self._sync_config_from_app()
         self._refresh_mode_controls()
+
+    def on_screen_resume(self) -> None:
+        self._sync_config_from_app()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-load":
@@ -95,6 +103,8 @@ class WorkflowLauncherScreen(Screen):
             self._do_load_config(config_input.value)
         elif event.button.id == "btn-run":
             self._do_run()
+        elif event.button.id == "btn-cancel-run":
+            self._cancel_run()
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         if event.radio_set.id == "run-mode":
@@ -127,7 +137,12 @@ class WorkflowLauncherScreen(Screen):
             self.query_one("#btn-run", Button).disabled = False
             status.update(f"Ready: {domain}")
         else:
-            log.write_line("[red]Failed to load config. Check the path and try again.[/red]")
+            self._log_actionable_error(
+                log,
+                action="load configuration",
+                error=self._workflow_svc.last_error or "unknown error",
+                config_path=path,
+            )
             status.update("Config load failed")
 
     def _do_run(self) -> None:
@@ -147,20 +162,32 @@ class WorkflowLauncherScreen(Screen):
             log_panel.write_line("[green]No pending steps detected. Nothing to resume.[/green]")
             return
 
-        btn = self.query_one("#btn-run", Button)
-        btn.disabled = True
+        self._set_running_ui(True)
         # Attach log handler
-        self._log_handler = TUILogHandler(self.app, log_panel)
+        self._log_handler = TUILogHandler(
+            self.app,
+            log_panel,
+            on_message=self._on_log_message,
+        )
         logging.getLogger("symfluence").addHandler(self._log_handler)
 
         if run_mode == "mode-full":
+            self._run_summary_text = "Running full workflow"
             log_panel.write_line("Starting full workflow...")
         elif run_mode == "mode-steps":
+            self._run_summary_text = "Running selected steps"
             log_panel.write_line(f"Starting selected steps: {', '.join(steps_to_run)}")
         else:
+            self._run_summary_text = "Resuming pending steps"
             log_panel.write_line(f"Resuming pending steps: {', '.join(steps_to_run)}")
 
-        self.run_worker(
+        self.query_one("#active-task", Static).update(
+            f"Active: {steps_to_run[0] if steps_to_run else 'workflow'}"
+        )
+        self._run_started_at = datetime.now()
+        self._start_run_timer()
+
+        self._workflow_worker = self.run_worker(
             partial(self._run_mode, run_mode, force, steps_to_run),
             thread=True,
             name="workflow",
@@ -188,9 +215,15 @@ class WorkflowLauncherScreen(Screen):
             result = event.worker.result
             log_panel = self.query_one("#log-panel", LogPanel)
             if result and result.startswith("error:"):
-                log_panel.write_line(f"[red]Workflow failed: {result}[/red]")
+                self._log_actionable_error(
+                    log_panel,
+                    action="run workflow",
+                    error=result[len("error:"):].strip(),
+                )
+                self.query_one("#status-text", Static).update("Workflow failed")
             else:
                 log_panel.write_line("[green]Workflow completed successfully.[/green]")
+                self.query_one("#status-text", Static).update("Workflow finished")
 
             # Refresh step status
             ws = self._workflow_svc.get_status()
@@ -198,19 +231,22 @@ class WorkflowLauncherScreen(Screen):
             step_widget = self.query_one("#step-progress", StepProgressWidget)
             step_widget.update_from_completed(self._completed_steps_from_status(ws))
 
-            self._cleanup_logger()
-            self.query_one("#btn-run", Button).disabled = False
-            self.query_one("#status-text", Static).update("Workflow finished")
+            self._finish_run_ui()
 
         elif event.state == WorkerState.ERROR:
             log_panel = self.query_one("#log-panel", LogPanel)
-            log_panel.write_line(f"[red]Worker error: {event.worker.error}[/red]")
-            self._cleanup_logger()
-            self.query_one("#btn-run", Button).disabled = False
+            self._log_actionable_error(
+                log_panel,
+                action="run workflow worker",
+                error=str(event.worker.error),
+            )
+            self.query_one("#status-text", Static).update("Worker failed")
+            self._finish_run_ui()
 
         elif event.state == WorkerState.CANCELLED:
-            self._cleanup_logger()
-            self.query_one("#btn-run", Button).disabled = False
+            self.query_one("#log-panel", LogPanel).write_line("[yellow]Workflow cancelled.[/yellow]")
+            self.query_one("#status-text", Static).update("Workflow cancelled")
+            self._finish_run_ui()
 
     def _cleanup_logger(self) -> None:
         """Remove the TUI log handler from the symfluence logger."""
@@ -219,12 +255,18 @@ class WorkflowLauncherScreen(Screen):
             self._log_handler = None
 
     def on_unmount(self) -> None:
+        self._stop_run_timer()
+        if self._run_timer is not None:
+            self._run_timer.stop()
+            self._run_timer = None
         self._cleanup_logger()
 
     def _current_run_mode(self) -> str:
         radio_set = self.query_one("#run-mode", RadioSet)
         pressed = radio_set.pressed_button
-        return pressed.id if pressed else "mode-full"
+        if pressed and pressed.id:
+            return pressed.id
+        return "mode-full"
 
     def _refresh_mode_controls(self) -> None:
         mode = self._current_run_mode()
@@ -237,6 +279,16 @@ class WorkflowLauncherScreen(Screen):
         step_header.display = is_step_mode
         selector.display = is_step_mode
         selector.disabled = not is_step_mode
+
+    def _sync_config_from_app(self) -> None:
+        """Apply config path provided by app-level actions (CLI/demo/palette)."""
+        app_config_path = self.app.config_path
+        if not app_config_path:
+            return
+        config_input = self.query_one("#config-path", Input)
+        if config_input.value != app_config_path:
+            config_input.value = app_config_path
+            self._do_load_config(app_config_path)
 
     def _refresh_step_selector(self, status: Dict[str, Any]) -> None:
         selector = self.query_one("#step-selector", SelectionList)
@@ -267,6 +319,105 @@ class WorkflowLauncherScreen(Screen):
             return [name for name in self._known_step_names if name not in completed]
 
         return []
+
+    def _set_running_ui(self, running: bool) -> None:
+        self.query_one("#btn-run", Button).disabled = running
+        self.query_one("#btn-load", Button).disabled = running
+        self.query_one("#btn-cancel-run", Button).disabled = not running
+        self.query_one("#run-mode", RadioSet).disabled = running
+        self.query_one("#force-rerun", Checkbox).disabled = running or (
+            self._current_run_mode() != "mode-full"
+        )
+        self.query_one("#step-selector", SelectionList).disabled = running or (
+            self._current_run_mode() != "mode-steps"
+        )
+
+    def _start_run_timer(self) -> None:
+        if self._run_timer is None:
+            self._run_timer = self.set_interval(1, self._tick_run_timer)
+        else:
+            self._run_timer.resume()
+        self._tick_run_timer()
+
+    def _stop_run_timer(self) -> None:
+        if self._run_timer is not None:
+            self._run_timer.pause()
+        self._run_started_at = None
+
+    def _tick_run_timer(self) -> None:
+        if not self._run_started_at:
+            return
+        elapsed = int((datetime.now() - self._run_started_at).total_seconds())
+        mins, secs = divmod(elapsed, 60)
+        self.query_one("#status-text", Static).update(
+            f"{self._run_summary_text} ({mins:02d}:{secs:02d})"
+        )
+
+    def _cancel_run(self) -> None:
+        if self._workflow_worker and self._workflow_worker.is_running:
+            self.query_one("#log-panel", LogPanel).write_line(
+                "[yellow]Cancellation requested...[/yellow]"
+            )
+            self.query_one("#active-task", Static).update("Active: cancelling")
+            self._workflow_worker.cancel()
+
+    def _on_log_message(self, message: str) -> None:
+        if message.startswith("Executing: "):
+            self.query_one("#active-task", Static).update(
+                f"Active: {message.split('Executing: ', 1)[1]}"
+            )
+        elif "Executing step:" in message:
+            self.query_one("#active-task", Static).update(
+                f"Active: {message.split('Executing step:', 1)[1].strip()}"
+            )
+
+    def _finish_run_ui(self) -> None:
+        self._stop_run_timer()
+        self._set_running_ui(False)
+        self._cleanup_logger()
+        self.query_one("#active-task", Static).update("Active: idle")
+        self._workflow_worker = None
+
+    def _log_actionable_error(
+        self,
+        log_panel: LogPanel,
+        action: str,
+        error: str,
+        config_path: str = "",
+    ) -> None:
+        err = (error or "unknown error").strip()
+        cfg = config_path or (
+            str(self._workflow_svc.config_path) if self._workflow_svc.config_path else ""
+        )
+        log_panel.write_line(f"[red]What happened:[/red] Failed to {action}.")
+        log_panel.write_line(f"[red]Error:[/red] {err}")
+
+        err_lower = err.lower()
+        if "not found" in err_lower or "no such file" in err_lower:
+            target = cfg or "/path/to/config.yaml"
+            log_panel.write_line(
+                "[yellow]Likely cause:[/yellow] Path is invalid or file is missing."
+            )
+            log_panel.write_line(f"[cyan]Try:[/cyan] ls -lah {target}")
+            return
+
+        if "missing required configuration keys" in err_lower:
+            target = cfg or "/path/to/config.yaml"
+            log_panel.write_line(
+                "[yellow]Likely cause:[/yellow] Required fields are missing in config."
+            )
+            log_panel.write_line(
+                f"[cyan]Try:[/cyan] symfluence workflow run --config {target} --debug"
+            )
+            return
+
+        target = cfg or "/path/to/config.yaml"
+        log_panel.write_line(
+            "[yellow]Likely cause:[/yellow] Workflow/runtime setup issue."
+        )
+        log_panel.write_line(
+            f"[cyan]Try:[/cyan] symfluence workflow run --config {target} --debug"
+        )
 
     @staticmethod
     def _completed_steps_from_status(status: Dict[str, Any]) -> List[str]:

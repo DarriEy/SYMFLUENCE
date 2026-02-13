@@ -164,11 +164,15 @@ class TestTUIPackageImports:
             CalibrationScreen,
             SlurmMonitorScreen,
             ResultsCompareScreen,
+            HelpScreen,
+            CommandPaletteScreen,
+            PathPromptScreen,
         )
         assert all([
             DashboardScreen, RunBrowserScreen, RunDetailScreen,
             WorkflowLauncherScreen, CalibrationScreen,
             SlurmMonitorScreen, ResultsCompareScreen,
+            HelpScreen, CommandPaletteScreen, PathPromptScreen,
         ])
 
     def test_import_app(self):
