@@ -1,7 +1,7 @@
 """
 Subset existing geofabric data based on pour points.
 
-Supports MERIT, TDX, and NWS hydrofabric formats.
+Supports MERIT, TDX, NWS, and HydroSHEDS hydrofabric formats.
 Uses graph-based upstream tracing to subset basins and rivers.
 
 Refactored from geofabric_utils.py (2026-01-01)
@@ -21,10 +21,11 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
     """
     Subsets geofabric data based on pour points and upstream basins.
 
-    Supports three hydrofabric formats with different column naming conventions:
+    Supports four hydrofabric formats with different column naming conventions:
     - MERIT: COMID-based with up1, up2, up3 upstream columns
     - TDX: streamID/LINKNO with USLINKNO1, USLINKNO2 upstream columns
     - NWS: COMID-based with toCOMID (reverse direction)
+    - HYDROSHEDS: HYBAS_ID with NEXT_DOWN (reverse direction)
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any):
@@ -56,6 +57,12 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
                 'river_id_col': 'COMID',
                 'upstream_cols': ['toCOMID'],
                 'upstream_default': 0
+            },
+            'HYDROSHEDS': {
+                'basin_id_col': 'HYBAS_ID',
+                'river_id_col': 'HYBAS_ID',
+                'upstream_cols': ['NEXT_DOWN'],
+                'upstream_default': 0
             }
         }
 
@@ -73,6 +80,9 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         """
         Subset the geofabric based on configuration.
 
+        If source geofabric paths are not set or files don't exist,
+        automatically downloads the appropriate regional data.
+
         Returns:
             Tuple of (subset_basins, subset_rivers) GeoDataFrames
         """
@@ -83,15 +93,12 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
 
         fabric_config = self.hydrofabric_types[hydrofabric_type]
 
+        # Auto-download geofabric if source paths are missing or default
+        basins_path, rivers_path = self._ensure_geofabric_available(hydrofabric_type)
+
         # Load data using shared utility
-        basins = GeofabricIOUtils.load_geopandas(
-            Path(self._get_config_value(lambda: self.config.paths.source_geofabric_basins_path, dict_key='SOURCE_GEOFABRIC_BASINS_PATH')),
-            self.logger
-        )
-        rivers = GeofabricIOUtils.load_geopandas(
-            Path(self._get_config_value(lambda: self.config.paths.source_geofabric_rivers_path, dict_key='SOURCE_GEOFABRIC_RIVERS_PATH')),
-            self.logger
-        )
+        basins = GeofabricIOUtils.load_geopandas(basins_path, self.logger)
+        rivers = GeofabricIOUtils.load_geopandas(rivers_path, self.logger)
         pour_point = GeofabricIOUtils.load_geopandas(
             self._get_pour_point_path(),
             self.logger
@@ -129,6 +136,157 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         )
 
         return subset_basins, subset_rivers
+
+    def _ensure_geofabric_available(self, hydrofabric_type: str) -> Tuple[Path, Path]:
+        """Ensure geofabric source files exist, downloading if necessary.
+
+        Checks configured source paths. If paths are 'default', missing, or
+        point to non-existent files, triggers auto-download of the appropriate
+        regional data.
+
+        Args:
+            hydrofabric_type: Uppercase hydrofabric type (MERIT, TDX, NWS)
+
+        Returns:
+            Tuple of (basins_path, rivers_path) to existing files
+        """
+        basins_cfg = self._get_config_value(
+            lambda: self.config.paths.source_geofabric_basins_path,
+            dict_key='SOURCE_GEOFABRIC_BASINS_PATH'
+        )
+        rivers_cfg = self._get_config_value(
+            lambda: self.config.paths.source_geofabric_rivers_path,
+            dict_key='SOURCE_GEOFABRIC_RIVERS_PATH'
+        )
+
+        basins_path = Path(basins_cfg) if basins_cfg and basins_cfg != 'default' else None
+        rivers_path = Path(rivers_cfg) if rivers_cfg and rivers_cfg != 'default' else None
+
+        # If both paths exist, use them directly
+        if (basins_path and basins_path.exists() and
+                rivers_path and rivers_path.exists()):
+            return basins_path, rivers_path
+
+        # Auto-download required
+        self.logger.info(
+            f"Source geofabric files not found for {hydrofabric_type}, "
+            "attempting automatic download..."
+        )
+        return self._auto_download_geofabric(hydrofabric_type)
+
+    def _auto_download_geofabric(self, hydrofabric_type: str) -> Tuple[Path, Path]:
+        """Download geofabric data using the appropriate acquisition handler.
+
+        Args:
+            hydrofabric_type: Uppercase hydrofabric type (MERIT, TDX, NWS)
+
+        Returns:
+            Tuple of (basins_path, rivers_path) to downloaded files
+
+        Raises:
+            ValueError: If hydrofabric type has no registered handler
+            FileNotFoundError: If download succeeds but expected files not found
+        """
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
+
+        # Map hydrofabric type to acquisition handler name
+        handler_map = {
+            'TDX': 'TDX_HYDRO',
+            'MERIT': 'MERIT_BASINS',
+            'NWS': 'NWS_HYDROFABRIC',
+            'HYDROSHEDS': 'HYDROSHEDS',
+        }
+
+        handler_name = handler_map.get(hydrofabric_type)
+        if not handler_name:
+            raise ValueError(
+                f"No automatic download handler for hydrofabric type "
+                f"'{hydrofabric_type}'. Please set SOURCE_GEOFABRIC_BASINS_PATH "
+                f"and SOURCE_GEOFABRIC_RIVERS_PATH manually."
+            )
+
+        handler = AcquisitionRegistry.get_handler(
+            handler_name, self.config, self.logger
+        )
+        output_dir = handler.download(self.project_dir)
+
+        # Locate the downloaded files
+        basins_path, rivers_path = self._find_downloaded_geofabric(
+            output_dir, hydrofabric_type
+        )
+        return basins_path, rivers_path
+
+    def _find_downloaded_geofabric(
+        self, download_dir: Path, hydrofabric_type: str
+    ) -> Tuple[Path, Path]:
+        """Locate basins and rivers files in the download directory.
+
+        Args:
+            download_dir: Directory where handler saved files
+            hydrofabric_type: Uppercase hydrofabric type
+
+        Returns:
+            Tuple of (basins_path, rivers_path)
+
+        Raises:
+            FileNotFoundError: If expected files not found
+        """
+        basins_path = None
+        rivers_path = None
+
+        if hydrofabric_type == 'TDX':
+            # Look for merged first, then individual parquets
+            merged_cat = download_dir / "tdx_catchments_merged.parquet"
+            merged_riv = download_dir / "tdx_rivers_merged.parquet"
+            if merged_cat.exists() and merged_riv.exists():
+                return merged_cat, merged_riv
+            # Find individual VPU files
+            cat_files = sorted(download_dir.glob("tdx_catchments_*.parquet"))
+            riv_files = sorted(download_dir.glob("tdx_rivers_*.parquet"))
+            if cat_files:
+                basins_path = cat_files[0]
+            if riv_files:
+                rivers_path = riv_files[0]
+
+        elif hydrofabric_type == 'MERIT':
+            # Find shapefile pairs
+            cat_files = sorted(download_dir.glob("**/pfaf_*_Basins_*.shp"))
+            riv_files = sorted(download_dir.glob("**/pfaf_*_rivernet*.shp"))
+            # Also check for MERIT naming pattern
+            if not cat_files:
+                cat_files = sorted(download_dir.glob("**/merit_cat_*.shp"))
+            if not riv_files:
+                riv_files = sorted(download_dir.glob("**/merit_riv_*.shp"))
+            if cat_files:
+                basins_path = cat_files[0]
+            if riv_files:
+                rivers_path = riv_files[0]
+
+        elif hydrofabric_type == 'NWS':
+            cat_files = sorted(download_dir.glob("nws_catchments_*.gpkg"))
+            riv_files = sorted(download_dir.glob("nws_flowpaths_*.gpkg"))
+            if cat_files:
+                basins_path = cat_files[0]
+            if riv_files:
+                rivers_path = riv_files[0]
+
+        elif hydrofabric_type == 'HYDROSHEDS':
+            # HydroBASINS provides both catchment polygons and topology
+            # (HYBAS_ID + NEXT_DOWN), so we use the same file for both
+            shp_files = sorted(download_dir.glob("hybas_*_v1c.shp"))
+            if shp_files:
+                basins_path = shp_files[0]
+                rivers_path = shp_files[0]  # Same file — topology is in basins
+
+        if basins_path is None or rivers_path is None:
+            raise FileNotFoundError(
+                f"Could not locate downloaded {hydrofabric_type} geofabric files "
+                f"in {download_dir}. Check download logs for errors."
+            )
+
+        self.logger.info(f"Using downloaded basins: {basins_path}")
+        self.logger.info(f"Using downloaded rivers: {rivers_path}")
+        return basins_path, rivers_path
 
     def _add_symfluence_columns(self, basins: gpd.GeoDataFrame, rivers: gpd.GeoDataFrame, hydrofabric_type: str):
         """
@@ -170,6 +328,16 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
             rivers_metric = rivers.to_crs('epsg:3763')
             rivers['Length'] = rivers_metric.geometry.length
             rivers.rename(columns={'slope': 'Slope'}, inplace=True)
+
+        elif hydrofabric_type == 'HYDROSHEDS':
+            basins['GRU_ID'] = basins['HYBAS_ID']
+            basins['gru_to_seg'] = basins['HYBAS_ID']
+            # HydroBASINS provides SUB_AREA in km², but also compute from geometry
+            basins_metric = basins.to_crs('epsg:3763')
+            basins['GRU_area'] = basins_metric.geometry.area
+            # Rivers (same data as basins for HydroSHEDS)
+            rivers['LINKNO'] = rivers['HYBAS_ID']
+            rivers['DSLINKNO'] = rivers['NEXT_DOWN']
 
     def aggregate_to_lumped(
         self,

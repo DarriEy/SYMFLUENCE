@@ -23,24 +23,31 @@ class GeofabricIOUtils:
     @staticmethod
     def load_geopandas(path: Path, logger: Any) -> gpd.GeoDataFrame:
         """
-        Load a shapefile into a GeoDataFrame with CRS validation.
+        Load geospatial data into a GeoDataFrame with CRS validation.
+
+        Supports shapefiles (.shp), GeoPackage (.gpkg), GeoParquet (.parquet),
+        and any other format supported by geopandas.read_file().
 
         Automatically sets CRS to EPSG:4326 if undefined.
 
         Args:
-            path: Path to shapefile
+            path: Path to geospatial file
             logger: Logger instance for warnings
 
         Returns:
             GeoDataFrame with validated CRS
 
         Raises:
-            FileNotFoundError: If shapefile doesn't exist
+            FileNotFoundError: If file doesn't exist
         """
         if not path.exists():
-            raise FileNotFoundError(f"Shapefile not found: {path}")
+            raise FileNotFoundError(f"Geospatial file not found: {path}")
 
-        gdf = gpd.read_file(path)
+        suffix = path.suffix.lower()
+        if suffix == '.parquet':
+            gdf = gpd.read_parquet(path)
+        else:
+            gdf = gpd.read_file(path)
 
         if gdf.crs is None:
             logger.warning(f"CRS is not defined for {path}. Setting to EPSG:4326.")

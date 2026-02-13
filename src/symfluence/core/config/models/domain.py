@@ -44,6 +44,22 @@ class DelineationConfig(BaseModel):
             return ','.join(str(x) for x in v)
         return v
 
+    @field_validator('geofabric_type', mode='before')
+    @classmethod
+    def normalize_geofabric_type(cls, v):
+        """Normalize geofabric type aliases to canonical names."""
+        if not isinstance(v, str):
+            return v
+        alias_map = {
+            'merit_basins': 'merit',
+            'geoglows': 'tdx',
+            'tdx_hydro': 'tdx',
+            'nws_hydrofabric': 'nws',
+            'nextgen': 'nws',
+            'hydrobasins': 'hydrosheds',
+        }
+        return alias_map.get(v.lower(), v.lower())
+
     @field_validator('stream_threshold', 'slope_area_threshold')
     @classmethod
     def validate_positive_thresholds(cls, v, info):

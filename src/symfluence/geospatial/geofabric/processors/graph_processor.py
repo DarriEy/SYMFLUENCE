@@ -54,8 +54,9 @@ class RiverGraphProcessor:
         # 'downstream': upstream_cols contain IDs of downstream segments (flow: current -> downstream)
         direction = fabric_config.get('direction', 'upstream')
 
-        # Legacy support for NWS toCOMID
-        if fabric_config.get('upstream_cols') == ['toCOMID']:
+        # Auto-detect downstream-pointer columns (NWS toCOMID, HydroSHEDS NEXT_DOWN)
+        downstream_cols = {'toCOMID', 'NEXT_DOWN'}
+        if fabric_config.get('upstream_cols') and set(fabric_config['upstream_cols']) <= downstream_cols:
             direction = 'downstream'
 
         for _, row in rivers.iterrows():
