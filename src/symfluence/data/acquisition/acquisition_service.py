@@ -53,7 +53,7 @@ Data Acquisition Workflows:
 Configuration Parameters:
     Data Source Selection:
         domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
-        domain.dem_source: 'merit_hydro', 'copernicus', 'copernicus_90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos'
+        domain.dem_source: 'merit_hydro', 'copernicus', 'copdem90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos'
         domain.land_class_source: 'modis', 'usgs_nlcd' (cloud only)
         domain.bounding_box_coords: 'lat_min/lon_min/lat_max/lon_max'
 
@@ -174,7 +174,7 @@ class AcquisitionService(ConfigurableMixin):
 
     Configuration:
         domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
-        domain.dem_source: DEM provider ('merit_hydro', 'copernicus', 'copernicus_90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos')
+        domain.dem_source: DEM provider ('merit_hydro', 'copernicus', 'copdem90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos')
         domain.land_class_source: Land cover provider ('modis', 'usgs_nlcd')
         domain.download_dem: Enable DEM acquisition (default: True)
         domain.download_soil: Enable soil class (default: True)
@@ -263,7 +263,7 @@ class AcquisitionService(ConfigurableMixin):
                         else:
                             raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
 
-                    elif dem_source == 'copernicus_90':
+                    elif dem_source == 'copdem90':
                         self.logger.info("Acquiring Copernicus DEM GLO-90 (90m) from AWS")
                         elev_file = downloader.download_copernicus_dem_90()
                         self.logger.info(f"✓ Copernicus DEM GLO-90 acquired: {elev_file}")
