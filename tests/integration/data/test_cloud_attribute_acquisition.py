@@ -14,6 +14,16 @@ from test_helpers.helpers import load_config_template, write_config
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 
 
+def _alos_deps_available() -> bool:
+    """Check if ALOS optional dependencies are installed."""
+    try:
+        import planetary_computer  # noqa: F401
+        import pystac_client  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 @pytest.fixture
 def base_attr_config(symfluence_code_dir, symfluence_data_root):
     """Create a base config for cloud attribute acquisition tests."""
@@ -118,3 +128,48 @@ def test_cloud_attribute_landclass_usgs(tmp_path, base_attr_config):
 
     land_path = project_dir / "attributes" / "landclass" / f"domain_{config['DOMAIN_NAME']}_land_classes.tif"
     assert land_path.exists(), f"Land class file missing: {land_path}"
+
+
+# =============================================================================
+# New DEM Source Integration Tests
+# =============================================================================
+
+@pytest.mark.parametrize("dem_source", ["copernicus_90", "srtm", "etopo", "mapzen"])
+def test_cloud_attribute_dem_sources(tmp_path, base_attr_config, dem_source):
+    """Verify DEM acquisition from new cloud DEM sources."""
+    config = base_attr_config.copy()
+    config["DOWNLOAD_DEM"] = True
+    config["DEM_SOURCE"] = dem_source
+    config["DOMAIN_NAME"] = f"test_dem_{dem_source}"
+
+    cfg_path = tmp_path / f"test_config_dem_{dem_source}.yaml"
+    write_config(config, cfg_path)
+
+    symfluence = SYMFLUENCE(cfg_path)
+    project_dir = Path(symfluence.managers["project"].setup_project())
+    symfluence.managers["data"].acquire_attributes()
+
+    dem_path = project_dir / "attributes" / "elevation" / "dem" / f"domain_{config['DOMAIN_NAME']}_elv.tif"
+    assert dem_path.exists(), f"DEM file missing for source '{dem_source}': {dem_path}"
+
+
+@pytest.mark.skipif(
+    not _alos_deps_available(),
+    reason="planetary-computer and pystac-client not installed"
+)
+def test_cloud_attribute_dem_alos(tmp_path, base_attr_config):
+    """Verify ALOS DEM acquisition (requires optional dependencies)."""
+    config = base_attr_config.copy()
+    config["DOWNLOAD_DEM"] = True
+    config["DEM_SOURCE"] = "alos"
+    config["DOMAIN_NAME"] = "test_dem_alos"
+
+    cfg_path = tmp_path / "test_config_dem_alos.yaml"
+    write_config(config, cfg_path)
+
+    symfluence = SYMFLUENCE(cfg_path)
+    project_dir = Path(symfluence.managers["project"].setup_project())
+    symfluence.managers["data"].acquire_attributes()
+
+    dem_path = project_dir / "attributes" / "elevation" / "dem" / f"domain_{config['DOMAIN_NAME']}_elv.tif"
+    assert dem_path.exists(), f"DEM file missing for ALOS: {dem_path}"

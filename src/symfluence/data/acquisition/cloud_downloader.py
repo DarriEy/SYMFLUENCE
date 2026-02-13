@@ -15,7 +15,9 @@ Supported Datasets:
     Forcing:
         - ERA5, AORC, HRRR, CONUS404, NEX-GDDP, EM-Earth
     Attributes:
-        - SoilGrids, MODIS Landcover, USGS NLCD, Copernicus DEM, FABDEM, NASADEM
+        - SoilGrids, MODIS Landcover, USGS NLCD
+        - DEM: Copernicus GLO-30, Copernicus GLO-90, FABDEM, NASADEM,
+               SRTM GL1, ETOPO 2022, Mapzen Terrain, ALOS AW3D30
         - Glacier data (RGI)
     Observations:
         - GRACE, MODIS (snow/ET), USGS streamflow, SMAP soil moisture, ISMN
@@ -201,6 +203,59 @@ class CloudForcingDownloader(ConfigMixin):
             Path: Location of downloaded elevation raster file.
         """
         handler = AcquisitionRegistry.get_handler('NASADEM_LOCAL', self.config, self.logger)
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
+
+    def download_copernicus_dem_90(self) -> Path:
+        """Download Copernicus DEM GLO-90 (90m) elevation data for domain.
+
+        Returns:
+            Path: Location of downloaded elevation raster file.
+        """
+        handler = AcquisitionRegistry.get_handler('COPDEM90', self.config, self.logger)
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
+
+    def download_srtm_dem(self) -> Path:
+        """Download SRTM GL1 (30m) elevation data for domain.
+
+        Coverage: 60N to 56S latitude.
+
+        Returns:
+            Path: Location of downloaded elevation raster file.
+        """
+        handler = AcquisitionRegistry.get_handler('SRTM', self.config, self.logger)
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
+
+    def download_etopo_dem(self) -> Path:
+        """Download ETOPO 2022 global relief model elevation data for domain.
+
+        Configurable resolution via ETOPO_RESOLUTION (15s/30s/60s) and
+        variant via ETOPO_VARIANT (surface/bedrock).
+
+        Returns:
+            Path: Location of downloaded elevation raster file.
+        """
+        handler = AcquisitionRegistry.get_handler('ETOPO2022', self.config, self.logger)
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
+
+    def download_mapzen_dem(self) -> Path:
+        """Download Mapzen terrain tile elevation data for domain.
+
+        Returns:
+            Path: Location of downloaded elevation raster file.
+        """
+        handler = AcquisitionRegistry.get_handler('MAPZEN', self.config, self.logger)
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
+
+    def download_alos_dem(self) -> Path:
+        """Download ALOS AW3D30 (30m) elevation data for domain.
+
+        Requires optional packages: planetary-computer, pystac-client.
+        Install with: pip install symfluence[alos]
+
+        Returns:
+            Path: Location of downloaded elevation raster file.
+        """
+        handler = AcquisitionRegistry.get_handler('ALOS', self.config, self.logger)
         return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_glacier_data(self) -> Path:

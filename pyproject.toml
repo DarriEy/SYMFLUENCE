@@ -122,9 +122,14 @@ gui = [
 tui = [
   "textual>=0.47.0,<1.0.0",
 ]
+# ALOS DEM via Microsoft Planetary Computer
+alos = [
+  "planetary-computer>=1.0.0",
+  "pystac-client>=0.7.0",
+]
 # All development dependencies
 all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui]",
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos]",
 ]
 
 [project.scripts]
