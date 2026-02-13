@@ -432,7 +432,7 @@ class InMemoryModelWorker(BaseWorker):
             catchment_dir = data_dir / f"domain_{domain_name}" / 'shapefiles' / 'catchment'
 
             for pattern in ['*_HRUs_*.shp', '*_catchment*.shp', '*.shp']:
-                shp_files = list(catchment_dir.glob(pattern))
+                shp_files = list(catchment_dir.rglob(pattern))
                 if shp_files:
                     gdf = gpd.read_file(shp_files[0])
                     area_cols = [c for c in gdf.columns if 'area' in c.lower()]
