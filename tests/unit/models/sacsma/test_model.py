@@ -19,7 +19,7 @@ class TestCoupledSimulation:
         temp = 10.0 * np.sin(np.arange(n) * 2 * np.pi / 365 - np.pi / 2)
         pet = np.maximum(0.0, 2.0 + 1.5 * np.sin(np.arange(n) * 2 * np.pi / 365 - np.pi / 2))
 
-        flow, state = simulate(precip, temp, pet)
+        flow, state = simulate(precip, temp, pet, start_date='2004-01-01')
 
         assert len(flow) == n
         assert np.all(flow >= 0)
@@ -32,7 +32,7 @@ class TestCoupledSimulation:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        flow, _ = simulate(precip, temp, pet, params=None)
+        flow, _ = simulate(precip, temp, pet, params=None, start_date='2004-01-01')
         assert len(flow) == n
 
     def test_with_custom_params(self):
@@ -43,7 +43,7 @@ class TestCoupledSimulation:
         pet = np.full(n, 2.0)
 
         custom = {'SCF': 1.2, 'UZTWM': 80.0}
-        flow, _ = simulate(precip, temp, pet, params=custom)
+        flow, _ = simulate(precip, temp, pet, params=custom, start_date='2004-01-01')
         assert len(flow) == n
 
     def test_all_rain_passthrough(self):
@@ -53,7 +53,7 @@ class TestCoupledSimulation:
         temp = np.full(n, 25.0)  # No snow
         pet = np.full(n, 2.0)
 
-        flow, state = simulate(precip, temp, pet)
+        flow, state = simulate(precip, temp, pet, start_date='2004-06-01')
 
         assert flow.sum() > 0
         assert state.snow17.w_i == pytest.approx(0.0, abs=1e-10)
@@ -65,7 +65,7 @@ class TestCoupledSimulation:
         temp = np.concatenate([np.full(100, -10.0), np.full(100, 15.0)])
         pet = np.concatenate([np.full(100, 0.5), np.full(100, 3.0)])
 
-        flow, _ = simulate(precip, temp, pet)
+        flow, _ = simulate(precip, temp, pet, start_date='2004-01-01')
 
         cold_flow = flow[:100].mean()
         warm_flow = flow[100:].mean()
@@ -78,20 +78,20 @@ class TestCoupledSimulation:
         temp = np.full(n, 5.0)
         pet = np.full(n, 2.0)
 
-        _, state = simulate(precip, temp, pet)
+        _, state = simulate(precip, temp, pet, start_date='2004-01-01')
 
         assert isinstance(state, SacSmaSnow17State)
         assert isinstance(state.snow17, Snow17State)
         assert isinstance(state.sacsma, SacSmaState)
 
-    def test_day_of_year_auto_generated(self):
-        """Should generate day_of_year if not provided."""
+    def test_day_of_year_from_start_date(self):
+        """Should generate correct day_of_year from start_date."""
         n = 100
         precip = np.full(n, 3.0)
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        flow, _ = simulate(precip, temp, pet, day_of_year=None)
+        flow, _ = simulate(precip, temp, pet, start_date='2004-07-01')
         assert len(flow) == n
 
     def test_day_of_year_explicit(self):
@@ -105,6 +105,16 @@ class TestCoupledSimulation:
         flow, _ = simulate(precip, temp, pet, day_of_year=doy)
         assert len(flow) == n
 
+    def test_missing_doy_raises_in_coupled_mode(self):
+        """Should raise ValueError when no day_of_year or start_date in coupled mode."""
+        n = 30
+        precip = np.full(n, 3.0)
+        temp = np.full(n, 10.0)
+        pet = np.full(n, 2.0)
+
+        with pytest.raises(ValueError, match="day_of_year or start_date required"):
+            simulate(precip, temp, pet)
+
     def test_zero_precip_drains_storage(self):
         """No precip: flow should come from draining initial storage."""
         n = 500
@@ -112,7 +122,7 @@ class TestCoupledSimulation:
         temp = np.full(n, 10.0)
         pet = np.full(n, 1.0)
 
-        flow, _ = simulate(precip, temp, pet)
+        flow, _ = simulate(precip, temp, pet, start_date='2004-01-01')
 
         assert flow[:30].sum() > 0
         assert flow[-10:].mean() < 0.01
@@ -124,7 +134,7 @@ class TestCoupledSimulation:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        flow, _ = simulate(precip, temp, pet)
+        flow, _ = simulate(precip, temp, pet, start_date='2004-01-01')
 
         assert flow.min() >= 0
         assert flow[365:].mean() < precip.mean()
@@ -141,7 +151,17 @@ class TestCoupledSimulation:
             sacsma=SacSmaState(uztwc=10.0, uzfwc=5.0, lztwc=50.0, lzfpc=20.0, lzfsc=10.0, adimc=60.0),
         )
 
-        flow, _ = simulate(precip, temp, pet, initial_state=init_state)
+        flow, _ = simulate(precip, temp, pet, initial_state=init_state, start_date='2004-01-01')
+        assert len(flow) == n
+
+    def test_start_date_leap_year(self):
+        """start_date on a leap year should produce DOY=366 for Dec 31."""
+        n = 366  # Full leap year
+        precip = np.full(n, 3.0)
+        temp = np.full(n, 10.0)
+        pet = np.full(n, 2.0)
+
+        flow, _ = simulate(precip, temp, pet, start_date='2004-01-01')
         assert len(flow) == n
 
 
@@ -172,6 +192,16 @@ class TestStandaloneMode:
         assert state.snow17.w_i == 0.0
         assert state.snow17.swe == 0.0
 
+    def test_standalone_no_doy_required(self):
+        """Standalone mode should not require day_of_year or start_date."""
+        n = 50
+        precip = np.full(n, 5.0)
+        temp = np.full(n, 10.0)
+        pet = np.full(n, 2.0)
+
+        flow, _ = simulate(precip, temp, pet, snow_module='none')
+        assert len(flow) == n
+
 
 class TestParameterSensitivity:
     """Verify parameters affect simulation as expected."""
@@ -182,7 +212,7 @@ class TestParameterSensitivity:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
         params = {**DEFAULT_PARAMS, **kwargs}
-        flow, _ = simulate(precip, temp, pet, params=params)
+        flow, _ = simulate(precip, temp, pet, params=params, start_date='2004-01-01')
         return flow
 
     def test_higher_uzk_more_interflow(self):
@@ -212,7 +242,7 @@ class TestCoupledJAX:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        flow, state = simulate(precip, temp, pet, use_jax=True)
+        flow, state = simulate(precip, temp, pet, use_jax=True, start_date='2004-01-01')
         assert len(flow) == n
         assert float(flow.sum()) > 0
 
@@ -224,7 +254,7 @@ class TestCoupledJAX:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        flow_np, _ = simulate(precip, temp, pet, use_jax=False)
-        flow_jax, _ = simulate(precip, temp, pet, use_jax=True)
+        flow_np, _ = simulate(precip, temp, pet, use_jax=False, start_date='2004-01-01')
+        flow_jax, _ = simulate(precip, temp, pet, use_jax=True, start_date='2004-01-01')
 
         np.testing.assert_allclose(np.array(flow_jax), flow_np, rtol=1e-4, atol=1e-5)

@@ -159,6 +159,7 @@ def simulate(
     si: float = 100.0,
     use_jax: bool = False,
     snow_module: str = 'snow17',
+    start_date: Optional[str] = None,
 ) -> Tuple[Any, SacSmaSnow17State]:
     """Run coupled or standalone SAC-SMA simulation.
 
@@ -168,7 +169,9 @@ def simulate(
         pet: PET array (mm/dt)
         params: Combined parameter dictionary (Snow-17 + SAC-SMA).
                 Uses defaults for any missing parameters.
-        day_of_year: Julian day array (1-366). Auto-generated if None.
+        day_of_year: Julian day array (1-366). If None, generated from
+                     start_date (if provided) or raises ValueError in
+                     coupled mode.
         initial_state: Initial coupled state. If None, Snow-17 starts
                        with no snow, SAC-SMA at 50% capacity.
         warmup_days: Warmup period in days (output includes warmup).
@@ -177,10 +180,14 @@ def simulate(
         si: SWE threshold for areal depletion in Snow-17.
         use_jax: Whether to use JAX backend.
         snow_module: 'snow17' for coupled mode, 'none' for standalone SAC-SMA.
+        start_date: Start date string (e.g. '2004-01-01') for generating
+                    calendar-correct day_of_year when day_of_year is None.
 
     Returns:
         Tuple of (total_flow mm/dt, final_state)
     """
+    import pandas as pd
+
     n = len(precip)
     actual_jax = use_jax and HAS_JAX
 
@@ -197,7 +204,17 @@ def simulate(
 
     # Day of year
     if day_of_year is None:
-        day_of_year = np.arange(1, n + 1) % 365 + 1
+        if start_date is not None:
+            dates = pd.date_range(start=start_date, periods=n, freq='D')
+            day_of_year = dates.dayofyear.values
+        elif snow_module == 'snow17':
+            raise ValueError(
+                "day_of_year or start_date required for coupled Snow-17 mode. "
+                "Pass day_of_year array or start_date='YYYY-MM-DD'."
+            )
+        else:
+            # Standalone SAC-SMA doesn't use day_of_year
+            day_of_year = np.ones(n, dtype=int)
 
     if snow_module == 'none':
         # Standalone SAC-SMA: precip goes directly as effective precipitation
