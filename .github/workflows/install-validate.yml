@@ -231,6 +231,11 @@ jobs:
         run: |
           set -e
 
+          # Strip system HDF5/netCDF from LD_LIBRARY_PATH for Python tests.
+          # These paths are needed for Fortran compilation but poison pip's
+          # bundled HDF5 at runtime (system 1.10 overrides wheel's 1.14+).
+          export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/usr/lib/x86_64-linux-gnu' | tr '\n' ':' | sed 's/:$//')
+
           TEST_LEVEL="${{ steps.test_level.outputs.test_level }}"
           echo "========================================="
           echo "Running ${TEST_LEVEL} test suite"

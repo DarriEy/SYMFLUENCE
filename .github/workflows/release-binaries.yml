@@ -319,8 +319,22 @@ jobs:
           echo "   1. Ensure NPM_TOKEN is set in repository secrets"
           echo "   2. Create a release (not workflow_dispatch)"
 
-      - name: Publish to npm (production)
+      - name: Check if version already published
         if: github.event_name == 'push'
+        id: npm-check
+        working-directory: npm
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "symfluence@${PKG_VERSION}" version 2>/dev/null; then
+            echo "Version ${PKG_VERSION} already published to npm, skipping"
+            echo "already_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version ${PKG_VERSION} not yet published"
+            echo "already_published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm (production)
+        if: github.event_name == 'push' && steps.npm-check.outputs.already_published != 'true'
         working-directory: npm
         run: |
           echo "Publishing to npm registry..."

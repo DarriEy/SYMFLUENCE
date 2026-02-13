@@ -1027,7 +1027,10 @@ EOF
         local req_file="${symfluence_dir}/requirements.txt"
         local pyproj_path="${symfluence_dir}/pyproject.toml"
         if [[ "$PLATFORM" == "windows" ]]; then
-            pyproj_path=$(cygpath -w "$pyproj_path")
+            # Use cygpath -m (mixed mode) for forward slashes that Python handles safely.
+            # cygpath -w produces backslashes that Python interprets as escape sequences
+            # (e.g. \a → bell char, \n → newline).
+            pyproj_path=$(cygpath -m "$pyproj_path")
         fi
 
         if [[ -f "${symfluence_dir}/pyproject.toml" ]]; then
