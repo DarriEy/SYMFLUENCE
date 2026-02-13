@@ -5,10 +5,13 @@ Provides run history browsing across one or more domains.
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -120,7 +123,8 @@ class RunHistoryService:
                 model=config.get("hydrological_model", ""),
                 algorithm=config.get("optimization_algorithm", ""),
             )
-        except Exception:
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            logger.debug("Failed to parse run summary '%s': %s", path, exc)
             return None
 
     @staticmethod
@@ -130,5 +134,9 @@ class RunHistoryService:
             import yaml
             with open(path) as f:
                 return yaml.safe_load(f)
-        except Exception:
+        except ImportError:
+            logger.debug("PyYAML not available; config snapshot disabled")
+            return None
+        except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+            logger.debug("Failed to parse YAML snapshot '%s': %s", path, exc)
             return None

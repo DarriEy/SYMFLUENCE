@@ -126,6 +126,16 @@ DataTable > .datatable--header {
     padding: 1;
 }
 
+#step-selector {
+    height: 12;
+    border: solid $primary;
+    margin: 0 0 1 0;
+}
+
+#launcher-help {
+    color: $text-muted;
+}
+
 /* Calibration screen */
 .cal-top {
     height: auto;

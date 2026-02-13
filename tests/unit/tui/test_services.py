@@ -181,7 +181,7 @@ class TestRunHistoryService:
         svc = RunHistoryService(mock_data_dir / "domain_iceland_test")
         runs = svc.list_runs()
         config = svc.load_config_snapshot(runs[0])
-        assert config is not None or config is None  # May fall back to most recent
+        assert config is None
 
     def test_parse_summary_malformed_json(self, tmp_path):
         """Malformed JSON returns None gracefully."""

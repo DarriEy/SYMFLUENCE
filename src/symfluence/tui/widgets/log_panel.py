@@ -39,4 +39,4 @@ class TUILogHandler(logging.Handler):
             msg = self.format(record)
             self._app.call_from_thread(self._log_panel.write_line, msg)
         except Exception:
-            pass  # never crash the logger
+            self.handleError(record)

@@ -3,6 +3,8 @@
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -154,6 +156,25 @@ class TestDashboardScreen:
 
         asyncio.run(_test())
 
+    def test_domain_selection_applies_run_browser_filter(self, mock_data_dir):
+        """Selecting a dashboard domain opens Run Browser with that filter set."""
+        from symfluence.tui.screens.run_browser import RunBrowserScreen
+        from textual.widgets import Input
+
+        async def _test():
+            app = SymfluenceTUI()
+            app.data_dir_service = DataDirService(str(mock_data_dir))
+            async with app.run_test(size=(120, 40)) as pilot:
+                app.screen.on_data_table_row_selected(
+                    SimpleNamespace(row_key="bow_at_banff")
+                )
+                await pilot.pause()
+                assert isinstance(app.screen, RunBrowserScreen)
+                domain_filter = app.screen.query_one("#filter-domain", Input)
+                assert domain_filter.value == "bow_at_banff"
+
+        asyncio.run(_test())
+
 
 # ============================================================================
 # RunBrowserScreen
@@ -271,6 +292,22 @@ class TestWorkflowLauncherScreen:
 
         asyncio.run(_test())
 
+    def test_parses_structured_workflow_status(self):
+        """Structured status payloads are converted to completed CLI step names."""
+        from symfluence.tui.screens.workflow_launcher import WorkflowLauncherScreen
+
+        status = {
+            "total_steps": 3,
+            "completed_steps": 1,
+            "pending_steps": 2,
+            "step_details": [
+                {"cli_name": "setup_project", "complete": True},
+                {"cli_name": "run_model", "complete": False},
+            ],
+        }
+        completed = WorkflowLauncherScreen._completed_steps_from_status(status)
+        assert completed == ["setup_project"]
+
     def test_config_path_prefilled(self, mock_data_dir):
         """Config path is prefilled when passed via CLI."""
         async def _test():
@@ -286,8 +323,8 @@ class TestWorkflowLauncherScreen:
 
         asyncio.run(_test())
 
-    def test_slurm_options_hidden_on_laptop(self, mock_data_dir):
-        """SLURM options are hidden on non-HPC systems."""
+    def test_selected_steps_mode_runs_selected_steps(self, mock_data_dir):
+        """Selected steps mode dispatches only the chosen steps."""
         async def _test():
             app = SymfluenceTUI()
             app.data_dir_service = DataDirService(str(mock_data_dir))
@@ -295,9 +332,35 @@ class TestWorkflowLauncherScreen:
                 await app.action_switch_mode("workflow")
                 await pilot.pause()
 
-                from textual.widgets import Static
-                slurm_header = app.screen.query_one("#slurm-header", Static)
-                assert slurm_header.display is False
+                from textual.widgets import SelectionList
+
+                screen = app.screen
+                screen._workflow_svc._sf = object()
+                screen._workflow_svc.run_steps = MagicMock()
+                screen._workflow_svc.run_workflow = MagicMock()
+                screen._known_step_names = ["setup_project", "run_model"]
+
+                selector = screen.query_one("#step-selector", SelectionList)
+                selector.clear_options()
+                selector.add_option(("Set up project structure", "setup_project"))
+                selector.add_option(("Run hydrological model", "run_model"))
+                selector.select("run_model")
+                screen._current_run_mode = lambda: "mode-steps"
+                screen._refresh_mode_controls()
+
+                captured = {}
+
+                def _capture_worker(work, **kwargs):
+                    captured["work"] = work
+                    captured["kwargs"] = kwargs
+
+                screen.run_worker = _capture_worker
+                screen._do_run()
+
+                captured["work"]()
+                screen._workflow_svc.run_steps.assert_called_once_with(["run_model"])
+                screen._workflow_svc.run_workflow.assert_not_called()
+                screen._cleanup_logger()
 
         asyncio.run(_test())
 

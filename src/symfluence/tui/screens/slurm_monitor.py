@@ -13,6 +13,10 @@ from ..widgets.slurm_table import SlurmJobTable
 class SlurmMonitorScreen(Screen):
     """Monitor and manage SLURM jobs."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._timer = None
+
     def compose(self) -> ComposeResult:
         yield Header()
         yield Vertical(
@@ -36,8 +40,19 @@ class SlurmMonitorScreen(Screen):
         self._timer = self.set_interval(60, self._refresh_jobs)
 
     def on_screen_resume(self) -> None:
+        if self._timer is not None:
+            self._timer.resume()
         if self.app.is_hpc:
             self._refresh_jobs()
+
+    def on_screen_suspend(self) -> None:
+        if self._timer is not None:
+            self._timer.pause()
+
+    def on_unmount(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-refresh":
