@@ -22,7 +22,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-examples/*/.ipynb_checkpoints/
+.ipynb_checkpoints/
 examples/*/data/
 .confluence_env
 mpi_*
