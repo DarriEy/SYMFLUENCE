@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-latest, windows-latest]  # Linux, macOS, Windows
+        os: [ubuntu-24.04, macos-latest, windows-latest]  # Linux, macOS, Windows
         python-version: ['3.11']  # Focus on latest stable and supported version
 
     steps:
@@ -66,10 +66,7 @@ jobs:
       - name: Install minimal system dependencies
         shell: bash
         run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y software-properties-common
-            sudo add-apt-repository -y ppa:ubuntugis/ppa
+          if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
             sudo apt-get update
             sudo apt-get install -y gdal-bin libgdal-dev cdo
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
@@ -93,27 +90,19 @@ jobs:
           fi
           python -m pip install --upgrade pip
 
-          # Install GDAL Python bindings
-          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+          # Install GDAL Python bindings (platform-agnostic via gdal-config)
+          if command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
-            pip install GDAL==$GDAL_VERSION
-            # Install CPU-only torch to save space on Linux
-            pip install torch --index-url https://download.pytorch.org/whl/cpu
-          elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
-            # macOS GDAL from brew - install compatible version
-            GDAL_VERSION=$(gdal-config --version)
-            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-            NEXT_PATCH=$((GDAL_PATCH + 1))
-            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # Windows: Use GDAL from conda (already installed in previous step)
-            # Install CPU-only torch to save space on Windows
-            pip install torch --index-url https://download.pytorch.org/whl/cpu
             # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
-            # Use Python instead of sed for Windows compatibility
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+          fi
+
+          # Install CPU-only torch on Linux/Windows to save space
+          if [[ "${{ matrix.os }}" != "macos-"* ]]; then
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
@@ -143,9 +132,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-latest, windows-latest]  # Linux, macOS, Windows
+        os: [ubuntu-24.04, macos-latest, windows-latest]  # Linux, macOS, Windows
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
             python-version: '3.11'
@@ -184,9 +173,6 @@ jobs:
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
           sudo apt-get update
           sudo apt-get install -y \
             build-essential gfortran cmake \
@@ -257,15 +243,18 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
-          # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
-          # Temporarily remove GDAL from pyproject.toml to avoid build-from-source
-          # GDAL will be installed later with matching system version
-          python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c); print('Temporarily removed GDAL from pyproject.toml')"
-          # Install the package with remaining dependencies
-          pip install -e . || pip install .  # Fallback to non-editable install
-          # Restore pyproject.toml
-          git checkout pyproject.toml
+
+          # Install GDAL Python bindings BEFORE package install (needed for osgeo imports)
+          if command -v gdal-config >/dev/null 2>&1; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
+          fi
+
+          pip install -e . || pip install .
+          git checkout pyproject.toml 2>/dev/null || true
           echo "Package pre-installed for build script"
 
       - name: Build external tools
@@ -328,19 +317,10 @@ jobs:
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings matching system version
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
+          if command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
-            pip install GDAL==$GDAL_VERSION
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            GDAL_VERSION=$(gdal-config --version)
-            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-            NEXT_PATCH=$((GDAL_PATCH + 1))
-            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            # GDAL from conda (already installed in previous step)
-            # Ensure gdal-python is installed from conda-forge
             conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
@@ -460,7 +440,7 @@ jobs:
       matrix:
         include:
           # Test on Linux with multiple Python versions
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             python-version: '3.11'
           # Test on macOS with latest Python
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -499,11 +479,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
           sudo apt-get update
           sudo apt-get install -y \
             build-essential gfortran cmake \
@@ -582,15 +559,18 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
-          # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
-          # Temporarily remove GDAL from pyproject.toml to avoid build-from-source
-          # GDAL will be installed later with matching system version
-          python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c); print('Temporarily removed GDAL from pyproject.toml')"
-          # Install the package with remaining dependencies
-          pip install -e . || pip install .  # Fallback to non-editable install
-          # Restore pyproject.toml
-          git checkout pyproject.toml
+
+          # Install GDAL Python bindings BEFORE package install (needed for osgeo imports)
+          if command -v gdal-config >/dev/null 2>&1; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
+          fi
+
+          pip install -e . || pip install .
+          git checkout pyproject.toml 2>/dev/null || true
           echo "Package pre-installed for build script"
 
       - name: Build external tools
@@ -653,25 +633,15 @@ jobs:
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings matching system version
-          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+          if command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
-            pip install GDAL==$GDAL_VERSION
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            GDAL_VERSION=$(gdal-config --version)
-            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-            NEXT_PATCH=$((GDAL_PATCH + 1))
-            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # GDAL from conda (already installed in previous step)
-            # Ensure gdal-python is installed from conda-forge
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
             conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
             python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
             pip install -e ".[test]" || pip install -e . || pip install .
           else
@@ -705,7 +675,7 @@ jobs:
   cross-platform-summary:
     name: Cross-Platform Test Summary
     needs: [unit-tests-matrix, binary-validation-matrix, integration-tests-matrix]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: always()
 
     steps:

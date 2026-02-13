@@ -33,7 +33,7 @@ jobs:
   # ===========================================================================
   setup:
     name: Setup Test Configuration
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       test_level: ${{ steps.determine.outputs.test_level }}
       matrix: ${{ steps.determine.outputs.matrix }}
@@ -57,10 +57,10 @@ jobs:
           # Generate matrix based on test level
           if [ "$TEST_LEVEL" = "full" ]; then
             # Full mode: all supported Python combinations (>=3.11)
-            MATRIX='{"include":[{"os":"ubuntu-22.04","python-version":"3.11"},{"os":"macos-latest","python-version":"3.11"}]}'
+            MATRIX='{"include":[{"os":"ubuntu-24.04","python-version":"3.11"},{"os":"macos-latest","python-version":"3.11"}]}'
           else
             # Quick mode: only 3.11 on each platform
-            MATRIX='{"include":[{"os":"ubuntu-22.04","python-version":"3.11"},{"os":"macos-latest","python-version":"3.11"}]}'
+            MATRIX='{"include":[{"os":"ubuntu-24.04","python-version":"3.11"},{"os":"macos-latest","python-version":"3.11"}]}'
           fi
 
           echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
@@ -122,9 +122,6 @@ jobs:
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
           sudo apt-get install -y \
             build-essential gfortran cmake make pkg-config \
             ninja-build autoconf automake libtool \
@@ -135,7 +132,7 @@ jobs:
             libhdf5-dev hdf5-tools libudunits2-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
-            python3-dev python3-pip python3-numpy python3-gdal cdo
+            python3-dev python3-pip python3-numpy cdo
           mpicc --version
           mpirun --version
           gdal-config --version
@@ -151,20 +148,9 @@ jobs:
           echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
-          # Install GDAL Python bindings
-          # Get GDAL version from library
+          # Install GDAL Python bindings matching system library
           GDAL_VERSION=$(gdal-config --version)
-          GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-          GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-          GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-
-          # Calculate next patch version for upper bound (allows post releases like 3.12.0.post1)
-          NEXT_PATCH=$((GDAL_PATCH + 1))
-
-          # Install compatible GDAL Python bindings
-          # Example: for GDAL 3.12.0, install "GDAL>=3.12.0,<3.12.1"
-          # This allows 3.12.0.post1 but prevents 3.12.1 which may be incompatible
-          python3 -m pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+          python3 -m pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
 
           gcc --version
           mpicc --version
@@ -333,9 +319,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
           sudo apt-get install -y gdal-bin libgdal-dev cdo openmpi-bin libopenmpi-dev
 
       - name: Install system dependencies (macOS)
@@ -365,7 +348,7 @@ jobs:
   binary-validation:
     name: Binary Validation
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -392,11 +375,8 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
           sudo apt-get install -y \
-            gdal-bin libgdal-dev libproj-dev python3-gdal \
+            gdal-bin libgdal-dev libproj-dev \
             openmpi-bin libopenmpi-dev \
             libnetcdf-dev libnetcdff-dev libhdf5-dev libudunits2-dev \
             libfl-dev libbsd-dev cdo
@@ -404,7 +384,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-22.04-py3.11
+          name: symfluence-installation-ubuntu-24.04-py3.11
 
       - name: Restore installation
         env:
@@ -440,7 +420,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -473,7 +453,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-22.04-py3.11
+          name: symfluence-installation-ubuntu-24.04-py3.11
 
       - name: Restore installation
         env:
@@ -505,7 +485,7 @@ jobs:
   e2e-quick:
     name: E2E Quick (3-hour SUMMA)
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -534,9 +514,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y software-properties-common
-          # Add ubuntugis PPA for libproj.so.25 (PROJ 9.x) required by RHESSys
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
           sudo apt-get install -y \
             gdal-bin libgdal-dev libproj-dev \
             openmpi-bin libopenmpi-dev \
@@ -546,7 +523,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-22.04-py3.11
+          name: symfluence-installation-ubuntu-24.04-py3.11
 
       - name: Restore installation
         env:
@@ -607,7 +584,7 @@ jobs:
   e2e-full:
     name: E2E Full (1-month + Calibration)
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     if: needs.setup.outputs.test_level == 'full'
 
@@ -636,9 +613,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y software-properties-common
-          # Add ubuntugis PPA for libproj.so.25 (PROJ 9.x) required by RHESSys
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
           sudo apt-get install -y \
             gdal-bin libgdal-dev libproj-dev \
             openmpi-bin libopenmpi-dev \
@@ -648,7 +622,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-22.04-py3.11
+          name: symfluence-installation-ubuntu-24.04-py3.11
 
       - name: Restore installation
         env:

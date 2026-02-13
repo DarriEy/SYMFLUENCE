@@ -13,6 +13,7 @@ import pytest
 import yaml
 from pathlib import Path
 from symfluence import SYMFLUENCE
+from test_helpers.helpers import load_config_template
 
 
 # Skip tests on macOS ARM due to known HDF5/netCDF4 segfault issues with easymore
@@ -27,16 +28,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requ
 @pytest.mark.calibration
 @pytest.mark.requires_data
 @_MACOS_ARM_SKIP
-def test_ellioaar_calibration(ellioaar_domain):
+def test_ellioaar_calibration(ellioaar_domain, symfluence_code_dir):
     """Run calibration demo for Elliðaár, Iceland."""
     print("\n" + "="*80)
     print("Elliðaár (Iceland) Calibration Demo")
     print("="*80)
 
     # Load template config
-    config_path = Path('0_config_files/config_template.yaml')
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config_template(symfluence_code_dir)
 
     # Configure domain
     config['DOMAIN_NAME'] = 'ellioaar_iceland'
@@ -110,16 +109,14 @@ def test_ellioaar_calibration(ellioaar_domain):
 @pytest.mark.calibration
 @pytest.mark.requires_data
 @_MACOS_ARM_SKIP
-def test_fyris_calibration(fyris_domain):
+def test_fyris_calibration(fyris_domain, symfluence_code_dir):
     """Run calibration demo for Fyris, Uppsala."""
     print("\n" + "="*80)
     print("Fyris (Uppsala, Sweden) Calibration Demo")
     print("="*80)
 
     # Load template config
-    config_path = Path('0_config_files/config_template.yaml')
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config_template(symfluence_code_dir)
 
     # Configure domain
     config['DOMAIN_NAME'] = 'fyris_uppsala'
