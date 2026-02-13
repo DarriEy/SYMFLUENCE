@@ -386,6 +386,7 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.rhessys.build_instructions',
         'symfluence.models.ignacio.build_instructions',
         'symfluence.models.vic.build_instructions',
+        'symfluence.models.clm.build_instructions',
     ]
 
     for module_name in model_modules:
