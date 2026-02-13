@@ -90,14 +90,15 @@ jobs:
           fi
           python -m pip install --upgrade pip
 
-          # Install GDAL Python bindings (platform-agnostic via gdal-config)
-          if command -v gdal-config >/dev/null 2>&1; then
-            GDAL_VERSION=$(gdal-config --version)
-            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Install GDAL Python bindings
+          # Note: Skip gdal-config on Windows — conda's gdal-config is not bash-compatible
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # Windows: Use GDAL from conda (already installed in previous step)
             # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+          elif command -v gdal-config >/dev/null 2>&1; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
           fi
 
           # Install CPU-only torch on Linux/Windows to save space
@@ -127,7 +128,7 @@ jobs:
   binary-validation-matrix:
     name: Binary Validation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -246,11 +247,12 @@ jobs:
           pip install rich pyyaml
 
           # Install GDAL Python bindings BEFORE package install (needed for osgeo imports)
-          if command -v gdal-config >/dev/null 2>&1; then
+          # Note: Check Windows first — conda's gdal-config is not bash-compatible
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
+          elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
           fi
 
           pip install -e . || pip install .
@@ -317,11 +319,12 @@ jobs:
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings matching system version
-          if command -v gdal-config >/dev/null 2>&1; then
+          # Note: Check Windows first — conda's gdal-config is not bash-compatible
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            conda install -c conda-forge gdal-python::gdal -y || true
+          elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
@@ -562,11 +565,12 @@ jobs:
           pip install rich pyyaml
 
           # Install GDAL Python bindings BEFORE package install (needed for osgeo imports)
-          if command -v gdal-config >/dev/null 2>&1; then
+          # Note: Check Windows first — conda's gdal-config is not bash-compatible
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
+          elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c)"
           fi
 
           pip install -e . || pip install .
@@ -633,11 +637,12 @@ jobs:
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings matching system version
-          if command -v gdal-config >/dev/null 2>&1; then
+          # Note: Check Windows first — conda's gdal-config is not bash-compatible
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            conda install -c conda-forge gdal-python::gdal -y || true
+          elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
