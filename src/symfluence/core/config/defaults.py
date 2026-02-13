@@ -33,7 +33,7 @@ class ConfigDefaults:
 
     # === Data Access ===
     DATA_ACCESS = 'MAF'  # Options: 'MAF', 'cloud'
-    DEM_SOURCE = 'copernicus'  # Options: 'copernicus', 'copernicus_90', 'fabdem', 'nasadem', 'merit_hydro', 'srtm', 'etopo', 'mapzen', 'alos'
+    DEM_SOURCE = 'copernicus'  # Options: 'copernicus', 'copdem90', 'fabdem', 'nasadem', 'merit_hydro', 'srtm', 'etopo', 'mapzen', 'alos'
     LAND_CLASS_NAME = 'default'
 
     # === Forcing Data ===
