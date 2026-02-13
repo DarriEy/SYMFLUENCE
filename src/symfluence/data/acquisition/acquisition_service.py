@@ -11,7 +11,7 @@ Architecture:
 
     1. CLOUD Mode (CloudForcingDownloader):
        - Cloud-based data providers with direct HTTP/S3 access
-       - DEM sources: Copernicus GLO-30, FABDEM, NASADEM local tiles
+       - DEM sources: Copernicus GLO-30/90, FABDEM, NASADEM, SRTM, ETOPO, Mapzen, ALOS
        - Soil class: SoilGrids via WCS subsetting
        - Land cover: MODIS Landcover (multi-year mode), USGS NLCD
        - Forcing: ERA5 (CDS), CARRA/CERRA (CDS), AORC (AWS/GCS), NEX-GDDP (Zenodo)
@@ -53,7 +53,7 @@ Data Acquisition Workflows:
 Configuration Parameters:
     Data Source Selection:
         domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
-        domain.dem_source: 'merit_hydro', 'copernicus', 'fabdem', 'nasadem'
+        domain.dem_source: 'merit_hydro', 'copernicus', 'copernicus_90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos'
         domain.land_class_source: 'modis', 'usgs_nlcd' (cloud only)
         domain.bounding_box_coords: 'lat_min/lon_min/lat_max/lon_max'
 
@@ -138,7 +138,7 @@ class AcquisitionService(ConfigurableMixin):
         CLOUD Mode:
         - Direct HTTP/S3 access to cloud providers
         - Faster for small domains, requires internet access
-        - DEM sources: Copernicus GLO-30, FABDEM, NASADEM local
+        - DEM sources: Copernicus GLO-30/90, FABDEM, NASADEM, SRTM, ETOPO, Mapzen, ALOS
         - Forcing: ERA5 (CDS), CARRA/CERRA, AORC, NEX-GDDP
         - Suitable for research, testing, small basins
 
@@ -174,7 +174,7 @@ class AcquisitionService(ConfigurableMixin):
 
     Configuration:
         domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
-        domain.dem_source: DEM provider ('merit_hydro', 'copernicus', 'fabdem', 'nasadem')
+        domain.dem_source: DEM provider ('merit_hydro', 'copernicus', 'copernicus_90', 'fabdem', 'nasadem', 'srtm', 'etopo', 'mapzen', 'alos')
         domain.land_class_source: Land cover provider ('modis', 'usgs_nlcd')
         domain.download_dem: Enable DEM acquisition (default: True)
         domain.download_soil: Enable soil class (default: True)
@@ -262,6 +262,31 @@ class AcquisitionService(ConfigurableMixin):
                             self.logger.info(f"✓ NASADEM acquired: {elev_file}")
                         else:
                             raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
+
+                    elif dem_source == 'copernicus_90':
+                        self.logger.info("Acquiring Copernicus DEM GLO-90 (90m) from AWS")
+                        elev_file = downloader.download_copernicus_dem_90()
+                        self.logger.info(f"✓ Copernicus DEM GLO-90 acquired: {elev_file}")
+
+                    elif dem_source == 'srtm':
+                        self.logger.info("Acquiring SRTM GL1 (30m) from OpenTopography")
+                        elev_file = downloader.download_srtm_dem()
+                        self.logger.info(f"✓ SRTM acquired: {elev_file}")
+
+                    elif dem_source == 'etopo':
+                        self.logger.info("Acquiring ETOPO 2022 from NOAA OPeNDAP")
+                        elev_file = downloader.download_etopo_dem()
+                        self.logger.info(f"✓ ETOPO 2022 acquired: {elev_file}")
+
+                    elif dem_source == 'mapzen':
+                        self.logger.info("Acquiring Mapzen terrain tiles from AWS")
+                        elev_file = downloader.download_mapzen_dem()
+                        self.logger.info(f"✓ Mapzen terrain acquired: {elev_file}")
+
+                    elif dem_source == 'alos':
+                        self.logger.info("Acquiring ALOS AW3D30 (30m) from Planetary Computer")
+                        elev_file = downloader.download_alos_dem()
+                        self.logger.info(f"✓ ALOS AW3D30 acquired: {elev_file}")
 
                     elif dem_source == 'merit_hydro':
                         self.logger.info("DEM_SOURCE is merit_hydro - using MAF/gistool for elevation")

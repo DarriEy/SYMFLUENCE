@@ -344,7 +344,7 @@ class TestRegistryContracts:
 # Expected handler categories for documentation/verification
 EXPECTED_FORCING_HANDLERS = ['era5', 'aorc', 'rdrs', 'hrrr', 'conus404']
 EXPECTED_OBSERVATION_HANDLERS = ['smap', 'grace', 'ismn']
-EXPECTED_ATTRIBUTE_HANDLERS = ['copdem30', 'fabdem', 'soilgrids']
+EXPECTED_ATTRIBUTE_HANDLERS = ['copdem30', 'copdem90', 'fabdem', 'srtm', 'etopo2022', 'mapzen', 'alos', 'soilgrids']
 
 
 @pytest.mark.contract
