@@ -60,6 +60,50 @@ class ModelManager(BaseManager):
                     else:
                         self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
 
+        # Ensure MODFLOW runs after its coupling source (e.g. SUMMA)
+        if 'MODFLOW' in execution_list:
+            coupling_source = self._get_config_value(
+                lambda: self.config.model.modflow.coupling_source if self.config.model.modflow else None,
+                default=None,
+            )
+            if coupling_source and coupling_source in execution_list:
+                mf_idx = execution_list.index('MODFLOW')
+                src_idx = execution_list.index(coupling_source)
+                if mf_idx < src_idx:
+                    execution_list.remove('MODFLOW')
+                    execution_list.insert(src_idx + 1, 'MODFLOW')
+
+            # Ensure routing comes after MODFLOW
+            for rt in ('MIZUROUTE', 'DROUTE'):
+                if rt in execution_list:
+                    rt_idx = execution_list.index(rt)
+                    mf_idx = execution_list.index('MODFLOW')
+                    if rt_idx < mf_idx:
+                        execution_list.remove(rt)
+                        execution_list.insert(mf_idx + 1, rt)
+
+        # Ensure PARFLOW runs after its coupling source (e.g. SUMMA)
+        if 'PARFLOW' in execution_list:
+            coupling_source = self._get_config_value(
+                lambda: self.config.model.parflow.coupling_source if self.config.model.parflow else None,
+                default=None,
+            )
+            if coupling_source and coupling_source in execution_list:
+                pf_idx = execution_list.index('PARFLOW')
+                src_idx = execution_list.index(coupling_source)
+                if pf_idx < src_idx:
+                    execution_list.remove('PARFLOW')
+                    execution_list.insert(src_idx + 1, 'PARFLOW')
+
+            # Ensure routing comes after PARFLOW
+            for rt in ('MIZUROUTE', 'DROUTE'):
+                if rt in execution_list:
+                    rt_idx = execution_list.index(rt)
+                    pf_idx = execution_list.index('PARFLOW')
+                    if rt_idx < pf_idx:
+                        execution_list.remove(rt)
+                        execution_list.insert(pf_idx + 1, rt)
+
         return execution_list
 
     def _ensure_mizuroute_in_workflow(self, execution_list: List[str], source_model: str):

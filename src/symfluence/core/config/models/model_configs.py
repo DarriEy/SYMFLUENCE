@@ -646,6 +646,185 @@ class VICConfig(BaseModel):
     timeout: int = Field(default=7200, alias='VIC_TIMEOUT', ge=60, le=86400)
 
 
+class CLMConfig(BaseModel):
+    """CLM (Community Land Model / CTSM 5.x) configuration.
+
+    CLM5 is the land component of CESM, providing comprehensive
+    biogeophysics, biogeochemistry, hydrology, snow, and vegetation
+    dynamics. It is the most physics-heavy LSM in the ensemble.
+
+    Reference:
+        Lawrence, D. M., et al. (2019): The Community Land Model version 5.
+        JAMES, 11, 4245-4287.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='CLM_INSTALL_PATH')
+    exe: str = Field(default='cesm.exe', alias='CLM_EXE')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_CLM_PATH')
+    compset: str = Field(default='I2000Clm50SpGs', alias='CLM_COMPSET')
+    params_file: str = Field(default='clm5_params.nc', alias='CLM_PARAMS_FILE')
+    surfdata_file: str = Field(default='surfdata_clm.nc', alias='CLM_SURFDATA_FILE')
+    domain_file: str = Field(default='domain.nc', alias='CLM_DOMAIN_FILE')
+
+    # Spatial mode
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='CLM_SPATIAL_MODE')
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_CLM')
+    hist_nhtfrq: int = Field(default=-24, alias='CLM_HIST_NHTFRQ')
+    hist_mfilt: int = Field(default=365, alias='CLM_HIST_MFILT')
+
+    # Calibration
+    params_to_calibrate: Optional[str] = Field(
+        default=None,
+        alias='CLM_PARAMS_TO_CALIBRATE'
+    )
+
+    # Execution
+    timeout: int = Field(default=3600, alias='CLM_TIMEOUT', ge=60, le=86400)
+    warmup_days: int = Field(default=365, alias='CLM_WARMUP_DAYS', ge=0, le=3650)
+
+
+class MODFLOWConfig(BaseModel):
+    """MODFLOW 6 (USGS modular groundwater flow model) configuration.
+
+    MODFLOW 6 simulates three-dimensional groundwater flow using the
+    finite-difference method. In SYMFLUENCE it is used as a lumped
+    single-cell groundwater model coupled with land surface models
+    (e.g., SUMMA) to separate baseflow from surface runoff.
+
+    Reference:
+        Langevin, C.D., et al. (2017): Documentation for the MODFLOW 6
+        Groundwater Flow Model. USGS Techniques and Methods 6-A55.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='MODFLOW_INSTALL_PATH')
+    exe: str = Field(default='mf6', alias='MODFLOW_EXE')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_MODFLOW_PATH')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='MODFLOW_SPATIAL_MODE')
+
+    # Grid discretization
+    grid_type: str = Field(default='dis', alias='MODFLOW_GRID_TYPE')
+    nlay: int = Field(default=1, alias='MODFLOW_NLAY', ge=1, le=100)
+    nrow: int = Field(default=1, alias='MODFLOW_NROW', ge=1, le=10000)
+    ncol: int = Field(default=1, alias='MODFLOW_NCOL', ge=1, le=10000)
+    cell_size: float = Field(default=1000.0, alias='MODFLOW_CELL_SIZE', gt=0)
+
+    # Aquifer properties
+    k: float = Field(default=5.0, alias='MODFLOW_K', gt=0)
+    sy: float = Field(default=0.15, alias='MODFLOW_SY', gt=0, le=0.5)
+    ss: float = Field(default=1e-5, alias='MODFLOW_SS', gt=0, le=0.1)
+    strt: Optional[float] = Field(default=None, alias='MODFLOW_STRT')
+    top: float = Field(default=1500.0, alias='MODFLOW_TOP')
+    bot: float = Field(default=1400.0, alias='MODFLOW_BOT')
+
+    # Coupling
+    coupling_source: str = Field(default='SUMMA', alias='MODFLOW_COUPLING_SOURCE')
+    recharge_variable: str = Field(default='scalarSoilDrainage', alias='MODFLOW_RECHARGE_VARIABLE')
+
+    # Drain package
+    drain_elevation: Optional[float] = Field(default=None, alias='MODFLOW_DRAIN_ELEVATION')
+    drain_conductance: float = Field(default=50.0, alias='MODFLOW_DRAIN_CONDUCTANCE', gt=0)
+
+    # Stress period
+    stress_period_length: float = Field(default=1.0, alias='MODFLOW_STRESS_PERIOD_LENGTH', gt=0)
+    nstp: int = Field(default=1, alias='MODFLOW_NSTP', ge=1, le=1000)
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MODFLOW')
+
+    # Calibration
+    params_to_calibrate: str = Field(
+        default='K,SY,DRAIN_CONDUCTANCE',
+        alias='MODFLOW_PARAMS_TO_CALIBRATE'
+    )
+
+    # Execution
+    timeout: int = Field(default=3600, alias='MODFLOW_TIMEOUT', ge=60, le=86400)
+
+
+class ParFlowConfig(BaseModel):
+    """ParFlow integrated hydrologic model configuration.
+
+    ParFlow solves variably-saturated flow (Richards equation) and
+    overland flow. In SYMFLUENCE it is used as an alternative to MODFLOW
+    for coupled land surface + groundwater simulations with full vadose
+    zone support.
+
+    Reference:
+        Kollet, S.J. & Maxwell, R.M. (2006): Integrated surface-groundwater
+        flow modeling. Advances in Water Resources 29(7).
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='PARFLOW_INSTALL_PATH')
+    exe: str = Field(default='parflow', alias='PARFLOW_EXE')
+    parflow_dir: str = Field(default='default', alias='PARFLOW_DIR')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_PARFLOW_PATH')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='PARFLOW_SPATIAL_MODE')
+
+    # Grid discretization
+    nx: int = Field(default=1, alias='PARFLOW_NX', ge=1, le=10000)
+    ny: int = Field(default=1, alias='PARFLOW_NY', ge=1, le=10000)
+    nz: int = Field(default=1, alias='PARFLOW_NZ', ge=1, le=100)
+    dx: float = Field(default=1000.0, alias='PARFLOW_DX', gt=0)
+    dy: float = Field(default=1000.0, alias='PARFLOW_DY', gt=0)
+    dz: float = Field(default=100.0, alias='PARFLOW_DZ', gt=0)
+
+    # Domain geometry
+    top: float = Field(default=1500.0, alias='PARFLOW_TOP')
+    bot: float = Field(default=1400.0, alias='PARFLOW_BOT')
+
+    # Subsurface properties
+    k_sat: float = Field(default=5.0, alias='PARFLOW_K_SAT', gt=0)
+    porosity: float = Field(default=0.4, alias='PARFLOW_POROSITY', gt=0, le=1.0)
+    vg_alpha: float = Field(default=1.0, alias='PARFLOW_VG_ALPHA', gt=0)
+    vg_n: float = Field(default=2.0, alias='PARFLOW_VG_N', gt=1.0)
+    s_res: float = Field(default=0.1, alias='PARFLOW_S_RES', ge=0, lt=1.0)
+    s_sat: float = Field(default=1.0, alias='PARFLOW_S_SAT', gt=0, le=1.0)
+    specific_storage: float = Field(default=1e-5, alias='PARFLOW_SS', gt=0)
+
+    # Overland flow
+    mannings_n: float = Field(default=0.03, alias='PARFLOW_MANNINGS_N', gt=0)
+
+    # Initial conditions
+    initial_pressure: Optional[float] = Field(default=None, alias='PARFLOW_INITIAL_PRESSURE')
+
+    # Coupling
+    coupling_source: str = Field(default='SUMMA', alias='PARFLOW_COUPLING_SOURCE')
+    recharge_variable: str = Field(default='scalarSoilDrainage', alias='PARFLOW_RECHARGE_VARIABLE')
+
+    # Solver
+    solver: str = Field(default='Richards', alias='PARFLOW_SOLVER')
+    timestep_hours: float = Field(default=1.0, alias='PARFLOW_TIMESTEP_HOURS', gt=0)
+
+    # Parallel execution
+    num_procs: int = Field(default=1, alias='PARFLOW_NUM_PROCS', ge=1, le=1024)
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_PARFLOW')
+
+    # Calibration
+    params_to_calibrate: str = Field(
+        default='K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N',
+        alias='PARFLOW_PARAMS_TO_CALIBRATE'
+    )
+
+    # Execution
+    timeout: int = Field(default=3600, alias='PARFLOW_TIMEOUT', ge=60, le=86400)
+
+
 class GNNConfig(BaseModel):
     """GNN (Graph Neural Network) hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -808,6 +987,9 @@ class ModelConfig(BaseModel):
     gnn: Optional[GNNConfig] = Field(default=None)
     ignacio: Optional[IGNACIOConfig] = Field(default=None)
     vic: Optional[VICConfig] = Field(default=None)
+    clm: Optional[CLMConfig] = Field(default=None)
+    modflow: Optional[MODFLOWConfig] = Field(default=None)
+    parflow: Optional[ParFlowConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -858,6 +1040,12 @@ class ModelConfig(BaseModel):
             values['gnn'] = GNNConfig()
         if 'VIC' in models and values.get('vic') is None:
             values['vic'] = VICConfig()
+        if 'CLM' in models and values.get('clm') is None:
+            values['clm'] = CLMConfig()
+        if 'MODFLOW' in models and values.get('modflow') is None:
+            values['modflow'] = MODFLOWConfig()
+        if 'PARFLOW' in models and values.get('parflow') is None:
+            values['parflow'] = ParFlowConfig()
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')

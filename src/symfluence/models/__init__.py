@@ -145,6 +145,21 @@ except ImportError as e:
     logger.warning(f"Could not import vic: {e}")
 
 try:
+    from . import clm
+except ImportError as e:
+    logger.warning(f"Could not import clm: {e}")
+
+try:
+    from . import modflow
+except ImportError as e:
+    logger.warning(f"Could not import modflow: {e}")
+
+try:
+    from . import parflow
+except ImportError as e:
+    logger.warning(f"Could not import parflow: {e}")
+
+try:
     from . import xinanjiang
 except ImportError as e:
     logger.warning(f"Could not import xinanjiang: {e}")
