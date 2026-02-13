@@ -43,6 +43,7 @@ def __getattr__(name):
         'GNNWorker': 'symfluence.models.gnn.calibration.worker',
         'LSTMWorker': 'symfluence.models.lstm.calibration.worker',
         'SacSmaWorker': 'symfluence.models.sacsma.calibration.worker',
+        'XinanjiangWorker': 'symfluence.models.xinanjiang.calibration.worker',
     }
 
     if name in worker_mapping:

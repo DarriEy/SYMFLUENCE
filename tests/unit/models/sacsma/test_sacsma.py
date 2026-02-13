@@ -1,4 +1,4 @@
-"""Tests for SAC-SMA soil moisture accounting model."""
+"""Tests for SAC-SMA soil moisture accounting model (dual-backend)."""
 
 import pytest
 import numpy as np
@@ -7,7 +7,9 @@ from symfluence.models.sacsma.sacsma import (
     SacSmaState,
     sacsma_step,
     sacsma_simulate,
+    sacsma_simulate_numpy,
     _create_default_state,
+    HAS_JAX,
 )
 from symfluence.models.sacsma.parameters import (
     SACSMA_DEFAULTS,
@@ -52,7 +54,7 @@ class TestETSequence:
         pet = 5.0
         state_before = half_capacity_state
         state, surf, interf, base, et = sacsma_step(
-            0.0, pet, 1.0, state_before, default_params,
+            0.0, pet, 1.0, state_before, default_params, xp=np,
         )
         # UZTWC should decrease
         assert state.uztwc < state_before.uztwc
@@ -61,7 +63,7 @@ class TestETSequence:
         """Total ET should not exceed PET (plus RIVA)."""
         pet = 2.0
         _, _, _, _, et = sacsma_step(
-            0.0, pet, 1.0, saturated_state, default_params,
+            0.0, pet, 1.0, saturated_state, default_params, xp=np,
         )
         # ET can be slightly above PET due to RIVA
         assert et <= pet * (1.0 + default_params.RIVA + 0.5)
@@ -69,7 +71,7 @@ class TestETSequence:
     def test_zero_et_when_dry(self, default_params, dry_state):
         """No ET when soil is empty."""
         _, _, _, _, et = sacsma_step(
-            0.0, 5.0, 1.0, dry_state, default_params,
+            0.0, 5.0, 1.0, dry_state, default_params, xp=np,
         )
         # Only RIVA component if any
         assert et <= 5.0 * default_params.RIVA + 0.01
@@ -77,7 +79,7 @@ class TestETSequence:
     def test_no_et_when_pet_zero(self, default_params, half_capacity_state):
         """No ET when PET is zero."""
         state, _, _, _, et = sacsma_step(
-            0.0, 0.0, 1.0, half_capacity_state, default_params,
+            0.0, 0.0, 1.0, half_capacity_state, default_params, xp=np,
         )
         assert et == pytest.approx(0.0, abs=1e-10)
 
@@ -90,23 +92,20 @@ class TestPercolation:
         # Add water to trigger percolation
         wet_state = half_capacity_state._replace(
             uzfwc=default_params.UZFWM * 0.8,
-            lztwc=default_params.LZTWM * 0.1,  # Low LZ → high demand
+            lztwc=default_params.LZTWM * 0.1,  # Low LZ -> high demand
         )
         state, _, _, _, _ = sacsma_step(
-            5.0, 1.0, 1.0, wet_state, default_params,
+            5.0, 1.0, 1.0, wet_state, default_params, xp=np,
         )
-        # Hard to assert exact values due to complex interactions,
-        # but lower zone should gain water
         lz_before = wet_state.lztwc + wet_state.lzfpc + wet_state.lzfsc
         lz_after = state.lztwc + state.lzfpc + state.lzfsc
-        assert lz_after >= lz_before - 1.0  # Allow small tolerance for ET
+        assert lz_after >= lz_before - 1.0
 
     def test_no_percolation_when_uz_dry(self, default_params, dry_state):
         """No percolation when upper zone is dry."""
         state, _, _, _, _ = sacsma_step(
-            0.0, 0.0, 1.0, dry_state, default_params,
+            0.0, 0.0, 1.0, dry_state, default_params, xp=np,
         )
-        # Lower zone should remain dry
         assert state.lzfpc == 0.0
         assert state.lzfsc == 0.0
 
@@ -118,15 +117,15 @@ class TestSurfaceRunoff:
         """Permanent impervious area should generate direct runoff."""
         pxv = 20.0
         _, surface, _, _, _ = sacsma_step(
-            pxv, 0.0, 1.0, half_capacity_state, default_params,
+            pxv, 0.0, 1.0, half_capacity_state, default_params, xp=np,
         )
-        assert surface >= pxv * default_params.PCTIM * 0.9  # Allow tolerance
+        assert surface >= pxv * default_params.PCTIM * 0.9
 
     def test_overflow_runoff_when_saturated(self, default_params, saturated_state):
         """Large precip on saturated soil should produce surface runoff."""
         pxv = 50.0
         _, surface, _, _, _ = sacsma_step(
-            pxv, 0.0, 1.0, saturated_state, default_params,
+            pxv, 0.0, 1.0, saturated_state, default_params, xp=np,
         )
         assert surface > 0
 
@@ -134,9 +133,8 @@ class TestSurfaceRunoff:
         """Small precip on dry soil: all absorbed, minimal runoff."""
         pxv = 1.0
         _, surface, _, _, _ = sacsma_step(
-            pxv, 0.0, 1.0, dry_state, default_params,
+            pxv, 0.0, 1.0, dry_state, default_params, xp=np,
         )
-        # Only PCTIM direct runoff expected
         assert surface <= pxv * (default_params.PCTIM + default_params.ADIMP + 0.01)
 
 
@@ -146,14 +144,14 @@ class TestBaseflow:
     def test_baseflow_from_lower_zone(self, default_params, half_capacity_state):
         """Lower zone free water should generate baseflow."""
         _, _, _, baseflow, _ = sacsma_step(
-            0.0, 0.0, 1.0, half_capacity_state, default_params,
+            0.0, 0.0, 1.0, half_capacity_state, default_params, xp=np,
         )
         assert baseflow > 0
 
     def test_no_baseflow_when_lz_dry(self, default_params, dry_state):
         """No baseflow when lower zone is empty."""
         _, _, _, baseflow, _ = sacsma_step(
-            0.0, 0.0, 1.0, dry_state, default_params,
+            0.0, 0.0, 1.0, dry_state, default_params, xp=np,
         )
         assert baseflow == pytest.approx(0.0, abs=1e-10)
 
@@ -162,10 +160,9 @@ class TestBaseflow:
         state = half_capacity_state
         baseflows = []
         for _ in range(30):
-            state, _, _, bf, _ = sacsma_step(0.0, 0.0, 1.0, state, default_params)
-            baseflows.append(bf)
+            state, _, _, bf, _ = sacsma_step(0.0, 0.0, 1.0, state, default_params, xp=np)
+            baseflows.append(float(bf))
 
-        # Baseflow should be declining
         assert baseflows[-1] < baseflows[0]
 
     def test_deep_loss_reduces_effective_baseflow(self):
@@ -174,8 +171,8 @@ class TestBaseflow:
         params_with_side = create_sacsma_params({**SACSMA_DEFAULTS, 'SIDE': 0.3})
 
         state = _create_default_state(params_no_side)
-        _, _, _, bf_no_side, _ = sacsma_step(0.0, 0.0, 1.0, state, params_no_side)
-        _, _, _, bf_with_side, _ = sacsma_step(0.0, 0.0, 1.0, state, params_with_side)
+        _, _, _, bf_no_side, _ = sacsma_step(0.0, 0.0, 1.0, state, params_no_side, xp=np)
+        _, _, _, bf_with_side, _ = sacsma_step(0.0, 0.0, 1.0, state, params_with_side, xp=np)
 
         assert bf_with_side < bf_no_side
 
@@ -185,8 +182,6 @@ class TestInterflow:
 
     def test_interflow_from_uzfwc(self, default_params):
         """Upper zone free water should generate interflow when LZ is saturated."""
-        # Use saturated lower zone so percolation demand is zero,
-        # leaving UZFWC available for interflow
         state = SacSmaState(
             uztwc=default_params.UZTWM * 0.5,
             uzfwc=default_params.UZFWM * 0.8,
@@ -196,14 +191,14 @@ class TestInterflow:
             adimc=(default_params.UZTWM + default_params.LZTWM) * 0.5,
         )
         _, _, interflow, _, _ = sacsma_step(
-            0.0, 0.0, 1.0, state, default_params,
+            0.0, 0.0, 1.0, state, default_params, xp=np,
         )
         assert interflow > 0
 
     def test_no_interflow_when_uz_dry(self, default_params, dry_state):
         """No interflow when UZ free water is empty."""
         _, _, interflow, _, _ = sacsma_step(
-            0.0, 0.0, 1.0, dry_state, default_params,
+            0.0, 0.0, 1.0, dry_state, default_params, xp=np,
         )
         assert interflow == pytest.approx(0.0, abs=1e-10)
 
@@ -215,7 +210,7 @@ class TestNonNegativeOutputs:
     @pytest.mark.parametrize("pet", [0.0, 2.0, 10.0])
     def test_non_negative(self, default_params, half_capacity_state, pxv, pet):
         state, surface, interflow, baseflow, et = sacsma_step(
-            pxv, pet, 1.0, half_capacity_state, default_params,
+            pxv, pet, 1.0, half_capacity_state, default_params, xp=np,
         )
         assert surface >= 0
         assert interflow >= 0
@@ -242,21 +237,29 @@ class TestSacSmaSimulate:
         assert np.all(flow >= 0)
         assert flow.sum() > 0
 
+    def test_numpy_backend_explicit(self, default_params):
+        """Test explicit NumPy backend call."""
+        n = 100
+        pxv = np.full(n, 3.0)
+        pet = np.full(n, 2.0)
+
+        flow, final = sacsma_simulate_numpy(pxv, pet, default_params)
+        assert len(flow) == n
+        assert np.all(flow >= 0)
+
     def test_dry_in_produces_zero_flow(self, default_params):
-        """No precip, no PET → flow only from initial storage."""
+        """No precip, no PET -> flow only from initial storage."""
         n = 1000
         pxv = np.zeros(n)
         pet = np.zeros(n)
 
         flow, final = sacsma_simulate(pxv, pet, default_params)
 
-        # Should produce flow from draining initial storage
         assert flow[:30].sum() > 0
-        # But eventually near-zero
         assert flow[-10:].mean() < 0.01
 
     def test_mass_conservation_approximate(self, default_params):
-        """Total in ≈ total out + storage change + deep loss."""
+        """Total in ~ total out + storage change + deep loss."""
         n = 1000
         pxv = np.full(n, 5.0)
         pet = np.full(n, 2.0)
@@ -266,10 +269,8 @@ class TestSacSmaSimulate:
 
         total_in = pxv.sum()
         total_out = flow.sum()
-        # Should have reasonable water balance
-        # (not exact due to ET and deep loss)
         assert total_out > 0
-        assert total_out < total_in  # Must lose some to ET
+        assert total_out < total_in
 
     def test_returns_final_state(self, default_params):
         n = 30
@@ -279,3 +280,52 @@ class TestSacSmaSimulate:
         _, final = sacsma_simulate(pxv, pet, default_params)
 
         assert isinstance(final, SacSmaState)
+
+
+class TestDualBackend:
+    """Test JAX/NumPy dual-backend consistency."""
+
+    @pytest.mark.skipif(not HAS_JAX, reason="JAX not installed")
+    def test_jax_numpy_consistency(self):
+        """JAX and NumPy backends should produce similar results."""
+        import jax.numpy as jnp
+        from symfluence.models.sacsma.sacsma import sacsma_simulate_jax
+        from symfluence.models.sacsma.parameters import params_dict_to_namedtuple
+
+        params_np = create_sacsma_params(SACSMA_DEFAULTS)
+        params_jax = params_dict_to_namedtuple(SACSMA_DEFAULTS, use_jax=True)
+
+        n = 100
+        pxv = np.full(n, 3.0)
+        pet = np.full(n, 2.0)
+
+        flow_np, _ = sacsma_simulate_numpy(pxv, pet, params_np)
+        flow_jax, _ = sacsma_simulate_jax(jnp.array(pxv), jnp.array(pet), params_jax)
+
+        np.testing.assert_allclose(np.array(flow_jax), flow_np, rtol=1e-5, atol=1e-6)
+
+    @pytest.mark.skipif(not HAS_JAX, reason="JAX not installed")
+    def test_jax_gradient(self):
+        """JAX should compute non-zero gradients through SAC-SMA."""
+        import jax
+        import jax.numpy as jnp
+        from symfluence.models.sacsma.sacsma import sacsma_simulate_jax, _create_default_state
+        from symfluence.models.sacsma.parameters import SacSmaParameters, SACSMA_PARAM_NAMES
+
+        def loss_fn(uztwm_val):
+            p_dict = {**SACSMA_DEFAULTS, 'UZTWM': uztwm_val}
+            values = []
+            for name in SACSMA_PARAM_NAMES:
+                val = p_dict[name]
+                values.append(val if hasattr(val, 'shape') else jnp.array(float(val)))
+            params = SacSmaParameters(*values)
+            state = _create_default_state(params, use_jax=True)
+            pxv = jnp.full(30, 3.0)
+            pet = jnp.full(30, 2.0)
+            flow, _ = sacsma_simulate_jax(pxv, pet, params, initial_state=state)
+            return jnp.sum(flow)
+
+        grad_fn = jax.grad(loss_fn)
+        g = grad_fn(jnp.array(50.0))
+        assert not jnp.isnan(g)
+        assert g != 0.0

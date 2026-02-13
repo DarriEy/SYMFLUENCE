@@ -186,6 +186,13 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
             "For lumped mode, a single-cell domain will be created."
         )
     ),
+
+    'XINANJIANG': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=None
+    ),
 }
 
 

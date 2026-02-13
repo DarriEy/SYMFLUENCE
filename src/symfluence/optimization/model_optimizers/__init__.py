@@ -39,6 +39,7 @@ def _register_optimizers():
         'symfluence.models.jfuse.calibration.optimizer',
         'symfluence.models.cfuse.calibration.optimizer',
         'symfluence.models.sacsma.calibration.optimizer',
+        'symfluence.models.xinanjiang.calibration.optimizer',
     ]
 
     for module_path in canonical_modules:

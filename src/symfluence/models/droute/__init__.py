@@ -56,6 +56,7 @@ from .config import DRouteConfigAdapter
 from .preprocessor import DRoutePreProcessor
 from .runner import DRouteRunner
 from .extractor import DRouteResultExtractor
+from .postprocessor import DRoutePostProcessor
 from .mixins import DRouteConfigMixin
 from .network_adapter import DRouteNetworkAdapter
 
@@ -83,9 +84,16 @@ __all__ = [
     'DRoutePreProcessor',
     'DRouteRunner',
     'DRouteResultExtractor',
+    'DRoutePostProcessor',
     'DRouteNetworkAdapter',
 
     # Configuration
     'DRouteConfigAdapter',
     'DRouteConfigMixin',
 ]
+
+# Register calibration components with OptimizerRegistry
+try:
+    from .calibration import DRouteModelOptimizer  # noqa: F401
+except ImportError:
+    pass  # Calibration dependencies optional

@@ -1,10 +1,10 @@
-"""Tests for coupled Snow-17 + SAC-SMA model orchestrator."""
+"""Tests for coupled Snow-17 + SAC-SMA model orchestrator (dual-backend)."""
 
 import pytest
 import numpy as np
 
-from symfluence.models.sacsma.model import simulate, SacSmaSnow17State
-from symfluence.models.sacsma.snow17 import Snow17State
+from symfluence.models.sacsma.model import simulate, SacSmaSnow17State, HAS_JAX
+from symfluence.models.snow17.parameters import Snow17State
 from symfluence.models.sacsma.sacsma import SacSmaState
 from symfluence.models.sacsma.parameters import DEFAULT_PARAMS
 
@@ -47,7 +47,7 @@ class TestCoupledSimulation:
         assert len(flow) == n
 
     def test_all_rain_passthrough(self):
-        """Warm temps: snow module passes rain → SAC-SMA generates flow."""
+        """Warm temps: snow module passes rain -> SAC-SMA generates flow."""
         n = 100
         precip = np.full(n, 5.0)
         temp = np.full(n, 25.0)  # No snow
@@ -55,13 +55,11 @@ class TestCoupledSimulation:
 
         flow, state = simulate(precip, temp, pet)
 
-        # Should produce substantial flow
         assert flow.sum() > 0
-        # No snow left
         assert state.snow17.w_i == pytest.approx(0.0, abs=1e-10)
 
     def test_cold_accumulation_then_melt(self):
-        """Cold period stores snow, warm period melts → delayed flow."""
+        """Cold period stores snow, warm period melts -> delayed flow."""
         n = 200
         precip = np.full(n, 3.0)
         temp = np.concatenate([np.full(100, -10.0), np.full(100, 15.0)])
@@ -69,7 +67,6 @@ class TestCoupledSimulation:
 
         flow, _ = simulate(precip, temp, pet)
 
-        # Warm period should have higher flow (melt + rain)
         cold_flow = flow[:100].mean()
         warm_flow = flow[100:].mean()
         assert warm_flow > cold_flow
@@ -94,7 +91,6 @@ class TestCoupledSimulation:
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
-        # Should not raise
         flow, _ = simulate(precip, temp, pet, day_of_year=None)
         assert len(flow) == n
 
@@ -118,22 +114,19 @@ class TestCoupledSimulation:
 
         flow, _ = simulate(precip, temp, pet)
 
-        # Initial storage should drain out
         assert flow[:30].sum() > 0
-        # Eventually very low flow
         assert flow[-10:].mean() < 0.01
 
     def test_positive_flow_reasonable_range(self):
         """Flow should be positive and in a reasonable range (mm/day)."""
-        n = 730  # 2 years to let initial storage drain
-        precip = np.full(n, 3.0)  # 1095 mm/yr
+        n = 730
+        precip = np.full(n, 3.0)
         temp = np.full(n, 10.0)
         pet = np.full(n, 2.0)
 
         flow, _ = simulate(precip, temp, pet)
 
         assert flow.min() >= 0
-        # Second-year mean flow should be less than mean precip (ET removes water)
         assert flow[365:].mean() < precip.mean()
 
     def test_custom_initial_state(self):
@@ -152,6 +145,34 @@ class TestCoupledSimulation:
         assert len(flow) == n
 
 
+class TestStandaloneMode:
+    """Test standalone SAC-SMA (no snow module)."""
+
+    def test_standalone_runs(self):
+        """snow_module='none' should run without snow processing."""
+        n = 100
+        precip = np.full(n, 5.0)
+        temp = np.full(n, 10.0)  # temp unused in 'none' mode
+        pet = np.full(n, 2.0)
+
+        flow, state = simulate(precip, temp, pet, snow_module='none')
+        assert len(flow) == n
+        assert np.all(flow >= 0)
+        assert flow.sum() > 0
+
+    def test_standalone_no_snow_state_change(self):
+        """In standalone mode, snow17 state should remain unchanged."""
+        n = 100
+        precip = np.full(n, 5.0)
+        temp = np.full(n, -10.0)  # Cold, but no snow module
+        pet = np.full(n, 2.0)
+
+        _, state = simulate(precip, temp, pet, snow_module='none')
+        # Snow state should be initial (all zeros)
+        assert state.snow17.w_i == 0.0
+        assert state.snow17.swe == 0.0
+
+
 class TestParameterSensitivity:
     """Verify parameters affect simulation as expected."""
 
@@ -165,22 +186,45 @@ class TestParameterSensitivity:
         return flow
 
     def test_higher_uzk_more_interflow(self):
-        """Higher UZK should produce faster upper zone drainage."""
         flow_low = self._run(UZK=0.15)
         flow_high = self._run(UZK=0.7)
-        # Different dynamics but hard to compare directly
-        # Higher UZK should drain faster → different timing
         assert not np.allclose(flow_low, flow_high)
 
     def test_higher_lzpk_more_baseflow(self):
-        """Higher LZPK should produce more baseflow."""
         flow_low = self._run(LZPK=0.002)
         flow_high = self._run(LZPK=0.04)
         assert not np.allclose(flow_low, flow_high)
 
     def test_larger_uztwm_more_storage(self):
-        """Larger UZTWM should attenuate flow peaks."""
         flow_small = self._run(UZTWM=5.0)
         flow_large = self._run(UZTWM=140.0)
-        # Larger storage = lower peaks (more attenuation)
-        assert flow_large.max() <= flow_small.max() + 1.0  # tolerance
+        assert flow_large.max() <= flow_small.max() + 1.0
+
+
+class TestCoupledJAX:
+    """Test JAX backend for coupled simulation."""
+
+    @pytest.mark.skipif(not HAS_JAX, reason="JAX not installed")
+    def test_coupled_jax_runs(self):
+        """Coupled simulation with use_jax=True should produce results."""
+        n = 100
+        precip = np.full(n, 3.0)
+        temp = np.full(n, 10.0)
+        pet = np.full(n, 2.0)
+
+        flow, state = simulate(precip, temp, pet, use_jax=True)
+        assert len(flow) == n
+        assert float(flow.sum()) > 0
+
+    @pytest.mark.skipif(not HAS_JAX, reason="JAX not installed")
+    def test_coupled_jax_numpy_consistency(self):
+        """JAX and NumPy coupled modes should produce similar results."""
+        n = 100
+        precip = np.full(n, 3.0)
+        temp = np.full(n, 10.0)
+        pet = np.full(n, 2.0)
+
+        flow_np, _ = simulate(precip, temp, pet, use_jax=False)
+        flow_jax, _ = simulate(precip, temp, pet, use_jax=True)
+
+        np.testing.assert_allclose(np.array(flow_jax), flow_np, rtol=1e-4, atol=1e-5)
