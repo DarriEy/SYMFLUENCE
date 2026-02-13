@@ -7,6 +7,7 @@ these parameters and react to changes.
 """
 
 import logging
+import threading
 from pathlib import Path
 
 import param
@@ -47,6 +48,10 @@ class WorkflowState(param.Parameterized):
 
     # SYMFLUENCE instance (lazy)
     _symfluence = param.Parameter(default=None, precedence=-1)
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        self._run_lock = threading.Lock()
 
     def load_config(self, path):
         """Load a SymfluenceConfig from a YAML file and update state."""
@@ -121,6 +126,25 @@ class WorkflowState(param.Parameterized):
     def invalidate_symfluence(self):
         """Force re-creation of SYMFLUENCE instance on next use."""
         self._symfluence = None
+
+    def try_begin_run(self, step_name):
+        """Atomically mark workflow execution as active.
+
+        Returns:
+            True if run was started, False if another run is already active.
+        """
+        with self._run_lock:
+            if self.is_running:
+                return False
+            self.is_running = True
+            self.running_step = step_name
+            return True
+
+    def end_run(self):
+        """Clear workflow execution flags."""
+        with self._run_lock:
+            self.is_running = False
+            self.running_step = None
 
     def append_log(self, text):
         """Thread-safe log append (call via pn.state.execute from threads)."""

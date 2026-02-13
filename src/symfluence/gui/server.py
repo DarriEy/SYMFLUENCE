@@ -7,7 +7,7 @@ SymfluenceApp, and starts the Bokeh/Tornado server.
 
 import panel as pn
 
-from .app import SymfluenceApp
+from .app import GUI_THEME_CSS, SymfluenceApp
 
 
 def _serve_app(config_path=None, port=5006, show=True, demo=None):
@@ -23,6 +23,7 @@ def _serve_app(config_path=None, port=5006, show=True, demo=None):
     pn.extension(
         'terminal', 'codeeditor', 'tabulator',
         sizing_mode='stretch_width',
+        raw_css=[GUI_THEME_CSS],
     )
 
     app = SymfluenceApp(config_path=config_path, demo=demo)

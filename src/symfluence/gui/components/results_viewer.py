@@ -10,6 +10,7 @@ Provides five sub-tabs:
 """
 
 import logging
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,7 @@ from bokeh.models import ColumnDataSource, Span
 from bokeh.plotting import figure
 
 from ..data.results_loader import ResultsLoader
+from ..utils.threading_utils import run_on_ui_thread
 
 logger = logging.getLogger(__name__)
 
@@ -48,22 +50,39 @@ class ResultsViewer(param.Parameterized):
     def __init__(self, state, **kw):
         super().__init__(state=state, **kw)
         self._loader = None
+        self._loader_key = None
         self._tabs = None
         self._file_list = []
+        self._diagnostics_running = False
 
     # ------------------------------------------------------------------
     # Loader management
     # ------------------------------------------------------------------
 
+    def _current_experiment_id(self):
+        """Resolve currently selected experiment id for result loading."""
+        cfg = self.state.typed_config
+        if cfg is not None:
+            try:
+                exp_id = cfg.domain.experiment_id
+                if exp_id:
+                    return exp_id
+            except Exception:
+                pass
+        return self.state.last_completed_run
+
     def _get_loader(self):
         """Return (or create) a ResultsLoader for the current project."""
-        if self._loader is None or (
-            self.state.project_dir
-            and str(self._loader.project_dir) != self.state.project_dir
-        ):
+        loader_key = (
+            self.state.project_dir,
+            id(self.state.typed_config),
+            self._current_experiment_id(),
+        )
+        if self._loader is None or self._loader_key != loader_key:
             self._loader = ResultsLoader(
                 self.state.project_dir, self.state.typed_config
             )
+            self._loader_key = loader_key
         return self._loader
 
     # ------------------------------------------------------------------
@@ -75,8 +94,9 @@ class ResultsViewer(param.Parameterized):
         container = pn.Column(sizing_mode='stretch_both')
 
         loader = self._get_loader()
+        experiment_id = self._current_experiment_id()
         obs = loader.load_observed_streamflow()
-        sim = loader.load_simulated_streamflow()
+        sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None and sim is None:
             container.append(
@@ -161,7 +181,8 @@ class ResultsViewer(param.Parameterized):
         container = pn.Column(sizing_mode='stretch_both')
 
         loader = self._get_loader()
-        df = loader.load_optimization_history()
+        experiment_id = self._current_experiment_id()
+        df = loader.load_optimization_history(experiment_id=experiment_id)
 
         if df is None or df.empty:
             container.append(
@@ -273,8 +294,9 @@ class ResultsViewer(param.Parameterized):
         container = pn.Column(sizing_mode='stretch_both')
 
         loader = self._get_loader()
+        experiment_id = self._current_experiment_id()
         obs = loader.load_observed_streamflow()
-        sim = loader.load_simulated_streamflow()
+        sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None or sim is None:
             container.append(
@@ -383,8 +405,9 @@ class ResultsViewer(param.Parameterized):
         container = pn.Column(sizing_mode='stretch_both')
 
         loader = self._get_loader()
+        experiment_id = self._current_experiment_id()
         obs = loader.load_observed_streamflow()
-        sim = loader.load_simulated_streamflow()
+        sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None and sim is None:
             container.append(
@@ -439,6 +462,14 @@ class ResultsViewer(param.Parameterized):
 
         file_select = pn.widgets.Select(name='Plot', options=[], sizing_mode='stretch_width')
         display_area = pn.Column(sizing_mode='stretch_both')
+        diagnostics_status = pn.pane.Str("", sizing_mode='stretch_width')
+
+        def _set_diagnostics_running(running):
+            self._diagnostics_running = running
+            diagnose_btn.disabled = running
+            refresh_btn.disabled = running
+            category.disabled = running
+            diagnostics_status.object = "Generating diagnostics..." if running else ""
 
         def _refresh(event=None):
             files = self._scan_plots(category.value)
@@ -454,37 +485,41 @@ class ResultsViewer(param.Parameterized):
                 return
             display_area.clear()
             fp = Path(path)
-            if fp.suffix.lower() in ('.png', '.jpg', '.jpeg'):
-                display_area.append(
-                    pn.pane.PNG(str(fp), sizing_mode='scale_both', max_height=600)
-                )
-            elif fp.suffix.lower() == '.svg':
-                display_area.append(
-                    pn.pane.SVG(str(fp), sizing_mode='scale_both', max_height=600)
-                )
-            elif fp.suffix.lower() == '.pdf':
-                display_area.append(
-                    pn.pane.Str(f"PDF file: {fp.name}\nOpen externally to view.")
-                )
-            else:
-                display_area.append(pn.pane.Str(f"Unsupported format: {fp.suffix}"))
+            display_area.append(self._plot_pane_for_file(fp))
 
         def _run_diagnostics(event):
             if self.state.typed_config is None:
                 self.state.append_log("Load a config first.\n")
                 return
-            try:
-                sf = self.state.initialize_symfluence()
-                results = sf.run_all_diagnostics()
-                if results:
-                    self.state.append_log(f"Generated {len(results)} diagnostic plot(s).\n")
-                    _refresh()
-                else:
-                    self.state.append_log(
-                        "No diagnostics generated (check that outputs exist).\n"
-                    )
-            except Exception as exc:
-                self.state.append_log(f"Diagnostics failed: {exc}\n")
+            if self._diagnostics_running:
+                self.state.append_log("Diagnostics are already running.\n")
+                return
+
+            _set_diagnostics_running(True)
+
+            def _worker():
+                try:
+                    sf = self.state.initialize_symfluence()
+                    results = sf.run_all_diagnostics()
+                    if results:
+                        run_on_ui_thread(
+                            lambda: self.state.append_log(
+                                f"Generated {len(results)} diagnostic plot(s).\n"
+                            )
+                        )
+                        run_on_ui_thread(_refresh)
+                    else:
+                        run_on_ui_thread(
+                            lambda: self.state.append_log(
+                                "No diagnostics generated (check that outputs exist).\n"
+                            )
+                        )
+                except Exception as exc:
+                    run_on_ui_thread(lambda e=exc: self.state.append_log(f"Diagnostics failed: {e}\n"))
+                finally:
+                    run_on_ui_thread(lambda: _set_diagnostics_running(False))
+
+            threading.Thread(target=_worker, daemon=True).start()
 
         file_select.param.watch(_on_file_select, 'value')
         refresh_btn.on_click(_refresh)
@@ -494,11 +529,24 @@ class ResultsViewer(param.Parameterized):
 
         return pn.Column(
             pn.Row(category, refresh_btn, diagnose_btn),
+            diagnostics_status,
             file_select,
             pn.layout.Divider(),
             display_area,
             sizing_mode='stretch_both',
         )
+
+    @staticmethod
+    def _plot_pane_for_file(path: Path):
+        """Return an appropriate Panel pane for a saved plot path."""
+        suffix = path.suffix.lower()
+        if suffix in ('.png', '.jpg', '.jpeg'):
+            return pn.pane.Image(str(path), sizing_mode='scale_both', max_height=600)
+        if suffix == '.svg':
+            return pn.pane.SVG(str(path), sizing_mode='scale_both', max_height=600)
+        if suffix == '.pdf':
+            return pn.pane.Str(f"PDF file: {path.name}\nOpen externally to view.")
+        return pn.pane.Str(f"Unsupported format: {path.suffix}")
 
     def _scan_plots(self, category='All Plots'):
         """Scan project directory for plot files."""
@@ -534,6 +582,10 @@ class ResultsViewer(param.Parameterized):
             self._tabs[3] = ('Flow Duration Curve', self._build_fdc_tab())
             # Saved Plots tab is index 4 — not rebuilt on refresh
 
+    def refresh(self):
+        """Public API: refresh all interactive results views."""
+        self._rebuild_tabs()
+
     # ------------------------------------------------------------------
     # Main panel
     # ------------------------------------------------------------------
@@ -564,6 +616,9 @@ class ResultsViewer(param.Parameterized):
         self.state.param.watch(
             lambda e: self._on_project_change(), ['project_dir']
         )
+        self.state.param.watch(
+            lambda e: self._on_config_change(), ['typed_config', 'config_path']
+        )
 
         return pn.Column(
             "## Results",
@@ -575,4 +630,11 @@ class ResultsViewer(param.Parameterized):
     def _on_project_change(self):
         """Handle project directory change — create new loader."""
         self._loader = None
+        self._loader_key = None
+        self._rebuild_tabs()
+
+    def _on_config_change(self):
+        """Handle config updates (including experiment-id changes)."""
+        self._loader = None
+        self._loader_key = None
         self._rebuild_tabs()

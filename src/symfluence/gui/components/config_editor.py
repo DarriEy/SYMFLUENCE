@@ -20,6 +20,25 @@ class ConfigEditor(param.Parameterized):
     """Sidebar config editor with basic (widgets) and advanced (YAML) modes."""
 
     state = param.Parameter(doc="WorkflowState instance")
+    _WIDGETS = {
+        'domain_name': pn.widgets.TextInput,
+        'experiment_id': pn.widgets.TextInput,
+        'time_start': pn.widgets.TextInput,
+        'time_end': pn.widgets.TextInput,
+        'calibration_period': pn.widgets.TextInput,
+        'evaluation_period': pn.widgets.TextInput,
+        'definition_method': pn.widgets.Select,
+        'forcing_dataset': pn.widgets.Select,
+        'hydrological_model': pn.widgets.Select,
+        'optimization_algorithm': pn.widgets.Select,
+        'optimization_metric': pn.widgets.Select,
+        'pour_point_coords': pn.widgets.TextInput,
+        'bounding_box_coords': pn.widgets.TextInput,
+        'discretization': pn.widgets.TextInput,
+        'stream_threshold': pn.widgets.FloatInput,
+        'iterations': pn.widgets.IntInput,
+        'population_size': pn.widgets.IntInput,
+    }
 
     def __init__(self, state, **kw):
         super().__init__(state=state, **kw)
@@ -165,20 +184,7 @@ class ConfigEditor(param.Parameterized):
             self._basic_params,
             sizing_mode='stretch_width',
             show_name=False,
-            widgets={
-                'domain_name': pn.widgets.TextInput,
-                'experiment_id': pn.widgets.TextInput,
-                'time_start': pn.widgets.TextInput,
-                'time_end': pn.widgets.TextInput,
-                'calibration_period': pn.widgets.TextInput,
-                'evaluation_period': pn.widgets.TextInput,
-                'pour_point_coords': pn.widgets.TextInput,
-                'bounding_box_coords': pn.widgets.TextInput,
-                'discretization': pn.widgets.TextInput,
-                'stream_threshold': pn.widgets.FloatInput,
-                'iterations': pn.widgets.IntInput,
-                'population_size': pn.widgets.IntInput,
-            },
+            widgets=self._WIDGETS,
         )
 
         # Switch between basic and advanced
@@ -201,3 +207,72 @@ class ConfigEditor(param.Parameterized):
             editor_view,
             sizing_mode='stretch_both',
         )
+
+    def stage_panel(self, title, description, parameters, include_file_controls=False):
+        """Build a focused config editor for a specific workflow stage."""
+        if self.state.typed_config is not None:
+            self.load_from_state()
+
+        controls = []
+        if include_file_controls:
+            file_input = pn.widgets.TextInput(
+                name='Config File',
+                placeholder='Path to config YAML...',
+                value=self.state.config_path or '',
+                sizing_mode='stretch_width',
+            )
+            load_btn = pn.widgets.Button(name='Load', button_type='primary', width=70)
+
+            def _on_load(event):
+                path = file_input.value.strip()
+                if not path:
+                    return
+                try:
+                    self.state.load_config(path)
+                    file_input.value = self.state.config_path or path
+                except Exception as exc:
+                    self.state.append_log(f"Load failed: {exc}\n")
+
+            load_btn.on_click(_on_load)
+            controls.append(pn.Row(file_input, load_btn, sizing_mode='stretch_width'))
+
+        subset_panel = pn.Param(
+            self._basic_params,
+            parameters=parameters,
+            sizing_mode='stretch_width',
+            show_name=False,
+            widgets=self._WIDGETS,
+        )
+
+        save_btn = pn.widgets.Button(
+            name=f'Apply {title} Settings',
+            button_type='success',
+            width=170,
+        )
+        reload_btn = pn.widgets.Button(name='Reload', button_type='light', width=90)
+
+        def _on_save(event):
+            self._save_from_widgets()
+
+        def _on_reload(event):
+            self.load_from_state()
+
+        save_btn.on_click(_on_save)
+        reload_btn.on_click(_on_reload)
+
+        self.state.param.watch(
+            lambda event: setattr(save_btn, 'disabled', bool(event.new)),
+            'is_running',
+        )
+        save_btn.disabled = bool(self.state.is_running)
+
+        controls.extend([
+            pn.pane.HTML(
+                f"<div style='color:#6e7f91;font-size:0.9rem'>{description}</div>",
+                sizing_mode='stretch_width',
+            ),
+            subset_panel,
+            pn.Row(save_btn, reload_btn, sizing_mode='stretch_width'),
+        ])
+
+        return pn.Column(*controls, sizing_mode='stretch_both')

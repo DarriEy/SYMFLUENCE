@@ -8,10 +8,13 @@ then patches the resulting config with user-chosen model/forcing/time values.
 
 import logging
 import re
+import threading
 
 import panel as pn
 import param
 import yaml
+
+from ..utils.threading_utils import run_on_ui_thread
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ class GaugeSetupPanel(param.Parameterized):
 
     def __init__(self, state, **kw):
         super().__init__(state=state, **kw)
+        self._creating = False
 
         # Info display
         self._info_pane = pn.pane.HTML("", styles={'font-size': '12px'})
@@ -111,43 +115,76 @@ class GaugeSetupPanel(param.Parameterized):
         if not gauge:
             self._status_pane.object = "<span style='color:red'>No gauge selected.</span>"
             return
+        if self._creating:
+            self._status_pane.object = "Domain creation already in progress…"
+            return
 
-        from symfluence.project.pour_point_workflow import setup_pour_point_workflow
+        gauge = dict(gauge)
 
-        lat = gauge['lat']
-        lon = gauge['lon']
+        lat = gauge.get('lat')
+        lon = gauge.get('lon')
         coordinates = f"{lat}/{lon}"
         domain_name = self._domain_name.value or _sanitize_name(gauge.get('name', 'domain'))
+        discretization = self._discretization.value
 
-        self._create_btn.disabled = True
-        self._status_pane.object = "Creating config\u2026"
+        self._set_creating(True)
+        self._status_pane.object = "Creating config… (1/3: generate template)"
 
-        try:
-            # Step 1: Generate base config via pour-point workflow
-            result = setup_pour_point_workflow(
-                coordinates=coordinates,
-                domain_def_method=self._discretization.value,
-                domain_name=domain_name,
-            )
-            config_path = result.config_file
+        def _worker():
+            try:
+                from symfluence.project.pour_point_workflow import setup_pour_point_workflow
 
-            # Step 2: Patch with form values (model, forcing, time, station)
-            self._patch_config(config_path, gauge)
+                result = setup_pour_point_workflow(
+                    coordinates=coordinates,
+                    domain_def_method=discretization,
+                    domain_name=domain_name,
+                )
+                config_path = result.config_file
 
-            # Step 3: Load into GUI state
-            self.state.load_config(str(config_path))
+                run_on_ui_thread(
+                    lambda: setattr(self._status_pane, 'object', "Creating config… (2/3: apply settings)")
+                )
+                self._patch_config(config_path, gauge)
 
-            self._status_pane.object = (
-                f"<span style='color:green'>Config created: {config_path}</span>"
-            )
-            self.state.append_log(
-                f"Domain config created from gauge {gauge['station_id']}: {config_path}\n"
-            )
-        except Exception as exc:
-            self._status_pane.object = f"<span style='color:red'>Error: {exc}</span>"
-            self.state.append_log(f"Domain creation failed: {exc}\n")
-        finally:
-            self._create_btn.disabled = False
+                run_on_ui_thread(
+                    lambda: setattr(self._status_pane, 'object', "Creating config… (3/3: load into workspace)")
+                )
+                run_on_ui_thread(lambda p=str(config_path): self.state.load_config(p))
+
+                run_on_ui_thread(
+                    lambda p=config_path: setattr(
+                        self._status_pane,
+                        'object',
+                        f"<span style='color:green'>Config created: {p}</span>",
+                    )
+                )
+                run_on_ui_thread(
+                    lambda p=config_path, sid=gauge.get('station_id', ''): self.state.append_log(
+                        f"Domain config created from gauge {sid}: {p}\n"
+                    )
+                )
+            except Exception as exc:
+                run_on_ui_thread(
+                    lambda e=exc: setattr(self._status_pane, 'object', f"<span style='color:red'>Error: {e}</span>")
+                )
+                run_on_ui_thread(
+                    lambda e=exc: self.state.append_log(f"Domain creation failed: {e}\n")
+                )
+            finally:
+                run_on_ui_thread(lambda: self._set_creating(False))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _set_creating(self, creating):
+        """Toggle create button/UI lock while background creation is running."""
+        self._creating = creating
+        self._create_btn.disabled = creating
+        self._domain_name.disabled = creating
+        self._model.disabled = creating
+        self._forcing.disabled = creating
+        self._discretization.disabled = creating
+        self._time_start.disabled = creating
+        self._time_end.disabled = creating
 
     def _patch_config(self, config_path, gauge):
         """Patch the generated YAML with user-selected form values."""

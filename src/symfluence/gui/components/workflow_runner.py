@@ -84,6 +84,22 @@ class WorkflowRunner(param.Parameterized):
                 btn.button_type = 'default'
                 btn.name = f"{_ICONS['pending']}  {name}"
 
+    def run_step(self, step_name, force_rerun=False):
+        """Public API: run one workflow step."""
+        if self.state.typed_config is None:
+            self.state.append_log("Load a config first.\n")
+            return False
+        self._thread.run_steps([step_name], force_rerun=force_rerun)
+        return True
+
+    def run_full(self, force_rerun=False):
+        """Public API: run full workflow."""
+        if self.state.typed_config is None:
+            self.state.append_log("Load a config first.\n")
+            return False
+        self._thread.run_workflow(force_rerun=force_rerun)
+        return True
+
     def panel(self):
         """Build the workflow runner panel."""
         # Controls
@@ -96,19 +112,22 @@ class WorkflowRunner(param.Parameterized):
         run_all_btn = pn.widgets.Button(name='Run Full Workflow', button_type='success', width=160)
 
         def _run_step(event):
-            if self.state.typed_config is None:
-                self.state.append_log("Load a config first.\n")
-                return
-            self._thread.run_steps([step_selector.value], force_rerun=force_rerun.value)
+            self.run_step(step_selector.value, force_rerun=force_rerun.value)
 
         def _run_all(event):
-            if self.state.typed_config is None:
-                self.state.append_log("Load a config first.\n")
-                return
-            self._thread.run_workflow(force_rerun=force_rerun.value)
+            self.run_full(force_rerun=force_rerun.value)
 
         run_step_btn.on_click(_run_step)
         run_all_btn.on_click(_run_all)
+
+        def _set_controls_running(is_running):
+            step_selector.disabled = is_running
+            force_rerun.disabled = is_running
+            run_step_btn.disabled = is_running
+            run_all_btn.disabled = is_running
+
+        self.state.param.watch(lambda event: _set_controls_running(bool(event.new)), 'is_running')
+        _set_controls_running(bool(self.state.is_running))
 
         controls = pn.Row(step_selector, run_step_btn, run_all_btn, force_rerun)
 
@@ -122,7 +141,15 @@ class WorkflowRunner(param.Parameterized):
             return f"Progress: {done} / {total} steps completed"
 
         status_pane = pn.pane.Str(
-            _status_text,
+            pn.bind(
+                lambda ws, running, step: (
+                    f"Running: {step or 'workflow'}"
+                    if running else _status_text()
+                ),
+                self.state.param.workflow_status,
+                self.state.param.is_running,
+                self.state.param.running_step,
+            ),
             sizing_mode='stretch_width',
             styles={'font-weight': 'bold', 'font-size': '14px'},
         )
@@ -141,10 +168,7 @@ class WorkflowRunner(param.Parameterized):
             # Click individual step button to run it
             def _make_click_handler(step_name):
                 def handler(event):
-                    if self.state.typed_config is None:
-                        self.state.append_log("Load a config first.\n")
-                        return
-                    self._thread.run_steps([step_name], force_rerun=force_rerun.value)
+                    self.run_step(step_name, force_rerun=force_rerun.value)
                 return handler
 
             btn.on_click(_make_click_handler(name))
