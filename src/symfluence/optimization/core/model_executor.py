@@ -124,13 +124,13 @@ class ModelExecutor(ConfigMixin):
         """Run mizuRoute simulation"""
         try:
             # Get mizuRoute executable
-            mizu_path = self._get_config_value(lambda: self.config.model.mizuroute.install_path, dict_key='INSTALL_PATH_MIZUROUTE')
+            mizu_path = self._get_config_value(lambda: self.config.model.mizuroute.install_path, dict_key='MIZUROUTE_INSTALL_PATH')
             if mizu_path == 'default':
                 mizu_path = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / 'installs' / 'mizuRoute' / 'route' / 'bin'
             else:
                 mizu_path = Path(mizu_path)
 
-            mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuRoute.exe', dict_key='EXE_NAME_MIZUROUTE')
+            mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuRoute.exe', dict_key='MIZUROUTE_EXE')
             control_file = settings_dir / self._get_config_value(lambda: self.config.model.mizuroute.control_file, default='mizuroute.control', dict_key='SETTINGS_MIZU_CONTROL_FILE')
 
             # 1) Find SUMMA timestep file actually produced for this run
