@@ -173,6 +173,29 @@ class ParameterBoundsRegistry:
     }
 
     # ========================================================================
+    # DROUTE ROUTING PARAMETERS
+    # ========================================================================
+    DROUTE_PARAMS: Dict[str, ParameterInfo] = {
+        'velocity': ParameterInfo(0.1, 5.0, 'm/s', 'Base flow velocity', 'routing'),
+        'diffusivity': ParameterInfo(100.0, 5000.0, 'm²/s', 'Diffusion coefficient for diffusive wave routing', 'routing'),
+        'muskingum_k': ParameterInfo(0.1, 24.0, 'hours', 'Muskingum storage constant', 'routing'),
+        'muskingum_x': ParameterInfo(0.0, 0.5, '-', 'Muskingum weighting factor', 'routing'),
+        'manning_n': ParameterInfo(0.01, 0.1, '-', "Manning's roughness coefficient", 'routing'),
+    }
+
+    # ========================================================================
+    # FIRE (IGNACIO FBP) PARAMETERS
+    # ========================================================================
+    FIRE_PARAMS: Dict[str, ParameterInfo] = {
+        'ffmc': ParameterInfo(0.0, 101.0, '-', 'Fine Fuel Moisture Code', 'fire'),
+        'dmc': ParameterInfo(0.0, 200.0, '-', 'Duff Moisture Code', 'fire'),
+        'dc': ParameterInfo(0.0, 800.0, '-', 'Drought Code', 'fire'),
+        'fmc': ParameterInfo(50.0, 150.0, '%', 'Foliar Moisture Content', 'fire'),
+        'curing': ParameterInfo(0.0, 100.0, '%', 'Grass curing percentage', 'fire'),
+        'initial_radius': ParameterInfo(1.0, 100.0, 'm', 'Initial fire radius', 'fire'),
+    }
+
+    # ========================================================================
     # EVAPOTRANSPIRATION PARAMETERS
     # ========================================================================
     ET_PARAMS: Dict[str, ParameterInfo] = {
@@ -502,6 +525,32 @@ class ParameterBoundsRegistry:
         'smoothing': ParameterInfo(1.0, 50.0, '-', 'Smoothing factor for thresholds', 'numerical'),
     }
 
+    # ========================================================================
+    # XINANJIANG (XAJ) PARAMETERS
+    # ========================================================================
+    XINANJIANG_PARAMS: Dict[str, ParameterInfo] = {
+        # Generation parameters
+        'xaj_K': ParameterInfo(0.1, 1.0, '-', 'PET correction factor', 'et'),
+        'xaj_B': ParameterInfo(0.1, 0.4, '-', 'Tension water capacity curve exponent', 'soil'),
+        'xaj_IM': ParameterInfo(0.01, 0.1, '-', 'Impervious area fraction', 'soil'),
+        'xaj_UM': ParameterInfo(0.0, 20.0, 'mm', 'Upper layer tension water capacity', 'soil'),
+        'xaj_LM': ParameterInfo(60.0, 90.0, 'mm', 'Lower layer tension water capacity', 'soil'),
+        'xaj_DM': ParameterInfo(60.0, 120.0, 'mm', 'Deep layer tension water capacity', 'soil'),
+        'xaj_C': ParameterInfo(0.0, 0.2, '-', 'Deep layer ET coefficient', 'et'),
+
+        # Source separation parameters
+        'xaj_SM': ParameterInfo(1.0, 100.0, 'mm', 'Free water capacity', 'soil', 'log'),
+        'xaj_EX': ParameterInfo(1.0, 1.5, '-', 'Free water capacity curve exponent', 'soil'),
+        'xaj_KI': ParameterInfo(0.0, 0.7, '-', 'Interflow outflow coefficient', 'baseflow'),
+        'xaj_KG': ParameterInfo(0.0, 0.7, '-', 'Groundwater outflow coefficient', 'baseflow'),
+
+        # Routing parameters
+        'xaj_CS': ParameterInfo(0.0, 1.0, '-', 'Channel recession constant', 'routing'),
+        'xaj_L': ParameterInfo(1.0, 10.0, 'timesteps', 'Lag time', 'routing'),
+        'xaj_CI': ParameterInfo(0.0, 0.9, '-', 'Interflow recession constant', 'routing'),
+        'xaj_CG': ParameterInfo(0.98, 0.998, '-', 'Groundwater recession constant', 'routing'),
+    }
+
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
@@ -518,6 +567,9 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.VIC_PARAMS)
         self._all_params.update(self.HBV_PARAMS)
         self._all_params.update(self.SACSMA_PARAMS)
+        self._all_params.update(self.DROUTE_PARAMS)
+        self._all_params.update(self.FIRE_PARAMS)
+        self._all_params.update(self.XINANJIANG_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict]:
         """
@@ -841,6 +893,28 @@ def get_vic_bounds() -> Dict[str, Dict[str, float]]:
     return get_registry().get_bounds_for_params(vic_params)
 
 
+def get_droute_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all dRoute routing parameter bounds.
+
+    Returns:
+        Dictionary mapping dRoute param_name -> {'min': float, 'max': float, 'transform': str}
+    """
+    droute_params = ['velocity', 'diffusivity', 'muskingum_k', 'muskingum_x', 'manning_n']
+    return get_registry().get_bounds_for_params(droute_params)
+
+
+def get_ignacio_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all IGNACIO FBP parameter bounds.
+
+    Returns:
+        Dictionary mapping IGNACIO param_name -> {'min': float, 'max': float, 'transform': str}
+    """
+    fire_params = ['ffmc', 'dmc', 'dc', 'fmc', 'curing', 'initial_radius']
+    return get_registry().get_bounds_for_params(fire_params)
+
+
 def get_sacsma_bounds() -> Dict[str, Dict[str, float]]:
     """
     Get all SAC-SMA + Snow-17 parameter bounds.
@@ -856,3 +930,31 @@ def get_sacsma_bounds() -> Dict[str, Dict[str, float]]:
         'ZPERC', 'REXP', 'PFREE', 'PCTIM', 'ADIMP', 'RIVA', 'SIDE', 'RSERV',
     ]
     return get_registry().get_bounds_for_params(sacsma_params)
+
+
+def get_xinanjiang_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all Xinanjiang (XAJ) parameter bounds.
+
+    Returns:
+        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
+        Keys use unprefixed names (K, B, SM, ...) matching XAJ parameter conventions.
+    """
+    xaj_params = [
+        'xaj_K', 'xaj_B', 'xaj_IM', 'xaj_UM', 'xaj_LM', 'xaj_DM', 'xaj_C',
+        'xaj_SM', 'xaj_EX', 'xaj_KI', 'xaj_KG', 'xaj_CS', 'xaj_L', 'xaj_CI', 'xaj_CG',
+    ]
+    prefixed = get_registry().get_bounds_for_params(xaj_params)
+    # Strip xaj_ prefix so keys match parameter manager conventions
+    return {k.replace('xaj_', ''): v for k, v in prefixed.items()}
+
+
+def get_snow17_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get Snow-17 parameter bounds (reuses SACSMA_PARAMS entries).
+
+    Returns:
+        Dictionary mapping Snow-17 param_name -> {'min': float, 'max': float, 'transform': str}
+    """
+    names = ['SCF', 'PXTEMP', 'MFMAX', 'MFMIN', 'NMF', 'MBASE', 'TIPM', 'UADJ', 'PLWHC', 'DAYGM']
+    return get_registry().get_bounds_for_params(names)
