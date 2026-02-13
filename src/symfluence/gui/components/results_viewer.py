@@ -47,13 +47,23 @@ class ResultsViewer(param.Parameterized):
 
     state = param.Parameter(doc="WorkflowState instance")
 
-    def __init__(self, state, **kw):
+    def __init__(
+        self,
+        state,
+        run_step_callback=None,
+        run_full_callback=None,
+        load_demo_callback=None,
+        **kw,
+    ):
         super().__init__(state=state, **kw)
         self._loader = None
         self._loader_key = None
         self._tabs = None
         self._file_list = []
         self._diagnostics_running = False
+        self._run_step_callback = run_step_callback
+        self._run_full_callback = run_full_callback
+        self._load_demo_callback = load_demo_callback
 
     # ------------------------------------------------------------------
     # Loader management
@@ -86,6 +96,69 @@ class ResultsViewer(param.Parameterized):
         return self._loader
 
     # ------------------------------------------------------------------
+    # Action helpers
+    # ------------------------------------------------------------------
+
+    def _run_step_action(self, step_name):
+        if self._run_step_callback is None:
+            self.state.append_log(f"Run action unavailable for step: {step_name}\n")
+            return
+        try:
+            self._run_step_callback(step_name, force_rerun=False)
+        except TypeError:
+            self._run_step_callback(step_name)
+
+    def _run_full_action(self):
+        if self._run_full_callback is None:
+            self.state.append_log("Run-full action unavailable.\n")
+            return
+        try:
+            self._run_full_callback(force_rerun=False)
+        except TypeError:
+            self._run_full_callback()
+
+    def _load_demo_action(self):
+        if self._load_demo_callback is None:
+            self.state.append_log("Demo action unavailable.\n")
+            return
+        self._load_demo_callback()
+
+    def _actionable_alert(self, message, alert_type='info', actions=None):
+        """Render a compact alert with optional one-click action buttons."""
+        actions = actions or []
+        buttons = []
+        for spec in actions:
+            label = spec.get('label', 'Action')
+            callback = spec.get('callback')
+            button_type = spec.get('button_type', 'light')
+            disable_while_running = bool(spec.get('disable_while_running', False))
+            btn = pn.widgets.Button(name=label, button_type=button_type, width=190)
+            if callback is not None:
+                btn.on_click(lambda event, fn=callback: fn())
+            if disable_while_running:
+                btn.disabled = bool(self.state.is_running)
+                self.state.param.watch(
+                    lambda event, button=btn: setattr(button, 'disabled', bool(event.new)),
+                    'is_running',
+                )
+            buttons.append(btn)
+
+        row = (
+            pn.FlexBox(
+                *buttons,
+                sizing_mode='stretch_width',
+                styles={'column-gap': '8px', 'row-gap': '8px', 'flex-wrap': 'wrap'},
+            )
+            if buttons
+            else pn.Spacer(height=1)
+        )
+        return pn.Column(
+            pn.pane.Alert(message, alert_type=alert_type, sizing_mode='stretch_width'),
+            row,
+            sizing_mode='stretch_width',
+        )
+
+    # ------------------------------------------------------------------
     # Tab builders
     # ------------------------------------------------------------------
 
@@ -99,12 +172,54 @@ class ResultsViewer(param.Parameterized):
         sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None and sim is None:
-            container.append(
-                pn.pane.Alert(
-                    "No streamflow data found. Run the model or check your project directory.",
-                    alert_type='info',
-                )
-            )
+            container.append(self._actionable_alert(
+                "No streamflow data found. Run the model step or full workflow, then refresh results.",
+                alert_type='info',
+                actions=[
+                    {
+                        'label': 'Run run_model',
+                        'callback': lambda: self._run_step_action('run_model'),
+                        'button_type': 'primary',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Run Full Workflow',
+                        'callback': self._run_full_action,
+                        'button_type': 'success',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Load Demo',
+                        'callback': self._load_demo_action,
+                        'button_type': 'light',
+                    },
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                ],
+            ))
+            return container
+
+        if obs is None or len(obs) == 0 or sim is None or len(sim) == 0:
+            container.append(self._actionable_alert(
+                "Streamflow data is incomplete. Run a simulation and refresh this tab.",
+                alert_type='warning',
+                actions=[
+                    {
+                        'label': 'Run run_model',
+                        'callback': lambda: self._run_step_action('run_model'),
+                        'button_type': 'warning',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                ],
+            ))
             return container
 
         # Build Bokeh figure
@@ -185,12 +300,29 @@ class ResultsViewer(param.Parameterized):
         df = loader.load_optimization_history(experiment_id=experiment_id)
 
         if df is None or df.empty:
-            container.append(
-                pn.pane.Alert(
-                    "No calibration history found. Run calibration first.",
-                    alert_type='info',
-                )
-            )
+            container.append(self._actionable_alert(
+                "No calibration history found. Run calibration for this experiment.",
+                alert_type='info',
+                actions=[
+                    {
+                        'label': 'Run calibrate_model',
+                        'callback': lambda: self._run_step_action('calibrate_model'),
+                        'button_type': 'primary',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Run Full Workflow',
+                        'callback': self._run_full_action,
+                        'button_type': 'success',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                ],
+            ))
             return container
 
         # --- Top figure: score vs iteration ---
@@ -299,12 +431,23 @@ class ResultsViewer(param.Parameterized):
         sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None or sim is None:
-            container.append(
-                pn.pane.Alert(
-                    "Need both observed and simulated data to compute metrics.",
-                    alert_type='info',
-                )
-            )
+            container.append(self._actionable_alert(
+                "Need both observed and simulated data to compute metrics.",
+                alert_type='info',
+                actions=[
+                    {
+                        'label': 'Run run_model',
+                        'callback': lambda: self._run_step_action('run_model'),
+                        'button_type': 'primary',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                ],
+            ))
             return container
 
         try:
@@ -317,16 +460,38 @@ class ResultsViewer(param.Parameterized):
             sim_aligned = sim.loc[common]
 
         if len(obs_aligned) == 0 or len(sim_aligned) == 0:
-            container.append(
-                pn.pane.Alert("No overlapping time period between obs and sim.", alert_type='warning')
-            )
+            container.append(self._actionable_alert(
+                "No overlapping time period between observed and simulated series.",
+                alert_type='warning',
+                actions=[
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    }
+                ],
+            ))
             return container
 
         metrics = loader.calculate_metrics(obs_aligned.values, sim_aligned.values)
         if not metrics:
-            container.append(
-                pn.pane.Alert("Metrics calculation failed.", alert_type='danger')
-            )
+            container.append(self._actionable_alert(
+                "Metrics calculation failed for this experiment output.",
+                alert_type='danger',
+                actions=[
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                    {
+                        'label': 'Run postprocess_results',
+                        'callback': lambda: self._run_step_action('postprocess_results'),
+                        'button_type': 'warning',
+                        'disable_while_running': True,
+                    },
+                ],
+            ))
             return container
 
         # Try to get interpretation labels
@@ -410,9 +575,23 @@ class ResultsViewer(param.Parameterized):
         sim = loader.load_simulated_streamflow(experiment_id=experiment_id)
 
         if obs is None and sim is None:
-            container.append(
-                pn.pane.Alert("No streamflow data for FDC.", alert_type='info')
-            )
+            container.append(self._actionable_alert(
+                "No streamflow data available for the flow duration curve.",
+                alert_type='info',
+                actions=[
+                    {
+                        'label': 'Run run_model',
+                        'callback': lambda: self._run_step_action('run_model'),
+                        'button_type': 'primary',
+                        'disable_while_running': True,
+                    },
+                    {
+                        'label': 'Refresh Results',
+                        'callback': self.refresh,
+                        'button_type': 'light',
+                    },
+                ],
+            ))
             return container
 
         p = figure(
@@ -477,6 +656,29 @@ class ResultsViewer(param.Parameterized):
             file_select.options = (
                 {f.name: str(f) for f in files} if files else {'(no plots found)': ''}
             )
+            if not files:
+                display_area[:] = [self._actionable_alert(
+                    "No saved diagnostic images found in reporting outputs.",
+                    alert_type='info',
+                    actions=[
+                        {
+                            'label': 'Run postprocess_results',
+                            'callback': lambda: self._run_step_action('postprocess_results'),
+                            'button_type': 'primary',
+                            'disable_while_running': True,
+                        },
+                        {
+                            'label': 'Generate Diagnostics',
+                            'callback': lambda: _run_diagnostics(None),
+                            'button_type': 'success',
+                            'disable_while_running': True,
+                        },
+                    ],
+                )]
+                return
+            if file_select.value not in [str(f) for f in files]:
+                file_select.value = str(files[0])
+            display_area[:] = [self._plot_pane_for_file(Path(file_select.value))]
 
         def _on_file_select(event):
             path = event.new
