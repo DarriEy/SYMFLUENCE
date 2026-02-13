@@ -45,7 +45,11 @@ def _resolve_default_code_dir() -> str:
     except Exception:
         pass
 
-    return str(Path.cwd())
+    cwd = Path.cwd()
+    # Guard against running from Jupyter checkpoint directory
+    if cwd.name == '.ipynb_checkpoints':
+        cwd = cwd.parent
+    return str(cwd)
 
 
 def _resolve_default_data_dir(code_dir: Optional[str] = None) -> str:
@@ -64,6 +68,11 @@ def _resolve_default_data_dir(code_dir: Optional[str] = None) -> str:
     if code_dir is None:
         code_dir = _resolve_default_code_dir()
     code_path = Path(code_dir)
+    # Guard against Jupyter checkpoint directories in code_dir
+    parts = code_path.parts
+    clean = [p for p in parts if p != '.ipynb_checkpoints']
+    if len(clean) != len(parts):
+        code_path = Path(*clean)
     return str(code_path.parent / 'SYMFLUENCE_data')
 
 

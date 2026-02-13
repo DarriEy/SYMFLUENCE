@@ -32,6 +32,14 @@ from .evaluation import (
 from .paths import PathsConfig
 
 
+def _sanitize_cwd() -> Path:
+    """Return CWD with any .ipynb_checkpoints segments stripped."""
+    cwd = Path.cwd().resolve()
+    parts = cwd.parts
+    clean = [p for p in parts if p != '.ipynb_checkpoints']
+    return Path(*clean) if len(clean) != len(parts) else cwd
+
+
 class SymfluenceConfig(BaseModel):
     """
     Hierarchical root configuration model for SYMFLUENCE.
@@ -65,8 +73,8 @@ class SymfluenceConfig(BaseModel):
     # ========================================
 
     system: SystemConfig = Field(default_factory=lambda: SystemConfig(
-        SYMFLUENCE_DATA_DIR=Path.cwd() / 'data',
-        SYMFLUENCE_CODE_DIR=Path.cwd()
+        SYMFLUENCE_DATA_DIR=_sanitize_cwd() / 'data',
+        SYMFLUENCE_CODE_DIR=_sanitize_cwd()
     ))
     domain: DomainConfig = Field(default_factory=lambda: DomainConfig(
         DOMAIN_NAME='unnamed_domain',

@@ -34,8 +34,19 @@ class SystemConfig(BaseModel):
     @field_validator('data_dir', 'code_dir')
     @classmethod
     def validate_paths(cls, v):
-        """Expand and resolve paths"""
-        return Path(v).expanduser().resolve()
+        """Expand and resolve paths, stripping Jupyter checkpoint dirs."""
+        p = Path(v).expanduser().resolve()
+        # Guard against Jupyter notebook checkpoint directories
+        parts = p.parts
+        clean_parts = [part for part in parts if part != '.ipynb_checkpoints']
+        if len(clean_parts) != len(parts):
+            import warnings
+            p = Path(*clean_parts)
+            warnings.warn(
+                f"Path contained '.ipynb_checkpoints' — auto-corrected to: {p}",
+                UserWarning, stacklevel=2
+            )
+        return p
 
     @field_validator('num_processes')
     @classmethod
