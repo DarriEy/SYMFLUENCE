@@ -144,6 +144,16 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import vic: {e}")
 
+try:
+    from . import xinanjiang
+except ImportError as e:
+    logger.warning(f"Could not import xinanjiang: {e}")
+
+try:
+    from . import snow17
+except ImportError as e:
+    logger.warning(f"Could not import snow17: {e}")
+
 
 __all__ = [
     # Core
