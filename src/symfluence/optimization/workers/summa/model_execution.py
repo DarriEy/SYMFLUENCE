@@ -95,11 +95,14 @@ def _deduplicate_output_control(output_control_path: Path, logger):
         logger.warning(f"Failed to deduplicate output control: {e}")
 
 
-def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None) -> bool:
+def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None, timeout: int = 7200) -> bool:
     """SUMMA execution with iteration-aware logging.
 
     Log files include iteration number to prevent overwriting during calibration.
     This enables post-hoc debugging of failed runs when PARAMS_KEEP_TRIALS is enabled.
+
+    Args:
+        timeout: Maximum execution time in seconds (default: 7200 = 2 hours)
     """
     try:
         # Create log directory
@@ -246,7 +249,8 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
                 proc.run(
                     stdout=f,
                     stderr=subprocess.STDOUT,
-                    check=True
+                    check=True,
+                    timeout=timeout
                 )
 
         # Check if output files were created
@@ -273,7 +277,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         return False
 
     except subprocess.TimeoutExpired:
-        error_msg = "SUMMA simulation timed out (120 minutes)"
+        error_msg = f"SUMMA simulation timed out ({timeout}s)"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
         return False
@@ -316,15 +320,18 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
 
         logger.info(f"Found {len(expected_files)} SUMMA output files for mizuRoute")
         config = task_data['config']
+        mizu_timeout = int(config.get('MIZUROUTE_TIMEOUT', 3600))
 
-        # Get mizuRoute executable
-        mizu_path = config.get('INSTALL_PATH_MIZUROUTE', 'default')
+        # Get mizuRoute executable (canonical keys first, then deprecated aliases)
+        mizu_path = config.get('MIZUROUTE_INSTALL_PATH',
+                               config.get('INSTALL_PATH_MIZUROUTE', 'default'))
         if mizu_path == 'default':
             mizu_path = Path(config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'mizuRoute' / 'route' / 'bin'
         else:
             mizu_path = Path(mizu_path)
 
-        mizu_exe = mizu_path / config.get('EXE_NAME_MIZUROUTE', 'mizuRoute.exe')
+        mizu_exe = mizu_path / config.get('MIZUROUTE_EXE',
+                                          config.get('EXE_NAME_MIZUROUTE', 'mizuRoute.exe'))
         control_file = Path(task_data['mizuroute_settings_dir']) / 'mizuroute.control'
 
         # Verify files exist
@@ -382,7 +389,8 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
                 proc.run(
                     stdout=f,
                     stderr=subprocess.STDOUT,
-                    check=True
+                    check=True,
+                    timeout=mizu_timeout
                 )
 
         # Check for output files
@@ -397,6 +405,12 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         debug_info['mizuroute_output_files'] = [str(f) for f in nc_files[:3]]
 
         return True
+
+    except subprocess.TimeoutExpired:
+        error_msg = f"mizuRoute simulation timed out ({mizu_timeout}s)"
+        logger.error(error_msg)
+        debug_info['errors'].append(error_msg)
+        return False
 
     except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
         error_msg = f"mizuRoute execution failed: {str(e)}"
