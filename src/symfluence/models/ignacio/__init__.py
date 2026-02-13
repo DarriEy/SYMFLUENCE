@@ -55,9 +55,28 @@ try:
 except ImportError as e:
     logger.debug(f"Could not import IGNACIOPostProcessor: {e}")
 
+try:
+    from .extractor import IGNACIOResultExtractor
+except ImportError as e:
+    logger.debug(f"Could not import IGNACIOResultExtractor: {e}")
+
 __all__ = [
     "IGNACIOConfig",
     "IGNACIORunner",
     "IGNACIOPreProcessor",
     "IGNACIOPostProcessor",
+    "IGNACIOResultExtractor",
 ]
+
+# Register result extractor with ModelRegistry
+try:
+    from symfluence.models.registry import ModelRegistry
+    ModelRegistry.register_result_extractor('IGNACIO')(IGNACIOResultExtractor)
+except Exception:
+    pass
+
+# Register calibration components with OptimizerRegistry
+try:
+    from .calibration import IGNACIOModelOptimizer  # noqa: F401
+except ImportError:
+    pass  # Calibration dependencies optional

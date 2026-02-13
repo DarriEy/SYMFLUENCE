@@ -66,8 +66,16 @@ References:
 from .preprocessor import VICPreProcessor
 from .runner import VICRunner
 from .extractor import VICResultExtractor
+from .postprocessor import VICPostProcessor
+from .config import VICConfigAdapter
 
-__all__ = ["VICPreProcessor", "VICRunner", "VICResultExtractor"]
+__all__ = [
+    "VICPreProcessor",
+    "VICRunner",
+    "VICResultExtractor",
+    "VICPostProcessor",
+    "VICConfigAdapter",
+]
 
 # Register build instructions (lightweight, no heavy deps)
 try:
@@ -87,6 +95,9 @@ ModelRegistry.register_runner('VIC')(VICRunner)
 
 # Register result extractor
 ModelRegistry.register_result_extractor('VIC')(VICResultExtractor)
+
+# Register config adapter
+ModelRegistry.register_config_adapter('VIC')(VICConfigAdapter)
 
 # Register calibration components with OptimizerRegistry
 try:

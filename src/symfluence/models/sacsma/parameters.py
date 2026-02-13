@@ -4,6 +4,9 @@ SAC-SMA + Snow-17 Parameter Definitions.
 Defines all 26 parameters (10 Snow-17 + 16 SAC-SMA) with bounds, defaults,
 and NamedTuple structures for the coupled model.
 
+Snow-17 definitions are imported from the shared ``symfluence.models.snow17``
+module. SAC-SMA NamedTuple fields use ``Any`` types for JAX tracer compatibility.
+
 References:
     Anderson, E.A. (2006). Snow Accumulation and Ablation Model - SNOW-17.
     NWS River Forecast System User Manual.
@@ -12,58 +15,32 @@ References:
     Computer Models of Watershed Hydrology, 311-366.
 """
 
-from typing import Dict, NamedTuple, Tuple
+from typing import Any, Dict, List, NamedTuple, Tuple
 
+import numpy as np
 
+# Import Snow-17 definitions from the shared module
+from symfluence.models.snow17.parameters import (
+    Snow17Params,
+    SNOW17_PARAM_NAMES,
+    SNOW17_PARAM_BOUNDS,
+    SNOW17_DEFAULTS,
+    params_dict_to_namedtuple as snow17_params_dict_to_namedtuple,
+)
 
-# =============================================================================
-# SNOW-17 PARAMETERS
-# =============================================================================
-
-SNOW17_PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
-    'SCF': (0.7, 1.4),       # Snowfall correction factor (-)
-    'PXTEMP': (-2.0, 2.0),   # Rain/snow threshold temperature (°C)
-    'MFMAX': (0.5, 2.0),     # Max melt factor Jun 21 (mm/°C/6hr)
-    'MFMIN': (0.05, 0.6),    # Min melt factor Dec 21 (mm/°C/6hr)
-    'NMF': (0.05, 0.5),      # Negative melt factor (mm/°C/6hr)
-    'MBASE': (0.0, 1.0),     # Base melt temperature (°C)
-    'TIPM': (0.01, 1.0),     # Antecedent temperature index weight (-)
-    'UADJ': (0.01, 0.2),     # Rain-on-snow wind function (mm/mb/6hr)
-    'PLWHC': (0.01, 0.3),    # Liquid water holding capacity (fraction)
-    'DAYGM': (0.0, 0.3),     # Daily ground melt (mm/day)
-}
-
-SNOW17_DEFAULTS: Dict[str, float] = {
-    'SCF': 1.0,
-    'PXTEMP': 1.0,
-    'MFMAX': 1.0,
-    'MFMIN': 0.3,
-    'NMF': 0.15,
-    'MBASE': 0.0,
-    'TIPM': 0.1,
-    'UADJ': 0.04,
-    'PLWHC': 0.04,
-    'DAYGM': 0.0,
-}
-
-
-class Snow17Parameters(NamedTuple):
-    """Snow-17 model parameters."""
-    SCF: float      # Snowfall correction factor
-    PXTEMP: float   # Rain/snow threshold temperature (°C)
-    MFMAX: float    # Max melt factor (mm/°C/6hr)
-    MFMIN: float    # Min melt factor (mm/°C/6hr)
-    NMF: float      # Negative melt factor (mm/°C/6hr)
-    MBASE: float    # Base melt temperature (°C)
-    TIPM: float     # Antecedent temperature index weight
-    UADJ: float     # Wind function for rain-on-snow (mm/mb/6hr)
-    PLWHC: float    # Liquid water holding capacity (fraction)
-    DAYGM: float    # Daily ground melt (mm/day)
+# Backward-compatibility alias
+Snow17Parameters = Snow17Params
 
 
 # =============================================================================
 # SAC-SMA PARAMETERS
 # =============================================================================
+
+SACSMA_PARAM_NAMES: List[str] = [
+    'UZTWM', 'UZFWM', 'UZK', 'LZTWM', 'LZFPM', 'LZFSM',
+    'LZPK', 'LZSK', 'ZPERC', 'REXP', 'PFREE', 'PCTIM',
+    'ADIMP', 'RIVA', 'SIDE', 'RSERV',
+]
 
 SACSMA_PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
     'UZTWM': (1.0, 150.0),    # Upper zone tension water max (mm)
@@ -108,23 +85,23 @@ LOG_TRANSFORM_PARAMS = {'ZPERC', 'LZFPM', 'LZFSM', 'LZPK', 'LZSK'}
 
 
 class SacSmaParameters(NamedTuple):
-    """SAC-SMA model parameters."""
-    UZTWM: float   # Upper zone tension water maximum (mm)
-    UZFWM: float   # Upper zone free water maximum (mm)
-    UZK: float     # Upper zone lateral depletion rate (1/day)
-    LZTWM: float   # Lower zone tension water maximum (mm)
-    LZFPM: float   # Lower zone primary free water maximum (mm)
-    LZFSM: float   # Lower zone supplemental free water maximum (mm)
-    LZPK: float    # Primary baseflow depletion rate (1/day)
-    LZSK: float    # Supplemental baseflow depletion rate (1/day)
-    ZPERC: float   # Maximum percolation rate scaling (-)
-    REXP: float    # Percolation curve exponent (-)
-    PFREE: float   # Fraction percolation to free water (-)
-    PCTIM: float   # Permanent impervious area fraction (-)
-    ADIMP: float   # Additional impervious area fraction (-)
-    RIVA: float    # Riparian vegetation ET fraction (-)
-    SIDE: float    # Deep recharge fraction (-)
-    RSERV: float   # Lower zone free water reserve fraction (-)
+    """SAC-SMA model parameters. Fields use Any for JAX tracer compatibility."""
+    UZTWM: Any   # Upper zone tension water maximum (mm)
+    UZFWM: Any   # Upper zone free water maximum (mm)
+    UZK: Any     # Upper zone lateral depletion rate (1/day)
+    LZTWM: Any   # Lower zone tension water maximum (mm)
+    LZFPM: Any   # Lower zone primary free water maximum (mm)
+    LZFSM: Any   # Lower zone supplemental free water maximum (mm)
+    LZPK: Any    # Primary baseflow depletion rate (1/day)
+    LZSK: Any    # Supplemental baseflow depletion rate (1/day)
+    ZPERC: Any   # Maximum percolation rate scaling (-)
+    REXP: Any    # Percolation curve exponent (-)
+    PFREE: Any   # Fraction percolation to free water (-)
+    PCTIM: Any   # Permanent impervious area fraction (-)
+    ADIMP: Any   # Additional impervious area fraction (-)
+    RIVA: Any    # Riparian vegetation ET fraction (-)
+    SIDE: Any    # Deep recharge fraction (-)
+    RSERV: Any   # Lower zone free water reserve fraction (-)
 
 
 # =============================================================================
@@ -148,21 +125,77 @@ DEFAULT_PARAMS: Dict[str, float] = {
 # PARAMETER UTILITIES
 # =============================================================================
 
-def create_snow17_params(params_dict: Dict[str, float]) -> Snow17Parameters:
-    """Create Snow17Parameters from a dictionary, filling missing with defaults."""
-    merged = {**SNOW17_DEFAULTS, **{k: v for k, v in params_dict.items() if k in SNOW17_DEFAULTS}}
-    return Snow17Parameters(**merged)
+def params_dict_to_namedtuple(
+    params_dict: Dict[str, float],
+    use_jax: bool = False,
+) -> SacSmaParameters:
+    """Convert parameter dictionary to SacSmaParameters NamedTuple.
+
+    Preserves JAX tracers when ``use_jax=True``.
+
+    Args:
+        params_dict: Dictionary of parameter name -> value
+        use_jax: Whether to preserve JAX tracers (True) or cast to np.float64
+
+    Returns:
+        SacSmaParameters namedtuple
+    """
+    try:
+        import jax.numpy as jnp
+        _has_jax = True
+    except ImportError:
+        _has_jax = False
+
+    values = {}
+    for name in SACSMA_PARAM_NAMES:
+        val = params_dict.get(name, SACSMA_DEFAULTS[name])
+        if use_jax and _has_jax:
+            values[name] = val if hasattr(val, 'shape') else jnp.array(float(val))
+        else:
+            values[name] = np.float64(val)
+
+    return SacSmaParameters(**values)
+
+
+def create_snow17_params(params_dict: Dict[str, float]) -> Snow17Params:
+    """Create Snow17Params from a dictionary, filling missing with defaults."""
+    return snow17_params_dict_to_namedtuple(params_dict, use_jax=False)
 
 
 def create_sacsma_params(params_dict: Dict[str, float]) -> SacSmaParameters:
     """Create SacSmaParameters from a dictionary, filling missing with defaults."""
-    merged = {**SACSMA_DEFAULTS, **{k: v for k, v in params_dict.items() if k in SACSMA_DEFAULTS}}
-    return SacSmaParameters(**merged)
+    return params_dict_to_namedtuple(params_dict, use_jax=False)
 
 
-def split_params(params_dict: Dict[str, float]) -> Tuple[Snow17Parameters, SacSmaParameters]:
-    """Split combined parameter dict into Snow-17 and SAC-SMA parameter tuples."""
-    return create_snow17_params(params_dict), create_sacsma_params(params_dict)
+def split_params(params_dict: Dict[str, float]) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """Split combined parameter dict into Snow-17 and SAC-SMA sub-dicts.
+
+    Returns plain dicts so callers can convert to NamedTuples with the
+    appropriate backend (JAX or NumPy).
+
+    Args:
+        params_dict: Combined parameter dictionary
+
+    Returns:
+        Tuple of (snow17_dict, sacsma_dict)
+    """
+    snow17_dict = {}
+    sacsma_dict = {}
+    for key, val in params_dict.items():
+        if key in SNOW17_PARAM_NAMES:
+            snow17_dict[key] = val
+        elif key in SACSMA_PARAM_NAMES:
+            sacsma_dict[key] = val
+
+    # Fill missing with defaults
+    for name in SNOW17_PARAM_NAMES:
+        if name not in snow17_dict:
+            snow17_dict[name] = SNOW17_DEFAULTS[name]
+    for name in SACSMA_PARAM_NAMES:
+        if name not in sacsma_dict:
+            sacsma_dict[name] = SACSMA_DEFAULTS[name]
+
+    return snow17_dict, sacsma_dict
 
 
 def get_param_transform(param_name: str) -> str:

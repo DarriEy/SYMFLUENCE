@@ -8,6 +8,7 @@ from symfluence.models.sacsma.parameters import (
     SNOW17_DEFAULTS,
     SACSMA_PARAM_BOUNDS,
     SACSMA_DEFAULTS,
+    SACSMA_PARAM_NAMES,
     PARAM_BOUNDS,
     DEFAULT_PARAMS,
     LOG_TRANSFORM_PARAMS,
@@ -18,6 +19,7 @@ from symfluence.models.sacsma.parameters import (
     split_params,
     get_param_transform,
 )
+from symfluence.models.snow17.parameters import Snow17Params
 
 
 class TestParameterBounds:
@@ -58,34 +60,58 @@ class TestParameterBounds:
     def test_sacsma_defaults_complete(self):
         assert set(SACSMA_DEFAULTS.keys()) == set(SACSMA_PARAM_BOUNDS.keys())
 
+    def test_sacsma_param_names_count(self):
+        assert len(SACSMA_PARAM_NAMES) == 16
+
 
 class TestNamedTuples:
     """Test NamedTuple creation."""
 
     def test_snow17_params_from_defaults(self):
         params = create_snow17_params(SNOW17_DEFAULTS)
-        assert isinstance(params, Snow17Parameters)
+        assert isinstance(params, Snow17Params)
         assert params.SCF == SNOW17_DEFAULTS['SCF']
+
+    def test_snow17_backward_compat_alias(self):
+        """Snow17Parameters should be same as Snow17Params."""
+        assert Snow17Parameters is Snow17Params
 
     def test_sacsma_params_from_defaults(self):
         params = create_sacsma_params(SACSMA_DEFAULTS)
         assert isinstance(params, SacSmaParameters)
         assert params.UZTWM == SACSMA_DEFAULTS['UZTWM']
 
-    def test_split_params(self):
-        snow17, sacsma = split_params(DEFAULT_PARAMS)
-        assert isinstance(snow17, Snow17Parameters)
-        assert isinstance(sacsma, SacSmaParameters)
+    def test_split_params_returns_dicts(self):
+        """split_params should return (dict, dict) not NamedTuples."""
+        snow17_d, sacsma_d = split_params(DEFAULT_PARAMS)
+        assert isinstance(snow17_d, dict)
+        assert isinstance(sacsma_d, dict)
+
+    def test_split_params_content(self):
+        """Split dicts should contain correct keys."""
+        snow17_d, sacsma_d = split_params(DEFAULT_PARAMS)
+        assert 'SCF' in snow17_d
+        assert 'UZTWM' in sacsma_d
+        assert len(snow17_d) == 10
+        assert len(sacsma_d) == 16
+
+    def test_split_params_fills_defaults(self):
+        """Missing keys should be filled from defaults."""
+        snow17_d, sacsma_d = split_params({'SCF': 1.2, 'UZTWM': 80.0})
+        assert snow17_d['SCF'] == 1.2
+        assert snow17_d['MFMAX'] == SNOW17_DEFAULTS['MFMAX']
+        assert sacsma_d['UZTWM'] == 80.0
+        assert sacsma_d['UZK'] == SACSMA_DEFAULTS['UZK']
 
     def test_create_with_partial_dict(self):
         """Missing keys should be filled from defaults."""
         params = create_snow17_params({'SCF': 1.2})
-        assert params.SCF == 1.2
-        assert params.MFMAX == SNOW17_DEFAULTS['MFMAX']
+        assert params.SCF == pytest.approx(1.2)
+        assert params.MFMAX == pytest.approx(SNOW17_DEFAULTS['MFMAX'])
 
     def test_create_ignores_extra_keys(self):
         params = create_snow17_params({'SCF': 1.2, 'UZTWM': 100.0})
-        assert params.SCF == 1.2
+        assert params.SCF == pytest.approx(1.2)
 
 
 class TestGetParamTransform:

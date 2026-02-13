@@ -12,7 +12,10 @@ import numpy as np
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.models.sacsma.parameters import PARAM_BOUNDS, DEFAULT_PARAMS, LOG_TRANSFORM_PARAMS
+from symfluence.models.sacsma.parameters import (
+    PARAM_BOUNDS, DEFAULT_PARAMS, LOG_TRANSFORM_PARAMS,
+    SACSMA_PARAM_BOUNDS, SACSMA_DEFAULTS,
+)
 
 
 @OptimizerRegistry.register_parameter_manager('SACSMA')
@@ -25,17 +28,27 @@ class SacSmaParameterManager(BaseParameterManager):
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
 
+        # Snow module determines parameter set
+        self.snow_module = str(config.get('SACSMA_SNOW_MODULE', 'snow17'))
+
+        if self.snow_module == 'none':
+            available_bounds = SACSMA_PARAM_BOUNDS.copy()
+            available_defaults = SACSMA_DEFAULTS.copy()
+        else:
+            available_bounds = PARAM_BOUNDS.copy()
+            available_defaults = DEFAULT_PARAMS.copy()
+
         # Parse parameters to calibrate
         params_str = config.get('SACSMA_PARAMS_TO_CALIBRATE', 'all')
         if params_str is None or params_str == '' or params_str == 'all':
-            self.sacsma_params = list(PARAM_BOUNDS.keys())
+            self.sacsma_params = list(available_bounds.keys())
             logger.debug(f"Calibrating all {len(self.sacsma_params)} SAC-SMA parameters")
         else:
             self.sacsma_params = [p.strip() for p in str(params_str).split(',') if p.strip()]
             logger.debug(f"Calibrating SAC-SMA parameters: {self.sacsma_params}")
 
-        self.all_bounds = PARAM_BOUNDS.copy()
-        self.defaults = DEFAULT_PARAMS.copy()
+        self.all_bounds = available_bounds
+        self.defaults = available_defaults
         self.calibration_params = self.sacsma_params
 
     def _get_parameter_names(self) -> List[str]:

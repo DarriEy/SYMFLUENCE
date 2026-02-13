@@ -42,9 +42,11 @@ class SacSmaWorker(InMemoryModelWorker):
         # Configuration
         self.latitude = 45.0
         self.si = 100.0
+        self.snow_module = 'snow17'
         if config:
             self.latitude = float(config.get('SACSMA_LATITUDE', 45.0))
             self.si = float(config.get('SACSMA_SI', 100.0))
+            self.snow_module = str(config.get('SACSMA_SNOW_MODULE', 'snow17'))
 
     def _get_model_name(self) -> str:
         return 'SACSMA'
@@ -53,11 +55,13 @@ class SacSmaWorker(InMemoryModelWorker):
         return 'SACSMA_input'
 
     def _get_forcing_variable_map(self) -> Dict[str, str]:
-        return {
+        var_map = {
             'precip': 'pr',
-            'temp': 'temp',
             'pet': 'pet',
         }
+        if self.snow_module == 'snow17':
+            var_map['temp'] = 'temp'
+        return var_map
 
     def _load_forcing(self, task=None) -> bool:
         """Load SAC-SMA forcing data."""
@@ -178,6 +182,11 @@ class SacSmaWorker(InMemoryModelWorker):
             day_of_year = self._time_index.dayofyear.values
 
         assert self._simulate_fn is not None
+
+        # For standalone mode, temp may not be in forcing
+        if self.snow_module == 'none' and 'temp' not in forcing:
+            temp = np.zeros_like(precip)
+
         runoff, _ = self._simulate_fn(
             precip, temp, pet,
             params=params,
@@ -185,6 +194,8 @@ class SacSmaWorker(InMemoryModelWorker):
             warmup_days=self.warmup_days,
             latitude=self.latitude,
             si=self.si,
+            use_jax=False,
+            snow_module=self.snow_module,
         )
 
         return runoff

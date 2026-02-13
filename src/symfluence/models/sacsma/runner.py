@@ -65,6 +65,20 @@ class SacSmaRunner(  # type: ignore[misc]
             100.0
         )
 
+        self.snow_module = self._get_config_value(
+            lambda: self.config.model.sacsma.snow_module
+            if self.config.model and hasattr(self.config.model, 'sacsma') and self.config.model.sacsma
+            else None,
+            'snow17'
+        )
+
+        self.backend = self._get_config_value(
+            lambda: self.config.model.sacsma.backend
+            if self.config.model and hasattr(self.config.model, 'sacsma') and self.config.model.sacsma
+            else None,
+            'numpy'
+        )
+
     def _get_model_name(self) -> str:
         return "SACSMA"
 
@@ -169,6 +183,8 @@ class SacSmaRunner(  # type: ignore[misc]
                 warmup_days=self.warmup_days,
                 latitude=self.latitude,
                 si=self.si,
+                use_jax=(self.backend == 'jax'),
+                snow_module=self.snow_module,
             )
 
             # Save results
