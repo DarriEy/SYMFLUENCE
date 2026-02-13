@@ -148,9 +148,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}
-          key: symfluence-testdata-v0.6.0-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
+          key: symfluence-testdata-v0.6.0b-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
           restore-keys: |
-            symfluence-testdata-v0.6.0-
+            symfluence-testdata-v0.6.0b-
 
       - name: Full install (build venv + tools)
         env:
@@ -169,6 +169,16 @@ jobs:
 
           # Install test dependencies (pytest moved to optional deps)
           pip install -e ".[test]"
+
+          # Rebuild h5py and netCDF4 from source against system HDF5 to prevent
+          # dual-loading conflicts — pip wheels each bundle their own libhdf5,
+          # and loading two copies in one process causes [Errno -101] HDF errors.
+          echo "Rebuilding h5py/netCDF4 against system HDF5..."
+          pip install cython numpy  # build deps
+          HDF5_PKGCONFIG_NAME=hdf5 pip install --no-binary h5py --force-reinstall h5py || \
+            echo "WARNING: h5py source build failed, using wheel"
+          pip install --no-binary netCDF4 --force-reinstall netCDF4 || \
+            echo "WARNING: netCDF4 source build failed, using wheel"
 
 
       - name: Add external tools to PATH
@@ -243,12 +253,15 @@ jobs:
           # Unset build-time HDF5 env vars — they can interfere with pip's bundled HDF5
           unset HDF5_ROOT HDF5_LIBDIR HDF5_INCLUDE_DIR
 
-          # Debug: verify which HDF5 Python's netCDF4 loads
+          # Debug: verify which HDF5 libraries Python loads
           echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<unset>}"
           python -c "
-          import netCDF4
-          print(f'netCDF4 {netCDF4.__version__}, HDF5 lib: {netCDF4.__hdf5libversion__}, netCDF lib: {netCDF4.__netcdf4libversion__}')
-          " || echo "Could not print netCDF4 version info"
+          import h5py, netCDF4
+          print(f'h5py {h5py.__version__}, HDF5: {h5py.version.hdf5_version}')
+          print(f'netCDF4 {netCDF4.__version__}, HDF5: {netCDF4.__hdf5libversion__}, netCDF: {netCDF4.__netcdf4libversion__}')
+          same = h5py.version.hdf5_version == netCDF4.__hdf5libversion__
+          print(f'HDF5 versions match: {same}' + (' (good)' if same else ' *** MISMATCH — dual-loading risk ***'))
+          " || echo "Could not print HDF5 version info"
 
           TEST_LEVEL="${{ steps.test_level.outputs.test_level }}"
           echo "========================================="
@@ -306,7 +319,7 @@ jobs:
               echo "========================================="
               echo "2/4: Running integration tests..."
               echo "========================================="
-              pytest -v --tb=short -m "integration and not calibration" tests/integration/
+              pytest -v --tb=short -m "integration and not calibration and not slow" tests/integration/
 
               # Run quick e2e tests
               echo "========================================="

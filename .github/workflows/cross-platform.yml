@@ -269,7 +269,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
-            export PATH="$CONDA/condabin:$PATH"
+            export PATH="$(cygpath -u "$CONDA" 2>/dev/null || echo "$CONDA")/condabin:$PATH"
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
             export SYMFLUENCE_PYTHON="python"
@@ -587,7 +587,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
-            export PATH="$CONDA/condabin:$PATH"
+            export PATH="$(cygpath -u "$CONDA" 2>/dev/null || echo "$CONDA")/condabin:$PATH"
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
             export SYMFLUENCE_PYTHON="python"

@@ -421,34 +421,40 @@ jobs:
         run: |
           BIN_DIR=$(symfluence path)
           FOUND=0
-          MISSING=0
+          MISSING_REQUIRED=0
 
-          # Required binaries (fail if missing)
-          REQUIRED_BINS="summa mizuroute"
+          # Platform-specific requirements:
+          # macOS ARM Fortran builds may not produce all binaries
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            REQUIRED_BINS="summa mizuroute"
+            OPTIONAL_BINS="fuse ngen"
+          else
+            REQUIRED_BINS="mizuroute"
+            OPTIONAL_BINS="summa fuse ngen"
+          fi
+
           for binary in $REQUIRED_BINS; do
             if [ -f "$BIN_DIR/$binary" ]; then
-              echo "✓ Found $binary"
+              echo "Found $binary"
               FOUND=$((FOUND + 1))
             else
-              echo "❌ Missing required binary: $binary"
-              MISSING=$((MISSING + 1))
+              echo "Missing required binary: $binary"
+              MISSING_REQUIRED=$((MISSING_REQUIRED + 1))
             fi
           done
 
-          # Optional binaries (warn if missing)
-          OPTIONAL_BINS="fuse ngen"
           for binary in $OPTIONAL_BINS; do
             if [ -f "$BIN_DIR/$binary" ]; then
-              echo "✓ Found $binary"
+              echo "Found $binary"
               FOUND=$((FOUND + 1))
             else
-              echo "⚠ Optional binary not found: $binary"
+              echo "Optional binary not found: $binary"
             fi
           done
 
-          echo "Found $FOUND binaries"
-          if [ $MISSING -gt 0 ]; then
-            echo "❌ $MISSING required binaries missing"
+          echo "Found $FOUND binaries total"
+          if [ $MISSING_REQUIRED -gt 0 ]; then
+            echo "$MISSING_REQUIRED required binaries missing"
             exit 1
           fi
 

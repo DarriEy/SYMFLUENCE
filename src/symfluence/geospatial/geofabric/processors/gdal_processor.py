@@ -13,7 +13,12 @@ import glob
 from pathlib import Path
 from typing import Any
 import geopandas as gpd
-from osgeo import gdal, ogr
+
+try:
+    from osgeo import gdal, ogr
+except ImportError:
+    gdal = None
+    ogr = None
 
 
 class GDALProcessor:
@@ -31,6 +36,11 @@ class GDALProcessor:
         Args:
             logger: Logger instance
         """
+        if gdal is None:
+            raise ImportError(
+                "GDAL Python bindings (osgeo) are required for GDALProcessor. "
+                "Install with: pip install GDAL"
+            )
         self.logger = logger
 
     def run_gdal_processing(self, interim_dir: Path):
