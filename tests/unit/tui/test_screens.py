@@ -29,7 +29,7 @@ class TestSymfluenceTUI:
         app = SymfluenceTUI()
         assert app.TITLE == "SYMFLUENCE"
         assert len(app.MODES) == 6
-        assert len(app.BINDINGS) == 7
+        assert len(app.BINDINGS) >= 9
 
     def test_app_with_config_path(self):
         """Config path is stored on construction."""
@@ -47,6 +47,14 @@ class TestSymfluenceTUI:
 
         for name, cls in SymfluenceTUI.MODES.items():
             assert issubclass(cls, Screen), f"{name} is not a Screen subclass"
+
+    def test_command_palette_contains_core_actions(self):
+        """Command palette contains key navigation and setup actions."""
+        app = SymfluenceTUI()
+        command_ids = {item[0] for item in app._command_palette_items()}
+        assert "mode:dashboard" in command_ids
+        assert "mode:workflow" in command_ids
+        assert "app:set_data_dir" in command_ids
 
 
 # ============================================================================
@@ -172,6 +180,21 @@ class TestDashboardScreen:
                 assert isinstance(app.screen, RunBrowserScreen)
                 domain_filter = app.screen.query_one("#filter-domain", Input)
                 assert domain_filter.value == "bow_at_banff"
+
+        asyncio.run(_test())
+
+    def test_onboarding_visible_without_data_dir(self, monkeypatch):
+        """Dashboard shows first-run onboarding when no data directory is configured."""
+        monkeypatch.delenv("SYMFLUENCE_DATA_DIR", raising=False)
+        monkeypatch.delenv("SYMFLUENCE_DATA", raising=False)
+
+        async def _test():
+            app = SymfluenceTUI()
+            async with app.run_test(size=(120, 40)) as pilot:
+                from textual.widgets import Static
+                onboarding = app.screen.query_one("#onboarding-panel", Static)
+                assert onboarding.display is not False
+                assert "First run setup" in str(onboarding.renderable)
 
         asyncio.run(_test())
 

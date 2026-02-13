@@ -7,6 +7,9 @@ from .workflow_launcher import WorkflowLauncherScreen
 from .calibration import CalibrationScreen
 from .slurm_monitor import SlurmMonitorScreen
 from .results_compare import ResultsCompareScreen
+from .help import HelpScreen
+from .command_palette import CommandPaletteScreen
+from .path_prompt import PathPromptScreen
 
 __all__ = [
     'DashboardScreen',
@@ -16,4 +19,7 @@ __all__ = [
     'CalibrationScreen',
     'SlurmMonitorScreen',
     'ResultsCompareScreen',
+    'HelpScreen',
+    'CommandPaletteScreen',
+    'PathPromptScreen',
 ]

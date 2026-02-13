@@ -3,6 +3,7 @@ Auto-scrolling log panel with thread-safe write support.
 """
 
 import logging
+from typing import Callable, Optional
 
 from textual.widgets import RichLog
 
@@ -26,10 +27,17 @@ class TUILogHandler(logging.Handler):
     pn.state.execute()).
     """
 
-    def __init__(self, app, log_panel: LogPanel, level=logging.INFO):
+    def __init__(
+        self,
+        app,
+        log_panel: LogPanel,
+        level=logging.INFO,
+        on_message: Optional[Callable[[str], None]] = None,
+    ):
         super().__init__(level)
         self._app = app
         self._log_panel = log_panel
+        self._on_message = on_message
         self.setFormatter(
             logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
         )
@@ -38,5 +46,7 @@ class TUILogHandler(logging.Handler):
         try:
             msg = self.format(record)
             self._app.call_from_thread(self._log_panel.write_line, msg)
+            if self._on_message:
+                self._app.call_from_thread(self._on_message, record.getMessage())
         except Exception:
             self.handleError(record)

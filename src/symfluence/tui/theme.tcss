@@ -59,6 +59,14 @@ Footer {
     content-align: center middle;
 }
 
+.onboarding-panel {
+    border: round $primary;
+    background: $panel;
+    color: $text;
+    margin: 1 0;
+    padding: 1 2;
+}
+
 /* Section headers */
 .section-header {
     text-style: bold;
@@ -136,6 +144,21 @@ DataTable > .datatable--header {
     color: $text-muted;
 }
 
+.run-actions {
+    height: auto;
+    layout: horizontal;
+}
+
+.run-actions Button {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#active-task {
+    color: $text-muted;
+    padding: 0 0 1 0;
+}
+
 /* Calibration screen */
 .cal-top {
     height: auto;
@@ -164,4 +187,44 @@ DataTable > .datatable--header {
 .sparkline {
     height: 1;
     padding: 0 1;
+}
+
+/* Modal dialogs */
+#command-palette-dialog,
+#path-prompt-dialog {
+    width: 70;
+    max-width: 95%;
+    height: auto;
+    border: round $primary;
+    background: $surface;
+    padding: 1 2;
+    margin: 4 0;
+}
+
+#command-palette-options {
+    height: 12;
+    margin: 1 0;
+}
+
+#command-palette-hint {
+    color: $text-muted;
+}
+
+.dialog-actions {
+    height: auto;
+    layout: horizontal;
+    padding: 1 0 0 0;
+}
+
+.dialog-actions Button {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#help-scroll {
+    padding: 1 2;
+}
+
+#help-content {
+    text-style: none;
 }
