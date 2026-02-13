@@ -831,19 +831,33 @@ setup_windows_dependencies() {
         print_warning "No conda/mamba/micromamba found in PATH"
         print_info "Attempting to use system conda if available..."
 
-        # Try common conda locations
-        for conda_path in \
-            "$HOME/miniconda3/condabin/conda" \
-            "$HOME/anaconda3/condabin/conda" \
-            "/c/ProgramData/Miniconda3/condabin/conda" \
-            "/c/ProgramData/Anaconda3/condabin/conda"; do
-            if [[ -f "$conda_path" ]]; then
-                print_info "Found conda at: $conda_path"
-                export PATH="$(dirname "$conda_path"):$PATH"
-                CONDA_CMD="conda"
-                break
-            fi
-        done
+        # Check CONDA env var first (set by setup-miniconda and most CI setups)
+        if [[ -n "${CONDA:-}" ]]; then
+            for conda_subdir in "condabin" "Scripts" "bin"; do
+                if [[ -f "$CONDA/$conda_subdir/conda" ]] || [[ -f "$CONDA/$conda_subdir/conda.exe" ]]; then
+                    print_info "Found conda via CONDA env var at: $CONDA/$conda_subdir"
+                    export PATH="$CONDA/$conda_subdir:$PATH"
+                    CONDA_CMD="conda"
+                    break
+                fi
+            done
+        fi
+
+        # Try common conda locations as fallback
+        if [[ -z "${CONDA_CMD:-}" ]]; then
+            for conda_path in \
+                "$HOME/miniconda3/condabin/conda" \
+                "$HOME/anaconda3/condabin/conda" \
+                "/c/ProgramData/Miniconda3/condabin/conda" \
+                "/c/ProgramData/Anaconda3/condabin/conda"; do
+                if [[ -f "$conda_path" ]]; then
+                    print_info "Found conda at: $conda_path"
+                    export PATH="$(dirname "$conda_path"):$PATH"
+                    CONDA_CMD="conda"
+                    break
+                fi
+            done
+        fi
 
         if [[ -z "${CONDA_CMD:-}" ]]; then
             print_warning "Conda not found. Skipping Windows-specific dependencies."

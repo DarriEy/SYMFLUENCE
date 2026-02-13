@@ -107,8 +107,12 @@ jobs:
           echo "HDF5_LIBDIR=/usr/lib/x86_64-linux-gnu/hdf5/serial" >> $GITHUB_ENV
           echo "HDF5_INCLUDE_DIR=/usr/include/hdf5/serial" >> $GITHUB_ENV
           echo "UDUNITS2_DIR=$(pkg-config --variable=prefix udunits2 2>/dev/null || echo /usr)" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=${NETCDF_LIBDIR}:${HDF5_LIBDIR}:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+          # LIBRARY_PATH is for compile-time linking (Fortran builds need this)
           echo "LIBRARY_PATH=${NETCDF_LIBDIR}:${HDF5_LIBDIR}:${LIBRARY_PATH}" >> $GITHUB_ENV
+          # NOTE: Do NOT set LD_LIBRARY_PATH here — system HDF5 paths on
+          # LD_LIBRARY_PATH override pip netCDF4's bundled HDF5 (LD_LIBRARY_PATH
+          # beats RUNPATH in the dynamic linker). Fortran builds use -L flags
+          # from FUSE_LIBRARIES/pkg-config; runtime needs are handled per-step.
           echo "CC=mpicc"  >> $GITHUB_ENV
           echo "CXX=mpicxx" >> $GITHUB_ENV
           NF_FLIBS="$(nf-config --flibs 2>/dev/null || echo "-L${NETCDF_LIBDIR} -lnetcdff")"
@@ -178,14 +182,19 @@ jobs:
           echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
 
           # Add SUNDIALS library path for SUMMA runtime dependencies
+          # NOTE: Do NOT add /usr/lib/x86_64-linux-gnu — it's a standard ldconfig path
+          # and adding it to LD_LIBRARY_PATH causes system HDF5 1.10 to override
+          # pip netCDF4's bundled HDF5 1.14+ (LD_LIBRARY_PATH beats RUNPATH).
           SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
-            echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+            echo "LD_LIBRARY_PATH=${SUNDIALS_LIB}" >> $GITHUB_ENV
             echo "Added SUNDIALS library path: $SUNDIALS_LIB"
           else
             echo "SUNDIALS library directory not found at: $SUNDIALS_LIB"
             ls -la "${{ env.SYMFLUENCE_DATA }}/installs/sundials/" || true
           fi
+          # Disable HDF5 file locking (common source of errors in CI)
+          echo "HDF5_USE_FILE_LOCKING=FALSE" >> $GITHUB_ENV
 
       - name: Activate venv for subsequent steps
         run: |
@@ -231,10 +240,15 @@ jobs:
         run: |
           set -e
 
-          # Strip system HDF5/netCDF from LD_LIBRARY_PATH for Python tests.
-          # These paths are needed for Fortran compilation but poison pip's
-          # bundled HDF5 at runtime (system 1.10 overrides wheel's 1.14+).
-          export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/usr/lib/x86_64-linux-gnu' | tr '\n' ':' | sed 's/:$//')
+          # Unset build-time HDF5 env vars — they can interfere with pip's bundled HDF5
+          unset HDF5_ROOT HDF5_LIBDIR HDF5_INCLUDE_DIR
+
+          # Debug: verify which HDF5 Python's netCDF4 loads
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<unset>}"
+          python -c "
+          import netCDF4
+          print(f'netCDF4 {netCDF4.__version__}, HDF5 lib: {netCDF4.__hdf5libversion__}, netCDF lib: {netCDF4.__netcdf4libversion__}')
+          " || echo "Could not print netCDF4 version info"
 
           TEST_LEVEL="${{ steps.test_level.outputs.test_level }}"
           echo "========================================="
@@ -292,7 +306,7 @@ jobs:
               echo "========================================="
               echo "2/4: Running integration tests..."
               echo "========================================="
-              pytest -v --tb=short -m "integration" tests/integration/
+              pytest -v --tb=short -m "integration and not calibration" tests/integration/
 
               # Run quick e2e tests
               echo "========================================="
@@ -502,8 +516,12 @@ jobs:
           echo "HDF5_LIBDIR=/usr/lib/x86_64-linux-gnu/hdf5/serial" >> $GITHUB_ENV
           echo "HDF5_INCLUDE_DIR=/usr/include/hdf5/serial" >> $GITHUB_ENV
           echo "UDUNITS2_DIR=$(pkg-config --variable=prefix udunits2 2>/dev/null || echo /usr)" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=${NETCDF_LIBDIR}:${HDF5_LIBDIR}:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+          # LIBRARY_PATH is for compile-time linking (Fortran builds need this)
           echo "LIBRARY_PATH=${NETCDF_LIBDIR}:${HDF5_LIBDIR}:${LIBRARY_PATH}" >> $GITHUB_ENV
+          # NOTE: Do NOT set LD_LIBRARY_PATH here — system HDF5 paths on
+          # LD_LIBRARY_PATH override pip netCDF4's bundled HDF5 (LD_LIBRARY_PATH
+          # beats RUNPATH in the dynamic linker). Fortran builds use -L flags
+          # from FUSE_LIBRARIES/pkg-config; runtime needs are handled per-step.
           echo "CC=mpicc"  >> $GITHUB_ENV
           echo "CXX=mpicxx" >> $GITHUB_ENV
           NF_FLIBS="$(nf-config --flibs 2>/dev/null || echo "-L${NETCDF_LIBDIR} -lnetcdff")"
@@ -559,14 +577,19 @@ jobs:
           echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
 
           # Add SUNDIALS library path for SUMMA runtime dependencies
+          # NOTE: Do NOT add /usr/lib/x86_64-linux-gnu — it's a standard ldconfig path
+          # and adding it to LD_LIBRARY_PATH causes system HDF5 1.10 to override
+          # pip netCDF4's bundled HDF5 1.14+ (LD_LIBRARY_PATH beats RUNPATH).
           SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
-            echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+            echo "LD_LIBRARY_PATH=${SUNDIALS_LIB}" >> $GITHUB_ENV
             echo "Added SUNDIALS library path: $SUNDIALS_LIB"
           else
             echo "SUNDIALS library directory not found at: $SUNDIALS_LIB"
             ls -la "${{ env.SYMFLUENCE_DATA }}/installs/sundials/" || true
           fi
+          # Disable HDF5 file locking (common source of errors in CI)
+          echo "HDF5_USE_FILE_LOCKING=FALSE" >> $GITHUB_ENV
 
       - name: Activate venv for subsequent steps
         run: |

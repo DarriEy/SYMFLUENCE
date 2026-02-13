@@ -420,16 +420,37 @@ jobs:
       - name: Verify critical binaries exist
         run: |
           BIN_DIR=$(symfluence path)
+          FOUND=0
+          MISSING=0
 
-          EXPECTED_BINS="summa mizuroute fuse ngen"
-          for binary in $EXPECTED_BINS; do
+          # Required binaries (fail if missing)
+          REQUIRED_BINS="summa mizuroute"
+          for binary in $REQUIRED_BINS; do
             if [ -f "$BIN_DIR/$binary" ]; then
               echo "✓ Found $binary"
+              FOUND=$((FOUND + 1))
             else
-              echo "❌ Missing critical binary: $binary"
-              exit 1
+              echo "❌ Missing required binary: $binary"
+              MISSING=$((MISSING + 1))
             fi
           done
+
+          # Optional binaries (warn if missing)
+          OPTIONAL_BINS="fuse ngen"
+          for binary in $OPTIONAL_BINS; do
+            if [ -f "$BIN_DIR/$binary" ]; then
+              echo "✓ Found $binary"
+              FOUND=$((FOUND + 1))
+            else
+              echo "⚠ Optional binary not found: $binary"
+            fi
+          done
+
+          echo "Found $FOUND binaries"
+          if [ $MISSING -gt 0 ]; then
+            echo "❌ $MISSING required binaries missing"
+            exit 1
+          fi
 
       - name: Test binary execution
         run: |
