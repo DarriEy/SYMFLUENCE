@@ -64,4 +64,5 @@ class DashboardScreen(Screen):
         """Navigate to run browser filtered for the selected domain."""
         row_key = event.row_key
         if row_key:
+            self.app.set_run_browser_domain_filter(str(row_key))
             self.app.switch_mode("run_browser")

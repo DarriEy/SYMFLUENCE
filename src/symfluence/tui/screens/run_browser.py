@@ -35,9 +35,11 @@ class RunBrowserScreen(Screen):
 
     def on_mount(self) -> None:
         self._load_all_runs()
+        self._apply_pending_domain_filter()
 
     def on_screen_resume(self) -> None:
         self._load_all_runs()
+        self._apply_pending_domain_filter()
 
     def _load_all_runs(self) -> None:
         """Load runs from all domains."""
@@ -71,6 +73,16 @@ class RunBrowserScreen(Screen):
             domain_filter=domain_input.value,
             status_filter=str(status_select.value),
         )
+
+    def _apply_pending_domain_filter(self) -> None:
+        """Apply a domain filter requested by another screen (e.g. Dashboard)."""
+        pending = self.app.consume_run_browser_domain_filter()
+        if not pending:
+            return
+
+        domain_input = self.query_one("#filter-domain", Input)
+        domain_input.value = pending
+        self._apply_filters()
 
     def on_data_table_row_selected(self, event) -> None:
         """Push run detail screen for the selected run."""

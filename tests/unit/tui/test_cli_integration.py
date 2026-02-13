@@ -103,14 +103,11 @@ class TestTUICommands:
         from symfluence.cli.exit_codes import ExitCode
 
         with patch.dict("sys.modules", {"symfluence.tui": None}):
-            with patch(
-                "symfluence.cli.commands.tui_commands.TUICommands.launch"
-            ) as mock_method:
-                # Simulate the ImportError path
-                mock_method.return_value = ExitCode.DEPENDENCY_ERROR
-                args = Namespace()
-                result = mock_method(args)
-                assert result == ExitCode.DEPENDENCY_ERROR
+            args = Namespace()
+            result = TUICommands.launch(args)
+
+        assert result == ExitCode.DEPENDENCY_ERROR
+        mock_console.error.assert_called()
 
 
 # ============================================================================

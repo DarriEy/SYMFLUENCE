@@ -4,6 +4,7 @@ Service for scanning SYMFLUENCE_DATA_DIR for domain directories.
 Provides domain discovery and metadata without requiring a loaded config.
 """
 
+import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -97,9 +98,8 @@ class DataDirService:
     def _read_status(summary_path: Path) -> str:
         """Read status field from a run summary JSON."""
         try:
-            import json
             with open(summary_path) as f:
                 data = json.load(f)
             return data.get("status", "unknown")
-        except Exception:
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return "unknown"

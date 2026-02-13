@@ -15,6 +15,10 @@ from ..widgets.sparkline import SparklineWidget
 class CalibrationScreen(Screen):
     """View calibration optimization progress and metrics."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._timer = None
+
     def compose(self) -> ComposeResult:
         yield Header()
         yield Vertical(
@@ -41,7 +45,18 @@ class CalibrationScreen(Screen):
         self._timer = self.set_interval(30, self._auto_refresh)
 
     def on_screen_resume(self) -> None:
+        if self._timer is not None:
+            self._timer.resume()
         self._populate_domains()
+
+    def on_screen_suspend(self) -> None:
+        if self._timer is not None:
+            self._timer.pause()
+
+    def on_unmount(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
 
     def _populate_domains(self) -> None:
         """Fill domain selector from data dir."""

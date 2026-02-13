@@ -4,6 +4,7 @@ Root Textual application for SYMFLUENCE TUI.
 Manages screen modes, key bindings, and shared services.
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +19,8 @@ from .screens.slurm_monitor import SlurmMonitorScreen
 from .screens.workflow_launcher import WorkflowLauncherScreen
 from .services.data_dir import DataDirService
 from .services.slurm_service import SlurmService
+
+logger = logging.getLogger(__name__)
 
 
 class SymfluenceTUI(App):
@@ -58,6 +61,7 @@ class SymfluenceTUI(App):
         self.data_dir_service = DataDirService()
         self.slurm_service = SlurmService()
         self._is_hpc = False
+        self._pending_run_browser_domain_filter: Optional[str] = None
 
     @property
     def config_path(self) -> Optional[str]:
@@ -70,6 +74,16 @@ class SymfluenceTUI(App):
     @property
     def is_hpc(self) -> bool:
         return self._is_hpc
+
+    def set_run_browser_domain_filter(self, domain_name: str) -> None:
+        """Queue a domain filter to apply when Run Browser is shown."""
+        self._pending_run_browser_domain_filter = domain_name
+
+    def consume_run_browser_domain_filter(self) -> Optional[str]:
+        """Fetch and clear any queued Run Browser domain filter."""
+        pending = self._pending_run_browser_domain_filter
+        self._pending_run_browser_domain_filter = None
+        return pending
 
     def on_mount(self) -> None:
         """Initialize app state on startup."""
@@ -98,6 +112,6 @@ class SymfluenceTUI(App):
                 p = Path(str(c))
                 if p.is_file():
                     return str(p)
-        except Exception:
-            pass
+        except (ImportError, ModuleNotFoundError, OSError) as exc:
+            logger.debug("Failed to resolve demo config '%s': %s", demo_name, exc)
         return None
