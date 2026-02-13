@@ -2551,12 +2551,33 @@ DROP_ANALYSIS_MIN_THRESHOLD: 100
 #   Usage:      4
 DROP_ANALYSIS_NUM_THRESHOLDS: 10
 
-# GEOFABRIC_TYPE
+# GEOFABRIC_TYPE: na | merit | tdx | nws | hydrosheds (+ aliases: merit_basins, geoglows, tdx_hydro, nws_hydrofabric, nextgen, hydrobasins)
 #   Type:        str
 #   Default:     na
 #   Source:      DelineationConfig (domain.py)
 #   Usage:      10
 GEOFABRIC_TYPE: "na"
+
+# TDX_SOURCE: geoglows (recommended) | nga (manual pre-download required)
+#   Type:        str
+#   Default:     geoglows
+#   Source:      config_dict
+#   Usage:      1
+TDX_SOURCE: "geoglows"
+
+# NWS_HYDROFABRIC_VERSION
+#   Type:        str
+#   Default:     v2.2
+#   Source:      config_dict
+#   Usage:      1
+NWS_HYDROFABRIC_VERSION: "v2.2"
+
+# HYDROSHEDS_LEVEL: Pfafstetter level 1 (coarsest) to 12 (finest, ~10 km² sub-basins)
+#   Type:        int
+#   Default:     12
+#   Source:      config_dict
+#   Usage:      1
+HYDROSHEDS_LEVEL: 12
 
 # LUMPED_WATERSHED_METHOD
 #   Type:        str
@@ -3922,7 +3943,260 @@ VIC_STEPS_PER_DAY: 24
 VIC_TIMEOUT: 7200
 
 
-# 9.6. RHESSys Model Configuration
+# 9.6a. CLM Model Configuration
+# ================================================================================
+
+# CLM_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+CLM_INSTALL_PATH: default
+
+# CLM_EXE
+#   Type:        str
+#   Default:     cesm.exe
+#   Source:      CLMConfig (model_configs.py)
+CLM_EXE: cesm.exe
+
+# SETTINGS_CLM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+SETTINGS_CLM_PATH: default
+
+# CLM_COMPSET
+#   Type:        str
+#   Default:     I2000Clm50SpGs
+#   Source:      CLMConfig (model_configs.py)
+CLM_COMPSET: I2000Clm50SpGs
+
+# CLM_PARAMS_FILE
+#   Type:        str
+#   Default:     clm5_params.nc
+#   Source:      CLMConfig (model_configs.py)
+CLM_PARAMS_FILE: clm5_params.nc
+
+# CLM_SURFDATA_FILE
+#   Type:        str
+#   Default:     surfdata_clm.nc
+#   Source:      CLMConfig (model_configs.py)
+CLM_SURFDATA_FILE: surfdata_clm.nc
+
+# CLM_DOMAIN_FILE
+#   Type:        str
+#   Default:     domain.nc
+#   Source:      CLMConfig (model_configs.py)
+CLM_DOMAIN_FILE: domain.nc
+
+# CLM_SPATIAL_MODE
+#   Type:        str
+#   Default:     lumped
+#   Source:      CLMConfig (model_configs.py)
+CLM_SPATIAL_MODE: lumped
+
+# EXPERIMENT_OUTPUT_CLM
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+EXPERIMENT_OUTPUT_CLM: default
+
+# CLM_HIST_NHTFRQ
+#   Type:        int
+#   Default:     -24
+#   Source:      CLMConfig (model_configs.py)
+#   Description: History output frequency (-24 = daily)
+CLM_HIST_NHTFRQ: -24
+
+# CLM_HIST_MFILT
+#   Type:        int
+#   Default:     365
+#   Source:      CLMConfig (model_configs.py)
+CLM_HIST_MFILT: 365
+
+# CLM_PARAMS_TO_CALIBRATE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      CLMConfig (model_configs.py)
+CLM_PARAMS_TO_CALIBRATE: fover,fdrai,baseflow_scalar,fff,dewmx
+
+# CLM_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      CLMConfig (model_configs.py)
+CLM_TIMEOUT: 3600
+
+# CLM_WARMUP_DAYS
+#   Type:        int
+#   Default:     365
+#   Source:      CLMConfig (model_configs.py)
+CLM_WARMUP_DAYS: 365
+
+
+# 9.6. MODFLOW 6 Configuration
+# ================================================================================
+# MODFLOW 6 is the USGS modular groundwater flow model. In SYMFLUENCE it is used
+# as a lumped single-cell groundwater model coupled with land surface models
+# (e.g., SUMMA) to produce physically-based baseflow separation.
+#
+# Coupling workflow: SUMMA recharge → MODFLOW baseflow → mizuRoute routing
+#
+# Reference: Langevin et al. (2017), USGS Techniques and Methods 6-A55
+# https://github.com/MODFLOW-ORG/modflow6
+
+# MODFLOW_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_INSTALL_PATH: default
+
+# MODFLOW_EXE
+#   Type:        str
+#   Default:     mf6
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_EXE: "mf6"
+
+# SETTINGS_MODFLOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MODFLOWConfig (model_configs.py)
+SETTINGS_MODFLOW_PATH: default
+
+# MODFLOW_SPATIAL_MODE
+#   Type:        str
+#   Default:     lumped
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_SPATIAL_MODE: lumped
+
+# MODFLOW_GRID_TYPE
+#   Type:        str (dis/disv/disu)
+#   Default:     dis
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Note:        Only 'dis' (structured grid) is currently supported for lumped mode
+MODFLOW_GRID_TYPE: dis
+
+# MODFLOW_NLAY — Number of model layers
+#   Type:        int
+#   Default:     1
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_NLAY: 1
+
+# MODFLOW_NROW — Number of rows
+#   Type:        int
+#   Default:     1
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_NROW: 1
+
+# MODFLOW_NCOL — Number of columns
+#   Type:        int
+#   Default:     1
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_NCOL: 1
+
+# MODFLOW_CELL_SIZE — Cell dimension in meters
+#   Type:        float
+#   Default:     1000.0
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Note:        For lumped mode, defaults to sqrt(catchment_area_m2)
+MODFLOW_CELL_SIZE: 1000.0
+
+# MODFLOW_K — Hydraulic conductivity (m/d)
+#   Type:        float
+#   Default:     5.0
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Range:       Typically 0.001–100 depending on geology
+MODFLOW_K: 5.0
+
+# MODFLOW_SY — Specific yield (dimensionless)
+#   Type:        float
+#   Default:     0.15
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Range:       0.01–0.40 (sand ≈0.25, clay ≈0.03, gravel ≈0.22)
+MODFLOW_SY: 0.15
+
+# MODFLOW_SS — Specific storage (1/m)
+#   Type:        float
+#   Default:     1e-5
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_SS: 1.0e-5
+
+# MODFLOW_STRT — Starting head (m)
+#   Type:        float
+#   Default:     None (computed as midpoint of top and bot)
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_STRT: null
+
+# MODFLOW_TOP — Aquifer top elevation (m)
+#   Type:        float
+#   Default:     1500.0
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_TOP: 1500.0
+
+# MODFLOW_BOT — Aquifer bottom elevation (m)
+#   Type:        float
+#   Default:     1400.0
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_BOT: 1400.0
+
+# MODFLOW_COUPLING_SOURCE — Land surface model providing recharge
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Options:     SUMMA, CLM, or None for standalone
+MODFLOW_COUPLING_SOURCE: SUMMA
+
+# MODFLOW_RECHARGE_VARIABLE — Variable name in coupling source output
+#   Type:        str
+#   Default:     scalarSoilDrainage
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_RECHARGE_VARIABLE: scalarSoilDrainage
+
+# MODFLOW_DRAIN_ELEVATION — Drain package outlet elevation (m)
+#   Type:        float
+#   Default:     None (computed as midpoint of top and bot)
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Note:        Must be between bot and top
+MODFLOW_DRAIN_ELEVATION: null
+
+# MODFLOW_DRAIN_CONDUCTANCE — Drain conductance (m2/d)
+#   Type:        float
+#   Default:     50.0
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Range:       1–1000 depending on geology and outlet geometry
+MODFLOW_DRAIN_CONDUCTANCE: 50.0
+
+# MODFLOW_STRESS_PERIOD_LENGTH — Stress period length in days
+#   Type:        float
+#   Default:     1.0
+#   Source:      MODFLOWConfig (model_configs.py)
+#   Note:        1.0 = daily stress periods (matches typical forcing timestep)
+MODFLOW_STRESS_PERIOD_LENGTH: 1.0
+
+# MODFLOW_NSTP — Time steps per stress period
+#   Type:        int
+#   Default:     1
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_NSTP: 1
+
+# EXPERIMENT_OUTPUT_MODFLOW
+#   Type:        str
+#   Default:     default
+#   Source:      MODFLOWConfig (model_configs.py)
+EXPERIMENT_OUTPUT_MODFLOW: default
+
+# MODFLOW_PARAMS_TO_CALIBRATE — Parameters for calibration
+#   Type:        str (comma-separated)
+#   Default:     K,SY,DRAIN_CONDUCTANCE
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_PARAMS_TO_CALIBRATE: "K,SY,DRAIN_CONDUCTANCE"
+
+# MODFLOW_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     3600
+#   Source:      MODFLOWConfig (model_configs.py)
+MODFLOW_TIMEOUT: 3600
+
+
+# 9.7. RHESSys Model Configuration
 # ================================================================================
 
 # RHESSYS_INSTALL_PATH

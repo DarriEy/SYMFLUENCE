@@ -58,6 +58,16 @@ _handler_modules = [
     'hydrolakes',
     'gldas_tws',
     'cnes_grgs_tws',
+    'merra2',
+    'merit_hydro',
+    'polaris',
+    'soilgrids_properties',
+    'gssurgo',
+    'globsnow',
+    'tdx_hydro',
+    'merit_basins',
+    'nws_hydrofabric',
+    'hydrosheds',
 ]
 
 for _module_name in _handler_modules:
