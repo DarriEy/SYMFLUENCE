@@ -4196,7 +4196,50 @@ MODFLOW_PARAMS_TO_CALIBRATE: "K,SY,DRAIN_CONDUCTANCE"
 MODFLOW_TIMEOUT: 3600
 
 
-# 9.7. RHESSys Model Configuration
+# 9.7. ParFlow Configuration
+# ================================================================================
+# ParFlow is a parallel integrated hydrologic model solving variably-saturated
+# flow (Richards equation) and overland flow. In SYMFLUENCE it is used as an
+# alternative to MODFLOW for coupled land surface + groundwater simulations.
+#
+# Coupling workflow: SUMMA recharge -> ParFlow subsurface flow -> routing
+#
+# Reference: Kollet & Maxwell (2006), Advances in Water Resources 29(7)
+# https://github.com/parflow/parflow
+
+PARFLOW_INSTALL_PATH: default
+PARFLOW_EXE: "parflow"
+PARFLOW_DIR: default
+SETTINGS_PARFLOW_PATH: default
+PARFLOW_SPATIAL_MODE: lumped
+PARFLOW_NX: 1
+PARFLOW_NY: 1
+PARFLOW_NZ: 1
+PARFLOW_DX: 1000.0
+PARFLOW_DY: 1000.0
+PARFLOW_DZ: 100.0
+PARFLOW_TOP: 1500.0
+PARFLOW_BOT: 1400.0
+PARFLOW_K_SAT: 5.0
+PARFLOW_POROSITY: 0.4
+PARFLOW_VG_ALPHA: 1.0
+PARFLOW_VG_N: 2.0
+PARFLOW_S_RES: 0.1
+PARFLOW_S_SAT: 1.0
+PARFLOW_SS: 1.0e-5
+PARFLOW_MANNINGS_N: 0.03
+PARFLOW_INITIAL_PRESSURE: null
+PARFLOW_COUPLING_SOURCE: SUMMA
+PARFLOW_RECHARGE_VARIABLE: scalarSoilDrainage
+PARFLOW_SOLVER: Richards
+PARFLOW_TIMESTEP_HOURS: 1.0
+PARFLOW_NUM_PROCS: 1
+EXPERIMENT_OUTPUT_PARFLOW: default
+PARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N"
+PARFLOW_TIMEOUT: 3600
+
+
+# 9.8. RHESSys Model Configuration
 # ================================================================================
 
 # RHESSYS_INSTALL_PATH
