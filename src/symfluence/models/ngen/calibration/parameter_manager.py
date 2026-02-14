@@ -292,7 +292,7 @@ class NgenParameterManager(BaseParameterManager):
             self.logger.error(f"Config file not found: {config_file_path}")
             return False
 
-        content = config_file_path.read_text()
+        content = config_file_path.read_text(encoding='utf-8')
         all_found = True
 
         for param_name, expected_value in param_dict.items():
@@ -353,7 +353,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             # --- Preferred path: JSON file ---
             if self.cfe_config.exists():
-                with open(self.cfe_config, 'r') as f:
+                with open(self.cfe_config, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
                 updated = 0
                 for k, v in params.items():
@@ -362,7 +362,7 @@ class NgenParameterManager(BaseParameterManager):
                         updated += 1
                     else:
                         self.logger.warning(f"CFE parameter {k} not found in JSON config")
-                with open(self.cfe_config, 'w') as f:
+                with open(self.cfe_config, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2)
                 self.logger.debug(f"Updated CFE JSON with {updated} parameters")
                 return True
@@ -384,7 +384,7 @@ class NgenParameterManager(BaseParameterManager):
                 return False
 
             path = candidates[0]
-            lines = path.read_text().splitlines()
+            lines = path.read_text(encoding='utf-8').splitlines()
 
             # FIXED: Complete parameter mapping including groundwater and routing params
             keymap = {
@@ -486,7 +486,7 @@ class NgenParameterManager(BaseParameterManager):
                 if p not in updated and p in keymap:
                     self.logger.warning(f"CFE parameter {p} not found in BMI config {path.name}")
 
-            path.write_text("\n".join(lines) + "\n")
+            path.write_text("\n".join(lines) + "\n", encoding='utf-8')
             self.logger.debug(f"Updated CFE BMI text ({path.name}) with {len(updated)} parameters")
             return True
 
@@ -507,7 +507,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             # ---------- 1) JSON path ----------
             if self.noah_config.exists():
-                with open(self.noah_config, 'r') as f:
+                with open(self.noah_config, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
                 updated = 0
                 for k, v in params.items():
@@ -516,7 +516,7 @@ class NgenParameterManager(BaseParameterManager):
                         updated += 1
                     else:
                         self.logger.warning(f"NOAH parameter {k} not in JSON config")
-                with open(self.noah_config, 'w') as f:
+                with open(self.noah_config, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2)
                 self.logger.debug(f"Updated NOAH JSON with {updated} parameters")
                 return True
@@ -541,7 +541,7 @@ class NgenParameterManager(BaseParameterManager):
                 return False
 
             ipath = input_candidates[0]
-            text = ipath.read_text()
+            text = ipath.read_text(encoding='utf-8')
 
             # Map DE param names -> (&section, key) within the NOAH input.
             # Start with a small set; add more as you choose to calibrate them.
@@ -588,7 +588,7 @@ class NgenParameterManager(BaseParameterManager):
                         self.logger.warning(f"NOAH param {p} ({sec}.{key}) not found in {ipath.name}")
 
             if updated_inputs > 0:
-                ipath.write_text(text)
+                ipath.write_text(text, encoding='utf-8')
                 self.logger.debug(f"Updated NOAH input ({ipath.name}) with {updated_inputs} parameter(s)")
                 return True
 
@@ -622,7 +622,7 @@ class NgenParameterManager(BaseParameterManager):
                     input_candidates = list(self.noah_dir.glob("*.input"))
 
                 if input_candidates:
-                    itxt = input_candidates[0].read_text()
+                    itxt = input_candidates[0].read_text(encoding='utf-8')
                     m = re.search(r"isltyp\s*=\s*(\d+)", itxt)
                     if m:
                         isltyp = int(m.group(1))
@@ -633,7 +633,7 @@ class NgenParameterManager(BaseParameterManager):
             def edit_tbl_value(tbl_path: Path, var: str, col: Optional[int], new_val: float) -> bool:
                 if not tbl_path.exists():
                     return False
-                lines = tbl_path.read_text().splitlines()
+                lines = tbl_path.read_text(encoding='utf-8').splitlines()
                 changed = False
 
                 is_soil_tbl = "SOILPARM" in tbl_path.name
@@ -698,7 +698,7 @@ class NgenParameterManager(BaseParameterManager):
                                 if changed: break
 
                 if changed:
-                    tbl_path.write_text("\n".join(lines) + "\n")
+                    tbl_path.write_text("\n".join(lines) + "\n", encoding='utf-8')
                 return changed
 
             updated_tbls = 0
@@ -732,7 +732,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             # ---------- 1) JSON ----------
             if self.pet_config.exists():
-                with open(self.pet_config, 'r') as f:
+                with open(self.pet_config, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
                 up = 0
                 for k, v in params.items():
@@ -741,7 +741,7 @@ class NgenParameterManager(BaseParameterManager):
                         up += 1
                     else:
                         self.logger.warning(f"PET parameter {k} not in JSON config")
-                with open(self.pet_config, 'w') as f:
+                with open(self.pet_config, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2)
                 self.logger.debug(f"Updated PET JSON with {up} parameter(s)")
                 return True
@@ -766,7 +766,7 @@ class NgenParameterManager(BaseParameterManager):
                 return False
 
             path = candidates[0]
-            lines = path.read_text().splitlines()
+            lines = path.read_text(encoding='utf-8').splitlines()
 
             # Determine num_timesteps from config using FORCING_TIME_STEP_SIZE
             start_time = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
@@ -840,7 +840,7 @@ class NgenParameterManager(BaseParameterManager):
                     self.logger.warning(f"PET parameter {p} not found in {path.name}")
 
             if updated:
-                path.write_text("\n".join(lines) + "\n")
+                path.write_text("\n".join(lines) + "\n", encoding='utf-8')
                 self.logger.debug(f"Updated PET BMI text ({path.name}) with {len(updated)} parameter(s)")
             return True
 

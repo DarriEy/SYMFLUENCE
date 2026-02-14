@@ -100,7 +100,7 @@ class FinalResultsSaver:
                 'timestamp': datetime.now().isoformat()
             }
 
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(serializable_result, f, indent=2)
 
             self.logger.info(f"Saved final evaluation results to {output_file}")

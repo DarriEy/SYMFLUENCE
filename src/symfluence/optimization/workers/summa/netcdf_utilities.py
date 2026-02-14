@@ -181,7 +181,8 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
 
             # Make output file writable if overwriting
             if output_file is None and os.path.exists(input_file):
-                os.chmod(input_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
+                if os.name != 'nt':
+                    os.chmod(input_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
 
             # Atomically move to final location
             shutil.move(temp_file, output_path)
@@ -233,7 +234,8 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
 
         # Ensure the original file is writable
         try:
-            os.chmod(summa_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
+            if os.name != 'nt':
+                os.chmod(summa_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
         except (OSError, RuntimeError, KeyError, ValueError) as e:
             logger.warning(f"Could not change file permissions: {str(e)}")
 
@@ -342,7 +344,8 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             mizuForcing.close()
 
             # Set permissions and move
-            os.chmod(temp_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
+            if os.name != 'nt':
+                os.chmod(temp_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
             shutil.move(str(temp_file), str(summa_file))
             temp_file = None
 

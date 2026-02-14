@@ -241,7 +241,7 @@ class SUMMAOptimizerMixin:
             file_manager_path: Path to file manager file
             use_calibration_period: Whether to use calibration period (vs full experiment period)
         """
-        with open(file_manager_path, 'r') as f:
+        with open(file_manager_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         sim_start, sim_end = self._get_simulation_period(use_calibration_period)
@@ -261,7 +261,7 @@ class SUMMAOptimizerMixin:
             else:
                 updated_lines.append(line)
 
-        with open(file_manager_path, 'w') as f:
+        with open(file_manager_path, 'w', encoding='utf-8') as f:
             f.writelines(updated_lines)
 
     def _get_simulation_period(self, use_calibration_period: bool = True) -> tuple:
@@ -363,7 +363,7 @@ class SUMMAOptimizerMixin:
         def _normalize_path(path):
             return str(path).replace("\\", "/").rstrip("/") + "/"
 
-        with open(control_path, "r") as f:
+        with open(control_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
@@ -450,7 +450,7 @@ class SUMMAOptimizerMixin:
         if not file_manager.exists():
             file_manager = summa_settings_dir / 'fileManager.txt'
         if file_manager.exists():
-            with open(file_manager, 'r') as f:
+            with open(file_manager, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -466,7 +466,7 @@ class SUMMAOptimizerMixin:
                 else:
                     updated_lines.append(line)
 
-            with open(file_manager, 'w') as f:
+            with open(file_manager, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
         control_file = mizu_settings_dir / 'mizuroute.control'
@@ -474,7 +474,7 @@ class SUMMAOptimizerMixin:
             return str(path).replace("\\", "/").rstrip("/") + "/"
 
         if control_file.exists():
-            with open(control_file, 'r') as f:
+            with open(control_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -508,7 +508,7 @@ class SUMMAOptimizerMixin:
                 else:
                     updated_lines.append(line)
 
-            with open(control_file, 'w') as f:
+            with open(control_file, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
     # =========================================================================
@@ -521,7 +521,7 @@ class SUMMAOptimizerMixin:
         if not model_decisions_path.exists():
             return
         try:
-            with open(model_decisions_path, 'r') as f:
+            with open(model_decisions_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             updated_lines = []
             for line in lines:
@@ -529,7 +529,7 @@ class SUMMAOptimizerMixin:
                     updated_lines.append(re.sub(r'(num_method\s+)\w+(\s+.*)', r'\1ida\2', line))
                 else:
                     updated_lines.append(line)
-            with open(model_decisions_path, 'w') as f:
+            with open(model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
         except Exception as e:
             self.logger.error(f"Error updating modelDecisions.txt: {str(e)}")
@@ -540,7 +540,7 @@ class SUMMAOptimizerMixin:
         if not model_decisions_path.exists():
             return
         try:
-            with open(model_decisions_path, 'r') as f:
+            with open(model_decisions_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             updated_lines = []
             for line in lines:
@@ -548,7 +548,7 @@ class SUMMAOptimizerMixin:
                     updated_lines.append(re.sub(r'(num_method\s+)\w+(\s+.*)', r'\1itertive\2', line))
                 else:
                     updated_lines.append(line)
-            with open(model_decisions_path, 'w') as f:
+            with open(model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
         except Exception as e:
             self.logger.error(f"Error restoring modelDecisions.txt: {str(e)}")

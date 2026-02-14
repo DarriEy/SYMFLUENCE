@@ -190,7 +190,7 @@ class RHESSysRunner(BaseModelRunner):
             raise RuntimeError(f"RHESSys did not produce basin daily output: {basin_daily}")
 
         # Check that file has more than just header
-        with open(basin_daily, 'r') as f:
+        with open(basin_daily, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         if len(lines) < 2:

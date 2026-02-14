@@ -198,7 +198,7 @@ class RHESSysParameterManager(BaseParameterManager):
             world_file = self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{self.domain_name}.world'
             if world_file.exists():
                 try:
-                    with open(world_file, 'r') as f:
+                    with open(world_file, 'r', encoding='utf-8') as f:
                         content = f.read()
                     pattern = rf'([\d\.\-\+eE]+)\s+{re.escape(param_name)}(\s.*|)$'
                     match = re.search(pattern, content, re.MULTILINE)
@@ -213,7 +213,7 @@ class RHESSysParameterManager(BaseParameterManager):
             return None
 
         try:
-            with open(def_file, 'r') as f:
+            with open(def_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # RHESSys def file format: value<whitespace>label
@@ -278,7 +278,7 @@ class RHESSysParameterManager(BaseParameterManager):
             True if successful
         """
         try:
-            with open(def_file, 'r') as f:
+            with open(def_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -300,7 +300,7 @@ class RHESSysParameterManager(BaseParameterManager):
                 if not updated:
                     updated_lines.append(line)
 
-            with open(def_file, 'w') as f:
+            with open(def_file, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             return True

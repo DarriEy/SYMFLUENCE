@@ -300,7 +300,7 @@ class LoggingManager(ConfigMixin):
         config_to_log['_metadata'] = metadata
 
         # Save configuration
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             yaml.dump(config_to_log, f, default_flow_style=False, sort_keys=False)
 
         self.logger.info(f"Configuration logged to: {config_file}")
@@ -493,7 +493,7 @@ class LoggingManager(ConfigMixin):
             }
         }
 
-        with open(summary_file, 'w') as f:
+        with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=4)
 
         self.logger.info(f"Run summary created: {summary_file}")

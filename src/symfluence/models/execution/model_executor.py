@@ -194,7 +194,7 @@ class ModelExecutor(ABC):
             self.logger.debug(f"Working directory: {cwd}")
 
         try:
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8') as f:
                 result = subprocess.run(
                     command,
                     check=False,  # We handle the check ourselves
@@ -764,7 +764,7 @@ class ModelExecutor(ABC):
 
             # Write script
             script_path = log_file.parent / f"{slurm_config.job_name}.sh"
-            script_path.write_text(script_content)
+            script_path.write_text(script_content, encoding='utf-8')
             if os.name != 'nt':
                 script_path.chmod(0o755)
 

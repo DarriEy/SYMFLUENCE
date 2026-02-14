@@ -173,7 +173,7 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
 
         # Track file read
         with profiler.track_file_read(str(param_file), component="summa_worker"):
-            with open(param_file, 'r') as f:
+            with open(param_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
         updated_content = content
@@ -192,7 +192,7 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
 
         # Track file write
         with profiler.track_file_write(str(param_file), size_bytes=len(updated_content), component="summa_worker"):
-            with open(param_file, 'w') as f:
+            with open(param_file, 'w', encoding='utf-8') as f:
                 f.write(updated_content)
 
         logger.debug("mizuRoute parameters updated successfully")
@@ -387,8 +387,9 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
                 # Atomically move temporary file to final location
                 try:
-                    os.chmod(temp_path, 0o664)  # nosec B103 - Group-writable for HPC shared access
-                    temp_path.rename(trial_params_path)
+                    if os.name != 'nt':
+                        os.chmod(temp_path, 0o664)  # nosec B103 - Group-writable for HPC shared access
+                    temp_path.replace(trial_params_path)
                     logger.debug(f"Trial parameters file created successfully: {trial_params_path}")
                     debug_info['files_checked'].append(f"trialParams.nc (created): {trial_params_path}")
                     return True

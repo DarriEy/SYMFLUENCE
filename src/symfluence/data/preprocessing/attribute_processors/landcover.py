@@ -58,8 +58,11 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        # Define path to GLCLU2019 data
-        glclu_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/glclu2019/raw")
+        # Define path to GLCLU2019 data (configurable via GLCLU2019_DIR)
+        glclu_path = Path(self.config_dict.get(
+            'GLCLU2019_DIR',
+            str(self.data_dir / 'geospatial' / 'glclu2019' / 'raw')
+        ))
         main_tif = glclu_path / "glclu2019_map.tif"
 
         # Check if file exists
@@ -200,7 +203,11 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        lai_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/lai/monthly_average_2013_2023")
+        # Configurable via LAI_DIR
+        lai_path = Path(self.config_dict.get(
+            'LAI_DIR',
+            str(self.data_dir / 'geospatial' / 'lai' / 'monthly_average_2013_2023')
+        ))
         use_water_mask = self.config_dict.get('USE_WATER_MASKED_LAI', True)
 
         lai_folder = lai_path / ('monthly_lai_with_water_mask' if use_water_mask else 'monthly_lai_no_water_mask')
@@ -310,7 +317,11 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results = {}
 
-        forest_dir = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/forest_height/raw")
+        # Configurable via FOREST_HEIGHT_DIR
+        forest_dir = Path(self.config_dict.get(
+            'FOREST_HEIGHT_DIR',
+            str(self.data_dir / 'geospatial' / 'forest_height' / 'raw')
+        ))
         forest_files = {
             "2000": forest_dir / "forest_height_2000.tif",
             "2020": forest_dir / "forest_height_2020.tif"

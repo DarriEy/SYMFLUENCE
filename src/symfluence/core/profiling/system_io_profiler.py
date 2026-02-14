@@ -313,7 +313,7 @@ class SystemIOProfiler:
             report = self._format_text_report(stats)
 
         if output_path:
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(report)
             self.logger.info(f"System I/O profiling report written to: {output_path}")
 
@@ -423,7 +423,7 @@ class SystemIOProfiler:
                 'platform': sys.platform,
             }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, default=str)
 
 

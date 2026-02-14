@@ -188,7 +188,7 @@ class GaugeSetupPanel(param.Parameterized):
 
     def _patch_config(self, config_path, gauge):
         """Patch the generated YAML with user-selected form values."""
-        with open(config_path) as fh:
+        with open(config_path, encoding='utf-8') as fh:
             config = yaml.safe_load(fh)
 
         # Model and forcing
@@ -205,7 +205,7 @@ class GaugeSetupPanel(param.Parameterized):
         if provider:
             config['STREAMFLOW_DATA_PROVIDER'] = provider
 
-        with open(config_path, 'w') as fh:
+        with open(config_path, 'w', encoding='utf-8') as fh:
             yaml.dump(config, fh, default_flow_style=False, sort_keys=False)
 
     def panel(self):

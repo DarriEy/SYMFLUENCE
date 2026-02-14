@@ -243,7 +243,7 @@ class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):  # type: 
         if network_config_path.exists():
             try:
                 import yaml
-                with open(network_config_path) as f:
+                with open(network_config_path, encoding='utf-8') as f:
                     config = yaml.safe_load(f)
 
                 # Flatten nested structure for routing

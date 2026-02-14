@@ -59,7 +59,7 @@ class FileManagerUpdater(ConfigMixin):
             # Adjust end time to align with forcing timestep
             sim_end = self._adjust_end_time_for_forcing(sim_end)
 
-            with open(self.file_manager_path, 'r') as f:
+            with open(self.file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -71,7 +71,7 @@ class FileManagerUpdater(ConfigMixin):
                 else:
                     updated_lines.append(line)
 
-            with open(self.file_manager_path, 'w') as f:
+            with open(self.file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated file manager for full period: {sim_start} to {sim_end}")
@@ -90,7 +90,7 @@ class FileManagerUpdater(ConfigMixin):
             return
 
         try:
-            with open(self.file_manager_path, 'r') as f:
+            with open(self.file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Ensure path ends with slash
@@ -105,7 +105,7 @@ class FileManagerUpdater(ConfigMixin):
                 else:
                     updated_lines.append(line)
 
-            with open(self.file_manager_path, 'w') as f:
+            with open(self.file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated output path to: {output_path_str}")
@@ -125,7 +125,7 @@ class FileManagerUpdater(ConfigMixin):
             if not calib_start or not calib_end:
                 return
 
-            with open(self.file_manager_path, 'r') as f:
+            with open(self.file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -137,7 +137,7 @@ class FileManagerUpdater(ConfigMixin):
                 else:
                     updated_lines.append(line)
 
-            with open(self.file_manager_path, 'w') as f:
+            with open(self.file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug("Restored file manager to calibration period")

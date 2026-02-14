@@ -170,7 +170,7 @@ class RHESSysWorker(BaseWorker):
                 self.logger.warning(f"Definition file not found: {def_file}")
                 continue
 
-            with open(def_file, 'r') as f:
+            with open(def_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Log first few lines of def file for debugging (first time only)
@@ -200,13 +200,13 @@ class RHESSysWorker(BaseWorker):
                 if not updated:
                     updated_lines.append(line)
 
-            with open(def_file, 'w') as f:
+            with open(def_file, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
                 f.flush()
                 os.fsync(f.fileno())  # Force write to disk
 
             # VERIFICATION: Re-read file to confirm writes succeeded
-            with open(def_file, 'r') as f:
+            with open(def_file, 'r', encoding='utf-8') as f:
                 verify_content = f.read()
             for param_name, value in file_params.items():
                 expected_str = f"{value:.6f}"
@@ -316,7 +316,7 @@ class RHESSysWorker(BaseWorker):
             stderr_file = rhessys_output_dir / 'rhessys_stderr.log'
 
             try:
-                with open(stdout_file, 'w') as stdout_f, open(stderr_file, 'w') as stderr_f:
+                with open(stdout_file, 'w', encoding='utf-8') as stdout_f, open(stderr_file, 'w', encoding='utf-8') as stderr_f:
                     result = subprocess.run(
                         cmd,
                         cwd=str(rhessys_output_dir),
@@ -341,7 +341,7 @@ class RHESSysWorker(BaseWorker):
             result.stderr = ""
             if stderr_file.exists():
                 try:
-                    result.stderr = stderr_file.read_text()
+                    result.stderr = stderr_file.read_text(encoding='utf-8')
                 except Exception:
                     pass
 
@@ -463,7 +463,7 @@ class RHESSysWorker(BaseWorker):
         )
         if expected_hdr.exists():
             # Log first 2 lines of header to verify paths
-            with open(expected_hdr, 'r') as f:
+            with open(expected_hdr, 'r', encoding='utf-8') as f:
                 hdr_content = f.read()
                 hdr_lines = hdr_content.split('\n')[:4]
             self.logger.debug(f"Header file content (first 4 lines): {hdr_lines}")
@@ -481,7 +481,7 @@ class RHESSysWorker(BaseWorker):
         # CRITICAL DIAGNOSTIC: Verify actual def file content before RHESSys runs
         soil_def = worker_defs_dir / 'soil.def'
         if soil_def.exists():
-            with open(soil_def, 'r') as f:
+            with open(soil_def, 'r', encoding='utf-8') as f:
                 soil_lines = f.readlines()
             # Show lines 5-12 which should contain Ksat_0 and m parameters
             self.logger.debug("BEFORE RUN soil.def lines 5-12:")
@@ -553,7 +553,7 @@ class RHESSysWorker(BaseWorker):
     def _apply_worldfile_params(self, world_file: Path, params: Dict[str, float]):
         """Apply calibration parameters to the worldfile (e.g. precip_lapse_rate)."""
         import re
-        with open(world_file, 'r') as f:
+        with open(world_file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         updated_lines = []
@@ -571,7 +571,7 @@ class RHESSysWorker(BaseWorker):
             if not replaced:
                 updated_lines.append(line)
 
-        with open(world_file, 'w') as f:
+        with open(world_file, 'w', encoding='utf-8') as f:
             f.writelines(updated_lines)
 
     def _create_worker_header(
@@ -586,7 +586,7 @@ class RHESSysWorker(BaseWorker):
         Uses line-by-line replacement to handle any .def file path, regardless
         of how the original path was normalized or constructed.
         """
-        with open(original_hdr, 'r') as f:
+        with open(original_hdr, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         worker_defs_str = str(worker_defs_dir)
@@ -616,7 +616,7 @@ class RHESSysWorker(BaseWorker):
                 f"Header: replaced {replacements} .def paths to point to {worker_defs_str}"
             )
 
-        with open(worker_hdr, 'w') as f:
+        with open(worker_hdr, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
         self.logger.debug(f"Created worker header at {worker_hdr}")

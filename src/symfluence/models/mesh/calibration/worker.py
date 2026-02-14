@@ -201,7 +201,7 @@ class MESHWorker(BaseWorker):
                 if candidate.exists():
                     # Check if file has data (not just headers)
                     try:
-                        with open(candidate, 'r') as f:
+                        with open(candidate, 'r', encoding='utf-8') as f:
                             lines = f.readlines()
                             if len(lines) > 1:  # More than just header
                                 sim_file = candidate
@@ -448,7 +448,7 @@ class MESHWorker(BaseWorker):
         from datetime import datetime
 
         try:
-            with open(run_opts_path, 'r') as f:
+            with open(run_opts_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # Look for simulation start line (format: YYYY JJJ HH MM)
@@ -479,7 +479,7 @@ class MESHWorker(BaseWorker):
         import re
 
         try:
-            with open(run_opts_path, 'r') as f:
+            with open(run_opts_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             match = re.search(r'METRICSSPINUP\s+(\d+)', content)

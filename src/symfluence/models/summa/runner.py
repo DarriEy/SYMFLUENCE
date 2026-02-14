@@ -237,7 +237,7 @@ class SummaRunner(UnifiedModelRunner):
         )
 
         script_path = self.project_dir / 'run_summa_parallel.sh'
-        script_path.write_text(script_content)
+        script_path.write_text(script_content, encoding='utf-8')
         script_path.chmod(0o755)
 
         # Backup settings if requested
@@ -386,9 +386,9 @@ class SummaRunner(UnifiedModelRunner):
         )
 
         # Read file manager lists
-        with open(fm_ic_list_path) as f:
+        with open(fm_ic_list_path, encoding='utf-8') as f:
             fm_ic_list = [line.strip() for line in f if line.strip()]
-        with open(fm_list_path) as f:
+        with open(fm_list_path, encoding='utf-8') as f:
             fm_list = [line.strip() for line in f if line.strip()]
 
         # Create output directory

@@ -349,7 +349,7 @@ class VICWorker(BaseWorker):
             stderr_file = vic_output_dir / 'vic_stderr.log'
 
             try:
-                with open(stdout_file, 'w') as stdout_f, open(stderr_file, 'w') as stderr_f:
+                with open(stdout_file, 'w', encoding='utf-8') as stdout_f, open(stderr_file, 'w', encoding='utf-8') as stderr_f:
                     result = subprocess.run(
                         cmd,
                         cwd=str(vic_output_dir),
@@ -414,7 +414,7 @@ class VICWorker(BaseWorker):
         # Create worker-specific version with updated output path
         worker_global = settings_dir / global_file_name
 
-        with open(original_global, 'r') as f:
+        with open(original_global, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Update RESULT_DIR, PARAMETERS, and inject calibration-specific global params
@@ -460,7 +460,7 @@ class VICWorker(BaseWorker):
                     # Fallback: append before last line
                     new_lines.insert(-1, insert_line)
 
-        with open(worker_global, 'w') as f:
+        with open(worker_global, 'w', encoding='utf-8') as f:
             f.write('\n'.join(new_lines))
 
         return worker_global

@@ -153,7 +153,7 @@ class RawForcingCache:
 
         # Load and validate metadata
         try:
-            with open(metadata_path, "r") as f:
+            with open(metadata_path, "r", encoding="utf-8") as f:
                 metadata = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.warning(f"Cache corruption: Invalid metadata for {cache_key}: {e}")
@@ -225,7 +225,7 @@ class RawForcingCache:
         metadata["original_path"] = str(file_path)
         metadata["file_size_mb"] = cache_path.stat().st_size / (1024 * 1024)
 
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
         logger.info(
@@ -277,7 +277,7 @@ class RawForcingCache:
         datasets: Dict[str, int] = {}
         for meta_file in metadata_files:
             try:
-                with open(meta_file, "r") as f:
+                with open(meta_file, "r", encoding="utf-8") as f:
                     meta = json.load(f)
                     dataset = meta.get("dataset", "unknown")
                     datasets[dataset] = datasets.get(dataset, 0) + 1
@@ -355,7 +355,7 @@ class RawForcingCache:
         entries = []
         for meta_file in self.cache_root.glob("*.meta.json"):
             try:
-                with open(meta_file, "r") as f:
+                with open(meta_file, "r", encoding="utf-8") as f:
                     meta = json.load(f)
                     cache_key = meta.get("cache_key")
                     created_at = datetime.fromisoformat(meta["created_at"])

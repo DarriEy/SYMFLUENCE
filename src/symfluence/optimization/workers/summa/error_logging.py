@@ -174,7 +174,7 @@ class ErrorLogger:
 
         debug_file = failure_dir / f"debug_info_{failure_id}.json"
         try:
-            with open(debug_file, 'w') as f:
+            with open(debug_file, 'w', encoding='utf-8') as f:
                 json.dump(debug_output, f, indent=2, default=str)
             self.logger.debug(f"Saved debug info to {debug_file}")
         except (IOError, OSError, KeyError) as e:
@@ -237,7 +237,7 @@ class ErrorLogger:
 
         info_file = success_dir / f"run_info_{success_id}.json"
         try:
-            with open(info_file, 'w') as f:
+            with open(info_file, 'w', encoding='utf-8') as f:
                 json.dump(success_info, f, indent=2, default=str)
         except (IOError, OSError, KeyError) as e:
             self.logger.warning(f"Failed to save success info: {e}")

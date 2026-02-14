@@ -68,7 +68,7 @@ class HYPEParameterManager(BaseParameterManager):
 
             # Parse existing par.txt
             params = {}
-            with open(self.par_file_path, 'r') as f:
+            with open(self.par_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             for param_name in self.hype_params:
@@ -106,7 +106,7 @@ class HYPEParameterManager(BaseParameterManager):
                 self.logger.error(f"par.txt not found: {self.par_file_path}")
                 return False
 
-            with open(self.par_file_path, 'r') as f:
+            with open(self.par_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             updated = 0
@@ -126,7 +126,7 @@ class HYPEParameterManager(BaseParameterManager):
                     self.logger.warning(f"Parameter {param_name} not found in par.txt")
 
             # Write updated content
-            with open(self.par_file_path, 'w') as f:
+            with open(self.par_file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
 
             self.logger.debug(f"Updated {updated} parameters in par.txt")

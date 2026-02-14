@@ -141,7 +141,7 @@ class HYPEWorker(BaseWorker):
             # Debug: Check if filedir.txt points to correct location
             filedir_path = settings_dir / 'filedir.txt'
             if filedir_path.exists():
-                with open(filedir_path, 'r') as f:
+                with open(filedir_path, 'r', encoding='utf-8') as f:
                     forcing_path_in_filedir = f.read().strip()
                 self.logger.debug(f"filedir.txt points to: {forcing_path_in_filedir}")
                 if not Path(forcing_path_in_filedir).exists():
@@ -152,7 +152,7 @@ class HYPEWorker(BaseWorker):
             # Debug: Check if par.txt was updated with calibration parameters
             par_file = settings_dir / 'par.txt'
             if par_file.exists() and params:
-                with open(par_file, 'r') as f:
+                with open(par_file, 'r', encoding='utf-8') as f:
                     par_content = f.read()
                 for param_name in list(params.keys())[:3]:  # Check first 3 params
                     if param_name in par_content:

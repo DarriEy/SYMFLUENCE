@@ -415,7 +415,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Create minimal landcover data with a single grassland class (IGBP_10)
         # This is a reasonable default for catchments without detailed landcover data
-        with open(csv_path, 'w', newline='') as f:
+        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             # Header: ID column, single IGBP class, count column
             writer.writerow(['GRU_ID', 'IGBP_10', 'count'])

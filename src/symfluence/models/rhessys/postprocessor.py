@@ -597,7 +597,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             if metrics:
                 import json
                 metrics_path = self.sim_dir / "fire_perimeter_metrics.json"
-                with open(metrics_path, 'w') as f:
+                with open(metrics_path, 'w', encoding='utf-8') as f:
                     json.dump(metrics, f, indent=2)
                 self.logger.info(f"Perimeter metrics saved to: {metrics_path}")
 

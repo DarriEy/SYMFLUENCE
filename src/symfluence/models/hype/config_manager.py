@@ -138,7 +138,7 @@ class HYPEConfigManager(ConfigMixin):
             forcing_path = str(self.output_path.resolve()).rstrip('/') + '/'
 
         filedir_path = self.output_path / 'filedir.txt'
-        with open(filedir_path, 'w') as f:
+        with open(filedir_path, 'w', encoding='utf-8') as f:
             f.write(f'{forcing_path}\n')
 
         # 2. Determine simulation period from Pobs.txt or config
@@ -288,7 +288,7 @@ timeoutput decimals\t3
 !! crit 1 weight\t1
 """
         info_path = self.output_path / 'info.txt'
-        with open(info_path, 'w') as f:
+        with open(info_path, 'w', encoding='utf-8') as f:
             f.write(info_content)
 
         self.logger.debug(f"Created info.txt and filedir.txt in {self.output_path}")
@@ -371,7 +371,7 @@ timeoutput decimals\t3
         soil_header = '\t'.join([f'S{i}' for i in range(1, num_soil + 1)])
 
         if template_file and Path(template_file).exists():
-            with open(template_file, 'r') as f:
+            with open(template_file, 'r', encoding='utf-8') as f:
                 par_content = f.read()
         else:
             par_content = self._build_default_par_content(
@@ -382,7 +382,7 @@ timeoutput decimals\t3
         if params:
             par_content = self._apply_param_substitutions(par_content, params)
 
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             f.write(par_content)
 
         self.logger.debug(f"Created par.txt in {self.output_path}")

@@ -503,7 +503,7 @@ class ObservedDataProcessor(ConfigMixin):
             # Read the data, skipping header rows until we find the actual data
             # Usually headers end when we find a line starting with "Date"
             header_line_num = -1
-            with open(snotel_file, 'r') as f:
+            with open(snotel_file, 'r', encoding='utf-8') as f:
                 for i, line in enumerate(f):
                     if line.startswith('Date'):
                         header_line_num = i

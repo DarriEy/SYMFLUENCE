@@ -58,7 +58,7 @@ class BaseService:
             from symfluence.resources import get_config_template
 
             config_path = get_config_template()
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             return self._ensure_valid_config_paths(config, config_path)
         except (ImportError, FileNotFoundError, yaml.YAMLError) as e:

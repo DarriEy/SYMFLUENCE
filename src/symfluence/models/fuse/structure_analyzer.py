@@ -95,7 +95,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             combination (Tuple[str, ...]): Tuple of decision values to use.
         """
         try:
-            with open(self.model_decisions_path, 'r') as f:
+            with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # The decisions are in lines 2-10 (1-based indexing)
@@ -112,7 +112,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                         rest_of_line = ' '.join(line_parts[1:])
                         lines[line_idx] = f"{new_value:<10} {rest_of_line}\n"
 
-            with open(self.model_decisions_path, 'w') as f:
+            with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
         except Exception as e:
@@ -196,7 +196,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         if not self.model_decisions_path.exists():
             return []
 
-        with open(self.model_decisions_path, 'r') as f:
+        with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         decisions = []

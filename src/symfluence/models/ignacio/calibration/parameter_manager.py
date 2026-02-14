@@ -95,7 +95,7 @@ class IGNACIOParameterManager(BaseParameterManager):
                 return True
 
             import yaml
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
 
             if 'fbp' not in config:
@@ -118,7 +118,7 @@ class IGNACIOParameterManager(BaseParameterManager):
                     yaml_key = param_to_yaml.get(param_name, param_name)
                     config['fbp'][yaml_key] = float(value)
 
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(config, f, default_flow_style=False)
 
             return True

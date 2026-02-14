@@ -84,7 +84,7 @@ class MESHConfigGenerator(ConfigMixin):
         if gauge_id == 'default':
             gauge_id = self.domain_name
 
-        with open(streamflow_path, 'w') as f:
+        with open(streamflow_path, 'w', encoding='utf-8') as f:
             f.write(f"#{self.domain_name} streamflow gauge\n")
             f.write(f"1 0 0 24 {start_year} {start_month} {start_day}\n")
             f.write(f"1 {outlet_rank} {gauge_id}\n")

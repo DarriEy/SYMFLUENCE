@@ -98,7 +98,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
             if 'No data available' in response.text:
                 raise DataAcquisitionError(f"USGS API returned no data for station {station_id}")
 
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(response.text)
 
             self.logger.info(f"Successfully downloaded USGS data to {output_path}")
@@ -111,7 +111,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
             try:
                 response = requests.get(fallback_url, timeout=60)
                 response.raise_for_status()
-                with open(output_path, 'w') as f:
+                with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(response.text)
                 return output_path
             except (requests.RequestException, OSError) as e2:
@@ -146,7 +146,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
             # RDB format (from USGS API)
             # 1. Parse RDB file - find first non-comment line
             header_line_num = -1
-            with open(input_path, 'r') as f:
+            with open(input_path, 'r', encoding='utf-8') as f:
                 for i, line in enumerate(f):
                     if not line.startswith('#'):
                         header_line_num = i
@@ -249,7 +249,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             # Check if we got data
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
-                with open(raw_file, 'w') as f:
+                with open(raw_file, 'w', encoding='utf-8') as f:
                     f.write(response.text)
                 return raw_file
 
@@ -261,7 +261,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
-                with open(raw_file, 'w') as f:
+                with open(raw_file, 'w', encoding='utf-8') as f:
                     f.write(response.text)
                 return raw_file
 
@@ -273,7 +273,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
-                with open(raw_file, 'w') as f:
+                with open(raw_file, 'w', encoding='utf-8') as f:
                     f.write(response.text)
                 return raw_file
 
@@ -292,7 +292,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             raise FileNotFoundError(f"USGS GW raw file not found: {input_path}")
 
         try:
-            with open(input_path, 'r') as f:
+            with open(input_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except Exception as e:
             self.logger.error(f"Failed to load USGS GW JSON: {e}")

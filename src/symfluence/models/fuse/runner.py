@@ -737,7 +737,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 return False
 
             # Read existing constraints
-            with open(constraints_file, 'r') as f:
+            with open(constraints_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Check if elevation params already exist
@@ -787,7 +787,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                     lines.insert(insert_pos, param_line)
 
             # Write back
-            with open(constraints_file, 'w') as f:
+            with open(constraints_file, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
             self.logger.info(f"Added elevation params to constraints: N_BANDS={n_bands}, "
@@ -1003,7 +1003,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                     updated_lines.append(line)
 
             # Write updated file manager
-            with open(fm_path, 'w') as f:
+            with open(fm_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")

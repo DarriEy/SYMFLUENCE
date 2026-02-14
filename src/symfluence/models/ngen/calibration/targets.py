@@ -56,7 +56,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             import json
             nexus_file = self.project_dir / 'settings' / 'NGEN' / 'nexus.geojson'
             if nexus_file.exists():
-                nexus_data = json.loads(nexus_file.read_text())
+                nexus_data = json.loads(nexus_file.read_text(encoding='utf-8'))
                 num_nexuses = len(nexus_data.get('features', []))
                 if num_nexuses == 1:
                     is_lumped = True
@@ -237,7 +237,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             self.logger.debug(f"Reading catchment areas from {geojson_path}")
 
             # Load GeoJSON and create nexus-area mapping
-            with open(geojson_path) as f:
+            with open(geojson_path, encoding='utf-8') as f:
                 geojson_data = json.load(f)
 
             nexus_areas = {}  # Map of nexus_id -> area_km2

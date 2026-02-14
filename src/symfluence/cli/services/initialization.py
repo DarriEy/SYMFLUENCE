@@ -247,7 +247,7 @@ class InitializationService(BaseService):
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             # Write header comment
             f.write(
                 "### ============================================= SYMFLUENCE Configuration File ===========================================\n"
@@ -344,7 +344,7 @@ class InitializationService(BaseService):
 
     def _load_yaml(self, path: Path) -> Dict[str, Any]:
         """Load YAML file into dictionary."""
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def _create_minimal_config(self) -> Dict[str, Any]:

@@ -65,14 +65,14 @@ class ConfigurationUpdater(ConfigMixin):
                 continue
 
             try:
-                with open(file_manager_path, 'r') as f:
+                with open(file_manager_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
 
                 updated_lines = self._update_file_manager_lines(
                     lines, dirs, model_name, experiment_id, proc_id, cal_start, cal_end
                 )
 
-                with open(file_manager_path, 'w') as f:
+                with open(file_manager_path, 'w', encoding='utf-8') as f:
                     f.writelines(updated_lines)
 
                 if cal_start and cal_end:
@@ -226,7 +226,7 @@ class ConfigurationUpdater(ConfigMixin):
                 continue
 
             try:
-                with open(control_file_path, 'r') as f:
+                with open(control_file_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
 
                 # Get model-specific settings
@@ -242,7 +242,7 @@ class ConfigurationUpdater(ConfigMixin):
                     proc_mizu_dir, mizu_config, proc_id, experiment_id
                 )
 
-                with open(control_file_path, 'w') as f:
+                with open(control_file_path, 'w', encoding='utf-8') as f:
                     f.writelines(updated_lines)
 
                 self.logger.debug(

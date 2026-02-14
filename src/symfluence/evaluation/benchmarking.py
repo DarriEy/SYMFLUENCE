@@ -178,7 +178,7 @@ class Benchmarker(ConfigMixin):
                 "metrics_used": [str(m) for m in scores.columns]
             }
 
-            with open(self.evaluation_dir / "benchmark_metadata.json", 'w') as f:
+            with open(self.evaluation_dir / "benchmark_metadata.json", 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2)
 
         except Exception as e:

@@ -265,7 +265,7 @@ surface_water_partitioning_scheme=Schaake
 
         config_file = self.setup_dir / "CFE" / f"cat-{catchment_id}_bmi_config_cfe_pass.txt"
         config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             f.write(config_text)
 
         return config_file
@@ -382,7 +382,7 @@ shortwave_radiation_provided=1
 
         config_file = self.setup_dir / "PET" / f"cat-{catchment_id}_pet_config.txt"
         config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             f.write(config_text)
 
         return config_file
@@ -524,7 +524,7 @@ shortwave_radiation_provided=1
 
         config_file = self.setup_dir / "NOAH" / f"cat-{catchment_id}.input"
         config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             f.write(config_text)
 
         return config_file
@@ -625,7 +625,7 @@ shortwave_radiation_provided=1
         }
 
         config_file = self.setup_dir / "realization_config.json"
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
 
         self.logger.info(f"Created realization config: {config_file}")

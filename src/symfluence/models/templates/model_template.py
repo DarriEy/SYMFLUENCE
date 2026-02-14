@@ -405,7 +405,7 @@ class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore
 
         # Write and submit
         script_path = self.project_dir / f"run_{self.model_name.lower()}_parallel.sh"
-        script_path.write_text(script_content)
+        script_path.write_text(script_content, encoding='utf-8')
         script_path.chmod(0o755)
 
         result = self.submit_slurm_job(

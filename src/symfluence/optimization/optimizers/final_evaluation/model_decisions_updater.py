@@ -77,12 +77,12 @@ class ModelDecisionsUpdater:
             return
 
         try:
-            with open(self.model_decisions_path, 'r') as f:
+            with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Backup original if not already done
             if not self.backup_path.exists():
-                with open(self.backup_path, 'w') as f:
+                with open(self.backup_path, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
 
             updated_lines = []
@@ -99,7 +99,7 @@ class ModelDecisionsUpdater:
                 if not updated:
                     updated_lines.append(line)
 
-            with open(self.model_decisions_path, 'w') as f:
+            with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug("Updated model decisions for final evaluation")
@@ -113,10 +113,10 @@ class ModelDecisionsUpdater:
             return
 
         try:
-            with open(self.backup_path, 'r') as f:
+            with open(self.backup_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
-            with open(self.model_decisions_path, 'w') as f:
+            with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
             self.logger.debug("Restored model decisions to optimization settings")
@@ -138,7 +138,7 @@ class ModelDecisionsUpdater:
             return None
 
         try:
-            with open(self.model_decisions_path, 'r') as f:
+            with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     if key in line and not line.strip().startswith('!'):
                         parts = line.split()
@@ -165,7 +165,7 @@ class ModelDecisionsUpdater:
             return False
 
         try:
-            with open(self.model_decisions_path, 'r') as f:
+            with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -181,7 +181,7 @@ class ModelDecisionsUpdater:
                     updated_lines.append(line)
 
             if found:
-                with open(self.model_decisions_path, 'w') as f:
+                with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
                     f.writelines(updated_lines)
                 return True
 

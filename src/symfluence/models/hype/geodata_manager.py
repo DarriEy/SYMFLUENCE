@@ -574,7 +574,7 @@ class HYPEGeoDataManager:
         combination['Soil layer depth 2'] = 0.493
         combination['Soil layer depth 3'] = 2.296
 
-        with open(self.output_path / 'GeoClass.txt', 'w') as f:
+        with open(self.output_path / 'GeoClass.txt', 'w', encoding='utf-8') as f:
             f.write(
                 "!          SLC\tLULC\tSOIL TYPE\tMain crop cropid\tSecond crop cropid\t"
                 "Crop rotation group\tVegetation type\tSpecial class code\tTile depth\t"

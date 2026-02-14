@@ -228,7 +228,7 @@ class FUSEParameterManager(BaseParameterManager):
                     updated_lines.append(line)
 
             # Write updated constraints file
-            with open(constraints_file, 'w') as f:
+            with open(constraints_file, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             if params_updated:

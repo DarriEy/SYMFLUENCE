@@ -115,8 +115,8 @@ class NgenWorker(BaseWorker):
                     dst_realization = ngen_dir / "realization_config.json"
                     if src_realization.exists():
                         try:
-                            src_text = src_realization.read_text()
-                            dst_text = dst_realization.read_text() if dst_realization.exists() else ""
+                            src_text = src_realization.read_text(encoding='utf-8')
+                            dst_text = dst_realization.read_text(encoding='utf-8') if dst_realization.exists() else ""
                             if "atmosphere_air_water~vapor__specific_humidity" in src_text and \
                                "atmosphere_air_water~vapor__relative_saturation" in dst_text:
                                 import shutil
@@ -138,8 +138,8 @@ class NgenWorker(BaseWorker):
                             for src_cfe_file in src_cfe_dir.glob("*_bmi_config_cfe*.txt"):
                                 dst_cfe_file = dst_cfe_dir / src_cfe_file.name
                                 if dst_cfe_file.exists():
-                                    src_content = src_cfe_file.read_text()
-                                    dst_content = dst_cfe_file.read_text()
+                                    src_content = src_cfe_file.read_text(encoding='utf-8')
+                                    dst_content = dst_cfe_file.read_text(encoding='utf-8')
                                     # Extract catchment_area_km2 values to compare
                                     area_re = re.compile(r'catchment_area_km2=([0-9.eE+-]+)')
                                     src_match = area_re.search(src_content)

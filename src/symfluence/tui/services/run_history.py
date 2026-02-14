@@ -85,7 +85,7 @@ class RunHistoryService:
     def _parse_summary(path: Path) -> Optional[RunSummary]:
         """Parse a run_summary JSON into a RunSummary dataclass."""
         try:
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
 
             ts = None
@@ -132,7 +132,7 @@ class RunHistoryService:
         """Load a YAML config file."""
         try:
             import yaml
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 return yaml.safe_load(f)
         except ImportError:
             logger.debug("PyYAML not available; config snapshot disabled")

@@ -242,7 +242,7 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
         chunk_files = [f for f in chunk_files if f != output_file]
 
         if len(chunk_files) == 1:
-            chunk_files[0].rename(output_file)
+            chunk_files[0].replace(output_file)
             return output_file
 
         self.logger.info(f"Merging {len(chunk_files)} ERA5-Land chunks")

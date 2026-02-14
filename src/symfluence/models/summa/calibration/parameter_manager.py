@@ -323,7 +323,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return bounds
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line or line.startswith('!') or line.startswith("'"):
@@ -411,7 +411,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return defaults
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith('!') or line.startswith("'"):
@@ -577,7 +577,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             # Track file read operation
             with self._profiler_ctx.track_file_read(str(param_file)):
-                with open(param_file, 'r') as f:
+                with open(param_file, 'r', encoding='utf-8') as f:
                     content = f.read()
 
             # Update parameters
@@ -596,7 +596,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             # Track file write operation
             with self._profiler_ctx.track_file_write(str(param_file), size_bytes=len(updated_content)):
-                with open(param_file, 'w') as f:
+                with open(param_file, 'w', encoding='utf-8') as f:
                     f.write(updated_content)
 
             return True

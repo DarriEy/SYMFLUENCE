@@ -172,7 +172,7 @@ class SummaConfigManager(PathResolverMixin):
             if target in tws_targets or target2 in tws_targets:
                 output_control_path = settings_path / 'outputControl.txt'
                 if output_control_path.exists():
-                    with open(output_control_path, 'r') as f:
+                    with open(output_control_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
 
                     required_vars = ['scalarSWE', 'scalarCanopyWat', 'scalarTotalSoilWat', 'scalarAquiferStorage']
@@ -197,7 +197,7 @@ class SummaConfigManager(PathResolverMixin):
                     for v in required_vars:
                         new_lines.append(f"{v} | 1\n")
 
-                    with open(output_control_path, 'w') as f:
+                    with open(output_control_path, 'w', encoding='utf-8') as f:
                         f.writelines(new_lines)
                     self.logger.info(f"Updated outputControl.txt with TWS variables: {required_vars}")
 
@@ -243,7 +243,7 @@ class SummaConfigManager(PathResolverMixin):
 
             filemanager_path = self.setup_dir / filemanager_name
 
-            with open(filemanager_path, 'w') as fm:
+            with open(filemanager_path, 'w', encoding='utf-8') as fm:
                 fm.write("controlVersion       'SUMMA_FILE_MANAGER_V3.0.0'\n")
                 fm.write(f"simStartTime         '{sim_start}'\n")
                 fm.write(f"simEndTime           '{sim_end}'\n")

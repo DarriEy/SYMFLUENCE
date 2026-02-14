@@ -352,7 +352,7 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # typ
                 world_file = self.worldfiles_dir / f"{self.domain_name}.world"
                 if world_file.exists():
                     import re
-                    with open(world_file, 'r') as f:
+                    with open(world_file, 'r', encoding='utf-8') as f:
                         for line in f:
                             match = re.match(r'\s*([\d\.\-]+)\s+z\b', line)
                             if match:
@@ -415,7 +415,7 @@ none\tmonthly_climate_prefix
 none\thourly_climate_prefix
 0\tnumber_non_critical_hourly_sequences
 """
-        base_file.write_text(content)
+        base_file.write_text(content, encoding='utf-8')
         logger.info(f"Base station file written: {base_file} ({num_sequences} non-critical sequences: {', '.join(non_critical_sequences)})")
 
     def _write_climate_file(self, filename: str, dates: pd.DatetimeIndex, values: np.ndarray):
@@ -428,7 +428,7 @@ none\thourly_climate_prefix
         """
         filepath = self.climate_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             # First line: start date only
             start_date = dates[0]
             f.write(f"{start_date.year} {start_date.month} {start_date.day} 1\n")
@@ -706,7 +706,7 @@ none\thourly_climate_prefix
                 "            1    landuse_parm_ID\n            1    fire_parm_ID\n            "
             )
 
-        world_file.write_text(content)
+        world_file.write_text(content, encoding='utf-8')
         logger.info(f"Worldfile written: {world_file}")
 
         # Generate the header file with default file paths
@@ -962,7 +962,7 @@ none\thourly_climate_prefix
             lines.append("               0    canopy_strata_n_basestations")
 
         content = '\n'.join(lines)
-        world_file.write_text(content)
+        world_file.write_text(content, encoding='utf-8')
         logger.info(f"Distributed worldfile written: {world_file} ({num_patches} patches)")
 
         # Generate the header file
@@ -1027,7 +1027,7 @@ none\thourly_climate_prefix
         content += f"""1    num_base_stations
 {self.climate_dir / f'{self.domain_name}_base'}
 """
-        header_file.write_text(content)
+        header_file.write_text(content, encoding='utf-8')
 
         # Also create the landuse.def file if it doesn't exist
         landuse_def = self.defs_dir / 'landuse.def'
@@ -1042,7 +1042,7 @@ none\thourly_climate_prefix
 0.0    grazing_Closs
 0.0    impervious_fraction
 """
-            landuse_def.write_text(landuse_content)
+            landuse_def.write_text(landuse_content, encoding='utf-8')
 
         logger.info(f"World header written: {header_file}")
 
@@ -1095,7 +1095,7 @@ none\thourly_climate_prefix
                 logger.info(f"Added fire ignition event for {fire_date.strftime('%Y-%m-%d')}")
 
         content = "\n".join(lines) + "\n"
-        tec_file.write_text(content)
+        tec_file.write_text(content, encoding='utf-8')
         logger.info(f"TEC file written: {tec_file}")
 
     def _get_fire_ignition_date(self, start_date, end_date):
@@ -1213,7 +1213,7 @@ none\thourly_climate_prefix
 {patch_id} {zone_id} {hill_id} {lon:.8f} {lat:.8f} {elev:.8f} {area_m2:.8f} {area_m2:.8f} 1 1.0 0
 """
 
-        flow_file.write_text(content)
+        flow_file.write_text(content, encoding='utf-8')
         logger.info(f"Flow table written: {flow_file}")
 
     def _generate_distributed_flow_table(self, flow_file: Path):
@@ -1284,7 +1284,7 @@ none\thourly_climate_prefix
                 lines.append(f"{downstream_id} {downstream_zone} {downstream_hill} 1.0")
 
         content = '\n'.join(lines)
-        flow_file.write_text(content)
+        flow_file.write_text(content, encoding='utf-8')
         logger.info(f"Distributed flow table written: {flow_file} ({num_patches} patches, outlet={outlet_id})")
 
     def _generate_default_files(self):
@@ -1303,7 +1303,7 @@ none\thourly_climate_prefix
 0.5    n_routing_power
 1.0    m_pai
 """
-        basin_def.write_text(basin_content)
+        basin_def.write_text(basin_content, encoding='utf-8')
 
         # Hillslope defaults
         # gw_loss_coeff controls baseflow rate - higher values = faster baseflow drainage
@@ -1317,7 +1317,7 @@ none\thourly_climate_prefix
 0.1    gw_loss_fast_threshold
 0.3    gw_loss_fast_coeff
 """
-        hillslope_def.write_text(hillslope_content)
+        hillslope_def.write_text(hillslope_content, encoding='utf-8')
 
         # Zone defaults
         zone_def = self.defs_dir / "zone.def"
@@ -1335,7 +1335,7 @@ none\thourly_climate_prefix
 0.004    wet_lapse_rate
 -999.0    lapse_rate_precip_default
 """
-        zone_def.write_text(zone_content)
+        zone_def.write_text(zone_content, encoding='utf-8')
 
         # Soil (patch) defaults
         # Note: soil_depth set to 3.0m for reasonable storage without excessive depth
@@ -1367,7 +1367,7 @@ none\thourly_climate_prefix
 0.01    gsurf_slope
 0.001    gsurf_intercept
 """
-        soil_def.write_text(soil_content)
+        soil_def.write_text(soil_content, encoding='utf-8')
 
         # Vegetation (stratum) defaults
         # Based on evergreen conifer parameters from RHESSys ParameterLibrary
@@ -1485,7 +1485,7 @@ waring    epc.allocation_flag
 0.2    epc.psi_slp
 1.0    epc.psi_intercpt
 """
-        veg_def.write_text(veg_content)
+        veg_def.write_text(veg_content, encoding='utf-8')
 
         logger.info(f"Default files written to {self.defs_dir}")
 
@@ -1591,8 +1591,8 @@ waring    epc.allocation_flag
             )
 
             # Write text format for RHESSys
-            patch_grid_file.write_text(patch_grid.to_text())
-            dem_grid_file.write_text(dem_grid.to_text())
+            patch_grid_file.write_text(patch_grid.to_text(), encoding='utf-8')
+            dem_grid_file.write_text(dem_grid.to_text(), encoding='utf-8')
 
             # Store grid dimensions for fire.def generation
             self._fire_grid_nrows = patch_grid.nrows
@@ -1710,8 +1710,8 @@ waring    epc.allocation_flag
             patch_lines.append(f"{patch_id}\t{patch_id}\t{patch_id}")
             dem_lines.append(f"{elev:.1f}\t{elev:.1f}\t{elev:.1f}")
 
-        patch_grid_file.write_text('\n'.join(patch_lines) + '\n')
-        dem_grid_file.write_text('\n'.join(dem_lines) + '\n')
+        patch_grid_file.write_text('\n'.join(patch_lines) + '\n', encoding='utf-8')
+        dem_grid_file.write_text('\n'.join(dem_lines) + '\n', encoding='utf-8')
 
         # Store grid dimensions for fire.def generation
         self._fire_grid_nrows = nrows
@@ -1747,8 +1747,8 @@ waring    epc.allocation_flag
 {elev:.1f}\t{elev:.1f}\t{elev:.1f}
 """
 
-        patch_grid_file.write_text(patch_content)
-        dem_grid_file.write_text(dem_content)
+        patch_grid_file.write_text(patch_content, encoding='utf-8')
+        dem_grid_file.write_text(dem_content, encoding='utf-8')
 
         # Store grid dimensions for fire.def generation
         self._fire_grid_nrows = 3
@@ -1844,7 +1844,7 @@ waring    epc.allocation_flag
 0    fire_size_name
 0.0    wind_shift
 """
-        fire_def_file.write_text(content)
+        fire_def_file.write_text(content, encoding='utf-8')
         logger.info(f"Fire defaults written: {fire_def_file} (grid: {nrows}x{ncols})")
 
     def preprocess(self, **kwargs):

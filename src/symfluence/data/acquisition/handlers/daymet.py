@@ -151,7 +151,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
             # Save CSV
             output_file = output_dir / f"daymet_{lat:.4f}_{lon:.4f}.csv"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(response.text)
 
             self.logger.info(f"Downloaded Daymet data: {output_file}")

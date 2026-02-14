@@ -93,7 +93,7 @@ class WorkflowState(param.Parameterized):
             return
 
         config_dict = self.typed_config.to_dict(flatten=True)
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
 
         self.config_path = str(path)

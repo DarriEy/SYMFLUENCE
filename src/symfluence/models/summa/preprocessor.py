@@ -223,9 +223,9 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type:
         """SUMMA-specific configuration file creation (template hook)."""
         self.create_file_manager()
         self.create_point_file_manager_lists()
+        self.create_attributes_file()
         self.create_initial_conditions()
         self.create_trial_parameters()
-        self.create_attributes_file()
 
         # Check if glacier preprocessing is enabled
         glacier_mode = self._is_glacier_mode_enabled()
@@ -413,10 +413,10 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type:
         fm_ic_list_path = self.setup_dir / 'list_fileManager_IC.txt'
 
         # For a simple point simulation, both lists point to the same file manager
-        with open(fm_list_path, 'w') as f:
+        with open(fm_list_path, 'w', encoding='utf-8') as f:
             f.write(f"{filemanager_path}\n")
 
-        with open(fm_ic_list_path, 'w') as f:
+        with open(fm_ic_list_path, 'w', encoding='utf-8') as f:
             f.write(f"{filemanager_path}\n")
 
         self.logger.info(f"Created file manager lists at {self.setup_dir}")

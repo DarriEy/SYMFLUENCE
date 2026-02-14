@@ -132,7 +132,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         output_path_str = str(output_dir).rstrip('/') + '/'
 
         try:
-            with open(file_manager_path, 'r') as f:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -155,7 +155,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
             if not found_resultdir:
                 self.logger.warning("'resultdir' not found in HYPE info.txt - output may go to wrong location")
 
-            with open(file_manager_path, 'w') as f:
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.info(f"Updated HYPE info.txt output path to: {output_dir}")
@@ -210,7 +210,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
                 hype_end = end_str
                 self.logger.debug(f"Using date strings as-is: {hype_start} to {hype_end}")
 
-            with open(file_manager_path, 'r') as f:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -231,7 +231,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
                 else:
                     updated_lines.append(line)
 
-            with open(file_manager_path, 'w') as f:
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.info(f"Updated HYPE info.txt dates: {hype_start} to {hype_end}")

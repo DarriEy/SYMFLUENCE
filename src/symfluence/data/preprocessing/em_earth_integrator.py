@@ -517,7 +517,7 @@ class EMEarthIntegrator(ConfigMixin):
 
                 if forcing_file.exists():
                     forcing_file.unlink()
-                temp_file.rename(forcing_file)
+                temp_file.replace(forcing_file)
 
                 self.logger.debug(f"Successfully updated {forcing_file.name} with EM-Earth data")
 

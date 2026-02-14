@@ -52,8 +52,11 @@ class GeologyProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        # Define path to GLHYMPS data
-        glhymps_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/glhymps/raw/glhymps.shp")
+        # Define path to GLHYMPS data (configurable via GLHYMPS_PATH)
+        glhymps_path = Path(self.config_dict.get(
+            'GLHYMPS_PATH',
+            str(self.data_dir / 'geospatial' / 'glhymps' / 'raw' / 'glhymps.shp')
+        ))
 
         # Check if GLHYMPS file exists
         if not glhymps_path.exists():
@@ -328,9 +331,12 @@ class GeologyProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        # Define path to geological map data
+        # Define path to geological map data (configurable via GEOLOGY_DIR)
         # This could be GMNA (Geological Map of North America) or similar dataset
-        geo_map_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/geology/raw")
+        geo_map_path = Path(self.config_dict.get(
+            'GEOLOGY_DIR',
+            str(self.data_dir / 'geospatial' / 'geology' / 'raw')
+        ))
 
         # Check if geological map directory exists
         if not geo_map_path.exists():

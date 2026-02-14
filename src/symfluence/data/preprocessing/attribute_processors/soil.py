@@ -53,8 +53,11 @@ class SoilProcessor(BaseAttributeProcessor):
         """
         results = {}
 
-        # Define paths to SOILGRIDS data
-        soilgrids_dir = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/soilgrids/raw")
+        # Define paths to SOILGRIDS data (configurable via SOILGRIDS_DIR)
+        soilgrids_dir = Path(self.config_dict.get(
+            'SOILGRIDS_DIR',
+            str(self.data_dir / 'geospatial' / 'soilgrids' / 'raw')
+        ))
 
         # Define soil components and depths to process
         components = ['clay', 'sand', 'silt']
@@ -351,8 +354,11 @@ class SoilProcessor(BaseAttributeProcessor):
         """
         results = {}
 
-        # Define path to Pelletier data
-        pelletier_dir = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/pelletier/raw")
+        # Define path to Pelletier data (configurable via PELLETIER_DIR)
+        pelletier_dir = Path(self.config_dict.get(
+            'PELLETIER_DIR',
+            str(self.data_dir / 'geospatial' / 'pelletier' / 'raw')
+        ))
 
         # Define files to process
         pelletier_files = {

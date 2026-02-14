@@ -315,7 +315,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             })
 
         nexus_file = self.setup_dir / "nexus.geojson"
-        with open(nexus_file, 'w') as f:
+        with open(nexus_file, 'w', encoding='utf-8') as f:
             json.dump({"type": "FeatureCollection", "name": "nexus", "xy_coordinate_resolution": 1e-06, "features": nexus_features}, f, indent=2)
         return nexus_file
 
@@ -328,7 +328,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         catchment_id = str(catchment_gdf[self.hru_id_col].iloc[0])
 
         nexus_file = self.setup_dir / "nexus.geojson"
-        with open(nexus_file, 'w') as f:
+        with open(nexus_file, 'w', encoding='utf-8') as f:
             json.dump({"type": "FeatureCollection", "name": "nexus", "xy_coordinate_resolution": 1e-06, "features": [{
                 "type": "Feature", "id": f"nex-{catchment_id}",
                 "properties": {"toid": "", "hl_id": None, "hl_uri": "NA", "type": "poi"},
@@ -412,7 +412,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         }
 
         geojson_file = self.setup_dir / f"{self.domain_name}_catchments.geojson"
-        with open(geojson_file, 'w') as f:
+        with open(geojson_file, 'w', encoding='utf-8') as f:
             json.dump(geojson_data, f, indent=2)
 
         self.logger.info(f"Created NGEN catchment files: {gpkg_file.name}, {geojson_file.name}")
@@ -865,7 +865,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         self.logger.info("Generating t-route configuration for NGEN routing")
 
         # Load nexus to determine if this is a lumped or distributed domain
-        with open(nexus_file, 'r') as f:
+        with open(nexus_file, 'r', encoding='utf-8') as f:
             nexus_data = json.load(f)
         num_nexuses = len(nexus_data.get('features', []))
 
@@ -953,7 +953,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
 
         # Write config file
         troute_config_file = self.setup_dir / 'troute_config.yaml'
-        with open(troute_config_file, 'w') as f:
+        with open(troute_config_file, 'w', encoding='utf-8') as f:
             yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False, indent=2)
 
         self.logger.info(f"T-route config created: {troute_config_file}")

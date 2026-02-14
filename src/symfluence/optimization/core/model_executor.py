@@ -104,7 +104,7 @@ class ModelExecutor(ConfigMixin):
             cmd = [str(summa_exe), "-m", str(file_manager)]
             log_file = log_dir / f"summa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8') as f:
                 subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=10800)
 
@@ -141,7 +141,7 @@ class ModelExecutor(ConfigMixin):
             summa_timestep = timestep_files[0].name  # e.g., run_de_opt_run_1_timestep.nc
 
             # 2) Rewrite mizuroute.control paths/names to match this run
-            text = control_file.read_text()
+            text = control_file.read_text(encoding='utf-8')
 
             def repl(line, key, val):
                 # assumes lines like: key = 'value'
@@ -157,7 +157,7 @@ class ModelExecutor(ConfigMixin):
                 # optional: update case_name to strip suffix after last '_' if desired
                 lines.append(line)
 
-            control_file.write_text("".join(lines))
+            control_file.write_text("".join(lines), encoding='utf-8')
 
             if not mizu_exe.exists():
                 self.logger.error(f"mizuRoute executable not found: {mizu_exe}")
@@ -175,7 +175,7 @@ class ModelExecutor(ConfigMixin):
             cmd = [str(mizu_exe), str(control_file)]
             log_file = log_dir / f"mizuroute_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8') as f:
                 subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=1800, cwd=str(settings_dir))
 

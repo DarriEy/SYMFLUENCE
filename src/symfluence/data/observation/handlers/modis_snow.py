@@ -126,7 +126,7 @@ class MODISSnowHandler(BaseObservationHandler):
                 self.logger.error(f"Failed to open NetCDF with any engine: {e2}")
                 # Check if it's an error page
                 if nc_path.stat().st_size < 10000:
-                    with open(nc_path, 'r', errors='ignore') as f:
+                    with open(nc_path, 'r', encoding='utf-8', errors='ignore') as f:
                         self.logger.error(f"File snippet: {f.read(500)}")
                 raise
 

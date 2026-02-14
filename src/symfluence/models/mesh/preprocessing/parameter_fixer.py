@@ -81,7 +81,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.run_options_path, 'r') as f:
+            with open(self.run_options_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             var_replacements = {
@@ -101,7 +101,7 @@ class MESHParameterFixer(ConfigMixin):
                     modified = True
 
             if modified:
-                with open(self.run_options_path, 'w') as f:
+                with open(self.run_options_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 self._update_control_flag_count()
                 self.logger.info("Fixed run options variable names")
@@ -128,7 +128,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.run_options_path, 'r') as f:
+            with open(self.run_options_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # Get RUNMODE from config (default to 'runrte' for routing)
@@ -204,7 +204,7 @@ class MESHParameterFixer(ConfigMixin):
             )
 
             if modified:
-                with open(self.run_options_path, 'w') as f:
+                with open(self.run_options_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 self._update_control_flag_count()
                 self.logger.info("Fixed run options snow/ice parameters")
@@ -218,7 +218,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.run_options_path, 'r') as f:
+            with open(self.run_options_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             flag_start_idx = -1
@@ -248,7 +248,7 @@ class MESHParameterFixer(ConfigMixin):
                 new_line = f"{match.group(1)}{flag_count:2d}{match.group(3)}\n"
                 if new_line != old_line:
                     lines[count_line_idx] = new_line
-                    with open(self.run_options_path, 'w') as f:
+                    with open(self.run_options_path, 'w', encoding='utf-8') as f:
                         f.writelines(lines)
                     self.logger.info(f"Updated control flag count to {flag_count}")
 
@@ -528,7 +528,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -587,7 +587,7 @@ class MESHParameterFixer(ConfigMixin):
             if not content.endswith('\n'):
                 content += '\n'
 
-            with open(self.class_file_path, 'w') as f:
+            with open(self.class_file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
 
             self.logger.info(f"Removed {n_remove} CLASS block(s), {n_keep} remaining")
@@ -822,7 +822,7 @@ class MESHParameterFixer(ConfigMixin):
             return None
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -837,7 +837,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -880,7 +880,7 @@ class MESHParameterFixer(ConfigMixin):
                 content = '\n'.join(new_lines)
                 if not content.endswith('\n'):
                     content += '\n'
-                with open(self.class_file_path, 'w') as f:
+                with open(self.class_file_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
         except Exception as e:
@@ -934,7 +934,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -947,7 +947,7 @@ class MESHParameterFixer(ConfigMixin):
             if keep_mask is not None:
                 trimmed_class = self._trim_class_blocks(lines, keep_mask)
                 if trimmed_class:
-                    with open(self.class_file_path, 'r') as f:
+                    with open(self.class_file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
                         lines = content.split('\n')
                     block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line or line.startswith('[GRU_'))
@@ -989,7 +989,7 @@ class MESHParameterFixer(ConfigMixin):
             content = '\n'.join(new_lines)
             if not content.endswith('\n'):
                 content += '\n'
-            with open(self.class_file_path, 'w') as f:
+            with open(self.class_file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
             return True
@@ -1018,7 +1018,7 @@ class MESHParameterFixer(ConfigMixin):
     def _update_class_nm(self, new_nm: int) -> None:
         """Update NM in CLASS parameters file."""
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             modified = False
@@ -1051,7 +1051,7 @@ class MESHParameterFixer(ConfigMixin):
                     break
 
             if modified:
-                with open(self.class_file_path, 'w') as f:
+                with open(self.class_file_path, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
 
         except Exception as e:
@@ -1079,16 +1079,16 @@ class MESHParameterFixer(ConfigMixin):
                 return
 
         try:
-            with open(self.hydro_path, 'r') as f:
+            with open(self.hydro_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
             if not content.strip() and settings_hydro.exists():
-                with open(settings_hydro, 'r') as f:
+                with open(settings_hydro, 'r', encoding='utf-8') as f:
                     content = f.read()
                     lines = content.split('\n')
                 if content.strip():
-                    with open(self.hydro_path, 'w') as f:
+                    with open(self.hydro_path, 'w', encoding='utf-8') as f:
                         f.write(content)
                     self.logger.info("Restored hydrology file from settings")
 
@@ -1127,7 +1127,7 @@ class MESHParameterFixer(ConfigMixin):
                          return f"{prefix}{'    '.join(new_vals)}{suffix}"
 
                      content = re.sub(pattern, replace_wf_r2, content)
-                     with open(self.hydro_path, 'w') as f:
+                     with open(self.hydro_path, 'w', encoding='utf-8') as f:
                          f.write(content)
                      return
 
@@ -1164,7 +1164,7 @@ class MESHParameterFixer(ConfigMixin):
                 new_lines.append(line)
 
             if r2n_found:
-                with open(self.hydro_path, 'w') as f:
+                with open(self.hydro_path, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(new_lines))
 
         except Exception as e:
@@ -1185,13 +1185,13 @@ class MESHParameterFixer(ConfigMixin):
 
         is_noroute = False
         if self.run_options_path.exists():
-            with open(self.run_options_path, 'r') as f:
+            with open(self.run_options_path, 'r', encoding='utf-8') as f:
                 run_options_content = f.read()
             if re.search(r'RUNMODE\s+noroute', run_options_content):
                 is_noroute = True
 
         try:
-            with open(self.hydro_path, 'r') as f:
+            with open(self.hydro_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             modified = False
@@ -1230,7 +1230,7 @@ class MESHParameterFixer(ConfigMixin):
                     )
 
             if modified:
-                with open(self.hydro_path, 'w') as f:
+                with open(self.hydro_path, 'w', encoding='utf-8') as f:
                     f.write(content)
 
         except Exception as e:
@@ -1243,13 +1243,13 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(run_options, 'r') as f:
+            with open(run_options, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # Replace CLASSOUT with ./ for MESH 1.5 compatibility
             if 'CLASSOUT' in content:
                 content = content.replace('CLASSOUT', './' + ' ' * 6)  # Pad to maintain alignment
-                with open(run_options, 'w') as f:
+                with open(run_options, 'w', encoding='utf-8') as f:
                     f.write(content)
                 self.logger.info("Fixed output directory paths in run options")
 
@@ -1287,13 +1287,13 @@ class MESHParameterFixer(ConfigMixin):
         try:
             if max_ireach == 0:
                 # No reservoirs - create simple file
-                with open(reservoir_file, 'w') as f:
+                with open(reservoir_file, 'w', encoding='utf-8') as f:
                     f.write("0\n")  # Just the count, no other columns needed
                 self.logger.info("Fixed reservoir file: 0 reservoirs")
             else:
                 # Reservoirs exist - ensure file has correct count
                 if reservoir_file.exists():
-                    with open(reservoir_file, 'r') as f:
+                    with open(reservoir_file, 'r', encoding='utf-8') as f:
                         content = f.read().strip()
                     first_line = content.split('\n')[0] if content else ""
                     parts = first_line.split()
@@ -1308,7 +1308,7 @@ class MESHParameterFixer(ConfigMixin):
                         f"Reservoir file not found but IREACH max = {max_ireach}. "
                         f"Creating placeholder with 0 reservoirs."
                     )
-                    with open(reservoir_file, 'w') as f:
+                    with open(reservoir_file, 'w', encoding='utf-8') as f:
                         f.write("0\n")
 
         except Exception as e:
@@ -1330,7 +1330,7 @@ class MESHParameterFixer(ConfigMixin):
             return  # Not lumped mode
 
         try:
-            with open(outputs_balance, 'r') as f:
+            with open(outputs_balance, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             modified = False
@@ -1358,7 +1358,7 @@ class MESHParameterFixer(ConfigMixin):
                 modified = True
 
             if modified:
-                with open(outputs_balance, 'w') as f:
+                with open(outputs_balance, 'w', encoding='utf-8') as f:
                     f.writelines(new_lines)
                 self.logger.info("Configured outputs_balance.txt for lumped mode (daily RFF csv)")
 
@@ -1404,7 +1404,7 @@ class MESHParameterFixer(ConfigMixin):
         }
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -1475,7 +1475,7 @@ class MESHParameterFixer(ConfigMixin):
                 new_lines.append(line)
 
             if modified:
-                with open(self.class_file_path, 'w') as f:
+                with open(self.class_file_path, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(new_lines))
                 self.logger.info("Fixed CLASS vegetation parameters (LNZ0, RSMN) for different GRU types")
 
@@ -1553,7 +1553,7 @@ class MESHParameterFixer(ConfigMixin):
             return
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Determine start month and latitude for climate classification
@@ -1620,7 +1620,7 @@ class MESHParameterFixer(ConfigMixin):
                 new_lines.append(line)
 
             if modified:
-                with open(self.class_file_path, 'w') as f:
+                with open(self.class_file_path, 'w', encoding='utf-8') as f:
                     f.writelines(new_lines)
                 self.logger.info(
                     f"Fixed CLASS initial conditions: SNO={initial_sno}mm, "
@@ -1818,7 +1818,7 @@ class MESHParameterFixer(ConfigMixin):
         if not self.run_options_path.exists():
             return
 
-        with open(self.run_options_path, 'r') as f:
+        with open(self.run_options_path, 'r', encoding='utf-8') as f:
             content = f.read()
             lines = content.split('\n')
 
@@ -1860,7 +1860,7 @@ class MESHParameterFixer(ConfigMixin):
             )
 
         if modified:
-            with open(self.run_options_path, 'w') as f:
+            with open(self.run_options_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(new_lines))
 
     def _find_date_lines(self, lines: list) -> list:
@@ -1905,7 +1905,7 @@ class MESHParameterFixer(ConfigMixin):
         self.logger.info(f"Creating {n_bands} CLASS blocks for elevation bands")
 
         try:
-            with open(self.class_file_path, 'r') as f:
+            with open(self.class_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
 
@@ -1986,7 +1986,7 @@ class MESHParameterFixer(ConfigMixin):
             new_lines = header_lines + [''] + new_blocks + footer_lines
 
             # Write updated file
-            with open(self.class_file_path, 'w') as f:
+            with open(self.class_file_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(new_lines))
 
             elev_str = ', '.join([f"{e['elevation']:.0f}m" for e in elevation_info])
