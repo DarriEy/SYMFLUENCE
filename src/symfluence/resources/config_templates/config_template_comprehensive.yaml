@@ -851,6 +851,27 @@ TROUTE_FROM_MODEL: "SUMMA"
 #   Description: Manning's roughness coefficient
 TROUTE_MANNINGS_N: 0.035
 
+# TROUTE_HG_WIDTH_COEFF
+#   Type:        float
+#   Default:     2.71
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Hydraulic geometry width coefficient (a in W=a*A^b)
+TROUTE_HG_WIDTH_COEFF: 2.71
+
+# TROUTE_HG_WIDTH_EXP
+#   Type:        float
+#   Default:     0.557
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Hydraulic geometry width exponent (b in W=a*A^b)
+TROUTE_HG_WIDTH_EXP: 0.557
+
+# TROUTE_QTS_SUBDIVISIONS
+#   Type:        int
+#   Default:     0
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Sub-timestep divisions for Courant stability (0=auto from Courant)
+TROUTE_QTS_SUBDIVISIONS: 0
+
 # EXPERIMENT_OUTPUT_TROUTE
 #   Type:        str
 #   Default:     default

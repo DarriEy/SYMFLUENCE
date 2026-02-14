@@ -18,6 +18,11 @@ import tempfile
 
 from symfluence.core.mixins import ConfigMixin
 
+try:
+    from symfluence.symfluence_version import __version__ as _symfluence_version
+except ImportError:
+    _symfluence_version = "0+unknown"
+
 # Suppress pyogrio field width warnings (non-fatal - data is still written)
 warnings.filterwarnings('ignore',
                        message='.*not successfully written.*field width.*',
@@ -293,7 +298,7 @@ class LoggingManager(ConfigMixin):
         # Add metadata
         metadata = {
             'logged_at': current_time,
-            'symfluence_version': '1.0.0',  # Update with actual version
+            'symfluence_version': _symfluence_version,
             'debug_mode': self.debug_mode,
             'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         }

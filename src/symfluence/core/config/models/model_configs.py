@@ -423,6 +423,30 @@ class TRouteConfig(BaseModel):
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_TROUTE')
     experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_TROUTE')
 
+    # Hydraulic geometry for channel width estimation (W = a * A^b)
+    hg_width_coeff: float = Field(
+        default=2.71,
+        alias='TROUTE_HG_WIDTH_COEFF',
+        gt=0,
+        description='Hydraulic geometry width coefficient (a in W=a*A^b)',
+    )
+    hg_width_exp: float = Field(
+        default=0.557,
+        alias='TROUTE_HG_WIDTH_EXP',
+        gt=0,
+        le=1.0,
+        description='Hydraulic geometry width exponent (b in W=a*A^b)',
+    )
+
+    # Sub-timestep for Courant stability
+    qts_subdivisions: int = Field(
+        default=0,
+        alias='TROUTE_QTS_SUBDIVISIONS',
+        ge=0,
+        le=20,
+        description='Sub-timestep divisions (0=auto from Courant)',
+    )
+
     # Calibration settings
     params_to_calibrate: str = Field(
         default='mannings_n',
