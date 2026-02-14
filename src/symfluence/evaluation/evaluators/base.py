@@ -237,6 +237,10 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             self.logger.error(f"Observed data file not found: {obs_path}")
             return None
 
+        # Model-ready NetCDF store
+        if obs_path.suffix == '.nc':
+            return self._load_observed_data_from_netcdf(obs_path)
+
         # Try to read with index_col=0 first (handles GRACE/TWS files where date is first column)
         try:
             obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True, dayfirst=True)
@@ -283,6 +287,57 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         obs_df.set_index('DateTime', inplace=True)
 
         return obs_df[data_col]
+
+    def _load_observed_data_from_netcdf(self, nc_path: Path) -> Optional[pd.Series]:
+        """Load observed data from the model-ready grouped NetCDF store."""
+        try:
+            import xarray as xr
+
+            group = self._get_observation_group()
+            ds = xr.open_dataset(nc_path, group=group)
+
+            # Take the first non-coordinate data variable
+            data_vars = [v for v in ds.data_vars if v not in ('gauge_id', 'hru_id', 'station_id', 'basin_id')]
+            if not data_vars:
+                self.logger.error(f"No data variables in {nc_path} group {group}")
+                ds.close()
+                return None
+
+            var_name = data_vars[0]
+            da = ds[var_name]
+
+            # Collapse spatial dim if present (take first or squeeze)
+            spatial_dims = [d for d in da.dims if d != 'time']
+            if spatial_dims:
+                da = da.isel({spatial_dims[0]: 0})
+
+            series = da.to_series().dropna()
+            series.name = var_name
+            ds.close()
+            return series
+
+        except Exception as e:
+            self.logger.error(f"Error reading NetCDF observations from {nc_path}: {e}")
+            return None
+
+    def _get_observation_group(self) -> str:
+        """Return the NetCDF group name for this evaluator type.
+
+        Subclasses can override this to point to their observation group.
+        Default mapping is based on the class name.
+        """
+        class_name = self.__class__.__name__.lower()
+        if 'streamflow' in class_name:
+            return 'streamflow'
+        elif 'snow' in class_name:
+            return 'snow'
+        elif 'et' in class_name or 'evapotranspiration' in class_name:
+            return 'et'
+        elif 'soil' in class_name:
+            return 'soil_moisture'
+        elif 'tws' in class_name or 'groundwater' in class_name:
+            return 'terrestrial_water_storage'
+        return 'streamflow'
 
     def _validate_data(
         self,

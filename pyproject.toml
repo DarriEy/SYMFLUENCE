@@ -72,7 +72,9 @@ dependencies = [
   # CLI
   "rich>=13.0.0,<14.0.0",
   # Configuration models
-  "pydantic>=2.0.0,<3.0.0"
+  "pydantic>=2.0.0,<3.0.0",
+  # Differentiable coupling framework
+  "dcoupler>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -215,6 +217,7 @@ skips = [
     "B404",  # subprocess import - required for external model execution
     "B603",  # subprocess calls - required for external model execution
     "B607",  # partial paths - safe for known system commands
+    "B608",  # SQL string construction - controlled API queries (gSSURGO SDA), not user input
 ]
 
 [tool.mypy]

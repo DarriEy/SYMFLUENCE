@@ -412,8 +412,8 @@ class FUSEWorker(BaseWorker):
                 # Ensure numerical solver settings are reasonable
                 # (para_def.nc can inherit overly tight defaults like 1e-12)
                 numerix_defaults = {
-                    'SOLUTION': 1.0,       # Explicit Heun (avoid implicit convergence failures)
-                    'TIMSTEP_TYP': 1.0,    # Adaptive time steps (original ODE_INT handles this)
+                    'SOLUTION': 0.0,       # Explicit Euler (fastest, avoids SCE hangs)
+                    'TIMSTEP_TYP': 0.0,    # Fixed time steps (avoids adaptive overhead)
                     'ERRITERFUNC': 1e-4,
                     'ERR_ITER_DX': 1e-4,
                     'NITER_TOTAL': 5000.0,
@@ -1435,16 +1435,31 @@ class FUSEWorker(BaseWorker):
                 self.logger.error("No valid data points")
                 return {'kge': self.penalty_score}
 
+            # Determine which metrics to compute
+            metric_list = ['kge', 'nse', 'rmse', 'mae']
+
+            # If composite objective is configured, add the required transformed metrics
+            composite_config = config.get('COMPOSITE_METRIC')
+            if composite_config and isinstance(composite_config, dict):
+                for metric_name in composite_config.keys():
+                    metric_lower = metric_name.lower()
+                    if metric_lower not in metric_list:
+                        metric_list.append(metric_lower)
+
             # Calculate metrics using shared utility
             metrics = self._streamflow_metrics.calculate_metrics(
-                obs_values, sim_values, metrics=['kge', 'nse', 'rmse', 'mae']
+                obs_values, sim_values, metrics=metric_list
             )
 
             # Debug: Log computed metrics and diagnostic info to trace score flow
             self.logger.debug(
-                f"FUSE metrics: KGE={metrics['kge']:.4f}, NSE={metrics['nse']:.4f}, "
+                f"FUSE metrics: KGE={metrics.get('kge', 'N/A')}, NSE={metrics.get('nse', 'N/A')}, "
                 f"n_pts={len(obs_values)}, sim_mean={sim_values.mean():.2f}, obs_mean={obs_values.mean():.2f}"
             )
+            if composite_config:
+                extra = {k: f"{v:.4f}" for k, v in metrics.items() if k not in ('kge', 'nse', 'rmse', 'mae')}
+                if extra:
+                    self.logger.debug(f"FUSE composite components: {extra}")
 
             return metrics
 

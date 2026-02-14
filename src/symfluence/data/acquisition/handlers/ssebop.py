@@ -17,7 +17,7 @@ Data Access:
     Format: GeoTIFF
 
 URL Patterns:
-    CONUS: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/conus/
+    CONUS: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/uswem/web/conus/
     Global: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/global/
 """
 
@@ -39,7 +39,7 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
     """
 
     # USGS FEWS NET base URLs
-    CONUS_BASE = "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/conus/eta/modis_eta/daily/downloads/geotiff"
+    CONUS_BASE = "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/uswem/web/conus/eta/modis_eta/daily/downloads"
     GLOBAL_BASE = "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/global/monthly/eta/downloads"
 
     def download(self, output_dir: Path) -> Path:
@@ -106,15 +106,19 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
         output_dir: Path
     ) -> Optional[Path]:
         """Download SSEBop CONUS for a single date."""
+        import zipfile
+        import io
+
         year = date.strftime('%Y')
         doy = date.strftime('%j')
         date_str = date.strftime('%Y%m%d')
 
-        # SSEBop CONUS filename pattern: det{YYYYDOY}.modisSSEBopETv4.tif
-        filename = f"det{year}{doy}.modisSSEBopETv4.tif"
-        url = f"{self.CONUS_BASE}/{year}/{filename}"
+        # SSEBop CONUS filename: det{YYYYDOY}.modisSSEBopETactual.zip (flat directory)
+        zip_name = f"det{year}{doy}.modisSSEBopETactual.zip"
+        url = f"{self.CONUS_BASE}/{zip_name}"
 
-        out_file = output_dir / filename
+        # Output as extracted TIF
+        out_file = output_dir / f"det{year}{doy}.modisSSEBopETactual.tif"
 
         if out_file.exists() and not self._get_config_value(
             lambda: self.config.data.force_download,
@@ -123,17 +127,23 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
         ):
             return out_file
 
-        self.logger.debug(f"Downloading: {filename}")
+        self.logger.debug(f"Downloading: {zip_name}")
 
         try:
             response = session.get(url, stream=True, timeout=300)
             response.raise_for_status()
 
-            tmp_file = out_file.with_suffix('.tif.part')
-            with open(tmp_file, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    f.write(chunk)
-            tmp_file.replace(out_file)
+            # Download ZIP into memory and extract the TIF
+            zip_bytes = io.BytesIO(response.content)
+            with zipfile.ZipFile(zip_bytes) as zf:
+                tif_names = [n for n in zf.namelist() if n.endswith('.tif')]
+                if not tif_names:
+                    self.logger.debug(f"No TIF in ZIP for {date_str}")
+                    return None
+                zf.extract(tif_names[0], output_dir)
+                extracted = output_dir / tif_names[0]
+                if extracted != out_file:
+                    extracted.rename(out_file)
 
             return out_file
 

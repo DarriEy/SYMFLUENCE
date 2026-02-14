@@ -228,6 +228,14 @@ class WorkflowOrchestrator(ConfigMixin):
                 check_func=lambda: (self.project_dir / "forcing" / "basin_averaged_data").exists(),
                 description="Running model-agnostic data preprocessing"
             ),
+            WorkflowStep(
+                name="build_model_ready_store",
+                cli_name="build_model_ready_store",
+                func=self.managers['data'].build_model_ready_store,
+                check_func=lambda: (self.project_dir / "data" / "model_ready").exists(),
+                description="Building model-ready data store"
+            ),
+
             # --- Model-Specific Preprocessing and Execution ---
             WorkflowStep(
                 name="preprocess_models",

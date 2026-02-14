@@ -106,7 +106,19 @@ class SymfluenceConfig(BaseModel):
 
         from symfluence.core.config.transformers import FLAT_TO_NESTED_MAP, transform_flat_to_nested
 
-        flat_keys = {key for key in values if key in FLAT_TO_NESTED_MAP}
+        # Build combined mapping: base + model-specific transformers
+        combined_map = dict(FLAT_TO_NESTED_MAP)
+        hydrological_model = values.get('HYDROLOGICAL_MODEL')
+        if hydrological_model:
+            try:
+                from symfluence.models.registry import ModelRegistry
+                model_transformers = ModelRegistry.get_config_transformers(hydrological_model)
+                if model_transformers:
+                    combined_map.update(model_transformers)
+            except (ImportError, KeyError, AttributeError):
+                pass
+
+        flat_keys = {key for key in values if key in combined_map}
         if not flat_keys:
             return values
 

@@ -13,7 +13,7 @@ FUSE_FILEMANAGER_V1.5
 'fuse_zDecisions_902.txt'        ! M_DECISIONS        = definition of model decisions
 ! *** output files
 '902'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files
-'FALSE'                           ! Q_ONLY            = only write Q to output files (TRUE) or all variables (FALSE)
+'TRUE'                            ! Q_ONLY            = only write Q to output files (TRUE) or all variables (FALSE)
 ! *** dates
 '2000-10-01'                     ! date_start_sim     = date start simulation
 '2005-09-30'                     ! date_end_sim       = date end simulation

@@ -18,6 +18,11 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
 
     obs_type = "streamflow"
     source_name = "LAMAH_ICE"
+    SOURCE_INFO = {
+        'source': 'LamaH-Ice',
+        'source_doi': '10.5281/zenodo.4683950',
+        'url': 'https://zenodo.org/record/4683950',
+    }
 
     def acquire(self) -> Path:
         """

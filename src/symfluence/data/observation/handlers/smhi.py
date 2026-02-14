@@ -19,6 +19,10 @@ class SMHIStreamflowHandler(BaseObservationHandler):
 
     obs_type = "streamflow"
     source_name = "SMHI"
+    SOURCE_INFO = {
+        'source': 'SMHI',
+        'url': 'https://vattenwebb.smhi.se/',
+    }
 
     def acquire(self) -> Path:
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='cloud', dict_key='DATA_ACCESS').lower()

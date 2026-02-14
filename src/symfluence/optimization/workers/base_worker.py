@@ -988,7 +988,12 @@ class BaseWorker(ABC):
         """
         Extract the primary optimization score from metrics.
 
-        Automatically transforms the score to maximization convention using
+        Supports two modes:
+        1. Single metric: Extracts one metric (e.g., CALIBRATION_METRIC: KGE)
+        2. Composite metric: Weighted combination of multiple metrics
+           (e.g., CALIBRATION_METRIC: COMPOSITE with COMPOSITE_METRIC: {KGE: 0.5, KGE_LOG: 0.5})
+
+        Automatically transforms scores to maximization convention using
         MetricTransformer, so optimization algorithms can always maximize.
 
         Args:
@@ -998,12 +1003,16 @@ class BaseWorker(ABC):
         Returns:
             Primary score for optimization (transformed for maximization)
         """
-        # Get configured metric name - check OPTIMIZATION_METRIC first, then CALIBRATION_METRIC
-        # This ensures consistency with gradient-based optimization which uses optimization.metric
+        # Get configured metric name
         metric_name = config.get(
             'OPTIMIZATION_METRIC',
             config.get('CALIBRATION_METRIC', 'KGE')
         )
+
+        # Check for composite objective function
+        composite_config = config.get('COMPOSITE_METRIC')
+        if (metric_name.upper() == 'COMPOSITE' or composite_config) and isinstance(composite_config, dict):
+            return self._extract_composite_score(metrics, composite_config)
 
         # Debug log to trace metric configuration
         self.logger.debug(
@@ -1011,37 +1020,7 @@ class BaseWorker(ABC):
             f"CALIBRATION_METRIC={config.get('CALIBRATION_METRIC')}, using metric_name={metric_name}"
         )
 
-        raw_value = None
-
-        # Check for exact match first
-        if metric_name in metrics:
-            raw_value = metrics[metric_name]
-        # Check for Calib_ prefix
-        elif f"Calib_{metric_name}" in metrics:
-            raw_value = metrics[f"Calib_{metric_name}"]
-        else:
-            # Case-insensitive search
-            metric_lower = metric_name.lower()
-            for k, v in metrics.items():
-                if k.lower() == metric_lower or k.lower() == f"calib_{metric_lower}":
-                    raw_value = v
-                    break
-
-            # Try common alternatives if still not found
-            if raw_value is None:
-                alternatives = ['kge', 'nse', 'score', 'fitness', 'objective']
-                for alt in alternatives:
-                    if alt in metrics:
-                        raw_value = metrics[alt]
-                        metric_name = alt  # Update metric_name for correct transformation
-                        break
-                    for k, v in metrics.items():
-                        if k.lower() == alt:
-                            raw_value = v
-                            metric_name = k
-                            break
-                    if raw_value is not None:
-                        break
+        raw_value = self._find_metric_value(metrics, metric_name, use_alternatives=True)
 
         # Return penalty if no metric found
         if raw_value is None:
@@ -1052,12 +1031,10 @@ class BaseWorker(ABC):
             return self.penalty_score
 
         # Transform to maximization convention
-        # This ensures RMSE, MAE, PBIAS etc. are properly handled
         transformed_score = MetricTransformer.transform_for_maximization(
             metric_name, raw_value
         )
 
-        # Debug: trace score transformation to identify any sign issues
         self.logger.debug(
             f"Score extraction: metric={metric_name}, raw={raw_value:.4f}, "
             f"direction={MetricTransformer.get_direction(metric_name)}, "
@@ -1065,6 +1042,126 @@ class BaseWorker(ABC):
         )
 
         return transformed_score if transformed_score is not None else self.penalty_score
+
+    def _extract_composite_score(
+        self,
+        metrics: Dict[str, float],
+        composite_config: Dict[str, float]
+    ) -> float:
+        """
+        Compute a weighted composite score from multiple metrics.
+
+        Allows single-objective optimizers (DDS, SCE) to optimize multi-criteria
+        objectives by combining metrics into a single scalar. Each component is
+        transformed to maximization convention before weighting, ensuring that
+        minimize-metrics (RMSE, MAE) and maximize-metrics (KGE, NSE) can be
+        combined correctly.
+
+        Config example:
+            COMPOSITE_METRIC:
+              KGE: 0.5       # 50% weight on standard KGE
+              KGE_LOG: 0.3   # 30% weight on KGE of log-transformed flows
+              KGE_INV: 0.2   # 20% weight on KGE of inverse flows
+
+        Args:
+            metrics: Dictionary of calculated metrics
+            composite_config: Dict mapping metric names to weights
+
+        Returns:
+            Weighted composite score (maximization convention)
+        """
+        # Normalize weights to sum to 1.0
+        total_weight = sum(composite_config.values())
+        if total_weight <= 0:
+            self.logger.error("COMPOSITE_METRIC weights sum to zero or negative")
+            return self.penalty_score
+
+        composite_score = 0.0
+        components_found = 0
+
+        for metric_name, weight in composite_config.items():
+            normalized_weight = weight / total_weight
+
+            raw_value = self._find_metric_value(metrics, metric_name)
+
+            if raw_value is None:
+                self.logger.warning(
+                    f"Composite component '{metric_name}' not found in metrics. "
+                    f"Available: {list(metrics.keys())}"
+                )
+                # Use penalty for missing component
+                composite_score += normalized_weight * self.penalty_score
+                continue
+
+            # Transform to maximization convention
+            transformed = MetricTransformer.transform_for_maximization(
+                metric_name, raw_value
+            )
+            if transformed is None:
+                transformed = raw_value  # Assume maximize if unknown
+
+            composite_score += normalized_weight * transformed
+            components_found += 1
+
+            self.logger.debug(
+                f"  Composite component: {metric_name} = {raw_value:.4f} "
+                f"(transformed={transformed:.4f}, weight={normalized_weight:.2f})"
+            )
+
+        if components_found == 0:
+            self.logger.error("No composite metric components found")
+            return self.penalty_score
+
+        self.logger.debug(
+            f"Composite score: {composite_score:.4f} "
+            f"({components_found}/{len(composite_config)} components)"
+        )
+
+        return composite_score
+
+    def _find_metric_value(
+        self,
+        metrics: Dict[str, float],
+        metric_name: str,
+        use_alternatives: bool = False
+    ) -> Optional[float]:
+        """
+        Find a metric value in the metrics dict with case-insensitive fallback.
+
+        Args:
+            metrics: Dictionary of calculated metrics
+            metric_name: Name of the metric to find
+            use_alternatives: If True, try common alternative metric names as
+                fallback. Only used for primary (non-composite) metric lookup.
+
+        Returns:
+            The metric value, or None if not found
+        """
+        # Exact match
+        if metric_name in metrics:
+            return metrics[metric_name]
+
+        # Calib_ prefix
+        if f"Calib_{metric_name}" in metrics:
+            return metrics[f"Calib_{metric_name}"]
+
+        # Case-insensitive search
+        metric_lower = metric_name.lower()
+        for k, v in metrics.items():
+            if k.lower() == metric_lower or k.lower() == f"calib_{metric_lower}":
+                return v
+
+        # Try common alternatives only for primary metric lookups
+        if use_alternatives:
+            alternatives = ['kge', 'nse', 'score', 'fitness', 'objective']
+            for alt in alternatives:
+                if alt in metrics:
+                    return metrics[alt]
+                for k, v in metrics.items():
+                    if k.lower() == alt:
+                        return v
+
+        return None
 
     def _is_transient_error(self, error: Exception) -> bool:
         """

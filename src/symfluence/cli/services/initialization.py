@@ -316,6 +316,9 @@ class InitializationService(BaseService):
             domain_dir / "settings",
             domain_dir / "simulations" / config.get("EXPERIMENT_ID", "run_1"),
             domain_dir / "observations" / "streamflow",
+            domain_dir / "data" / "model_ready" / "forcings",
+            domain_dir / "data" / "model_ready" / "observations",
+            domain_dir / "data" / "model_ready" / "attributes",
         ]
 
         # Add model-specific directories

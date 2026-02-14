@@ -1296,3 +1296,43 @@ class ReportingManager(ConfigMixin):
             obs_vs_sim=obs_vs_sim,
             model_name=model_name
         )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_coupling_conservation(
+        self, graph: Any, output_dir: Optional[Path] = None
+    ) -> Optional[str]:
+        """Generate conservation diagnostic for a coupled model run.
+
+        Extracts the conservation log from a dCoupler CouplingGraph,
+        logs a summary table, and optionally generates a bar-chart plot.
+
+        Args:
+            graph: A dCoupler CouplingGraph instance with conservation enabled.
+            output_dir: Directory for saving the plot. If None, uses
+                        project_dir/diagnostics/.
+
+        Returns:
+            Path to saved diagnostic plot, or None if conservation is disabled.
+        """
+        try:
+            from symfluence.coupling.diagnostics import CouplingDiagnostics
+        except ImportError:
+            self.logger.debug("coupling.diagnostics not available")
+            return None
+
+        report = CouplingDiagnostics.extract_conservation_report(graph)
+        if report["mode"] == "disabled":
+            self.logger.debug("Conservation checking disabled; skipping diagnostic")
+            return None
+
+        # Log the summary table
+        table = CouplingDiagnostics.format_conservation_table(report)
+        self.logger.info(table)
+
+        # Generate plot
+        if output_dir is None:
+            output_dir = self.project_dir / "diagnostics"
+        plot_path = CouplingDiagnostics.plot_conservation_errors(
+            report, Path(output_dir) / "conservation.png"
+        )
+        return str(plot_path) if plot_path else None

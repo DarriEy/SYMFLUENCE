@@ -2,17 +2,17 @@
 
 Downloads global river network and catchment data from the GEOGLOWS V2
 dataset hosted on public S3. Data is organized by Virtual Processing Units
-(VPUs) in GeoParquet format.
+(VPUs) with Hive-style partitioning.
 
 Workflow:
-    1. Download lightweight VPU boundary index (cached locally)
+    1. Download VPU boundary index (GeoPackage, cached locally)
     2. Spatial join pour point to determine VPU ID(s)
-    3. Download catchment + river parquets for matching VPU(s)
+    3. Download catchment parquet + stream GeoPackage for matching VPU(s)
 
 Primary Source:
     GEOGLOWS V2 on AWS S3: https://geoglows-v2.s3.amazonaws.com/
-    ~7M global river segments organized by ~60 VPUs
-    Format: GeoParquet
+    ~7M global river segments organized by ~125 VPUs
+    Format: GeoParquet (catchments), GeoPackage (streams)
 
 Column Convention (matches subsetter TDX type):
     streamID, LINKNO, DSLINKNO, USLINKNO1, USLINKNO2
@@ -32,15 +32,15 @@ from ..mixins import RetryMixin
 from ..utils import create_robust_session
 
 
-# GEOGLOWS V2 S3 base URL
-_GEOGLOWS_S3_BASE = "https://geoglows-v2.s3.amazonaws.com"
+# GEOGLOWS V2 S3 base URL (us-west-2, public)
+_GEOGLOWS_S3_BASE = "https://geoglows-v2.s3.us-west-2.amazonaws.com"
 
-# VPU boundary index file (lightweight parquet with VPU geometries)
-_VPU_INDEX_URL = f"{_GEOGLOWS_S3_BASE}/vpu-index.parquet"
+# VPU boundary index (GeoPackage with VPU geometries)
+_VPU_BOUNDARIES_URL = f"{_GEOGLOWS_S3_BASE}/hydrography-global/vpu-boundaries.gpkg"
 
-# VPU data URL templates
-_CATCHMENTS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/{{vpu}}-catchments.parquet"
-_RIVERS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/{{vpu}}-rivernet.parquet"
+# VPU data URL templates (Hive-style partitioning)
+_CATCHMENTS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/hydrography/vpu={{vpu}}/catchments_{{vpu}}.parquet"
+_STREAMS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/hydrography/vpu={{vpu}}/streams_{{vpu}}.gpkg"
 
 
 @AcquisitionRegistry.register('TDX_HYDRO')
@@ -50,14 +50,14 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
 
     Downloads global river catchments and networks from the GEOGLOWS V2
     dataset. Uses a VPU boundary index for spatial lookup, then fetches
-    the corresponding regional GeoParquet files.
+    the corresponding regional data files.
 
     Config Keys:
         TDX_SOURCE: 'geoglows' (default) or 'nga' (full NGA archive, manual only)
 
     Output Files:
         tdx_catchments_{vpu}.parquet — catchment polygons
-        tdx_rivers_{vpu}.parquet — river network lines
+        tdx_streams_{vpu}.gpkg — river network lines
     """
 
     def download(self, output_dir: Path) -> Path:
@@ -121,21 +121,21 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         for vpu_id in vpu_ids:
             cat_path = geofabric_dir / f"tdx_catchments_{vpu_id}.parquet"
-            riv_path = geofabric_dir / f"tdx_rivers_{vpu_id}.parquet"
+            riv_path = geofabric_dir / f"tdx_streams_{vpu_id}.gpkg"
 
             if not self._skip_if_exists(cat_path):
-                self._download_parquet(
+                self._download_file(
                     session,
                     _CATCHMENTS_URL_TEMPLATE.format(vpu=vpu_id),
                     cat_path,
                     f"catchments VPU {vpu_id}"
                 )
             if not self._skip_if_exists(riv_path):
-                self._download_parquet(
+                self._download_file(
                     session,
-                    _RIVERS_URL_TEMPLATE.format(vpu=vpu_id),
+                    _STREAMS_URL_TEMPLATE.format(vpu=vpu_id),
                     riv_path,
-                    f"rivers VPU {vpu_id}"
+                    f"streams VPU {vpu_id}"
                 )
 
             all_catchment_files.append(cat_path)
@@ -144,9 +144,9 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         # If multiple VPUs, merge into single files
         if len(vpu_ids) > 1:
             merged_cat = geofabric_dir / "tdx_catchments_merged.parquet"
-            merged_riv = geofabric_dir / "tdx_rivers_merged.parquet"
+            merged_riv = geofabric_dir / "tdx_streams_merged.gpkg"
             self._merge_parquets(all_catchment_files, merged_cat)
-            self._merge_parquets(all_river_files, merged_riv)
+            self._merge_geopackages(all_river_files, merged_riv)
 
         self.logger.info(f"GEOGLOWS V2 data downloaded to: {geofabric_dir}")
         return geofabric_dir
@@ -178,15 +178,20 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         """
         import geopandas as gpd
 
-        index_path = cache_dir / "vpu_index.parquet"
+        index_path = cache_dir / "vpu_boundaries.gpkg"
         if not index_path.exists():
             self.logger.info("Downloading GEOGLOWS VPU boundary index...")
 
             def do_download():
                 session = create_robust_session(max_retries=3, backoff_factor=1.0)
-                resp = session.get(_VPU_INDEX_URL, timeout=120)
+                resp = session.get(_VPU_BOUNDARIES_URL, stream=True, timeout=300)
                 resp.raise_for_status()
-                index_path.write_bytes(resp.content)
+                part_path = index_path.with_suffix('.part')
+                with open(part_path, 'wb') as f:
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+                part_path.rename(index_path)
 
             self.execute_with_retry(
                 do_download,
@@ -200,12 +205,12 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
                 ),
             )
 
-        return gpd.read_parquet(index_path)
+        return gpd.read_file(index_path)
 
-    def _download_parquet(
+    def _download_file(
         self, session, url: str, output_path: Path, description: str
     ):
-        """Download a parquet file with retry logic.
+        """Download a file with retry logic.
 
         Args:
             session: requests.Session
@@ -252,6 +257,26 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
             merged = pd.concat(gdfs, ignore_index=True)
             merged = gpd.GeoDataFrame(merged, crs=gdfs[0].crs)
             merged.to_parquet(output_path)
+            self.logger.info(
+                f"Merged {len(gdfs)} files into {output_path} "
+                f"({len(merged)} features)"
+            )
+
+    def _merge_geopackages(self, file_paths: list, output_path: Path):
+        """Merge multiple GeoPackage files into one.
+
+        Args:
+            file_paths: List of GeoPackage file paths
+            output_path: Output merged file path
+        """
+        import geopandas as gpd
+        import pandas as pd
+
+        gdfs = [gpd.read_file(p) for p in file_paths if p.exists()]
+        if gdfs:
+            merged = pd.concat(gdfs, ignore_index=True)
+            merged = gpd.GeoDataFrame(merged, crs=gdfs[0].crs)
+            merged.to_file(output_path, driver="GPKG")
             self.logger.info(
                 f"Merged {len(gdfs)} files into {output_path} "
                 f"({len(merged)} features)"

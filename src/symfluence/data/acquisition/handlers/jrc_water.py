@@ -24,7 +24,7 @@ Data Access:
 
 URL Pattern:
     gs://global-surface-water/downloads3/
-    https://storage.googleapis.com/global-surface-water/downloads3/
+    https://storage.googleapis.com/global-surface-water/downloads2021/
 """
 
 import requests
@@ -45,7 +45,7 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
     """
 
     # Google Cloud Storage public bucket
-    GCS_BASE = "https://storage.googleapis.com/global-surface-water/downloads3"
+    GCS_BASE = "https://storage.googleapis.com/global-surface-water/downloads2021"
 
     # Available datasets/layers
     DATASETS = {

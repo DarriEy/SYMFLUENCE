@@ -20,6 +20,10 @@ class WSCStreamflowHandler(BaseObservationHandler):
 
     obs_type = "streamflow"
     source_name = "WSC_HYDAT"
+    SOURCE_INFO = {
+        'source': 'WSC HYDAT',
+        'url': 'https://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/',
+    }
 
     def acquire(self) -> Path:
         self.logger.debug("WSCStreamflowHandler.acquire called")

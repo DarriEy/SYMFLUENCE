@@ -1,0 +1,391 @@
+"""
+CLM Parameter Manager
+
+Handles CLM5 parameter bounds, normalization, and file updates.
+Manages 26 parameters across 3 target files:
+- namelist (user_nl_clm): hydrology scalar knobs
+- params.nc (clm5_params.nc): snow + PFT parameters
+- surfdata (surfdata_clm.nc): soil hydraulic multipliers
+"""
+
+import logging
+import math
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import xarray as xr
+
+from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.optimization.registry import OptimizerRegistry
+
+
+# CLM5 parameter definitions:
+# (target_file, nc_variable_or_None, transform)
+# target_file: 'namelist' | 'params' | 'surfdata'
+# For surfdata multipliers (*_mult), value is multiplied with base values.
+CLM_PARAM_DEFS = {
+    # --- Hydrology (namelist) ---
+    'fover':            ('namelist', None, 'linear'),
+    'fdrai':            ('namelist', None, 'linear'),
+    'baseflow_scalar':  ('namelist', None, 'log'),
+    'fff':              ('params', 'fff', 'linear'),
+    'dewmx':            ('namelist', None, 'linear'),
+    'wimp':             ('params', 'wimp', 'linear'),
+    'ksatdecay':        ('params', 'pc', 'log'),
+    'kaccum':           ('namelist', None, 'linear'),
+    # --- Surfdata (soil hydraulic multipliers) ---
+    'fmax':             ('surfdata', 'FMAX', 'linear'),
+    'bsw_mult':         ('surfdata', 'bsw', 'linear'),
+    'sucsat_mult':      ('surfdata', 'sucsat', 'linear'),
+    'watsat_mult':      ('surfdata', 'watsat', 'linear'),
+    'hksat_mult':       ('surfdata', 'hksat', 'log'),
+    'organic_max':      ('surfdata', 'ORGANIC', 'linear'),
+    'zsapric':          ('surfdata', None, 'linear'),
+    # --- Snow (params.nc) ---
+    'fresh_snw_rds_max': ('params', 'fresh_snw_rds_max', 'linear'),
+    'snw_aging_bst':     ('params', 'snw_aging_bst', 'linear'),
+    'SNO_Z0MV':          ('params', 'SNO_Z0MV', 'log'),
+    'accum_factor':      ('params', 'accum_factor', 'linear'),
+    'SNOW_DENSITY_MAX':  ('params', 'SNOW_DENSITY_MAX', 'linear'),
+    'SNOW_DENSITY_MIN':  ('params', 'SNOW_DENSITY_MIN', 'linear'),
+    # --- Vegetation/PFT (params.nc, PFT-indexed) ---
+    'medlynslope':      ('params', 'medlynslope', 'linear'),
+    'slatop':           ('params', 'slatop', 'linear'),
+    'flnr':             ('params', 'flnr', 'linear'),
+    'froot_leaf':       ('params', 'froot_leaf', 'linear'),
+    'stem_leaf':        ('params', 'stem_leaf', 'linear'),
+}
+
+# Default bounds for all 26 parameters
+CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
+    # Hydrology
+    'fover':            {'min': 0.01, 'max': 5.0},
+    'fdrai':            {'min': 0.0, 'max': 200.0},
+    'baseflow_scalar':  {'min': 0.001, 'max': 0.1, 'transform': 'log'},
+    'fff':              {'min': 0.02, 'max': 1.0},
+    'dewmx':            {'min': 0.05, 'max': 0.2},
+    'wimp':             {'min': 0.01, 'max': 0.1},
+    'ksatdecay':        {'min': 0.1, 'max': 10.0, 'transform': 'log'},
+    'kaccum':           {'min': 0.0, 'max': 1e-6},
+    # Surfdata
+    'fmax':             {'min': 0.0, 'max': 1.0},
+    'bsw_mult':         {'min': 0.5, 'max': 2.0},
+    'sucsat_mult':      {'min': 0.5, 'max': 2.0},
+    'watsat_mult':      {'min': 0.8, 'max': 1.2},
+    'hksat_mult':       {'min': 0.01, 'max': 100.0, 'transform': 'log'},
+    'organic_max':      {'min': 0.0, 'max': 130.0},
+    'zsapric':          {'min': 0.1, 'max': 2.0},
+    # Snow
+    'fresh_snw_rds_max': {'min': 50.0, 'max': 200.0},
+    'snw_aging_bst':     {'min': 0.0, 'max': 200.0},
+    'SNO_Z0MV':          {'min': 0.0001, 'max': 0.01, 'transform': 'log'},
+    'accum_factor':      {'min': -0.1, 'max': 0.1},
+    'SNOW_DENSITY_MAX':  {'min': 250.0, 'max': 550.0},
+    'SNOW_DENSITY_MIN':  {'min': 50.0, 'max': 200.0},
+    # Vegetation/PFT
+    'medlynslope':      {'min': 2.0, 'max': 12.0},
+    'slatop':           {'min': 0.005, 'max': 0.06},
+    'flnr':             {'min': 0.05, 'max': 0.25},
+    'froot_leaf':       {'min': 0.5, 'max': 3.0},
+    'stem_leaf':        {'min': 0.5, 'max': 3.0},
+}
+
+
+@OptimizerRegistry.register_parameter_manager('CLM')
+class CLMParameterManager(BaseParameterManager):
+    """Handles CLM5 parameter bounds, normalization, and file updates."""
+
+    def __init__(
+        self,
+        config: Dict,
+        logger: logging.Logger,
+        clm_settings_dir: Path,
+    ):
+        super().__init__(config, logger, clm_settings_dir)
+
+        self.domain_name = config.get('DOMAIN_NAME')
+        self.experiment_id = config.get('EXPERIMENT_ID')
+
+        # Parse parameters to calibrate
+        clm_params_str = None
+        try:
+            if hasattr(config, 'model') and hasattr(config.model, 'clm'):
+                clm_params_str = config.model.clm.params_to_calibrate
+        except (AttributeError, TypeError):
+            pass
+
+        if clm_params_str is None:
+            clm_params_str = config.get('CLM_PARAMS_TO_CALIBRATE')
+
+        if clm_params_str is None:
+            # Default: all 26 parameters
+            clm_params_str = ','.join(CLM_DEFAULT_BOUNDS.keys())
+            logger.warning(
+                f"CLM_PARAMS_TO_CALIBRATE missing; using all {len(CLM_DEFAULT_BOUNDS)} params"
+            )
+
+        self.clm_params = [
+            p.strip() for p in str(clm_params_str).split(',') if p.strip()
+        ]
+
+        # Setup paths
+        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+        self.params_dir = self.project_dir / 'CLM_input' / 'parameters'
+
+        # Get file names
+        self.params_nc_name = 'clm5_params.nc'
+        self.surfdata_nc_name = 'surfdata_clm.nc'
+        try:
+            if hasattr(config, 'model') and hasattr(config.model, 'clm'):
+                self.params_nc_name = config.model.clm.params_file or self.params_nc_name
+                self.surfdata_nc_name = config.model.clm.surfdata_file or self.surfdata_nc_name
+        except (AttributeError, TypeError):
+            pass
+
+    def _get_parameter_names(self) -> List[str]:
+        return self.clm_params
+
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Return CLM parameter bounds with log transform info."""
+        bounds = {}
+        for param_name, default in CLM_DEFAULT_BOUNDS.items():
+            bounds[param_name] = {
+                'min': default['min'],
+                'max': default['max'],
+            }
+            if 'transform' in default:
+                bounds[param_name]['transform'] = default['transform']
+
+        # Config overrides
+        config_bounds = self.config.get('CLM_PARAM_BOUNDS', {})
+        if config_bounds:
+            for param_name, bound_list in config_bounds.items():
+                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
+                    existing = bounds.get(param_name, {})
+                    bounds[param_name] = {
+                        'min': float(bound_list[0]),
+                        'max': float(bound_list[1]),
+                    }
+                    # Preserve transform from registry
+                    if 'transform' in existing:
+                        bounds[param_name]['transform'] = existing['transform']
+                    self.logger.debug(
+                        f"Config override for {param_name}: "
+                        f"[{bound_list[0]}, {bound_list[1]}]"
+                    )
+
+        # Log bounds
+        for param_name in self.clm_params:
+            if param_name in bounds:
+                b = bounds[param_name]
+                transform = b.get('transform', 'linear')
+                self.logger.info(
+                    f"CLM param {param_name}: "
+                    f"bounds=[{b['min']:.6g}, {b['max']:.6g}] "
+                    f"transform={transform}"
+                )
+
+        return bounds
+
+    def update_model_files(self, params: Dict[str, float]) -> bool:
+        """Update all CLM parameter files."""
+        try:
+            # Separate params by target file
+            nl_params = {}
+            params_nc_updates = {}
+            surfdata_updates = {}
+
+            for name, value in params.items():
+                if name not in CLM_PARAM_DEFS:
+                    self.logger.warning(f"Unknown CLM param: {name}")
+                    continue
+
+                target, nc_var, _ = CLM_PARAM_DEFS[name]
+                if target == 'namelist':
+                    nl_params[name] = value
+                elif target == 'params':
+                    params_nc_updates[name] = value
+                elif target == 'surfdata':
+                    surfdata_updates[name] = value
+
+            success = True
+
+            if nl_params:
+                success &= self._update_namelist(nl_params)
+            if params_nc_updates:
+                success &= self._update_params_nc(params_nc_updates)
+            if surfdata_updates:
+                success &= self._update_surfdata(surfdata_updates)
+
+            return success
+
+        except Exception as e:
+            self.logger.error(f"Error updating CLM files: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+
+    def _update_namelist(self, params: Dict[str, float]) -> bool:
+        """Regenerate user_nl_clm with hydrology parameters."""
+        nl_path = self.settings_dir / 'user_nl_clm'
+        if not nl_path.exists():
+            self.logger.error(f"user_nl_clm not found: {nl_path}")
+            return False
+
+        # Read existing namelist
+        content = nl_path.read_text()
+
+        # Add/update parameter lines
+        for name, value in params.items():
+            # Remove existing line if present
+            lines = content.split('\n')
+            lines = [l for l in lines if not l.strip().startswith(f'{name} ')]
+            lines = [l for l in lines if not l.strip().startswith(f'{name}=')]
+            content = '\n'.join(lines)
+
+            # Append new line
+            content += f"\n{name} = {value:.8g}"
+
+        nl_path.write_text(content)
+        self.logger.debug(f"Updated user_nl_clm with {len(params)} params")
+        return True
+
+    def _update_params_nc(self, params: Dict[str, float]) -> bool:
+        """Update clm5_params.nc with snow and PFT parameters.
+
+        Uses netCDF4 directly to modify in-place, preserving the original
+        NETCDF3_CLASSIC format that CLM/PIO requires.
+        """
+        import netCDF4
+
+        params_file = self.params_dir / self.params_nc_name
+        if not params_file.exists():
+            self.logger.error(f"CLM params file not found: {params_file}")
+            return False
+
+        active_pfts = self._get_active_pfts()
+
+        ds = netCDF4.Dataset(str(params_file), 'r+')
+
+        for name, value in params.items():
+            if name not in CLM_PARAM_DEFS:
+                continue
+
+            _, nc_var, _ = CLM_PARAM_DEFS[name]
+            if nc_var is None or nc_var not in ds.variables:
+                continue
+
+            var = ds.variables[nc_var]
+            is_pft_param = name in (
+                'medlynslope', 'slatop', 'flnr', 'froot_leaf', 'stem_leaf'
+            )
+
+            if is_pft_param and 'pft' in var.dimensions and active_pfts:
+                for pft_idx in active_pfts:
+                    if pft_idx < var.shape[var.dimensions.index('pft')]:
+                        var[pft_idx] = value
+            else:
+                var[:] = value
+
+            self.logger.debug(f"Updated params.nc: {nc_var} = {value:.6g}")
+
+        # Validate: SNOW_DENSITY_MIN < SNOW_DENSITY_MAX
+        if 'SNOW_DENSITY_MIN' in ds.variables and 'SNOW_DENSITY_MAX' in ds.variables:
+            dmin = float(ds.variables['SNOW_DENSITY_MIN'][:].flat[0])
+            dmax = float(ds.variables['SNOW_DENSITY_MAX'][:].flat[0])
+            if dmin >= dmax:
+                ds.variables['SNOW_DENSITY_MIN'][:] = dmax * 0.5
+                self.logger.warning(
+                    f"Clamped SNOW_DENSITY_MIN ({dmin}) < SNOW_DENSITY_MAX ({dmax})"
+                )
+
+        ds.close()
+        return True
+
+    def _update_surfdata(self, params: Dict[str, float]) -> bool:
+        """Update surfdata_clm.nc with soil multipliers and FMAX.
+
+        Uses netCDF4 directly to modify in-place, preserving the exact
+        binary format that CLM/PIO requires.
+        """
+        import netCDF4
+
+        surfdata_file = self.params_dir / self.surfdata_nc_name
+        if not surfdata_file.exists():
+            self.logger.error(f"Surfdata file not found: {surfdata_file}")
+            return False
+
+        ds = netCDF4.Dataset(str(surfdata_file), 'r+')
+
+        for name, value in params.items():
+            if name not in CLM_PARAM_DEFS:
+                continue
+
+            _, nc_var, _ = CLM_PARAM_DEFS[name]
+
+            if name == 'fmax' and 'FMAX' in ds.variables:
+                ds.variables['FMAX'][:] = value
+                self.logger.debug(f"Updated FMAX = {value:.4f}")
+                continue
+
+            if name == 'organic_max' and 'ORGANIC' in ds.variables:
+                org = ds.variables['ORGANIC'][:].copy()
+                ds.variables['ORGANIC'][:] = np.minimum(org, value)
+                self.logger.debug(f"Capped ORGANIC at {value:.1f}")
+                continue
+
+            if name == 'zsapric':
+                self.logger.debug(f"zsapric = {value:.4f} (no-op)")
+                continue
+
+            if name.endswith('_mult') and nc_var and nc_var in ds.variables:
+                base_vals = ds.variables[nc_var][:].copy()
+                new_vals = base_vals * value
+
+                if name == 'watsat_mult':
+                    new_vals = np.clip(new_vals, 0.01, 0.95)
+                elif name == 'hksat_mult':
+                    new_vals = np.maximum(new_vals, 1e-10)
+
+                ds.variables[nc_var][:] = new_vals
+                self.logger.debug(
+                    f"Applied {name} = {value:.4f} to {nc_var}"
+                )
+
+        ds.close()
+        return True
+
+    def get_initial_parameters(self) -> Optional[Dict[str, float]]:
+        """Get initial parameter values (midpoint of bounds, geometric mean for log)."""
+        initial = {}
+        for name in self.clm_params:
+            if name not in CLM_DEFAULT_BOUNDS:
+                continue
+            b = CLM_DEFAULT_BOUNDS[name]
+            transform = b.get('transform', 'linear')
+            if transform == 'log' and b['min'] > 0:
+                initial[name] = math.sqrt(b['min'] * b['max'])
+            else:
+                initial[name] = (b['min'] + b['max']) / 2.0
+        return initial if initial else None
+
+    def _get_active_pfts(self) -> List[int]:
+        """Get active PFT indices from surface data."""
+        surfdata_file = self.params_dir / self.surfdata_nc_name
+        if not surfdata_file.exists():
+            return [1, 12]  # Default: needleleaf evergreen + C3 arctic grass
+
+        try:
+            ds = xr.open_dataset(surfdata_file)
+            if 'PCT_NAT_PFT' in ds:
+                pct = ds['PCT_NAT_PFT'].values.flatten()
+                active = [i for i, p in enumerate(pct) if p > 0.0]
+                ds.close()
+                return active if active else [1, 12]
+            ds.close()
+        except Exception:
+            pass
+
+        return [1, 12]

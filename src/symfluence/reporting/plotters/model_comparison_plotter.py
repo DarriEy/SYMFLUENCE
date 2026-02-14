@@ -450,6 +450,61 @@ class ModelComparisonPlotter(BasePlotter):
                 import traceback
                 self.logger.debug(traceback.format_exc())
 
+        # Check for T-Route output (channel routing from SUMMA lateral inflows)
+        if results_df is None:
+            troute_dir = sim_dir / "TRoute"
+            troute_files = list(troute_dir.glob("troute_output.nc")) if troute_dir.exists() else []
+            if not troute_files and troute_dir.exists():
+                troute_files = list(troute_dir.glob("*.nc"))
+
+            if troute_files:
+                self.logger.info("Found T-Route output")
+                try:
+                    ds = xr.open_dataset(troute_files[0])
+                    # T-Route built-in output uses 'flow' variable
+                    flow_var = None
+                    for vname in ['flow', 'streamflow', 'discharge', 'q_lateral']:
+                        if vname in ds:
+                            flow_var = vname
+                            break
+
+                    if flow_var:
+                        var_data = ds[flow_var]
+
+                        # Handle feature_id dimension — select outlet (highest mean flow)
+                        if 'feature_id' in var_data.dims:
+                            feature_means = var_data.mean(dim='time').values
+                            outlet_idx = int(np.argmax(feature_means))
+                            streamflow = var_data.isel(feature_id=outlet_idx).to_pandas()
+                        elif 'seg' in var_data.dims:
+                            seg_means = var_data.mean(dim='time').values
+                            outlet_idx = int(np.argmax(seg_means))
+                            streamflow = var_data.isel(seg=outlet_idx).to_pandas()
+                        else:
+                            streamflow = var_data.squeeze().to_pandas()
+
+                        # Resample to daily if sub-daily
+                        if hasattr(streamflow.index, 'freq') or len(streamflow) > 366 * 10:
+                            streamflow.index = streamflow.index.round('h')
+                            streamflow = streamflow.resample('D').mean()
+
+                        results_df = pd.DataFrame(index=streamflow.index)
+                        results_df['TRoute_discharge_cms'] = streamflow
+                        self.logger.info(
+                            f"Loaded {len(streamflow)} discharge values from T-Route "
+                            f"(variable: {flow_var})"
+                        )
+                    else:
+                        self.logger.warning(
+                            f"No recognized flow variable in T-Route output. "
+                            f"Available: {list(ds.data_vars)}"
+                        )
+                    ds.close()
+                except Exception as e:
+                    self.logger.warning(f"Error loading T-Route output: {e}")
+                    import traceback
+                    self.logger.debug(traceback.format_exc())
+
         # Check for SUMMA output (lumped model without routing)
         if results_df is None:
             summa_dir = sim_dir / "SUMMA"
@@ -523,6 +578,33 @@ class ModelComparisonPlotter(BasePlotter):
                             break
                 except Exception as e:
                     self.logger.warning(f"Error loading GR output: {e}")
+
+        # Check for CLM output
+        if results_df is None:
+            clm_dir = sim_dir / "CLM"
+            clm_files = sorted(clm_dir.glob("*.clm2.h0.*.nc")) if clm_dir.exists() else []
+
+            if clm_files:
+                self.logger.info(f"Found {len(clm_files)} CLM history file(s)")
+                try:
+                    import xarray as xr
+                    ds = xr.open_mfdataset(
+                        [str(f) for f in clm_files], combine='by_coords'
+                    )
+                    if 'QRUNOFF' in ds:
+                        qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
+                        area_m2 = float(
+                            self.config_dict.get('CATCHMENT_AREA', 2210.0)
+                        ) * 1e6
+                        streamflow = qrunoff * area_m2 / 1000.0  # m3/s
+                        time_idx = pd.DatetimeIndex(ds.time.values)
+                        results_df = pd.DataFrame(
+                            {'CLM_discharge_cms': streamflow},
+                            index=time_idx
+                        )
+                    ds.close()
+                except Exception as e:
+                    self.logger.warning(f"Error loading CLM output: {e}")
 
         # Load and add observations
         if results_df is not None:
@@ -656,6 +738,71 @@ class ModelComparisonPlotter(BasePlotter):
                 except (OSError, KeyError, ValueError):
                     # File doesn't contain recognized routing variables
                     continue
+
+        # Check for T-Route output
+        if results_df is None:
+            troute_files = list(output_dir.glob("troute_output.nc"))
+            if not troute_files:
+                troute_files = [
+                    f for f in output_dir.glob("*.nc")
+                    if 'troute' in f.name.lower()
+                ]
+            if troute_files:
+                self.logger.info(f"Found T-Route output in {output_dir}")
+                try:
+                    ds = xr.open_dataset(troute_files[0])
+                    flow_var = None
+                    for vname in ['flow', 'streamflow', 'discharge']:
+                        if vname in ds:
+                            flow_var = vname
+                            break
+
+                    if flow_var:
+                        var_data = ds[flow_var]
+                        if 'feature_id' in var_data.dims:
+                            feature_means = var_data.mean(dim='time').values
+                            outlet_idx = int(np.argmax(feature_means))
+                            streamflow = var_data.isel(feature_id=outlet_idx).to_pandas()
+                        elif 'seg' in var_data.dims:
+                            seg_means = var_data.mean(dim='time').values
+                            outlet_idx = int(np.argmax(seg_means))
+                            streamflow = var_data.isel(seg=outlet_idx).to_pandas()
+                        else:
+                            streamflow = var_data.squeeze().to_pandas()
+
+                        streamflow.index = pd.to_datetime(streamflow.index)
+                        streamflow = streamflow.resample('D').mean()
+
+                        results_df = pd.DataFrame(index=streamflow.index)
+                        col_name = f'TRoute{label_suffix}_discharge_cms'
+                        results_df[col_name] = streamflow
+                    ds.close()
+                except Exception as e:
+                    self.logger.warning(f"Error loading T-Route output: {e}")
+
+        # Check for CLM output
+        if results_df is None:
+            clm_files = sorted(output_dir.glob("*.clm2.h0.*.nc"))
+            if clm_files:
+                self.logger.info(f"Found {len(clm_files)} CLM history file(s)")
+                try:
+                    ds = xr.open_mfdataset(
+                        [str(f) for f in clm_files], combine='by_coords'
+                    )
+                    if 'QRUNOFF' in ds:
+                        qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
+                        area = basin_area_m2 or (
+                            float(self.config_dict.get('CATCHMENT_AREA', 2210.0))
+                            * 1e6
+                        )
+                        streamflow = qrunoff * area / 1000.0  # m3/s
+                        time_idx = pd.DatetimeIndex(ds.time.values)
+                        results_df = pd.DataFrame(index=time_idx)
+                        col_name = f'CLM{label_suffix}_discharge_cms'
+                        results_df[col_name] = streamflow
+                    ds.close()
+                except Exception as e:
+                    self.logger.warning(f"Error loading CLM output: {e}")
 
         # Load and add observations
         if results_df is not None:
