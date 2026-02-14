@@ -28,6 +28,11 @@ class SMAPHandler(BaseObservationHandler):
 
     obs_type = "soil_moisture"
     source_name = "NASA_SMAP"
+    SOURCE_INFO = {
+        'source': 'NASA SMAP L3',
+        'source_doi': '10.5067/HH4SZ2PXSP6A',
+        'url': 'https://nsidc.org/data/spl3smp',
+    }
 
     def acquire(self) -> Path:
         """Locate SMAP data."""

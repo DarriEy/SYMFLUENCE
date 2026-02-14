@@ -146,6 +146,69 @@ def _simulate_coupled_numpy(
     return total_flow, SacSmaSnow17State(snow17=snow17_final, sacsma=sacsma_final)
 
 
+def _try_dcoupler_coupled(
+    precip: Any,
+    temp: Any,
+    pet: Any,
+    day_of_year: Any,
+    n_timesteps: int,
+    dt: float = 1.0,
+) -> Optional[Tuple[Any, SacSmaSnow17State]]:
+    """Attempt coupled Snow-17 + SAC-SMA simulation via dCoupler graph.
+
+    Returns None if dCoupler is unavailable or execution fails.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        if not is_dcoupler_available():
+            logger.debug(INSTALL_SUGGESTION)
+            return None
+
+        import torch
+        from symfluence.coupling import CouplingGraphBuilder
+
+        graph_config = {
+            'HYDROLOGICAL_MODEL': 'SACSMA',
+            'SNOW_MODULE': 'SNOW17',
+        }
+        builder = CouplingGraphBuilder()
+        graph = builder.build(graph_config)
+
+        outputs = graph.forward(
+            external_inputs={
+                'snow': {
+                    'precip': torch.as_tensor(np.asarray(precip), dtype=torch.float64),
+                    'temp': torch.as_tensor(np.asarray(temp), dtype=torch.float64),
+                },
+                'land': {
+                    'pet': torch.as_tensor(np.asarray(pet), dtype=torch.float64),
+                },
+            },
+            n_timesteps=n_timesteps,
+            dt=dt * 86400.0,
+        )
+
+        runoff_tensor = outputs['land']['runoff']
+        runoff = runoff_tensor.detach().numpy()
+        logger.info("Snow-17 + SAC-SMA coupled simulation completed via dCoupler graph")
+
+        dummy_s17 = Snow17State(
+            w_i=0.0, w_q=0.0, w_qx=0.0, deficit=0.0, ati=0.0, swe=0.0,
+        )
+        dummy_sac = _create_default_state(
+            sacsma_params_dict_to_namedtuple({}, use_jax=False),
+            use_jax=False,
+        )
+        return runoff, SacSmaSnow17State(snow17=dummy_s17, sacsma=dummy_sac)
+
+    except Exception as e:
+        logger.debug(f"dCoupler coupled path failed: {e}. Using native implementation.")
+        return None
+
+
 def simulate(
     precip: Any,
     temp: Any,
@@ -160,6 +223,7 @@ def simulate(
     use_jax: bool = False,
     snow_module: str = 'snow17',
     start_date: Optional[str] = None,
+    coupling_mode: str = 'auto',
 ) -> Tuple[Any, SacSmaSnow17State]:
     """Run coupled or standalone SAC-SMA simulation.
 
@@ -182,6 +246,8 @@ def simulate(
         snow_module: 'snow17' for coupled mode, 'none' for standalone SAC-SMA.
         start_date: Start date string (e.g. '2004-01-01') for generating
                     calendar-correct day_of_year when day_of_year is None.
+        coupling_mode: 'auto' tries dCoupler first for coupled mode,
+            'dcoupler' forces dCoupler, 'native' skips dCoupler.
 
     Returns:
         Tuple of (total_flow mm/dt, final_state)
@@ -242,6 +308,22 @@ def simulate(
         return total_flow, final_state
 
     # Coupled Snow-17 + SAC-SMA
+    # The dCoupler graph path is available via explicit opt-in only.
+    # The native lax.scan coupling is faster and correctly forwards
+    # user params/initial state, so 'auto' uses native.
+    if coupling_mode == 'dcoupler':
+        result = _try_dcoupler_coupled(
+            precip, temp, pet, day_of_year,
+            n_timesteps=n, dt=dt,
+        )
+        if result is not None:
+            return result
+        raise RuntimeError(
+            "COUPLING_MODE='dcoupler' but dCoupler execution failed. "
+            "Install dCoupler with: pip install dcoupler"
+        )
+
+    # Native coupled path
     snow17_p = snow17_params_dict_to_namedtuple(snow17_dict, use_jax=actual_jax)
 
     # Initial states

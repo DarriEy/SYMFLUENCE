@@ -199,6 +199,26 @@ class PathManager(ConfigurableMixin):
         return catchment_dir / filename
 
     @property
+    def model_ready_dir(self) -> Path:
+        """Root directory for the model-ready data store."""
+        return self.project_dir / 'data' / 'model_ready'
+
+    @property
+    def model_ready_forcings_dir(self) -> Path:
+        """Directory for model-ready forcing NetCDF files."""
+        return self.model_ready_dir / 'forcings'
+
+    @property
+    def model_ready_observations_path(self) -> Path:
+        """Path to the grouped observations NetCDF file."""
+        return self.model_ready_dir / 'observations' / f'{self.domain_name}_observations.nc'
+
+    @property
+    def model_ready_attributes_path(self) -> Path:
+        """Path to the grouped attributes NetCDF file."""
+        return self.model_ready_dir / 'attributes' / f'{self.domain_name}_attributes.nc'
+
+    @property
     def forcing_shapefile_dir(self) -> Path:
         """
         Directory for forcing grid shapefiles.

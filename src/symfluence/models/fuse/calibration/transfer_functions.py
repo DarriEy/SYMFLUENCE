@@ -202,13 +202,13 @@ class ParameterTransferManager:
         },
         'QB_POWR': {
             'attribute': 'aridity',
-            'calibrate_b': False,  # Uniform
-            'description': 'Baseflow nonlinearity - uniform',
+            'calibrate_b': True,  # Spatially varying - baseflow nonlinearity
+            'description': 'Baseflow nonlinearity varies with aridity',
         },
         'PERCRTE': {
             'attribute': 'aridity',
-            'calibrate_b': False,  # Uniform - soil property
-            'description': 'Percolation rate - uniform (soil property)',
+            'calibrate_b': True,  # Spatially varying - percolation rate
+            'description': 'Percolation rate varies with aridity',
         },
         'TIMEDELAY': {
             'attribute': 'precip_mm_yr',
@@ -246,8 +246,8 @@ class ParameterTransferManager:
         },
         'LAPSE': {
             'attribute': 'elev_m',
-            'calibrate_b': False,  # Uniform lapse rate
-            'description': 'Lapse rate - uniform',
+            'calibrate_b': True,  # Spatially varying - lapse rate varies with elevation
+            'description': 'Lapse rate varies with elevation',
         },
     }
 

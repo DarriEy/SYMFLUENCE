@@ -68,6 +68,15 @@ _handler_modules = [
     'merit_basins',
     'nws_hydrofabric',
     'hydrosheds',
+    # New hydrological attribute handlers
+    'modis_ndvi',
+    'pelletier',
+    'bedrock_depth',
+    'glhymps',
+    'aridity_index',
+    'glwd',
+    'root_zone_storage',
+    'wokam',
 ]
 
 for _module_name in _handler_modules:

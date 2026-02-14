@@ -41,12 +41,14 @@ class ModelManager(BaseManager):
         # Note: MESH, HYPE, and NGEN have internal routing, so don't need external routing
         routable_models = {'SUMMA', 'FUSE', 'GR', 'HBV'}
 
-        # Check if DROUTE is configured as routing model
+        # Determine which routing model to use
         routing_model = self._get_config_value(
             lambda: self.config.model.routing_model,
             default=None
         )
-        use_droute = routing_model and str(routing_model).upper() == 'DROUTE'
+        routing_upper = str(routing_model).upper() if routing_model else ''
+        use_droute = routing_upper == 'DROUTE'
+        use_troute = routing_upper in ('TROUTE', 'T-ROUTE', 'T_ROUTE')
 
         for model in configured_models:
             if model not in execution_list:
@@ -57,6 +59,8 @@ class ModelManager(BaseManager):
                 if self._routing_decider.needs_routing(self.config_dict, model):
                     if use_droute:
                         self._ensure_droute_in_workflow(execution_list, source_model=model)
+                    elif use_troute:
+                        self._ensure_troute_in_workflow(execution_list, source_model=model)
                     else:
                         self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
 
@@ -74,7 +78,7 @@ class ModelManager(BaseManager):
                     execution_list.insert(src_idx + 1, 'MODFLOW')
 
             # Ensure routing comes after MODFLOW
-            for rt in ('MIZUROUTE', 'DROUTE'):
+            for rt in ('MIZUROUTE', 'DROUTE', 'TROUTE'):
                 if rt in execution_list:
                     rt_idx = execution_list.index(rt)
                     mf_idx = execution_list.index('MODFLOW')
@@ -96,7 +100,7 @@ class ModelManager(BaseManager):
                     execution_list.insert(src_idx + 1, 'PARFLOW')
 
             # Ensure routing comes after PARFLOW
-            for rt in ('MIZUROUTE', 'DROUTE'):
+            for rt in ('MIZUROUTE', 'DROUTE', 'TROUTE'):
                 if rt in execution_list:
                     rt_idx = execution_list.index(rt)
                     pf_idx = execution_list.index('PARFLOW')
@@ -152,6 +156,26 @@ class ModelManager(BaseManager):
         )
         if not droute_from or droute_from == 'default':
             self.logger.info(f"DROUTE_FROM_MODEL not set, using {source_model} as source")
+
+    def _ensure_troute_in_workflow(self, execution_list: List[str], source_model: str):
+        """Add t-route to workflow and log routing context.
+
+        Args:
+            execution_list: Current list of models to execute (modified in-place)
+            source_model: Name of the model that requires routing (e.g., 'SUMMA')
+        """
+        if 'TROUTE' not in execution_list:
+            execution_list.append('TROUTE')
+            self.logger.info(
+                f"Automatically adding TROUTE to workflow (dependency of {source_model})"
+            )
+
+        troute_from = self._get_config_value(
+            lambda: self.config.model.troute.from_model if self.config.model.troute else None,
+            default=None
+        )
+        if not troute_from or troute_from == 'default':
+            self.logger.info(f"TROUTE_FROM_MODEL not set, using {source_model} as source")
 
     def preprocess_models(self, params: Optional[Dict[str, Any]] = None):
         """Preprocess forcing data into model-specific input formats.
@@ -309,95 +333,12 @@ class ModelManager(BaseManager):
 
 
     def run_models(self):
-        """Execute models in resolved workflow order using registered runners.
+        """Execute models in resolved workflow order.
 
-        Invokes each model's registered runner to execute the model with preprocessed
-        inputs. Runners handle all model-specific execution details (e.g., executable
-        path, command-line arguments, working directory setup).
-
-        Execution Workflow:
-            1. Resolve model execution workflow
-            2. For each model in workflow:
-               a. Retrieve runner class from ModelRegistry
-               b. Instantiate runner with config, logger, reporting_manager
-               c. Get runner method name from registry (e.g., 'run_model')
-               d. Execute runner.{method_name}()
-            3. Each runner generates model outputs to project_dir/{model}_output/
-
-        Model-Specific Runners:
-            SUMMA: SUMMARunner.run_model()
-            - Invokes SUMMA executable with file manager and settings
-            - Outputs: NetCDF files to project_dir/SUMMA_output/
-
-            FUSE: FUSERunner.run_model()
-            - Runs flexible model framework with specified structure
-            - Outputs: ASCII/NetCDF to project_dir/FUSE_output/
-
-            GR: GRRunner.run_model()
-            - Executes GR lumped model
-            - Outputs: Daily discharge CSV
-
-            HYPE: HYPERunner.run_model()
-            - Runs HYPE semi-distributed model
-            - Outputs: Model-specific format to project_dir/HYPE_output/
-
-            mizuRoute: mizuRouteRunner.run_model()
-            - Routes SUMMA/FUSE streamflow to outlet
-            - Requires SUMMA/FUSE outputs as input
-            - Outputs: Routed streamflow to project_dir/MIZUROUTE_output/
-
-        Registry Integration:
-            Each model registers its runner class and method name::
-
-                @ModelRegistry.register_runner('MYMODEL', method_name='run_model')
-                class MyRunner:
-                    def run_model(self): ...
-
-        Execution Dependencies:
-            Order matters for models with dependencies:
-            1. SUMMA runs first, produces outputs
-            2. mizuRoute runs second, reads SUMMA outputs
-            3. Order preserved by _resolve_model_workflow()
-
-        Output Directories:
-            Each runner saves outputs to: ``project_dir/{MODEL}_output/``
-
-            Example structure::
-
-                project_dir/
-                ├── SUMMA_output/
-                │   ├── output.nc (NetCDF with all variables)
-                │   └── ...
-                ├── MIZUROUTE_output/
-                │   ├── Qrouted*.txt (routed streamflow)
-                │   └── ...
-                └── results/
-                    └── {experiment_id}_results.csv (postprocessed)
-
-        Raises:
-            Exception: If model execution fails (logged with traceback and re-raised)
-                - Enables debugging of model failures
-                - Halts workflow to prevent cascading errors
-
-        Side Effects:
-            - Creates model output directories
-            - Generates model-specific output files
-            - Logs execution progress to logger
-            - Modifies reporting_manager state (progress tracking)
-
-        Examples:
-            >>> # Execute complete model workflow
-            >>> manager.preprocess_models()
-            >>> manager.run_models()  # Both SUMMA and MIZUROUTE run
-
-            >>> # With visualization/progress reporting
-            >>> manager.run_models()  # Progress tracked via reporting_manager
-
-        Notes:
-            - Registry lookup enables new models without modifying this method
-            - Runner method names retrieved from registry (flexible)
-            - Execution order preserved from _resolve_model_workflow()
-            - Unknown models logged as error and skipped
+        Prefers dCoupler graph-based execution when available for multi-model
+        workflows (provides conservation checking, spatial remapping, and
+        unit conversion). Falls back to sequential registry-based execution
+        when dCoupler is not installed or graph execution fails.
 
         See Also:
             ModelRegistry.get_runner(): Retrieve runner class
@@ -410,6 +351,66 @@ class ModelManager(BaseManager):
         workflow = self._resolve_model_workflow()
         self.logger.info(f"Execution workflow order: {workflow}")
 
+        # Try dCoupler graph-based execution for multi-model workflows
+        coupling_mode = self._get_config_value(
+            lambda: self.config_dict.get('COUPLING_MODE'),
+            default='auto',
+        )
+        if coupling_mode != 'sequential' and len(workflow) > 1:
+            if self._try_dcoupler_execution(workflow):
+                return
+
+        self._run_sequential(workflow)
+
+    def _try_dcoupler_execution(self, workflow: List[str]) -> bool:
+        """Try graph-based execution via dCoupler. Returns True if successful."""
+        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+
+        if not is_dcoupler_available():
+            self.logger.info(INSTALL_SUGGESTION)
+            self.logger.info("Using sequential model execution.")
+            return False
+
+        try:
+            from symfluence.coupling import CouplingGraphBuilder
+
+            builder = CouplingGraphBuilder()
+            graph = builder.build(self.config_dict)
+            self.logger.info(
+                f"Executing {len(workflow)} models via dCoupler graph "
+                f"({len(graph.components)} components, "
+                f"{len(graph.connections)} connections)"
+            )
+
+            # Execute graph — ProcessComponents handle their own I/O
+            graph.forward(
+                external_inputs={},
+                n_timesteps=1,
+                dt=86400.0,
+            )
+
+            self.logger.info("dCoupler graph execution completed successfully")
+
+            # Generate conservation diagnostics if enabled
+            if self.reporting_manager and getattr(graph, '_conservation', None):
+                try:
+                    self.reporting_manager.diagnostic_coupling_conservation(
+                        graph, self.project_dir / "diagnostics"
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate conservation diagnostics: {e}")
+
+            return True
+
+        except Exception as e:
+            self.logger.warning(
+                f"dCoupler graph execution failed: {e}. "
+                "Falling back to sequential model execution."
+            )
+            return False
+
+    def _run_sequential(self, workflow: List[str]):
+        """Execute models sequentially using registered runners (legacy path)."""
         for model in workflow:
             try:
                 self.logger.info(f"Running model: {model}")

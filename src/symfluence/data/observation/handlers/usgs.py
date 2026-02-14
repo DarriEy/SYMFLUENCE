@@ -21,6 +21,11 @@ class USGSStreamflowHandler(BaseObservationHandler):
 
     obs_type = "streamflow"
     source_name = "USGS_NWIS"
+    SOURCE_INFO = {
+        'source': 'USGS NWIS',
+        'source_doi': '10.5066/F7P55KJN',
+        'url': 'https://waterservices.usgs.gov/nwis/',
+    }
 
     def acquire(self) -> Path:
         """

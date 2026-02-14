@@ -99,6 +99,10 @@ class DataConfig(BaseModel):
     # - lamah_ice_path -> evaluation.lamah_ice.path
     download_ismn: bool = Field(default=False, alias='DOWNLOAD_ISMN')
 
+    # Model-ready data store
+    build_model_ready_store: bool = Field(default=True, alias='BUILD_MODEL_READY_STORE')
+    model_ready_forcing_strategy: str = Field(default='symlink', alias='MODEL_READY_FORCING_STRATEGY')
+
     # Geospatial processing settings
     elev_chunk_size: int = Field(default=10_000, alias='ELEV_CHUNK_SIZE')
     elev_tile_target: int = Field(default=50_000, alias='ELEV_TILE_TARGET')

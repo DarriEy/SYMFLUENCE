@@ -135,6 +135,10 @@ class StreamflowEvaluator(ModelEvaluator):
         try:
             if self._is_mizuroute_output(sim_file):
                 return self._extract_mizuroute_streamflow(sim_file)
+            elif self._is_troute_output(sim_file):
+                return self._extract_troute_streamflow(sim_file)
+            elif self._is_fuse_output(sim_file):
+                return self._extract_fuse_streamflow(sim_file)
             elif self._is_vic_output(sim_file):
                 return self._extract_vic_streamflow(sim_file)
             else:
@@ -163,6 +167,30 @@ class StreamflowEvaluator(ModelEvaluator):
         except (OSError, IOError, ValueError):
             return False
 
+    def _is_troute_output(self, sim_file: Path) -> bool:
+        """Detect if file contains t-route routed output.
+
+        Uses presence of t-route-specific variables or filename patterns:
+        - t-route has: flow, velocity, depth, feature_id/link dimensions
+        - Filenames typically contain 'flowveldepth' or 'troute'
+
+        Args:
+            sim_file: Path to NetCDF file
+
+        Returns:
+            bool: True if t-route output format detected
+        """
+        # Check filename patterns first
+        name_lower = sim_file.name.lower()
+        if 'troute' in name_lower or 'flowveldepth' in name_lower or 'nex-troute' in name_lower:
+            return True
+        try:
+            with xr.open_dataset(sim_file) as ds:
+                troute_indicators = ['feature_id', 'flowveldepth', 'velocity', 'nudge']
+                return any(var in ds.variables or var in ds.dims for var in troute_indicators)
+        except (OSError, IOError, ValueError):
+            return False
+
     def _is_vic_output(self, sim_file: Path) -> bool:
         """Detect if file contains VIC model output.
 
@@ -178,6 +206,100 @@ class StreamflowEvaluator(ModelEvaluator):
                 return any(var in ds.variables for var in vic_vars)
         except (OSError, IOError, ValueError):
             return False
+
+    def _is_fuse_output(self, sim_file: Path) -> bool:
+        """Detect if file contains FUSE model output.
+
+        Uses presence of FUSE-specific variables to distinguish from SUMMA output.
+
+        Args:
+            sim_file: Path to NetCDF file
+
+        Returns:
+            bool: True if FUSE output format detected
+        """
+        try:
+            with xr.open_dataset(sim_file) as ds:
+                fuse_vars = ['q_routed', 'q_instnt', 'total_discharge']
+                return any(var in ds.variables for var in fuse_vars)
+        except (OSError, IOError, ValueError):
+            return False
+
+    def _extract_fuse_streamflow(self, sim_file: Path) -> pd.Series:
+        """Extract streamflow from FUSE model output.
+
+        FUSE outputs routed discharge (q_routed) or instantaneous discharge
+        (q_instnt) in mm/day. This method:
+        1. Finds the appropriate streamflow variable
+        2. For distributed output, identifies the outlet (highest mean discharge)
+        3. Converts mm/day to m³/s using catchment area
+
+        Args:
+            sim_file: Path to FUSE output NetCDF
+
+        Returns:
+            pd.Series: Basin-scale streamflow time series (m³/s)
+
+        Raises:
+            ValueError: If no suitable streamflow variable found
+        """
+        with xr.open_dataset(sim_file) as ds:
+            fuse_vars = ['q_routed', 'q_instnt', 'total_discharge', 'runoff']
+            for var_name in fuse_vars:
+                if var_name not in ds.variables:
+                    continue
+
+                var = ds[var_name]
+                self.logger.debug(
+                    f"Found FUSE streamflow variable {var_name}, "
+                    f"dims={var.dims}, shape={var.shape}"
+                )
+
+                # Handle spatial dimensions (distributed FUSE output)
+                spatial_dims = [d for d in var.dims if d not in ['time']]
+                if spatial_dims:
+                    # For distributed output, find outlet segment (highest mean Q)
+                    # Squeeze singleton dimensions first (e.g., latitude=1)
+                    for dim in spatial_dims:
+                        if var.sizes[dim] == 1:
+                            var = var.squeeze(dim)
+
+                    # Re-check spatial dims after squeezing
+                    spatial_dims = [d for d in var.dims if d not in ['time']]
+                    if spatial_dims:
+                        # Find outlet: segment with highest mean discharge
+                        spatial_dim = spatial_dims[0]
+                        seg_means = var.mean(dim='time').values
+                        outlet_idx = np.argmax(seg_means)
+                        self.logger.debug(
+                            f"FUSE distributed output: using outlet index {outlet_idx} "
+                            f"(mean Q={seg_means[outlet_idx]:.4f})"
+                        )
+                        var = var.isel({spatial_dim: outlet_idx})
+
+                result = cast(pd.Series, var.to_pandas())
+
+                # Check units and convert if needed
+                units = ds[var_name].attrs.get('units', 'unknown')
+                if 'm3/s' in units or 'm³/s' in units or 'm^3/s' in units:
+                    # Already in m³/s
+                    self.logger.debug("FUSE output already in m³/s")
+                    return result
+                elif 'mm' in units or units == 'unknown':
+                    # mm/day → m³/s: multiply by area_m² / (1000 * 86400)
+                    catchment_area = self._get_catchment_area()
+                    result = result * catchment_area / 1000.0 / 86400.0
+                    self.logger.debug(
+                        f"FUSE output converted from mm/day to m³/s "
+                        f"(area={catchment_area/1e6:.1f} km²)"
+                    )
+                    return result
+                else:
+                    # Assume per-unit-area depth rate, scale by catchment area
+                    catchment_area = self._get_catchment_area()
+                    return result * catchment_area
+
+            raise ValueError("No suitable streamflow variable found in FUSE output")
 
     def _extract_vic_streamflow(self, sim_file: Path) -> pd.Series:
         """Extract streamflow from VIC model output.
@@ -275,6 +397,45 @@ class StreamflowEvaluator(ModelEvaluator):
                         continue
                     return result
             raise ValueError("No suitable streamflow variable found in mizuRoute output")
+
+    def _extract_troute_streamflow(self, sim_file: Path) -> pd.Series:
+        """Extract streamflow from t-route routed output.
+
+        t-route outputs flowveldepth files containing flow, velocity, and depth
+        per feature (reach). This method:
+        1. Tries multiple flow variable names
+        2. Identifies outlet reach (highest mean discharge)
+        3. Returns time series at outlet
+
+        Args:
+            sim_file: Path to t-route output NetCDF
+
+        Returns:
+            pd.Series: Time series of routed discharge (m3/s)
+
+        Raises:
+            ValueError: If no flow variable found in file
+        """
+        with xr.open_dataset(sim_file) as ds:
+            flow_vars = ['flow', 'streamflow', 'q_lateral', 'discharge']
+            for var_name in flow_vars:
+                if var_name in ds.variables:
+                    var = ds[var_name]
+                    # Find spatial dimension (feature_id, link, or segment)
+                    spatial_dim = None
+                    for dim in ['feature_id', 'link', 'segment', 'reach']:
+                        if dim in var.dims:
+                            spatial_dim = dim
+                            break
+                    if spatial_dim:
+                        segment_means = var.mean(dim='time').values
+                        outlet_idx = np.argmax(segment_means)
+                        result = cast(pd.Series, var.isel({spatial_dim: outlet_idx}).to_pandas())
+                    else:
+                        # Single-segment or already scalar
+                        result = cast(pd.Series, var.to_pandas())
+                    return result
+            raise ValueError("No suitable flow variable found in t-route output")
 
     def _extract_summa_streamflow(self, sim_file: Path) -> pd.Series:
         """Extract streamflow from SUMMA model output with comprehensive processing.
@@ -648,6 +809,14 @@ class StreamflowEvaluator(ModelEvaluator):
         Returns:
             Path: Path to observed streamflow CSV file
         """
+        # Check model-ready observations store first
+        model_ready_obs = (
+            self.project_dir / 'data' / 'model_ready' / 'observations'
+            / f'{self.domain_name}_observations.nc'
+        )
+        if model_ready_obs.exists():
+            return model_ready_obs
+
         obs_path = self._get_config_value(
             lambda: self.config.observations.streamflow_path,
             default=None,

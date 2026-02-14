@@ -51,6 +51,20 @@ FORCE_DOWNLOAD: false
 #   Usage:      16
 ADDITIONAL_OBSERVATIONS: null
 
+# BUILD_MODEL_READY_STORE
+#   Type:        bool
+#   Default:     True
+#   Source:      DataConfig (data.py)
+#   Description: Build CF-1.8 model-ready store after preprocessing
+BUILD_MODEL_READY_STORE: true
+
+# MODEL_READY_FORCING_STRATEGY
+#   Type:        str
+#   Default:     symlink
+#   Source:      DataConfig (data.py)
+#   Description: How to link forcing files (symlink or copy)
+MODEL_READY_FORCING_STRATEGY: symlink
+
 # FORCE_RUN_ALL_STEPS
 #   Type:        bool
 #   Default:     False
@@ -769,6 +783,108 @@ CALIBRATE_DROUTE: false
 #   Source:      DRouteConfig (model_configs.py)
 #   Description: Maximum execution time in seconds (60-86400)
 DROUTE_TIMEOUT: 3600
+
+
+# 15b. T-Route (NOAA OWP) Channel Routing Configuration
+# ================================================================================
+
+# TROUTE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Path to t-route installation
+TROUTE_INSTALL_PATH: "default"
+
+# TROUTE_PKG_PATH
+#   Type:        str
+#   Default:     troute/network/__init__.py
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Relative path to t-route package entry point
+TROUTE_PKG_PATH: "troute/network/__init__.py"
+
+# SETTINGS_TROUTE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Path to t-route settings directory
+SETTINGS_TROUTE_PATH: "default"
+
+# SETTINGS_TROUTE_TOPOLOGY
+#   Type:        str
+#   Default:     troute_topology.nc
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Network topology filename for t-route
+SETTINGS_TROUTE_TOPOLOGY: "troute_topology.nc"
+
+# SETTINGS_TROUTE_CONFIG_FILE
+#   Type:        str
+#   Default:     troute_config.yml
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: t-route YAML configuration filename
+SETTINGS_TROUTE_CONFIG_FILE: "troute_config.yml"
+
+# SETTINGS_TROUTE_DT_SECONDS
+#   Type:        int
+#   Default:     3600
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Routing timestep in seconds (60-86400)
+SETTINGS_TROUTE_DT_SECONDS: 3600
+
+# TROUTE_ROUTING_METHOD
+#   Type:        Literal['muskingum_cunge', 'diffusive_wave']
+#   Default:     muskingum_cunge
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Routing scheme: muskingum_cunge or diffusive_wave
+TROUTE_ROUTING_METHOD: "muskingum_cunge"
+
+# TROUTE_FROM_MODEL
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Source model for runoff input (SUMMA, FUSE, etc.)
+TROUTE_FROM_MODEL: "SUMMA"
+
+# TROUTE_MANNINGS_N
+#   Type:        float
+#   Default:     0.035
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Manning's roughness coefficient
+TROUTE_MANNINGS_N: 0.035
+
+# EXPERIMENT_OUTPUT_TROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Path for t-route experiment output
+EXPERIMENT_OUTPUT_TROUTE: "default"
+
+# EXPERIMENT_LOG_TROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Path for t-route experiment logs
+EXPERIMENT_LOG_TROUTE: "default"
+
+# TROUTE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     mannings_n
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Comma-separated list of t-route parameters to calibrate
+TROUTE_PARAMS_TO_CALIBRATE: "mannings_n"
+
+# CALIBRATE_TROUTE
+#   Type:        bool
+#   Default:     false
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Enable t-route calibration
+CALIBRATE_TROUTE: false
+
+# TROUTE_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      TRouteConfig (model_configs.py)
+#   Description: Maximum execution time in seconds (60-86400)
+TROUTE_TIMEOUT: 3600
 
 
 # 15. LSTM Emulator Configuration
@@ -4207,35 +4323,184 @@ MODFLOW_TIMEOUT: 3600
 # Reference: Kollet & Maxwell (2006), Advances in Water Resources 29(7)
 # https://github.com/parflow/parflow
 
+# PARFLOW_INSTALL_PATH — Path to ParFlow installation directory
+#   Type:        str
+#   Default:     default
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_INSTALL_PATH: default
+
+# PARFLOW_EXE — ParFlow executable name
+#   Type:        str
+#   Default:     parflow
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_EXE: "parflow"
+
+# PARFLOW_DIR — ParFlow working directory
+#   Type:        str
+#   Default:     default
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_DIR: default
+
+# SETTINGS_PARFLOW_PATH — Path to ParFlow settings/input files
+#   Type:        str
+#   Default:     default
+#   Source:      ParFlowConfig (model_configs.py)
 SETTINGS_PARFLOW_PATH: default
+
+# PARFLOW_SPATIAL_MODE — Spatial discretization mode (lumped or distributed)
+#   Type:        str
+#   Default:     lumped
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_SPATIAL_MODE: lumped
+
+# PARFLOW_NX — Number of grid cells in X direction
+#   Type:        int
+#   Default:     1
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_NX: 1
+
+# PARFLOW_NY — Number of grid cells in Y direction
+#   Type:        int
+#   Default:     1
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_NY: 1
+
+# PARFLOW_NZ — Number of grid cells in Z direction (vertical layers)
+#   Type:        int
+#   Default:     1
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_NZ: 1
+
+# PARFLOW_DX — Grid cell size in X direction (meters)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_DX: 1000.0
+
+# PARFLOW_DY — Grid cell size in Y direction (meters)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_DY: 1000.0
+
+# PARFLOW_DZ — Grid cell size in Z direction (meters)
+#   Type:        float
+#   Default:     100.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_DZ: 100.0
+
+# PARFLOW_TOP — Domain surface elevation (meters)
+#   Type:        float
+#   Default:     1500.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_TOP: 1500.0
+
+# PARFLOW_BOT — Domain bottom elevation (meters)
+#   Type:        float
+#   Default:     1400.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_BOT: 1400.0
+
+# PARFLOW_K_SAT — Saturated hydraulic conductivity (m/hr)
+#   Type:        float
+#   Default:     5.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_K_SAT: 5.0
+
+# PARFLOW_POROSITY — Soil porosity (fraction 0-1)
+#   Type:        float
+#   Default:     0.4
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_POROSITY: 0.4
+
+# PARFLOW_VG_ALPHA — Van Genuchten alpha parameter (1/m)
+#   Type:        float
+#   Default:     1.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_VG_ALPHA: 1.0
+
+# PARFLOW_VG_N — Van Genuchten n parameter (must be > 1.0)
+#   Type:        float
+#   Default:     2.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_VG_N: 2.0
+
+# PARFLOW_S_RES — Residual saturation (fraction 0-1)
+#   Type:        float
+#   Default:     0.1
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_S_RES: 0.1
+
+# PARFLOW_S_SAT — Saturated saturation (fraction 0-1)
+#   Type:        float
+#   Default:     1.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_S_SAT: 1.0
+
+# PARFLOW_SS — Specific storage (1/m)
+#   Type:        float
+#   Default:     1.0e-5
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_SS: 1.0e-5
+
+# PARFLOW_MANNINGS_N — Manning's roughness coefficient for overland flow
+#   Type:        float
+#   Default:     0.03
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_MANNINGS_N: 0.03
+
+# PARFLOW_INITIAL_PRESSURE — Initial pressure head (meters); null for hydrostatic
+#   Type:        Optional[float]
+#   Default:     null
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_INITIAL_PRESSURE: null
+
+# PARFLOW_COUPLING_SOURCE — Model providing recharge to ParFlow
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_COUPLING_SOURCE: SUMMA
+
+# PARFLOW_RECHARGE_VARIABLE — Variable name for recharge coupling
+#   Type:        str
+#   Default:     scalarSoilDrainage
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_RECHARGE_VARIABLE: scalarSoilDrainage
+
+# PARFLOW_SOLVER — ParFlow solver type (Richards or Impes)
+#   Type:        str
+#   Default:     Richards
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_SOLVER: Richards
+
+# PARFLOW_TIMESTEP_HOURS — Simulation timestep in hours
+#   Type:        float
+#   Default:     1.0
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_TIMESTEP_HOURS: 1.0
+
+# PARFLOW_NUM_PROCS — Number of parallel processes for ParFlow
+#   Type:        int
+#   Default:     1
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_NUM_PROCS: 1
+
+# EXPERIMENT_OUTPUT_PARFLOW — ParFlow output directory path
+#   Type:        str
+#   Default:     default
+#   Source:      ParFlowConfig (model_configs.py)
 EXPERIMENT_OUTPUT_PARFLOW: default
+
+# PARFLOW_PARAMS_TO_CALIBRATE — Comma-separated list of parameters to calibrate
+#   Type:        str
+#   Default:     K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N"
+
+# PARFLOW_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     3600
+#   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_TIMEOUT: 3600
 
 

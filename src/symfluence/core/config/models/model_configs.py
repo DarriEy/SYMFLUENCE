@@ -365,6 +365,73 @@ class DRouteConfig(BaseModel):
     timeout: int = Field(default=3600, alias='DROUTE_TIMEOUT', ge=60, le=86400)
 
 
+class TRouteConfig(BaseModel):
+    """T-Route (NOAA OWP) channel routing configuration.
+
+    T-Route is NOAA's Office of Water Prediction channel routing model
+    supporting Muskingum-Cunge and diffusive wave routing methods for
+    large-scale river network simulations.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation and paths
+    install_path: str = Field(default='default', alias='TROUTE_INSTALL_PATH')
+    pkg_path: str = Field(
+        default='troute/network/__init__.py',
+        alias='TROUTE_PKG_PATH',
+    )
+    settings_path: str = Field(default='default', alias='SETTINGS_TROUTE_PATH')
+
+    # Topology and config files
+    topology_file: str = Field(
+        default='troute_topology.nc',
+        alias='SETTINGS_TROUTE_TOPOLOGY',
+    )
+    config_file: str = Field(
+        default='troute_config.yml',
+        alias='SETTINGS_TROUTE_CONFIG_FILE',
+    )
+
+    # Routing configuration
+    dt_seconds: int = Field(
+        default=3600,
+        alias='SETTINGS_TROUTE_DT_SECONDS',
+        ge=60,
+        le=86400,
+        description='Routing timestep in seconds',
+    )
+    routing_method: Literal['muskingum_cunge', 'diffusive_wave'] = Field(
+        default='muskingum_cunge',
+        alias='TROUTE_ROUTING_METHOD',
+        description='Routing scheme: muskingum_cunge or diffusive_wave',
+    )
+
+    # Integration settings
+    from_model: str = Field(
+        default='SUMMA',
+        alias='TROUTE_FROM_MODEL',
+        description='Source model for runoff input (SUMMA, FUSE, etc.)',
+    )
+    mannings_n: float = Field(
+        default=0.035,
+        alias='TROUTE_MANNINGS_N',
+        gt=0,
+        description="Manning's roughness coefficient",
+    )
+
+    # Output settings
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_TROUTE')
+    experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_TROUTE')
+
+    # Calibration settings
+    params_to_calibrate: str = Field(
+        default='mannings_n',
+        alias='TROUTE_PARAMS_TO_CALIBRATE',
+    )
+    calibrate: bool = Field(default=False, alias='CALIBRATE_TROUTE')
+    timeout: int = Field(default=3600, alias='TROUTE_TIMEOUT', ge=60, le=86400)
+
+
 class LSTMConfig(BaseModel):
     """LSTM neural network emulator configuration"""
     model_config = FROZEN_CONFIG
@@ -982,6 +1049,7 @@ class ModelConfig(BaseModel):
     mesh: Optional[MESHConfig] = Field(default=None)
     mizuroute: Optional[MizuRouteConfig] = Field(default=None)
     droute: Optional[DRouteConfig] = Field(default=None)
+    troute: Optional[TRouteConfig] = Field(default=None)
     lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm')
     rhessys: Optional[RHESSysConfig] = Field(default=None)
     gnn: Optional[GNNConfig] = Field(default=None)

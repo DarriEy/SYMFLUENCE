@@ -72,8 +72,12 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         self.setup_dir: Path = self.project_dir / "settings" / self.model_name
         self.forcing_dir: Path = self.project_dir / "forcing" / f"{self.model_name}_input"
 
-        # Common forcing paths
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
+        # Common forcing paths — prefer model-ready store, fall back to legacy
+        _model_ready_forcing = self.project_dir / 'data' / 'model_ready' / 'forcings'
+        if _model_ready_forcing.exists() and any(_model_ready_forcing.glob('*.nc')):
+            self.forcing_basin_path = _model_ready_forcing
+        else:
+            self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.forcing_raw_path = self._get_default_path('FORCING_RAW_PATH', 'forcing/raw_data')
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_data')
 

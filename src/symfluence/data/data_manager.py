@@ -373,6 +373,26 @@ class DataManager(BaseManager):
 
             self.logger.info("Model-agnostic preprocessing completed successfully")
 
+    def build_model_ready_store(self):
+        """Build or refresh the model-ready data store.
+
+        Creates CF-1.8 compliant NetCDF files for forcings, observations,
+        and attributes in ``data/model_ready/``.
+        """
+        from symfluence.data.model_ready.store_builder import ModelReadyStoreBuilder
+
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name,
+            'domain'
+        )
+
+        builder = ModelReadyStoreBuilder(
+            project_dir=self.project_dir,
+            domain_name=domain_name,
+            config_dict=self.config_dict,
+        )
+        builder.build_all()
+
     def validate_data_directories(self) -> bool:
         """Validate that required data directories exist."""
         return self.acquisition_service.validate_data_directories() if hasattr(self.acquisition_service, 'validate_data_directories') else self._validate_directories_fallback()

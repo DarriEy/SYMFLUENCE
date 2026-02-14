@@ -37,6 +37,11 @@ class MODISETHandler(BaseObservationHandler):
 
     obs_type = "et"
     source_name = "NASA_MODIS"
+    SOURCE_INFO = {
+        'source': 'MODIS MOD16A2',
+        'source_doi': '10.5067/MODIS/MOD16A2.061',
+        'url': 'https://lpdaac.usgs.gov/products/mod16a2v061/',
+    }
 
     def acquire(self) -> Path:
         """

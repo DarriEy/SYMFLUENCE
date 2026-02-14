@@ -61,8 +61,8 @@ class OutputFileLocator:
             'patterns': ['*_runs_def.nc', '**/*_runs_def.nc'],
         },
         'TROUTE': {
-            'streamflow': ['nex-troute-out.nc'],
-            'patterns': ['**/nex-troute-out.nc', '**/troute_*.nc'],
+            'streamflow': ['troute_output.nc', 'nex-troute-out.nc'],
+            'patterns': ['**/troute_output.nc', '**/nex-troute-out.nc', '**/troute_*.nc'],
         },
         'NGEN': {
             'streamflow': ['nexus_data.nc', 'catchment_data.nc'],
@@ -78,6 +78,10 @@ class OutputFileLocator:
         'CFUSE': {
             'streamflow': [],
             'patterns': ['*_cfuse_output.nc', '*_cfuse_output.csv', '**/*_cfuse_output.nc', '**/*_cfuse_output.csv'],
+        },
+        'CLM': {
+            'streamflow': ['*.clm2.h0.*.nc'],
+            'patterns': ['*.clm2.h0.*.nc', '**/*.clm2.h0.*.nc', 'CLM/*.clm2.h0.*.nc'],
         },
     }
 
@@ -128,9 +132,14 @@ class OutputFileLocator:
             if files:
                 return files
 
-        # Check for mizuRoute outputs
+        # Check for routing model outputs (mizuRoute, t-route)
         if 'mizuroute' in str(directory).lower() or output_type == 'streamflow':
             files = self._find_mizuroute_output(directory)
+            if files:
+                return files
+
+        if 'troute' in str(directory).lower() or output_type == 'streamflow':
+            files = self._find_troute_output(directory)
             if files:
                 return files
 
@@ -210,6 +219,35 @@ class OutputFileLocator:
             if files:
                 self.logger.debug(f"Found {len(files)} mizuRoute files")
                 return self._sort_by_mtime(files)
+
+        return []
+
+    def _find_troute_output(self, directory: Path) -> List[Path]:
+        """Find t-route output files."""
+        patterns = self.MODEL_PATTERNS['TROUTE']['patterns']
+
+        # Check streamflow-specific files first
+        for filename in self.MODEL_PATTERNS['TROUTE'].get('streamflow', []):
+            filepath = directory / filename
+            if filepath.exists():
+                self.logger.debug(f"Found t-route output: {filepath}")
+                return [filepath]
+
+        # Then glob patterns
+        for pattern in patterns:
+            files = list(directory.glob(pattern))
+            if files:
+                self.logger.debug(f"Found {len(files)} t-route files")
+                return self._sort_by_mtime(files)
+
+        # Also check troute subdirectory
+        troute_dir = directory / 'troute'
+        if troute_dir.exists():
+            for pattern in ['*.nc', '**/*.nc']:
+                files = list(troute_dir.glob(pattern))
+                if files:
+                    self.logger.debug(f"Found {len(files)} t-route files in subdirectory")
+                    return self._sort_by_mtime(files)
 
         return []
 

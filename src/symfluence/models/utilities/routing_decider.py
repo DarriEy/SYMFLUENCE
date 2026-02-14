@@ -139,9 +139,13 @@ class RoutingDecider:
                 diagnostics['checks']['hbv_routing_integration'] = hbv_routing
                 return False, diagnostics
 
-        # If explicitly set to mizuroute, enable routing (for non-point domains)
+        # If explicitly set to a routing model, enable routing (for non-point domains)
         if routing_model in ['mizuroute', 'mizu_route', 'mizu']:
             diagnostics['reason'] = 'routing_model_is_mizuroute'
+            return True, diagnostics
+
+        if routing_model in ['troute', 't-route', 't_route']:
+            diagnostics['reason'] = 'routing_model_is_troute'
             return True, diagnostics
 
         # 2. Model-specific routing integration (e.g., FUSE)

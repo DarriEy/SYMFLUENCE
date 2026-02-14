@@ -30,6 +30,11 @@ class GLEAMETHandler(BaseObservationHandler):
 
     obs_type = "et"
     source_name = "GLEAM"
+    SOURCE_INFO = {
+        'source': 'GLEAM v3',
+        'source_doi': '10.5194/gmd-10-1903-2017',
+        'url': 'https://www.gleam.eu/',
+    }
 
     def acquire(self) -> Path:
         et_dir = Path(self.config_dict.get('GLEAM_ET_PATH', self.project_dir / "observations" / "et" / "gleam"))

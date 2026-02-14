@@ -23,6 +23,11 @@ class GRACEHandler(BaseObservationHandler):
 
     obs_type = "tws"
     source_name = "NASA_GRACE"
+    SOURCE_INFO = {
+        'source': 'GRACE/GRACE-FO',
+        'source_doi': '10.5067/TEMSC-3JC62',
+        'url': 'https://podaac.jpl.nasa.gov/GRACE',
+    }
 
     # Basin size thresholds for extraction strategy
     STRATEGY_CONFIG = {

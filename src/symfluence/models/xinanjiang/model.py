@@ -587,6 +587,63 @@ def simulate_numpy(
     return runoff, state
 
 
+def _try_dcoupler_coupled(
+    precip: Any,
+    temp: Any,
+    pet: Any,
+    day_of_year: Any,
+    xaj_params_dict: Dict[str, float],
+    snow17_params_dict: Dict[str, float],
+    n_timesteps: int,
+    dt: float = 1.0,
+) -> Optional[Tuple[Any, XinanjiangState]]:
+    """Attempt coupled Snow-17 + XAJ simulation via dCoupler graph.
+
+    Returns None if dCoupler is unavailable or execution fails.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        if not is_dcoupler_available():
+            logger.debug(INSTALL_SUGGESTION)
+            return None
+
+        import torch
+        from symfluence.coupling import CouplingGraphBuilder
+
+        graph_config = {
+            'HYDROLOGICAL_MODEL': 'XAJ',
+            'SNOW_MODULE': 'SNOW17',
+        }
+        builder = CouplingGraphBuilder()
+        graph = builder.build(graph_config)
+
+        outputs = graph.forward(
+            external_inputs={
+                'snow': {
+                    'precip': torch.as_tensor(np.asarray(precip), dtype=torch.float64),
+                    'temp': torch.as_tensor(np.asarray(temp), dtype=torch.float64),
+                },
+                'land': {
+                    'pet': torch.as_tensor(np.asarray(pet), dtype=torch.float64),
+                },
+            },
+            n_timesteps=n_timesteps,
+            dt=dt * 86400.0,
+        )
+
+        runoff_tensor = outputs['land']['runoff']
+        runoff = runoff_tensor.detach().numpy()
+        logger.info("Snow-17 + XAJ coupled simulation completed via dCoupler graph")
+        return runoff, create_initial_state(use_jax=False)
+
+    except Exception as e:
+        logger.debug(f"dCoupler coupled path failed: {e}. Using native implementation.")
+        return None
+
+
 def simulate(
     precip: Any,
     pet: Any,
@@ -600,6 +657,7 @@ def simulate(
     latitude: float = 45.0,
     si: float = 100.0,
     dt: float = 1.0,
+    coupling_mode: str = 'auto',
 ) -> Tuple[Any, XinanjiangState]:
     """High-level simulation function with automatic backend selection.
 
@@ -619,6 +677,8 @@ def simulate(
         latitude: Catchment latitude for Snow-17
         si: SWE threshold for areal depletion
         dt: Timestep in days
+        coupling_mode: 'auto' tries dCoupler first for coupled mode,
+            'dcoupler' forces dCoupler, 'native' skips dCoupler.
 
     Returns:
         Tuple of (runoff_timeseries, final_state)
@@ -630,6 +690,23 @@ def simulate(
     if temp is not None and snow17_params is not None:
         if day_of_year is None:
             raise ValueError("day_of_year required for coupled Snow-17 + XAJ mode")
+
+        # The dCoupler graph path is available via explicit opt-in only.
+        # The native lax.scan coupling is faster and correctly forwards
+        # user params/initial state, so 'auto' uses native.
+        if coupling_mode == 'dcoupler':
+            result = _try_dcoupler_coupled(
+                precip, temp, pet, day_of_year, params, snow17_params,
+                n_timesteps=len(precip), dt=dt,
+            )
+            if result is not None:
+                return result
+            raise RuntimeError(
+                "COUPLING_MODE='dcoupler' but dCoupler execution failed. "
+                "Install dCoupler with: pip install dcoupler"
+            )
+
+        # Native coupled path (lax.scan or Python loop)
         if use_jax and HAS_JAX:
             return simulate_coupled_jax(
                 precip, temp, pet, day_of_year, params, snow17_params,

@@ -71,9 +71,17 @@ class MetricTransformer:
     # Both +10% and -10% PBIAS are equally bad, so we use -abs(value)
     SIGNED_MINIMIZE_METRICS = {'PBIAS', 'pbias', 'bias', 'Bias', 'BIAS'}
 
+    # Suffixes that indicate a flow transformation was applied
+    # These don't change the optimization direction of the base metric
+    TRANSFORM_SUFFIXES = ('_LOG', '_INV', '_SQRT', '_log', '_inv', '_sqrt')
+
     @classmethod
     def get_direction(cls, metric_name: str) -> str:
         """Get the optimization direction for a metric.
+
+        Handles transformed metric names (e.g., KGE_LOG, RMSE_INV) by inferring
+        the direction from the base metric. The flow transformation doesn't change
+        whether a metric should be maximized or minimized.
 
         Args:
             metric_name: Name of the metric (case-insensitive for common metrics)
@@ -84,12 +92,26 @@ class MetricTransformer:
         Example:
             >>> MetricTransformer.get_direction('KGE')
             'maximize'
+            >>> MetricTransformer.get_direction('KGE_LOG')
+            'maximize'
             >>> MetricTransformer.get_direction('RMSE')
+            'minimize'
+            >>> MetricTransformer.get_direction('RMSE_LOG')
             'minimize'
         """
         info = get_metric_info(metric_name)
         if info is not None:
             return info.direction
+
+        # For transformed metrics (e.g., KGE_LOG, RMSE_INV), strip the suffix
+        # and look up the base metric's direction
+        for suffix in cls.TRANSFORM_SUFFIXES:
+            if metric_name.endswith(suffix):
+                base_name = metric_name[:-len(suffix)]
+                base_info = get_metric_info(base_name)
+                if base_info is not None:
+                    return base_info.direction
+
         # Default to maximize for unknown metrics (safer for fitness tracking)
         return 'maximize'
 

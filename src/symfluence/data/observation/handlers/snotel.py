@@ -20,6 +20,10 @@ class SNOTELHandler(BaseObservationHandler):
 
     obs_type = "swe"
     source_name = "NRCS_SNOTEL"
+    SOURCE_INFO = {
+        'source': 'NRCS SNOTEL',
+        'url': 'https://wcc.sc.egov.usda.gov/nwcc/site',
+    }
 
     def acquire(self) -> Path:
         """

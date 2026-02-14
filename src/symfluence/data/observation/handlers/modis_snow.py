@@ -34,6 +34,11 @@ class MODISSnowHandler(BaseObservationHandler):
 
     obs_type = "snow_cover"
     source_name = "NASA_MODIS"
+    SOURCE_INFO = {
+        'source': 'MODIS MOD10A1/MOD10A2',
+        'source_doi': '10.5067/MODIS/MOD10A1.061',
+        'url': 'https://nsidc.org/data/mod10a1',
+    }
 
     # Use constants from modis_utils
     VALID_SNOW_RANGE = VALID_SNOW_RANGE

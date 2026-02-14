@@ -127,6 +127,14 @@ class ObservationLoaderMixin:
         """
         candidates = []
 
+        # Strategy 0: Model-ready observations store
+        model_ready_obs = (
+            self.project_dir / 'data' / 'model_ready' / 'observations'
+            / f'{self.domain_name}_observations.nc'
+        )
+        if model_ready_obs.exists():
+            candidates.append(model_ready_obs)
+
         # Strategy 1: Explicit path in config
         obs_path = self.config_dict.get('OBSERVATIONS_PATH')
         if obs_path and obs_path != 'default':

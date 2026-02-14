@@ -198,6 +198,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Note: DOWNLOAD_GLACIER_DATA mapped to ('evaluation', 'glacier', 'download') in Evaluation section
     # Note: LAMAH_ICE_PATH mapped to ('evaluation', 'lamah_ice', 'path') in Evaluation section
     'DOWNLOAD_ISMN': ('data', 'download_ismn'),
+    'BUILD_MODEL_READY_STORE': ('data', 'build_model_ready_store'),
+    'MODEL_READY_FORCING_STRATEGY': ('data', 'model_ready_forcing_strategy'),
     'STREAMFLOW_STATION_ID': ('data', 'streamflow_station_id'),
     'ELEV_CHUNK_SIZE': ('data', 'elev_chunk_size'),
     'ELEV_TILE_TARGET': ('data', 'elev_tile_target'),
@@ -476,6 +478,22 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DROUTE_PARAMS_TO_CALIBRATE': ('model', 'droute', 'params_to_calibrate'),
     'CALIBRATE_DROUTE': ('model', 'droute', 'calibrate'),
     'DROUTE_TIMEOUT': ('model', 'droute', 'timeout'),
+
+    # Model > t-route (NOAA OWP channel routing)
+    'TROUTE_INSTALL_PATH': ('model', 'troute', 'install_path'),
+    'TROUTE_PKG_PATH': ('model', 'troute', 'pkg_path'),
+    'SETTINGS_TROUTE_PATH': ('model', 'troute', 'settings_path'),
+    'SETTINGS_TROUTE_TOPOLOGY': ('model', 'troute', 'topology_file'),
+    'SETTINGS_TROUTE_CONFIG_FILE': ('model', 'troute', 'config_file'),
+    'SETTINGS_TROUTE_DT_SECONDS': ('model', 'troute', 'dt_seconds'),
+    'TROUTE_ROUTING_METHOD': ('model', 'troute', 'routing_method'),
+    'TROUTE_FROM_MODEL': ('model', 'troute', 'from_model'),
+    'TROUTE_MANNINGS_N': ('model', 'troute', 'mannings_n'),
+    'EXPERIMENT_OUTPUT_TROUTE': ('model', 'troute', 'experiment_output'),
+    'EXPERIMENT_LOG_TROUTE': ('model', 'troute', 'experiment_log'),
+    'TROUTE_PARAMS_TO_CALIBRATE': ('model', 'troute', 'params_to_calibrate'),
+    'CALIBRATE_TROUTE': ('model', 'troute', 'calibrate'),
+    'TROUTE_TIMEOUT': ('model', 'troute', 'timeout'),
 
     # Model > LSTM
     'LSTM_LOAD': ('model', 'lstm', 'load'),
@@ -946,6 +964,22 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
         elif nested_path in CANONICAL_KEYS and CANONICAL_KEYS[nested_path] == flat_key:
             # Override with canonical key
             nested_to_flat[nested_path] = flat_key
+
+    # Include model-specific transformers from registered config adapters
+    if hasattr(config, 'model') and config.model:
+        hydrological_model = getattr(config.model, 'hydrological_model', None)
+        if hydrological_model:
+            try:
+                from symfluence.models.registry import ModelRegistry
+                model_transformers = ModelRegistry.get_config_transformers(
+                    str(hydrological_model)
+                )
+                if model_transformers:
+                    for flat_key, nested_path in model_transformers.items():
+                        if nested_path not in nested_to_flat:
+                            nested_to_flat[nested_path] = flat_key
+            except (ImportError, KeyError, AttributeError):
+                pass
 
     def _flatten_section(section_name: str, section_obj: Any, prefix: Tuple[str, ...] = ()) -> None:
         """Recursively flatten a config section"""

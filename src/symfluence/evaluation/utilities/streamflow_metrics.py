@@ -375,6 +375,63 @@ class StreamflowMetrics:
 
         return obs_clean, sim_clean
 
+    def _transform_data(
+        self,
+        obs: np.ndarray,
+        sim: np.ndarray,
+        transform: str
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Apply a flow transformation to obs/sim arrays for transformed metrics.
+
+        Args:
+            obs: Observed values
+            sim: Simulated values
+            transform: Transformation type: 'log', 'inv', 'sqrt', 'box_cox_02'
+
+        Returns:
+            Tuple of (transformed_obs, transformed_sim)
+        """
+        epsilon = max(np.mean(obs) * 0.01, 1e-6) if np.mean(obs) > 0 else 1e-6
+
+        if transform == 'log':
+            obs_t = np.log(obs + epsilon)
+            sim_t = np.log(sim + epsilon)
+        elif transform == 'inv':
+            obs_t = 1.0 / (obs + epsilon)
+            sim_t = 1.0 / (sim + epsilon)
+        elif transform == 'sqrt':
+            obs_t = np.sqrt(obs + epsilon)
+            sim_t = np.sqrt(sim + epsilon)
+        elif transform == 'box_cox_02':
+            # Box-Cox with lambda=0.2 (strongly emphasizes low flows)
+            lam = 0.2
+            obs_t = ((obs + epsilon) ** lam - 1) / lam
+            sim_t = ((sim + epsilon) ** lam - 1) / lam
+        else:
+            raise ValueError(f"Unknown transformation: {transform}")
+
+        # Remove NaN/Inf from transformation
+        valid = np.isfinite(obs_t) & np.isfinite(sim_t)
+        return obs_t[valid], sim_t[valid]
+
+    # Mapping from composite metric names to (base_metric, transform)
+    TRANSFORMED_METRICS = {
+        'kge_log':  ('kge', 'log'),
+        'kge_inv':  ('kge', 'inv'),
+        'kge_sqrt': ('kge', 'sqrt'),
+        'nse_log':  ('nse', 'log'),
+        'nse_sqrt': ('nse', 'sqrt'),
+        'rmse_log': ('rmse', 'log'),
+        # Case-insensitive aliases
+        'KGE_LOG':  ('kge', 'log'),
+        'KGE_INV':  ('kge', 'inv'),
+        'KGE_SQRT': ('kge', 'sqrt'),
+        'NSE_LOG':  ('nse', 'log'),
+        'NSE_SQRT': ('nse', 'sqrt'),
+        'RMSE_LOG': ('rmse', 'log'),
+    }
+
     def calculate_metrics(
         self,
         obs: np.ndarray,
@@ -384,10 +441,16 @@ class StreamflowMetrics:
         """
         Calculate performance metrics with error handling.
 
+        Supports both standard metrics and transformed variants:
+        - Standard: 'kge', 'nse', 'rmse', 'mae', 'kge_prime'
+        - Transformed: 'kge_log', 'kge_inv', 'kge_sqrt', 'nse_log', etc.
+          These apply a flow transformation before computing the base metric,
+          which emphasizes different parts of the hydrograph (e.g., low flows).
+
         Args:
             obs: Observed values (numpy array)
             sim: Simulated values (numpy array)
-            metrics: List of metrics to calculate ('kge', 'nse', 'rmse', 'mae', 'kge_prime')
+            metrics: List of metrics to calculate
 
         Returns:
             Dictionary of metric values, or penalty_score on error
@@ -401,7 +464,21 @@ class StreamflowMetrics:
             result = {}
             for metric in metrics:
                 try:
-                    if metric == 'kge':
+                    # Check if this is a transformed metric (e.g., kge_log, kge_inv)
+                    if metric in self.TRANSFORMED_METRICS:
+                        base_metric, transform = self.TRANSFORMED_METRICS[metric]
+                        obs_t, sim_t = self._transform_data(obs, sim, transform)
+                        if len(obs_t) == 0:
+                            val = self.penalty_score
+                        elif base_metric == 'kge':
+                            val = kge(obs_t, sim_t, transfo=1)
+                        elif base_metric == 'nse':
+                            val = nse(obs_t, sim_t, transfo=1)
+                        elif base_metric == 'rmse':
+                            val = rmse(obs_t, sim_t, transfo=1)
+                        else:
+                            val = self.penalty_score
+                    elif metric == 'kge':
                         val = kge(obs, sim, transfo=1)
                     elif metric == 'nse':
                         val = nse(obs, sim, transfo=1)
