@@ -120,12 +120,16 @@ class ToolInstaller(BaseService):
         """
         Verify that essential build tools are available before attempting a build.
 
+        Uses the canonical SystemDepsRegistry when the tool has registered
+        requirements; falls back to a legacy check for unregistered tools.
+
         Args:
             tool_name: Name of the tool about to be built (for messaging).
 
         Returns:
             True if the environment looks viable, False otherwise.
         """
+        # Bash availability (shared by both paths)
         bash = self._find_bash()
         if bash is None:
             self._console.error(
@@ -141,15 +145,95 @@ class ToolInstaller(BaseService):
                 )
             return False
 
-        # Check for cmake and a Fortran compiler — needed by most builds.
-        # When using WSL, check inside the WSL environment, not Windows PATH.
+        # Try registry-driven check
+        try:
+            from .system_deps import SystemDepsRegistry
+
+            registry = SystemDepsRegistry()
+            results = registry.check_deps_for_tool(tool_name)
+
+            if not results:
+                # Tool not in registry — fall back to legacy
+                return self._legacy_preflight_check(tool_name)
+
+            # Display dependency table
+            rows = []
+            missing_required = []
+            for r in results:
+                if r.found:
+                    status = "[green]OK[/green]"
+                    if not r.version_ok:
+                        status = "[yellow]OLD[/yellow]"
+                    ver = r.version or "-"
+                    loc = r.path or "-"
+                else:
+                    status = "[red]MISSING[/red]"
+                    ver = "-"
+                    loc = "-"
+                    if r.required:
+                        missing_required.append(r)
+
+                req_flag = "required" if r.required else "optional"
+                install = r.install_command or "-"
+                rows.append([r.display_name, status, ver, loc, install, req_flag])
+
+            self._console.table(
+                columns=["Dependency", "Status", "Version", "Location", "Install With", ""],
+                rows=rows,
+                title=f"System Dependencies for {tool_name}",
+            )
+
+            if missing_required:
+                names = ", ".join(r.display_name for r in missing_required)
+                self._console.error(
+                    f"Missing required dependencies for {tool_name}: {names}"
+                )
+                self._console.newline()
+                self._console.indent("Install the missing dependencies:")
+                for r in missing_required:
+                    if r.install_command:
+                        self._console.indent(f"  {r.install_command}")
+                self._console.newline()
+                self._console.indent(
+                    "See docs/SYSTEM_REQUIREMENTS.md for full platform recipes."
+                )
+
+                if getattr(self, "_force", False):
+                    self._console.warning(
+                        "--force passed: proceeding despite missing dependencies"
+                    )
+                    return True
+
+                return False
+
+            return True
+
+        except Exception:
+            # Registry unavailable — fall through to legacy
+            return self._legacy_preflight_check(tool_name)
+
+    def _legacy_preflight_check(self, tool_name: str) -> bool:
+        """
+        Legacy preflight: check cmake, gfortran, make via shutil.which.
+
+        Used as a fallback when the tool is not in the registry.
+
+        Args:
+            tool_name: Name of the tool about to be built.
+
+        Returns:
+            True (always proceeds, with a warning for missing tools).
+        """
+        bash = self._find_bash()
         is_wsl = (
             sys.platform == "win32"
+            and bash
             and os.path.basename(bash).lower() == "wsl.exe"
         )
         missing = []
         for tool in ("cmake", "gfortran", "make"):
             if is_wsl:
+                assert bash is not None  # guaranteed by is_wsl check
                 probe = subprocess.run(
                     [bash, "-e", "bash", "-c", f"command -v {tool}"],
                     capture_output=True, text=True,
@@ -186,8 +270,6 @@ class ToolInstaller(BaseService):
                 self._console.indent(
                     "  brew install cmake gcc make             # macOS"
                 )
-            # Warn but don't block — the bash build script has its own
-            # detection logic and may still succeed (e.g. HPC modules).
         return True
 
     def _get_clean_build_env(self) -> Dict[str, str]:
@@ -325,8 +407,9 @@ class ToolInstaller(BaseService):
         Returns:
             Dictionary with installation results.
         """
-        # Store patched flag for use in _get_clean_build_env
+        # Store flags for use in _get_clean_build_env and _preflight_check
         self._patched = patched
+        self._force = force
         action = "Planning" if dry_run else "Installing"
         self._console.panel(f"{action} External Tools", style="blue")
 

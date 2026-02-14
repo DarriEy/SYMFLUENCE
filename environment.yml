@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - pytorch
 dependencies:
-  - python=3.12
+  - python=3.11
 
   # ── HDF5 / NetCDF stack (single shared libhdf5) ──
   - hdf5

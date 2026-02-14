@@ -136,6 +136,127 @@ class BinaryCommands(BaseCommand):
 
     @staticmethod
     @cli_exception_handler
+    def install_sysdeps(args: Namespace) -> int:
+        """
+        Execute: symfluence binary install-sysdeps
+
+        Install platform-appropriate system dependencies using the detected
+        package manager.
+
+        Args:
+            args: Parsed arguments namespace
+
+        Returns:
+            Exit code (0 for success, non-zero for failure)
+        """
+        from symfluence.cli.services.system_deps import SystemDepsRegistry
+
+        registry = SystemDepsRegistry()
+        tool = getattr(args, 'tool', None)
+        dry_run = getattr(args, 'dry_run', False)
+
+        BaseCommand._console.info(
+            f"Detected platform: {registry.platform.value}"
+        )
+
+        if tool:
+            results = registry.check_deps_for_tool(tool)
+            if not results:
+                BaseCommand._console.error(f"Unknown tool: {tool}")
+                return ExitCode.GENERAL_ERROR
+        else:
+            results = registry.check_all_deps()
+
+        missing = [r for r in results if not r.found]
+        if not missing:
+            BaseCommand._console.success("All system dependencies are already installed!")
+            return ExitCode.SUCCESS
+
+        BaseCommand._console.warning(
+            f"Missing {len(missing)} dependencies: "
+            + ", ".join(r.display_name for r in missing)
+        )
+
+        script = registry.generate_install_script(tool_name=tool)
+        if not script:
+            BaseCommand._console.error(
+                "Could not generate install commands for your platform. "
+                "See docs/SYSTEM_REQUIREMENTS.md for manual instructions."
+            )
+            return ExitCode.DEPENDENCY_ERROR
+
+        BaseCommand._console.newline()
+        BaseCommand._console.info("Install commands:")
+        BaseCommand._console.rule()
+        for line in script.strip().splitlines():
+            if line and not line.startswith("#") and not line.startswith("set"):
+                BaseCommand._console.indent(line)
+        BaseCommand._console.rule()
+
+        if dry_run:
+            BaseCommand._console.info(
+                "[DRY RUN] Commands printed above but not executed."
+            )
+            return ExitCode.SUCCESS
+
+        BaseCommand._console.newline()
+        BaseCommand._console.info("Running install commands...")
+
+        try:
+            from symfluence.cli.services.system_deps import Platform
+
+            platform = registry.platform
+
+            if platform in (Platform.CONDA, Platform.WSL):
+                # Conda install runs natively (no bash wrapper needed).
+                # WSL script contains `wsl -e ...` — run directly on Windows.
+                # Script is generated internally, not from user input.
+                result = subprocess.run(
+                    script, shell=True, text=True, timeout=600,  # nosec B602
+                )
+            elif platform == Platform.MSYS2:
+                # MSYS2 has its own bash — run pacman script through it
+                from symfluence.cli.services.tool_installer import ToolInstaller
+                bash = ToolInstaller._find_bash()
+                if bash:
+                    result = subprocess.run(
+                        [bash, "-c", script], text=True, timeout=600,
+                    )
+                else:
+                    result = subprocess.run(
+                        script, shell=True, text=True, timeout=600,  # nosec B602
+                    )
+            elif platform == Platform.UNKNOWN:
+                # Don't attempt execution — just show commands
+                BaseCommand._console.warning(
+                    "Unknown platform. Commands printed above but not executed."
+                )
+                return ExitCode.SUCCESS
+            else:
+                # APT, DNF, BREW, HPC_MODULE — use bash
+                from symfluence.cli.services.tool_installer import ToolInstaller
+                bash = ToolInstaller._find_bash() or "bash"
+                result = subprocess.run(
+                    [bash, "-c", script], text=True, timeout=600,
+                )
+
+            if result.returncode == 0:
+                BaseCommand._console.success(
+                    "System dependencies installed successfully"
+                )
+                return ExitCode.SUCCESS
+            else:
+                BaseCommand._console.error(
+                    "Some packages failed to install. "
+                    "Check the output above and retry manually."
+                )
+                return ExitCode.DEPENDENCY_ERROR
+        except subprocess.TimeoutExpired:
+            BaseCommand._console.error("Installation timed out after 10 minutes")
+            return ExitCode.GENERAL_ERROR
+
+    @staticmethod
+    @cli_exception_handler
     def info(args: Namespace) -> int:
         """
         Execute: symfluence binary info

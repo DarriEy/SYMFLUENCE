@@ -1,0 +1,410 @@
+# Canonical System Dependencies Registry for SYMFLUENCE
+#
+# This file is the single source of truth for all system-level dependencies
+# required to build and run SYMFLUENCE's external tools. It is loaded by
+# symfluence.cli.services.system_deps.SystemDepsRegistry at runtime.
+#
+# Structure:
+#   dependencies:  mapping of dep_id -> dep definition
+#   tool_requirements:  mapping of tool_name -> list of required/optional dep_ids
+
+dependencies:
+
+  # ── Build Toolchain ──────────────────────────────────────────────────
+
+  cmake:
+    display_name: CMake
+    category: build_toolchain
+    required: true
+    min_version: "3.20"
+    needed_for: [summa, fuse, mizuroute, ngen, taudem, sundials, mesh, modflow, parflow, clm]
+    check:
+      command: cmake
+      version_flag: "--version"
+      version_regex: "cmake version (\\d+\\.\\d+(?:\\.\\d+)?)"
+    packages:
+      apt: cmake
+      dnf: cmake
+      brew: cmake
+      conda: cmake
+      conda_win: cmake
+      msys2: mingw-w64-x86_64-cmake
+      hpc_module: cmake
+
+  gcc:
+    display_name: GCC (C/C++)
+    category: build_toolchain
+    required: true
+    min_version: "12"
+    needed_for: [summa, fuse, mizuroute, ngen, taudem, rhessys, mesh, vic, clm, modflow, parflow]
+    check:
+      command: gcc
+      version_flag: "--version"
+      version_regex: "(?:gcc|GCC|clang version|Apple clang version).*?(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: [cc]
+    packages:
+      apt: build-essential
+      dnf: gcc gcc-c++
+      brew: gcc
+      conda: gcc_linux-64
+      msys2: mingw-w64-x86_64-gcc
+      hpc_module: gcc
+
+  gfortran:
+    display_name: GNU Fortran
+    category: build_toolchain
+    required: true
+    min_version: "12"
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm, modflow]
+    check:
+      command: gfortran
+      version_flag: "--version"
+      version_regex: "GNU Fortran.*?(\\d+\\.\\d+(?:\\.\\d+)?)"
+    packages:
+      apt: gfortran
+      dnf: gcc-gfortran
+      brew: gcc
+      conda: gfortran_linux-64
+      conda_win: gfortran
+      msys2: mingw-w64-x86_64-gcc-fortran
+      hpc_module: gcc
+
+  make:
+    display_name: Make
+    category: build_toolchain
+    required: true
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm, parflow]
+    check:
+      command: make
+      version_flag: "--version"
+      version_regex: "GNU Make (\\d+\\.\\d+(?:\\.\\d+)?)"
+    packages:
+      apt: make
+      dnf: make
+      brew: make
+      conda: make
+      conda_win: m2-make
+      msys2: make
+      hpc_module: make
+
+  # ── Core Libraries ──────────────────────────────────────────────────
+
+  netcdf:
+    display_name: NetCDF-C
+    category: core_library
+    required: true
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm, ngen]
+    check:
+      command: nc-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      pkg_config: netcdf
+    packages:
+      apt: libnetcdf-dev
+      dnf: netcdf-devel
+      brew: netcdf
+      conda: netcdf4
+      conda_win: netcdf4
+      msys2: mingw-w64-x86_64-netcdf
+      hpc_module: netcdf-c
+
+  netcdf_fortran:
+    display_name: NetCDF-Fortran
+    category: core_library
+    required: true
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm]
+    check:
+      command: nf-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      pkg_config: netcdf-fortran
+    packages:
+      apt: libnetcdff-dev
+      dnf: netcdf-fortran-devel
+      brew: netcdf-fortran
+      conda: netcdf-fortran
+      conda_win: netcdf-fortran
+      msys2: mingw-w64-x86_64-netcdf-fortran
+      hpc_module: netcdf-fortran
+
+  hdf5:
+    display_name: HDF5
+    category: core_library
+    required: true
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm, ngen]
+    check:
+      command: h5cc
+      version_flag: "-showconfig"
+      version_regex: "HDF5 Version:\\s+(\\d+\\.\\d+\\.\\d+)"
+      alternatives: [h5dump]
+      pkg_config: hdf5
+    packages:
+      apt: libhdf5-dev
+      dnf: hdf5-devel
+      brew: hdf5
+      conda: hdf5
+      conda_win: hdf5
+      msys2: mingw-w64-x86_64-hdf5
+      hpc_module: hdf5
+
+  gdal:
+    display_name: GDAL
+    category: core_library
+    required: true
+    needed_for: [gistool, datatool, rhessys, taudem]
+    check:
+      command: gdal-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: [gdalinfo]
+      pkg_config: gdal
+    packages:
+      apt: gdal-bin libgdal-dev
+      dnf: gdal gdal-devel
+      brew: gdal
+      conda: gdal
+      conda_win: gdal
+      msys2: mingw-w64-x86_64-gdal
+      hpc_module: gdal
+
+  proj:
+    display_name: PROJ
+    category: core_library
+    required: true
+    needed_for: [gistool, datatool, rhessys, taudem]
+    check:
+      command: proj
+      version_flag: ""
+      version_regex: "Rel\\. (\\d+\\.\\d+\\.\\d+)"
+      pkg_config: proj
+    packages:
+      apt: libproj-dev
+      dnf: proj-devel
+      brew: proj
+      conda: proj
+      conda_win: proj
+      msys2: mingw-w64-x86_64-proj
+      hpc_module: proj
+
+  geos:
+    display_name: GEOS
+    category: core_library
+    required: true
+    needed_for: [rhessys, taudem]
+    check:
+      command: geos-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      pkg_config: geos
+    packages:
+      apt: libgeos-dev
+      dnf: geos-devel
+      brew: geos
+      conda: geos
+      conda_win: geos
+      msys2: mingw-w64-x86_64-geos
+      hpc_module: geos
+
+  mpi:
+    display_name: MPI (OpenMPI/MPICH)
+    category: core_library
+    required: true
+    needed_for: [summa, mizuroute, mesh, vic, taudem, ngen, parflow]
+    check:
+      command: mpirun
+      version_flag: "--version"
+      version_regex: "(?:Open MPI|HYDRA|mpirun).*?(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: [mpiexec, mpicc]
+    packages:
+      apt: libopenmpi-dev openmpi-bin
+      dnf: openmpi-devel
+      brew: open-mpi
+      conda: openmpi
+      conda_win: mpi4py
+      msys2: mingw-w64-x86_64-msmpi
+      hpc_module: openmpi
+
+  blas:
+    display_name: BLAS/LAPACK (OpenBLAS)
+    category: core_library
+    required: true
+    needed_for: [summa, fuse, mesh]
+    check:
+      command: ""
+      version_flag: ""
+      version_regex: ""
+      pkg_config: openblas
+    packages:
+      apt: libopenblas-dev liblapack-dev
+      dnf: openblas-devel lapack-devel
+      brew: openblas lapack
+      conda: openblas
+      conda_win: openblas
+      msys2: mingw-w64-x86_64-openblas
+      hpc_module: openblas
+
+  # ── Optional Dependencies ──────────────────────────────────────────
+
+  udunits2:
+    display_name: UDUNITS-2
+    category: optional
+    required: false
+    needed_for: [datatool, gistool]
+    check:
+      command: udunits2
+      version_flag: ""
+      version_regex: ""
+      alternatives: []
+      pkg_config: udunits2
+    packages:
+      apt: libudunits2-dev
+      dnf: udunits2-devel
+      brew: udunits
+      conda: udunits2
+      conda_win: udunits2
+      msys2: mingw-w64-x86_64-udunits
+      hpc_module: udunits
+
+  cdo:
+    display_name: CDO (Climate Data Operators)
+    category: optional
+    required: false
+    needed_for: [datatool]
+    check:
+      command: cdo
+      version_flag: "--version"
+      version_regex: "Climate Data Operators version (\\d+\\.\\d+\\.\\d+)"
+    packages:
+      apt: cdo
+      dnf: cdo
+      brew: cdo
+      conda: cdo
+      conda_win: cdo
+      hpc_module: cdo
+
+  r_base:
+    display_name: R
+    category: optional
+    required: false
+    needed_for: [hype]
+    check:
+      command: R
+      version_flag: "--version"
+      version_regex: "R version (\\d+\\.\\d+\\.\\d+)"
+    packages:
+      apt: r-base r-base-dev
+      dnf: R R-devel
+      brew: r
+      conda: r-base
+      conda_win: r-base
+      hpc_module: r
+
+  perl:
+    display_name: Perl
+    category: optional
+    required: false
+    needed_for: [clm]
+    check:
+      command: perl
+      version_flag: "--version"
+      version_regex: "v(\\d+\\.\\d+\\.\\d+)"
+    packages:
+      apt: perl
+      dnf: perl
+      brew: perl
+      conda: perl
+      conda_win: perl
+      msys2: perl
+      hpc_module: perl
+
+# ── Tool Requirements ──────────────────────────────────────────────────
+#
+# Maps each buildable tool to its system dependency requirements.
+# These supplement the `dependencies` field in build_instructions (which
+# tracks inter-tool deps like summa -> sundials, not system libs).
+
+tool_requirements:
+
+  summa:
+    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas, mpi]
+    optional: []
+
+  fuse:
+    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas]
+    optional: []
+
+  mizuroute:
+    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, mpi]
+    optional: []
+
+  sundials:
+    required: [cmake, gcc, make]
+    optional: []
+
+  taudem:
+    required: [cmake, gcc, mpi, gdal, proj, geos]
+    optional: []
+
+  gistool:
+    required: [gdal, proj]
+    optional: [udunits2, cdo]
+
+  datatool:
+    required: [gdal]
+    optional: [udunits2, cdo]
+
+  ngen:
+    required: [cmake, gcc, make, netcdf, hdf5, mpi]
+    optional: []
+
+  mesh:
+    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas, mpi]
+    optional: []
+
+  rhessys:
+    required: [gcc, make, gdal, proj, geos]
+    optional: []
+
+  vic:
+    required: [gcc, gfortran, make, netcdf, mpi]
+    optional: []
+
+  clm:
+    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, mpi, perl]
+    optional: []
+
+  hype:
+    required: [gfortran, make]
+    optional: [r_base]
+
+  wmfire:
+    required: [gcc, make]
+    optional: []
+
+  ignacio:
+    required: [gcc, make]
+    optional: []
+
+  modflow:
+    required: [cmake, gfortran, make]
+    optional: []
+
+  parflow:
+    required: [cmake, gcc, make, mpi]
+    optional: [netcdf, hdf5]
+
+  troute:
+    required: [gcc, gfortran]
+    optional: []
+
+  droute:
+    required: [gcc]
+    optional: []
+
+  ngiab:
+    required: []
+    optional: []
+
+  cfuse:
+    required: [gcc]
+    optional: []

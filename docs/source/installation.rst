@@ -70,6 +70,13 @@ System Prerequisites
 - Core libs: GDAL, HDF5, NetCDF (C + Fortran), BLAS/LAPACK
 - Optional tools: R, CDO (when applicable)
 
+For the full list of system dependencies with platform-specific install commands,
+see ``docs/SYSTEM_REQUIREMENTS.md``. You can verify your environment with:
+
+.. code-block:: bash
+
+   symfluence binary doctor
+
 CDS API Credentials (CARRA/CERRA)
 ---------------------------------
 If you plan to use CARRA or CERRA forcing datasets, configure CDS API credentials:
