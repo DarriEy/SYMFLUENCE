@@ -25,11 +25,16 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 def _check_troute_available() -> bool:
-    """Check if the compiled troute Cython package is importable."""
+    """Check if the full compiled troute pipeline (nwm_routing) is usable.
+
+    Just having the troute Cython extensions installed is not enough — the
+    nwm_routing entry point requires troute-config which depends on pydantic v1.
+    If SYMFLUENCE is using pydantic v2, the import will fail at runtime.
+    """
     try:
-        import troute  # noqa: F401
+        from nwm_routing.__main__ import main_v04  # noqa: F401
         return True
-    except ImportError:
+    except (ImportError, Exception):
         return False
 
 
@@ -279,26 +284,39 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         v_out = np.zeros((n_time, n_seg), dtype=np.float64)
         d_out = np.zeros((n_time, n_seg), dtype=np.float64)
 
-        # Track reach inflows (lateral + upstream) separately from outflows
-        q_in_prev = np.maximum(q_seg[0, :], 1e-6)
-        q_out[0, :] = q_in_prev.copy()
+        # Warm-start: accumulate median lateral inflows through the network
+        # in topological order for a steady-state initial condition.
+        # Using median (not first timestep) avoids spinup artifacts from the
+        # upstream hydrological model.
+        q_init = np.maximum(np.median(q_seg, axis=0), 1e-6)
+        for seg_idx in topo_order:
+            ds_idx = downstream[seg_idx]
+            if ds_idx >= 0:
+                q_init[ds_idx] += q_init[seg_idx]
+        q_out[0, :] = q_init
+        q_in_prev = q_out[0, :].copy()
 
         # --- Adaptive sub-timestep for Courant stability ---
+        # MC routing with coefficient clamping/normalization is stable at moderate
+        # Courant violations. We cap auto sub-timesteps at 10 — higher values make
+        # the pure-Python loop impractically slow (N_time * N_sub * N_seg).
+        MAX_AUTO_SUBS = 10
         qts_subdivisions = int(self.config_dict.get('TROUTE_QTS_SUBDIVISIONS', 0))
         if qts_subdivisions <= 0:
-            # Auto-detect from initial conditions
-            q_ref_init = np.maximum(q_seg[0, :], 1e-6)
-            depth_init = (q_ref_init * mannings / (bw * np.sqrt(slopes))) ** 0.6
-            depth_init = np.maximum(depth_init, 0.01)
-            vel_init = q_ref_init / (bw * depth_init)
-            cel_init = (5.0 / 3.0) * vel_init
-            courant_init = cel_init * dt / lengths
-            max_courant = np.max(courant_init)
-            qts_subdivisions = max(1, int(np.ceil(max_courant)))
+            # Auto-detect from median flow conditions (not initial which may be extreme)
+            q_ref_med = np.maximum(np.median(q_seg, axis=0), 1e-6)
+            depth_med = (q_ref_med * mannings / (bw * np.sqrt(slopes))) ** 0.6
+            depth_med = np.maximum(depth_med, 0.01)
+            vel_med = q_ref_med / (bw * depth_med)
+            cel_med = (5.0 / 3.0) * vel_med
+            courant_med = cel_med * dt / lengths
+            max_courant = np.max(courant_med)
+            qts_subdivisions = min(max(1, int(np.ceil(max_courant))), MAX_AUTO_SUBS)
             if qts_subdivisions > 1:
                 self.logger.info(
                     f"Auto sub-timestep: {qts_subdivisions}x "
-                    f"(max Courant={max_courant:.2f}, effective dt={dt/qts_subdivisions:.0f}s)"
+                    f"(median Courant={max_courant:.2f}, capped at {MAX_AUTO_SUBS}, "
+                    f"effective dt={dt/qts_subdivisions:.0f}s)"
                 )
 
         sub_dt = dt / qts_subdivisions
@@ -335,7 +353,10 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     celerity = max((5.0 / 3.0) * velocity, 0.01)
 
                     dx = lengths[seg_idx]
-                    K = max(dx / celerity, sub_dt * 0.01)
+                    # Clamp K ≥ sub_dt to ensure Courant ≤ 1.
+                    # Without this, short/fast segments get C3 < 0 (clamped to 0),
+                    # losing all attenuation — peaks pass through unattenuated.
+                    K = max(dx / celerity, sub_dt)
 
                     denom = 2.0 * celerity * s0 * dx
                     X = 0.5 * (1.0 - q_ref / denom) if denom > 0 else 0.0
@@ -403,19 +424,22 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         ds_out.to_netcdf(out_file, format='NETCDF4')
         ds_out.close()
 
-        # Summary statistics at outlet
+        # Summary statistics at outlet (skip first 30 days as spinup)
         outlet_indices = [i for i in range(n_seg) if downstream[i] == -1]
+        spinup_steps = min(720, n_time // 4)  # 30 days at hourly, or 25% of record
         if outlet_indices:
             outlet_q = q_out[:, outlet_indices[0]]
+            outlet_q_post = outlet_q[spinup_steps:]
             self.logger.info(
                 f"Outlet segment {seg_ids[outlet_indices[0]]}: "
-                f"mean Q = {np.mean(outlet_q):.3f} m³/s, "
-                f"max Q = {np.max(outlet_q):.3f} m³/s"
+                f"mean Q = {np.mean(outlet_q_post):.3f} m³/s, "
+                f"max Q = {np.max(outlet_q_post):.3f} m³/s "
+                f"(after {spinup_steps}-step spinup)"
             )
 
             # Volume conservation check
             total_lateral = np.sum(q_seg) * dt
-            total_outlet = np.sum(q_out[:, outlet_indices[0]]) * dt
+            total_outlet = np.sum(outlet_q) * dt
             conservation_ratio = total_outlet / total_lateral if total_lateral > 0 else 0
             self.logger.info(f"Volume conservation: {conservation_ratio:.3f} (outlet/lateral)")
 

@@ -66,7 +66,7 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         # Fall back to DATA_DIR if SYMFLUENCE_DATA_DIR not found
         if data_dir is None:
             import tempfile
-        data_dir = self.config_dict.get('DATA_DIR', tempfile.gettempdir())  # nosec B108
+            data_dir = self.config_dict.get('DATA_DIR', tempfile.gettempdir())  # nosec B108
         self.data_dir = Path(data_dir)
         # domain_name is provided by ConfigMixin via ProjectContextMixin
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
