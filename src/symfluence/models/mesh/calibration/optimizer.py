@@ -219,8 +219,12 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 if dest_forcing.exists():
                     safe_delete(dest_forcing)
 
-                shutil.copytree(source_forcing, dest_forcing, symlinks=True)
-                self.logger.debug(f"Copied MESH forcing to {dest_forcing} (preserving symlinks)")
+                try:
+                    shutil.copytree(source_forcing, dest_forcing, symlinks=True)
+                except OSError:
+                    # Windows without admin/Developer Mode — fall back to resolving symlinks
+                    shutil.copytree(source_forcing, dest_forcing, symlinks=False)
+                self.logger.debug(f"Copied MESH forcing to {dest_forcing}")
 
                 # ALSO copy to process_N/settings/MESH because WorkerTask sets settings_dir there
                 dest_settings = dirs['root'] / 'settings' / 'MESH'

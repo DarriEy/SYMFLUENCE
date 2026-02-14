@@ -129,7 +129,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
         cred_file = Path.home() / '.gleam'
         if cred_file.exists():
             creds = {}
-            for line in cred_file.read_text().strip().splitlines():
+            for line in cred_file.read_text(encoding='utf-8').strip().splitlines():
                 line = line.strip()
                 if '=' in line and not line.startswith('#'):
                     key, val = line.split('=', 1)

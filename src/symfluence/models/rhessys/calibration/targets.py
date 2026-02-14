@@ -246,7 +246,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
         for wf_path in candidates:
             if wf_path.exists():
                 try:
-                    with open(wf_path, 'r') as f:
+                    with open(wf_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
                     # Zone area appears before the string 'area' on its label line
                     for line in lines:

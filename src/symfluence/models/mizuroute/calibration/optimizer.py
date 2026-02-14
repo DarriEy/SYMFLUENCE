@@ -44,7 +44,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             return
 
         try:
-            with open(param_file, 'r') as f:
+            with open(param_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             for param, value in params.items():
@@ -58,7 +58,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
                 else:
                     self.logger.warning(f"Parameter {param} not found in {param_file_name}")
 
-            with open(param_file, 'w') as f:
+            with open(param_file, 'w', encoding='utf-8') as f:
                 f.write(content)
 
         except Exception as e:

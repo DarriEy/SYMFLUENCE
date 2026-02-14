@@ -409,5 +409,5 @@ def main():
 if __name__ == "__main__":
     main()
 '''
-        with open(script_path, 'w') as f:
+        with open(script_path, 'w', encoding='utf-8') as f:
             f.write(script_content)

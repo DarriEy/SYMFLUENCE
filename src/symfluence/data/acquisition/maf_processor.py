@@ -284,7 +284,7 @@ class DataAcquisitionProcessor(ConfigMixin):
         # Save the JSON file
         json_path = self.project_dir / "forcing/maf_config.json"
         json_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(json_path, 'w') as f:
+        with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(maf_config, f, indent=2)
 
         self.logger.info(f"MAF configuration JSON saved to: {json_path}")

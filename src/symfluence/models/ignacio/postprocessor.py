@@ -240,7 +240,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
 
             # Save metrics
             metrics_path = comparison_dir / "comparison_metrics.json"
-            with open(metrics_path, 'w') as f:
+            with open(metrics_path, 'w', encoding='utf-8') as f:
                 json.dump(metrics, f, indent=2)
 
             self.logger.info(f"WMFire comparison: IoU={metrics.get('iou', 0):.3f}, "
@@ -324,7 +324,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
 
             # Save metrics
             metrics_path = validation_dir / "validation_metrics.json"
-            with open(metrics_path, 'w') as f:
+            with open(metrics_path, 'w', encoding='utf-8') as f:
                 json.dump(metrics, f, indent=2)
 
             self.logger.info(f"Validation against observed: IoU={metrics.get('iou', 0):.3f}, "
@@ -369,7 +369,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
 
         # Write summary
         summary_path = self.ignacio_output_dir / "ignacio_summary.json"
-        with open(summary_path, 'w') as f:
+        with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2)
 
         self.logger.info(f"Summary written: {summary_path}")

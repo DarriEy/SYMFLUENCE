@@ -335,7 +335,7 @@ class FireDefGenerator:
             **kwargs
         )
 
-        output_path.write_text(content)
+        output_path.write_text(content, encoding='utf-8')
 
         ign_str = f"({ignition_row}, {ignition_col})" if ignition_row >= 0 else "random"
         self.logger.info(f"Fire defaults written: {output_path} "
@@ -376,7 +376,7 @@ class FireDefGenerator:
         if output_path:
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(content)
+            output_path.write_text(content, encoding='utf-8')
             self.logger.info(f"Default fire.def written: {output_path}")
 
         return content
@@ -403,7 +403,7 @@ def validate_fire_def(file_path: Union[str, Path]) -> Dict[str, Any]:
     params = {}
     required_params = ['n_rows', 'n_cols', 'fire_parm_ID']
 
-    with open(file_path, 'r') as f:
+    with open(file_path, 'r', encoding='utf-8') as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line or line.startswith('#'):

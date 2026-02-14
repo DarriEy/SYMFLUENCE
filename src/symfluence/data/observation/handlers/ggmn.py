@@ -68,7 +68,7 @@ class GGMNHandler(BaseObservationHandler):
                 self.logger.warning("No GGMN stations found with data in this area.")
                 return metadata_file
 
-            with open(metadata_file, 'w') as f:
+            with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(feature_collection, f, indent=2)
 
             self.logger.info(f"Found {len(features)} stations. Fetching measurements...")

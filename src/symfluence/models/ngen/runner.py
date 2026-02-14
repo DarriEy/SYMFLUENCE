@@ -262,7 +262,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 if not use_geojson and fallback_catchment_file.exists():
                     try:
-                        log_text = log_file.read_text(errors='ignore')
+                        log_text = log_file.read_text(encoding='utf-8', errors='ignore')
                     except (FileNotFoundError, OSError, PermissionError):
                         log_text = ""
                     sqlite_error = "SQLite3 support required to read GeoPackage files"
@@ -299,14 +299,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         """Patch realization config to use absolute paths for libraries and init_configs."""
         import json
         try:
-            content = realization_file.read_text()
+            content = realization_file.read_text(encoding='utf-8')
             if len(content.strip()) < 10:
                 # File is empty/corrupted — re-copy from source
                 source_realization = self.ngen_setup_dir / "realization_config.json"
                 if source_realization.exists() and source_realization.resolve() != realization_file.resolve():
                     import shutil
                     shutil.copy2(source_realization, realization_file)
-                    content = realization_file.read_text()
+                    content = realization_file.read_text(encoding='utf-8')
                     self.logger.warning("Recovered empty realization config from source")
                 else:
                     self.logger.warning("Realization config is empty and no source available")
@@ -407,7 +407,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                     self.logger.debug(f"Patched output_root to {isolated_output_dir}")
 
             if changed:
-                with open(realization_file, 'w') as f:
+                with open(realization_file, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
                 self.logger.debug("Patched absolute paths in realization config copy")
         except Exception as e:
@@ -488,7 +488,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         is_lumped = False
         if nexus_file.exists():
             try:
-                with open(nexus_file, 'r') as f:
+                with open(nexus_file, 'r', encoding='utf-8') as f:
                     nexus_data = json.load(f)
                 num_nexuses = len(nexus_data.get('features', []))
                 if num_nexuses == 1:
@@ -521,7 +521,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             from contextlib import redirect_stdout, redirect_stderr
 
             # Capture t-route output to log file
-            with open(troute_log, 'w') as log_f:
+            with open(troute_log, 'w', encoding='utf-8') as log_f:
                 with redirect_stdout(log_f), redirect_stderr(log_f):
                     ngen_main(troute_args)
 
@@ -702,7 +702,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 container_param_dir = "/ngen/ngen/data/config/cat-config/NOAH-OWP-M/parameters/"
                 for config_file in noah_config_dir.glob('*.input'):
                     try:
-                        content = config_file.read_text()
+                        content = config_file.read_text(encoding='utf-8')
                         # Replace the host parameter_dir path with container path
                         import re
                         content = re.sub(
@@ -710,7 +710,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                             f'parameter_dir      = "{container_param_dir}"',
                             content
                         )
-                        config_file.write_text(content)
+                        config_file.write_text(content, encoding='utf-8')
                     except Exception as e:
                         self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
                 self.logger.debug("Patched NOAH config files with container parameter paths")
@@ -897,7 +897,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
             if topology_complete:
                 # Load and modify T-Route config
-                with open(troute_config_src, 'r') as f:
+                with open(troute_config_src, 'r', encoding='utf-8') as f:
                     troute_config = yaml.safe_load(f)
 
                 # Update paths for container
@@ -979,7 +979,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 # Write container-compatible config
                 ngiab_troute_config = ngiab_config_dir / "troute_config.yaml"
-                with open(ngiab_troute_config, 'w') as f:
+                with open(ngiab_troute_config, 'w', encoding='utf-8') as f:
                     yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False)  # type: ignore[call-overload]
 
                 self.logger.debug(f"Created NGIAB T-Route config: {ngiab_troute_config}")
@@ -1021,7 +1021,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
             docker_log = output_dir / "ngiab_docker_log.txt"
             try:
-                with open(docker_log, 'w') as log_f:
+                with open(docker_log, 'w', encoding='utf-8') as log_f:
                     result = subprocess.run(  # nosec B603
                         docker_cmd,
                         stdout=log_f,
@@ -1061,7 +1061,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         """
         import json
 
-        with open(src_realization, 'r') as f:
+        with open(src_realization, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         # NGIAB container paths
@@ -1121,7 +1121,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
         # Write patched realization
         dst_realization = config_dir / "realization.json"
-        with open(dst_realization, 'w') as f:
+        with open(dst_realization, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
 
         self.logger.debug(f"Created NGIAB realization: {dst_realization}")
@@ -1137,7 +1137,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
         container_base = "/ngen/ngen/data"
 
-        with open(realization_path, 'r') as f:
+        with open(realization_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         # Add routing section pointing to T-Route config
@@ -1145,7 +1145,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             "t_route_config_file_with_path": f"{container_base}/config/troute_config.yaml"
         }
 
-        with open(realization_path, 'w') as f:
+        with open(realization_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
 
         self.logger.debug(f"Added routing section to realization: {realization_path}")

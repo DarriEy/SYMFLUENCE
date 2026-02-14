@@ -132,7 +132,7 @@ class JobSchedulerService(BaseService):
         )
 
         script_path = Path(f"SYMFLUENCE_{slurm_options['job_name']}.sh")
-        with open(script_path, "w") as f:
+        with open(script_path, "w", encoding="utf-8") as f:
             f.write(script_content)
 
         self._console.info(f"SLURM script created: {script_path}")

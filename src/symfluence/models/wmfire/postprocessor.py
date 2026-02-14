@@ -175,7 +175,7 @@ class WMFirePostProcessor:
 
         params = {}
 
-        with open(fire_def_path, 'r') as f:
+        with open(fire_def_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -226,7 +226,7 @@ class WMFirePostProcessor:
 
         for fsf in fire_size_files:
             try:
-                with open(fsf, 'r') as f:
+                with open(fsf, 'r', encoding='utf-8') as f:
                     for line in f:
                         line = line.strip()
                         if not line:
@@ -293,7 +293,7 @@ class WMFirePostProcessor:
             patch_grid_txt = self.rhessys_input_dir / "fire" / "patch_grid.txt"
             if patch_grid_txt.exists():
                 try:
-                    with open(patch_grid_txt, 'r') as f:
+                    with open(patch_grid_txt, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
                     metadata['n_rows'] = len(lines)
                     if lines:
@@ -526,7 +526,7 @@ class WMFirePostProcessor:
         summary_path = self.output_dir / "wmfire_summary.json"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(summary_path, 'w') as f:
+        with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2)
 
         self.logger.info(f"Summary written: {summary_path}")

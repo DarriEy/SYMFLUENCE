@@ -643,7 +643,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
 
             # Execute subprocess
             self.logger.debug(f"Executing command: {' '.join(command)}")
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8') as f:
                 result = subprocess.run(  # nosec B602 - shell mode for trusted model executables
                     command,
                     check=check,
@@ -675,7 +675,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             # Read and include last lines from log file for better diagnostics
             if log_file.exists():
                 try:
-                    with open(log_file, 'r') as f:
+                    with open(log_file, 'r', encoding='utf-8') as f:
                         log_lines = f.readlines()
                         last_lines = log_lines[-20:] if len(log_lines) > 20 else log_lines
                         if last_lines:

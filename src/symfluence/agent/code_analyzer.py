@@ -342,7 +342,7 @@ class CodeAnalyzer:
         output += "Largest Python Files:\n"
         for f in all_files[:5]:
             size = f.stat().st_size
-            lines = len(open(f).readlines())
+            lines = len(open(f, encoding='utf-8').readlines())
             output += f"  • {f.relative_to(self.repo_root)}: {size} bytes, {lines} lines\n"
 
         # Find most imported modules

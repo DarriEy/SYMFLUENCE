@@ -472,7 +472,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 new_lines = new_lines[:new_insert_pos] + elev_lines_to_add + new_lines[new_insert_pos:]
 
             # Write updated constraints file
-            with open(constraints_file, 'w') as f:
+            with open(constraints_file, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
 
             updated_count = len(found_params)

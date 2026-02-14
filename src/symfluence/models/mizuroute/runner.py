@@ -338,8 +338,9 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             ds.to_netcdf(temp_filepath, format='NETCDF4')
             ds.close()
 
-            os.chmod(temp_filepath, 0o664)  # nosec B103 - Group-writable for HPC shared access
-            temp_filepath.rename(runoff_filepath)
+            if os.name != 'nt':
+                os.chmod(temp_filepath, 0o664)  # nosec B103 - Group-writable for HPC shared access
+            temp_filepath.replace(runoff_filepath)
 
             self.logger.info("Time precision fixed successfully")
             return runoff_filepath
@@ -390,7 +391,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 self.logger.debug(f"Detected in NetCDF: dimension='{dname}', variable='{vname}'")
 
                 # Read control file
-                with open(control_path, 'r') as f:
+                with open(control_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
 
                 new_lines = []
@@ -420,7 +421,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 # Write back if modified
                 if modified:
                     self.logger.info(f"Updating control file to use dimension '{dname}' and variable '{vname}'")
-                    with open(control_path, 'w') as f:
+                    with open(control_path, 'w', encoding='utf-8') as f:
                         f.writelines(new_lines)
                 else:
                     self.logger.debug("Control file already matches NetCDF dimensions.")

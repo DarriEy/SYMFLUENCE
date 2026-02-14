@@ -242,7 +242,7 @@ class ResultsLoader:
             if not candidates:
                 return None
 
-            with open(candidates[0]) as f:
+            with open(candidates[0], encoding='utf-8') as f:
                 data = json.load(f)
             return self._store(key, data)
         except Exception as exc:

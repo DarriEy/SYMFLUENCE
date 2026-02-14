@@ -673,7 +673,7 @@ class BaseModelOptimizer(
             for f in run_dir.iterdir():
                 if f.name.endswith('_best_params.json'):
                     try:
-                        data = json.loads(f.read_text())
+                        data = json.loads(f.read_text(encoding='utf-8'))
                         score = data.get('best_score', -float('inf'))
                         params = data.get('best_params')
                         if score > best_score and params:
@@ -1992,7 +1992,7 @@ class BaseModelOptimizer(
             # Adjust end time to align with forcing timestep
             sim_end = self._adjust_end_time_for_forcing(sim_end)
 
-            with open(file_manager_path, 'r') as f:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -2004,7 +2004,7 @@ class BaseModelOptimizer(
                 else:
                     updated_lines.append(line)
 
-            with open(file_manager_path, 'w') as f:
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated file manager for full period: {sim_start} to {sim_end}")
@@ -2020,9 +2020,9 @@ class BaseModelOptimizer(
 
         if backup_path.exists():
             try:
-                with open(backup_path, 'r') as f:
+                with open(backup_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
-                with open(model_decisions_path, 'w') as f:
+                with open(model_decisions_path, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
                 self.logger.debug("Restored model decisions to optimization settings")
             except (FileNotFoundError, IOError, PermissionError) as e:
@@ -2041,7 +2041,7 @@ class BaseModelOptimizer(
             if not calib_start or not calib_end:
                 return
 
-            with open(file_manager_path, 'r') as f:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             updated_lines = []
@@ -2053,7 +2053,7 @@ class BaseModelOptimizer(
                 else:
                     updated_lines.append(line)
 
-            with open(file_manager_path, 'w') as f:
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug("Restored file manager to calibration period")
@@ -2080,7 +2080,7 @@ class BaseModelOptimizer(
             return
 
         try:
-            with open(file_manager_path, 'r') as f:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Ensure path ends with slash
@@ -2095,7 +2095,7 @@ class BaseModelOptimizer(
                 else:
                     updated_lines.append(line)
 
-            with open(file_manager_path, 'w') as f:
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated output path to: {output_path_str}")

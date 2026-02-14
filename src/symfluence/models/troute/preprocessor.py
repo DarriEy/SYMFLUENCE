@@ -151,7 +151,7 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
         # Write dictionary to YAML file
         yaml_filename = self.config_dict.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
         yaml_filepath = self.setup_dir / yaml_filename
-        with open(yaml_filepath, 'w') as f:
+        with open(yaml_filepath, 'w', encoding='utf-8') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, indent=2)
         self.logger.info(f"t-route YAML config written to {yaml_filepath}")
 

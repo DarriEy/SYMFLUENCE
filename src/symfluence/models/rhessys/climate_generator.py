@@ -493,7 +493,7 @@ class RHESSysClimateGenerator:
                 import re
                 world_file = self.climate_dir.parent / 'worldfiles' / f"{base_name.replace('_base', '')}.world"
                 if world_file.exists():
-                    with open(world_file, 'r') as f:
+                    with open(world_file, 'r', encoding='utf-8') as f:
                         for line in f:
                             match = re.match(r'\s*([\d\.\-]+)\s+z\b', line)
                             if match:
@@ -538,7 +538,7 @@ none\tmonthly_climate_prefix
 none\thourly_climate_prefix
 0\tnumber_non_critical_hourly_sequences
 """
-        base_file.write_text(content)
+        base_file.write_text(content, encoding='utf-8')
         self.logger.info(f"Base station file written: {base_file}")
 
     def _write_climate_file(
@@ -556,7 +556,7 @@ none\thourly_climate_prefix
         """
         filepath = self.climate_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             start_date = dates[0]
             f.write(f"{start_date.year} {start_date.month} {start_date.day} 1\n")
 

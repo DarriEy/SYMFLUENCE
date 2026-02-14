@@ -632,7 +632,7 @@ class IOProfiler:
             report = self._format_text_report(stats)
 
         if output_path:
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(report)
             self.logger.info(f"Profiling report written to: {output_path}")
 
@@ -747,7 +747,7 @@ class IOProfiler:
                 'process_id': os.getpid(),
             }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data, f)
 
     def import_from_file(self, input_path: str) -> None:
@@ -760,7 +760,7 @@ class IOProfiler:
             input_path: Path to read the profiling data from
         """
         try:
-            with open(input_path, 'r') as f:
+            with open(input_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
             with self._lock:

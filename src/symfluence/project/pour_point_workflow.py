@@ -101,7 +101,7 @@ def setup_pour_point_workflow(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_config_path = output_dir / f"config_{domain_name}.yaml"
 
-    with open(output_config_path, 'w') as handle:
+    with open(output_config_path, 'w', encoding='utf-8') as handle:
         yaml.dump(final_config_obj.to_dict(flatten=True), handle, default_flow_style=False, sort_keys=False)
 
     return PourPointWorkflowResult(

@@ -228,7 +228,7 @@ class SubcatchmentProcessor:
             # Update file manager for this subcatchment
             fm_file = subcat_settings_dir / 'fm_catch.txt'
             if fm_file.exists():
-                with open(fm_file, 'r') as f:
+                with open(fm_file, 'r', encoding='utf-8') as f:
                     content = f.read()
 
                 # Update paths to point to subcatchment-specific files
@@ -241,7 +241,7 @@ class SubcatchmentProcessor:
                     f"/{self.experiment_id}/FUSE/subcat_{subcat_id}/"
                 )
 
-                with open(fm_file, 'w') as f:
+                with open(fm_file, 'w', encoding='utf-8') as f:
                     f.write(content)
 
             return subcat_settings_dir

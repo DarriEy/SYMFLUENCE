@@ -126,7 +126,7 @@ class _TileDownloadMixin:
         if len(tile_paths) == 1:
             if out_path.exists():
                 out_path.unlink()
-            tile_paths[0].rename(out_path)
+            tile_paths[0].replace(out_path)
         else:
             self.logger.info(f"Merging {len(tile_paths)} tiles into {out_path}")
             src_files = [rasterio.open(p) for p in tile_paths]
@@ -331,7 +331,7 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
 
             if len(tile_paths) == 1:
                 if out_path.exists(): out_path.unlink()
-                tile_paths[0].rename(out_path)
+                tile_paths[0].replace(out_path)
             else:
                 src_files = [rasterio.open(p) for p in tile_paths]
                 mosaic, out_trans = rio_merge(src_files)

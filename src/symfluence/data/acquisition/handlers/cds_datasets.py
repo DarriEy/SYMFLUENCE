@@ -140,7 +140,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                     if final_path.exists():
                         final_path.unlink()
 
-                    chunk_file.rename(final_path)
+                    chunk_file.replace(final_path)
                     final_files.append(final_path)
                     logging.info(f"Saved monthly file: {final_path.name}")
 

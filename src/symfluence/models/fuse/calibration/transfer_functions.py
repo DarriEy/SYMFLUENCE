@@ -534,7 +534,7 @@ def create_transfer_function_config(
 
     if output_path:
         import json
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             # Convert tuples to lists for JSON
             json_config = {
                 k: {ck: list(cv) for ck, cv in v.items()} if isinstance(v, dict) else v

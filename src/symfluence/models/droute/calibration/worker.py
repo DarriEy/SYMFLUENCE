@@ -173,7 +173,7 @@ class DRouteWorker(BaseWorker):
 
             if network_config_path.exists():
                 import yaml
-                with open(network_config_path) as f:
+                with open(network_config_path, encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                 self._network_config = {
                     'n_segments': config['network']['n_segments'],

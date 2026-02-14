@@ -296,7 +296,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                             lines[i] = f"{new_value:<10} {rest_of_line}\n"
                             self.logger.debug(f"Updated FUSE decision {decision_key} to {new_value}")
 
-                with open(decision_file_path, 'w') as f:
+                with open(decision_file_path, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
 
                 if decisions_to_apply:
@@ -868,7 +868,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 modified_lines.append(line_modified)
 
             # Write the modified file
-            with open(template_path, 'w') as f:
+            with open(template_path, 'w', encoding='utf-8') as f:
                 f.writelines(modified_lines)
 
             self.logger.info(f"FUSE file manager created at: {template_path}")
@@ -916,7 +916,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     line_updated = re.sub(rf"({re.escape(key)}\\s+)(\\S+)", rf"\\1{value}", line_updated)
             updated_lines.append(line_updated)
 
-        with open(input_info_path, 'w') as f:
+        with open(input_info_path, 'w', encoding='utf-8') as f:
             f.writelines(updated_lines)
 
         self.logger.info("Updated FUSE input_info.txt for forcing timestep")

@@ -1150,7 +1150,7 @@ class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         ]
 
         content = '\n'.join(lines)
-        global_path.write_text(content)
+        global_path.write_text(content, encoding='utf-8')
         logger.info(f"Global parameter file written: {global_path}")
 
     def preprocess(self, **kwargs):

@@ -167,7 +167,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 self.logger.debug(f"MESH simulation failed with code {result.returncode}")
                 # Log the end of the log file for easier debugging
                 if log_file.exists():
-                     with open(log_file, 'r', errors='replace') as f:  # Handle non-UTF-8 characters
+                     with open(log_file, 'r', encoding='utf-8', errors='replace') as f:  # Handle non-UTF-8 characters
                          lines = f.readlines()
                          last_lines = lines[-20:]
                          self.logger.debug("Last 20 lines of model log:")
@@ -239,7 +239,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         run_options = self.forcing_mesh_path / 'MESH_input_run_options.ini'
         if run_options.exists():
             try:
-                with open(run_options, 'r') as f:
+                with open(run_options, 'r', encoding='utf-8') as f:
                     content = f.read()
                     import re
                     if re.search(r'RUNMODE\s*[:=]?\s*noroute', content, re.IGNORECASE):
@@ -309,7 +309,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 # For non-CSV outputs (e.g., gauge text files), just ensure there
                 # are non-empty, non-comment lines to avoid false negatives.
-                with open(path, 'r', errors='replace') as f:
+                with open(path, 'r', encoding='utf-8', errors='replace') as f:
                     for line in f:
                         if line.strip() and not line.lstrip().startswith('#'):
                             return True
@@ -342,7 +342,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             return None
 
         try:
-            with open(run_options, 'r') as f:
+            with open(run_options, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         except OSError:
             return None
@@ -378,7 +378,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     def _count_csv_rows(self, path: Path) -> int:
         """Count data rows in a CSV file (excluding header)."""
         try:
-            with open(path, 'r') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 lines = [line for line in f.readlines() if line.strip()]
             return max(0, len(lines) - 1)
         except OSError:

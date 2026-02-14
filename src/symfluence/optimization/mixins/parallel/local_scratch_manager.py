@@ -412,7 +412,7 @@ class LocalScratchManager(ConfigMixin):
         self.logger.debug(f"Rank {self.mpi_rank}: Updating fileManager: {file_manager_path}")
 
         # Read file
-        with open(file_manager_path, 'r') as f:
+        with open(file_manager_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         # Prepare paths
@@ -428,7 +428,7 @@ class LocalScratchManager(ConfigMixin):
                 updated_lines.append(line)
 
         # Write back
-        with open(file_manager_path, 'w') as f:
+        with open(file_manager_path, 'w', encoding='utf-8') as f:
             f.writelines(updated_lines)
 
         self.logger.debug(f"  Rank {self.mpi_rank}: fileManager.txt updated")

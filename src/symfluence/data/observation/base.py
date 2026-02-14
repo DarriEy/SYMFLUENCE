@@ -409,7 +409,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
 
         # Save metadata alongside
         meta_path = output_path.with_suffix('.json')
-        with open(meta_path, 'w') as f:
+        with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(metadata.to_dict(), f, indent=2, default=str)
 
         self.logger.debug(f"Metadata saved: {meta_path}")

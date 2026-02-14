@@ -88,7 +88,7 @@ class DropAnalysisMethod(ConfigMixin):
 
                     # Read drop analysis results
                     if drop_file.exists():
-                        with open(drop_file, 'r') as f:
+                        with open(drop_file, 'r', encoding='utf-8') as f:
                             lines = f.readlines()
                             if len(lines) > 1:  # Skip header
                                 parts = lines[-1].strip().split()

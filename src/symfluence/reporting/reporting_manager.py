@@ -973,7 +973,7 @@ class ReportingManager(ConfigMixin):
                 for hf in history_files:
                     if hf.suffix == '.json':
                         try:
-                            with open(hf) as f:
+                            with open(hf, encoding='utf-8') as f:
                                 data = json.load(f)
                                 if isinstance(data, list):
                                     history = data

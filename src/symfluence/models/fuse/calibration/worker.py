@@ -517,7 +517,7 @@ class FUSEWorker(BaseWorker):
                     updated_lines.append(line)
 
             # Write updated constraints file
-            with open(constraints_file, 'w') as f:
+            with open(constraints_file, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
         except (OSError, IOError) as e:
@@ -1098,7 +1098,7 @@ class FUSEWorker(BaseWorker):
                 else:
                     updated_lines.append(line)
 
-            with open(filemanager_path, 'w') as f:
+            with open(filemanager_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             self.logger.debug(f"Updated file manager: decisions={experiment_id}, fmodel_id={fuse_id}")

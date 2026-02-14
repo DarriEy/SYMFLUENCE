@@ -144,7 +144,7 @@ class ControlFileWriter(ConfigurableMixin):
         control_path = self.setup_dir / control_file_name
         self.logger.debug(f"Creating mizuRoute control file for {model_type.upper()}: {control_path}")
 
-        with open(control_path, 'w') as cf:
+        with open(control_path, 'w', encoding='utf-8') as cf:
             self._write_header(cf)
             self._write_directories(cf, model_config)
             self._write_parameters(cf, mizu_config)

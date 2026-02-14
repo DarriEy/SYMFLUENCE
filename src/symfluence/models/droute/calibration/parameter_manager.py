@@ -96,7 +96,7 @@ class DRouteParameterManager(BaseParameterManager):
                 return True
 
             import yaml
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
 
             # Update routing parameters section
@@ -106,7 +106,7 @@ class DRouteParameterManager(BaseParameterManager):
             for param_name, value in params.items():
                 config['routing'][param_name] = float(value)
 
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(config, f, default_flow_style=False)
 
             return True

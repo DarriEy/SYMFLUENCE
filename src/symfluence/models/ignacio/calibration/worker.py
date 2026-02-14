@@ -76,7 +76,7 @@ class IGNACIOWorker(BaseWorker):
                 return True
 
             import yaml
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 ignacio_config = yaml.safe_load(f) or {}
 
             # Update FBP defaults
@@ -102,7 +102,7 @@ class IGNACIOWorker(BaseWorker):
                 else:
                     fbp[yaml_key] = float(value)
 
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(ignacio_config, f, default_flow_style=False)
 
             self._current_params = params

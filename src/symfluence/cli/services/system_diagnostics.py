@@ -295,7 +295,7 @@ class SystemDiagnostics(BaseService):
         for toolchain_path in toolchain_locations:
             if toolchain_path.exists():
                 try:
-                    with open(toolchain_path) as f:
+                    with open(toolchain_path, encoding="utf-8") as f:
                         toolchain = json.load(f)
 
                     platform = toolchain.get("platform", "unknown")
@@ -351,7 +351,7 @@ class SystemDiagnostics(BaseService):
             True if successful, False otherwise.
         """
         try:
-            with open(toolchain_path) as f:
+            with open(toolchain_path, encoding="utf-8") as f:
                 toolchain = json.load(f)
 
             self._console.rule()

@@ -92,7 +92,7 @@ class IGNACIOResultExtractor(ModelResultExtractor):
         self, json_path: Path, variable_type: str
     ) -> pd.Series:
         """Extract metrics from IGNACIO summary JSON."""
-        with open(json_path) as f:
+        with open(json_path, encoding='utf-8') as f:
             data = json.load(f)
 
         var_names = self.get_variable_names(variable_type)

@@ -255,7 +255,7 @@ class ResultsTrackingMixin(ConfigMixin):
         params_path = self.results_dir / filename
 
         # Save to JSON
-        with open(params_path, 'w') as f:
+        with open(params_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, indent=2)
 
         self.logger.info(f"Saved best parameters to {params_path}")
@@ -294,7 +294,7 @@ class ResultsTrackingMixin(ConfigMixin):
         if not params_path.exists():
             raise FileNotFoundError(f"Parameters file not found: {params_path}")
 
-        with open(params_path, 'r') as f:
+        with open(params_path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
     # =========================================================================

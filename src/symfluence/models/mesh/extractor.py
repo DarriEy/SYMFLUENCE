@@ -421,7 +421,7 @@ class MESHResultExtractor(ModelResultExtractor):
         if not echo_print_path.exists():
             raise ValueError(f"Echo print file not found: {echo_print_path}")
 
-        with open(echo_print_path, 'r') as f:
+        with open(echo_print_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Parse water balance section

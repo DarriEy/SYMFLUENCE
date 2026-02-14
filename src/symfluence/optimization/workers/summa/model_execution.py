@@ -59,7 +59,7 @@ def _deduplicate_output_control(output_control_path: Path, logger):
         return
 
     try:
-        with open(output_control_path, 'r') as f:
+        with open(output_control_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         seen_vars = {} # (var_name, frequency) -> True
@@ -87,7 +87,7 @@ def _deduplicate_output_control(output_control_path: Path, logger):
             new_lines.append(line)
 
         if changed:
-            with open(output_control_path, 'w') as f:
+            with open(output_control_path, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
             logger.debug(f"Deduplicated {output_control_path.name}")
 
@@ -139,14 +139,15 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
 
         # Update file manager with correct output path and settings path
         try:
-            with open(file_manager, 'r') as f:
+            with open(file_manager, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Remove stale runinfo to avoid SUMMA Fortran write errors on reruns
             runinfo_path = summa_dir / "runinfo.txt"
             if runinfo_path.exists():
                 try:
-                    runinfo_path.chmod(0o644)
+                    if os.name != 'nt':
+                        runinfo_path.chmod(0o644)
                     runinfo_path.unlink()
                 except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                     logger.warning(f"Could not remove existing runinfo.txt: {e}")
@@ -195,7 +196,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
                 # If settingsPath not found, append it
                 updated_lines.append(f"settingsPath '{settings_path_str}'\n")
 
-            with open(file_manager, 'w') as f:
+            with open(file_manager, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
             # Deduplicate outputControl.txt if it exists
@@ -228,7 +229,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         # Run SUMMA with system-level I/O profiling
         system_profiler = get_system_profiler()
 
-        with open(log_file, 'w') as f:
+        with open(log_file, 'w', encoding='utf-8') as f:
             f.write("SUMMA Execution Log\n")
             f.write(f"Command: {cmd_str}\n")
             f.write(f"Working Directory: {summa_dir}\n")
@@ -370,7 +371,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         # Run mizuRoute with system-level I/O profiling
         system_profiler = get_system_profiler()
 
-        with open(log_file, 'w') as f:
+        with open(log_file, 'w', encoding='utf-8') as f:
             f.write("mizuRoute Execution Log\n")
             f.write(f"Command: {cmd_str}\n")
             f.write(f"Working Directory: {control_file.parent}\n")

@@ -344,7 +344,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
         # Save metadata
         meta_file = output_file.with_suffix('.json')
         import json as json_module
-        with open(meta_file, 'w') as f:
+        with open(meta_file, 'w', encoding='utf-8') as f:
             json_module.dump(metadata.to_dict(), f, indent=2, default=str)
 
         self.logger.info(f"Hub'Eau streamflow processing complete: {output_file}")

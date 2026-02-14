@@ -81,7 +81,7 @@ class SNOTELHandler(BaseObservationHandler):
             response.raise_for_status()
 
             # Save the raw CSV
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(response.text)
 
             self.logger.info(f"Successfully downloaded SNOTEL data to {output_path}")

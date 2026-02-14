@@ -115,7 +115,7 @@ class SpatialProcessor(ConfigMixin):
                     return None
 
                 # Read the current config file
-                with open(config_file_path, 'r') as f:
+                with open(config_file_path, 'r', encoding='utf-8') as f:
                     config_lines = f.readlines()
 
                 # Find and update the SIM_REACH_ID line
@@ -139,7 +139,7 @@ class SpatialProcessor(ConfigMixin):
                      config_lines.append(f"\nSIM_REACH_ID: {reach_id}\n")
 
                 # Write the updated config back to file
-                with open(config_file_path, 'w') as f:
+                with open(config_file_path, 'w', encoding='utf-8') as f:
                     f.writelines(config_lines)
 
                 self.logger.info(f"Updated SIM_REACH_ID to {reach_id} in both config object and file: {config_file_path}")

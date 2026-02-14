@@ -171,7 +171,7 @@ def from_file_factory(
     if not path.exists():
         raise FileNotFoundError(f"Configuration file not found: {path}")
 
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         file_config = yaml.safe_load(f) or {}
 
     # 2. Detect if config is in nested or flat format

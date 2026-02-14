@@ -109,7 +109,7 @@ class BaseStructureEnsembleAnalyzer(ABC):
         self.master_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Write header to master file
-        with open(self.master_file, 'w', newline='') as f:
+        with open(self.master_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['Iteration'] + list(self.decision_options.keys()) +
                           ['kge', 'kgep', 'nse', 'mae', 'rmse'])
@@ -131,7 +131,7 @@ class BaseStructureEnsembleAnalyzer(ABC):
                     metrics_res.get('rmse', np.nan)
                 ]
 
-                with open(self.master_file, 'a', newline='') as f:
+                with open(self.master_file, 'a', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow(row)
 
@@ -143,7 +143,7 @@ class BaseStructureEnsembleAnalyzer(ABC):
 
             except Exception as e:
                 self.logger.error(f"Error in combination {i}: {str(e)}")
-                with open(self.master_file, 'a', newline='') as f:
+                with open(self.master_file, 'a', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow([i] + list(combination) + ['erroneous combination'])
 
@@ -203,7 +203,7 @@ class BaseStructureEnsembleAnalyzer(ABC):
 
         # Save results summary
         summary_file = self.master_file.parent / f"best_{self.__class__.__name__.lower()}_combinations.txt"
-        with open(summary_file, 'w') as f:
+        with open(summary_file, 'w', encoding='utf-8') as f:
             for metric, data in best_combinations.items():
                 f.write(f"Best combination for {metric} (score: {data['score']:.3f}):\n")
                 for decision, value in data['combination'].items():

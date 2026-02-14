@@ -378,7 +378,7 @@ class DRouteNetworkAdapter:
             },
         }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             yaml.dump(network_config, f, default_flow_style=False)
 
         self.logger.info(f"Wrote dRoute config to {output_path}")

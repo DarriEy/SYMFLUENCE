@@ -1021,7 +1021,7 @@ class VariableHandler:
         }
 
         try:
-            with open(filepath, 'w') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 yaml.dump(mappings, f)
             self.logger.info("Variable mappings saved successfully")
         except Exception as e:
@@ -1033,7 +1033,7 @@ class VariableHandler:
         """Load mappings from YAML file."""
         logger.info(f"Loading variable mappings from: {filepath}")
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 mappings = yaml.safe_load(f)
 
             cls.DATASET_MAPPINGS = mappings['dataset_mappings']

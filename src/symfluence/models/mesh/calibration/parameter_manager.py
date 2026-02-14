@@ -185,7 +185,7 @@ class MESHParameterManager(BaseParameterManager):
             return defaults
 
         try:
-            with open(class_file, 'r') as f:
+            with open(class_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         except OSError:
             return defaults
@@ -249,7 +249,7 @@ class MESHParameterManager(BaseParameterManager):
             return []
 
         try:
-            with open(class_file, 'r') as f:
+            with open(class_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         except OSError:
             return []
@@ -749,7 +749,7 @@ class MESHParameterManager(BaseParameterManager):
                 self.logger.error(f"CLASS parameter file not found: {file_path}")
                 return False
 
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
             # Re-detect GRU blocks in case file changed
@@ -877,7 +877,7 @@ class MESHParameterManager(BaseParameterManager):
                 )
                 return False
 
-            with open(file_path, 'w') as f:
+            with open(file_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
             n_blocks_updated = len(blocks[:n_blocks])
@@ -908,7 +908,7 @@ class MESHParameterManager(BaseParameterManager):
                 self.logger.error(f"Parameter file not found: {file_path}")
                 return False
 
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             updated = 0
@@ -965,7 +965,7 @@ class MESHParameterManager(BaseParameterManager):
                             f"{file_path.name}; cannot inject automatically"
                         )
 
-            with open(file_path, 'w') as f:
+            with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
 
             total = updated + injected
@@ -1017,7 +1017,7 @@ class MESHParameterManager(BaseParameterManager):
 
                 line_idx, pos_idx, _num_values = self.class_param_positions[param_name]
 
-                with open(file_path, 'r') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
 
                 if line_idx >= len(lines):
@@ -1030,7 +1030,7 @@ class MESHParameterManager(BaseParameterManager):
                 return float(parts[pos_idx])
 
             # Hydrology / routing: key-value .ini format
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             pattern = rf'^{param_name}\s+([\d\.\-\+eE]+)'

@@ -98,7 +98,7 @@ class DataDirService:
     def _read_status(summary_path: Path) -> str:
         """Read status field from a run summary JSON."""
         try:
-            with open(summary_path) as f:
+            with open(summary_path, encoding='utf-8') as f:
                 data = json.load(f)
             return data.get("status", "unknown")
         except (OSError, ValueError, TypeError, json.JSONDecodeError):

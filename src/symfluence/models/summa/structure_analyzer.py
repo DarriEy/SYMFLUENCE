@@ -129,7 +129,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             raise FileNotFoundError(f"Could not find {self.model_decisions_path}")
 
         decision_keys = list(self.decision_options.keys())
-        with open(self.model_decisions_path, 'r') as f:
+        with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
         option_map = dict(zip(decision_keys, combination))
@@ -140,7 +140,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                     # Maintain format: DecisionName  Value  ! Comment
                     lines[i] = f"{option.ljust(30)} {value.ljust(15)} ! {line.split('!')[-1].strip()}\n"
 
-        with open(self.model_decisions_path, 'w') as f:
+        with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
     def run_model(self):

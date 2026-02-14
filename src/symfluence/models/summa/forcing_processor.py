@@ -1578,7 +1578,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             forcing_dataset,
         )
 
-        with open(file_list_path, "w") as fobj:
+        with open(file_list_path, "w", encoding="utf-8") as fobj:
             for fname in forcing_files:
                 fobj.write(f"{fname}\n")
 
