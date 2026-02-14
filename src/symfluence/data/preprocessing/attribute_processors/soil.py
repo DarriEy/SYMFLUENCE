@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
 import geopandas as gpd
-from osgeo import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    gdal = None
 from rasterstats import zonal_stats
 
 from .base import BaseAttributeProcessor
@@ -444,6 +447,8 @@ class SoilProcessor(BaseAttributeProcessor):
         Returns:
             Tuple of scale and offset values, potentially None if not set
         """
+        if gdal is None:
+            return None, None
         try:
             dataset = gdal.Open(str(geotiff_path))
             if dataset is None:
@@ -470,6 +475,8 @@ class SoilProcessor(BaseAttributeProcessor):
             tif: Path to the GeoTIFF file
             nodata: No-data value to set
         """
+        if gdal is None:
+            return
         try:
             # Open the dataset
             ds = gdal.Open(str(tif), gdal.GA_Update)

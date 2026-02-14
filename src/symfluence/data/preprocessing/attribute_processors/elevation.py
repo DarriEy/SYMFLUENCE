@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Dict, Any
 import geopandas as gpd
 from rasterstats import zonal_stats
-from osgeo import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    gdal = None
 from scipy.stats import circmean
 
 from .base import BaseAttributeProcessor
@@ -63,6 +66,12 @@ class ElevationProcessor(BaseAttributeProcessor):
         Raises:
             Exception: If GDAL processing fails
         """
+        if gdal is None:
+            raise ImportError(
+                "GDAL Python bindings required for slope/aspect generation. "
+                "Install via: brew install gdal (macOS), apt install gdal-bin libgdal-dev (Linux), "
+                "or pip install gdal==$(gdal-config --version)"
+            )
         self.logger.info(f"Generating slope and aspect from DEM: {dem_file}")
 
         # Create output file paths
