@@ -253,8 +253,26 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 # Convert depth rate (m/s) to volume rate (m³/s)
                 q_seg[:, seg_idx] += q_lat_vals[:, h] * hru_areas[h]
 
+        # --- Channel geometry ---
+        if 'channel_width' in topo:
+            bw = np.maximum(topo['channel_width'].values, 1.0)
+        elif 'drainage_area_km2' in topo:
+            da = np.maximum(topo['drainage_area_km2'].values, 0.01)
+            hg_a = float(self.config_dict.get('TROUTE_HG_WIDTH_COEFF', 2.71))
+            hg_b = float(self.config_dict.get('TROUTE_HG_WIDTH_EXP', 0.557))
+            bw = np.maximum(hg_a * da ** hg_b, 1.0)
+            self.logger.info(f"Channel widths from hydraulic geometry: {bw.min():.1f}-{bw.max():.1f} m")
+        else:
+            bw = np.full(n_seg, 10.0)
+            self.logger.warning("No channel geometry in topology — using default 10m width")
+
+        self.logger.info(
+            f"Channel geometry: width {bw.min():.1f}-{bw.max():.1f}m, "
+            f"slope {slopes.min():.4f}-{slopes.max():.4f}, "
+            f"Manning's n {mannings.min():.3f}-{mannings.max():.3f}"
+        )
+
         # --- Muskingum-Cunge routing ---
-        bw = np.full(n_seg, 10.0)  # default channel width (m)
 
         # Initialize flow arrays
         q_out = np.zeros((n_time, n_seg), dtype=np.float64)
@@ -265,69 +283,95 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         q_in_prev = np.maximum(q_seg[0, :], 1e-6)
         q_out[0, :] = q_in_prev.copy()
 
+        # --- Adaptive sub-timestep for Courant stability ---
+        qts_subdivisions = int(self.config_dict.get('TROUTE_QTS_SUBDIVISIONS', 0))
+        if qts_subdivisions <= 0:
+            # Auto-detect from initial conditions
+            q_ref_init = np.maximum(q_seg[0, :], 1e-6)
+            depth_init = (q_ref_init * mannings / (bw * np.sqrt(slopes))) ** 0.6
+            depth_init = np.maximum(depth_init, 0.01)
+            vel_init = q_ref_init / (bw * depth_init)
+            cel_init = (5.0 / 3.0) * vel_init
+            courant_init = cel_init * dt / lengths
+            max_courant = np.max(courant_init)
+            qts_subdivisions = max(1, int(np.ceil(max_courant)))
+            if qts_subdivisions > 1:
+                self.logger.info(
+                    f"Auto sub-timestep: {qts_subdivisions}x "
+                    f"(max Courant={max_courant:.2f}, effective dt={dt/qts_subdivisions:.0f}s)"
+                )
+
+        sub_dt = dt / qts_subdivisions
+
         for t in range(1, n_time):
-            q_in_t = q_seg[t, :].copy()  # starts as lateral only
+            # Interpolate lateral inflow across sub-timesteps
+            q_lat_prev = q_seg[t - 1, :]
+            q_lat_curr = q_seg[t, :]
 
-            # Accumulate upstream routed outflows in topological order
-            for seg_idx in topo_order:
-                # Total reach inflow = this segment's lateral + upstream outlets
-                q_reach_in = q_in_t[seg_idx]
+            for sub in range(qts_subdivisions):
+                # Linear interpolation of lateral inflow within the outer timestep
+                frac = (sub + 1) / qts_subdivisions
+                q_lat_sub = q_lat_prev * (1.0 - frac) + q_lat_curr * frac
+                q_in_t = q_lat_sub.copy()
 
-                # Muskingum-Cunge: Q_out(t) = C1*Q_in(t) + C2*Q_in(t-1) + C3*Q_out(t-1)
-                q_in_curr = q_reach_in
-                q_in_last = q_in_prev[seg_idx]
-                q_out_last = q_out[t - 1, seg_idx]
+                # Accumulate upstream routed outflows in topological order
+                for seg_idx in topo_order:
+                    q_reach_in = q_in_t[seg_idx]
 
-                q_ref = max(0.5 * (q_in_curr + q_out_last), 1e-6)
+                    # Muskingum-Cunge: Q_out = C1*Q_in(t) + C2*Q_in(t-1) + C3*Q_out(t-1)
+                    q_in_curr = q_reach_in
+                    q_in_last = q_in_prev[seg_idx]
+                    q_out_last = q_out[t - 1, seg_idx] if sub == 0 else q_out[t, seg_idx]
 
-                n_val = mannings[seg_idx]
-                s0 = slopes[seg_idx]
-                w = bw[seg_idx]
-                depth = (q_ref * n_val / (w * np.sqrt(s0))) ** 0.6
-                depth = max(depth, 0.01)
+                    q_ref = max(0.5 * (q_in_curr + q_out_last), 1e-6)
 
-                velocity = q_ref / (w * depth) if w * depth > 0 else 0.01
-                celerity = max((5.0 / 3.0) * velocity, 0.01)
+                    n_val = mannings[seg_idx]
+                    s0 = slopes[seg_idx]
+                    w = bw[seg_idx]
+                    depth = (q_ref * n_val / (w * np.sqrt(s0))) ** 0.6
+                    depth = max(depth, 0.01)
 
-                dx = lengths[seg_idx]
-                K = max(dx / celerity, dt * 0.01)
+                    velocity = q_ref / (w * depth) if w * depth > 0 else 0.01
+                    celerity = max((5.0 / 3.0) * velocity, 0.01)
 
-                denom = 2.0 * celerity * s0 * dx
-                X = 0.5 * (1.0 - q_ref / denom) if denom > 0 else 0.0
-                X = np.clip(X, 0.0, 0.5)
+                    dx = lengths[seg_idx]
+                    K = max(dx / celerity, sub_dt * 0.01)
 
-                denom2 = 2.0 * K * (1.0 - X) + dt
-                if denom2 > 0:
-                    C1 = (dt - 2.0 * K * X) / denom2
-                    C2 = (dt + 2.0 * K * X) / denom2
-                    C3 = (2.0 * K * (1.0 - X) - dt) / denom2
-                else:
-                    C1 = C2 = 0.5
-                    C3 = 0.0
+                    denom = 2.0 * celerity * s0 * dx
+                    X = 0.5 * (1.0 - q_ref / denom) if denom > 0 else 0.0
+                    X = np.clip(X, 0.0, 0.5)
 
-                # Clamp and normalize for stability
-                C1 = max(C1, 0.0)
-                C2 = max(C2, 0.0)
-                C3 = max(C3, 0.0)
-                c_sum = C1 + C2 + C3
-                if c_sum > 0:
-                    C1 /= c_sum
-                    C2 /= c_sum
-                    C3 /= c_sum
+                    denom2 = 2.0 * K * (1.0 - X) + sub_dt
+                    if denom2 > 0:
+                        C1 = (sub_dt - 2.0 * K * X) / denom2
+                        C2 = (sub_dt + 2.0 * K * X) / denom2
+                        C3 = (2.0 * K * (1.0 - X) - sub_dt) / denom2
+                    else:
+                        C1 = C2 = 0.5
+                        C3 = 0.0
 
-                q_routed = max(C1 * q_in_curr + C2 * q_in_last + C3 * q_out_last, 0.0)
+                    # Clamp and normalize for stability
+                    C1 = max(C1, 0.0)
+                    C2 = max(C2, 0.0)
+                    C3 = max(C3, 0.0)
+                    c_sum = C1 + C2 + C3
+                    if c_sum > 0:
+                        C1 /= c_sum
+                        C2 /= c_sum
+                        C3 /= c_sum
 
-                q_out[t, seg_idx] = q_routed
-                v_out[t, seg_idx] = velocity
-                d_out[t, seg_idx] = depth
+                    q_routed = max(C1 * q_in_curr + C2 * q_in_last + C3 * q_out_last, 0.0)
 
-                # Record this timestep's inflow for next iteration
-                q_in_prev[seg_idx] = q_reach_in
+                    q_out[t, seg_idx] = q_routed
+                    v_out[t, seg_idx] = velocity
+                    d_out[t, seg_idx] = depth
 
-                # Pass routed outflow to downstream segment's inflow
-                ds_idx = downstream[seg_idx]
-                if ds_idx >= 0:
-                    q_in_t[ds_idx] += q_routed
+                    q_in_prev[seg_idx] = q_reach_in
+
+                    # Pass routed outflow to downstream segment's inflow
+                    ds_idx = downstream[seg_idx]
+                    if ds_idx >= 0:
+                        q_in_t[ds_idx] += q_routed
 
         elapsed = time.time() - start
         self.logger.info(f"Muskingum-Cunge routing completed in {elapsed:.1f}s")
@@ -368,6 +412,12 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 f"mean Q = {np.mean(outlet_q):.3f} m³/s, "
                 f"max Q = {np.max(outlet_q):.3f} m³/s"
             )
+
+            # Volume conservation check
+            total_lateral = np.sum(q_seg) * dt
+            total_outlet = np.sum(q_out[:, outlet_indices[0]]) * dt
+            conservation_ratio = total_outlet / total_lateral if total_lateral > 0 else 0
+            self.logger.info(f"Volume conservation: {conservation_ratio:.3f} (outlet/lateral)")
 
         self.logger.info(f"Output written to {out_file}")
 

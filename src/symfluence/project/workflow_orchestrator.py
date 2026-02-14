@@ -12,6 +12,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.provenance import record_step
 
 
 @dataclass
@@ -56,7 +57,7 @@ class WorkflowOrchestrator(ConfigMixin):
         logging_manager: Reference to logging manager for enhanced formatting
     """
 
-    def __init__(self, managers: Dict[str, Any], config: Dict[str, Any], logger: logging.Logger, logging_manager=None):
+    def __init__(self, managers: Dict[str, Any], config: Dict[str, Any], logger: logging.Logger, logging_manager=None, provenance=None):
         """
         Initialize the workflow orchestrator.
 
@@ -70,6 +71,7 @@ class WorkflowOrchestrator(ConfigMixin):
             config (Dict[str, Any]): Configuration dictionary with all settings
             logger (logging.Logger): Logger instance for recording operations
             logging_manager: Reference to LoggingManager for enhanced formatting
+            provenance: Optional RunProvenance instance for step-level tracking
 
         Raises:
             KeyError: If essential configuration values are missing
@@ -79,6 +81,7 @@ class WorkflowOrchestrator(ConfigMixin):
         self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.logging_manager = logging_manager
+        self.provenance = provenance
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
 
@@ -387,6 +390,7 @@ class WorkflowOrchestrator(ConfigMixin):
                         self.logger.info(f"✓ Completed: {step_name} (Duration: {duration:.2f}s)")
 
                     completed_steps += 1
+                    record_step(self.provenance, step_name, duration)
                 else:
                     # Log skip
                     if self.logging_manager:
@@ -395,6 +399,7 @@ class WorkflowOrchestrator(ConfigMixin):
                         self.logger.info(f"→ Skipping: {step_name} (Output already exists)")
 
                     skipped_steps += 1
+                    record_step(self.provenance, step_name, 0.0, status="skipped")
 
             except Exception as e:
                 # Log failure
@@ -408,6 +413,7 @@ class WorkflowOrchestrator(ConfigMixin):
                     self.logger.error(f"Error: {str(e)}")
 
                 failed_steps += 1
+                record_step(self.provenance, step_name, 0.0, status="failed", error=str(e))
 
                 # Decide whether to continue or stop
                 if self._get_config_value(lambda: self.config.system.stop_on_error, default=True, dict_key='STOP_ON_ERROR'):
@@ -531,6 +537,7 @@ class WorkflowOrchestrator(ConfigMixin):
                     self.logger.info(f"✓ Completed step: {cli_name}")
 
                 results.append({"cli": cli_name, "fn": step.name, "success": True, "duration": duration})
+                record_step(self.provenance, step.name, duration)
 
             except Exception as e:
                 self.logger.error(f"Step '{cli_name}' failed: {e}")
@@ -539,6 +546,7 @@ class WorkflowOrchestrator(ConfigMixin):
                     self.logging_manager.log_completion(False, f"{step.description}: {str(e)}")
 
                 results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
+                record_step(self.provenance, step.name, 0.0, status="failed", error=str(e))
 
                 if not continue_on_error:
                     raise

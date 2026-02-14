@@ -672,7 +672,18 @@ class ToolInstaller(BaseService):
                 check_type = verify.get("check_type", "exists_all")
                 candidates = [install_dir / p for p in verify.get("file_paths", [])]
 
-                if check_type == "exists_any":
+                if check_type in ("python_module", "python_import"):
+                    module_name = verify.get("python_import", tool_name)
+                    try:
+                        import importlib
+                        importlib.import_module(module_name)
+                        ok = True
+                    except ImportError:
+                        ok = False
+                    status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
+                    self._console.indent(f"Install verification ({check_type}): {status}")
+                    return ok
+                elif check_type == "exists_any":
                     ok = any(p.exists() for p in candidates)
                 elif check_type in ("exists_all", "exists"):
                     ok = all(p.exists() for p in candidates)

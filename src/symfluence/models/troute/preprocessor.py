@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 import netCDF4 as nc4
+import numpy as np
 import yaml
 
 from symfluence.models.registry import ModelRegistry
@@ -112,6 +113,26 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
             self._create_and_fill_nc_var(ncid, 'alt', 'f8', 'link', [0.0] * len(shp_river), 'Mean elevation of segment', 'meters')
             self._create_and_fill_nc_var(ncid, 'from_node', 'i4', 'link', [0] * len(shp_river), 'Upstream node ID')
             self._create_and_fill_nc_var(ncid, 'n', 'f8', 'link', [0.035] * len(shp_river), 'Mannings roughness coefficient')
+
+            # Add drainage area from river network shapefile (DSContArea in km²)
+            if 'DSContArea' in shp_river.columns:
+                da_km2 = shp_river['DSContArea'].values.astype(np.float64)
+                self._create_and_fill_nc_var(ncid, 'drainage_area_km2', 'f8', 'link', da_km2, 'Downstream contributing area', 'km^2')
+                self.logger.info(f"Drainage area: {da_km2.min():.1f}-{da_km2.max():.1f} km²")
+
+                # Compute channel width from hydraulic geometry: W = a * A^b
+                hg_a = float(self.config_dict.get('TROUTE_HG_WIDTH_COEFF', 2.71))
+                hg_b = float(self.config_dict.get('TROUTE_HG_WIDTH_EXP', 0.557))
+                da_clamped = np.maximum(da_km2, 0.01)
+                channel_width = np.maximum(hg_a * da_clamped ** hg_b, 1.0)
+                self._create_and_fill_nc_var(ncid, 'channel_width', 'f8', 'link', channel_width, 'Channel width from hydraulic geometry', 'meters')
+                self.logger.info(f"Channel width (W={hg_a}*A^{hg_b}): {channel_width.min():.1f}-{channel_width.max():.1f} m")
+            else:
+                self.logger.warning("DSContArea not found in river shapefile — channel width will use fallback")
+
+            # Add stream order if available
+            if 'strmOrder' in shp_river.columns:
+                self._create_and_fill_nc_var(ncid, 'stream_order', 'i4', 'link', shp_river['strmOrder'], 'Strahler stream order')
 
         self.logger.info(f"t-route topology file created at {topology_filepath}")
 

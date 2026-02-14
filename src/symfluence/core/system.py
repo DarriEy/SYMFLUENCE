@@ -26,6 +26,7 @@ from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
 from symfluence.project.logging_manager import LoggingManager
 from symfluence.project.manager_factory import LazyManagerDict
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.provenance import capture_provenance, finalize as finalize_provenance
 
 
 class SYMFLUENCE:
@@ -83,12 +84,20 @@ class SYMFLUENCE:
             self.logger.info(f"Configuration overrides applied: {list(self.config_overrides.keys())}")
 
 
+        # Capture provenance metadata
+        self.provenance = capture_provenance(
+            experiment_id=self.config.get('EXPERIMENT_ID', 'unknown'),
+            domain_name=self.config.get('DOMAIN_NAME', 'unknown'),
+            config_path=str(self.config_path) if self.config_path else None,
+        )
+
         # Initialize managers (lazy loaded)
         self.managers = LazyManagerDict(self.typed_config, self.logger, self.visualize, self.diagnostic)
 
         # Initialize workflow orchestrator
         self.workflow_orchestrator = WorkflowOrchestrator(
-            self.managers, self.config, self.logger, self.logging_manager
+            self.managers, self.config, self.logger, self.logging_manager,
+            provenance=self.provenance,
         )
 
 
@@ -150,6 +159,11 @@ class SYMFLUENCE:
                 execution_time=elapsed_s,
                 status=status,
             )
+            # Write provenance manifest
+            finalize_provenance(self.provenance, status,
+                                errors=[e.get("error", str(e)) for e in errors] if errors else None)
+            manifest = self.provenance.write(self.logging_manager.log_dir)
+            self.logger.info(f"Run manifest written to: {manifest}")
 
     def run_individual_steps(self, step_names: List[str]) -> None:
         """
@@ -193,6 +207,11 @@ class SYMFLUENCE:
                 execution_time=elapsed_s,
                 status=status,
             )
+            # Write provenance manifest
+            finalize_provenance(self.provenance, status,
+                                errors=[e.get("error", str(e)) for e in errors] if errors else None)
+            manifest = self.provenance.write(self.logging_manager.log_dir)
+            self.logger.info(f"Run manifest written to: {manifest}")
 
     def run_diagnostics_for_step(self, step_name: str) -> List[str]:
         """

@@ -259,6 +259,86 @@ class TestNativeFallbackPaths:
         assert np.all(np.isfinite(runoff))
 
 
+class TestTRouteMCCalibrationVerification:
+    """Verify that updating Manning's n in topology changes MC routing output."""
+
+    @staticmethod
+    def _create_topology(path, seg_ids, to_node, n_val, n_seg):
+        """Create a minimal topology NetCDF for testing."""
+        import netCDF4 as nc4
+        with nc4.Dataset(path, 'w', format='NETCDF4') as ncid:
+            ncid.createDimension('link', n_seg)
+            ncid.createDimension('nhru', n_seg)
+            for name, vals in [('comid', seg_ids), ('to_node', to_node)]:
+                v = ncid.createVariable(name, 'i4', ('link',))
+                v[:] = vals
+            for name, vals in [
+                ('length', [5000.0] * n_seg),
+                ('slope', [0.001] * n_seg),
+                ('n', [n_val] * n_seg),
+                ('channel_width', [15.0] * n_seg),
+            ]:
+                v = ncid.createVariable(name, 'f8', ('link',))
+                v[:] = vals
+            v = ncid.createVariable('link_id_hru', 'i4', ('nhru',))
+            v[:] = seg_ids
+            v = ncid.createVariable('hru_area_m2', 'f8', ('nhru',))
+            v[:] = [1.0] * n_seg
+
+    def test_mannings_n_changes_output(self, tmp_path):
+        """Write two topologies with different n, verify routed output differs."""
+        import logging
+        import xarray as xr
+        from symfluence.models.troute.runner import TRouteRunner
+
+        n_seg = 3
+        n_time = 10
+        seg_ids = np.array([1, 2, 3])
+        to_node = np.array([2, 3, 0])  # 1→2→3→outlet
+
+        # Create lateral inflow file
+        q_lateral = np.random.RandomState(42).uniform(1.0, 5.0, (n_time, n_seg))
+        time_vals = np.arange(n_time)
+        ds_runoff = xr.Dataset(
+            {'q_lateral': (['time', 'hru'], q_lateral)},
+            coords={'time': time_vals, 'hru': seg_ids},
+        )
+        runoff_path = tmp_path / 'runoff.nc'
+        ds_runoff.to_netcdf(runoff_path)
+
+        results = {}
+        for label, n_val in [('low', 0.02), ('high', 0.08)]:
+            topo_path = tmp_path / f'topo_{label}.nc'
+            self._create_topology(topo_path, seg_ids, to_node, n_val, n_seg)
+
+            out_dir = tmp_path / f'out_{label}'
+            out_dir.mkdir()
+
+            # Use a lightweight stub that bypasses full runner init
+            # but provides the interface _run_builtin_muskingum_cunge needs
+            runner = object.__new__(TRouteRunner)
+            runner.logger = logging.getLogger('test_mc')
+            runner.config_dict = {
+                'SETTINGS_TROUTE_DT_SECONDS': '3600',
+                'TROUTE_QTS_SUBDIVISIONS': '1',
+            }
+            runner._run_builtin_muskingum_cunge(runoff_path, topo_path, out_dir)
+
+            ds_out = xr.open_dataset(out_dir / 'troute_output.nc')
+            results[label] = ds_out['flow'].values.copy()
+            ds_out.close()
+
+        # Flows must differ — higher n should produce lower peak & more attenuation
+        assert not np.allclose(results['low'], results['high'], atol=1e-6), \
+            "Manning's n change did not affect routing output"
+
+        # Higher n → more attenuation → lower max flow at outlet (seg 3, idx 2)
+        max_low = np.max(results['low'][:, 2])
+        max_high = np.max(results['high'][:, 2])
+        assert max_low > max_high, \
+            f"Expected higher n to reduce peak flow: n=0.02 peak={max_low:.3f}, n=0.08 peak={max_high:.3f}"
+
+
 @pytest.mark.skipif(not dcoupler_available, reason="dCoupler not installed")
 class TestSUMMATRouteEquivalence:
     """Compare SUMMA->TRoute coupling: standalone runner vs dCoupler graph.
