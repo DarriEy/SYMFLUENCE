@@ -112,11 +112,12 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
             self._create_and_fill_nc_var(ncid, 'lon', 'f8', 'link', shp_river['lon'], 'Longitude of segment midpoint', 'degrees_east')
             self._create_and_fill_nc_var(ncid, 'alt', 'f8', 'link', [0.0] * len(shp_river), 'Mean elevation of segment', 'meters')
             self._create_and_fill_nc_var(ncid, 'from_node', 'i4', 'link', [0] * len(shp_river), 'Upstream node ID')
-            self._create_and_fill_nc_var(ncid, 'n', 'f8', 'link', [0.035] * len(shp_river), 'Mannings roughness coefficient')
+            mannings_n = float(self.config_dict.get('TROUTE_MANNINGS_N', 0.035))
+            self._create_and_fill_nc_var(ncid, 'n', 'f8', 'link', [mannings_n] * len(shp_river), 'Mannings roughness coefficient')
 
-            # Add drainage area from river network shapefile (DSContArea in km²)
+            # Add drainage area from river network shapefile (DSContArea is in m²)
             if 'DSContArea' in shp_river.columns:
-                da_km2 = shp_river['DSContArea'].values.astype(np.float64)
+                da_km2 = shp_river['DSContArea'].values.astype(np.float64) / 1e6
                 self._create_and_fill_nc_var(ncid, 'drainage_area_km2', 'f8', 'link', da_km2, 'Downstream contributing area', 'km^2')
                 self.logger.info(f"Drainage area: {da_km2.min():.1f}-{da_km2.max():.1f} km²")
 

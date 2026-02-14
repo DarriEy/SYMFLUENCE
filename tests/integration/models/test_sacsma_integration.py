@@ -161,6 +161,7 @@ class TestWorkerSimulation:
         config = {
             'DOMAIN_NAME': 'test',
             'WARMUP_DAYS': 0,
+            'SACSMA_SNOW_MODULE': 'none',
         }
         worker = SacSmaWorker(config=config)
 

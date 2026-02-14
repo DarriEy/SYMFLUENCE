@@ -66,11 +66,19 @@ class TestDCouplerWorkerApplyParams:
         from symfluence.coupling.worker import DCouplerWorker
         import logging
 
+        # Ensure the symfluence logger hierarchy allows DEBUG capture even
+        # when LoggingManager from a prior test has set propagate=False or
+        # raised the effective level on the parent logger.
+        for name in ("symfluence", "symfluence.coupling", "symfluence.coupling.worker"):
+            lg = logging.getLogger(name)
+            lg.setLevel(logging.DEBUG)
+            lg.propagate = True
+
         worker = DCouplerWorker({})
         mock_comp = MagicMock()
         mock_comp.name = "land"
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.DEBUG, logger="symfluence.coupling.worker"):
             worker._apply_process_params(mock_comp, {'k1': 0.5}, '/tmp/settings')
 
         assert "Parameter application for process models" in caplog.text
@@ -79,11 +87,16 @@ class TestDCouplerWorkerApplyParams:
         from symfluence.coupling.worker import DCouplerWorker
         import logging
 
+        for name in ("symfluence", "symfluence.coupling", "symfluence.coupling.worker"):
+            lg = logging.getLogger(name)
+            lg.setLevel(logging.DEBUG)
+            lg.propagate = True
+
         worker = DCouplerWorker({})
         mock_comp = MagicMock()
         mock_comp.name = "land"
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.DEBUG, logger="symfluence.coupling.worker"):
             worker._apply_process_params(mock_comp, {}, '/tmp/settings')
 
         assert "Parameter application" not in caplog.text

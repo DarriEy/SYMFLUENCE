@@ -203,9 +203,11 @@ class CLMWorker(BaseWorker):
         CLM reads lnd_in (not user_nl_clm) when CIME is bypassed.
         This method:
         1. Points paramfile and fsurdat to the iteration-specific copies
-        2. Updates baseflow_scalar in &soilhydrology_inparm
+        2. Injects namelist calibration parameters into their correct
+           &section in lnd_in (e.g. baseflow_scalar, int_snow_max)
         """
         import re
+        from .parameter_manager import CLM_PARAM_DEFS
 
         lnd_in_path = settings_dir / 'lnd_in'
         if not lnd_in_path.exists():
@@ -231,13 +233,35 @@ class CLMWorker(BaseWorker):
             content,
         )
 
-        # Update baseflow_scalar if it's being calibrated
-        if 'baseflow_scalar' in nl_params:
-            content = re.sub(
-                r"baseflow_scalar\s*=\s*[\d.eEdD+-]+",
-                f"baseflow_scalar = {nl_params['baseflow_scalar']:.8g}d00",
-                content,
-            )
+        # Inject namelist calibration params into their correct sections
+        for name, value in nl_params.items():
+            if name not in CLM_PARAM_DEFS:
+                continue
+            target, section, _ = CLM_PARAM_DEFS[name]
+            if target != 'namelist' or section is None:
+                continue
+
+            # Format value as Fortran double
+            val_str = f"{value:.8g}d00"
+
+            # Try to update existing line first
+            pattern = rf"({name}\s*=\s*)[\d.eEdD+-]+"
+            if re.search(pattern, content):
+                content = re.sub(pattern, rf"\g<1>{val_str}", content)
+            else:
+                # Insert into the correct &section before the closing /
+                section_pattern = rf"(&{section}\s*\n)(.*?)(^/\s*$)"
+                match = re.search(section_pattern, content, re.MULTILINE | re.DOTALL)
+                if match:
+                    insert = f" {name} = {val_str}\n"
+                    content = (
+                        content[:match.end(2)]
+                        + insert
+                        + content[match.start(3):]
+                    )
+                    self.logger.debug(
+                        f"Inserted {name} = {val_str} into &{section}"
+                    )
 
         lnd_in_path.write_text(content)
         self.logger.debug(

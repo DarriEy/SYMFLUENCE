@@ -24,16 +24,17 @@ from symfluence.optimization.registry import OptimizerRegistry
 # (target_file, nc_variable_or_None, transform)
 # target_file: 'namelist' | 'params' | 'surfdata'
 # For surfdata multipliers (*_mult), value is multiplied with base values.
+# For 'namelist' params, nc_variable stores the lnd_in section name.
 CLM_PARAM_DEFS = {
-    # --- Hydrology (namelist) ---
-    'fover':            ('namelist', None, 'linear'),
-    'fdrai':            ('namelist', None, 'linear'),
-    'baseflow_scalar':  ('namelist', None, 'log'),
+    # --- Hydrology (params.nc scalars) ---
+    'baseflow_scalar':  ('namelist', 'soilhydrology_inparm', 'log'),
     'fff':              ('params', 'fff', 'linear'),
-    'dewmx':            ('namelist', None, 'linear'),
     'wimp':             ('params', 'wimp', 'linear'),
     'ksatdecay':        ('params', 'pc', 'log'),
-    'kaccum':           ('namelist', None, 'linear'),
+    'n_baseflow':       ('params', 'n_baseflow', 'linear'),
+    'perched_baseflow_scalar': ('params', 'perched_baseflow_scalar', 'log'),
+    'interception_fraction':   ('params', 'interception_fraction', 'linear'),
+    'max_leaf_wetted_frac':    ('params', 'maximum_leaf_wetted_fraction', 'linear'),
     # --- Surfdata (soil hydraulic multipliers) ---
     'fmax':             ('surfdata', 'FMAX', 'linear'),
     'bsw_mult':         ('surfdata', 'bsw', 'linear'),
@@ -41,7 +42,6 @@ CLM_PARAM_DEFS = {
     'watsat_mult':      ('surfdata', 'watsat', 'linear'),
     'hksat_mult':       ('surfdata', 'hksat', 'log'),
     'organic_max':      ('surfdata', 'ORGANIC', 'linear'),
-    'zsapric':          ('surfdata', None, 'linear'),
     # --- Snow (params.nc) ---
     'fresh_snw_rds_max': ('params', 'fresh_snw_rds_max', 'linear'),
     'snw_aging_bst':     ('params', 'snw_aging_bst', 'linear'),
@@ -49,6 +49,9 @@ CLM_PARAM_DEFS = {
     'accum_factor':      ('params', 'accum_factor', 'linear'),
     'SNOW_DENSITY_MAX':  ('params', 'SNOW_DENSITY_MAX', 'linear'),
     'SNOW_DENSITY_MIN':  ('params', 'SNOW_DENSITY_MIN', 'linear'),
+    'n_melt_coef':       ('params', 'n_melt_coef', 'linear'),
+    # --- Snow (namelist in lnd_in) ---
+    'int_snow_max':     ('namelist', 'scf_swenson_lawrence_2012_inparm', 'linear'),
     # --- Vegetation/PFT (params.nc, PFT-indexed) ---
     'medlynslope':      ('params', 'medlynslope', 'linear'),
     'slatop':           ('params', 'slatop', 'linear'),
@@ -57,17 +60,17 @@ CLM_PARAM_DEFS = {
     'stem_leaf':        ('params', 'stem_leaf', 'linear'),
 }
 
-# Default bounds for all 26 parameters
+# Default bounds for all parameters
 CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     # Hydrology
-    'fover':            {'min': 0.01, 'max': 5.0},
-    'fdrai':            {'min': 0.0, 'max': 200.0},
     'baseflow_scalar':  {'min': 0.001, 'max': 0.1, 'transform': 'log'},
     'fff':              {'min': 0.02, 'max': 1.0},
-    'dewmx':            {'min': 0.05, 'max': 0.2},
     'wimp':             {'min': 0.01, 'max': 0.1},
     'ksatdecay':        {'min': 0.1, 'max': 10.0, 'transform': 'log'},
-    'kaccum':           {'min': 0.0, 'max': 1e-6},
+    'n_baseflow':       {'min': 0.5, 'max': 5.0},
+    'perched_baseflow_scalar': {'min': 1e-7, 'max': 1e-3, 'transform': 'log'},
+    'interception_fraction':   {'min': 0.2, 'max': 1.0},
+    'max_leaf_wetted_frac':    {'min': 0.01, 'max': 0.2},
     # Surfdata
     'fmax':             {'min': 0.0, 'max': 1.0},
     'bsw_mult':         {'min': 0.5, 'max': 2.0},
@@ -75,7 +78,6 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     'watsat_mult':      {'min': 0.8, 'max': 1.2},
     'hksat_mult':       {'min': 0.01, 'max': 100.0, 'transform': 'log'},
     'organic_max':      {'min': 0.0, 'max': 130.0},
-    'zsapric':          {'min': 0.1, 'max': 2.0},
     # Snow
     'fresh_snw_rds_max': {'min': 50.0, 'max': 200.0},
     'snw_aging_bst':     {'min': 0.0, 'max': 200.0},
@@ -83,6 +85,8 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     'accum_factor':      {'min': -0.1, 'max': 0.1},
     'SNOW_DENSITY_MAX':  {'min': 250.0, 'max': 550.0},
     'SNOW_DENSITY_MIN':  {'min': 50.0, 'max': 200.0},
+    'n_melt_coef':       {'min': 50.0, 'max': 500.0},
+    'int_snow_max':      {'min': 500.0, 'max': 5000.0},
     # Vegetation/PFT
     'medlynslope':      {'min': 2.0, 'max': 12.0},
     'slatop':           {'min': 0.005, 'max': 0.06},
@@ -357,18 +361,64 @@ class CLMParameterManager(BaseParameterManager):
         ds.close()
         return True
 
+    # CLM5 default values — better starting point for DDS than midpoints.
+    # Values from global CLM5 parameter files and the previous (v1)
+    # calibration best at KGE=0.578 for Bow at Banff.
+    CLM_INITIAL_GUESS: Dict[str, float] = {
+        # From v1 calibration best (KGE=0.578)
+        'baseflow_scalar': 0.01125,
+        'fff': 0.4015,
+        'wimp': 0.0303,
+        'ksatdecay': 5.515,
+        'fmax': 0.860,
+        'bsw_mult': 1.727,
+        'sucsat_mult': 0.727,
+        'watsat_mult': 0.926,
+        'hksat_mult': 2.433,
+        'organic_max': 87.0,
+        'fresh_snw_rds_max': 167.0,
+        'snw_aging_bst': 185.9,
+        'SNO_Z0MV': 0.000211,
+        'accum_factor': 0.000122,
+        'SNOW_DENSITY_MAX': 427.6,
+        'SNOW_DENSITY_MIN': 109.3,
+        'medlynslope': 10.76,
+        'slatop': 0.00703,
+        'flnr': 0.1027,
+        'froot_leaf': 2.123,
+        'stem_leaf': 2.670,
+        # New params — CLM5 defaults
+        'n_baseflow': 1.0,
+        'perched_baseflow_scalar': 1e-5,
+        'interception_fraction': 1.0,
+        'max_leaf_wetted_frac': 0.05,
+        'n_melt_coef': 200.0,
+        'int_snow_max': 2000.0,
+    }
+
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
-        """Get initial parameter values (midpoint of bounds, geometric mean for log)."""
+        """Get initial parameter values.
+
+        Uses CLM5 defaults and previous calibration best values as a warm
+        start for DDS, falling back to midpoint/geometric mean for any
+        params not in CLM_INITIAL_GUESS.
+        """
         initial = {}
         for name in self.clm_params:
             if name not in CLM_DEFAULT_BOUNDS:
                 continue
             b = CLM_DEFAULT_BOUNDS[name]
-            transform = b.get('transform', 'linear')
-            if transform == 'log' and b['min'] > 0:
-                initial[name] = math.sqrt(b['min'] * b['max'])
+            if name in self.CLM_INITIAL_GUESS:
+                val = self.CLM_INITIAL_GUESS[name]
+                # Clamp to bounds
+                val = max(b['min'], min(b['max'], val))
+                initial[name] = val
             else:
-                initial[name] = (b['min'] + b['max']) / 2.0
+                transform = b.get('transform', 'linear')
+                if transform == 'log' and b['min'] > 0:
+                    initial[name] = math.sqrt(b['min'] * b['max'])
+                else:
+                    initial[name] = (b['min'] + b['max']) / 2.0
         return initial if initial else None
 
     def _get_active_pfts(self) -> List[int]:
