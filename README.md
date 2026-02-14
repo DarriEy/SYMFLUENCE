@@ -17,7 +17,7 @@
 
 ## Quick Links
 
-- **Install:** `npm install -g symfluence` or `pip install symfluence`
+- **Install:** `pip install symfluence` or `uv pip install symfluence`
 - **Documentation:** [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
 - **Website:** [symfluence.org](https://symfluence.org)
 - **Discussions:** [GitHub Discussions](https://github.com/DarriEy/SYMFLUENCE/discussions)
@@ -29,33 +29,12 @@
 
 ### Quick Start (Recommended)
 
-**Option 1: npm (Includes pre-built binaries)**
+**Option 1: pip**
 ```bash
-# Install globally (includes SUMMA, mizuRoute, FUSE, NGEN, TauDEM)
-npm install -g symfluence
-
-# Verify installation
-symfluence binary info
-
-# Check system compatibility
-symfluence binary doctor
-```
-
-**Requirements:**
-- **Linux**: Ubuntu 22.04+, RHEL 9+, or Debian 12+ (x86_64)
-- **macOS**: macOS 12+ (Apple Silicon M1/M2/M3)
-- **System libraries**: NetCDF, HDF5 (install via package manager)
-
-**Option 2: Python only**
-```bash
-# Install Python framework
 pip install symfluence
-
-# Install modeling tools separately (if npm not used)
-symfluence binary install
 ```
 
-**Option 3: uv (Fast Python installer)**
+**Option 2: uv (Fast Python installer)**
 ```bash
 # Into current environment
 uv pip install symfluence
@@ -64,18 +43,17 @@ uv pip install symfluence
 uv tool install symfluence
 ```
 
-**Option 4: pipx (Isolated CLI)**
+**Option 3: pipx (Isolated CLI)**
 ```bash
 pipx install symfluence
 ```
 
-> **Note:** Options 2–4 install the Python orchestration layer only. External model
-> binaries (SUMMA, mizuRoute, etc.) still need `symfluence binary install` or
-> `npm install -g symfluence`.
+After installation, install external model binaries:
+```bash
+symfluence binary install
+```
 
 ### Development Installation
-
-For development or custom builds:
 
 ```bash
 # Clone repository
@@ -89,10 +67,31 @@ cd SYMFLUENCE
 This creates a clean Python 3.11 virtual environment, installs dependencies, and builds binaries.
 For detailed instructions (ARC, FIR, Anvil, custom builds), see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
+### npm (Optional — Experimental)
+
+The npm package bundles pre-built binaries (SUMMA, mizuRoute, FUSE, NGEN, TauDEM) for supported platforms:
+
+```bash
+npm install -g symfluence
+
+# Verify bundled binaries
+symfluence binary info
+
+# Check system compatibility
+symfluence binary doctor
+```
+
+**Supported platforms:**
+- **Linux**: Ubuntu 22.04+, RHEL 9+, or Debian 12+ (x86_64)
+- **macOS**: macOS 12+ (Apple Silicon M1/M2/M3)
+
+> **Note:** The npm package is an alternative distribution channel for pre-built binaries.
+> The Python package (`pip`/`uv`) is the primary installation method.
+
 ### System Requirements
 
-- **npm installation**: See [tools/npm/README.md](tools/npm/README.md) for platform-specific requirements (release-only packaging)
 - **Build dependencies**: See the installation guide at https://symfluence.readthedocs.io/en/latest/installation.html
+- **npm installation**: See [tools/npm/README.md](tools/npm/README.md) for platform-specific requirements
 
 ### System Dependencies (Important)
 
