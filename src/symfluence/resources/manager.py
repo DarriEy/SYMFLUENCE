@@ -209,6 +209,35 @@ def copy_base_settings_to_project(model_name: str, destination: Path) -> None:
             shutil.copy2(item, dest_file)
 
 
+def get_system_deps_registry_path() -> Path:
+    """
+    Get path to the system dependencies YAML registry.
+
+    Returns:
+        Path to system_deps.yml
+
+    Raises:
+        FileNotFoundError: If registry file doesn't exist
+    """
+    try:
+        registry_file = files('symfluence.resources') / 'system_deps.yml'
+
+        if hasattr(registry_file, '__fspath__'):
+            path = Path(registry_file)
+        else:
+            path = Path(str(registry_file))
+
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"System deps registry not found at: {path}")
+
+        return path
+
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
+        raise FileNotFoundError(
+            "System dependency registry (system_deps.yml) not found in package resources."
+        ) from e
+
+
 def copy_config_template_to_project(destination: Path,
                                     template_name: str = 'config_template.yaml',
                                     output_name: str = None) -> Path:

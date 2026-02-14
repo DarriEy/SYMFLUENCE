@@ -3,6 +3,10 @@
 This document describes the system requirements for running SYMFLUENCE,
 including pre-built binary packages (via npm) and building from source.
 
+> **Canonical machine-readable source:** All system dependencies are defined in
+> [`src/symfluence/resources/system_deps.yml`](../src/symfluence/resources/system_deps.yml).
+> Run `symfluence binary doctor` to check your environment against this registry.
+
 ---
 
 ## Python

@@ -315,11 +315,40 @@ class SystemDiagnostics(BaseService):
 
     def _check_system_libraries(self) -> tuple:
         """
-        Check system library availability.
+        Check system library availability using the canonical dependency registry.
 
         Returns:
             Tuple of (rows, found_count, total_count).
         """
+        try:
+            from .system_deps import SystemDepsRegistry
+
+            registry = SystemDepsRegistry()
+            results = registry.check_all_deps()
+
+            lib_rows = []
+            found_libs = 0
+            for r in results:
+                if r.found:
+                    status = "[green]OK[/green]"
+                    if not r.version_ok:
+                        status = "[yellow]OLD[/yellow]"
+                    version_str = f" ({r.version})" if r.version else ""
+                    loc_str = f"{r.path}{version_str}" if r.path else "-"
+                    found_libs += 1
+                else:
+                    status = "[red]MISSING[/red]"
+                    loc_str = r.install_command or "-"
+                lib_rows.append([r.display_name, status, loc_str])
+
+            return lib_rows, found_libs, len(results)
+
+        except Exception:
+            # Fall back to legacy hardcoded check if registry fails
+            return self._check_system_libraries_legacy()
+
+    def _check_system_libraries_legacy(self) -> tuple:
+        """Legacy fallback: check a hardcoded set of system tools."""
         system_tools = {
             "nc-config": "NetCDF",
             "nf-config": "NetCDF-Fortran",

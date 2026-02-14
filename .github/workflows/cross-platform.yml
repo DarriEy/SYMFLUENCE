@@ -122,6 +122,27 @@ jobs:
           # Run tests in parallel with pytest-xdist for 2-3x speedup
           pytest -v --tb=short -m "unit" -n auto tests/unit/ || echo "No unit tests found"
 
+      - name: Smoke-test install-sysdeps --dry-run
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
+          # Validate that platform detection and install-command generation work
+          python -c "
+          from symfluence.cli.services.system_deps import SystemDepsRegistry, Platform
+          r = SystemDepsRegistry()
+          print(f'Platform: {r.platform.value}')
+          assert r.platform != Platform.UNKNOWN, 'Platform should not be UNKNOWN in CI'
+          script = r.generate_install_script(tool_name='summa')
+          if script:
+              print('--- Generated install script ---')
+              print(script[:500])
+          else:
+              print('All deps found — no install script needed')
+          print('install-sysdeps dry-run: OK')
+          "
+
   # ===========================================================================
   # BINARY VALIDATION: Test external tools on each platform
   # ===========================================================================

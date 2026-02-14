@@ -25,6 +25,7 @@ from .base import BaseService
 from .tool_installer import ToolInstaller
 from .tool_validator import ToolValidator
 from .system_diagnostics import SystemDiagnostics
+from .system_deps import SystemDepsRegistry
 
 # Project management services
 from .initialization import InitializationService, InitializationManager
@@ -58,6 +59,7 @@ __all__ = [
     'ToolInstaller',
     'ToolValidator',
     'SystemDiagnostics',
+    'SystemDepsRegistry',
     # Project management services
     'InitializationService',
     'InitializationManager',  # Backward compatibility alias

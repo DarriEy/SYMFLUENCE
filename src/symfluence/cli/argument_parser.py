@@ -437,6 +437,21 @@ For more help on a specific command:
         )
         doctor_parser.set_defaults(func=BinaryCommands.doctor)
 
+        # binary install-sysdeps
+        install_sysdeps_parser = binary_subparsers.add_parser(
+            'install-sysdeps',
+            help='Install system dependencies (compilers, libraries)'
+        )
+        install_sysdeps_parser.add_argument(
+            '--tool', type=str, default=None,
+            help='Install deps for a specific tool only (e.g. summa, fuse)'
+        )
+        install_sysdeps_parser.add_argument(
+            '--dry-run', action='store_true',
+            help='Show install commands without executing them'
+        )
+        install_sysdeps_parser.set_defaults(func=BinaryCommands.install_sysdeps)
+
         # binary info
         info_parser = binary_subparsers.add_parser(
             'info',
