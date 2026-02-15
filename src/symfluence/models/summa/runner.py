@@ -24,12 +24,13 @@ import pandas as pd
 import xarray as xr
 
 from ..registry import ModelRegistry
+from ..state import StateCapableMixin, StateFormat, StateMetadata, ModelState
 from ..templates import UnifiedModelRunner, ModelRunResult
 from ..execution import ExecutionResult, SlurmJobConfig
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
-class SummaRunner(UnifiedModelRunner):
+class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
     """
     A class to run the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
@@ -175,6 +176,75 @@ class SummaRunner(UnifiedModelRunner):
             self._convert_lumped_for_routing()
 
         return run_result
+
+    # =========================================================================
+    # State Save/Restore (StateCapableMixin)
+    # =========================================================================
+
+    def get_state_format(self) -> StateFormat:
+        return StateFormat.FILE_NETCDF
+
+    def get_state_variables(self) -> List[str]:
+        return [
+            'scalarSWE', 'scalarSnowDepth', 'mLayerTemp', 'mLayerVolFracIce',
+            'mLayerVolFracLiq', 'mLayerMatricHead', 'scalarAquiferStorage',
+            'scalarSurfaceTemp', 'mLayerDepth',
+        ]
+
+    def get_state_directory(self) -> Optional[Path]:
+        return getattr(self, 'output_dir', None)
+
+    def get_state_file_pattern(self) -> str:
+        return "*_restart_*.nc"
+
+    def save_state(
+        self,
+        target_dir: Path,
+        timestamp: str,
+        ensemble_member: Optional[int] = None,
+    ) -> ModelState:
+        """Locate the newest SUMMA restart file and copy to target_dir."""
+        import shutil
+
+        target_dir = Path(target_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Find restart files in output directory
+        state_dir = self.get_state_directory() or self.output_dir
+        restart_files = sorted(state_dir.glob(self.get_state_file_pattern()))
+
+        if not restart_files:
+            from ..state.exceptions import StateError
+            raise StateError(f"No SUMMA restart files found in {state_dir}")
+
+        newest = max(restart_files, key=lambda p: p.stat().st_mtime)
+        dst = target_dir / newest.name
+        shutil.copy2(str(newest), str(dst))
+        self.logger.info("Saved SUMMA state: %s -> %s", newest, dst)
+
+        metadata = StateMetadata(
+            model_name='SUMMA',
+            timestamp=timestamp,
+            format=StateFormat.FILE_NETCDF,
+            variables=self.get_state_variables(),
+            ensemble_member=ensemble_member,
+        )
+        return ModelState(metadata=metadata, files=[dst])
+
+    def load_state(self, state: ModelState) -> None:
+        """Copy state file into settings directory as coldState.nc."""
+        import shutil
+
+        if not state.files:
+            self.logger.warning("No state files to load for SUMMA")
+            return
+
+        coldstate_name = self.config_dict.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+        dst = self.settings_path / coldstate_name
+
+        src = state.files[0]
+        shutil.copy2(str(src), str(dst))
+        self.logger.info("Loaded SUMMA state: %s -> %s", src, dst)
 
     # =========================================================================
     # SUMMA-Specific Methods
