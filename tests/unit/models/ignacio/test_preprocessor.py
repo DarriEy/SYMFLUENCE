@@ -39,6 +39,7 @@ class TestIGNACIOOptimizerRegistration:
     """Tests for IGNACIO optimizer registration."""
 
     def test_optimizer_registered(self):
-        import symfluence.models.ignacio  # noqa: F401 — triggers decorator registration
+        from symfluence.models.ignacio.calibration.optimizer import IGNACIOModelOptimizer
         from symfluence.optimization.registry import OptimizerRegistry
-        assert 'IGNACIO' in OptimizerRegistry._optimizers
+        assert OptimizerRegistry.is_registered('IGNACIO')
+        assert OptimizerRegistry.get_optimizer('IGNACIO') is IGNACIOModelOptimizer

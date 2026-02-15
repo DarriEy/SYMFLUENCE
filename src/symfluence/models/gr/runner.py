@@ -327,6 +327,8 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
 
             with rasterio.open(dem_path) as src:
+                if catchment.crs != src.crs:
+                    catchment = catchment.to_crs(src.crs)
                 out_image, out_transform = rasterio.mask.mask(src, catchment.geometry, crop=True)
                 masked_dem = out_image[0]
                 masked_dem = masked_dem[masked_dem != src.nodata]
@@ -672,6 +674,8 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
 
             # Mask DEM with catchment boundary
             with rasterio.open(dem_path) as src:
+                if catchment.crs != src.crs:
+                    catchment = catchment.to_crs(src.crs)
                 out_image, out_transform = rasterio.mask.mask(src, catchment.geometry, crop=True)
                 masked_dem = out_image[0]
                 masked_dem = masked_dem[masked_dem != src.nodata]

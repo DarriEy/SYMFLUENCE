@@ -193,6 +193,46 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
         requires_routing={SpatialMode.LUMPED: False},
         warning_message=None
     ),
+
+    'MIKESHE': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=(
+            "MIKE-SHE is an integrated physics-based model. "
+            "Lumped mode uses a single-cell domain with internal routing."
+        )
+    ),
+
+    'SWAT': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=(
+            "SWAT is a semi-distributed model. Lumped mode uses "
+            "a single-HRU/subbasin configuration."
+        )
+    ),
+
+    'MHM': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=(
+            "mHM is a mesoscale hydrological model. Lumped mode uses "
+            "a single-cell domain with multiscale parameter regionalization."
+        )
+    ),
+
+    'CRHM': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED},
+        default_mode=SpatialMode.LUMPED,
+        requires_routing={SpatialMode.LUMPED: False},
+        warning_message=(
+            "CRHM is a cold-region hydrological model. Lumped mode uses "
+            "a single-HRU configuration with blowing snow and frozen soil."
+        )
+    ),
 }
 
 

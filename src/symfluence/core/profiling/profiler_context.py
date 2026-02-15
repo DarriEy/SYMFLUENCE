@@ -99,7 +99,10 @@ def _register_worker_export():
             # Silently fail - don't want to crash on exit
             pass
 
-    atexit.register(export_on_exit)
+    try:
+        atexit.register(export_on_exit)
+    except Exception:
+        pass  # interpreter may already be shutting down
 
 
 def set_profiler(profiler: Optional[IOProfiler]) -> None:

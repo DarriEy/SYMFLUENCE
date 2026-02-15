@@ -3,6 +3,11 @@ Log viewer component.
 
 Displays a terminal-style widget bound to WorkflowState.log_text
 with auto-scroll and a clear button.
+
+Uses periodic polling (every 300ms) to flush accumulated log text
+to the Terminal widget. This approach is robust across threading
+contexts — it works regardless of whether log appends originate
+from the Tornado event loop, daemon threads, or direct calls.
 """
 
 import param
@@ -19,19 +24,35 @@ class LogViewer(param.Parameterized):
         self._terminal = pn.widgets.Terminal(
             '',
             sizing_mode='stretch_both',
-            min_height=400,
-            options={'cursorBlink': False, 'scrollback': 10000},
+            min_height=200,
+            options={
+                'cursorBlink': False,
+                'scrollback': 10000,
+                'fontSize': 12,
+                'fontFamily': '"SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace',
+            },
         )
-        # Watch for log text changes
-        self.state.param.watch(self._on_log_change, 'log_text')
+        self._flushed_len = 0
+        self._periodic_cb = None
 
-    def _on_log_change(self, event):
-        """When log_text grows, write the new content to the terminal."""
-        new_text = event.new
-        old_text = event.old or ''
-        if len(new_text) > len(old_text):
-            delta = new_text[len(old_text):]
+    def start_polling(self):
+        """Begin periodic log flushing.  Call once the event loop is running."""
+        if self._periodic_cb is None:
+            self._periodic_cb = pn.state.add_periodic_callback(
+                self._flush, period=300,
+            )
+
+    def _flush(self):
+        """Write any new log_text content to the terminal widget."""
+        text = self.state.log_text or ''
+        if len(text) <= self._flushed_len:
+            return
+        delta = text[self._flushed_len:]
+        self._flushed_len = len(text)
+        try:
             self._terminal.write(delta)
+        except Exception:
+            pass
 
     def panel(self):
         """Return the Panel layout."""
@@ -40,11 +61,12 @@ class LogViewer(param.Parameterized):
         def _on_clear(event):
             self._terminal.clear()
             self.state.log_text = ""
+            self._flushed_len = 0
 
         clear_btn.on_click(_on_clear)
 
         return pn.Column(
-            pn.Row(pn.pane.Str("## Logs", sizing_mode='stretch_width'), clear_btn),
+            pn.Row(pn.Spacer(sizing_mode='stretch_width'), clear_btn),
             self._terminal,
             sizing_mode='stretch_both',
         )
