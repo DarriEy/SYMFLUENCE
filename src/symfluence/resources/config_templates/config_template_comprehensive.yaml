@@ -4983,3 +4983,183 @@ GNN_PARAMS_TO_CALIBRATE: precip_mult,temp_offset,routing_velocity
 #   Source:      GNNConfig (model_configs.py)
 #   Usage:      Parameter bounds for GNN calibration
 GNN_PARAMETER_BOUNDS: null
+
+
+# 18. State Management
+# ================================================================================
+# Configuration for model state save/restore, enabling ensemble forecasting,
+# warm-starting, and FEWS operational cycling.
+
+# STATE_MANAGEMENT_ENABLED
+#   Type:        bool
+#   Default:     False
+#   Source:      StateConfig (state_config.py)
+#   Description: Enable model state management (save/restore) capabilities
+STATE_MANAGEMENT_ENABLED: false
+
+# STATE_SAVE
+#   Type:        bool
+#   Default:     False
+#   Source:      StateConfig (state_config.py)
+#   Description: Save model state at end of simulation
+STATE_SAVE: false
+
+# STATE_LOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      StateConfig (state_config.py)
+#   Description: Load model state at start of simulation (warm start)
+STATE_LOAD: false
+
+# STATE_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      StateConfig (state_config.py)
+#   Description: Directory for storing model state files
+STATE_DIR: null
+
+# STATE_INPUT_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      StateConfig (state_config.py)
+#   Description: Path to input state file for warm-starting
+STATE_INPUT_PATH: null
+
+# STATE_OUTPUT_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      StateConfig (state_config.py)
+#   Description: Path to output state file after simulation
+STATE_OUTPUT_PATH: null
+
+# STATE_FILE_PATTERN
+#   Type:        str
+#   Default:     None
+#   Source:      StateConfig (state_config.py)
+#   Description: Glob pattern for matching state files (e.g., "*_restart_*.nc")
+STATE_FILE_PATTERN: null
+
+# STATE_ENSEMBLE_MEMBERS
+#   Type:        int
+#   Default:     None
+#   Source:      StateConfig (state_config.py)
+#   Description: Number of ensemble members for state management
+STATE_ENSEMBLE_MEMBERS: null
+
+
+# 19. Data Assimilation (EnKF)
+# ================================================================================
+# Configuration for Ensemble Kalman Filter data assimilation, enabling
+# real-time state updating for operational hydrological forecasting.
+
+# DA_METHOD
+#   Type:        str
+#   Default:     enkf
+#   Source:      DataAssimilationConfig (state_config.py)
+#   Description: Data assimilation method (currently only 'enkf' supported)
+DA_METHOD: enkf
+
+# ENKF_ENSEMBLE_SIZE
+#   Type:        int
+#   Default:     50
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Number of ensemble members for EnKF
+ENKF_ENSEMBLE_SIZE: 50
+
+# ENKF_PARAM_PERTURBATION_STD
+#   Type:        float
+#   Default:     0.05
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Std as fraction of parameter range for perturbation
+ENKF_PARAM_PERTURBATION_STD: 0.05
+
+# ENKF_FORCING_PERTURBATION
+#   Type:        bool
+#   Default:     True
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Enable perturbation of forcing data across ensemble members
+ENKF_FORCING_PERTURBATION: true
+
+# ENKF_PRECIP_PERTURBATION_STD
+#   Type:        float
+#   Default:     0.3
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Multiplicative std for precipitation perturbation
+ENKF_PRECIP_PERTURBATION_STD: 0.3
+
+# ENKF_TEMP_PERTURBATION_STD
+#   Type:        float
+#   Default:     1.0
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Additive std for temperature perturbation (K)
+ENKF_TEMP_PERTURBATION_STD: 1.0
+
+# ENKF_OBS_ERROR_STD
+#   Type:        float
+#   Default:     0.1
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Relative observation error standard deviation
+ENKF_OBS_ERROR_STD: 0.1
+
+# ENKF_OBS_ERROR_TYPE
+#   Type:        str
+#   Default:     relative
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Observation error type ('relative' or 'absolute')
+ENKF_OBS_ERROR_TYPE: relative
+
+# ENKF_FILTER_VARIANT
+#   Type:        str
+#   Default:     stochastic
+#   Source:      EnKFConfig (state_config.py)
+#   Description: EnKF variant ('stochastic' or 'deterministic')
+ENKF_FILTER_VARIANT: stochastic
+
+# ENKF_INFLATION_FACTOR
+#   Type:        float
+#   Default:     1.0
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Covariance inflation factor (1.0 = no inflation)
+ENKF_INFLATION_FACTOR: 1.0
+
+# ENKF_LOCALIZATION_RADIUS
+#   Type:        float
+#   Default:     None
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Localization radius for covariance tapering (None = no localization)
+ENKF_LOCALIZATION_RADIUS: null
+
+# ENKF_AUGMENT_STATE
+#   Type:        bool
+#   Default:     True
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Augment state vector with model predictions for analysis
+ENKF_AUGMENT_STATE: true
+
+# ENKF_ASSIMILATION_VARIABLE
+#   Type:        str
+#   Default:     streamflow
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Variable to assimilate observations for
+ENKF_ASSIMILATION_VARIABLE: streamflow
+
+# ENKF_ASSIMILATION_INTERVAL
+#   Type:        int
+#   Default:     1
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Assimilation interval in model timesteps
+ENKF_ASSIMILATION_INTERVAL: 1
+
+# ENKF_ENFORCE_NONNEG
+#   Type:        bool
+#   Default:     True
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Enforce non-negative state values after analysis update
+ENKF_ENFORCE_NONNEG: true
+
+# ENKF_ESTIMATE_PARAMS
+#   Type:        bool
+#   Default:     False
+#   Source:      EnKFConfig (state_config.py)
+#   Description: Enable joint state-parameter estimation
+ENKF_ESTIMATE_PARAMS: false

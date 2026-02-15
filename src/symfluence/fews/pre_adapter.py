@@ -94,9 +94,17 @@ class FEWSPreAdapter:
 
         # 6. Import states
         if run_info.state_input_dir and fews_cfg.state_dir:
-            import_states(run_info.state_input_dir, Path(fews_cfg.state_dir))
-            if diag:
-                diag.info("Imported state files")
+            # Use StateManager if model runner is available and state-capable
+            model_runner = getattr(self, '_model_runner', None)
+            if model_runner and hasattr(model_runner, 'supports_state') and model_runner.supports_state:
+                from symfluence.models.state import StateManager
+                StateManager.import_from_fews(run_info.state_input_dir, model_runner)
+                if diag:
+                    diag.info("Imported state files via StateManager")
+            else:
+                import_states(run_info.state_input_dir, Path(fews_cfg.state_dir))
+                if diag:
+                    diag.info("Imported state files")
 
         # 7. Write forcing to model input directory
         forcing_output = run_info.input_dir / "forcing.nc"

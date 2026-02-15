@@ -30,6 +30,7 @@ from .evaluation import (
     EvaluationConfig
 )
 from .paths import PathsConfig
+from .state_config import StateConfig, DataAssimilationConfig
 from symfluence.fews.config import FEWSConfig
 
 
@@ -91,6 +92,8 @@ class SymfluenceConfig(BaseModel):
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    state: StateConfig = Field(default_factory=StateConfig)
+    data_assimilation: Optional[DataAssimilationConfig] = Field(default=None)
     fews: Optional[FEWSConfig] = Field(default=None)
 
     # ========================================
@@ -178,7 +181,7 @@ class SymfluenceConfig(BaseModel):
 
         nested = transform_flat_to_nested({key: values[key] for key in flat_keys})
 
-        sections = ('system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'fews')
+        sections = ('system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'state', 'data_assimilation', 'fews')
         for section in sections:
             if section in values and isinstance(values[section], dict):
                 nested.setdefault(section, {}).update(values[section])
