@@ -34,6 +34,8 @@ class BinaryCommands(BaseCommand):
         tools = args.tools if args.tools else None  # None means install all
         force = args.force
         patched = getattr(args, 'patched', False)
+        branch_override = getattr(args, 'branch', None)
+        git_hash = getattr(args, 'git_hash', None)
 
         if tools:
             BaseCommand._console.info(f"Installing tools: {', '.join(tools)}")
@@ -46,12 +48,20 @@ class BinaryCommands(BaseCommand):
         if patched:
             BaseCommand._console.indent("(SYMFLUENCE patches enabled)")
 
+        if branch_override:
+            BaseCommand._console.indent(f"(Branch override: {branch_override})")
+
+        if git_hash:
+            BaseCommand._console.indent(f"(Git hash: {git_hash})")
+
         # Handle subprocess errors specifically
         try:
             success = binary_manager.get_executables(
                 specific_tools=tools,
                 force=force,
-                patched=patched
+                patched=patched,
+                branch_override=branch_override,
+                git_hash=git_hash,
             )
         except subprocess.CalledProcessError as e:
             BaseCommand._console.error(f"Build command failed: {e}")
