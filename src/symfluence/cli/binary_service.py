@@ -75,6 +75,8 @@ class BinaryService(BaseService):
         force: bool = False,
         dry_run: bool = False,
         patched: bool = False,
+        branch_override: Optional[str] = None,
+        git_hash: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Clone and install external tool repositories with dependency resolution.
@@ -85,6 +87,8 @@ class BinaryService(BaseService):
             force: If True, reinstall even if already exists.
             dry_run: If True, only show what would be done.
             patched: If True, apply SYMFLUENCE patches (e.g., RHESSys GW recharge).
+            branch_override: If set, override the default branch for the tool(s).
+            git_hash: If set, checkout this specific commit hash after cloning.
 
         Returns:
             Dictionary with installation results.
@@ -95,6 +99,8 @@ class BinaryService(BaseService):
             force=force,
             dry_run=dry_run,
             patched=patched,
+            branch_override=branch_override,
+            git_hash=git_hash,
         )
 
     def install(

@@ -419,6 +419,10 @@ For more help on a specific command:
                                   help='Force reinstall even if already installed')
         install_parser.add_argument('--patched', action='store_true',
                                   help='Apply SYMFLUENCE patches (currently: RHESSys GW recharge + NaN guards)')
+        install_parser.add_argument('--branch', type=str, default=None,
+                                  help='Override the default git branch for the tool(s) being installed')
+        install_parser.add_argument('--git-hash', type=str, default=None,
+                                  help='Checkout a specific git commit hash after cloning')
         install_parser.set_defaults(func=BinaryCommands.install)
 
         # binary validate

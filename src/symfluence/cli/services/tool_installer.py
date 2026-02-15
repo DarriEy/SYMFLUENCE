@@ -393,6 +393,8 @@ class ToolInstaller(BaseService):
         force: bool = False,
         dry_run: bool = False,
         patched: bool = False,
+        branch_override: Optional[str] = None,
+        git_hash: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Clone and install external tool repositories with dependency resolution.
@@ -403,6 +405,8 @@ class ToolInstaller(BaseService):
             force: If True, reinstall even if already exists.
             dry_run: If True, only show what would be done.
             patched: If True, apply SYMFLUENCE patches (e.g., RHESSys GW recharge).
+            branch_override: If set, override the default branch for the tool(s).
+            git_hash: If set, checkout this specific commit hash after cloning.
 
         Returns:
             Dictionary with installation results.
@@ -463,7 +467,7 @@ class ToolInstaller(BaseService):
 
             tool_install_dir = install_base_dir / tool_info.get("install_dir", tool_name)
             repository_url = tool_info.get("repository")
-            branch = tool_info.get("branch")
+            branch = branch_override if branch_override else tool_info.get("branch")
 
             try:
                 # Check if already exists
@@ -477,6 +481,8 @@ class ToolInstaller(BaseService):
                     self._console.indent(f"Would clone: {repository_url}")
                     if branch:
                         self._console.indent(f"Would checkout branch: {branch}")
+                    if git_hash:
+                        self._console.indent(f"Would checkout commit: {git_hash}")
                     self._console.indent(f"Target directory: {tool_install_dir}")
                     self._console.indent("Would run build commands:")
                     for cmd in tool_info.get("build_commands", []):
@@ -510,7 +516,7 @@ class ToolInstaller(BaseService):
 
                 # Clone repository or create directory
                 if not self._clone_repository(
-                    repository_url, branch, tool_install_dir
+                    repository_url, branch, tool_install_dir, git_hash=git_hash
                 ):
                     installation_results["failed"].append(tool_name)
                     continue
@@ -589,14 +595,16 @@ class ToolInstaller(BaseService):
         repository_url: Optional[str],
         branch: Optional[str],
         target_dir: Path,
+        git_hash: Optional[str] = None,
     ) -> bool:
         """
-        Clone a git repository.
+        Clone a git repository, optionally checking out a specific commit.
 
         Args:
             repository_url: URL of the repository to clone.
             branch: Branch to checkout. If None, uses default branch.
             target_dir: Target directory for the clone.
+            git_hash: If set, checkout this specific commit after cloning.
 
         Returns:
             True if successful, False otherwise.
@@ -624,6 +632,19 @@ class ToolInstaller(BaseService):
                 env=self._get_clean_build_env(),
             )
             self._console.success("Clone successful")
+
+            # Checkout specific commit hash if requested
+            if git_hash:
+                self._console.indent(f"Checking out commit: {git_hash}")
+                subprocess.run(
+                    ["git", "checkout", git_hash],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    cwd=str(target_dir),
+                    env=self._get_clean_build_env(),
+                )
+                self._console.success(f"Checked out {git_hash}")
         else:
             self._console.indent("Creating installation directory")
             target_dir.mkdir(parents=True, exist_ok=True)
