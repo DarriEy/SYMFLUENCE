@@ -30,6 +30,7 @@ from .evaluation import (
     EvaluationConfig
 )
 from .paths import PathsConfig
+from symfluence.fews.config import FEWSConfig
 
 
 def _sanitize_cwd() -> Path:
@@ -82,7 +83,7 @@ class SymfluenceConfig(BaseModel):
         EXPERIMENT_TIME_START='2010-01-01 00:00',
         EXPERIMENT_TIME_END='2020-12-31 23:00',
         DOMAIN_DEFINITION_METHOD='lumped',
-        SUB_GRID_DISCRETIZATION='lumped'
+        SUB_GRID_DISCRETIZATION='grus'
     ))
     data: DataConfig = Field(default_factory=DataConfig)
     forcing: ForcingConfig = Field(default_factory=lambda: ForcingConfig(FORCING_DATASET='ERA5'))
@@ -90,6 +91,7 @@ class SymfluenceConfig(BaseModel):
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    fews: Optional[FEWSConfig] = Field(default=None)
 
     # ========================================
     # CROSS-FIELD VALIDATORS (from original model)
@@ -176,7 +178,7 @@ class SymfluenceConfig(BaseModel):
 
         nested = transform_flat_to_nested({key: values[key] for key in flat_keys})
 
-        sections = ('system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths')
+        sections = ('system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'fews')
         for section in sections:
             if section in values and isinstance(values[section], dict):
                 nested.setdefault(section, {}).update(values[section])

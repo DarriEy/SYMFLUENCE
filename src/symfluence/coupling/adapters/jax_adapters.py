@@ -81,6 +81,8 @@ class Snow17JAXComponent(JAXComponent):
         input_flux_specs = [
             FluxSpec("precip", "mm/dt", FluxDirection.INPUT, "hru", 86400, ("time",)),
             FluxSpec("temp", "C", FluxDirection.INPUT, "hru", 86400, ("time",)),
+            FluxSpec("doy", "day", FluxDirection.INPUT, "hru", 86400, ("time",),
+                     optional=True),
         ]
         output_flux_specs = [
             FluxSpec("rain_plus_melt", "mm/dt", FluxDirection.OUTPUT, "hru", 86400,
@@ -101,6 +103,8 @@ class Snow17JAXComponent(JAXComponent):
                 w_i=state[0], w_q=state[1], w_qx=state[2],
                 deficit=state[3], ati=state[4], swe=state[5],
             )
+            # Get day-of-year from input (controls seasonal melt factor)
+            doy = inputs.get("doy", jnp.float32(1))
             # snow17_step returns (new_state: Snow17State, rain_plus_melt)
             new_snow_state, rain_plus_melt = jax_step(
                 precip=inputs["precip"],
@@ -108,7 +112,7 @@ class Snow17JAXComponent(JAXComponent):
                 dt=dt,
                 state=snow_state,
                 params=snow17_params,
-                doy=jnp.float32(1),  # Will be overridden in coupled mode
+                doy=doy,
                 adc=adc,
                 xp=jnp,
             )

@@ -4,6 +4,9 @@ Background execution and log capture for the SYMFLUENCE GUI.
 WorkflowThread runs SYMFLUENCE steps in a daemon thread so the Panel
 Tornado event loop remains responsive.  GUILogHandler captures log
 records and routes them to WorkflowState.log_text via pn.state.execute.
+
+Steps are executed individually so the progress indicator can update
+between each step.
 """
 
 import logging
@@ -12,12 +15,40 @@ import threading
 import panel as pn
 
 
+# Human-readable labels for step names
+STEP_LABELS = {
+    'setup_project': 'Project Setup',
+    'create_pour_point': 'Pour Point',
+    'acquire_attributes': 'Acquire Attributes',
+    'define_domain': 'Delineation',
+    'discretize_domain': 'Discretization',
+    'acquire_forcings': 'Acquire Forcings',
+    'process_observed_data': 'Observed Data',
+    'model_agnostic_preprocessing': 'Preprocessing',
+    'build_model_ready_store': 'Data Store',
+    'model_specific_preprocessing': 'Model Preprocessing',
+    'run_model': 'Run Model',
+    'postprocess_results': 'Post-processing',
+    'calibrate_model': 'Calibration',
+    'run_benchmarking': 'Benchmarking',
+    'run_decision_analysis': 'Decision Analysis',
+    'run_sensitivity_analysis': 'Sensitivity Analysis',
+}
+
+
 def run_on_ui_thread(callback):
-    """Execute callback in the Panel UI context when available."""
+    """Execute callback in the Panel UI context when available.
+
+    Falls back to direct execution if Panel session is unavailable
+    (e.g. during tests or from daemon threads without a session).
+    """
     try:
         pn.state.execute(callback)
     except Exception:
-        callback()
+        try:
+            callback()
+        except Exception:
+            pass
 
 
 class GUILogHandler(logging.Handler):
@@ -45,6 +76,9 @@ class WorkflowThread:
     """
     Manages a daemon thread for running SYMFLUENCE workflow steps.
 
+    Steps are run individually so step_statuses and progress can be
+    updated between each step.
+
     Usage:
         wt = WorkflowThread(state)
         wt.run_steps(['setup_project', 'create_pour_point'])
@@ -66,10 +100,16 @@ class WorkflowThread:
             self.state.append_log("A workflow is already running.\n")
             return
 
+        # Initialize progress tracking
+        statuses = [(name, 'pending') for name in step_names]
+        self.state.steps_total = len(step_names)
+        self.state.steps_done = 0
+        self.state.step_statuses = statuses
+
         self._thread = threading.Thread(
             target=self._execute,
             args=(step_names, force_rerun),
-            daemon=True,
+            daemon=False,
         )
         try:
             self._thread.start()
@@ -86,7 +126,7 @@ class WorkflowThread:
         self._thread = threading.Thread(
             target=self._execute_full,
             args=(force_rerun,),
-            daemon=True,
+            daemon=False,
         )
         try:
             self._thread.start()
@@ -105,25 +145,75 @@ class WorkflowThread:
             logging.getLogger('symfluence').removeHandler(self._log_handler)
             self._log_handler = None
 
+    def _update_step_status(self, step_names, index, status):
+        """Update step_statuses list with new status for step at index."""
+        statuses = []
+        for i, name in enumerate(step_names):
+            if i < index:
+                statuses.append((name, 'done'))
+            elif i == index:
+                statuses.append((name, status))
+            else:
+                statuses.append((name, 'pending'))
+        run_on_ui_thread(lambda s=statuses: setattr(self.state, 'step_statuses', s))
+
     def _execute(self, step_names, force_rerun):
-        """Thread target for individual steps."""
-        self._attach_logger()
+        """Thread target: run steps one at a time with progress updates."""
+        # zarr v3 codecs use asyncio.to_thread() which submits to the global
+        # ThreadPoolExecutor.  If _global_shutdown was set (e.g. Panel dev-
+        # server reload), reset it so zarr reads don't raise RuntimeError.
+        # zarr v3 codecs use asyncio.to_thread() which submits to the global
+        # ThreadPoolExecutor.  If _python_exit() ran (e.g. Panel dev-server
+        # reload or main-thread exit), reset the shutdown flag so zarr reads
+        # don't raise RuntimeError.  The flag is called _shutdown in CPython.
+        import concurrent.futures.thread as _cft
+        if hasattr(_cft, '_shutdown'):
+            _cft._shutdown = False
+        if hasattr(_cft, '_global_shutdown'):
+            _cft._global_shutdown = False
+
+        sf = None
         try:
             sf = self.state.initialize_symfluence()
-            if force_rerun:
+            # Attach AFTER initialize: LoggingManager.setup_logging() clears
+            # all handlers on the 'symfluence' logger during construction.
+            self._attach_logger()
+
+            # Run each step individually for per-step progress
+            for i, step_name in enumerate(step_names):
                 run_on_ui_thread(
-                    lambda: self.state.append_log(
-                        "Force re-run is always applied for individual steps in the current workflow engine.\n"
-                    )
+                    lambda name=step_name: setattr(self.state, 'running_step', name)
                 )
-            sf.run_individual_steps(step_names)
-            run_on_ui_thread(lambda: self.state.append_log("Step(s) completed successfully.\n"))
+                self._update_step_status(step_names, i, 'running')
+
+                sf.run_individual_steps([step_name])
+
+                self._update_step_status(step_names, i, 'done')
+                run_on_ui_thread(
+                    lambda done=i + 1: setattr(self.state, 'steps_done', done)
+                )
+
+            # Mark all complete
+            run_on_ui_thread(lambda: self.state.append_log("All steps completed successfully.\n"))
+
         except Exception as exc:
+            # Mark current step as failed
             run_on_ui_thread(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
+            done = self.state.steps_done
+            if done < len(step_names):
+                self._update_step_status(step_names, done, 'error')
         finally:
             self._detach_logger()
             run_on_ui_thread(self.state.end_run)
-            run_on_ui_thread(self.state.refresh_status)
+            # Refresh workflow status using the sf we already have
+            if sf is not None:
+                try:
+                    status = sf.get_workflow_status()
+                    run_on_ui_thread(
+                        lambda s=status: setattr(self.state, 'workflow_status', s)
+                    )
+                except Exception:
+                    pass
             # Signal results-producing steps so the Results tab auto-refreshes
             _RESULTS_STEPS = {'calibrate_model', 'run_benchmarking', 'postprocess_results'}
             if any(s in _RESULTS_STEPS for s in step_names):
@@ -135,9 +225,16 @@ class WorkflowThread:
 
     def _execute_full(self, force_rerun):
         """Thread target for full workflow."""
-        self._attach_logger()
+        import concurrent.futures.thread as _cft
+        if hasattr(_cft, '_shutdown'):
+            _cft._shutdown = False
+        if hasattr(_cft, '_global_shutdown'):
+            _cft._global_shutdown = False
+
+        sf = None
         try:
             sf = self.state.initialize_symfluence()
+            self._attach_logger()
             sf.run_workflow(force_run=force_rerun)
             run_on_ui_thread(lambda: self.state.append_log("Full workflow completed successfully.\n"))
         except Exception as exc:
@@ -145,8 +242,14 @@ class WorkflowThread:
         finally:
             self._detach_logger()
             run_on_ui_thread(self.state.end_run)
-            run_on_ui_thread(self.state.refresh_status)
-            # Full workflow includes calibration — signal for auto-refresh
+            if sf is not None:
+                try:
+                    status = sf.get_workflow_status()
+                    run_on_ui_thread(
+                        lambda s=status: setattr(self.state, 'workflow_status', s)
+                    )
+                except Exception:
+                    pass
             exp_id = (self.state.typed_config.domain.experiment_id
                       if self.state.typed_config else None)
             run_on_ui_thread(

@@ -32,6 +32,7 @@ CLM_PARAM_DEFS = {
     'wimp':             ('params', 'wimp', 'linear'),
     'ksatdecay':        ('params', 'pc', 'log'),
     'n_baseflow':       ('params', 'n_baseflow', 'linear'),
+    'e_ice':            ('params', 'e_ice', 'linear'),
     'perched_baseflow_scalar': ('params', 'perched_baseflow_scalar', 'log'),
     'interception_fraction':   ('params', 'interception_fraction', 'linear'),
     'max_leaf_wetted_frac':    ('params', 'maximum_leaf_wetted_fraction', 'linear'),
@@ -68,6 +69,7 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     'wimp':             {'min': 0.01, 'max': 0.1},
     'ksatdecay':        {'min': 0.1, 'max': 10.0, 'transform': 'log'},
     'n_baseflow':       {'min': 0.5, 'max': 5.0},
+    'e_ice':            {'min': 1.0, 'max': 6.0},
     'perched_baseflow_scalar': {'min': 1e-7, 'max': 1e-3, 'transform': 'log'},
     'interception_fraction':   {'min': 0.2, 'max': 1.0},
     'max_leaf_wetted_frac':    {'min': 0.01, 'max': 0.2},
@@ -361,39 +363,39 @@ class CLMParameterManager(BaseParameterManager):
         ds.close()
         return True
 
-    # CLM5 default values — better starting point for DDS than midpoints.
-    # Values from global CLM5 parameter files and the previous (v1)
-    # calibration best at KGE=0.578 for Bow at Banff.
+    # Best values from v3 calibration (KGE=0.600) + e_ice warm start.
+    # Used as DDS starting point to avoid cold-start exploration.
     CLM_INITIAL_GUESS: Dict[str, float] = {
-        # From v1 calibration best (KGE=0.578)
-        'baseflow_scalar': 0.01125,
+        # From v3 calibration best (iteration 181, KGE=0.600)
+        'baseflow_scalar': 0.01045,
         'fff': 0.4015,
-        'wimp': 0.0303,
-        'ksatdecay': 5.515,
-        'fmax': 0.860,
-        'bsw_mult': 1.727,
-        'sucsat_mult': 0.727,
-        'watsat_mult': 0.926,
-        'hksat_mult': 2.433,
-        'organic_max': 87.0,
-        'fresh_snw_rds_max': 167.0,
-        'snw_aging_bst': 185.9,
-        'SNO_Z0MV': 0.000211,
+        'wimp': 0.01235,
+        'ksatdecay': 4.291,
+        'n_baseflow': 1.981,
+        'perched_baseflow_scalar': 3.93e-7,
+        'interception_fraction': 0.232,
+        'max_leaf_wetted_frac': 0.0121,
+        'fmax': 0.846,
+        'bsw_mult': 1.533,
+        'sucsat_mult': 0.941,
+        'watsat_mult': 0.852,
+        'hksat_mult': 0.263,
+        'organic_max': 120.3,
+        'fresh_snw_rds_max': 165.7,
+        'snw_aging_bst': 152.0,
+        'SNO_Z0MV': 0.000151,
         'accum_factor': 0.000122,
-        'SNOW_DENSITY_MAX': 427.6,
-        'SNOW_DENSITY_MIN': 109.3,
-        'medlynslope': 10.76,
-        'slatop': 0.00703,
-        'flnr': 0.1027,
-        'froot_leaf': 2.123,
-        'stem_leaf': 2.670,
-        # New params — CLM5 defaults
-        'n_baseflow': 1.0,
-        'perched_baseflow_scalar': 1e-5,
-        'interception_fraction': 1.0,
-        'max_leaf_wetted_frac': 0.05,
-        'n_melt_coef': 200.0,
-        'int_snow_max': 2000.0,
+        'SNOW_DENSITY_MAX': 416.8,
+        'SNOW_DENSITY_MIN': 165.5,
+        'n_melt_coef': 136.4,
+        'int_snow_max': 4277.4,
+        'medlynslope': 8.932,
+        'slatop': 0.019,
+        'flnr': 0.1106,
+        'froot_leaf': 2.547,
+        'stem_leaf': 1.426,
+        # New: frozen soil impedance — default 6 kills winter baseflow
+        'e_ice': 3.0,
     }
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:

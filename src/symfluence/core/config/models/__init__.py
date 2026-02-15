@@ -79,6 +79,9 @@ from .evaluation import (
 # Paths configs
 from .paths import PathsConfig, ShapefilePathConfig
 
+# FEWS adapter config
+from symfluence.fews.config import FEWSConfig
+
 
 __all__ = [
     # Root
@@ -135,4 +138,6 @@ __all__ = [
     # Paths
     "PathsConfig",
     "ShapefilePathConfig",
+    # FEWS
+    "FEWSConfig",
 ]

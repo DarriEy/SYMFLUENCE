@@ -45,8 +45,20 @@ class GRParameterManager(BaseParameterManager):
         return self.gr_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return GR parameter bounds from central registry."""
-        return get_gr_bounds()
+        """Return GR parameter bounds from central registry, with config overrides."""
+        bounds = get_gr_bounds()
+        config_bounds = self.config_dict.get('GR4J_PARAM_BOUNDS') or self.config_dict.get('GR_PARAM_BOUNDS')
+        if config_bounds:
+            self.logger.info("Using config-specified GR parameter bounds")
+            for param_name, param_bounds in config_bounds.items():
+                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    existing = bounds.get(param_name, {})
+                    bounds[param_name] = {
+                        'min': float(param_bounds[0]),
+                        'max': float(param_bounds[1]),
+                        'transform': existing.get('transform', 'linear'),
+                    }
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """

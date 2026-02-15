@@ -28,6 +28,11 @@ class WorkflowState(param.Parameterized):
     running_step = param.String(default=None, allow_None=True, doc="Name of currently running step")
     workflow_status = param.Dict(default={}, doc="Dict from get_workflow_status()")
 
+    # Step-level progress for progress indicator
+    steps_total = param.Integer(default=0, doc="Total number of steps in current run")
+    steps_done = param.Integer(default=0, doc="Number of steps completed in current run")
+    step_statuses = param.List(default=[], doc="List of (name, status) tuples for progress display")
+
     # Log capture
     log_text = param.String(default="", doc="Accumulated log output for the terminal widget")
 
@@ -46,15 +51,42 @@ class WorkflowState(param.Parameterized):
     # Project directory (derived from config)
     project_dir = param.String(default=None, allow_None=True, doc="Resolved project directory path")
 
-    # SYMFLUENCE instance (lazy)
-    _symfluence = param.Parameter(default=None, precedence=-1)
+    # GUI phase tracking for progressive disclosure
+    gui_phase = param.Selector(
+        default='init',
+        objects=['init', 'project_created', 'attributes_loaded',
+                 'domain_defined', 'discretized',
+                 'data_ready', 'model_ready', 'calibrated', 'analyzed'],
+        doc="Current GUI workflow phase for progressive disclosure",
+    )
+
+    # Bounding box coordinates (bidirectional sync with map BoxEditTool)
+    bounding_box_coords = param.String(
+        default='',
+        doc="Bounding box as 'lat_min/lon_min/lat_max/lon_max' for map<->text sync",
+    )
+
+    # Raster layers currently loaded on the map
+    raster_layers_loaded = param.List(
+        default=[],
+        doc="Names of raster layers currently displayed on the map",
+    )
 
     def __init__(self, **params):
         super().__init__(**params)
         self._run_lock = threading.Lock()
+        self._symfluence = None  # plain cached instance, not a param
 
-    def load_config(self, path):
-        """Load a SymfluenceConfig from a YAML file and update state."""
+    def load_config(self, path, refresh=True):
+        """Load a SymfluenceConfig from a YAML file and update state.
+
+        Args:
+            path: Path to YAML config file.
+            refresh: If True (default), immediately create a SYMFLUENCE
+                instance and query workflow status.  Pass False when
+                the caller will run steps right away (avoids a redundant
+                SYMFLUENCE construction).
+        """
         from symfluence.core.config.models import SymfluenceConfig
 
         path = str(path)
@@ -82,7 +114,8 @@ class WorkflowState(param.Parameterized):
 
         self._symfluence = None  # reset cached instance
         self.append_log(f"Config loaded: {path}\n")
-        self.refresh_status()
+        if refresh:
+            self.refresh_status()
 
     def save_config(self, path=None):
         """Write the current config state back to YAML."""
