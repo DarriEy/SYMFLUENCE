@@ -129,34 +129,21 @@ echo "Build successful!"
 cmake --install . 2>/dev/null || true
 
 # Find the built executable
+# The upstream CMakeLists names the binary after the version string,
+# e.g. swat2012.692.gfort.rel, so we search by pattern not exact name.
 SWAT_EXE=""
-for candidate in swat swat.exe src/swat src/swat.exe; do
-    if [ -f "$candidate" ]; then
-        SWAT_EXE="$candidate"
-        break
-    fi
-done
 
-# Also check install directory
-if [ -z "$SWAT_EXE" ]; then
-    for candidate in ../install/bin/swat ../install/bin/swat.exe; do
-        if [ -f "$candidate" ]; then
-            SWAT_EXE="$candidate"
-            break
-        fi
-    done
-fi
+# 1. Check cmake install directory first (cmake --install puts it here)
+SWAT_EXE=$(find ../install -name "swat*" -type f 2>/dev/null | head -1)
 
-# Search recursively as fallback
+# 2. Check build/src directory (where cmake builds it)
 if [ -z "$SWAT_EXE" ]; then
-    echo "Searching for SWAT executable..."
-    SWAT_EXE=$(find . ../install -name "swat*" -type f -perm +111 2>/dev/null | head -1)
+    SWAT_EXE=$(find . -name "swat*" -type f ! -path "*/CMakeFiles/*" 2>/dev/null | head -1)
 fi
 
 if [ -z "$SWAT_EXE" ]; then
     echo "ERROR: SWAT executable not found after build"
-    find . -type f -name "swat*" 2>/dev/null
-    ls -la
+    find . ../install -type f -name "swat*" 2>/dev/null || true
     exit 1
 fi
 
