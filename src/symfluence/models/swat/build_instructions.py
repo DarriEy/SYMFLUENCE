@@ -88,29 +88,19 @@ if grep -q "t97'" src/std3.f 2>/dev/null; then
     echo "  Patched std3.f: missing comma in format 1300"
 fi
 
-# Remove -static flag for HPC compatibility when static libc/libm are unavailable.
-# On Spack/module-based HPC systems, static libc.a and libm.a are typically not
-# installed, so -static linking fails with "cannot find -lm".
-# Only patch when static linking is actually broken to avoid regressions on
-# desktop Linux/macOS where static libs may be available.
-# Use gfortran -print-file-name which queries the actual linker search paths:
-# returns the full path if found, or just the bare filename if not found.
-_libc_a="$(gfortran -print-file-name=libc.a 2>/dev/null)"
-_libm_a="$(gfortran -print-file-name=libm.a 2>/dev/null)"
-if [ "$_libc_a" = "libc.a" ] || [ ! -f "$_libc_a" ] || \
-   [ "$_libm_a" = "libm.a" ] || [ ! -f "$_libm_a" ]; then
-    echo "  Static libc/libm not found — removing -static for HPC compatibility"
-    for cmf in CMakeLists.txt src/CMakeLists.txt; do
-        if [ -f "$cmf" ] && grep -q '\-static' "$cmf" 2>/dev/null; then
-            sed -i.bak 's/-static //g; s/ -static//g' "$cmf"
-            echo "  Patched $cmf: removed -static flag"
-        fi
-    done
-else
-    echo "  Static libc/libm available, keeping -static flags"
-fi
+# Remove -static flag unconditionally. The upstream SWAT CMakeLists uses -static
+# for single-binary deployment, but it fails on HPC (Spack gfortran reports
+# static libs via -print-file-name but the system linker can't find them).
+# Dynamic linking works everywhere and doesn't regress functionality.
+for cmf in CMakeLists.txt src/CMakeLists.txt; do
+    if [ -f "$cmf" ] && grep -q '\-static' "$cmf" 2>/dev/null; then
+        sed -i.bak 's/-static //g; s/ -static//g' "$cmf"
+        echo "  Patched $cmf: removed -static flag for portability"
+    fi
+done
 
-# Create build directory
+# Clean and create build directory (prevents stale CMake cache with old flags)
+rm -rf build
 mkdir -p build
 cd build
 
