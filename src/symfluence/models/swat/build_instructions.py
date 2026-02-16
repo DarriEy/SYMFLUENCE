@@ -88,6 +88,14 @@ if grep -q "t97'" src/std3.f 2>/dev/null; then
     echo "  Patched std3.f: missing comma in format 1300"
 fi
 
+# Remove -static flag from CMakeLists.txt for HPC compatibility.
+# On Spack/module-based HPC systems, static libc.a and libm.a are
+# typically not installed, so -static linking fails with "cannot find -lm".
+if grep -q '\-static' CMakeLists.txt 2>/dev/null; then
+    sed -i.bak 's/-static //g; s/ -static//g' CMakeLists.txt
+    echo "  Patched CMakeLists.txt: removed -static flag for HPC compatibility"
+fi
+
 # Create build directory
 mkdir -p build
 cd build

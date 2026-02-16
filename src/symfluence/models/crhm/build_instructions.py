@@ -120,11 +120,31 @@ if [ ! -d "$BOOST_DIR" ]; then
     else
         echo "Downloading Boost headers (header-only subset)..."
         BOOST_VER="1.75.0"
-        BOOST_URL="https://archives.boost.io/release/${BOOST_VER}/source/boost_1_75_0.tar.gz"
+        BOOST_URLS=(
+            "https://archives.boost.io/release/${BOOST_VER}/source/boost_1_75_0.tar.gz"
+            "https://sourceforge.net/projects/boost/files/boost/${BOOST_VER}/boost_1_75_0.tar.gz/download"
+        )
         mkdir -p "$CRHM_SRC/libs"
-        curl -sL "$BOOST_URL" | tar xz -C "$CRHM_SRC/libs/"
-        if [ ! -d "$BOOST_DIR" ]; then
-            echo "ERROR: Boost download/extract failed"
+        BOOST_TMP=$(mktemp /tmp/boost_XXXXXX.tar.gz)
+        BOOST_OK=false
+        for BOOST_URL in "${BOOST_URLS[@]}"; do
+            echo "  Trying: $BOOST_URL"
+            for attempt in 1 2 3; do
+                curl -fSL --retry 3 --retry-delay 5 -o "$BOOST_TMP" "$BOOST_URL" 2>/dev/null && break
+            done
+            # Validate the archive before extracting
+            if [ -s "$BOOST_TMP" ] && gzip -t "$BOOST_TMP" 2>/dev/null; then
+                tar xzf "$BOOST_TMP" -C "$CRHM_SRC/libs/"
+                if [ -d "$BOOST_DIR" ]; then
+                    BOOST_OK=true
+                    break
+                fi
+            fi
+            echo "  Download/validation failed, trying next URL..."
+        done
+        rm -f "$BOOST_TMP"
+        if [ "$BOOST_OK" != "true" ]; then
+            echo "ERROR: Boost download/extract failed from all sources"
             exit 1
         fi
     fi

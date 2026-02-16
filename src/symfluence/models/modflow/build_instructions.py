@@ -75,11 +75,16 @@ DOWNLOAD_SUCCESS=false
 if [ "$PLATFORM" != "unknown" ]; then
     echo "Attempting binary download from USGS GitHub releases..."
 
-    # Discover latest release tag via GitHub API
-    LATEST_TAG=$(curl -sL \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/MODFLOW-ORG/modflow6/releases/latest" \
-        | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null)
+    # Discover latest release tag via GitHub API (with retry for rate limits)
+    LATEST_TAG=""
+    for attempt in 1 2 3; do
+        LATEST_TAG=$(curl -fsSL --retry 2 \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/MODFLOW-ORG/modflow6/releases/latest" \
+            | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null)
+        [ -n "$LATEST_TAG" ] && break
+        sleep 2
+    done
 
     if [ -z "$LATEST_TAG" ]; then
         echo "WARNING: Could not determine latest release tag, trying default"
@@ -88,14 +93,26 @@ if [ "$PLATFORM" != "unknown" ]; then
 
     echo "Latest release: $LATEST_TAG"
 
-    # Construct download URL
-    DOWNLOAD_URL="https://github.com/MODFLOW-ORG/modflow6/releases/download/${LATEST_TAG}/mf${LATEST_TAG}_${PLATFORM}.zip"
-    echo "Download URL: $DOWNLOAD_URL"
+    # Construct download URL - try multiple naming conventions
+    # MODFLOW uses patterns like mf6.5.0_linux.zip or mf6.6.0_linux.zip
+    DOWNLOAD_URLS=(
+        "https://github.com/MODFLOW-ORG/modflow6/releases/download/${LATEST_TAG}/mf${LATEST_TAG}_${PLATFORM}.zip"
+        "https://github.com/MODFLOW-ORG/modflow6/releases/download/${LATEST_TAG}/modflow6_${PLATFORM}.zip"
+    )
 
     TMPZIP=$(mktemp /tmp/modflow6_XXXXXX.zip)
     TMPDIR=$(mktemp -d /tmp/modflow6_extract_XXXXXX)
 
-    if curl -sL -o "$TMPZIP" "$DOWNLOAD_URL" && [ -s "$TMPZIP" ]; then
+    DOWNLOAD_OK=false
+    for DOWNLOAD_URL in "${DOWNLOAD_URLS[@]}"; do
+        echo "Trying: $DOWNLOAD_URL"
+        if curl -fSL --retry 3 --retry-delay 5 -o "$TMPZIP" "$DOWNLOAD_URL" 2>/dev/null && [ -s "$TMPZIP" ]; then
+            DOWNLOAD_OK=true
+            break
+        fi
+    done
+
+    if [ "$DOWNLOAD_OK" = "true" ]; then
         # Verify it's actually a zip file
         if file "$TMPZIP" | grep -q "Zip"; then
             unzip -qo "$TMPZIP" -d "$TMPDIR"
@@ -135,11 +152,24 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
     echo ""
     echo "Binary download failed, attempting source build with meson..."
 
-    # Check dependencies
-    for tool in meson gfortran ninja; do
+    # Check for gfortran
+    if ! command -v gfortran >/dev/null 2>&1; then
+        echo "ERROR: gfortran not found. Install with: module load gcc (HPC) or brew install gcc (macOS)"
+        exit 1
+    fi
+
+    # Auto-install meson and ninja via pip if in a venv/conda env
+    for tool in meson ninja; do
         if ! command -v $tool >/dev/null 2>&1; then
-            echo "ERROR: $tool not found. Install with: pip install meson ninja (or brew install gfortran)"
-            exit 1
+            echo "$tool not found, attempting pip install..."
+            if [ -n "${VIRTUAL_ENV:-}" ] || [ -n "${CONDA_PREFIX:-}" ]; then
+                pip install --quiet $tool 2>/dev/null || pip3 install --quiet $tool 2>/dev/null
+            fi
+            if ! command -v $tool >/dev/null 2>&1; then
+                echo "ERROR: $tool not found and could not be installed."
+                echo "  Install with: pip install meson ninja"
+                exit 1
+            fi
         fi
     done
 
