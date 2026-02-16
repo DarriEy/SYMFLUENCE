@@ -16,6 +16,7 @@ import xarray as xr
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.state import StateCapableMixin, StateFormat, StateMetadata, ModelState
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
 from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
@@ -38,6 +39,7 @@ except ImportError:
 class HBVRunner(  # type: ignore[misc]
     BaseModelRunner,
     UnifiedModelExecutor,
+    StateCapableMixin,
     MizuRouteConfigMixin,
     SpatialModeDetectionMixin,
     ObservationLoaderMixin
@@ -81,6 +83,10 @@ class HBVRunner(  # type: ignore[misc]
 
         # Instance variables for external parameters during calibration
         self._external_params: Optional[Dict[str, float]] = None
+
+        # State management
+        self._final_state: Optional[Any] = None
+        self._initial_state_override: Optional[Any] = None
 
         # Determine spatial mode using mixin
         self.spatial_mode = self.detect_spatial_mode('HBV')
@@ -350,15 +356,19 @@ class HBVRunner(  # type: ignore[misc]
                 temp = jnp.array(temp)
                 pet = jnp.array(pet)
 
-            # Create initial state
-            initial_state = create_initial_state(
-                initial_snow=self.initial_snow,
-                initial_sm=self.initial_sm,
-                initial_suz=self.initial_suz,
-                initial_slz=self.initial_slz,
-                use_jax=use_jax,
-                timestep_hours=self.timestep_hours
-            )
+            # Create initial state (use override if set by load_state)
+            if self._initial_state_override is not None:
+                initial_state = self._initial_state_override
+                self.logger.info("Using overridden initial state from load_state()")
+            else:
+                initial_state = create_initial_state(
+                    initial_snow=self.initial_snow,
+                    initial_sm=self.initial_sm,
+                    initial_suz=self.initial_suz,
+                    initial_slz=self.initial_slz,
+                    use_jax=use_jax,
+                    timestep_hours=self.timestep_hours
+                )
 
             # Run simulation
             self.logger.info(f"Running simulation for {len(precip)} timesteps")
@@ -371,6 +381,9 @@ class HBVRunner(  # type: ignore[misc]
                 use_jax=use_jax,
                 timestep_hours=self.timestep_hours
             )
+
+            # Store final state for save_state()
+            self._final_state = final_state
 
             # Convert output to numpy if needed
             if use_jax:
@@ -838,6 +851,96 @@ class HBVRunner(  # type: ignore[misc]
             # Data alignment or metric calculation issues - non-fatal for run success
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback:", exc_info=True)
+
+    # =========================================================================
+    # State Save/Restore (StateCapableMixin)
+    # =========================================================================
+
+    def get_state_format(self) -> StateFormat:
+        return StateFormat.MEMORY_ARRAY
+
+    def get_state_variables(self) -> list:
+        return ['snow', 'snow_water', 'sm', 'suz', 'slz', 'routing_buffer']
+
+    def save_state(
+        self,
+        target_dir: Path,
+        timestamp: str,
+        ensemble_member: Optional[int] = None,
+    ) -> ModelState:
+        """Save HBV final state as numpy arrays (and optionally to disk)."""
+        from ..state.exceptions import StateError
+
+        if self._final_state is None:
+            raise StateError("No HBV final state available — run the model first")
+
+        fs = self._final_state
+        arrays = {
+            'snow': np.atleast_1d(np.asarray(fs.snow, dtype=np.float64)),
+            'snow_water': np.atleast_1d(np.asarray(fs.snow_water, dtype=np.float64)),
+            'sm': np.atleast_1d(np.asarray(fs.sm, dtype=np.float64)),
+            'suz': np.atleast_1d(np.asarray(fs.suz, dtype=np.float64)),
+            'slz': np.atleast_1d(np.asarray(fs.slz, dtype=np.float64)),
+            'routing_buffer': np.asarray(fs.routing_buffer, dtype=np.float64),
+        }
+
+        files = []
+        if target_dir is not None:
+            target_dir = Path(target_dir)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            npz_path = target_dir / f"hbv_state_{timestamp.replace(':', '-')}.npz"
+            np.savez(npz_path, **arrays)
+            files.append(npz_path)
+            self.logger.info("Saved HBV state to %s", npz_path)
+
+        metadata = StateMetadata(
+            model_name='HBV',
+            timestamp=timestamp,
+            format=StateFormat.MEMORY_ARRAY,
+            variables=self.get_state_variables(),
+            ensemble_member=ensemble_member,
+        )
+        return ModelState(metadata=metadata, files=files, arrays=arrays)
+
+    def load_state(self, state: ModelState) -> None:
+        """Restore HBV state from a ModelState, setting _initial_state_override."""
+        from .model import HBVState
+
+        arrays = state.arrays
+        if not arrays and state.files:
+            # Load from .npz file
+            npz_path = state.files[0]
+            with np.load(npz_path) as data:
+                arrays = {k: data[k] for k in data.files}
+
+        if not arrays:
+            self.logger.warning("No state data to load for HBV")
+            return
+
+        use_jax = self.backend == 'jax' and HAS_JAX
+        if use_jax:
+            self._initial_state_override = HBVState(
+                snow=jnp.array(arrays['snow'].item() if arrays['snow'].ndim == 1 and arrays['snow'].size == 1 else arrays['snow']),
+                snow_water=jnp.array(arrays['snow_water'].item() if arrays['snow_water'].ndim == 1 and arrays['snow_water'].size == 1 else arrays['snow_water']),
+                sm=jnp.array(arrays['sm'].item() if arrays['sm'].ndim == 1 and arrays['sm'].size == 1 else arrays['sm']),
+                suz=jnp.array(arrays['suz'].item() if arrays['suz'].ndim == 1 and arrays['suz'].size == 1 else arrays['suz']),
+                slz=jnp.array(arrays['slz'].item() if arrays['slz'].ndim == 1 and arrays['slz'].size == 1 else arrays['slz']),
+                routing_buffer=jnp.array(arrays['routing_buffer']),
+            )
+        else:
+            self._initial_state_override = HBVState(
+                snow=np.float64(arrays['snow'].item() if arrays['snow'].ndim == 1 and arrays['snow'].size == 1 else arrays['snow']),
+                snow_water=np.float64(arrays['snow_water'].item() if arrays['snow_water'].ndim == 1 and arrays['snow_water'].size == 1 else arrays['snow_water']),
+                sm=np.float64(arrays['sm'].item() if arrays['sm'].ndim == 1 and arrays['sm'].size == 1 else arrays['sm']),
+                suz=np.float64(arrays['suz'].item() if arrays['suz'].ndim == 1 and arrays['suz'].size == 1 else arrays['suz']),
+                slz=np.float64(arrays['slz'].item() if arrays['slz'].ndim == 1 and arrays['slz'].size == 1 else arrays['slz']),
+                routing_buffer=np.array(arrays['routing_buffer']),
+            )
+
+        self.logger.info("Loaded HBV state override from ModelState")
+
+    def supports_ensemble_state(self) -> bool:
+        return True
 
     # =========================================================================
     # Calibration Support

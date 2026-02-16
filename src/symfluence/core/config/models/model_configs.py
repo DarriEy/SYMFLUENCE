@@ -44,7 +44,7 @@ class SUMMAConfig(BaseModel):
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_SUMMA')
     experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_SUMMA')
     params_to_calibrate: str = Field(
-        default='albedo_max,albedo_min,canopy_capacity,slow_drainage',
+        default='k_soil,aquiferBaseflowRate,albedoMax,snowfrz_scale',
         alias='PARAMS_TO_CALIBRATE'
     )
     basin_params_to_calibrate: str = Field(
@@ -1054,6 +1054,118 @@ class IGNACIOConfig(BaseModel):
         return v
 
 
+class MIKESHEConfig(BaseModel):
+    """MIKE-SHE (DHI) integrated physics-based model configuration.
+
+    MIKE-SHE is a fully integrated, physically-based modelling system
+    that simulates overland flow, unsaturated flow, groundwater flow,
+    channel flow, and evapotranspiration.
+
+    Reference:
+        Graham, D.N. & Butts, M.B. (2005): Flexible, integrated watershed
+        modelling with MIKE SHE. Watershed Models, 245-272.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='MIKESHE_INSTALL_PATH')
+    exe: str = Field(default='MikeSheEngine.exe', alias='MIKESHE_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_MIKESHE_PATH')
+    setup_file: str = Field(default='model.she', alias='MIKESHE_SETUP_FILE')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='MIKESHE_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MIKESHE')
+    use_wine: bool = Field(default=False, alias='MIKESHE_USE_WINE')
+    params_to_calibrate: str = Field(
+        default='manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage',
+        alias='MIKESHE_PARAMS_TO_CALIBRATE'
+    )
+    timeout: int = Field(default=7200, alias='MIKESHE_TIMEOUT', ge=60, le=86400)
+
+
+class SWATConfig(BaseModel):
+    """SWAT (Soil and Water Assessment Tool) model configuration.
+
+    SWAT is a river basin scale model developed by USDA-ARS to predict
+    the impact of land management on water, sediment, and agricultural
+    chemical yields.
+
+    Reference:
+        Arnold, J.G., et al. (1998): Large area hydrologic modeling and
+        assessment Part I: Model development. JAWRA, 34(1), 73-89.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='SWAT_INSTALL_PATH')
+    exe: str = Field(default='swat_rel.exe', alias='SWAT_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_SWAT_PATH')
+    txtinout_dir: str = Field(default='TxtInOut', alias='SWAT_TXTINOUT_DIR')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='SWAT_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_SWAT')
+    params_to_calibrate: str = Field(
+        default='CN2,ALPHA_BF,GW_DELAY,GWQMN,GW_REVAP,ESCO,SOL_AWC,SOL_K,SURLAG,SFTMP,SMTMP,SMFMX,SMFMN,TIMP',
+        alias='SWAT_PARAMS_TO_CALIBRATE'
+    )
+    warmup_years: int = Field(default=2, alias='SWAT_WARMUP_YEARS', ge=0, le=10)
+    timeout: int = Field(default=3600, alias='SWAT_TIMEOUT', ge=60, le=86400)
+    plaps: float = Field(default=0.0, alias='SWAT_PLAPS')
+    tlaps: float = Field(default=0.0, alias='SWAT_TLAPS')
+
+
+class MHMConfig(BaseModel):
+    """mHM (mesoscale Hydrological Model) configuration.
+
+    mHM is a spatially distributed hydrological model developed at the
+    Helmholtz Centre for Environmental Research (UFZ). It uses multiscale
+    parameter regionalization (MPR) for parameter transfer.
+
+    Reference:
+        Samaniego, L., et al. (2010): Multiscale parameter regionalization
+        of a grid-based hydrologic model at the mesoscale. Water Resources
+        Research, 46, W05523.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='MHM_INSTALL_PATH')
+    exe: str = Field(default='mhm', alias='MHM_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_MHM_PATH')
+    namelist_file: str = Field(default='mhm.nml', alias='MHM_NAMELIST_FILE')
+    routing_namelist: str = Field(default='mrm.nml', alias='MHM_ROUTING_NAMELIST')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='MHM_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MHM')
+    params_to_calibrate: str = Field(
+        default='canopyInterceptionFactor,snowTreshholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient,GeoParam(1,:),infiltrationShapeFactor,rootFractionCoefficient_pervious,interflowStorageCapacityFactor,slowInterflowRecession_Ks,muskingumTravelTime_constant,orgMatterContent_forest',
+        alias='MHM_PARAMS_TO_CALIBRATE'
+    )
+    timeout: int = Field(default=3600, alias='MHM_TIMEOUT', ge=60, le=86400)
+
+
+class CRHMConfig(BaseModel):
+    """CRHM (Cold Regions Hydrological Model) configuration.
+
+    CRHM is a physically-based, object-oriented hydrological model
+    designed specifically for cold-region processes including blowing
+    snow, energy-balance snowmelt, and frozen soil infiltration.
+
+    Reference:
+        Pomeroy, J.W., et al. (2007): The Cold Regions Hydrological Model:
+        a platform for basing process representation and model structure on
+        physical evidence. Hydrological Processes, 21(19), 2650-2667.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='CRHM_INSTALL_PATH')
+    exe: str = Field(default='crhm', alias='CRHM_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_CRHM_PATH')
+    project_file: str = Field(default='model.prj', alias='CRHM_PROJECT_FILE')
+    observation_file: str = Field(default='forcing.obs', alias='CRHM_OBSERVATION_FILE')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='CRHM_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_CRHM')
+    params_to_calibrate: str = Field(
+        default='basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch',
+        alias='CRHM_PARAMS_TO_CALIBRATE'
+    )
+    timeout: int = Field(default=3600, alias='CRHM_TIMEOUT', ge=60, le=86400)
+
+
 class ModelConfig(BaseModel):
     """Hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -1082,6 +1194,10 @@ class ModelConfig(BaseModel):
     clm: Optional[CLMConfig] = Field(default=None)
     modflow: Optional[MODFLOWConfig] = Field(default=None)
     parflow: Optional[ParFlowConfig] = Field(default=None)
+    mikeshe: Optional[MIKESHEConfig] = Field(default=None)
+    swat: Optional[SWATConfig] = Field(default=None)
+    mhm: Optional[MHMConfig] = Field(default=None)
+    crhm: Optional[CRHMConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -1138,6 +1254,14 @@ class ModelConfig(BaseModel):
             values['modflow'] = MODFLOWConfig()
         if 'PARFLOW' in models and values.get('parflow') is None:
             values['parflow'] = ParFlowConfig()
+        if 'MIKESHE' in models and values.get('mikeshe') is None:
+            values['mikeshe'] = MIKESHEConfig()
+        if 'SWAT' in models and values.get('swat') is None:
+            values['swat'] = SWATConfig()
+        if 'MHM' in models and values.get('mhm') is None:
+            values['mhm'] = MHMConfig()
+        if 'CRHM' in models and values.get('crhm') is None:
+            values['crhm'] = CRHMConfig()
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')

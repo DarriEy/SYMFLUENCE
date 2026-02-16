@@ -1,5 +1,6 @@
 """
-Bokeh tile-map component with click-to-set pour point and shapefile overlays.
+Bokeh tile-map component with click-to-set pour point, shapefile overlays,
+raster (GeoTIFF) overlays, and bounding-box draw tool.
 
 Uses Bokeh's built-in tile providers and TapTool for native Panel event
 callbacks (no JavaScript bridges needed).
@@ -14,10 +15,16 @@ from pathlib import Path
 import panel as pn
 import param
 
-from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.models import (
+    BoxEditTool,
+    ColumnDataSource,
+    HoverTool,
+    LinearColorMapper,
+)
 from bokeh.plotting import figure
 
 from ..utils.threading_utils import run_on_ui_thread
+from .raster_layer import read_tiff_for_bokeh
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +82,22 @@ class MapView(param.Parameterized):
         # Gauge data store (lazy)
         self._gauge_store = None
         self._gauge_loaded = False
-        self._network_filter = None  # will hold MultiChoice widget
-        self._load_layers_btn = None
-        self._load_gauges_btn = None
         self._status_pane = None
         self._layers_loading = False
         self._gauges_loading = False
 
         # Guard: suppress tap-as-pour-point when a gauge was just clicked
         self._gauge_click_ts = 0.0
+
+        # Raster layer tracking
+        self._raster_renderers = {}
+        self._raster_sources = {}
+        self._raster_toggles_column = pn.Column(sizing_mode='stretch_width')
+
+        # Bounding box source (Quad glyph for BoxEditTool)
+        self._bbox_source = ColumnDataSource(data=dict(
+            left=[], right=[], top=[], bottom=[],
+        ))
 
         # Build the figure
         self._fig = self._build_figure()
@@ -98,6 +112,21 @@ class MapView(param.Parameterized):
         # Auto-load shapefiles when project_dir changes (e.g. config loaded)
         state.param.watch(self._on_project_dir_change, ['project_dir'])
 
+        # Watch bounding_box_coords from text field
+        state.param.watch(self._on_bbox_text_change, ['bounding_box_coords'])
+
+        # Bbox control buttons
+        self._use_view_btn = pn.widgets.Button(
+            name='Use Current View', button_type='default',
+            sizing_mode='stretch_width', margin=(4, 5),
+        )
+        self._clear_bbox_btn = pn.widgets.Button(
+            name='Clear Bounding Box', button_type='default',
+            sizing_mode='stretch_width', margin=(4, 5),
+        )
+        self._use_view_btn.on_click(self._on_use_current_view)
+        self._clear_bbox_btn.on_click(self._on_clear_bbox)
+
     def _build_figure(self):
         p = figure(
             x_range=(-20000000, 20000000),
@@ -107,8 +136,12 @@ class MapView(param.Parameterized):
             tools='pan,wheel_zoom,box_zoom,reset,tap',
             active_scroll='wheel_zoom',
             sizing_mode='stretch_both',
-            height=500,
+            min_height=500,
         )
+        p.toolbar.logo = None
+        p.axis.visible = False
+        p.grid.visible = False
+        p.outline_line_color = None
         # Bokeh 3.x: pass tile source name as string
         p.add_tile("CartoDB Positron")
 
@@ -163,8 +196,27 @@ class MapView(param.Parameterized):
         )
         p.add_tools(gauge_hover)
 
+        # Bounding box overlay (Quad glyph for BoxEditTool)
+        self._bbox_renderer = p.quad(
+            left='left', right='right', top='top', bottom='bottom',
+            source=self._bbox_source,
+            fill_alpha=0.08, fill_color='green',
+            line_color='green', line_width=2, line_dash='dashed',
+            legend_label='Bounding Box',
+        )
+        box_edit = BoxEditTool(renderers=[self._bbox_renderer], num_objects=1)
+        p.add_tools(box_edit)
+
+        # Watch for bbox data changes from the draw tool
+        self._bbox_source.on_change('data', self._on_bbox_source_change)
+
         p.legend.click_policy = 'hide'
         p.legend.location = 'top_left'
+        p.legend.background_fill_alpha = 0.8
+        p.legend.border_line_color = '#d7e2eb'
+        p.legend.label_text_font_size = '11px'
+        p.legend.spacing = 2
+        p.legend.padding = 6
 
         # Tap callback for setting pour point
         p.on_event('tap', self._on_tap)
@@ -253,6 +305,151 @@ class MapView(param.Parameterized):
         self._pour_source.data = dict(x=[x], y=[y])
 
     # ------------------------------------------------------------------
+    # Bounding box handling
+    # ------------------------------------------------------------------
+
+    def _on_bbox_source_change(self, attr, old, new):
+        """Sync bbox draw-tool changes to state as north/west/south/east string."""
+        left = new.get('left', [])
+        right = new.get('right', [])
+        top = new.get('top', [])
+        bottom = new.get('bottom', [])
+        if not left:
+            return
+        # Use the last drawn box (num_objects=1 but just in case)
+        lon_min, lat_min = _mercator_to_lonlat(left[-1], bottom[-1])
+        lon_max, lat_max = _mercator_to_lonlat(right[-1], top[-1])
+        # Format: north/west/south/east (matches BOUNDING_BOX_COORDS config)
+        bbox_str = f"{lat_max:.6f}/{lon_min:.6f}/{lat_min:.6f}/{lon_max:.6f}"
+        # Avoid re-entrant loop: only update if actually different
+        if self.state.bounding_box_coords != bbox_str:
+            self.state.bounding_box_coords = bbox_str
+            self.state.config_dirty = True
+            self.state.append_log(f"Bounding box set: {bbox_str}\n")
+
+    def _on_bbox_text_change(self, event):
+        """Sync text-field bbox changes to the map rectangle."""
+        self.update_bbox_from_string(event.new)
+
+    def update_bbox_from_string(self, bbox_str):
+        """Parse 'north/west/south/east' and draw rectangle on map."""
+        if not bbox_str or not bbox_str.strip():
+            return
+        try:
+            parts = bbox_str.split('/')
+            if len(parts) != 4:
+                return
+            north, west, south, east = (float(p) for p in parts)
+        except (ValueError, TypeError):
+            return
+
+        x_min, y_min = _lonlat_to_mercator(west, south)
+        x_max, y_max = _lonlat_to_mercator(east, north)
+
+        new_data = dict(left=[x_min], right=[x_max], top=[y_max], bottom=[y_min])
+        # Avoid re-entrant loop: check if data is already matching
+        current = self._bbox_source.data
+        if (current.get('left') == new_data['left']
+                and current.get('right') == new_data['right']):
+            return
+        self._bbox_source.data = new_data
+
+    # ------------------------------------------------------------------
+    # Raster overlay support
+    # ------------------------------------------------------------------
+
+    def add_raster_layer(self, tiff_path, name, palette='Viridis256', alpha=0.6):
+        """Read a GeoTIFF and add it as an image overlay on the map.
+
+        Args:
+            tiff_path: Path to the .tif file.
+            name: Display name for the layer toggle.
+            palette: Bokeh palette name.
+            alpha: Image transparency (0-1).
+        """
+        data = read_tiff_for_bokeh(tiff_path)
+        if data is None:
+            self.state.append_log(f"Could not load raster: {tiff_path}\n")
+            return
+
+        color_mapper = LinearColorMapper(
+            palette=palette, low=data['vmin'], high=data['vmax'],
+            nan_color='rgba(0,0,0,0)',
+        )
+
+        source = ColumnDataSource(data=dict(
+            image=[data['image']],
+            x=[data['x']],
+            y=[data['y']],
+            dw=[data['dw']],
+            dh=[data['dh']],
+        ))
+
+        renderer = self._fig.image(
+            image='image', x='x', y='y', dw='dw', dh='dh',
+            source=source,
+            color_mapper=color_mapper,
+            alpha=alpha,
+            level='image',
+        )
+
+        self._raster_renderers[name] = renderer
+        self._raster_sources[name] = source
+
+        # Add toggle checkbox
+        toggle = pn.widgets.Checkbox(name=name, value=True, width=200)
+        toggle.param.watch(
+            lambda e, r=renderer: setattr(r, 'visible', e.new),
+            'value',
+        )
+        self._raster_toggles_column.append(toggle)
+
+        # Show the raster card now that layers exist
+        if hasattr(self, '_raster_card') and self._raster_card is not None:
+            self._raster_card.visible = True
+
+        # Track in state
+        if name not in self.state.raster_layers_loaded:
+            self.state.raster_layers_loaded = self.state.raster_layers_loaded + [name]
+
+        self.state.append_log(f"Raster layer added: {name}\n")
+
+    def load_attribute_rasters(self):
+        """Scan project attributes directory and load available rasters."""
+        project_dir = self.state.project_dir
+        if not project_dir:
+            return
+
+        pdir = Path(project_dir)
+        attr_dirs = ['elevation', 'soilclass', 'landclass']
+        palette_map = {
+            'elevation': 'Viridis256',
+            'soilclass': 'Spectral11',
+            'landclass': 'Category20',
+        }
+
+        loaded = []
+        for attr_name in attr_dirs:
+            attr_dir = pdir / 'attributes' / attr_name
+            if not attr_dir.is_dir():
+                continue
+            tif_files = sorted(attr_dir.glob('*.tif')) + sorted(attr_dir.glob('*.tiff'))
+            for tif in tif_files:
+                layer_name = f"{attr_name}/{tif.stem}"
+                if layer_name in self._raster_renderers:
+                    continue  # already loaded
+                palette = palette_map.get(attr_name, 'Viridis256')
+
+                def _add(p=tif, n=layer_name, pal=palette):
+                    run_on_ui_thread(lambda: self.add_raster_layer(p, n, pal))
+
+                _add()
+                loaded.append(layer_name)
+
+        if loaded:
+            self.state.append_log(f"Loaded {len(loaded)} attribute raster(s)\n")
+
+    # ------------------------------------------------------------------
     # Shapefile loading
     # ------------------------------------------------------------------
 
@@ -331,6 +528,10 @@ class MapView(param.Parameterized):
             return None
 
         shp_files = sorted(directory.glob('*.shp'))
+
+        # Fall back to recursive glob when flat glob finds nothing
+        if not shp_files:
+            shp_files = sorted(directory.glob('**/*.shp'))
         if not shp_files:
             return None
 
@@ -496,17 +697,38 @@ class MapView(param.Parameterized):
             pass
 
     # ------------------------------------------------------------------
+    # Bbox control button handlers
+    # ------------------------------------------------------------------
+
+    def _on_use_current_view(self, event):
+        """Capture the current map viewport extent as the bounding box."""
+        x_start = self._fig.x_range.start
+        x_end = self._fig.x_range.end
+        y_start = self._fig.y_range.start
+        y_end = self._fig.y_range.end
+
+        lon_min, lat_min = _mercator_to_lonlat(x_start, y_start)
+        lon_max, lat_max = _mercator_to_lonlat(x_end, y_end)
+
+        # Format: north/west/south/east
+        bbox_str = f"{lat_max:.6f}/{lon_min:.6f}/{lat_min:.6f}/{lon_max:.6f}"
+        self.state.bounding_box_coords = bbox_str
+        self.state.config_dirty = True
+        self.state.append_log(f"Bounding box set from viewport: {bbox_str}\n")
+
+    def _on_clear_bbox(self, event):
+        """Clear the bounding box from map and state."""
+        self._bbox_source.data = dict(left=[], right=[], top=[], bottom=[])
+        self.state.bounding_box_coords = ''
+        self.state.config_dirty = True
+        self.state.append_log("Bounding box cleared.\n")
+
+    # ------------------------------------------------------------------
     # Panel layout
     # ------------------------------------------------------------------
 
     def _update_loading_ui(self):
-        """Update loading controls and status message."""
-        if self._load_layers_btn is not None:
-            self._load_layers_btn.disabled = self._layers_loading
-        if self._load_gauges_btn is not None:
-            self._load_gauges_btn.disabled = self._gauges_loading
-        if self._network_filter is not None:
-            self._network_filter.disabled = self._gauges_loading
+        """Update status message."""
         if self._status_pane is not None:
             if self._layers_loading:
                 self._status_pane.object = "Loading map layers..."
@@ -523,54 +745,90 @@ class MapView(param.Parameterized):
         self._gauges_loading = loading
         self._update_loading_ui()
 
+    # ------------------------------------------------------------------
+    # Shapefile overlay (public API for DomainBrowser)
+    # ------------------------------------------------------------------
+
+    def add_shapefile_overlay(self, path, name, color='#e67e22'):
+        """Read a shapefile and add it as an overlay on the map.
+
+        Auto-detects polygon vs line geometry and adds the appropriate
+        Bokeh renderer with a legend label.
+
+        Args:
+            path: Path to the .shp file.
+            name: Display name for the legend.
+            color: Line/fill colour.
+        """
+        try:
+            import geopandas as gpd
+            gdf = gpd.read_file(path).to_crs(epsg=3857)
+        except Exception as exc:
+            self.state.append_log(f"Could not read shapefile {path}: {exc}\n")
+            return
+
+        geom_type = self._detect_geometry_type(gdf)
+        if geom_type == 'polygon':
+            data = self._read_polygon_shapefile(path)
+            if data['xs']:
+                self._fig.patches(
+                    'xs', 'ys', source=ColumnDataSource(data=data),
+                    fill_alpha=0.12, fill_color=color,
+                    line_color=color, line_width=1.2,
+                    legend_label=name,
+                )
+                self.state.append_log(f"Shapefile overlay added: {name}\n")
+        elif geom_type == 'line':
+            data = self._read_line_shapefile(path)
+            if data['xs']:
+                self._fig.multi_line(
+                    'xs', 'ys', source=ColumnDataSource(data=data),
+                    line_color=color, line_width=1.5,
+                    legend_label=name,
+                )
+                self.state.append_log(f"Shapefile overlay added: {name}\n")
+        else:
+            self.state.append_log(f"Unsupported geometry type in {path}\n")
+
+    @staticmethod
+    def _detect_geometry_type(gdf):
+        """Detect whether a GeoDataFrame contains polygons or lines."""
+        for geom in gdf.geometry:
+            if geom is None:
+                continue
+            gt = geom.geom_type
+            if gt in ('Polygon', 'MultiPolygon'):
+                return 'polygon'
+            if gt in ('LineString', 'MultiLineString'):
+                return 'line'
+            if gt in ('Point', 'MultiPoint'):
+                return 'point'
+        return 'unknown'
+
     def panel(self):
         """Return the Panel component for embedding in the app layout."""
-        self._load_layers_btn = pn.widgets.Button(name='Load Layers', button_type='primary', width=120)
-        self._load_layers_btn.on_click(lambda e: self.load_layers())
-
-        # Create network filter BEFORE the button that references it
-        self._network_filter = pn.widgets.MultiChoice(
-            name='Networks',
-            options=['WSC', 'USGS', 'SMHI', 'LamaH-ICE'],
-            value=[],
-            width=250,
-        )
-
-        self._load_gauges_btn = pn.widgets.Button(name='Load Gauges', button_type='success', width=120)
-        self._load_gauges_btn.on_click(lambda e: self.load_gauges(
-            networks=self._network_filter.value or None
-        ))
-
-        self._network_filter.param.watch(
-            lambda e: self._update_gauge_visibility(e.new) if self._gauge_loaded else None,
-            'value',
-        )
-
-        toggle_basins = pn.widgets.Checkbox(name='Basins', value=True)
-        toggle_hrus = pn.widgets.Checkbox(name='HRUs', value=False)
-        toggle_rivers = pn.widgets.Checkbox(name='Rivers', value=True)
-        toggle_gauges = pn.widgets.Checkbox(name='Gauges', value=True)
-
-        def _toggle_visibility(event, renderer):
-            renderer.visible = event.new
-
-        toggle_basins.param.watch(lambda e: _toggle_visibility(e, self._basin_renderer), 'value')
-        toggle_hrus.param.watch(lambda e: _toggle_visibility(e, self._hru_renderer), 'value')
-        toggle_rivers.param.watch(lambda e: _toggle_visibility(e, self._river_renderer), 'value')
-        toggle_gauges.param.watch(lambda e: _toggle_visibility(e, self._gauge_renderer), 'value')
-
-        self._hru_renderer.visible = False  # default hidden
+        self._hru_renderer.visible = True
         self._status_pane = pn.pane.Str("", sizing_mode='stretch_width')
         self._update_loading_ui()
 
-        controls = pn.Row(
-            self._load_layers_btn, self._load_gauges_btn, self._network_filter,
-            toggle_basins, toggle_hrus, toggle_rivers, toggle_gauges,
+        self._raster_card = pn.Card(
+            self._raster_toggles_column,
+            title='Raster Layers',
+            collapsed=True,
+            visible=False,
             sizing_mode='stretch_width',
         )
+
+        bbox_controls = pn.Row(
+            self._use_view_btn,
+            self._clear_bbox_btn,
+            sizing_mode='stretch_width',
+        )
+
         return pn.Column(
-            controls,
             self._status_pane,
-            pn.pane.Bokeh(self._fig, sizing_mode='stretch_both'),
+            bbox_controls,
+            pn.pane.Bokeh(self._fig, sizing_mode='stretch_both', min_height=500),
+            self._raster_card,
             sizing_mode='stretch_both',
         )

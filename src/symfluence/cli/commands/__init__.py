@@ -16,6 +16,7 @@ from .gui_commands import GUICommands
 from .tui_commands import TUICommands
 from .data_commands import DataCommands
 from .doctor_commands import DoctorCommands
+from .fews_commands import FEWSCommands
 
 __all__ = [
     'WorkflowCommands',
@@ -29,4 +30,5 @@ __all__ = [
     'TUICommands',
     'DataCommands',
     'DoctorCommands',
+    'FEWSCommands',
 ]

@@ -145,6 +145,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
     - Parallel monthly chunk processing
     - Automatic conversion to SUMMA-compatible format
     """
+
     def download(self, output_dir: Path) -> Path:
         """
         Download ERA5 from Google Cloud ARCO-ERA5 Zarr store.
@@ -192,6 +193,18 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         )
 
         mapper = gcs.get_mapper(zarr_store)
+
+        # Reset the CPython thread-pool shutdown flag that may have been set
+        # by _python_exit() when the main thread finished (common when Panel
+        # runs via pn.serve()).  zarr v3 codecs use asyncio.to_thread() →
+        # ThreadPoolExecutor.submit() which raises RuntimeError if this flag
+        # is True.
+        import concurrent.futures.thread as _cft
+        if hasattr(_cft, '_shutdown'):
+            _cft._shutdown = False
+        if hasattr(_cft, '_global_shutdown'):
+            _cft._global_shutdown = False
+
         ds = xr.open_zarr(mapper, consolidated=True, chunks={})
         ds = ds.assign_coords(longitude=ds.longitude.load(), latitude=ds.latitude.load(), time=ds.time.load())
 

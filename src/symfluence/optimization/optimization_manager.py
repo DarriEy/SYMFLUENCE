@@ -139,6 +139,14 @@ class OptimizationManager(BaseManager):
             if calibration_results:
                 results['calibration'] = str(calibration_results)
 
+        # Run data assimilation (EnKF)
+        if 'data_assimilation' in optimization_methods:
+            from symfluence.data_assimilation.da_manager import DataAssimilationManager
+            da_manager = DataAssimilationManager(self.config, self.logger, self.reporting_manager)
+            da_results = da_manager.run_data_assimilation()
+            if da_results:
+                results['data_assimilation'] = str(da_results)
+
         # Check for deprecated methods and warn
         deprecated_methods = [
             'differentiable_parameter_emulation',

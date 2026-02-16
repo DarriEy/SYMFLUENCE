@@ -51,123 +51,30 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore', message='.*is an EXPERIMENTAL module.*')
 warnings.filterwarnings('ignore', message='.*import failed.*')
 
-# Import from modular packages (preferred)
-try:
-    from . import summa
-except ImportError as e:
-    logger.warning(f"Could not import summa: {e}")
+# Import from modular packages (preferred).
+# Use `except Exception` (not ImportError) because model imports may
+# transitively trigger threading._register_atexit() which raises
+# RuntimeError on daemon threads (e.g. Panel's Tornado IO loop).
+_model_names = [
+    'summa', 'fuse', 'ngen', 'mizuroute', 'troute', 'droute',
+    'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
+    'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm',
+    'modflow', 'parflow', 'xinanjiang', 'snow17',
+    'mikeshe', 'swat', 'mhm', 'crhm',
+]
 
-try:
-    from . import fuse
-except ImportError as e:
-    logger.warning(f"Could not import fuse: {e}")
+import importlib as _importlib
+for _model_name in _model_names:
+    try:
+        _importlib.import_module(f'.{_model_name}', __name__)
+    except Exception as _e:
+        logger.debug(f"Could not import {_model_name}: {_e}")
 
+del _model_names, _model_name, _importlib
 try:
-    from . import ngen
-except ImportError as e:
-    logger.warning(f"Could not import ngen: {e}")
-
-try:
-    from . import mizuroute
-except ImportError as e:
-    logger.warning(f"Could not import mizuroute: {e}")
-
-try:
-    from . import troute
-except ImportError as e:
-    logger.warning(f"Could not import troute: {e}")
-
-try:
-    from . import droute
-except ImportError as e:
-    logger.warning(f"Could not import droute: {e}")
-
-try:
-    from . import hype
-except ImportError as e:
-    logger.warning(f"Could not import hype: {e}")
-
-try:
-    from . import mesh
-except ImportError as e:
-    logger.warning(f"Could not import mesh: {e}")
-
-try:
-    from . import lstm
-except ImportError as e:
-    logger.warning(f"Could not import lstm: {e}")
-
-try:
-    from . import gr
-except Exception as e:
-    # Catch Exception broadly because GR depends on rpy2 which can raise
-    # RuntimeError or RRuntimeError when R is installed but broken
-    logger.warning(f"Could not import gr: {e}")
-
-try:
-    from . import gnn
-except ImportError as e:
-    logger.warning(f"Could not import gnn: {e}")
-
-try:
-    from . import rhessys
-except ImportError as e:
-    logger.warning(f"Could not import rhessys: {e}")
-
-try:
-    from . import hbv
-except ImportError as e:
-    logger.warning(f"Could not import hbv: {e}")
-
-try:
-    from . import sacsma
-except ImportError as e:
-    logger.warning(f"Could not import sacsma: {e}")
-
-try:
-    from . import jfuse
-except ImportError as e:
-    logger.warning(f"Could not import jfuse: {e}")
-
-try:
-    from . import cfuse
-except ImportError as e:
-    logger.warning(f"Could not import cfuse: {e}")
-
-try:
-    from . import ignacio
-except ImportError as e:
-    logger.warning(f"Could not import ignacio: {e}")
-
-try:
-    from . import vic
-except ImportError as e:
-    logger.warning(f"Could not import vic: {e}")
-
-try:
-    from . import clm
-except ImportError as e:
-    logger.warning(f"Could not import clm: {e}")
-
-try:
-    from . import modflow
-except ImportError as e:
-    logger.warning(f"Could not import modflow: {e}")
-
-try:
-    from . import parflow
-except ImportError as e:
-    logger.warning(f"Could not import parflow: {e}")
-
-try:
-    from . import xinanjiang
-except ImportError as e:
-    logger.warning(f"Could not import xinanjiang: {e}")
-
-try:
-    from . import snow17
-except ImportError as e:
-    logger.warning(f"Could not import snow17: {e}")
+    del _e
+except NameError:
+    pass
 
 
 __all__ = [
