@@ -113,7 +113,7 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
             logger.info(f"Auto-generated {len(_AUTO_GENERATED_MAP)} configuration mappings")
 
         except Exception as e:
-            logger.error(f"Auto-generation failed: {e}, falling back to manual mapping")
+            logger.debug(f"Auto-generation failed: {e}, falling back to manual mapping")
             # Fallback to manual mapping (Phase 1 only)
             _AUTO_GENERATED_MAP = FLAT_TO_NESTED_MAP.copy()
 
@@ -807,6 +807,15 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'LAND_CLASS_PATH': ('paths', 'land_class_path'),
     'RADIATION_PATH': ('paths', 'radiation_path'),
 
+    # ========== FEWS ADAPTER CONFIGURATION ==========
+    'FEWS_WORK_DIR': ('fews', 'work_dir'),
+    'FEWS_DATA_FORMAT': ('fews', 'data_format'),
+    'FEWS_ID_MAP_FILE': ('fews', 'id_map_file'),
+    'FEWS_STATE_DIR': ('fews', 'state_dir'),
+    'FEWS_DIAGNOSTICS_FILE': ('fews', 'diagnostics_file'),
+    'FEWS_MISSING_VALUE': ('fews', 'missing_value'),
+    'FEWS_AUTO_ID_MAP': ('fews', 'auto_id_map'),
+
     # Tool paths
     'DATATOOL_PATH': ('paths', 'datatool_path'),
     'GISTOOL_PATH': ('paths', 'gistool_path'),
@@ -885,7 +894,8 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
         'model': {},
         'optimization': {},
         'evaluation': {},
-        'paths': {}
+        'paths': {},
+        'fews': {}
     }
 
     # Build combined mapping: base + model-specific transformers
@@ -1020,6 +1030,8 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     _flatten_section('optimization', config.optimization, ('optimization',))
     _flatten_section('evaluation', config.evaluation, ('evaluation',))
     _flatten_section('paths', config.paths, ('paths',))
+    if hasattr(config, 'fews') and config.fews is not None:
+        _flatten_section('fews', config.fews, ('fews',))
 
     # Include extra fields from root config (e.g. CUSTOM_PATH in tests)
     # Extra fields can be at top-level or nested inside '_extra' dict

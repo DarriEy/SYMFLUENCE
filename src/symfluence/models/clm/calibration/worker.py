@@ -38,6 +38,7 @@ class CLMWorker(BaseWorker):
         logger: Optional[logging.Logger] = None,
     ):
         super().__init__(config, logger)
+        self._routing_params: Dict[str, float] = {}
 
     _streamflow_metrics = StreamflowMetrics()
 
@@ -124,6 +125,7 @@ class CLMWorker(BaseWorker):
             nl_params = {}
             params_nc = {}
             surfdata_params = {}
+            routing_params = {}
 
             for name, value in params.items():
                 if name not in CLM_PARAM_DEFS:
@@ -136,6 +138,11 @@ class CLMWorker(BaseWorker):
                     params_nc[name] = value
                 elif target == 'surfdata':
                     surfdata_params[name] = value
+                elif target == 'routing':
+                    routing_params[name] = value
+
+            # Store routing params for use in calculate_metrics
+            self._routing_params = routing_params
 
             success = True
 
@@ -456,8 +463,9 @@ class CLMWorker(BaseWorker):
                 if src.exists():
                     shutil.copy2(src, output_dir / name)
 
-            # Execute
-            timeout = int(config.get('CLM_TIMEOUT', 3600))
+            # Execute — use a short timeout since single-point CLM
+            # finishes in ~7 min but can hang in ESMF finalization
+            timeout = int(config.get('CLM_TIMEOUT', 900))
             env = os.environ.copy()
             env.update({
                 'OMP_NUM_THREADS': '1',
@@ -478,24 +486,81 @@ class CLMWorker(BaseWorker):
                 stderr=subprocess.PIPE,
                 start_new_session=True,
             )
-            try:
-                stdout, stderr = proc.communicate(timeout=timeout)
-            except subprocess.TimeoutExpired:
+
+            # Poll-based wait with smart finalization detection.
+            #
+            # CLM single-point takes ~7-20 min for 7 years depending on
+            # parameters.  After the simulation loop ends, ESMF hangs
+            # indefinitely in MPI finalization (mpiuni mode bug).
+            #
+            # Strategy: count h0 history files.  Once all expected files
+            # exist, the simulation is done — wait a short grace period
+            # then kill.  This avoids premature killing during slow
+            # simulations while quickly reclaiming hung finalization.
+            import time
+            poll_interval = 10
+            finalization_grace = 60   # seconds to wait after all h0 written
+            expected_h0 = 7           # years 2003-2009 inclusive
+            elapsed = 0
+            all_done_time = None      # when we first saw expected_h0 files
+
+            while proc.poll() is None and elapsed < timeout:
+                time.sleep(poll_interval)
+                elapsed += poll_interval
+
+                h0_count = len(list(output_dir.glob('*.clm2.h0.*.nc')))
+
+                if h0_count >= expected_h0:
+                    if all_done_time is None:
+                        all_done_time = time.time()
+                        self.logger.info(
+                            f"All {h0_count} h0 files written after "
+                            f"{elapsed}s, waiting for clean exit..."
+                        )
+                    elif time.time() - all_done_time > finalization_grace:
+                        self.logger.warning(
+                            f"ESMF hung in finalization "
+                            f"({h0_count} h0 files, {finalization_grace}s "
+                            f"grace exceeded) — killing"
+                        )
+                        proc.kill()
+                        proc.wait()
+                        break
+
+            if proc.poll() is None:
                 proc.kill()
                 proc.wait()
-                self.logger.error("CLM execution timed out")
-                return False
+                self.logger.warning(
+                    f"CLM execution timed out after {elapsed}s — killing"
+                )
+
+            _stdout = proc.stdout.read() if proc.stdout else b''
+            stderr = proc.stderr.read() if proc.stderr else b''
+
+            # CLM/ESMF often returns non-zero during MPI finalization
+            # even when all output was written successfully. Check for
+            # output files before declaring failure.
+            hist_files = list(output_dir.glob('*.clm2.h0.*.nc'))
+            # Need at least 7 history files (2003-2009 inclusive)
+            # for warmup + calibration + evaluation periods
+            min_hist_files = 7
 
             if proc.returncode != 0:
-                stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
-                self.logger.error(
-                    f"CLM failed (rc={proc.returncode}): "
-                    f"{stderr_text[-500:]}"
-                )
-                return False
+                if len(hist_files) >= min_hist_files:
+                    self.logger.warning(
+                        f"CLM returned rc={proc.returncode} but "
+                        f"{len(hist_files)} history files exist — "
+                        f"treating as success (ESMF finalization issue)"
+                    )
+                else:
+                    stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
+                    self.logger.error(
+                        f"CLM failed (rc={proc.returncode}, "
+                        f"{len(hist_files)} hist files): "
+                        f"{stderr_text[-300:]}"
+                    )
+                    return False
 
-            # Verify output
-            hist_files = list(output_dir.glob('*.clm2.h0.*.nc'))
             if not hist_files:
                 self.logger.error("No CLM history files produced")
                 return False
@@ -564,6 +629,14 @@ class CLMWorker(BaseWorker):
             )
             area_m2 = area_km2 * 1e6
             streamflow_m3s = total_runoff * area_m2 / 1000.0
+
+            # Apply linear reservoir routing if route_k > 1
+            route_k = self._routing_params.get('route_k', 1.0)
+            if route_k > 1.0:
+                streamflow_m3s = self._apply_routing(
+                    streamflow_m3s, route_k
+                )
+
             sim_series = pd.Series(streamflow_m3s, index=times)
 
             # Skip warmup
@@ -599,9 +672,46 @@ class CLMWorker(BaseWorker):
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}
 
+    @staticmethod
+    def _apply_routing(
+        streamflow: np.ndarray, k: float
+    ) -> np.ndarray:
+        """Apply linear reservoir routing to raw CLM streamflow.
+
+        CLM produces instantaneous runoff with no basin travel time.
+        This applies a single linear reservoir to create delayed flow:
+            Q_out(t) = (1 - 1/K) * Q_out(t-1) + (1/K) * Q_in(t)
+
+        Args:
+            streamflow: Raw streamflow array (m3/s)
+            k: Storage time constant in days. K=1 is passthrough.
+
+        Returns:
+            Routed streamflow array (m3/s), same length.
+        """
+        alpha = 1.0 / max(k, 1.0)
+        routed = np.empty_like(streamflow)
+        routed[0] = streamflow[0]
+        for i in range(1, len(routed)):
+            routed[i] = (1.0 - alpha) * routed[i - 1] + alpha * streamflow[i]
+        return routed
+
     def _cleanup_stale_output(self, output_dir: Path) -> None:
-        """Remove stale output files before a new run."""
-        for pattern in ['*.clm2.h0.*.nc', '*.clm2.r.*.nc', '*.log']:
+        """Remove ALL stale output/restart files before a new run.
+
+        Must remove rpointer files, coupler/datm restarts, and restart
+        history files — otherwise CMEPS treats the next run as a
+        continuation instead of a cold start, suppressing h0 output.
+        """
+        for pattern in [
+            '*.clm2.h0.*.nc',   # history files
+            '*.clm2.r.*.nc',    # CLM restart files
+            '*.clm2.rh0.*.nc',  # restart history buffer files
+            '*.cpl.r.*.nc',     # coupler restart files
+            '*.datm.r.*.nc',    # data atmosphere restart files
+            'rpointer.*',       # restart pointer files
+            '*.log',            # log files
+        ]:
             for f in output_dir.glob(pattern):
                 f.unlink()
 

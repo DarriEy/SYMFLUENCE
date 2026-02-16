@@ -61,7 +61,7 @@ def _dependency_versions() -> Dict[str, str]:
         try:
             mod = __import__(pkg)
             versions[pkg] = getattr(mod, "__version__", "unknown")
-        except ImportError:
+        except Exception:
             pass
     return versions
 

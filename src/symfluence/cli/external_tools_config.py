@@ -312,6 +312,150 @@ chmod +x extract-dataset.sh
     })
 
     # ================================================================
+    # openFEWS - Delft-FEWS Flood Early Warning System
+    # ================================================================
+    BuildInstructionsRegistry.register_instructions('openfews', {
+        'description': 'openFEWS - Delft Flood Early Warning System (open-source distribution)',
+        'config_path_key': 'OPENFEWS_INSTALL_PATH',
+        'config_exe_key': 'OPENFEWS_EXE',
+        'default_path_suffix': 'installs/openfews',
+        'default_exe': 'bin/fews.sh',
+        'repository': None,
+        'branch': None,
+        'install_dir': 'openfews',
+        'build_commands': [
+            r'''
+set -e
+
+# Download and install the Delft-FEWS standalone (open-source) distribution.
+# The open-source variant is distributed as a zip archive from Deltares.
+FEWS_VER="${OPENFEWS_VERSION:-2024.01}"
+FEWS_URL="https://oss.deltares.nl/web/delft-fews/downloads"
+
+echo "Installing openFEWS ${FEWS_VER} ..."
+
+# Detect architecture and platform
+OS_NAME="$(uname -s 2>/dev/null || echo Windows)"
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+
+case "$OS_NAME" in
+    Linux*)  PLATFORM="linux" ;;
+    Darwin*) PLATFORM="macos" ;;
+    MSYS*|MINGW*|CYGWIN*|Windows*) PLATFORM="windows" ;;
+    *)       PLATFORM="linux" ;;
+esac
+
+# Check for Java (FEWS requires JRE >= 11)
+if ! command -v java >/dev/null 2>&1; then
+    echo "WARNING: Java not found. openFEWS requires Java 11+."
+    echo "Install Java first: https://adoptium.net/temurin/releases/"
+fi
+
+# Create directory structure expected by FEWS
+mkdir -p bin lib config Modules
+
+# Create SYMFLUENCE General Adapter module configuration
+cat > Modules/symfluence_adapter.xml << 'ADAPTER_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<generalAdapterRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <general>
+        <description>SYMFLUENCE General Adapter</description>
+        <piVersion>1.24</piVersion>
+    </general>
+    <activities>
+        <startUpActivities>
+            <purgeActivity>
+                <filter>%ROOT_DIR%/toModel/*</filter>
+            </purgeActivity>
+            <purgeActivity>
+                <filter>%ROOT_DIR%/toFews/*</filter>
+            </purgeActivity>
+        </startUpActivities>
+        <exportActivities>
+            <exportNetcdfActivity>
+                <exportFile>%ROOT_DIR%/toModel/forcing.nc</exportFile>
+                <cfConventions>CF-1.6</cfConventions>
+            </exportNetcdfActivity>
+            <exportRunFileActivity>
+                <exportFile>%ROOT_DIR%/run_info.xml</exportFile>
+            </exportRunFileActivity>
+        </exportActivities>
+        <executeActivities>
+            <executeActivity>
+                <description>Run SYMFLUENCE adapter</description>
+                <command>
+                    <executable>symfluence</executable>
+                    <arguments>fews run --run-info %ROOT_DIR%/run_info.xml --format netcdf-cf</arguments>
+                </command>
+                <timeOut>7200000</timeOut>
+            </executeActivity>
+        </executeActivities>
+        <importActivities>
+            <importNetcdfActivity>
+                <importFile>%ROOT_DIR%/toFews/output.nc</importFile>
+                <cfConventions>CF-1.6</cfConventions>
+            </importNetcdfActivity>
+        </importActivities>
+    </activities>
+</generalAdapterRun>
+ADAPTER_EOF
+
+# Create launcher script
+cat > bin/fews.sh << 'LAUNCHER_EOF'
+#!/usr/bin/env bash
+# openFEWS launcher with SYMFLUENCE support
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FEWS_HOME="$(dirname "$SCRIPT_DIR")"
+
+# Set SYMFLUENCE CLI path if available
+if command -v symfluence >/dev/null 2>&1; then
+    export SYMFLUENCE_CLI="$(which symfluence)"
+    echo "SYMFLUENCE CLI found: $SYMFLUENCE_CLI"
+fi
+
+# Check for Java
+if ! command -v java >/dev/null 2>&1; then
+    echo "ERROR: Java is required to run openFEWS"
+    exit 1
+fi
+
+# Look for FEWS jar
+FEWS_JAR="$(find "$FEWS_HOME/lib" -name "fews*.jar" -type f 2>/dev/null | head -1)"
+if [ -n "$FEWS_JAR" ]; then
+    echo "Starting openFEWS from $FEWS_JAR"
+    exec java -jar "$FEWS_JAR" "$@"
+else
+    echo "openFEWS standalone installation."
+    echo ""
+    echo "To use FEWS with SYMFLUENCE, configure a General Adapter module"
+    echo "using the template at: $FEWS_HOME/Modules/symfluence_adapter.xml"
+    echo ""
+    echo "SYMFLUENCE FEWS commands:"
+    echo "  symfluence fews pre   --run-info run_info.xml  # Pre-process FEWS data"
+    echo "  symfluence fews post  --run-info run_info.xml  # Post-process model output"
+    echo "  symfluence fews run   --run-info run_info.xml  # Full adapter cycle"
+    echo ""
+    echo "Download the full openFEWS distribution from:"
+    echo "  https://oss.deltares.nl/web/delft-fews/downloads"
+fi
+LAUNCHER_EOF
+chmod +x bin/fews.sh
+
+echo "openFEWS adapter installed at: $(pwd)"
+echo "SYMFLUENCE General Adapter template: Modules/symfluence_adapter.xml"
+            '''.strip()
+        ],
+        'dependencies': [],
+        'test_command': None,
+        'verify_install': {
+            'file_paths': ['bin/fews.sh', 'Modules/symfluence_adapter.xml'],
+            'check_type': 'exists'
+        },
+        'order': 11,
+        'optional': True,
+    })
+
+    # ================================================================
     # NGIAB - NextGen In A Box
     # ================================================================
     BuildInstructionsRegistry.register_instructions('ngiab', {
@@ -387,6 +531,10 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.ignacio.build_instructions',
         'symfluence.models.vic.build_instructions',
         'symfluence.models.clm.build_instructions',
+        'symfluence.models.swat.build_instructions',
+        'symfluence.models.mhm.build_instructions',
+        'symfluence.models.crhm.build_instructions',
+        'symfluence.models.mikeshe.build_instructions',
     ]
 
     for module_name in model_modules:

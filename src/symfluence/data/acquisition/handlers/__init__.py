@@ -86,7 +86,7 @@ for _module_name in _handler_modules:
         _imported.append(_module_name)
     except Exception as _e:
         _failed.append((_module_name, str(_e)))
-        _logger.warning("Failed to import acquisition handler '%s': %s", _module_name, _e)
+        _logger.debug("Failed to import acquisition handler '%s': %s", _module_name, _e)
 
 # Clean up
 del _handler_modules, _module_name

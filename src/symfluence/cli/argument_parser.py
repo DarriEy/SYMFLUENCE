@@ -104,7 +104,7 @@ def resolve_step_name(name: str) -> str:
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials']
+EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews']
 
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
@@ -197,6 +197,7 @@ For more help on a specific command:
         self._register_tui_commands(subparsers)
         self._register_data_commands(subparsers)
         self._register_doctor_commands(subparsers)
+        self._register_fews_commands(subparsers)
 
         return parser
 
@@ -779,6 +780,79 @@ For more help on a specific command:
             description='Comprehensive environment, path resolution, and binary diagnostics'
         )
         doctor_parser.set_defaults(func=DoctorCommands.doctor, action='doctor')
+
+    def _register_fews_commands(self, subparsers):
+        """Register Delft-FEWS adapter commands."""
+        from .commands import FEWSCommands
+
+        fews_parser = subparsers.add_parser(
+            'fews',
+            help='Delft-FEWS adapter operations',
+            description='Run FEWS General Adapter pre/post processing and launch openFEWS'
+        )
+        fews_subparsers = fews_parser.add_subparsers(
+            dest='action',
+            required=True,
+            help='FEWS action',
+            metavar='<action>'
+        )
+
+        # fews pre
+        pre_parser = fews_subparsers.add_parser(
+            'pre',
+            help='Run FEWS pre-adapter (import forcing, generate config)',
+            parents=[self.common_parser]
+        )
+        pre_parser.add_argument('--run-info', dest='run_info', type=str, required=True,
+                                help='Path to run_info.xml')
+        pre_parser.add_argument('--format', choices=['pi-xml', 'netcdf-cf'],
+                                default='netcdf-cf',
+                                help='Data exchange format (default: netcdf-cf)')
+        pre_parser.add_argument('--id-map', dest='id_map', type=str, default=None,
+                                help='Path to variable ID mapping YAML file')
+        pre_parser.set_defaults(func=FEWSCommands.pre)
+
+        # fews post
+        post_parser = fews_subparsers.add_parser(
+            'post',
+            help='Run FEWS post-adapter (export results, write diagnostics)',
+            parents=[self.common_parser]
+        )
+        post_parser.add_argument('--run-info', dest='run_info', type=str, required=True,
+                                 help='Path to run_info.xml')
+        post_parser.add_argument('--format', choices=['pi-xml', 'netcdf-cf'],
+                                 default='netcdf-cf',
+                                 help='Data exchange format (default: netcdf-cf)')
+        post_parser.add_argument('--id-map', dest='id_map', type=str, default=None,
+                                 help='Path to variable ID mapping YAML file')
+        post_parser.set_defaults(func=FEWSCommands.post)
+
+        # fews run
+        run_parser = fews_subparsers.add_parser(
+            'run',
+            help='Run full FEWS adapter cycle (pre -> model -> post)',
+            parents=[self.common_parser]
+        )
+        run_parser.add_argument('--run-info', dest='run_info', type=str, required=True,
+                                help='Path to run_info.xml')
+        run_parser.add_argument('--format', choices=['pi-xml', 'netcdf-cf'],
+                                default='netcdf-cf',
+                                help='Data exchange format (default: netcdf-cf)')
+        run_parser.add_argument('--id-map', dest='id_map', type=str, default=None,
+                                help='Path to variable ID mapping YAML file')
+        run_parser.set_defaults(func=FEWSCommands.run_full)
+
+        # fews launch
+        launch_parser = fews_subparsers.add_parser(
+            'launch',
+            help='Launch openFEWS with SYMFLUENCE adapter support',
+            parents=[self.common_parser]
+        )
+        launch_parser.add_argument('--port', type=int, default=8080,
+                                   help='Server port for openFEWS (default: 8080)')
+        launch_parser.add_argument('--no-browser', action='store_true', dest='no_browser',
+                                   help='Do not auto-open a browser')
+        launch_parser.set_defaults(func=FEWSCommands.launch)
 
     def parse_args(self, args: Optional[List[str]] = None) -> argparse.Namespace:
         """
