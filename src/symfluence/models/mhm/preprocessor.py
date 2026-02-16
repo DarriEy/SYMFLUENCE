@@ -41,6 +41,10 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
     - Gauge data for calibration/validation
     """
 
+    # Grid resolution for the 2-row lumped layout.  Two cells at this
+    # size give approximately the same total area as a single 0.5° cell.
+    LUMPED_CELLSIZE: float = 0.35
+
     def __init__(self, config, logger):
         """
         Initialize the mHM preprocessor.
@@ -247,7 +251,7 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         props: Dict,
         long_name: str,
         units: str,
-        cellsize: float = 0.5,
+        cellsize: float = 0.35,  # kept for API compat; overridden by LUMPED_CELLSIZE
     ) -> None:
         """
         Write a single mHM-format forcing NetCDF file using netCDF4.
@@ -257,10 +261,14 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         - Coordinate variables: xc(xc), yc(yc), lon(yc,xc), lat(yc,xc)
         - Data variable with fill_value=-9999.0
         - Time in 'days since YYYY-01-01 00:00:00', calendar 'standard'
+
+        For a lumped setup the grid is 2 rows × 1 col (upstream + outlet)
+        with identical forcing in both cells.
         """
-        nrows, ncols = 1, 1
+        nrows, ncols = 2, 1
+        cellsize = self.LUMPED_CELLSIZE
         xllcorner = props['lon'] - cellsize / 2
-        yllcorner = props['lat'] - cellsize / 2
+        yllcorner = props['lat'] - cellsize / 2 - cellsize  # 2 rows
 
         xc_vals = np.array([xllcorner + cellsize * (i + 0.5) for i in range(ncols)])
         yc_vals = np.array([yllcorner + cellsize * (nrows - 1 - i + 0.5) for i in range(nrows)])
@@ -296,35 +304,40 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             yc_var.units = 'degrees_north'
             yc_var[:] = yc_vals
 
-            # 2-D lon / lat (yc, xc)
+            # 2-D lon / lat (yc, xc) — same centre for both rows (lumped)
+            lon_2d = np.full((nrows, ncols), props['lon'])
+            lat_2d = np.array([[props['lat']], [props['lat'] - cellsize]])
+
             lon_var = ds.createVariable('lon', 'f8', ('yc', 'xc'))
             lon_var.units = 'degrees_east'
-            lon_var[:] = np.array([[props['lon']]])
+            lon_var[:] = lon_2d
 
             lat_var = ds.createVariable('lat', 'f8', ('yc', 'xc'))
             lat_var.units = 'degrees_north'
-            lat_var[:] = np.array([[props['lat']]])
+            lat_var[:] = lat_2d
 
-            # Data variable
+            # Data variable — replicate 1-D time series to both cells
             data_var = ds.createVariable(varname, 'f8', ('time', 'yc', 'xc'), fill_value=fill)
             data_var.long_name = long_name
             data_var.units = units
-            data_var[:] = np.asarray(data_clean)[:, np.newaxis, np.newaxis]
+            data_2d = np.asarray(data_clean)[:, np.newaxis, np.newaxis]
+            data_var[:] = np.broadcast_to(data_2d, (len(data_clean), nrows, ncols)).copy()
         finally:
             ds.close()
 
-    def _write_forcing_header(self, props: Dict, cellsize: float = 0.5) -> None:
+    def _write_forcing_header(self, props: Dict) -> None:
         """
         Write header.txt in the forcing directory.
 
         mHM reads this ESRI ASCII grid header to determine the spatial
-        extent of the forcing grid.
+        extent of the forcing grid.  Must match the 2-row lumped layout.
         """
+        cellsize = self.LUMPED_CELLSIZE
         xllcorner = props['lon'] - cellsize / 2
-        yllcorner = props['lat'] - cellsize / 2
+        yllcorner = props['lat'] - cellsize / 2 - cellsize  # 2 rows
         content = (
             f"ncols         1\n"
-            f"nrows         1\n"
+            f"nrows         2\n"
             f"xllcorner     {xllcorner:.6f}\n"
             f"yllcorner     {yllcorner:.6f}\n"
             f"cellsize      {cellsize}\n"
@@ -465,24 +478,37 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
 
         logger.info(f"Synthetic mHM forcing files written to {self.forcing_dir}")
 
-    def _write_asc_grid(self, filepath, value, props, cellsize=0.5):
+    def _write_asc_grid(self, filepath, value, props, cellsize=None,
+                        value_row2=None):
         """
-        Write a single-cell ASCII grid file in ESRI .asc format.
+        Write a 2-row × 1-col ASCII grid file in ESRI .asc format.
+
+        mRM needs ≥ 2 cells to create routing reaches.  For a lumped
+        setup the grid has two rows (upstream cell → outlet cell) so
+        that one reach exists and discharge can be routed to the gauge.
 
         Args:
             filepath: Path to the output .asc file.
-            value: The data value for the single grid cell.
-            props: Dict with 'lat' and 'lon' keys for the cell centre.
-            cellsize: Grid cell size in degrees (default 0.5).
+            value: Data value for the upstream cell (row 1, printed first).
+            props: Dict with 'lat' and 'lon' for the cell centre.
+            cellsize: Grid cell size in degrees (default ``LUMPED_CELLSIZE``).
+            value_row2: Optional different value for the outlet cell
+                        (row 2).  Defaults to *value*.
         """
+        cellsize = cellsize or self.LUMPED_CELLSIZE
+        if value_row2 is None:
+            value_row2 = value
+        xllcorner = props['lon'] - cellsize / 2
+        yllcorner = props['lat'] - cellsize / 2 - cellsize  # 2 rows
         content = (
             f"ncols         1\n"
-            f"nrows         1\n"
-            f"xllcorner     {props['lon'] - cellsize / 2:.6f}\n"
-            f"yllcorner     {props['lat'] - cellsize / 2:.6f}\n"
+            f"nrows         2\n"
+            f"xllcorner     {xllcorner:.6f}\n"
+            f"yllcorner     {yllcorner:.6f}\n"
             f"cellsize      {cellsize}\n"
             f"NODATA_value  -9999\n"
-            f"{value}\n"
+            f"{value}\n"        # row 1 (top / upstream)
+            f"{value_row2}\n"   # row 2 (bottom / outlet)
         )
         Path(filepath).write_text(content, encoding='utf-8')
 
@@ -511,14 +537,23 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
                 old_nc.unlink()
                 logger.info(f"Removed old NetCDF morph file: {old_nc.name}")
 
-        # --- Morph directory grids ---
+        # --- Morph directory grids (2-row lumped layout) ---
+        # Row 1 = upstream cell, row 2 = outlet cell with gauge.
+        # Both cells share the same properties so the model is effectively
+        # lumped, but mRM can create one routing reach.
         self._write_asc_grid(self.morph_dir / 'dem.asc', props['elev'], props)
         self._write_asc_grid(self.morph_dir / 'slope.asc', 0.05, props)
         self._write_asc_grid(self.morph_dir / 'aspect.asc', 180.0, props)
         self._write_asc_grid(self.morph_dir / 'soil_class.asc', 1, props)
-        self._write_asc_grid(self.morph_dir / 'facc.asc', 1, props)
-        self._write_asc_grid(self.morph_dir / 'fdir.asc', 0, props)
-        self._write_asc_grid(self.morph_dir / 'idgauges.asc', 1, props)
+        # Flow accumulation: upstream=1, outlet=2 (collects from upstream)
+        self._write_asc_grid(self.morph_dir / 'facc.asc', 1, props,
+                             value_row2=2)
+        # D8 flow direction: both cells flow South (4).
+        # Row 1 → row 2 (within domain), row 2 → outside (outlet).
+        self._write_asc_grid(self.morph_dir / 'fdir.asc', 4, props)
+        # Gauge only on the outlet cell (row 2)
+        self._write_asc_grid(self.morph_dir / 'idgauges.asc', -9999, props,
+                             value_row2=1)
         self._write_asc_grid(self.morph_dir / 'LAI_class.asc', 2, props)
         self._write_asc_grid(self.morph_dir / 'geology_class.asc', 1, props)
 
@@ -588,7 +623,7 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
 &mainconfig
   iFlag_cordinate_sys = 1     ! lat/lon coordinates
   nDomains = 1
-  resolution_Hydrology(1) = 0.5   ! ~50km for lumped, in degrees
+  resolution_Hydrology(1) = {self.LUMPED_CELLSIZE}   ! 2-cell lumped layout
   L0Domain(1) = 1
   write_restart = .FALSE.
   read_opt_domain_data(1) = 0
@@ -597,7 +632,7 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
 &mainconfig_mhm_mrm
   mhm_file_RestartIn(1) = ""
   mrm_file_RestartIn(1) = ""
-  resolution_Routing(1) = 0.5
+  resolution_Routing(1) = {self.LUMPED_CELLSIZE}
   timestep = 24
   read_restart = .FALSE.
   optimize = .FALSE.
@@ -875,8 +910,8 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         Generate the latlon.nc NetCDF file required by mHM.
 
         mHM reads latitude and longitude fields from a NetCDF file
-        referenced by file_LatLon(1) in the namelist. For a lumped 1x1
-        model this contains a single cell with dimensions (nrows, ncols).
+        referenced by file_LatLon(1) in the namelist.  For the 2-row
+        lumped layout this contains two cells (upstream + outlet).
 
         Variables written (all float64, dims (nrows, ncols)):
             lat, lon       -- cell-centre coordinates
@@ -890,13 +925,16 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         logger.info("Generating latlon.nc...")
 
         props = self._get_catchment_properties()
-        lat_val = np.array([[props['lat']]], dtype=np.float64)
-        lon_val = np.array([[props['lon']]], dtype=np.float64)
+        cellsize = self.LUMPED_CELLSIZE
+        lat_val = np.array(
+            [[props['lat']], [props['lat'] - cellsize]], dtype=np.float64
+        )
+        lon_val = np.full((2, 1), props['lon'], dtype=np.float64)
 
         latlon_path = self.morph_dir / 'latlon.nc'
         ds = nc4.Dataset(str(latlon_path), 'w', format='NETCDF4')
         try:
-            ds.createDimension('nrows', 1)
+            ds.createDimension('nrows', 2)
             ds.createDimension('ncols', 1)
 
             for vname, data in [
@@ -934,7 +972,7 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
 
 &routing1
   gaugeID(1)          = 1
-  gauge_lat(1)        = {props['lat']:.6f}
+  gauge_lat(1)        = {props['lat'] - self.LUMPED_CELLSIZE:.6f}
   gauge_lon(1)        = {props['lon']:.6f}
 /
 

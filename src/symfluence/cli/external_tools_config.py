@@ -534,7 +534,6 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.swat.build_instructions',
         'symfluence.models.mhm.build_instructions',
         'symfluence.models.crhm.build_instructions',
-        'symfluence.models.mikeshe.build_instructions',
     ]
 
     for module_name in model_modules:

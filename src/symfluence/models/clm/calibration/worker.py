@@ -487,22 +487,36 @@ class CLMWorker(BaseWorker):
                 start_new_session=True,
             )
 
-            # Poll-based wait with smart finalization detection.
+            # Poll-based wait with smart hang detection.
             #
             # CLM single-point takes ~7-20 min for 7 years depending on
-            # parameters.  After the simulation loop ends, ESMF hangs
-            # indefinitely in MPI finalization (mpiuni mode bug).
+            # parameters.  Two hang modes exist:
+            #   1. Simulation hang: solver stuck at 0% CPU mid-run
+            #   2. Finalization hang: ESMF MPI cleanup hangs after output
             #
-            # Strategy: count h0 history files.  Once all expected files
-            # exist, the simulation is done — wait a short grace period
-            # then kill.  This avoids premature killing during slow
-            # simulations while quickly reclaiming hung finalization.
+            # Strategy: monitor BOTH h0 file count AND CPU usage.
+            #   - All h0 files written + short grace → finalization hang
+            #   - 0% CPU for extended period → solver hang (kill early)
             import time
+            import subprocess as _sp
             poll_interval = 10
-            finalization_grace = 60   # seconds to wait after all h0 written
+            finalization_grace = 60   # seconds after all h0 files written
+            cpu_idle_limit = 120      # seconds of 0% CPU before kill
             expected_h0 = 7           # years 2003-2009 inclusive
             elapsed = 0
-            all_done_time = None      # when we first saw expected_h0 files
+            all_done_time = None
+            idle_since = None
+
+            def _get_cpu_pct(pid):
+                """Get CPU% for a process (macOS/Linux)."""
+                try:
+                    out = _sp.check_output(
+                        ['ps', '-o', '%cpu=', '-p', str(pid)],
+                        stderr=_sp.DEVNULL, timeout=5
+                    )
+                    return float(out.strip())
+                except Exception:
+                    return 100.0  # assume running if check fails
 
             while proc.poll() is None and elapsed < timeout:
                 time.sleep(poll_interval)
@@ -510,6 +524,7 @@ class CLMWorker(BaseWorker):
 
                 h0_count = len(list(output_dir.glob('*.clm2.h0.*.nc')))
 
+                # Check 1: all output files written → finalization hang
                 if h0_count >= expected_h0:
                     if all_done_time is None:
                         all_done_time = time.time()
@@ -519,13 +534,32 @@ class CLMWorker(BaseWorker):
                         )
                     elif time.time() - all_done_time > finalization_grace:
                         self.logger.warning(
-                            f"ESMF hung in finalization "
-                            f"({h0_count} h0 files, {finalization_grace}s "
-                            f"grace exceeded) — killing"
+                            f"ESMF finalization hang "
+                            f"({h0_count} h0, {finalization_grace}s) "
+                            f"— killing"
                         )
                         proc.kill()
                         proc.wait()
                         break
+                    continue  # skip CPU check when finalization is expected
+
+                # Check 2: CPU idle → solver hang (skip first 60s startup)
+                if elapsed > 60:
+                    cpu = _get_cpu_pct(proc.pid)
+                    if cpu < 0.5:
+                        if idle_since is None:
+                            idle_since = time.time()
+                        elif time.time() - idle_since > cpu_idle_limit:
+                            self.logger.warning(
+                                f"CLM solver hung (0% CPU for "
+                                f"{cpu_idle_limit}s, {h0_count} h0 files, "
+                                f"{elapsed}s elapsed) — killing"
+                            )
+                            proc.kill()
+                            proc.wait()
+                            break
+                    else:
+                        idle_since = None
 
             if proc.poll() is None:
                 proc.kill()

@@ -84,7 +84,7 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     'bsw_mult':         {'min': 0.5, 'max': 2.0},
     'sucsat_mult':      {'min': 0.5, 'max': 2.0},
     'watsat_mult':      {'min': 0.8, 'max': 1.2},
-    'hksat_mult':       {'min': 0.01, 'max': 100.0, 'transform': 'log'},
+    'hksat_mult':       {'min': 0.1, 'max': 10.0, 'transform': 'log'},
     'organic_max':      {'min': 0.0, 'max': 130.0},
     # Snow
     'fresh_snw_rds_max': {'min': 50.0, 'max': 200.0},

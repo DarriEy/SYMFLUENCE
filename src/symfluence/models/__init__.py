@@ -60,7 +60,7 @@ _model_names = [
     'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
     'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm',
     'modflow', 'parflow', 'xinanjiang', 'snow17',
-    'mikeshe', 'swat', 'mhm', 'crhm',
+    'swat', 'mhm', 'crhm',
 ]
 
 import importlib as _importlib

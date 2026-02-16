@@ -1254,8 +1254,6 @@ class ModelConfig(BaseModel):
             values['modflow'] = MODFLOWConfig()
         if 'PARFLOW' in models and values.get('parflow') is None:
             values['parflow'] = ParFlowConfig()
-        if 'MIKESHE' in models and values.get('mikeshe') is None:
-            values['mikeshe'] = MIKESHEConfig()
         if 'SWAT' in models and values.get('swat') is None:
             values['swat'] = SWATConfig()
         if 'MHM' in models and values.get('mhm') is None:
