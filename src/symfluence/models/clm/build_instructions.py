@@ -187,16 +187,40 @@ if [ -z "${ESMFMKFILE:-}" ]; then
         fi
     fi
     # Search Spack install trees (only if the directory exists)
+    # Sort reverse so newer versions (higher numbers) come first
     if [ -z "${ESMFMKFILE:-}" ]; then
         for spack_root in /apps/spack /opt/spack; do
             [ -d "$spack_root" ] || continue
-            _esmf_mk_candidate=$(find "$spack_root" -path "*/esmf/*/lib/esmf.mk" -type f 2>/dev/null | head -1)
+            _esmf_mk_candidate=$(find "$spack_root" -path "*/esmf/*/lib/esmf.mk" -type f 2>/dev/null | sort -rV | head -1)
             if [ -n "$_esmf_mk_candidate" ] && [ -f "$_esmf_mk_candidate" ]; then
                 export ESMFMKFILE="$_esmf_mk_candidate"
                 echo "Found ESMFMKFILE in Spack tree: $ESMFMKFILE"
                 break
             fi
         done
+    fi
+fi
+
+# 1-validate. CTSM 5.3 requires ESMF >= 8.4.1.  If we found an older
+# installation (e.g. Spack ESMF 7.x), reject it and fall through to
+# auto-build so we get a usable version.
+if [ -n "${ESMFMKFILE:-}" ] && [ -f "$ESMFMKFILE" ]; then
+    _esmf_major=$(grep '^ESMF_VERSION_MAJOR' "$ESMFMKFILE" 2>/dev/null | head -1 | tr -dc '0-9')
+    _esmf_minor=$(grep '^ESMF_VERSION_MINOR' "$ESMFMKFILE" 2>/dev/null | head -1 | tr -dc '0-9')
+    if [ -n "$_esmf_major" ]; then
+        echo "ESMF version from esmf.mk: ${_esmf_major}.${_esmf_minor:-0}"
+        # Need major >= 9  OR  (major == 8 AND minor >= 4)
+        _esmf_ok=false
+        if [ "$_esmf_major" -ge 9 ] 2>/dev/null; then
+            _esmf_ok=true
+        elif [ "$_esmf_major" -eq 8 ] && [ "${_esmf_minor:-0}" -ge 4 ] 2>/dev/null; then
+            _esmf_ok=true
+        fi
+        if [ "$_esmf_ok" = "false" ]; then
+            echo "WARNING: ESMF ${_esmf_major}.${_esmf_minor:-0} is too old (need >= 8.4.1)"
+            echo "  Ignoring $ESMFMKFILE — will build ESMF from source"
+            unset ESMFMKFILE
+        fi
     fi
 fi
 
