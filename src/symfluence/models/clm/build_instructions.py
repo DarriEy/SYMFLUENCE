@@ -150,21 +150,60 @@ _HOME=$($PYTHON3 -c "import pathlib; print(pathlib.Path.home())")
 echo "Resolved HOME via python3: $_HOME"
 export HOME="${_HOME}"
 
-ESMF_MK_SEARCH=(
-    "${_HOME}/.local/esmf/lib/libO/Darwin.gfortranclang.64.mpiuni.default/esmf.mk"
-    "${_HOME}/.local/esmf/lib/esmf.mk"
-    "/opt/homebrew/opt/esmf/lib/esmf.mk"
-    "/usr/local/lib/esmf.mk"
-)
-for mk in "${ESMF_MK_SEARCH[@]}"; do
-    if [ -f "$mk" ]; then
-        export ESMFMKFILE="$mk"
-        echo "Found ESMFMKFILE: $ESMFMKFILE"
-        break
+# 1a. Honour pre-set ESMFMKFILE (e.g. from "module load esmf" on HPC)
+if [ -n "${ESMFMKFILE:-}" ] && [ -f "$ESMFMKFILE" ]; then
+    echo "Using pre-set ESMFMKFILE: $ESMFMKFILE"
+fi
+
+# 1b. Standard search paths (macOS / local builds)
+if [ -z "${ESMFMKFILE:-}" ] || [ ! -f "${ESMFMKFILE:-}" ]; then
+    ESMFMKFILE=""
+    ESMF_MK_SEARCH=(
+        "${_HOME}/.local/esmf/lib/libO/Darwin.gfortranclang.64.mpiuni.default/esmf.mk"
+        "${_HOME}/.local/esmf/lib/esmf.mk"
+        "/opt/homebrew/opt/esmf/lib/esmf.mk"
+        "/usr/local/lib/esmf.mk"
+    )
+    for mk in "${ESMF_MK_SEARCH[@]}"; do
+        if [ -f "$mk" ]; then
+            export ESMFMKFILE="$mk"
+            echo "Found ESMFMKFILE: $ESMFMKFILE"
+            break
+        fi
+    done
+fi
+
+# 1c. HPC-specific: search Spack / module-managed paths
+if [ -z "${ESMFMKFILE:-}" ] && [ "${HPC_DETECTED:-false}" = "true" ]; then
+    echo "Searching HPC module paths for ESMF..."
+    # Try esmf-config if available (some Spack installs provide it)
+    if command -v ESMF_RegridWeightGen >/dev/null 2>&1; then
+        _esmf_bin_dir="$(dirname "$(command -v ESMF_RegridWeightGen)")"
+        _esmf_root="$(dirname "$_esmf_bin_dir")"
+        _esmf_mk_candidate=$(find "$_esmf_root" -name "esmf.mk" -type f 2>/dev/null | head -1)
+        if [ -n "$_esmf_mk_candidate" ] && [ -f "$_esmf_mk_candidate" ]; then
+            export ESMFMKFILE="$_esmf_mk_candidate"
+            echo "Found ESMFMKFILE via ESMF tools: $ESMFMKFILE"
+        fi
     fi
-done
-if [ -z "$ESMFMKFILE" ]; then
+    # Search common Spack install trees
+    if [ -z "${ESMFMKFILE:-}" ]; then
+        for spack_root in /apps/spack /opt/spack; do
+            _esmf_mk_candidate=$(find "$spack_root" -path "*/esmf/*/lib/esmf.mk" -type f 2>/dev/null | head -1)
+            if [ -n "$_esmf_mk_candidate" ] && [ -f "$_esmf_mk_candidate" ]; then
+                export ESMFMKFILE="$_esmf_mk_candidate"
+                echo "Found ESMFMKFILE in Spack tree: $ESMFMKFILE"
+                break
+            fi
+        done
+    fi
+fi
+
+if [ -z "${ESMFMKFILE:-}" ]; then
     echo "ERROR: ESMF not found. Install ESMF first (mpiuni mode)."
+    if [ "${HPC_DETECTED:-false}" = "true" ]; then
+        echo "  HPC: try 'module load esmf' or 'module spider esmf'"
+    fi
     echo "  git clone --depth 1 --branch v8.6.1 https://github.com/esmf-org/esmf.git"
     echo "  cd esmf && export ESMF_COMM=mpiuni ESMF_COMPILER=gfortranclang"
     echo "  make -j\$(nproc) && make install ESMF_INSTALL_PREFIX=~/.local/esmf"

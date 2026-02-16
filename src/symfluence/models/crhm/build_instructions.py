@@ -97,19 +97,47 @@ echo "spdlog: OK"
 
 # Handle Boost dependency (header-only)
 CRHM_SRC="crhmcode/src"
+# Save env var before overwriting with local path
+_BOOST_ENV_DIR="${BOOST_DIR:-}"
 BOOST_DIR="$CRHM_SRC/libs/boost_1_75_0"
 
 if [ ! -d "$BOOST_DIR" ]; then
     echo "Boost headers not found in repo, checking system..."
 
-    # Check for system Boost
+    # Check HPC module-provided Boost first (e.g. Spack "module load boost")
     SYSTEM_BOOST=""
-    if [ -d "/opt/homebrew/include/boost" ]; then
-        SYSTEM_BOOST="/opt/homebrew/include"
-    elif [ -d "/usr/local/include/boost" ]; then
-        SYSTEM_BOOST="/usr/local/include"
-    elif [ -d "/usr/include/boost" ]; then
-        SYSTEM_BOOST="/usr/include"
+    if [ -n "${BOOST_ROOT:-}" ] && [ -d "${BOOST_ROOT}/include/boost" ]; then
+        SYSTEM_BOOST="${BOOST_ROOT}/include"
+        echo "Found Boost via BOOST_ROOT: $BOOST_ROOT"
+    elif [ -n "$_BOOST_ENV_DIR" ] && [ -d "${_BOOST_ENV_DIR}/include/boost" ]; then
+        SYSTEM_BOOST="${_BOOST_ENV_DIR}/include"
+        echo "Found Boost via BOOST_DIR env var: $_BOOST_ENV_DIR"
+    elif [ -n "${EBROOTBOOST:-}" ] && [ -d "${EBROOTBOOST}/include/boost" ]; then
+        SYSTEM_BOOST="${EBROOTBOOST}/include"
+        echo "Found Boost via EasyBuild module"
+    fi
+
+    # HPC Spack tree search (only when HPC detected and not yet found)
+    if [ -z "$SYSTEM_BOOST" ] && [ "${HPC_DETECTED:-false}" = "true" ]; then
+        for spack_root in /apps/spack /opt/spack; do
+            _boost_inc=$(find "$spack_root" -path "*/boost/*/include/boost/version.hpp" -type f 2>/dev/null | head -1)
+            if [ -n "$_boost_inc" ]; then
+                SYSTEM_BOOST="$(dirname "$(dirname "$_boost_inc")")"
+                echo "Found Boost in Spack tree: $SYSTEM_BOOST"
+                break
+            fi
+        done
+    fi
+
+    # Check common desktop/system paths
+    if [ -z "$SYSTEM_BOOST" ]; then
+        if [ -d "/opt/homebrew/include/boost" ]; then
+            SYSTEM_BOOST="/opt/homebrew/include"
+        elif [ -d "/usr/local/include/boost" ]; then
+            SYSTEM_BOOST="/usr/local/include"
+        elif [ -d "/usr/include/boost" ]; then
+            SYSTEM_BOOST="/usr/include"
+        fi
     fi
 
     if [ -n "$SYSTEM_BOOST" ]; then
@@ -129,9 +157,13 @@ if [ ! -d "$BOOST_DIR" ]; then
         BOOST_OK=false
         for BOOST_URL in "${BOOST_URLS[@]}"; do
             echo "  Trying: $BOOST_URL"
-            for attempt in 1 2 3; do
-                curl -fSL --retry 3 --retry-delay 5 -o "$BOOST_TMP" "$BOOST_URL" 2>/dev/null && break
-            done
+            # Try curl first, fall back to wget
+            if command -v curl >/dev/null 2>&1; then
+                curl -fSL --retry 3 --retry-delay 5 -o "$BOOST_TMP" "$BOOST_URL" 2>/dev/null || true
+            fi
+            if [ ! -s "$BOOST_TMP" ] && command -v wget >/dev/null 2>&1; then
+                wget -q -O "$BOOST_TMP" "$BOOST_URL" 2>/dev/null || true
+            fi
             # Validate the archive before extracting
             if [ -s "$BOOST_TMP" ] && gzip -t "$BOOST_TMP" 2>/dev/null; then
                 tar xzf "$BOOST_TMP" -C "$CRHM_SRC/libs/"
@@ -145,6 +177,9 @@ if [ ! -d "$BOOST_DIR" ]; then
         rm -f "$BOOST_TMP"
         if [ "$BOOST_OK" != "true" ]; then
             echo "ERROR: Boost download/extract failed from all sources"
+            if [ "${HPC_DETECTED:-false}" = "true" ]; then
+                echo "  HPC: try 'module load boost' and rebuild"
+            fi
             exit 1
         fi
     fi

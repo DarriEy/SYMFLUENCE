@@ -88,12 +88,28 @@ if grep -q "t97'" src/std3.f 2>/dev/null; then
     echo "  Patched std3.f: missing comma in format 1300"
 fi
 
-# Remove -static flag from CMakeLists.txt for HPC compatibility.
-# On Spack/module-based HPC systems, static libc.a and libm.a are
-# typically not installed, so -static linking fails with "cannot find -lm".
-if grep -q '\-static' CMakeLists.txt 2>/dev/null; then
-    sed -i.bak 's/-static //g; s/ -static//g' CMakeLists.txt
-    echo "  Patched CMakeLists.txt: removed -static flag for HPC compatibility"
+# Remove -static flag for HPC compatibility when static libc/libm are unavailable.
+# On Spack/module-based HPC systems, static libc.a and libm.a are typically not
+# installed, so -static linking fails with "cannot find -lm".
+# Only patch when static linking is actually broken to avoid regressions on
+# desktop Linux/macOS where static libs may be available.
+STATIC_WORKS=true
+_static_test=$(mktemp /tmp/_swat_static_XXXXXX.f90)
+echo "program t; end program t" > "$_static_test"
+if ! gfortran -static "$_static_test" -o "${_static_test}.out" 2>/dev/null; then
+    STATIC_WORKS=false
+fi
+rm -f "$_static_test" "${_static_test}.out"
+
+if [ "$STATIC_WORKS" = "false" ]; then
+    for cmf in CMakeLists.txt src/CMakeLists.txt; do
+        if [ -f "$cmf" ] && grep -q '\-static' "$cmf" 2>/dev/null; then
+            sed -i.bak 's/-static //g; s/ -static//g' "$cmf"
+            echo "  Patched $cmf: removed -static flag (static libc unavailable)"
+        fi
+    done
+else
+    echo "  Static linking available, keeping -static flags"
 fi
 
 # Create build directory
