@@ -1045,10 +1045,13 @@ detect_or_build_flex() {
 
     cd "flex-${FLEX_VERSION}"
     echo "Configuring flex..."
-    ./configure --prefix="${FLEX_INSTALL_DIR}"
+    # GCC 14+ treats implicit function declarations as errors.
+    # flex 2.6.4 misc.c calls reallocarray() which needs _GNU_SOURCE on glibc
+    # to be properly declared via <stdlib.h>.
+    CFLAGS="${CFLAGS:-} -D_GNU_SOURCE" ./configure --prefix="${FLEX_INSTALL_DIR}"
 
     echo "Building flex..."
-    make -j ${NCORES:-4}
+    make -j ${NCORES:-4} CFLAGS="${CFLAGS:-} -D_GNU_SOURCE"
 
     echo "Installing flex to ${FLEX_INSTALL_DIR}..."
     make install

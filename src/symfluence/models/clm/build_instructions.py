@@ -57,12 +57,34 @@ UNAME_S=$(uname -s)
 echo "Platform: $UNAME_S"
 
 # Check required tools
-for tool in cmake perl python3; do
+for tool in cmake perl; do
     if ! command -v $tool >/dev/null 2>&1; then
         echo "ERROR: $tool not found. Please install it."
         exit 1
     fi
 done
+
+# Python 3.7+ is required by CTSM git-fleximod and CIME scripts.
+# On HPC systems the default python3 may be too old (e.g. RHEL 8 ships 3.6).
+# Prefer the venv/conda python which is typically 3.7+.
+PYTHON3=""
+for py_candidate in python3 python; do
+    if command -v "$py_candidate" >/dev/null 2>&1; then
+        PY_VER=$("$py_candidate" -c "import sys; print(sys.version_info[:2] >= (3,7))" 2>/dev/null || echo "False")
+        if [ "$PY_VER" = "True" ]; then
+            PYTHON3="$(command -v "$py_candidate")"
+            break
+        fi
+    fi
+done
+if [ -z "$PYTHON3" ]; then
+    echo "ERROR: Python 3.7 or later is required but not found."
+    echo "  On HPC, try: module load python or activate a conda/venv with Python 3.7+"
+    exit 1
+fi
+echo "Using Python: $PYTHON3 ($($PYTHON3 --version 2>&1))"
+# Ensure CTSM scripts use the correct python
+export PATH="$(dirname "$PYTHON3"):$PATH"
 
 # Check for Fortran compiler
 if command -v gfortran >/dev/null 2>&1; then
@@ -124,7 +146,7 @@ echo "External checkout complete"
 
 # === STEP 1: Locate ESMF FIRST (needed for all subsequent patches) ===
 # Use python3 to resolve home dir since $HOME may not be set in build subprocess
-_HOME=$(python3 -c "import pathlib; print(pathlib.Path.home())")
+_HOME=$($PYTHON3 -c "import pathlib; print(pathlib.Path.home())")
 echo "Resolved HOME via python3: $_HOME"
 export HOME="${_HOME}"
 
@@ -166,7 +188,7 @@ fi
 MACH_XML="${CTSM_ROOT}/ccs_config/machines/homebrew/config_machines.xml"
 if [ -f "$MACH_XML" ] && ! grep -q "ESMFMKFILE" "$MACH_XML"; then
     echo "Adding ESMFMKFILE=$ESMFMKFILE to homebrew machine config..."
-    python3 -c "
+    $PYTHON3 -c "
 with open('$MACH_XML') as f: c = f.read()
 c = c.replace('</environment_variables>',
     '      <env name=\"ESMFMKFILE\">$ESMFMKFILE</env>\n    </environment_variables>')
@@ -217,7 +239,7 @@ ${CTSM_ROOT}/cime/scripts/create_newcase \
 if [ $? -ne 0 ]; then
     echo "ERROR: create_newcase failed"
     echo "Available compsets:"
-    python ${CTSM_ROOT}/cime/scripts/query_config --compsets clm 2>/dev/null | head -20
+    $PYTHON3 ${CTSM_ROOT}/cime/scripts/query_config --compsets clm 2>/dev/null | head -20
     exit 1
 fi
 
@@ -225,7 +247,7 @@ cd "$CASE_DIR"
 
 # Inject ESMFMKFILE into case env_mach_specific.xml so CIME finds it
 if ! grep -q "ESMFMKFILE" env_mach_specific.xml 2>/dev/null; then
-    python3 -c "
+    $PYTHON3 -c "
 with open('env_mach_specific.xml') as f: c = f.read()
 c = c.replace('</environment_variables>',
     '  <env name=\"ESMFMKFILE\">$ESMFMKFILE</env>\n    </environment_variables>')
