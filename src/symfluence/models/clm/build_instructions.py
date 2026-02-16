@@ -400,9 +400,7 @@ fi
 echo "Running case.build..."
 NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
 ./xmlchange GMAKE_J=$NCORES 2>/dev/null || true
-./case.build
-
-if [ $? -ne 0 ]; then
+if ! ./case.build; then
     echo "ERROR: case.build failed"
     echo "=== Last 60 lines of each build log ==="
     for logfile in "${CASE_DIR}/bld/"*.bldlog.*; do

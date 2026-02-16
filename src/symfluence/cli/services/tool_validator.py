@@ -449,7 +449,6 @@ class ToolValidator(BaseService):
         self._console.newline()
         self._console.info("Binary Validation Summary:")
         self._console.indent(f"Valid: {valid_count}/{checked_count}")
-        if skipped_count:
-            self._console.indent(f"Skipped: {skipped_count} (optional, not installed)")
+        # Don't display skipped optional tools — they are on a need-to-know basis
         self._console.indent(f"Missing: {missing_count}/{checked_count}")
         self._console.indent(f"Failed: {failed_count}/{checked_count}")

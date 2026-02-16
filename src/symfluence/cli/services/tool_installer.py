@@ -779,10 +779,16 @@ class ToolInstaller(BaseService):
                 if check_type in ("python_module", "python_import"):
                     module_name = verify.get("python_import", tool_name)
                     try:
-                        import importlib
-                        importlib.import_module(module_name)
-                        ok = True
-                    except ImportError:
+                        # Use a subprocess for the import check — the build
+                        # ran in a child process so packages it installed via
+                        # pip are not visible to our in-process importlib.
+                        import subprocess as _sp, sys as _sys
+                        _r = _sp.run(
+                            [_sys.executable, "-c", f"import {module_name}"],
+                            capture_output=True, timeout=15,
+                        )
+                        ok = _r.returncode == 0
+                    except Exception:
                         ok = False
                     status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
                     self._console.indent(f"Install verification ({check_type}): {status}")
