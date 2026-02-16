@@ -76,14 +76,13 @@ class ToolValidator(BaseService):
         # Validate each tool (skip optional tools that aren't installed)
         for tool_name, tool_info in self.external_tools.items():
             if tool_info.get('optional', False):
-                # Check if optional tool is installed before validating
+                # Check if optional tool is actually installed before validating.
+                # Use default_path_suffix (e.g. installs/clm/bin) which includes
+                # the output subdirectory — NOT the install_dir root, which exists
+                # whenever the repo was cloned even if the build failed.
                 data_dir = self._get_data_dir(config)
                 opt_path = data_dir / tool_info.get("default_path_suffix", "")
-                # Also check install_dir root (default_path_suffix may include
-                # subdirs like 'bin/' that don't exist for all build types)
-                install_dir = tool_info.get("install_dir", "")
-                install_root = data_dir / "installs" / install_dir if install_dir else None
-                if not opt_path.exists() and not (install_root and install_root.exists()):
+                if not opt_path.exists():
                     validation_results["skipped_tools"].append(tool_name)
                     continue  # Skip optional tools that aren't installed
             self._console.newline()
