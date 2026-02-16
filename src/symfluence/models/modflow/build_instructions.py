@@ -143,14 +143,24 @@ if [ "$PLATFORM" != "unknown" ]; then
             if [ -n "$MF6_BIN" ]; then
                 cp "$MF6_BIN" "${INSTALL_DIR}/bin/mf6"
                 chmod +x "${INSTALL_DIR}/bin/mf6"
-                DOWNLOAD_SUCCESS=true
-                echo "Binary download successful"
 
-                # Also copy zbud6 if available
-                ZBUD_BIN=$(find "$TMPDIR" -name "zbud6" -o -name "zbud6.exe" | head -1)
-                if [ -n "$ZBUD_BIN" ]; then
-                    cp "$ZBUD_BIN" "${INSTALL_DIR}/bin/zbud6"
-                    chmod +x "${INSTALL_DIR}/bin/zbud6"
+                # Verify the binary actually runs (catches glibc mismatch
+                # on HPC where pre-compiled binaries target newer glibc)
+                if "${INSTALL_DIR}/bin/mf6" --version >/dev/null 2>&1; then
+                    DOWNLOAD_SUCCESS=true
+                    echo "Binary download successful"
+                    "${INSTALL_DIR}/bin/mf6" --version 2>/dev/null || true
+
+                    # Also copy zbud6 if available
+                    ZBUD_BIN=$(find "$TMPDIR" -name "zbud6" -o -name "zbud6.exe" | head -1)
+                    if [ -n "$ZBUD_BIN" ]; then
+                        cp "$ZBUD_BIN" "${INSTALL_DIR}/bin/zbud6"
+                        chmod +x "${INSTALL_DIR}/bin/zbud6"
+                    fi
+                else
+                    echo "WARNING: Downloaded mf6 binary cannot run on this system (glibc mismatch?)"
+                    echo "  Will fall back to source build"
+                    rm -f "${INSTALL_DIR}/bin/mf6"
                 fi
             else
                 echo "WARNING: mf6 binary not found in downloaded archive"

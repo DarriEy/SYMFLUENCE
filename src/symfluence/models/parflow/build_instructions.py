@@ -80,11 +80,19 @@ DOWNLOAD_SUCCESS=false
 if [ "$PLATFORM" != "unknown" ]; then
     echo "Attempting binary download from ParFlow GitHub releases..."
 
-    # Discover latest release tag via GitHub API
-    LATEST_TAG=$(curl -sL \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/parflow/parflow/releases/latest" \
-        | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null) || true
+    # Discover latest release tag via GitHub API (try curl then wget)
+    _api_url="https://api.github.com/repos/parflow/parflow/releases/latest"
+    _api_json=""
+    if command -v curl >/dev/null 2>&1; then
+        _api_json=$(curl -fsSL -H "Accept: application/vnd.github+json" "$_api_url" 2>/dev/null) || true
+    fi
+    if [ -z "$_api_json" ] && command -v wget >/dev/null 2>&1; then
+        _api_json=$(wget -qO- --header="Accept: application/vnd.github+json" "$_api_url" 2>/dev/null) || true
+    fi
+    LATEST_TAG=""
+    if [ -n "$_api_json" ]; then
+        LATEST_TAG=$(echo "$_api_json" | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null) || true
+    fi
 
     if [ -z "$LATEST_TAG" ]; then
         echo "WARNING: Could not determine latest release tag, trying default"
@@ -100,7 +108,14 @@ if [ "$PLATFORM" != "unknown" ]; then
     TMPTAR=$(mktemp /tmp/parflow_XXXXXX.tar.gz)
     TMPEXTRACT=$(mktemp -d /tmp/parflow_extract_XXXXXX)
 
-    if curl -sL -o "$TMPTAR" "$DOWNLOAD_URL" && [ -s "$TMPTAR" ]; then
+    # Try curl first, fall back to wget
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$TMPTAR" "$DOWNLOAD_URL" 2>/dev/null || true
+    fi
+    if [ ! -s "$TMPTAR" ] && command -v wget >/dev/null 2>&1; then
+        wget -q -O "$TMPTAR" "$DOWNLOAD_URL" 2>/dev/null || true
+    fi
+    if [ -s "$TMPTAR" ]; then
         # Verify it's actually a tar.gz file
         if file "$TMPTAR" | grep -q "gzip\|tar"; then
             tar xzf "$TMPTAR" -C "$TMPEXTRACT" 2>/dev/null || true
@@ -111,8 +126,18 @@ if [ "$PLATFORM" != "unknown" ]; then
             if [ -n "$PF_BIN" ]; then
                 cp "$PF_BIN" "${INSTALL_DIR}/bin/parflow"
                 chmod +x "${INSTALL_DIR}/bin/parflow"
-                DOWNLOAD_SUCCESS=true
-                echo "Binary download successful"
+
+                # Verify the binary actually runs (catches glibc mismatch
+                # on HPC where pre-compiled binaries target newer glibc)
+                if "${INSTALL_DIR}/bin/parflow" --version >/dev/null 2>&1 || \
+                   "${INSTALL_DIR}/bin/parflow" -v >/dev/null 2>&1; then
+                    DOWNLOAD_SUCCESS=true
+                    echo "Binary download successful"
+                else
+                    echo "WARNING: Downloaded parflow binary cannot run on this system (glibc mismatch?)"
+                    echo "  Will fall back to source build"
+                    rm -f "${INSTALL_DIR}/bin/parflow"
+                fi
             else
                 echo "WARNING: parflow binary not found in downloaded archive"
             fi
