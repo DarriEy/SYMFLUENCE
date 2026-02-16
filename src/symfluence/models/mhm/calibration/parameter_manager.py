@@ -52,16 +52,16 @@ class MHMParameterManager(BaseParameterManager):
 
         if mhm_params_str is None:
             mhm_params_str = (
-                'canopyInterceptionFactor,snowThresholdTemperature,'
+                'canopyInterceptionFactor,snowTreshholdTemperature,'
                 'degreeDayFactor_forest,degreeDayFactor_pervious,'
-                'PTF_Ks,interflowRecession_slope,rechargeCoefficient,'
-                'baseflowRecession,saturatedHydraulicConductivity'
+                'PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient,'
+                'GeoParam(1,:)'
             )
             logger.warning(
                 f"MHM_PARAMS_TO_CALIBRATE missing; using fallback: {mhm_params_str}"
             )
 
-        self.mhm_params = [p.strip() for p in str(mhm_params_str).split(',') if p.strip()]
+        self.mhm_params = self._split_param_names(str(mhm_params_str))
 
         # Path to namelist files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
@@ -85,6 +85,34 @@ class MHMParameterManager(BaseParameterManager):
         else:
             self.namelist_path = self.settings_dir / self.namelist_file
             self._is_param_nml = False
+
+    @staticmethod
+    def _split_param_names(param_str: str) -> List[str]:
+        """Split comma-separated parameter names, respecting parentheses.
+
+        ``GeoParam(1,:)`` contains a comma but must not be split.
+        """
+        params: List[str] = []
+        current: List[str] = []
+        depth = 0
+        for char in param_str:
+            if char == '(':
+                depth += 1
+                current.append(char)
+            elif char == ')':
+                depth -= 1
+                current.append(char)
+            elif char == ',' and depth == 0:
+                token = ''.join(current).strip().strip('"').strip("'")
+                if token:
+                    params.append(token)
+                current = []
+            else:
+                current.append(char)
+        token = ''.join(current).strip().strip('"').strip("'")
+        if token:
+            params.append(token)
+        return params
 
     def _get_parameter_names(self) -> List[str]:
         """Return mHM parameter names from config."""

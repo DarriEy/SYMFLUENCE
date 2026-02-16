@@ -7,6 +7,7 @@ mHM-specific optimizer inheriting from BaseModelOptimizer.
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+import shutil
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
@@ -95,8 +96,63 @@ class MHMModelOptimizer(BaseModelOptimizer):
 
         self.worker.apply_parameters(best_params, self.mhm_setup_dir)
 
-        return self.worker.run_model(
+        success = self.worker.run_model(
             self.config,
             self.mhm_setup_dir,
             output_dir
         )
+
+        if success:
+            # Copy mHM output files to final_evaluation dir
+            output_dir.mkdir(parents=True, exist_ok=True)
+            mhm_output = self.mhm_setup_dir.parent / 'output'
+            if mhm_output.exists():
+                for f in mhm_output.glob('*'):
+                    if f.is_file():
+                        shutil.copy2(f, output_dir / f.name)
+            self.logger.info(f"Copied mHM outputs to {output_dir}")
+
+        return success
+
+    def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """Run final evaluation using mHM worker metrics."""
+        self.logger.info("=" * 60)
+        self.logger.info("RUNNING FINAL EVALUATION")
+        self.logger.info("=" * 60)
+
+        try:
+            final_output_dir = self.results_dir / 'final_evaluation'
+            final_output_dir.mkdir(parents=True, exist_ok=True)
+
+            if not self._run_model_for_final_evaluation(final_output_dir):
+                self.logger.error("mHM run failed during final evaluation")
+                return None
+
+            metrics = self.worker.calculate_metrics(
+                final_output_dir, self.config,
+                sim_dir=final_output_dir
+            )
+
+            if not metrics or metrics.get('kge', -999) <= -999:
+                self.logger.error("Failed to calculate final evaluation metrics")
+                return None
+
+            calib_metrics = {"KGE_Calib": metrics.get('kge', -999)}
+            eval_metrics = {"KGE_Eval": metrics.get('kge', -999)}
+
+            final_result = {
+                'final_metrics': metrics,
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
+                'success': True,
+                'best_params': best_params
+            }
+
+            self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
+            return final_result
+
+        except Exception as e:
+            self.logger.error(f"Error in final evaluation: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None

@@ -18,6 +18,7 @@ from .log_viewer import LogViewer
 from .results_viewer import ResultsViewer
 from .iterative_run_panel import IterativeRunPanel
 from .gauge_setup_panel import GaugeSetupPanel
+from .domain_browser import DomainBrowser
 
 __all__ = [
     'MapView',
@@ -36,4 +37,5 @@ __all__ = [
     'ResultsViewer',
     'IterativeRunPanel',
     'GaugeSetupPanel',
+    'DomainBrowser',
 ]

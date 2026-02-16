@@ -82,9 +82,6 @@ class MapView(param.Parameterized):
         # Gauge data store (lazy)
         self._gauge_store = None
         self._gauge_loaded = False
-        self._network_filter = None  # will hold MultiChoice widget
-        self._load_layers_btn = None
-        self._load_gauges_btn = None
         self._status_pane = None
         self._layers_loading = False
         self._gauges_loading = False
@@ -117,6 +114,18 @@ class MapView(param.Parameterized):
 
         # Watch bounding_box_coords from text field
         state.param.watch(self._on_bbox_text_change, ['bounding_box_coords'])
+
+        # Bbox control buttons
+        self._use_view_btn = pn.widgets.Button(
+            name='Use Current View', button_type='default',
+            sizing_mode='stretch_width', margin=(4, 5),
+        )
+        self._clear_bbox_btn = pn.widgets.Button(
+            name='Clear Bounding Box', button_type='default',
+            sizing_mode='stretch_width', margin=(4, 5),
+        )
+        self._use_view_btn.on_click(self._on_use_current_view)
+        self._clear_bbox_btn.on_click(self._on_clear_bbox)
 
     def _build_figure(self):
         p = figure(
@@ -688,17 +697,38 @@ class MapView(param.Parameterized):
             pass
 
     # ------------------------------------------------------------------
+    # Bbox control button handlers
+    # ------------------------------------------------------------------
+
+    def _on_use_current_view(self, event):
+        """Capture the current map viewport extent as the bounding box."""
+        x_start = self._fig.x_range.start
+        x_end = self._fig.x_range.end
+        y_start = self._fig.y_range.start
+        y_end = self._fig.y_range.end
+
+        lon_min, lat_min = _mercator_to_lonlat(x_start, y_start)
+        lon_max, lat_max = _mercator_to_lonlat(x_end, y_end)
+
+        # Format: north/west/south/east
+        bbox_str = f"{lat_max:.6f}/{lon_min:.6f}/{lat_min:.6f}/{lon_max:.6f}"
+        self.state.bounding_box_coords = bbox_str
+        self.state.config_dirty = True
+        self.state.append_log(f"Bounding box set from viewport: {bbox_str}\n")
+
+    def _on_clear_bbox(self, event):
+        """Clear the bounding box from map and state."""
+        self._bbox_source.data = dict(left=[], right=[], top=[], bottom=[])
+        self.state.bounding_box_coords = ''
+        self.state.config_dirty = True
+        self.state.append_log("Bounding box cleared.\n")
+
+    # ------------------------------------------------------------------
     # Panel layout
     # ------------------------------------------------------------------
 
     def _update_loading_ui(self):
-        """Update loading controls and status message."""
-        if self._load_layers_btn is not None:
-            self._load_layers_btn.disabled = self._layers_loading
-        if self._load_gauges_btn is not None:
-            self._load_gauges_btn.disabled = self._gauges_loading
-        if self._network_filter is not None:
-            self._network_filter.disabled = self._gauges_loading
+        """Update status message."""
         if self._status_pane is not None:
             if self._layers_loading:
                 self._status_pane.object = "Loading map layers..."
@@ -715,57 +745,71 @@ class MapView(param.Parameterized):
         self._gauges_loading = loading
         self._update_loading_ui()
 
+    # ------------------------------------------------------------------
+    # Shapefile overlay (public API for DomainBrowser)
+    # ------------------------------------------------------------------
+
+    def add_shapefile_overlay(self, path, name, color='#e67e22'):
+        """Read a shapefile and add it as an overlay on the map.
+
+        Auto-detects polygon vs line geometry and adds the appropriate
+        Bokeh renderer with a legend label.
+
+        Args:
+            path: Path to the .shp file.
+            name: Display name for the legend.
+            color: Line/fill colour.
+        """
+        try:
+            import geopandas as gpd
+            gdf = gpd.read_file(path).to_crs(epsg=3857)
+        except Exception as exc:
+            self.state.append_log(f"Could not read shapefile {path}: {exc}\n")
+            return
+
+        geom_type = self._detect_geometry_type(gdf)
+        if geom_type == 'polygon':
+            data = self._read_polygon_shapefile(path)
+            if data['xs']:
+                self._fig.patches(
+                    'xs', 'ys', source=ColumnDataSource(data=data),
+                    fill_alpha=0.12, fill_color=color,
+                    line_color=color, line_width=1.2,
+                    legend_label=name,
+                )
+                self.state.append_log(f"Shapefile overlay added: {name}\n")
+        elif geom_type == 'line':
+            data = self._read_line_shapefile(path)
+            if data['xs']:
+                self._fig.multi_line(
+                    'xs', 'ys', source=ColumnDataSource(data=data),
+                    line_color=color, line_width=1.5,
+                    legend_label=name,
+                )
+                self.state.append_log(f"Shapefile overlay added: {name}\n")
+        else:
+            self.state.append_log(f"Unsupported geometry type in {path}\n")
+
+    @staticmethod
+    def _detect_geometry_type(gdf):
+        """Detect whether a GeoDataFrame contains polygons or lines."""
+        for geom in gdf.geometry:
+            if geom is None:
+                continue
+            gt = geom.geom_type
+            if gt in ('Polygon', 'MultiPolygon'):
+                return 'polygon'
+            if gt in ('LineString', 'MultiLineString'):
+                return 'line'
+            if gt in ('Point', 'MultiPoint'):
+                return 'point'
+        return 'unknown'
+
     def panel(self):
         """Return the Panel component for embedding in the app layout."""
-        self._load_layers_btn = pn.widgets.Button(name='Load Layers', button_type='primary', width=120)
-        self._load_layers_btn.on_click(lambda e: self.load_layers())
-
-        # Create network filter BEFORE the button that references it
-        self._network_filter = pn.widgets.MultiChoice(
-            name='Networks',
-            options=['WSC', 'USGS', 'SMHI', 'LamaH-ICE'],
-            value=[],
-            sizing_mode='stretch_width',
-            max_width=300,
-        )
-
-        self._load_gauges_btn = pn.widgets.Button(name='Load Gauges', button_type='success', width=120)
-        self._load_gauges_btn.on_click(lambda e: self.load_gauges(
-            networks=self._network_filter.value or None
-        ))
-
-        self._network_filter.param.watch(
-            lambda e: self._update_gauge_visibility(e.new) if self._gauge_loaded else None,
-            'value',
-        )
-
-        toggle_basins = pn.widgets.Checkbox(name='Basins', value=True)
-        toggle_hrus = pn.widgets.Checkbox(name='HRUs', value=False)
-        toggle_rivers = pn.widgets.Checkbox(name='Rivers', value=True)
-        toggle_gauges = pn.widgets.Checkbox(name='Gauges', value=True)
-
-        def _toggle_visibility(event, renderer):
-            renderer.visible = event.new
-
-        toggle_basins.param.watch(lambda e: _toggle_visibility(e, self._basin_renderer), 'value')
-        toggle_hrus.param.watch(lambda e: _toggle_visibility(e, self._hru_renderer), 'value')
-        toggle_rivers.param.watch(lambda e: _toggle_visibility(e, self._river_renderer), 'value')
-        toggle_gauges.param.watch(lambda e: _toggle_visibility(e, self._gauge_renderer), 'value')
-
-        self._hru_renderer.visible = False  # default hidden
+        self._hru_renderer.visible = True
         self._status_pane = pn.pane.Str("", sizing_mode='stretch_width')
         self._update_loading_ui()
-
-        toolbar = pn.Row(
-            self._load_layers_btn, self._load_gauges_btn,
-            pn.Spacer(width=10),
-            toggle_basins, toggle_hrus, toggle_rivers, toggle_gauges,
-            pn.Spacer(sizing_mode='stretch_width'),
-            self._network_filter,
-            sizing_mode='stretch_width',
-            styles={'background': '#f0f4f8', 'border-radius': '6px',
-                    'padding': '4px 10px', 'align-items': 'center'},
-        )
 
         self._raster_card = pn.Card(
             self._raster_toggles_column,
@@ -775,9 +819,15 @@ class MapView(param.Parameterized):
             sizing_mode='stretch_width',
         )
 
+        bbox_controls = pn.Row(
+            self._use_view_btn,
+            self._clear_bbox_btn,
+            sizing_mode='stretch_width',
+        )
+
         return pn.Column(
-            toolbar,
             self._status_pane,
+            bbox_controls,
             pn.pane.Bokeh(self._fig, sizing_mode='stretch_both', min_height=500),
             self._raster_card,
             sizing_mode='stretch_both',

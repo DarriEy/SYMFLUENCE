@@ -37,6 +37,7 @@ PARAM_BOUNDS = {
     # -- albedo --
     'Albedo_bare':      {'min': 0.05,  'max': 0.40},      # bare-ground albedo
     'Albedo_snow':      {'min': 0.5,   'max': 0.95},      # fresh-snow albedo
+    'Asnow':            {'min': 0.5,   'max': 2.5},       # albedo modifier for new snow
     # -- evap --
     'F_Qg':             {'min': 0.0,   'max': 0.5},       # ground heat flux fraction
     'Zwind':            {'min': 1.0,   'max': 30.0},      # wind measurement height [m]
@@ -52,6 +53,7 @@ PARAM_BOUNDS = {
     'A_S':              {'min': 0.001, 'max': 0.01},      # snow age decay
     'N_S':              {'min': 50.0,  'max': 500.0},     # vegetation density
     # -- Soil --
+    'Ksat':             {'min': 0.01,  'max': 100.0},     # saturated hydraulic conductivity [mm/hr]
     'gw_K':             {'min': 0.0001, 'max': 1.0},      # gw recession [1/d]
     'gw_max':           {'min': 50.0,  'max': 500.0},     # max gw storage [mm]
     'soil_gw_K':        {'min': 0.0001, 'max': 1.0},      # soil-to-gw transfer
@@ -82,6 +84,7 @@ DEFAULT_PARAMS = {
     # -- albedo --
     'Albedo_bare': 0.17,
     'Albedo_snow': 0.85,
+    'Asnow': 1.0,                     # albedo modifier for new snow
     # -- evap --
     'evap_type': 0,
     'F_Qg': 0.05,
@@ -99,6 +102,7 @@ DEFAULT_PARAMS = {
     'A_S': 0.003,
     'N_S': 320.0,
     # -- Soil --
+    'Ksat': 10.0,                     # saturated hydraulic conductivity [mm/hr]
     'cov_type': 1,
     'gw_init': 75.0,
     'gw_K': 0.001,

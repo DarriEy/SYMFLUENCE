@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 _WIDGET_KW = dict(sizing_mode='stretch_width', margin=(4, 5))
 _BTN_KW = dict(sizing_mode='stretch_width', margin=(8, 5, 4, 5))
 
+_FORCING_DATASETS = [
+    'ERA5', 'RDRS', 'CARRA', 'CERRA', 'MSWEP', 'AORC', 'CONUS404',
+]
 _PET_METHODS = ['oudin', 'hargreaves', 'priestley_taylor', 'penman', 'fao56']
 
 _VISIBLE_PHASES = ('discretized', 'data_ready', 'model_ready', 'calibrated', 'analyzed')
@@ -47,9 +50,8 @@ class ForcingsPanel(param.Parameterized):
 
         self._forcing_dataset = pn.widgets.Select(
             name='Forcing Dataset',
-            options=[forcing_dataset] if forcing_dataset else ['ERA5'],
-            value=forcing_dataset or 'ERA5',
-            disabled=True,
+            options=_FORCING_DATASETS,
+            value=forcing_dataset if forcing_dataset in _FORCING_DATASETS else 'ERA5',
             **_WIDGET_KW,
         )
         self._pet_method = pn.widgets.Select(
@@ -102,6 +104,7 @@ class ForcingsPanel(param.Parameterized):
             return
 
         new_forcing = cfg.forcing.model_copy(update={
+            'dataset': self._forcing_dataset.value,
             'pet_method': self._pet_method.value,
         })
         self.state.typed_config = cfg.model_copy(update={'forcing': new_forcing})
@@ -128,6 +131,7 @@ class ForcingsPanel(param.Parameterized):
             return
 
         new_forcing = cfg.forcing.model_copy(update={
+            'dataset': self._forcing_dataset.value,
             'pet_method': self._pet_method.value,
         })
         self.state.typed_config = cfg.model_copy(update={'forcing': new_forcing})
@@ -154,7 +158,7 @@ class ForcingsPanel(param.Parameterized):
             pn.layout.Divider(),
             self._run_all_btn,
             title='Process Forcings',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in _VISIBLE_PHASES,
             sizing_mode='stretch_width',
             header_background='#eef4fb',

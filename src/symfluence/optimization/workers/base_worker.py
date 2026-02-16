@@ -965,6 +965,7 @@ class BaseWorker(ABC):
             task.output_dir,
             task.config,
             sim_dir=task.sim_dir,
+            settings_dir=str(task.settings_dir),
             proc_id=task.proc_id,
             **task.additional_data
         )

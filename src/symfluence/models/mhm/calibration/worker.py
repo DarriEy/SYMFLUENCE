@@ -76,7 +76,7 @@ class MHMWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             original_settings_dir = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'settings'
 
-            if original_settings_dir.exists():
+            if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
                 for f in original_settings_dir.glob('*.nml'):
                     shutil.copy2(f, settings_dir / f.name)
@@ -283,14 +283,22 @@ class MHMWorker(BaseWorker):
                 self.logger.error(self._last_error)
                 return False
 
-            # Verify output - check both output_dir and settings output subdirectory
-            output_files = list(mhm_output_dir.glob('discharge_*.nc'))
+            # Verify output - check multiple locations where mHM may write
+            output_files = list(mhm_output_dir.glob('discharge*.nc'))
             if not output_files:
                 # mHM may write to output subdirectory under settings
                 for subdir in [settings_dir / 'output', settings_dir]:
-                    output_files = list(subdir.glob('discharge_*.nc'))
+                    output_files = list(subdir.glob('discharge*.nc'))
                     if output_files:
                         break
+
+            if not output_files:
+                # mHM namelist may point to original MHM_input/output directory
+                domain_name = config.get('DOMAIN_NAME', '')
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                mhm_input_output = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'output'
+                if mhm_input_output.exists():
+                    output_files = list(mhm_input_output.glob('discharge*.nc'))
 
             if not output_files:
                 self._last_error = "No discharge output files produced"
@@ -319,7 +327,7 @@ class MHMWorker(BaseWorker):
 
     def _cleanup_stale_output(self, output_dir: Path) -> None:
         """Remove stale mHM output files."""
-        for pattern in ['discharge_*.nc', 'mHM_Fluxes_States_*.nc', '*.log']:
+        for pattern in ['discharge*.nc', 'mHM_Fluxes_States_*.nc', '*.log']:
             for file_path in output_dir.glob(pattern):
                 try:
                     file_path.unlink()
@@ -348,13 +356,21 @@ class MHMWorker(BaseWorker):
             settings_dir = kwargs.get('settings_dir', None)
 
             # Find discharge output file - search multiple locations
-            output_files = list(sim_dir.glob('discharge_*.nc'))
+            output_files = list(sim_dir.glob('discharge*.nc'))
 
             if not output_files and settings_dir:
                 for subdir in [Path(settings_dir) / 'output', Path(settings_dir)]:
-                    output_files = list(subdir.glob('discharge_*.nc'))
+                    output_files = list(subdir.glob('discharge*.nc'))
                     if output_files:
                         break
+
+            if not output_files:
+                # mHM namelist may point to original MHM_input/output directory
+                domain_name = config.get('DOMAIN_NAME', '')
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                mhm_input_output = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'output'
+                if mhm_input_output.exists():
+                    output_files = list(mhm_input_output.glob('discharge*.nc'))
 
             if not output_files:
                 output_files = list(sim_dir.glob('*.nc'))
@@ -368,12 +384,18 @@ class MHMWorker(BaseWorker):
             # Extract discharge
             ds = xr.open_dataset(sim_file)
 
-            # Find discharge variable
+            # Find discharge variable (mHM v5.13+ uses Qsim_NNNNNNNNNN format)
             discharge = None
             for var in ['Qsim', 'Q', 'discharge', 'Qrouted']:
                 if var in ds:
                     discharge = ds[var]
                     break
+
+            if discharge is None:
+                # Check for gauge-indexed variables like Qsim_0000000001
+                qsim_vars = [v for v in ds.data_vars if v.startswith('Qsim')]
+                if qsim_vars:
+                    discharge = ds[qsim_vars[0]]
 
             if discharge is None:
                 ds.close()
@@ -391,8 +413,11 @@ class MHMWorker(BaseWorker):
 
             sim_series = pd.Series(streamflow_m3s, index=times)
 
-            # Skip warmup period
-            warmup_days = int(config.get('MHM_WARMUP_DAYS', 365))
+            # Skip warmup period (worker-level).
+            # NOTE: mHM handles warmup internally via warming_Days in the
+            # namelist, so output already excludes the warmup period.
+            # MHM_WORKER_WARMUP_DAYS allows an optional extra skip if needed.
+            warmup_days = int(config.get('MHM_WORKER_WARMUP_DAYS', 0))
             if warmup_days > 0 and len(sim_series) > warmup_days:
                 sim_series = sim_series.iloc[warmup_days:]
                 self.logger.debug(f"Skipped {warmup_days} warmup days for metric calculation")
@@ -410,9 +435,16 @@ class MHMWorker(BaseWorker):
 
             obs_series = pd.Series(obs_values, index=obs_index)
 
+            # Parse calibration period from config
+            cal_period_str = config.get('CALIBRATION_PERIOD', '')
+            cal_period_tuple = None
+            if cal_period_str and ',' in str(cal_period_str):
+                parts = str(cal_period_str).split(',')
+                cal_period_tuple = (parts[0].strip(), parts[1].strip())
+
             # Align and calculate metrics
             obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
-                sim_series, obs_series
+                sim_series, obs_series, calibration_period=cal_period_tuple
             )
 
             results = self._streamflow_metrics.calculate_metrics(

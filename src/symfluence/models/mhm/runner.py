@@ -178,11 +178,13 @@ class MHMRunner(BaseModelRunner):
         # Look for discharge and fluxes/states output files
         output_files = []
 
-        # Search in output directory and settings directory (mHM may write to either)
-        for search_dir in [self.output_dir, self.settings_dir, self.settings_dir / 'output']:
+        # Search in output directory, settings directory, and mHM_input/output
+        # (mHM writes to dir_Out specified in namelist, which may differ from self.output_dir)
+        mhm_output_dir = self.mhm_input_dir / "output"
+        for search_dir in [self.output_dir, self.settings_dir, self.settings_dir / 'output', mhm_output_dir]:
             if search_dir.exists():
-                output_files.extend(search_dir.glob("discharge_*.nc"))
-                output_files.extend(search_dir.glob("mHM_Fluxes_States_*.nc"))
+                output_files.extend(search_dir.glob("discharge*.nc"))
+                output_files.extend(search_dir.glob("mHM_Fluxes_States*.nc"))
 
         if not output_files:
             raise RuntimeError(
@@ -194,6 +196,15 @@ class MHMRunner(BaseModelRunner):
         for output_file in output_files:
             if output_file.stat().st_size == 0:
                 raise RuntimeError(f"mHM output file is empty: {output_file}")
+
+        # Copy output files to self.output_dir if they are elsewhere
+        import shutil
+        for output_file in output_files:
+            if output_file.parent != self.output_dir:
+                dest = self.output_dir / output_file.name
+                if not dest.exists():
+                    shutil.copy2(output_file, dest)
+                    logger.info(f"Copied {output_file.name} to {self.output_dir}")
 
         logger.info(f"Verified mHM output: {len(output_files)} NetCDF file(s) produced")
 

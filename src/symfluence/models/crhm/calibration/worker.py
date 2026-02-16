@@ -72,7 +72,7 @@ class CRHMWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             original_settings_dir = data_dir / f'domain_{domain_name}' / 'CRHM_input' / 'settings'
 
-            if original_settings_dir.exists():
+            if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
                 for f in original_settings_dir.glob('*'):
                     if f.is_file():
@@ -254,8 +254,12 @@ class CRHMWorker(BaseWorker):
                 self.logger.error(self._last_error)
                 return False
 
-            # Verify output
-            output_files = list(crhm_output_dir.glob('*.csv'))
+            # Verify output (CRHM produces .txt or .csv files)
+            output_files = list(crhm_output_dir.glob('CRHM_output*.txt'))
+            if not output_files:
+                output_files = list(crhm_output_dir.glob('*.csv'))
+            if not output_files:
+                output_files = list(crhm_output_dir.glob('*.txt'))
             if not output_files:
                 self._last_error = "No output files produced"
                 self.logger.error(self._last_error)
@@ -310,10 +314,25 @@ class CRHMWorker(BaseWorker):
         try:
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
 
-            # Find output file
-            output_files = list(sim_dir.glob('*output*.csv'))
+            # Find output file (CRHM produces .txt or .csv)
+            output_files = list(sim_dir.glob('CRHM_output*.txt'))
+            if not output_files:
+                output_files = list(sim_dir.glob('*output*.csv'))
             if not output_files:
                 output_files = list(sim_dir.glob('*.csv'))
+            if not output_files:
+                output_files = list(sim_dir.glob('*.txt'))
+
+            # Also search settings_dir if provided
+            settings_dir = kwargs.get('settings_dir')
+            if not output_files and settings_dir:
+                sd = Path(settings_dir)
+                for subdir in [sd / 'output', sd]:
+                    output_files = list(subdir.glob('CRHM_output*.txt'))
+                    if not output_files:
+                        output_files = list(subdir.glob('*.csv'))
+                    if output_files:
+                        break
 
             if not output_files:
                 self.logger.error(f"No CRHM output files found in {sim_dir}")
@@ -321,18 +340,27 @@ class CRHMWorker(BaseWorker):
 
             sim_file = output_files[0]
 
-            # Extract streamflow from CSV
-            df = pd.read_csv(sim_file, parse_dates=True, index_col=0)
+            # Extract streamflow - handle both CSV and tab-separated TXT
+            if sim_file.suffix == '.txt':
+                df = pd.read_csv(sim_file, sep='\t', parse_dates=True, index_col=0,
+                                 skiprows=[1], encoding='latin-1')  # Skip units row
+            else:
+                df = pd.read_csv(sim_file, parse_dates=True, index_col=0,
+                                 encoding='latin-1')
 
-            # Find flow column
+            # Find flow column (CRHM uses 'basinflow(1)' for basin outlet flow)
             flow_col = None
-            for col in ['flow', 'Flow', 'discharge', 'Discharge', 'Q', 'flow_cms', 'basinflow']:
-                if col in df.columns:
+            for col in df.columns:
+                col_lower = col.lower()
+                if 'basinflow' in col_lower or 'basin_flow' in col_lower:
                     flow_col = col
                     break
-
             if flow_col is None:
-                # Try partial match
+                for col in ['flow', 'Flow', 'discharge', 'Discharge', 'Q', 'flow_cms']:
+                    if col in df.columns:
+                        flow_col = col
+                        break
+            if flow_col is None:
                 flow_cols = [c for c in df.columns if 'flow' in c.lower()]
                 if flow_cols:
                     flow_col = flow_cols[0]
@@ -340,8 +368,18 @@ class CRHMWorker(BaseWorker):
             if flow_col is None:
                 return {'kge': self.penalty_score, 'error': 'No flow variable in output'}
 
-            sim_series = df[flow_col]
+            sim_series = df[flow_col].astype(float)
             sim_series.index = pd.to_datetime(sim_series.index)
+
+            # CRHM basinflow is in m^3/interval; resample to daily mean (m^3/s)
+            # Interval is typically 1 hour, so m^3/hr -> convert to m^3/s = /3600
+            interval_seconds = 3600  # Default 1-hour interval
+            if len(sim_series) > 1:
+                dt = (sim_series.index[1] - sim_series.index[0]).total_seconds()
+                if dt > 0:
+                    interval_seconds = dt
+            sim_series = sim_series / interval_seconds  # Convert to m^3/s
+            sim_series = sim_series.resample('D').mean()
 
             # Skip warmup period
             warmup_days = int(config.get('CRHM_WARMUP_DAYS', 365))

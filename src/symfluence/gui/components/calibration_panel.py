@@ -67,13 +67,13 @@ class CalibrationPanel(param.Parameterized):
         )
         self._calibration_period = pn.widgets.TextInput(
             name='Calibration Period',
-            placeholder='2000-01-01,2005-12-31',
+            placeholder='2003-01-01, 2005-12-31',
             value=defaults.get('calibration_period', ''),
             **_WIDGET_KW,
         )
         self._evaluation_period = pn.widgets.TextInput(
             name='Evaluation Period',
-            placeholder='2006-01-01,2010-12-31',
+            placeholder='2006-01-01, 2007-12-31',
             value=defaults.get('evaluation_period', ''),
             **_WIDGET_KW,
         )
@@ -120,14 +120,40 @@ class CalibrationPanel(param.Parameterized):
             self.state.append_log("ERROR: No config loaded.\n")
             return
 
+        # Auto-derive calibration period from experiment time range if not set
+        # This avoids cold-start artifacts destroying metrics (e.g. SUMMA dumps
+        # initial state as runoff in the first months, KGE can reach -20).
+        calib_period = self._calibration_period.value.strip()
+        eval_period = self._evaluation_period.value.strip()
+
+        if not calib_period:
+            try:
+                import pandas as pd
+                cfg = self.state.typed_config
+                t_start = pd.Timestamp(cfg.domain.time_start)
+                t_end = pd.Timestamp(cfg.domain.time_end)
+                total_days = (t_end - t_start).days
+
+                # Skip first 25% as spinup (minimum 90 days)
+                spinup_days = max(90, int(total_days * 0.25))
+                calib_start = t_start + pd.Timedelta(days=spinup_days)
+                calib_period = f"{calib_start.strftime('%Y-%m-%d')}, {t_end.strftime('%Y-%m-%d')}"
+                self._calibration_period.value = calib_period
+                self.state.append_log(
+                    f"Auto-set calibration period: {calib_period} "
+                    f"(skipping {spinup_days}-day spinup)\n"
+                )
+            except Exception as exc:
+                logger.debug(f"Could not auto-derive calibration period: {exc}")
+
         # Build overrides via params_to_config_overrides
         overrides = params_to_config_overrides({
             'optimization_algorithm': self._algorithm.value,
             'optimization_metric': self._metric.value,
             'iterations': self._iterations.value,
             'population_size': self._population_size.value,
-            'calibration_period': self._calibration_period.value,
-            'evaluation_period': self._evaluation_period.value,
+            'calibration_period': calib_period,
+            'evaluation_period': eval_period,
             'experiment_id': self._experiment_id.value,
         })
         # Enable iterative optimization (required by optimization_manager)
@@ -169,7 +195,7 @@ class CalibrationPanel(param.Parameterized):
             pn.layout.Divider(),
             self._calibrate_btn,
             title='Calibration',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in (
                 'model_ready', 'calibrated', 'analyzed',
             ),

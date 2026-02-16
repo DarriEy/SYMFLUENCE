@@ -5,6 +5,7 @@ CRHM-specific optimizer inheriting from BaseModelOptimizer.
 """
 
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -95,8 +96,62 @@ class CRHMModelOptimizer(BaseModelOptimizer):
 
         self.worker.apply_parameters(best_params, self.crhm_setup_dir)
 
-        return self.worker.run_model(
+        success = self.worker.run_model(
             self.config,
             self.crhm_setup_dir,
             output_dir
         )
+
+        if success:
+            # Copy CRHM output files to final_evaluation dir
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for pattern in ['*.csv', '*.obs', '*.txt']:
+                for f in self.crhm_setup_dir.glob(pattern):
+                    if f.is_file() and f.stat().st_size > 0 and 'output' in f.name.lower():
+                        shutil.copy2(f, output_dir / f.name)
+            self.logger.info(f"Copied CRHM outputs to {output_dir}")
+
+        return success
+
+    def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """Run final evaluation using CRHM worker metrics."""
+        self.logger.info("=" * 60)
+        self.logger.info("RUNNING FINAL EVALUATION")
+        self.logger.info("=" * 60)
+
+        try:
+            final_output_dir = self.results_dir / 'final_evaluation'
+            final_output_dir.mkdir(parents=True, exist_ok=True)
+
+            if not self._run_model_for_final_evaluation(final_output_dir):
+                self.logger.error("CRHM run failed during final evaluation")
+                return None
+
+            metrics = self.worker.calculate_metrics(
+                final_output_dir, self.config,
+                sim_dir=self.crhm_setup_dir
+            )
+
+            if not metrics or metrics.get('kge', -999) <= -999:
+                self.logger.error("Failed to calculate final evaluation metrics")
+                return None
+
+            calib_metrics = {"KGE_Calib": metrics.get('kge', -999)}
+            eval_metrics = {"KGE_Eval": metrics.get('kge', -999)}
+
+            final_result = {
+                'final_metrics': metrics,
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
+                'success': True,
+                'best_params': best_params
+            }
+
+            self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
+            return final_result
+
+        except Exception as e:
+            self.logger.error(f"Error in final evaluation: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None

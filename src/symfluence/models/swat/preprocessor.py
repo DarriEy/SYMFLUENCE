@@ -85,8 +85,9 @@ class SWATPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             # Generate sub-basin, HRU, groundwater, management, and soil files
             self._generate_subbasin_files()
 
-            # Generate watershed routing file (fig.fig)
+            # Generate watershed routing file (fig.fig) and reach files
             self._generate_fig_file()
+            self._generate_route_files()
 
             # Generate minimal database stub files
             self._generate_database_stubs()
@@ -235,15 +236,22 @@ class SWATPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             if src_var and src_var in forcing_ds:
                 src_units = forcing_ds[src_var].attrs.get('units', '')
 
+            # Determine timestep in seconds for rate→amount conversion
+            if 'time' in forcing_ds and len(forcing_ds['time']) > 1:
+                dt_ns = np.diff(forcing_ds['time'].values[:2])[0]
+                dt_seconds = float(dt_ns / np.timedelta64(1, 's'))
+            else:
+                dt_seconds = 3600  # Default to hourly
+
             if 'mm/s' in src_units or src_var == 'pptrate':
-                precip_data = precip_data * 86400  # mm/s -> mm/day
-                logger.info(f"Converted {src_var} from mm/s to mm/day")
+                precip_data = precip_data * dt_seconds  # mm/s -> mm per timestep
+                logger.info(f"Converted {src_var} from mm/s to mm/timestep (dt={dt_seconds}s)")
             elif src_units == 'm' or src_var == 'tp':
                 precip_data = precip_data * 1000.0  # m -> mm
                 logger.info(f"Converted {src_var} from m to mm")
             elif 'kg' in src_units and 'm-2' in src_units and 's-1' in src_units:
-                precip_data = precip_data * 86400  # kg/m2/s -> mm/day
-                logger.info(f"Converted {src_var} from kg/m2/s to mm/day")
+                precip_data = precip_data * dt_seconds  # kg/m2/s -> mm per timestep
+                logger.info(f"Converted {src_var} from kg/m2/s to mm/timestep (dt={dt_seconds}s)")
 
         # Resample to daily if sub-daily
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='D')
@@ -693,12 +701,16 @@ class SWATPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         sub_lines.append(fmt_10f81(zeros10))
 
         # Line 21: PLAPS (precip lapse rate)
+        plaps = self._get_config_value(
+            lambda: self.config.model.swat.plaps, default=0.0)
         sub_lines.append(
-            f"  {0.0:14.4f}    | PLAPS : Precip lapse rate [mm H2O/km]")
+            f"  {plaps:14.4f}    | PLAPS : Precip lapse rate [mm H2O/km]")
 
         # Line 22: TLAPS (temp lapse rate)
+        tlaps = self._get_config_value(
+            lambda: self.config.model.swat.tlaps, default=0.0)
         sub_lines.append(
-            f"  {0.0:14.4f}    | TLAPS : Temp lapse rate [deg C/km]")
+            f"  {tlaps:14.4f}    | TLAPS : Temp lapse rate [deg C/km]")
 
         # Line 23: SNO_SUB (initial snow)
         sub_lines.append(
@@ -1461,29 +1473,90 @@ class SWATPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
         """
         Generate SWAT watershed routing file (fig.fig).
 
-        The fig.fig file defines the routing structure. For a lumped
-        (single sub-basin) model, it contains a single SUBBASIN command
-        followed by an END command.
+        The fig.fig defines the routing structure. For a lumped
+        (single sub-basin) model it contains:
+          1. SUBBASIN command  – loads subbasin, stores HRU output at hyd(1)
+          2. ROUTE command     – routes hyd(1) through the reach channel
+          3. SAVE command      – writes reach output (output.rch)
+          4. END command       – terminates routing
         """
         fig_path = self.txtinout_dir / 'fig.fig'
-        # Format: a1, 9x, 5i6 per line (format 5001 in getallo.f)
-        # Col 1: comment flag (space = active, * = comment)
-        # Col 2-10: padding
-        # Col 11-16: icd (command code, 1=subbasin)
-        # Col 17-22: iht (hydrograph storage location)
-        # Col 23-28: inm1
-        # Col 29-34: inm2
-        # Col 35-40: inm3 (subbasin number if icd=1)
+        # Format: a1, 9x, 5i6 per line  (format 5001 in getallo.f)
+        #   col 11-16  icd   command code
+        #   col 17-22  iht   hydrograph storage location
+        #   col 23-28  inm1  (varies by command)
+        #   col 29-34  inm2  (varies by command)
+        #   col 35-40  inm3  (varies by command)
+        fmt = lambda *v: f" {'':9s}" + ''.join(f'{x:6d}' for x in v)
         lines = []
-        # Subbasin command: icd=1, iht=1, inm1=0, inm2=1, inm3=1
-        lines.append(f" {'':9s}{1:6d}{1:6d}{0:6d}{1:6d}{1:6d}")
-        # Sub-basin file reference line (format 6100: 10x, a13)
+        # Format fields per readfig.f:
+        #   icodes, ihouts, inum1s, inum2s, inum3s
+        # 1. Subbasin: icd=1, ihouts=1(hyd loc), inum1s=1(sub#), inum2s=0, inum3s=0
+        lines.append(fmt(1, 1, 1, 0, 0))
+        # format 5100: 10x,2a13 — sub filename on one line
         lines.append(f"{'':10s}{'000010001.sub':13s}")
-        # End command: icd=0 signals end of routing
-        lines.append(f" {'':9s}{0:6d}{0:6d}{0:6d}{0:6d}{0:6d}")
+        # 2. Route: icd=2, ihouts=2(hyd loc), inum1s=1(reach#), inum2s=1(inflow hyd), inum3s=0
+        lines.append(fmt(2, 2, 1, 1, 0))
+        # format 5100: 10x,2a13 — .rte and .swq on ONE line
+        lines.append(f"{'':10s}{'000010001.rte':13s}{'000010001.swq':13s}")
+        # 3. Add: icd=5, ihouts=0, inum1s=2(hyd to save), inum2s=0, inum3s=0
+        lines.append(fmt(5, 0, 2, 0, 0))
+        # 4. End: icd=0
+        lines.append(fmt(0, 0, 0, 0, 0))
 
         fig_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
         logger.info(f"Routing file written: {fig_path}")
+
+    def _generate_route_files(self) -> None:
+        """
+        Generate SWAT reach routing (.rte) and stream water quality (.swq) files.
+
+        For a lumped single-reach setup, these contain default Muskingum
+        routing parameters and minimal water-quality settings.
+        """
+        # .rte file — reach routing parameters
+        rte_path = self.txtinout_dir / '000010001.rte'
+        rte_lines = [
+            " Reach 1 -- SYMFLUENCE generated",
+            f"{'':12s}{10.000:12.3f}    | CH_W2 : Main channel width [m]",
+            f"{'':12s}{2.000:12.3f}    | CH_D : Main channel depth [m]",
+            f"{'':12s}{0.014:12.3f}    | CH_N2 : Manning n for channel",
+            f"{'':12s}{0.000:12.3f}    | CH_K2 : Channel effective hydraulic conductivity [mm/hr]",
+            f"{'':12s}{1.000:12.3f}    | CH_L2 : Main channel length [km]",
+            f"{'':12s}{0.050:12.3f}    | CH_S2 : Channel slope [m/m]",
+            f"{'':12s}{0.000:12.3f}    | ALPHA_BNK : Baseflow alpha factor",
+            f"{'':12s}{0.000:12.3f}    | ICANAL : Irrigation canal",
+            f"{'':12s}{0.000:12.3f}    | CH_COV1 : Channel cover factor",
+            f"{'':12s}{0.000:12.3f}    | CH_COV2 : Channel cover factor",
+            f"{'':12s}{0.000:12.3f}    | CH_WDR : Channel width/depth ratio",
+            f"{'':12s}{0.000:12.3f}    | ALPHA_BNK_D : Deep baseflow alpha",
+        ]
+        rte_path.write_text('\n'.join(rte_lines) + '\n', encoding='utf-8')
+
+        # .swq file — stream water quality (minimal stub)
+        swq_path = self.txtinout_dir / '000010001.swq'
+        swq_lines = [
+            " Stream water quality -- SYMFLUENCE generated",
+            f"{'':12s}{0.000:12.3f}    | RS1 : Local algae settling rate [m/day]",
+            f"{'':12s}{0.050:12.3f}    | RS2 : Benthic source rate for DO [mg O2/m2 day]",
+            f"{'':12s}{0.500:12.3f}    | RS3 : Benthic source rate for NH4 [mg N/m2 day]",
+            f"{'':12s}{0.050:12.3f}    | RS4 : Rate coefficient for org N settling",
+            f"{'':12s}{0.050:12.3f}    | RS5 : Org P settling rate",
+            f"{'':12s}{0.000:12.3f}    | RS6 : Benthic source rate for P [mg P/m2 day]",
+            f"{'':12s}{0.000:12.3f}    | RS7 : Benthic source rate for P [mg P/m2 day]",
+            f"{'':12s}{0.000:12.3f}    | RK1 : CBOD deoxygenation rate [1/day]",
+            f"{'':12s}{0.000:12.3f}    | RK2 : Reaeration rate [1/day]",
+            f"{'':12s}{0.000:12.3f}    | RK3 : Settling rate for CBOD [1/day]",
+            f"{'':12s}{0.000:12.3f}    | RK4 : Sediment oxygen demand [mg O2/m2 day]",
+            f"{'':12s}{0.000:12.3f}    | RK5 : Organic N settling rate [1/day]",
+            f"{'':12s}{0.000:12.3f}    | RK6 : Settling rate for org P [1/day]",
+            f"{'':12s}{15.000:12.3f}    | BC1 : Rate constant for NH4 -> NO2 [1/day]",
+            f"{'':12s}{2.000:12.3f}    | BC2 : Rate constant for NO2 -> NO3 [1/day]",
+            f"{'':12s}{0.210:12.3f}    | BC3 : Rate constant for org N -> NH4 [1/day]",
+            f"{'':12s}{0.350:12.3f}    | BC4 : Rate constant for org P -> diss P [1/day]",
+        ]
+        swq_path.write_text('\n'.join(swq_lines) + '\n', encoding='utf-8')
+        logger.info(f"Routing files written: {rte_path.name}, {swq_path.name}")
 
     def _generate_database_stubs(self) -> None:
         """

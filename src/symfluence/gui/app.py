@@ -11,6 +11,7 @@ from .components.attributes_panel import AttributesPanel
 from .components.calibration_panel import CalibrationPanel
 from .components.command_panel import CommandPanel
 from .components.data_panel import DataPanel
+from .components.domain_browser import DomainBrowser
 from .components.discretization_panel import DiscretizationPanel
 from .components.domain_panel import DomainPanel
 from .components.forcings_panel import ForcingsPanel
@@ -88,6 +89,7 @@ class SymfluenceApp:
             run_step_callback=lambda step, **kw: self._results_wt.run_steps([step], **kw),
             run_full_callback=lambda **kw: self._results_wt.run_workflow(**kw),
         )
+        self.domain_browser = DomainBrowser(self.state, self.map_view)
 
         if config_path:
             try:
@@ -121,7 +123,7 @@ class SymfluenceApp:
         console_card = pn.Card(
             self.log_viewer.panel(),
             title='Console Output',
-            collapsed=False,
+            collapsed=True,
             sizing_mode='stretch_width',
             height=280,
             header_background='#1b2f45',
@@ -129,8 +131,14 @@ class SymfluenceApp:
             styles={'border-radius': '8px 8px 0 0'},
         )
 
+        map_with_browser = pn.Row(
+            self.map_view.panel(),
+            self.domain_browser.panel(),
+            sizing_mode='stretch_both',
+        )
+
         main_tabs = pn.Tabs(
-            ('Map', self.map_view.panel()),
+            ('Map', map_with_browser),
             ('Results', self.results_viewer.panel()),
             sizing_mode='stretch_both',
             dynamic=True,

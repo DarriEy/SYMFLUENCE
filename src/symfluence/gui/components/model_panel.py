@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 _WIDGET_KW = dict(sizing_mode='stretch_width', margin=(4, 5))
 _BTN_KW = dict(sizing_mode='stretch_width', margin=(8, 5, 4, 5))
 
+_HYDRO_MODELS = [
+    'SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM',
+]
 _ROUTING_MODELS = ['None', 'MIZUROUTE', 'DROUTE', 'TROUTE']
 
 
@@ -48,9 +51,8 @@ class ModelPanel(param.Parameterized):
 
         self._hydrological_model = pn.widgets.Select(
             name='Hydrological Model',
-            options=[hydro_model] if hydro_model else ['SUMMA'],
-            value=hydro_model or 'SUMMA',
-            disabled=True,
+            options=_HYDRO_MODELS,
+            value=hydro_model if hydro_model in _HYDRO_MODELS else 'SUMMA',
             **_WIDGET_KW,
         )
         self._routing_model = pn.widgets.Select(
@@ -117,14 +119,17 @@ class ModelPanel(param.Parameterized):
     # Action handlers
     # ------------------------------------------------------------------
 
-    def _update_routing(self):
-        """Apply routing model selection to config."""
+    def _update_model_config(self):
+        """Apply hydrological model and routing model selections to config."""
         cfg = self.state.typed_config
         if cfg is None:
             return
         routing = self._routing_model.value
         routing_val = None if routing == 'None' else routing
-        new_model = cfg.model.model_copy(update={'routing_model': routing_val})
+        new_model = cfg.model.model_copy(update={
+            'hydrological_model': self._hydrological_model.value,
+            'routing_model': routing_val,
+        })
         self.state.typed_config = cfg.model_copy(update={'model': new_model})
         if self.state.config_path:
             self.state.save_config()
@@ -136,7 +141,7 @@ class ModelPanel(param.Parameterized):
             self.state.append_log("ERROR: No config loaded.\n")
             return
 
-        self._update_routing()
+        self._update_model_config()
         self.state.append_log("Running model-specific preprocessing...\n")
         self._wt.run_steps(['model_specific_preprocessing'])
 
@@ -164,7 +169,7 @@ class ModelPanel(param.Parameterized):
             self.state.append_log("ERROR: No config loaded.\n")
             return
 
-        self._update_routing()
+        self._update_model_config()
         self.state.append_log("Running all model steps...\n")
         self._wt.run_steps([
             'model_specific_preprocessing',
@@ -187,7 +192,7 @@ class ModelPanel(param.Parameterized):
             pn.layout.Divider(),
             self._run_all_btn,
             title='Model Initiation',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in (
                 'data_ready', 'model_ready', 'calibrated', 'analyzed',
             ),

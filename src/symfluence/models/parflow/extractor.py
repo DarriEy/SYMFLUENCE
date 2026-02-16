@@ -156,12 +156,14 @@ class ParFlowResultExtractor(ModelResultExtractor):
         self, n_steps: int, **kwargs
     ) -> pd.DatetimeIndex:
         """Build time index from timestep count and config."""
-        timestep_hours = kwargs.get('timestep_hours', 1.0)
+        dump_interval = kwargs.get('dump_interval_hours',
+                                   kwargs.get('timestep_hours', 1.0))
         start_date = kwargs.get('start_date', '2000-01-01')
+        freq_hours = int(dump_interval)
         return pd.date_range(
             start=start_date,
             periods=n_steps,
-            freq=f'{int(timestep_hours)}h',
+            freq=f'{freq_hours}h',
         )
 
     def _extract_pressure(
@@ -217,9 +219,12 @@ class ParFlowResultExtractor(ModelResultExtractor):
             total = float(np.sum(data))
             values.append(total)
 
-        # Convert from m3/hr to m3/s
-        timestep_hours = kwargs.get('timestep_hours', 1.0)
-        values_m3s = [v / (timestep_hours * 3600.0) for v in values]
+        # ParFlow overlandsum is cumulative flow (m3) over the dump interval.
+        # Convert to m3/s: divide by dump interval in seconds.
+        dump_interval_hours = kwargs.get('dump_interval_hours',
+                                         kwargs.get('timestep_hours', 1.0))
+        dump_interval_s = dump_interval_hours * 3600.0
+        values_m3s = [v / dump_interval_s for v in values]
 
         date_index = self._build_time_index(len(values_m3s), **kwargs)
         return pd.Series(values_m3s, index=date_index, name='overland_flow_m3s')

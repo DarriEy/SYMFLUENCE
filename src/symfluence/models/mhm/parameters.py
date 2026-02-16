@@ -37,14 +37,19 @@ from typing import Dict, List, Tuple
 
 PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'canopyInterceptionFactor': {'min': 0.1, 'max': 0.4},
-    'snowThresholdTemperature': {'min': -2.0, 'max': 2.0},         # deg C
-    'degreeDayFactor_forest': {'min': 0.0001, 'max': 0.005},       # mm/deg C/hour
-    'degreeDayFactor_pervious': {'min': 0.0001, 'max': 0.008},     # mm/deg C/hour
-    'PTF_Ks': {'min': -1.5, 'max': 1.5},                           # log10 multiplier
-    'interflowRecession_slope': {'min': 1.0, 'max': 50.0},         # days
-    'rechargeCoefficient': {'min': 1.0, 'max': 200.0},             # days
-    'baseflowRecession': {'min': 1.0, 'max': 1000.0},              # days
-    'saturatedHydraulicConductivity': {'min': 0.1, 'max': 100.0},  # mm/day
+    'snowTreshholdTemperature': {'min': -2.0, 'max': 2.0},         # deg C (mHM spelling)
+    'degreeDayFactor_forest': {'min': 0.0001, 'max': 4.0},         # mm/deg C/hour
+    'degreeDayFactor_pervious': {'min': 0.0, 'max': 2.0},          # mm/deg C/hour
+    'PTF_Ks_constant': {'min': -1.2, 'max': -0.285},               # PTF constant
+    'interflowRecession_slope': {'min': 0.0, 'max': 10.0},         # unitless
+    'rechargeCoefficient': {'min': 0.0, 'max': 50.0},              # unitless
+    'GeoParam(1,:)': {'min': 1.0, 'max': 1000.0},                  # baseflow recession (days)
+    'infiltrationShapeFactor': {'min': 1.0, 'max': 4.0},           # infiltration curve shape
+    'rootFractionCoefficient_pervious': {'min': 0.001, 'max': 0.09},  # root water uptake depth
+    'interflowStorageCapacityFactor': {'min': 75.0, 'max': 200.0}, # interflow storage volume
+    'slowInterflowRecession_Ks': {'min': 1.0, 'max': 30.0},       # slow interflow routing speed
+    'muskingumTravelTime_constant': {'min': 0.31, 'max': 0.35},   # channel routing travel time
+    'orgMatterContent_forest': {'min': 5.0, 'max': 10.0},         # soil organic matter
 }
 
 
@@ -53,15 +58,20 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
 # =============================================================================
 
 DEFAULT_PARAMS: Dict[str, float] = {
-    'canopyInterceptionFactor': 0.2,
-    'snowThresholdTemperature': 0.0,
-    'degreeDayFactor_forest': 0.001,
-    'degreeDayFactor_pervious': 0.003,
-    'PTF_Ks': 0.0,
-    'interflowRecession_slope': 10.0,
-    'rechargeCoefficient': 50.0,
-    'baseflowRecession': 100.0,
-    'saturatedHydraulicConductivity': 10.0,
+    'canopyInterceptionFactor': 0.15,
+    'snowTreshholdTemperature': 1.0,
+    'degreeDayFactor_forest': 1.5,
+    'degreeDayFactor_pervious': 0.5,
+    'PTF_Ks_constant': -0.585,
+    'interflowRecession_slope': 7.0,
+    'rechargeCoefficient': 35.0,
+    'GeoParam(1,:)': 100.0,
+    'infiltrationShapeFactor': 1.75,
+    'rootFractionCoefficient_pervious': 0.02,
+    'interflowStorageCapacityFactor': 85.0,
+    'slowInterflowRecession_Ks': 15.0,
+    'muskingumTravelTime_constant': 0.325,
+    'orgMatterContent_forest': 7.0,
 }
 
 

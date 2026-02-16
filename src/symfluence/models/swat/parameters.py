@@ -39,6 +39,9 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'SMFMX': {'min': 0.0, 'max': 10.0},            # max melt rate for snow [mm/deg C/day]
     'SMFMN': {'min': 0.0, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
     'TIMP': {'min': 0.01, 'max': 1.0},             # snow pack temperature lag factor
+    'CH_K2': {'min': 0.0, 'max': 150.0},             # channel hydraulic conductivity [mm/hr]
+    'RCHRG_DP': {'min': 0.0, 'max': 1.0},            # deep aquifer percolation fraction
+    'EPCO': {'min': 0.01, 'max': 1.0},               # plant uptake compensation factor
 }
 
 # Default parameter values (midpoint of bounds or typical values)
@@ -57,6 +60,9 @@ DEFAULT_PARAMS: Dict[str, float] = {
     'SMFMX': 4.5,        # Max snowmelt rate [mm/deg C/day]
     'SMFMN': 4.5,        # Min snowmelt rate [mm/deg C/day]
     'TIMP': 1.0,         # Snow pack temperature lag factor
+    'CH_K2': 0.0,        # Channel hydraulic conductivity [mm/hr]
+    'RCHRG_DP': 0.05,    # Deep aquifer percolation fraction
+    'EPCO': 0.95,        # Plant uptake compensation factor
 }
 
 # =============================================================================
@@ -82,6 +88,9 @@ PARAM_CHANGE_METHOD: Dict[str, str] = {
     'SMFMX': 'v__',     # value (.bsn)
     'SMFMN': 'v__',     # value (.bsn)
     'TIMP': 'v__',      # value (.bsn)
+    'CH_K2': 'v__',     # value (.rte)
+    'RCHRG_DP': 'v__',  # value (.gw)
+    'EPCO': 'v__',      # value (.hru)
 }
 
 # =============================================================================
@@ -104,6 +113,9 @@ PARAM_FILE_MAP: Dict[str, str] = {
     'SMFMX': '.bsn',
     'SMFMN': '.bsn',
     'TIMP': '.bsn',
+    'CH_K2': '.rte',
+    'RCHRG_DP': '.gw',
+    'EPCO': '.hru',
 }
 
 

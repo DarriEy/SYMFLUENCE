@@ -66,7 +66,7 @@ class AttributesPanel(param.Parameterized):
         self._panel_card = pn.Card(
             self._acquire_btn,
             title='Acquire Attributes',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in _VISIBLE_PHASES,
             sizing_mode='stretch_width',
             header_background='#eef4fb',
