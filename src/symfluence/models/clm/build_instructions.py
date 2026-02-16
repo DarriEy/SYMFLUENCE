@@ -323,6 +323,9 @@ CMAKEEOF
         cat > "$GNU_CMAKE" << 'CMAKEEOF'
 execute_process(COMMAND nc-config --prefix OUTPUT_VARIABLE NETCDF_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
 string(APPEND LDFLAGS " -Wl,-rpath,${NETCDF_PREFIX}/lib")
+# GCC 10+ treats Fortran type mismatches (e.g. MPI_BCAST with INTEGER
+# and LOGICAL) as hard errors.  Allow them for CESM/CTSM compatibility.
+string(APPEND FFLAGS " -fallow-argument-mismatch")
 CMAKEEOF
     fi
     echo "  cmake macros set for $UNAME_S"
