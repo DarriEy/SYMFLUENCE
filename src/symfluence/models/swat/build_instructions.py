@@ -88,14 +88,16 @@ if grep -q "t97'" src/std3.f 2>/dev/null; then
     echo "  Patched std3.f: missing comma in format 1300"
 fi
 
-# Remove -static flag unconditionally. The upstream SWAT CMakeLists uses -static
-# for single-binary deployment, but it fails on HPC (Spack gfortran reports
-# static libs via -print-file-name but the system linker can't find them).
-# Dynamic linking works everywhere and doesn't regress functionality.
-for cmf in CMakeLists.txt src/CMakeLists.txt; do
+# Disable static linking. The upstream SWAT CMakeLists.txt has
+# OPTION(ENABLE_STATIC_LINKING ... ON) which loads cmake/StaticLinking.cmake
+# and appends -static to the Fortran linker flags. This fails on HPC where
+# the system linker can't find static libc/libm even though Spack gfortran
+# has its own copies. Dynamic linking works everywhere.
+# Also remove -static from cmake module files as a belt-and-suspenders measure.
+for cmf in CMakeLists.txt src/CMakeLists.txt cmake/*.cmake; do
     if [ -f "$cmf" ] && grep -q '\-static' "$cmf" 2>/dev/null; then
         sed -i.bak 's/-static //g; s/ -static//g' "$cmf"
-        echo "  Patched $cmf: removed -static flag for portability"
+        echo "  Patched $cmf: removed -static flag"
     fi
 done
 
@@ -110,6 +112,7 @@ CMAKE_ARGS=(
     -DCMAKE_BUILD_TYPE=Release
     -DCMAKE_Fortran_COMPILER=gfortran
     -DCMAKE_INSTALL_PREFIX=../install
+    -DENABLE_STATIC_LINKING=OFF
     "-DCMAKE_Fortran_FLAGS_RELEASE=-O2 $EXTRA_FFLAGS"
 )
 
