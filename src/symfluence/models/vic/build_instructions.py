@@ -306,5 +306,6 @@ fi
             'file_paths': ['bin/vic_image.exe'],
             'check_type': 'exists'
         },
-        'order': 15  # After core models
+        'order': 15,  # After core models
+        'optional': True,  # Not installed by default with --install
     }

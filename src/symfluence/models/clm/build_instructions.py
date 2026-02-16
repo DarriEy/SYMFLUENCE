@@ -464,5 +464,6 @@ fi
             'file_paths': ['bin/cesm.exe'],
             'check_type': 'exists'
         },
-        'order': 20  # After VIC
+        'order': 20,  # After VIC
+        'optional': True,  # Not installed by default with --install
     }

@@ -272,5 +272,6 @@ fi
             'file_paths': ['bin/crhm'],
             'check_type': 'exists'
         },
-        'order': 20  # After core models
+        'order': 20,  # After core models
+        'optional': True,  # Not installed by default with --install
     }

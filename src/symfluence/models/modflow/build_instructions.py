@@ -259,5 +259,6 @@ fi
             'file_paths': ['bin/mf6'],
             'check_type': 'exists'
         },
-        'order': 25  # After CLM (20)
+        'order': 25,  # After CLM (20)
+        'optional': True,  # Not installed by default with --install
     }
