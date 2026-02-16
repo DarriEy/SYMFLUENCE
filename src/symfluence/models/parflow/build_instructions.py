@@ -225,5 +225,6 @@ fi
             'file_paths': ['bin/parflow'],
             'check_type': 'exists'
         },
-        'order': 26  # After MODFLOW (25)
+        'order': 26,  # After MODFLOW (25)
+        'optional': True,  # Not installed by default with --install
     }

@@ -188,5 +188,6 @@ fi
             'file_paths': ['bin/mhm'],
             'check_type': 'exists'
         },
-        'order': 16  # After VIC
+        'order': 16,  # After VIC
+        'optional': True,  # Not installed by default with --install
     }
