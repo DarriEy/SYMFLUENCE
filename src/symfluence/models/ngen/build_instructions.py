@@ -139,6 +139,27 @@ fi
 echo "Initializing iso_c_fortran_bmi submodule..."
 git_clean submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
 
+# Fallback: manually clone BMI modules if submodule init didn't populate them.
+# The CIROH-UA/ngen ngiab branch doesn't register CFE/SLOTH/PET as submodules,
+# so `git submodule update` silently skips them. Clone directly from NOAA-OWP.
+_clone_if_missing() {
+    local name="$1" url="$2" dir="$3"
+    if [ ! -f "$dir/CMakeLists.txt" ]; then
+        echo "$name not populated by submodule init — cloning from $url ..."
+        rm -rf "$dir"
+        mkdir -p "$(dirname "$dir")"
+        git clone --depth 1 "$url" "$dir" 2>&1 || echo "WARNING: Failed to clone $name (non-fatal)"
+    else
+        echo "$name submodule OK"
+    fi
+}
+
+_clone_if_missing "CFE"   "https://github.com/NOAA-OWP/cfe.git"               "extern/cfe"
+_clone_if_missing "SLOTH" "https://github.com/NOAA-OWP/SLoTH.git"             "extern/sloth"
+_clone_if_missing "PET"   "https://github.com/NOAA-OWP/evapotranspiration.git" "extern/evapotranspiration/evapotranspiration"
+_clone_if_missing "Noah-MP" "https://github.com/NOAA-OWP/noah-owp-modular.git" "extern/noah-owp-modular"
+_clone_if_missing "iso_c_fortran_bmi" "https://github.com/NOAA-OWP/iso_c_fortran_bmi.git" "extern/iso_c_fortran_bmi"
+
 # Verify Fortran compiler
 echo "Checking Fortran compiler..."
 if command -v gfortran >/dev/null 2>&1; then
