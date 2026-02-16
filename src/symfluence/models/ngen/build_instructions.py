@@ -224,12 +224,9 @@ esac
 
 # Fix for conda GCC 14: explicitly link against conda's libstdc++ to resolve __cxa_call_terminate
 # conda's GCC 14 emits __cxa_call_terminate which only exists in its own libstdc++
-# We must pass this through CMAKE_EXE_LINKER_FLAGS since CMake ignores LDFLAGS for the final link
-CONDA_LINKER_CMAKE_ARGS=""
+EXTRA_LIBS=""
 if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
     EXTRA_LIBS="-lstdc++"
-    _clp_fwd=$(echo "$clp" | sed 's/\\/\//g')
-    CONDA_LINKER_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS='-L${_clp_fwd}/lib -lstdc++' -DCMAKE_SHARED_LINKER_FLAGS='-L${_clp_fwd}/lib -lstdc++'"
     echo "Adding conda libstdc++ linker flags for GCC 14 compatibility"
 fi
 
@@ -251,12 +248,13 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
 fi
 
 # Add extra linker flags for conda GCC 14 and expat (needed by locally-built UDUNITS2)
-# HPC module UDUNITS2 handles expat dependency via rpath, so we skip -lexpat in that case
-EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
+# IMPORTANT: CMake does NOT use LDFLAGS for target linking. We must pass these
+# through CMAKE_EXE_LINKER_FLAGS. Build up all extra flags here.
+EXTRA_LINK_FLAGS="${EXTRA_LIBS:-}"
 if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "true" ]; then
   # Only add expat for locally-built UDUNITS2 (not HPC modules which handle deps via rpath)
   if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
-    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -L${EXPAT_LIB_DIR} -lexpat"
+    EXTRA_LINK_FLAGS="$EXTRA_LINK_FLAGS -L${EXPAT_LIB_DIR} -lexpat"
     # Add to LIBRARY_PATH so the linker can find it during build
     export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
     export LD_LIBRARY_PATH="${EXPAT_LIB_DIR}:${LD_LIBRARY_PATH:-}"
@@ -265,15 +263,29 @@ if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "
     echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
   else
     # Fallback for non-HPC: add -lexpat and hope it's in standard paths
-    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+    EXTRA_LINK_FLAGS="$EXTRA_LINK_FLAGS -lexpat"
     echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
   fi
 elif [ "${UDUNITS2_FROM_HPC_MODULE:-false}" = "true" ]; then
   echo "Using HPC module UDUNITS2 - expat dependency handled via module rpath"
 fi
-if [ -n "$EXTRA_LDFLAGS" ]; then
-  export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"
-  echo "Adding extra linker flags via LDFLAGS: $EXTRA_LDFLAGS"
+
+# Merge conda linker flags and expat flags into CMAKE_EXE_LINKER_FLAGS
+# (CMake ignores LDFLAGS for the final target link)
+ALL_CMAKE_LINK_FLAGS=""
+if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
+    _clp_fwd=$(echo "$clp" | sed 's/\\/\//g')
+    ALL_CMAKE_LINK_FLAGS="-L${_clp_fwd}/lib -lstdc++"
+fi
+if [ -n "$EXTRA_LINK_FLAGS" ]; then
+    ALL_CMAKE_LINK_FLAGS="$ALL_CMAKE_LINK_FLAGS $EXTRA_LINK_FLAGS"
+    echo "Adding extra linker flags: $EXTRA_LINK_FLAGS"
+fi
+# Build the unified CMake linker args
+CMAKE_LINKER_ARGS=""
+if [ -n "$ALL_CMAKE_LINK_FLAGS" ]; then
+    CMAKE_LINKER_ARGS="-DCMAKE_EXE_LINKER_FLAGS='$ALL_CMAKE_LINK_FLAGS' -DCMAKE_SHARED_LINKER_FLAGS='$ALL_CMAKE_LINK_FLAGS'"
+    echo "CMAKE_EXE_LINKER_FLAGS: $ALL_CMAKE_LINK_FLAGS"
 fi
 
 # Add Fortran support if compiler is available
@@ -307,8 +319,8 @@ else
 fi
 
 # Configure ngen
-echo "Running CMake with args: $CMAKE_ARGS $CONDA_LINKER_CMAKE_ARGS"
-if eval cmake $CMAKE_ARGS $CONDA_LINKER_CMAKE_ARGS -S . -B cmake_build 2>&1 | tee cmake_config.log; then
+echo "Running CMake with args: $CMAKE_ARGS $CMAKE_LINKER_ARGS"
+if eval cmake $CMAKE_ARGS $CMAKE_LINKER_ARGS -S . -B cmake_build 2>&1 | tee cmake_config.log; then
   echo "ngen configured successfully"
 else
   echo "CMake configuration failed, checking log..."
@@ -332,7 +344,7 @@ else
           ;;
   esac
 
-  # Conda linker flags are in CONDA_LINKER_CMAKE_ARGS (set above)
+  # Conda linker flags are in CMAKE_LINKER_ARGS (set above)
 
   # Add UDUNITS2 paths to fallback as well
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
@@ -355,7 +367,7 @@ else
     echo "Fallback: keeping Fortran BMI support with iso_c_bmi wrapper"
   fi
 
-  eval cmake $FALLBACK_ARGS $CONDA_LINKER_CMAKE_ARGS -S . -B cmake_build
+  eval cmake $FALLBACK_ARGS $CMAKE_LINKER_ARGS -S . -B cmake_build
 fi
 
 # Build ngen executable

@@ -611,24 +611,46 @@ detect_or_build_udunits2() {
     EXPAT_LIB_DIR=""
     UDUNITS2_FROM_HPC_MODULE=false
 
-    # Check HPC environment variables first (e.g., Compute Canada module system)
-    if [ -n "$EBROOTUDUNITS" ] && [ -f "$EBROOTUDUNITS/include/udunits2.h" ]; then
-        UDUNITS2_DIR="$EBROOTUDUNITS"
-        UDUNITS2_INCLUDE_DIR="$EBROOTUDUNITS/include"
-        if [ -f "$EBROOTUDUNITS/lib/libudunits2.so" ]; then
-            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.so"
-        elif [ -f "$EBROOTUDUNITS/lib64/libudunits2.so" ]; then
-            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib64/libudunits2.so"
+    # Helper: set UDUNITS2 variables from a root directory
+    _set_udunits2_from_root() {
+        local root="$1"
+        UDUNITS2_DIR="$root"
+        UDUNITS2_INCLUDE_DIR="$root/include"
+        if [ -f "$root/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$root/lib/libudunits2.so"
+        elif [ -f "$root/lib64/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$root/lib64/libudunits2.so"
+        elif [ -f "$root/lib/libudunits2.dylib" ]; then
+            UDUNITS2_LIBRARY="$root/lib/libudunits2.dylib"
         else
-            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.a"
+            UDUNITS2_LIBRARY="$root/lib/libudunits2.a"
         fi
-        echo "Found HPC module UDUNITS2 at: ${UDUNITS2_DIR}"
+    }
+
+    # 1. Check HPC environment variables (EasyBuild module system)
+    if [ -n "${EBROOTUDUNITS:-}" ] && [ -f "$EBROOTUDUNITS/include/udunits2.h" ]; then
+        _set_udunits2_from_root "$EBROOTUDUNITS"
+        echo "Found HPC module UDUNITS2 (EasyBuild) at: ${UDUNITS2_DIR}"
         UDUNITS2_FOUND=true
         UDUNITS2_FROM_HPC_MODULE=true
-        # HPC module handles expat dependency via rpath - no need to add -lexpat
-        if [ -n "$EBROOTEXPAT" ]; then
+        if [ -n "${EBROOTEXPAT:-}" ]; then
             EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
         fi
+    fi
+
+    # 2. Check Spack / generic HPC root variables
+    #    On Spack systems (e.g., Anvil), UDUNITS2_ROOT or UDUNITS_ROOT is set by the module
+    if [ "$UDUNITS2_FOUND" = false ]; then
+        for _ud_var in UDUNITS2_ROOT UDUNITS_ROOT; do
+            eval "_ud_val=\${${_ud_var}:-}"
+            if [ -n "$_ud_val" ] && [ -f "$_ud_val/include/udunits2.h" ]; then
+                _set_udunits2_from_root "$_ud_val"
+                echo "Found UDUNITS2 via ${_ud_var} at: ${UDUNITS2_DIR}"
+                UDUNITS2_FOUND=true
+                UDUNITS2_FROM_HPC_MODULE=true
+                break
+            fi
+        done
     fi
 
     # Check conda environment (second priority)
