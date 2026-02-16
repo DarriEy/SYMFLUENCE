@@ -386,120 +386,131 @@ else
 fi
 
 # ================================================================
-# Build External BMI Modules (CFE, PET, SLOTH, NOAH-OWP-Modular)
+# Build External BMI Modules (CFE, PET, SLOTH, Noah-MP)
 # ================================================================
 echo ""
 echo "Building external BMI modules..."
 
+# Helper: check if a shared library exists (glob-safe)
+_lib_found() { ls "$@" 1>/dev/null 2>&1; }
+
 # --- Build SLOTH (C++ module for soil/ice fractions) ---
-if [ -d "extern/sloth" ]; then
+if [ -d "extern/sloth" ] && [ -f "extern/sloth/CMakeLists.txt" ]; then
   echo "Building SLOTH..."
-  cd extern/sloth
-  git_clean submodule update --init --recursive || true
-  rm -rf cmake_build && mkdir -p cmake_build
-  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility with old googletest
-  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
-  cmake --build cmake_build -j ${NCORES:-4}
-  if [ -f cmake_build/libslothmodel.* ]; then
+  (
+    set +e  # don't abort main script if SLOTH build fails
+    cd extern/sloth
+    git_clean submodule update --init --recursive 2>/dev/null || true
+    rm -rf cmake_build && mkdir -p cmake_build
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
+    cmake --build cmake_build -j ${NCORES:-4} 2>&1
+  )
+  if _lib_found extern/sloth/cmake_build/libslothmodel.*; then
     echo "SLOTH built successfully"
   else
-    echo "SLOTH library not found (non-fatal)"
+    echo "WARNING: SLOTH build failed (non-fatal)"
   fi
-  cd ../..
+else
+  echo "SLOTH submodule not found or empty — skipping"
 fi
 
 # --- Build CFE (C module - Conceptual Functional Equivalent) ---
-if [ -d "extern/cfe" ]; then
+if [ -d "extern/cfe" ] && [ -f "extern/cfe/CMakeLists.txt" ]; then
   echo "Building CFE..."
-  cd extern/cfe
-  git_clean submodule update --init --recursive || true
-  rm -rf cmake_build && mkdir -p cmake_build
-  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
-  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
-  cmake --build cmake_build -j ${NCORES:-4}
-  if [ -f cmake_build/libcfebmi.* ]; then
+  (
+    set +e
+    cd extern/cfe
+    git_clean submodule update --init --recursive 2>/dev/null || true
+    rm -rf cmake_build && mkdir -p cmake_build
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
+    cmake --build cmake_build -j ${NCORES:-4} 2>&1
+  )
+  if _lib_found extern/cfe/cmake_build/libcfebmi.*; then
     echo "CFE built successfully"
   else
-    echo "CFE library not found (non-fatal)"
+    echo "WARNING: CFE build failed (non-fatal)"
   fi
-  cd ../..
+else
+  echo "CFE submodule not found or empty — skipping"
 fi
 
 # --- Build evapotranspiration/PET (C module) ---
-if [ -d "extern/evapotranspiration" ]; then
+# PET source lives one level deeper: extern/evapotranspiration/evapotranspiration/
+_PET_SRC="extern/evapotranspiration/evapotranspiration"
+if [ -d "$_PET_SRC" ] && [ -f "$_PET_SRC/CMakeLists.txt" ]; then
   echo "Building PET (evapotranspiration)..."
-  cd extern/evapotranspiration/evapotranspiration
-  git_clean submodule update --init --recursive 2>/dev/null || true
-  rm -rf cmake_build && mkdir -p cmake_build
-  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
-  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
-  cmake --build cmake_build -j ${NCORES:-4}
-  if [ -f cmake_build/libpetbmi.* ]; then
+  (
+    set +e
+    cd "$_PET_SRC"
+    git_clean submodule update --init --recursive 2>/dev/null || true
+    rm -rf cmake_build && mkdir -p cmake_build
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
+    cmake --build cmake_build -j ${NCORES:-4} 2>&1
+  )
+  if _lib_found "$_PET_SRC"/cmake_build/libpetbmi.*; then
     echo "PET built successfully"
   else
-    echo "PET library not found (non-fatal)"
+    echo "WARNING: PET build failed (non-fatal)"
   fi
-  cd ../../..
+else
+  echo "PET submodule not found or empty — skipping"
 fi
 
 # --- Build iso_c_fortran_bmi (C wrapper for Fortran BMI) ---
-# This must be built BEFORE NOAH-OWP as it provides the registration interface
-if [ -d "extern/iso_c_fortran_bmi" ] && [ -n "$FC" ]; then
+# This must be built BEFORE Noah-MP as it provides the registration interface
+if [ -d "extern/iso_c_fortran_bmi" ] && [ -f "extern/iso_c_fortran_bmi/CMakeLists.txt" ] && [ -n "$FC" ]; then
   echo "Building iso_c_fortran_bmi (C wrapper for Fortran BMI)..."
-  cd extern/iso_c_fortran_bmi
-  git_clean submodule update --init --recursive || true
-  rm -rf cmake_build && mkdir -p cmake_build
+  (
+    set +e
+    cd extern/iso_c_fortran_bmi
+    git_clean submodule update --init --recursive 2>/dev/null || true
+    rm -rf cmake_build && mkdir -p cmake_build
 
-  ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-  ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
-  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
-  ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+    ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+    ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+    ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
-  cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build
-  cmake --build cmake_build -j ${NCORES:-4}
-
-  if [ -f cmake_build/libiso_c_bmi.* ]; then
+    cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build 2>&1
+    cmake --build cmake_build -j ${NCORES:-4} 2>&1
+  )
+  if _lib_found extern/iso_c_fortran_bmi/cmake_build/libiso_c_bmi.*; then
     echo "iso_c_fortran_bmi built successfully"
   else
-    echo "WARNING: iso_c_bmi library not found - NOAH-OWP will fail"
+    echo "WARNING: iso_c_bmi library not found — Noah-MP may fail"
   fi
-  cd ../..
 fi
 
-# --- Build NOAH-OWP-Modular (Fortran module) ---
-if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
-  echo "Building NOAH-OWP-Modular (Fortran)..."
-  cd extern/noah-owp-modular
-  git_clean submodule update --init --recursive || true
-  rm -rf cmake_build && mkdir -p cmake_build
+# --- Build Noah-MP (noah-owp-modular, Fortran module) ---
+if [ -d "extern/noah-owp-modular" ] && [ -f "extern/noah-owp-modular/CMakeLists.txt" ] && [ -n "$FC" ]; then
+  echo "Building Noah-MP (noah-owp-modular, Fortran)..."
+  (
+    set +e
+    cd extern/noah-owp-modular
+    git_clean submodule update --init --recursive 2>/dev/null || true
+    rm -rf cmake_build && mkdir -p cmake_build
 
-  # Configure with NGEN support
-  # NGEN_IS_MAIN_PROJECT=ON triggers compile definitions (NGEN_ACTIVE, etc.)
-  # and builds iso_c_fortran_bmi as a subdirectory for Fortran BMI support
-  NOAH_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
-  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNGEN_IS_MAIN_PROJECT=ON"
-  # Fix for newer CMake versions that require minimum version >= 3.5
-  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+    NOAH_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+    NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+    NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNGEN_IS_MAIN_PROJECT=ON"
+    NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
-  if [ -n "$NETCDF_FORTRAN" ]; then
-    NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNETCDF_PATH=$NETCDF_FORTRAN"
-  fi
+    if [ -n "$NETCDF_FORTRAN" ]; then
+      NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNETCDF_PATH=$NETCDF_FORTRAN"
+    fi
 
-  cmake $NOAH_CMAKE_ARGS -S . -B cmake_build
-  cmake --build cmake_build -j ${NCORES:-4}
-
-  if [ -f cmake_build/libsurfacebmi.* ]; then
-    echo "NOAH-OWP-Modular built successfully"
+    cmake $NOAH_CMAKE_ARGS -S . -B cmake_build 2>&1
+    cmake --build cmake_build -j ${NCORES:-4} 2>&1
+  )
+  if _lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.*; then
+    echo "Noah-MP built successfully"
   else
-    echo "NOAH-OWP library not found (non-fatal)"
+    echo "WARNING: Noah-MP build failed (non-fatal)"
   fi
-  cd ../..
 else
-  if [ ! -d "extern/noah-owp-modular" ]; then
-    echo "NOAH-OWP-Modular submodule not found - skipping"
+  if [ ! -d "extern/noah-owp-modular" ] || [ ! -f "extern/noah-owp-modular/CMakeLists.txt" ]; then
+    echo "Noah-MP submodule not found or empty — skipping"
   elif [ -z "$FC" ]; then
-    echo "No Fortran compiler available - skipping NOAH-OWP build"
+    echo "No Fortran compiler available — skipping Noah-MP build"
   fi
 fi
 
@@ -571,11 +582,11 @@ echo "=============================================="
 echo "ngen build summary:"
 echo "=============================================="
 echo "ngen binary: $(([ -x cmake_build/ngen ] || [ -f cmake_build/ngen.exe ]) && echo 'OK' || echo 'MISSING')"
-echo "SLOTH:       $([ -f extern/sloth/cmake_build/libslothmodel.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
-echo "CFE:         $([ -f extern/cfe/cmake_build/libcfebmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
-echo "PET:         $([ -f extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
-echo "NOAH-OWP:    $([ -f extern/noah-owp-modular/cmake_build/libsurfacebmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
-echo "t-route:     $($PYTHON_EXE -c 'import ngen_routing; print(\"OK\")' 2>/dev/null || echo 'Not installed')"
+echo "SLOTH:       $(_lib_found extern/sloth/cmake_build/libslothmodel.* && echo 'OK' || echo 'Not built')"
+echo "CFE:         $(_lib_found extern/cfe/cmake_build/libcfebmi.* && echo 'OK' || echo 'Not built')"
+echo "PET:         $(_lib_found extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi.* && echo 'OK' || echo 'Not built')"
+echo "Noah-MP:     $(_lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.* && echo 'OK' || echo 'Not built')"
+echo "t-route:     $($PYTHON_EXE -c 'import ngen_routing; print("OK")' 2>/dev/null || echo 'Not installed')"
 echo "=============================================="
             '''.strip()
         ],
