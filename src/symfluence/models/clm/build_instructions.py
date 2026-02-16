@@ -294,16 +294,38 @@ with open('$MACH_XML','w') as f: f.write(c)
     echo "ESMFMKFILE added to machine config"
 fi
 
-# === STEP 4: Fix gnu_homebrew.cmake: $(NETCDF) is unset ===
+# === STEP 3b: Patch homebrew machine config for Linux ===
+# The "homebrew" machine in CIME is macOS-specific (OS=Darwin, Accelerate
+# framework, etc.).  On Linux we reuse the same machine name but patch the
+# config so CIME generates correct build flags.
+if [ "$UNAME_S" = "Linux" ] && [ -f "$MACH_XML" ]; then
+    echo "Patching homebrew machine config for Linux..."
+    # Change OS from Darwin to LINUX (affects system-library detection)
+    if grep -q 'Darwin' "$MACH_XML"; then
+        sed -i.bak 's/Darwin/LINUX/g' "$MACH_XML"
+        echo "  OS set to LINUX"
+    fi
+fi
+
+# === STEP 4: Fix gnu_homebrew.cmake for platform ===
+# The upstream file references $(NETCDF)/lib which is unset, and on macOS
+# uses -framework Accelerate for BLAS/LAPACK.  On Linux we use -llapack -lblas
+# (or nothing — CLM links them itself via CESM's FindLAPACK).
 GNU_CMAKE="${CTSM_ROOT}/ccs_config/machines/cmake_macros/gnu_homebrew.cmake"
-if [ -f "$GNU_CMAKE" ] && grep -q '$(NETCDF)/lib' "$GNU_CMAKE"; then
-    echo "Fixing NETCDF rpath in gnu_homebrew.cmake..."
-    NETCDF_PREFIX=$(nc-config --prefix 2>/dev/null || echo "/opt/homebrew")
-    cat > "$GNU_CMAKE" << CMAKEEOF
+if [ -f "$GNU_CMAKE" ]; then
+    echo "Setting platform-appropriate cmake macros in gnu_homebrew.cmake..."
+    if [ "$UNAME_S" = "Darwin" ]; then
+        cat > "$GNU_CMAKE" << 'CMAKEEOF'
 execute_process(COMMAND nc-config --prefix OUTPUT_VARIABLE NETCDF_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(APPEND LDFLAGS " -framework Accelerate -Wl,-rpath,\${NETCDF_PREFIX}/lib")
+string(APPEND LDFLAGS " -framework Accelerate -Wl,-rpath,${NETCDF_PREFIX}/lib")
 CMAKEEOF
-    echo "Fixed NETCDF rpath"
+    else
+        cat > "$GNU_CMAKE" << 'CMAKEEOF'
+execute_process(COMMAND nc-config --prefix OUTPUT_VARIABLE NETCDF_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(APPEND LDFLAGS " -Wl,-rpath,${NETCDF_PREFIX}/lib")
+CMAKEEOF
+    fi
+    echo "  cmake macros set for $UNAME_S"
 fi
 
 # === STEP 5: Create single-point case ===
@@ -382,7 +404,14 @@ NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
 
 if [ $? -ne 0 ]; then
     echo "ERROR: case.build failed"
-    echo "Check build logs in: ${CASE_DIR}/bld/"
+    echo "=== Last 60 lines of each build log ==="
+    for logfile in "${CASE_DIR}/bld/"*.bldlog.*; do
+        if [ -f "$logfile" ]; then
+            echo "--- $(basename "$logfile") ---"
+            tail -60 "$logfile"
+            echo ""
+        fi
+    done
     exit 1
 fi
 
