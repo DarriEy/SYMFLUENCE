@@ -115,6 +115,20 @@ if [ -z "$BOOST_INCLUDE" ] && [ -n "$BOOST_ROOT" ]; then
     echo "Found Boost via BOOST_ROOT: $BOOST_INCLUDE"
 fi
 
+# Search Spack install trees (HPC systems)
+if [ -z "$BOOST_INCLUDE" ]; then
+    for spack_root in /apps/spack /opt/spack; do
+        [ -d "$spack_root" ] || continue
+        _boost_inc=$(find "$spack_root" -path "*/boost/*/include/boost/random.hpp" -type f 2>/dev/null | sort -rV | head -1)
+        if [ -n "$_boost_inc" ]; then
+            # Go from .../include/boost/random.hpp up to .../include
+            BOOST_INCLUDE="-I$(dirname "$(dirname "$_boost_inc")")"
+            echo "Found Boost in Spack tree: $BOOST_INCLUDE"
+            break
+        fi
+    done
+fi
+
 if [ -z "$BOOST_INCLUDE" ]; then
     echo "WARNING: Boost headers not found. WMFire requires Boost for random number generation."
     echo "Install Boost with: brew install boost (macOS) or apt-get install libboost-dev (Linux)"
