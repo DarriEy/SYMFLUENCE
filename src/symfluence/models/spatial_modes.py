@@ -194,16 +194,6 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
         warning_message=None
     ),
 
-    'MIKESHE': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={SpatialMode.LUMPED: False},
-        warning_message=(
-            "MIKE-SHE is an integrated physics-based model. "
-            "Lumped mode uses a single-cell domain with internal routing."
-        )
-    ),
-
     'SWAT': ModelSpatialCapability(
         supported_modes={SpatialMode.LUMPED},
         default_mode=SpatialMode.LUMPED,
