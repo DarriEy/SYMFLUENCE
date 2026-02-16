@@ -321,11 +321,24 @@ string(APPEND LDFLAGS " -framework Accelerate -Wl,-rpath,${NETCDF_PREFIX}/lib")
 CMAKEEOF
     else
         cat > "$GNU_CMAKE" << 'CMAKEEOF'
-execute_process(COMMAND nc-config --prefix OUTPUT_VARIABLE NETCDF_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(APPEND LDFLAGS " -Wl,-rpath,${NETCDF_PREFIX}/lib")
-# GCC 10+ treats Fortran type mismatches (e.g. MPI_BCAST with INTEGER
-# and LOGICAL) as hard errors.  Allow them for CESM/CTSM compatibility.
-string(APPEND FFLAGS " -fallow-argument-mismatch")
+# NetCDF-C
+execute_process(COMMAND nc-config --prefix OUTPUT_VARIABLE NETCDF_C_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+# NetCDF-Fortran is often a separate package on HPC (Spack / EasyBuild)
+find_program(_NF_CONFIG nf-config)
+if(_NF_CONFIG)
+  execute_process(COMMAND ${_NF_CONFIG} --prefix OUTPUT_VARIABLE NETCDF_F_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+  execute_process(COMMAND ${_NF_CONFIG} --includedir OUTPUT_VARIABLE NETCDF_F_INCDIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+if(NOT NETCDF_F_PREFIX)
+  set(NETCDF_F_PREFIX "${NETCDF_C_PREFIX}")
+endif()
+if(NOT NETCDF_F_INCDIR)
+  set(NETCDF_F_INCDIR "${NETCDF_F_PREFIX}/include")
+endif()
+# Include NetCDF-Fortran modules (netcdf.mod) and relax GCC 10+ type checking
+string(APPEND FFLAGS " -fallow-argument-mismatch -I${NETCDF_F_INCDIR}")
+string(APPEND INCLDIR " -I${NETCDF_C_PREFIX}/include -I${NETCDF_F_INCDIR}")
+string(APPEND LDFLAGS " -L${NETCDF_C_PREFIX}/lib -L${NETCDF_F_PREFIX}/lib -Wl,-rpath,${NETCDF_C_PREFIX}/lib -Wl,-rpath,${NETCDF_F_PREFIX}/lib")
 CMAKEEOF
     fi
     echo "  cmake macros set for $UNAME_S"
@@ -376,6 +389,20 @@ c = c.replace('</environment_variables>',
 with open('env_mach_specific.xml','w') as f: f.write(c)
 "
     echo "Injected ESMFMKFILE=$ESMFMKFILE into env_mach_specific.xml"
+fi
+
+# On Linux/HPC, inject separate NetCDF-C and NetCDF-Fortran paths for CIME
+# (on macOS these are typically co-located under Homebrew so this isn't needed)
+if [ "$UNAME_S" = "Linux" ] && [ -n "${NETCDF_FORTRAN:-}" ]; then
+    if ! grep -q "NETCDF_FORTRAN_PATH" env_mach_specific.xml 2>/dev/null; then
+        $PYTHON3 -c "
+with open('env_mach_specific.xml') as f: c = f.read()
+c = c.replace('</environment_variables>',
+    '  <env name=\"NETCDF_C_PATH\">$NETCDF_C</env>\n  <env name=\"NETCDF_FORTRAN_PATH\">$NETCDF_FORTRAN</env>\n    </environment_variables>')
+with open('env_mach_specific.xml','w') as f: f.write(c)
+"
+        echo "Injected NETCDF_C_PATH=$NETCDF_C and NETCDF_FORTRAN_PATH=$NETCDF_FORTRAN"
+    fi
 fi
 
 # Configure case (standard grid for build, CLM_USRDAT at runtime)
