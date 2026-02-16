@@ -242,11 +242,17 @@ for candidate in \
     cmake_build/bin/summa_sundials.exe.exe \
     cmake_build/bin/summa.exe; do
     if [ -f "$candidate" ]; then
-        cp -f "$candidate" bin/summa_sundials.exe
+        # Avoid error when source and destination are the same file
+        # (happens when CMake outputs directly to bin/)
+        if [ "$candidate" != "bin/summa_sundials.exe" ]; then
+            cp -f "$candidate" bin/summa_sundials.exe
+            echo "Staged: $candidate -> bin/summa_sundials.exe"
+        else
+            echo "Binary already at bin/summa_sundials.exe"
+        fi
         cd bin
         ln -sf summa_sundials.exe summa.exe
         cd ..
-        echo "Staged: $candidate -> bin/summa_sundials.exe"
         break
     fi
 done
