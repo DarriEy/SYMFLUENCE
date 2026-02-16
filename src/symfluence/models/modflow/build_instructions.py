@@ -39,9 +39,10 @@ def get_modflow_build_instructions():
 
 echo "=== MODFLOW 6 Installation Starting ==="
 
-# Determine install directory
+# Determine install directory (meson requires an absolute prefix)
 INSTALL_DIR="${INSTALL_DIR:-.}"
 mkdir -p "${INSTALL_DIR}/bin"
+INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd)"
 
 # Platform detection
 UNAME_S=$(uname -s)
@@ -76,12 +77,24 @@ if [ "$PLATFORM" != "unknown" ]; then
     echo "Attempting binary download from USGS GitHub releases..."
 
     # Discover latest release tag via GitHub API (with retry for rate limits)
+    # Try curl first, fall back to wget for HPC systems with incompatible curl
     LATEST_TAG=""
+    _api_url="https://api.github.com/repos/MODFLOW-ORG/modflow6/releases/latest"
     for attempt in 1 2 3; do
-        LATEST_TAG=$(curl -fsSL --retry 2 \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/MODFLOW-ORG/modflow6/releases/latest" \
-            | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null)
+        _api_json=""
+        if command -v curl >/dev/null 2>&1; then
+            _api_json=$(curl -fsSL --retry 2 \
+                -H "Accept: application/vnd.github+json" \
+                "$_api_url" 2>/dev/null) || true
+        fi
+        if [ -z "$_api_json" ] && command -v wget >/dev/null 2>&1; then
+            _api_json=$(wget -qO- --header="Accept: application/vnd.github+json" \
+                "$_api_url" 2>/dev/null) || true
+        fi
+        if [ -n "$_api_json" ]; then
+            LATEST_TAG=$(echo "$_api_json" \
+                | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name', ''))" 2>/dev/null)
+        fi
         [ -n "$LATEST_TAG" ] && break
         sleep 2
     done
@@ -106,7 +119,14 @@ if [ "$PLATFORM" != "unknown" ]; then
     DOWNLOAD_OK=false
     for DOWNLOAD_URL in "${DOWNLOAD_URLS[@]}"; do
         echo "Trying: $DOWNLOAD_URL"
-        if curl -fSL --retry 3 --retry-delay 5 -o "$TMPZIP" "$DOWNLOAD_URL" 2>/dev/null && [ -s "$TMPZIP" ]; then
+        # Try curl first, fall back to wget for HPC compatibility
+        if command -v curl >/dev/null 2>&1; then
+            curl -fSL --retry 3 --retry-delay 5 -o "$TMPZIP" "$DOWNLOAD_URL" 2>/dev/null || true
+        fi
+        if [ ! -s "$TMPZIP" ] && command -v wget >/dev/null 2>&1; then
+            wget -q -O "$TMPZIP" "$DOWNLOAD_URL" 2>/dev/null || true
+        fi
+        if [ -s "$TMPZIP" ]; then
             DOWNLOAD_OK=true
             break
         fi
