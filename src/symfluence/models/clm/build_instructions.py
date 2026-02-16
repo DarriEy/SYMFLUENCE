@@ -173,10 +173,10 @@ if [ -z "${ESMFMKFILE:-}" ] || [ ! -f "${ESMFMKFILE:-}" ]; then
     done
 fi
 
-# 1c. HPC-specific: search Spack / module-managed paths
-if [ -z "${ESMFMKFILE:-}" ] && [ "${HPC_DETECTED:-false}" = "true" ]; then
-    echo "Searching HPC module paths for ESMF..."
-    # Try esmf-config if available (some Spack installs provide it)
+# 1c. Search Spack / module-managed paths if they exist on this system.
+# Don't gate on HPC_DETECTED — build subprocesses often lack SLURM env vars.
+if [ -z "${ESMFMKFILE:-}" ]; then
+    # Try ESMF tools on PATH (e.g. from "module load esmf")
     if command -v ESMF_RegridWeightGen >/dev/null 2>&1; then
         _esmf_bin_dir="$(dirname "$(command -v ESMF_RegridWeightGen)")"
         _esmf_root="$(dirname "$_esmf_bin_dir")"
@@ -186,9 +186,10 @@ if [ -z "${ESMFMKFILE:-}" ] && [ "${HPC_DETECTED:-false}" = "true" ]; then
             echo "Found ESMFMKFILE via ESMF tools: $ESMFMKFILE"
         fi
     fi
-    # Search common Spack install trees
+    # Search Spack install trees (only if the directory exists)
     if [ -z "${ESMFMKFILE:-}" ]; then
         for spack_root in /apps/spack /opt/spack; do
+            [ -d "$spack_root" ] || continue
             _esmf_mk_candidate=$(find "$spack_root" -path "*/esmf/*/lib/esmf.mk" -type f 2>/dev/null | head -1)
             if [ -n "$_esmf_mk_candidate" ] && [ -f "$_esmf_mk_candidate" ]; then
                 export ESMFMKFILE="$_esmf_mk_candidate"
@@ -199,15 +200,48 @@ if [ -z "${ESMFMKFILE:-}" ] && [ "${HPC_DETECTED:-false}" = "true" ]; then
     fi
 fi
 
+# 1d. Auto-build ESMF in mpiuni (serial) mode as a last resort
 if [ -z "${ESMFMKFILE:-}" ]; then
-    echo "ERROR: ESMF not found. Install ESMF first (mpiuni mode)."
-    if [ "${HPC_DETECTED:-false}" = "true" ]; then
-        echo "  HPC: try 'module load esmf' or 'module spider esmf'"
+    echo "ESMF not found — building from source in mpiuni (serial) mode..."
+    _ESMF_SRC="${_HOME}/.local/src/esmf"
+    _ESMF_INSTALL="${_HOME}/.local/esmf"
+    # Skip rebuild if a previous build left esmf.mk
+    _existing_mk=$(find "$_ESMF_INSTALL" -name "esmf.mk" -type f 2>/dev/null | head -1)
+    if [ -n "$_existing_mk" ] && [ -f "$_existing_mk" ]; then
+        export ESMFMKFILE="$_existing_mk"
+        echo "Found previously built ESMF: $ESMFMKFILE"
+    else
+        mkdir -p "$(dirname "$_ESMF_SRC")"
+        if [ ! -d "$_ESMF_SRC" ]; then
+            git clone --depth 1 --branch v8.6.1 \
+                https://github.com/esmf-org/esmf.git "$_ESMF_SRC"
+        fi
+        (
+            cd "$_ESMF_SRC"
+            export ESMF_DIR="$_ESMF_SRC"
+            export ESMF_COMM=mpiuni
+            # Detect compiler pair for ESMF
+            if [ "$(uname -s)" = "Darwin" ]; then
+                export ESMF_COMPILER=gfortranclang
+            else
+                export ESMF_COMPILER=gfortran
+            fi
+            export ESMF_INSTALL_PREFIX="$_ESMF_INSTALL"
+            NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+            echo "Building ESMF ($ESMF_COMPILER / $ESMF_COMM) with $NCORES cores..."
+            make -j"$NCORES"
+            make install
+        )
+        _built_mk=$(find "$_ESMF_INSTALL" -name "esmf.mk" -type f 2>/dev/null | head -1)
+        if [ -n "$_built_mk" ] && [ -f "$_built_mk" ]; then
+            export ESMFMKFILE="$_built_mk"
+            echo "ESMF built successfully: $ESMFMKFILE"
+        else
+            echo "ERROR: ESMF build failed. Check logs in $_ESMF_SRC"
+            echo "  You can also try: module load esmf (HPC) or brew install esmf (macOS)"
+            exit 1
+        fi
     fi
-    echo "  git clone --depth 1 --branch v8.6.1 https://github.com/esmf-org/esmf.git"
-    echo "  cd esmf && export ESMF_COMM=mpiuni ESMF_COMPILER=gfortranclang"
-    echo "  make -j\$(nproc) && make install ESMF_INSTALL_PREFIX=~/.local/esmf"
-    exit 1
 fi
 
 # === STEP 2: Patch PIO for NetCDF 4.9+ compatibility (_FillValue undefined) ===

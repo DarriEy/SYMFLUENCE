@@ -93,23 +93,21 @@ fi
 # installed, so -static linking fails with "cannot find -lm".
 # Only patch when static linking is actually broken to avoid regressions on
 # desktop Linux/macOS where static libs may be available.
-STATIC_WORKS=true
-_static_test=$(mktemp /tmp/_swat_static_XXXXXX.f90)
-echo "program t; end program t" > "$_static_test"
-if ! gfortran -static "$_static_test" -o "${_static_test}.out" 2>/dev/null; then
-    STATIC_WORKS=false
-fi
-rm -f "$_static_test" "${_static_test}.out"
-
-if [ "$STATIC_WORKS" = "false" ]; then
+# Use gfortran -print-file-name which queries the actual linker search paths:
+# returns the full path if found, or just the bare filename if not found.
+_libc_a="$(gfortran -print-file-name=libc.a 2>/dev/null)"
+_libm_a="$(gfortran -print-file-name=libm.a 2>/dev/null)"
+if [ "$_libc_a" = "libc.a" ] || [ ! -f "$_libc_a" ] || \
+   [ "$_libm_a" = "libm.a" ] || [ ! -f "$_libm_a" ]; then
+    echo "  Static libc/libm not found — removing -static for HPC compatibility"
     for cmf in CMakeLists.txt src/CMakeLists.txt; do
         if [ -f "$cmf" ] && grep -q '\-static' "$cmf" 2>/dev/null; then
             sed -i.bak 's/-static //g; s/ -static//g' "$cmf"
-            echo "  Patched $cmf: removed -static flag (static libc unavailable)"
+            echo "  Patched $cmf: removed -static flag"
         fi
     done
 else
-    echo "  Static linking available, keeping -static flags"
+    echo "  Static libc/libm available, keeping -static flags"
 fi
 
 # Create build directory
