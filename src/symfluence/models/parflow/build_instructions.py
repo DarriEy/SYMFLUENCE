@@ -220,7 +220,7 @@ fi
             '''.strip()
         ],
         'dependencies': ['cmake', 'make'],
-        'test_command': 'bin/parflow --version',
+        'test_command': '--version',
         'verify_install': {
             'file_paths': ['bin/parflow'],
             'check_type': 'exists'
