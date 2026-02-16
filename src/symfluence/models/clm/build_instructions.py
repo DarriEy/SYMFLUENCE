@@ -339,6 +339,15 @@ endif()
 string(APPEND FFLAGS " -fallow-argument-mismatch -I${NETCDF_F_INCDIR}")
 string(APPEND INCLDIR " -I${NETCDF_C_PREFIX}/include -I${NETCDF_F_INCDIR}")
 string(APPEND LDFLAGS " -L${NETCDF_C_PREFIX}/lib -L${NETCDF_F_PREFIX}/lib -Wl,-rpath,${NETCDF_C_PREFIX}/lib -Wl,-rpath,${NETCDF_F_PREFIX}/lib")
+# LAPACK/BLAS — macOS uses -framework Accelerate; Linux needs explicit libs.
+# Try OpenBLAS first (common on Spack HPC), fall back to standard names.
+find_library(_OPENBLAS openblas)
+if(_OPENBLAS)
+  get_filename_component(_BLAS_LIBDIR "${_OPENBLAS}" DIRECTORY)
+  string(APPEND LDFLAGS " -L${_BLAS_LIBDIR} -lopenblas")
+else()
+  string(APPEND LDFLAGS " -llapack -lblas")
+endif()
 CMAKEEOF
     fi
     echo "  cmake macros set for $UNAME_S"
