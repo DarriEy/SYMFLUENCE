@@ -76,6 +76,8 @@ class SWATModelOptimizer(BaseModelOptimizer):
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run SWAT for final evaluation using best parameters."""
+        import shutil
+
         best_result = self.get_best_result()
         best_params = best_result.get('params')
 
@@ -83,10 +85,69 @@ class SWATModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
 
-        self.worker.apply_parameters(best_params, self.swat_txtinout_dir)
+        self.worker.apply_parameters(
+            best_params, self.swat_txtinout_dir, config=self.config
+        )
 
-        return self.worker.run_model(
+        success = self.worker.run_model(
             self.config,
             self.swat_txtinout_dir,
             output_dir
         )
+
+        if success:
+            # SWAT writes output in TxtInOut — copy to final_evaluation dir
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for pattern in ['output.*']:
+                for f in self.swat_txtinout_dir.glob(pattern):
+                    if f.is_file() and f.stat().st_size > 0:
+                        shutil.copy2(f, output_dir / f.name)
+            self.logger.info(f"Copied SWAT outputs to {output_dir}")
+
+        return success
+
+    def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """Run final evaluation using SWAT worker metrics instead of base evaluator."""
+        self.logger.info("=" * 60)
+        self.logger.info("RUNNING FINAL EVALUATION")
+        self.logger.info("=" * 60)
+
+        try:
+            final_output_dir = self.results_dir / 'final_evaluation'
+            final_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Run model with best params and copy outputs
+            if not self._run_model_for_final_evaluation(final_output_dir):
+                self.logger.error("SWAT run failed during final evaluation")
+                return None
+
+            # Use worker's calculate_metrics (knows how to parse output.rch)
+            metrics = self.worker.calculate_metrics(
+                final_output_dir, self.config,
+                sim_dir=final_output_dir
+            )
+
+            if not metrics or metrics.get('kge', -999) <= -999:
+                self.logger.error("Failed to calculate final evaluation metrics")
+                return None
+
+            # Build result structure compatible with results_saver
+            calib_metrics = {"KGE_Calib": metrics.get('kge', -999)}
+            eval_metrics = {"KGE_Eval": metrics.get('kge', -999)}
+
+            final_result = {
+                'final_metrics': metrics,
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
+                'success': True,
+                'best_params': best_params
+            }
+
+            self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
+            return final_result
+
+        except Exception as e:
+            self.logger.error(f"Error in final evaluation: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None

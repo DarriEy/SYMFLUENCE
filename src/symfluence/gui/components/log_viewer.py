@@ -6,7 +6,7 @@ with auto-scroll and a clear button.
 
 Uses periodic polling (every 300ms) to flush accumulated log text
 to the Terminal widget. This approach is robust across threading
-contexts — it works regardless of whether log appends originate
+contexts -- it works regardless of whether log appends originate
 from the Tornado event loop, daemon threads, or direct calls.
 """
 
@@ -24,12 +24,18 @@ class LogViewer(param.Parameterized):
         self._terminal = pn.widgets.Terminal(
             '',
             sizing_mode='stretch_both',
-            min_height=200,
+            min_height=180,
             options={
                 'cursorBlink': False,
                 'scrollback': 10000,
-                'fontSize': 12,
+                'fontSize': 11,
                 'fontFamily': '"SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace',
+                'lineHeight': 1.3,
+                'theme': {
+                    'background': '#1e1e2e',
+                    'foreground': '#cdd6f4',
+                    'cursor': '#f5e0dc',
+                },
             },
         )
         self._flushed_len = 0
@@ -56,7 +62,10 @@ class LogViewer(param.Parameterized):
 
     def panel(self):
         """Return the Panel layout."""
-        clear_btn = pn.widgets.Button(name='Clear', button_type='warning', width=80)
+        clear_btn = pn.widgets.Button(
+            name='Clear', button_type='light', width=70,
+            styles={'font-size': '11px', 'border-radius': '4px'},
+        )
 
         def _on_clear(event):
             self._terminal.clear()
@@ -65,8 +74,21 @@ class LogViewer(param.Parameterized):
 
         clear_btn.on_click(_on_clear)
 
+        header_row = pn.Row(
+            pn.pane.HTML(
+                '<span style="color:#6e7f91; font-size:11px; font-weight:500;">'
+                'Log output</span>',
+                margin=(0, 5),
+            ),
+            pn.Spacer(sizing_mode='stretch_width'),
+            clear_btn,
+            sizing_mode='stretch_width',
+            styles={'padding': '4px 6px', 'border-bottom': '1px solid #d7e2eb'},
+        )
+
         return pn.Column(
-            pn.Row(pn.Spacer(sizing_mode='stretch_width'), clear_btn),
+            header_row,
             self._terminal,
             sizing_mode='stretch_both',
+            styles={'border-radius': '0 0 8px 8px', 'overflow': 'hidden'},
         )

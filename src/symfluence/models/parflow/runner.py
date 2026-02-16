@@ -3,6 +3,7 @@ ParFlow Model Runner
 
 Executes the ParFlow binary from a prepared simulation directory.
 ParFlow reads its .pfidb database file and writes .pfb binary output.
+Rainfall forcing is applied via OverlandFlow BC in the .pfidb (monthly cycle).
 """
 
 import logging
@@ -208,9 +209,15 @@ class ParFlowRunner(BaseModelRunner):
                 "Run preprocessing first."
             )
 
-        # Copy all ParFlow input files (.pfidb, .pfb, etc.)
+        # Remove stale .pfb output from previous runs (avoids file count
+        # confusion when DumpInterval changes between runs)
+        for old_pfb in sim_dir.glob('*.pfb'):
+            old_pfb.unlink()
+
+        # Copy all ParFlow input files (.pfidb, runname.txt, etc.)
+        # Skip .npy reference files (monthly_rainfall.npy etc.)
         for src in self.settings_dir.iterdir():
-            if src.is_file():
+            if src.is_file() and src.suffix != '.npy':
                 shutil.copy2(src, sim_dir / src.name)
                 logger.debug(f"Copied {src.name} to simulation directory")
 

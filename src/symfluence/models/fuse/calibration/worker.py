@@ -758,7 +758,7 @@ class FUSEWorker(BaseWorker):
                 text=True,
                 encoding='utf-8',
                 errors='replace',  # Replace undecodable bytes to prevent UnicodeDecodeError
-                timeout=config.get('FUSE_TIMEOUT', 300)
+                timeout=config.get('FUSE_TIMEOUT', 3600)
             )
 
             if result.returncode != 0:
@@ -1728,7 +1728,7 @@ class FUSEWorker(BaseWorker):
                 text=True,
                 encoding='utf-8',
                 errors='replace',  # Replace undecodable bytes to prevent UnicodeDecodeError
-                timeout=config.get('MIZUROUTE_TIMEOUT', 600)
+                timeout=config.get('MIZUROUTE_TIMEOUT', 3600)
             )
 
             if result.returncode != 0:

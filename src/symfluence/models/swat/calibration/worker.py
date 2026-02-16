@@ -79,7 +79,7 @@ class SWATWorker(BaseWorker):
             txtinout_name = config.get('SWAT_TXTINOUT_DIR', 'TxtInOut')
             original_txtinout = data_dir / f'domain_{domain_name}' / 'SWAT_input' / txtinout_name
 
-            if original_txtinout.exists():
+            if original_txtinout.exists() and original_txtinout.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
                 for f in original_txtinout.iterdir():
                     if f.is_file():
@@ -196,9 +196,15 @@ class SWATWorker(BaseWorker):
         Returns:
             Modified line string
         """
-        match = re.match(r'^(\s*)([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(.*)', line)
+        # Preserve trailing newline so SWAT file format is not corrupted
+        line_stripped = line.rstrip('\n\r')
+        trailing = line[len(line_stripped):]
+
+        match = re.match(
+            r'^(\s*)([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(.*)', line_stripped
+        )
         if not match:
-            match = re.match(r'^(\s*)([-+]?\d+)(.*)', line)
+            match = re.match(r'^(\s*)([-+]?\d+)(.*)', line_stripped)
 
         if not match:
             return line
@@ -229,7 +235,11 @@ class SWATWorker(BaseWorker):
         else:
             new_value_str = f"{int(round(new_value)):>{len(original_str)}d}"
 
-        return f"{prefix}{new_value_str}{suffix}"
+        result = f"{prefix}{new_value_str}{suffix}{trailing}"
+        # Safety: ensure line always ends with newline to prevent line merging
+        if not result.endswith('\n'):
+            result += '\n'
+        return result
 
     def run_model(
         self,
@@ -256,6 +266,16 @@ class SWATWorker(BaseWorker):
         try:
             # Use sim_dir as working directory if provided
             work_dir = Path(kwargs.get('sim_dir', settings_dir))
+
+            # Copy TxtInOut files from settings_dir to work_dir if they differ.
+            # apply_parameters() modifies files in settings_dir (TxtInOut) each
+            # iteration, so we must ALWAYS overwrite to propagate parameter changes.
+            if work_dir.resolve() != settings_dir.resolve() and settings_dir.exists():
+                import shutil
+                work_dir.mkdir(parents=True, exist_ok=True)
+                for f in settings_dir.iterdir():
+                    if f.is_file():
+                        shutil.copy2(f, work_dir / f.name)
 
             # Clean up stale output
             self._cleanup_stale_output(work_dir)
@@ -380,25 +400,28 @@ class SWATWorker(BaseWorker):
 
             # Get simulation start date
             try:
-                start_str = config.get('TIME_START')
+                start_str = (
+                    config.get('EXPERIMENT_TIME_START')
+                    or config.get('TIME_START')
+                )
                 if start_str is None and hasattr(config, 'domain'):
                     start_str = config.domain.time_start
-                start_date = pd.to_datetime(start_str) if start_str else pd.to_datetime('2000-01-01')
+                start_date = pd.to_datetime(start_str).normalize() if start_str else pd.to_datetime('2000-01-01')
             except (AttributeError, TypeError):
                 start_date = pd.to_datetime('2000-01-01')
 
             # Build time series
-            dates = pd.date_range(start=start_date, periods=len(flow_data), freq='D')
-            sim_series = pd.Series(flow_data, index=dates)
-
-            # SWAT FLOW_OUTcms is already in m3/s, no conversion needed
-
-            # Skip warmup period
+            # SWAT output.rch already starts AFTER the NYSKIP warmup period
+            # (file.cio NYSKIP is set to warmup_years by the preprocessor).
+            # We must NOT skip warmup again; just offset the start date.
             warmup_years = int(config.get('SWAT_WARMUP_YEARS', 2))
-            warmup_days = warmup_years * 365
-            if warmup_days > 0 and len(sim_series) > warmup_days:
-                sim_series = sim_series.iloc[warmup_days:]
-                self.logger.debug(f"Skipped {warmup_days} warmup days ({warmup_years} years)")
+            output_start_date = start_date + pd.DateOffset(years=warmup_years)
+            dates = pd.date_range(start=output_start_date, periods=len(flow_data), freq='D')
+            sim_series = pd.Series(flow_data, index=dates)
+            self.logger.debug(
+                f"SWAT output dates: {sim_series.index[0]} to {sim_series.index[-1]} "
+                f"({len(sim_series)} days, warmup={warmup_years}yr already skipped by NYSKIP)"
+            )
 
             # Load observations
             domain_name = config.get('DOMAIN_NAME')
@@ -457,16 +480,24 @@ class SWATWorker(BaseWorker):
             if header_end == 0:
                 header_end = 9
 
-            # Parse data
+            # Parse data - handle both formats:
+            #   "1  0  1  0.00  0.00  0.00 ..."   (reach number at col 0, flow at col 5)
+            #   "REACH  1  0  1  0.00  0.00  0.00 ..."  (REACH prefix, reach at col 1, flow at col 6)
             flow_values = []
             for line in lines[header_end:]:
                 parts = line.split()
                 if len(parts) < 6:
                     continue
                 try:
-                    rch = int(parts[0])
-                    if rch == reach_id:
-                        flow_out = float(parts[5])  # FLOW_OUTcms column
+                    # Detect REACH prefix
+                    if parts[0].upper() == 'REACH':
+                        rch = int(parts[1])
+                        flow_col = 6  # FLOW_OUTcms after REACH prefix
+                    else:
+                        rch = int(parts[0])
+                        flow_col = 5  # FLOW_OUTcms without prefix
+                    if rch == reach_id and len(parts) > flow_col:
+                        flow_out = float(parts[flow_col])
                         flow_values.append(max(0.0, flow_out))
                 except (ValueError, IndexError):
                     continue

@@ -221,7 +221,7 @@ class DomainPanel(param.Parameterized):
             pn.layout.Divider(),
             self._delineate_btn,
             title='Domain Definition',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in _VISIBLE_PHASES,
             sizing_mode='stretch_width',
             header_background='#eef4fb',

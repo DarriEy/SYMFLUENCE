@@ -44,7 +44,7 @@ class SUMMAConfig(BaseModel):
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_SUMMA')
     experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_SUMMA')
     params_to_calibrate: str = Field(
-        default='albedo_max,albedo_min,canopy_capacity,slow_drainage',
+        default='k_soil,aquiferBaseflowRate,albedoMax,snowfrz_scale',
         alias='PARAMS_TO_CALIBRATE'
     )
     basin_params_to_calibrate: str = Field(
@@ -1106,6 +1106,8 @@ class SWATConfig(BaseModel):
     )
     warmup_years: int = Field(default=2, alias='SWAT_WARMUP_YEARS', ge=0, le=10)
     timeout: int = Field(default=3600, alias='SWAT_TIMEOUT', ge=60, le=86400)
+    plaps: float = Field(default=0.0, alias='SWAT_PLAPS')
+    tlaps: float = Field(default=0.0, alias='SWAT_TLAPS')
 
 
 class MHMConfig(BaseModel):
@@ -1130,7 +1132,7 @@ class MHMConfig(BaseModel):
     spatial_mode: SpatialModeType = Field(default='lumped', alias='MHM_SPATIAL_MODE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MHM')
     params_to_calibrate: str = Field(
-        default='canopyInterceptionFactor,snowThresholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks,interflowRecession_slope,rechargeCoefficient,baseflowRecession,saturatedHydraulicConductivity',
+        default='canopyInterceptionFactor,snowTreshholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient,GeoParam(1,:),infiltrationShapeFactor,rootFractionCoefficient_pervious,interflowStorageCapacityFactor,slowInterflowRecession_Ks,muskingumTravelTime_constant,orgMatterContent_forest',
         alias='MHM_PARAMS_TO_CALIBRATE'
     )
     timeout: int = Field(default=3600, alias='MHM_TIMEOUT', ge=60, le=86400)

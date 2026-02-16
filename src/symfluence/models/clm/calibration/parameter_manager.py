@@ -22,9 +22,10 @@ from symfluence.optimization.registry import OptimizerRegistry
 
 # CLM5 parameter definitions:
 # (target_file, nc_variable_or_None, transform)
-# target_file: 'namelist' | 'params' | 'surfdata'
+# target_file: 'namelist' | 'params' | 'surfdata' | 'routing'
 # For surfdata multipliers (*_mult), value is multiplied with base values.
 # For 'namelist' params, nc_variable stores the lnd_in section name.
+# 'routing' params are applied post-hoc to CLM output (not written to files).
 CLM_PARAM_DEFS = {
     # --- Hydrology (params.nc scalars) ---
     'baseflow_scalar':  ('namelist', 'soilhydrology_inparm', 'log'),
@@ -59,6 +60,11 @@ CLM_PARAM_DEFS = {
     'flnr':             ('params', 'flnr', 'linear'),
     'froot_leaf':       ('params', 'froot_leaf', 'linear'),
     'stem_leaf':        ('params', 'stem_leaf', 'linear'),
+    # --- Routing (post-processing, not written to CLM files) ---
+    # Linear reservoir: Q_out(t) = (1 - 1/K) * Q_out(t-1) + (1/K) * Q_in(t)
+    # K=1 means no routing (passthrough), K>1 introduces storage delay.
+    # Physically justified: basin travel time for 2210 km² catchment.
+    'route_k':          ('routing', None, 'linear'),
 }
 
 # Default bounds for all parameters
@@ -95,6 +101,8 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
     'flnr':             {'min': 0.05, 'max': 0.25},
     'froot_leaf':       {'min': 0.5, 'max': 3.0},
     'stem_leaf':        {'min': 0.5, 'max': 3.0},
+    # Routing
+    'route_k':          {'min': 1.0, 'max': 40.0},
 }
 
 
@@ -363,24 +371,29 @@ class CLMParameterManager(BaseParameterManager):
         ds.close()
         return True
 
-    # Best values from v3 calibration (KGE=0.600) + e_ice warm start.
-    # Used as DDS starting point to avoid cold-start exploration.
+    # DDS initial guess for warm-restart calibration.
+    # Based on the v10 run that achieved KGE=0.72 after 30 iterations.
+    # All params from v3 best (proven to run fast and produce good KGE).
+    # The 8yr-spinup restart provides well-equilibrated soil state that
+    # accommodates these parameter values without drift.
     CLM_INITIAL_GUESS: Dict[str, float] = {
-        # From v3 calibration best (iteration 181, KGE=0.600)
-        'baseflow_scalar': 0.01045,
-        'fff': 0.4015,
-        'wimp': 0.01235,
-        'ksatdecay': 4.291,
-        'n_baseflow': 1.981,
-        'perched_baseflow_scalar': 3.93e-7,
-        'interception_fraction': 0.232,
-        'max_leaf_wetted_frac': 0.0121,
-        'fmax': 0.846,
-        'bsw_mult': 1.533,
-        'sucsat_mult': 0.941,
-        'watsat_mult': 0.852,
-        'hksat_mult': 0.263,
-        'organic_max': 120.3,
+        # Hydrology — v3 best values (proven fast-running)
+        'baseflow_scalar': 0.01,
+        'fff': 0.361,
+        'wimp': 0.047,
+        'ksatdecay': 1.587,
+        'n_baseflow': 2.075,
+        'perched_baseflow_scalar': 6.87e-6,
+        'interception_fraction': 0.508,
+        'max_leaf_wetted_frac': 0.096,
+        # Surfdata — v3 best values
+        'fmax': 0.549,
+        'bsw_mult': 1.042,
+        'sucsat_mult': 0.968,
+        'watsat_mult': 0.990,
+        'hksat_mult': 0.357,
+        'organic_max': 44.6,
+        # Snow — v3 best (snow physics independent of soil state)
         'fresh_snw_rds_max': 165.7,
         'snw_aging_bst': 152.0,
         'SNO_Z0MV': 0.000151,
@@ -389,13 +402,16 @@ class CLMParameterManager(BaseParameterManager):
         'SNOW_DENSITY_MIN': 165.5,
         'n_melt_coef': 136.4,
         'int_snow_max': 4277.4,
+        # Vegetation — v3 best (PFT physics independent of soil state)
         'medlynslope': 8.932,
         'slatop': 0.019,
         'flnr': 0.1106,
         'froot_leaf': 2.547,
         'stem_leaf': 1.426,
-        # New: frozen soil impedance — default 6 kills winter baseflow
-        'e_ice': 3.0,
+        # Frozen soil impedance
+        'e_ice': 3.5,
+        # Routing
+        'route_k': 15.0,
     }
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:

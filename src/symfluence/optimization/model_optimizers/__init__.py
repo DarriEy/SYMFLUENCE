@@ -40,6 +40,11 @@ def _register_optimizers():
         'symfluence.models.cfuse.calibration.optimizer',
         'symfluence.models.sacsma.calibration.optimizer',
         'symfluence.models.xinanjiang.calibration.optimizer',
+        'symfluence.models.parflow.calibration.optimizer',
+        'symfluence.models.swat.calibration.optimizer',
+        'symfluence.models.mhm.calibration.optimizer',
+        'symfluence.models.crhm.calibration.optimizer',
+        'symfluence.models.mikeshe.calibration.optimizer',
     ]
 
     for module_path in canonical_modules:

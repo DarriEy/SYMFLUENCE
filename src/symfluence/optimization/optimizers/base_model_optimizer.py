@@ -1976,8 +1976,7 @@ class BaseModelOptimizer(
     def _update_file_manager_for_final_run(self) -> None:
         """Update file manager to use full experiment period (not just calibration)."""
         file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists():
-            self.logger.warning(f"File manager not found: {file_manager_path}")
+        if not file_manager_path.exists() or not file_manager_path.is_file():
             return
 
         try:
@@ -2031,7 +2030,7 @@ class BaseModelOptimizer(
     def _restore_file_manager_for_optimization(self) -> None:
         """Restore file manager to calibration period settings."""
         file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists():
+        if not file_manager_path.exists() or not file_manager_path.is_file():
             return
 
         try:
@@ -2076,7 +2075,7 @@ class BaseModelOptimizer(
     def _update_file_manager_output_path(self, output_dir: Path) -> None:
         """Update file manager with final evaluation output path."""
         file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists():
+        if not file_manager_path.exists() or not file_manager_path.is_file():
             return
 
         try:

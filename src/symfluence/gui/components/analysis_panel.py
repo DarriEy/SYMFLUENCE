@@ -110,7 +110,7 @@ class AnalysisPanel(param.Parameterized):
             pn.layout.Divider(),
             self._run_btn,
             title='Analysis',
-            collapsed=False,
+            collapsed=True,
             visible=self.state.gui_phase in (
                 'model_ready', 'calibrated', 'analyzed',
             ),
