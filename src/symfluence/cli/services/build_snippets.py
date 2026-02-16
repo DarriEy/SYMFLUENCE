@@ -231,66 +231,97 @@ def get_netcdf_detection() -> str:
     """
     return r'''
 # === NetCDF Detection (reusable snippet) ===
+# Helper: check if a directory contains Fortran NetCDF files (netcdf.mod or libnetcdff)
+_has_fortran_netcdf() {
+    local path="$1"
+    [ -d "$path/include" ] && \
+    { [ -f "$path/include/netcdf.mod" ] || \
+      ls "$path/lib"/libnetcdff.* >/dev/null 2>&1 || \
+      ls "$path/lib64"/libnetcdff.* >/dev/null 2>&1; }
+}
 detect_netcdf() {
-    # Check HPC module environment variables first (Compute Canada, NERSC, etc.)
-    # EBROOTNETCDF is set by EasyBuild module system
-    # NETCDF_ROOT, NETCDF_DIR are common HPC conventions
-    if [ -n "${EBROOTNETCDFMINFORTRAN:-}" ] && [ -d "${EBROOTNETCDFMINFORTRAN}/include" ]; then
-        NETCDF_FORTRAN="${EBROOTNETCDFMINFORTRAN}"
-        echo "Found HPC module NetCDF-Fortran at: ${NETCDF_FORTRAN}"
-    elif [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/include" ]; then
-        NETCDF_FORTRAN="${EBROOTNETCDF}"
-        echo "Found HPC module NetCDF at: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/include" ]; then
-        NETCDF_FORTRAN="${NETCDF_ROOT}"
-        echo "Found NetCDF via NETCDF_ROOT at: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/include" ]; then
-        NETCDF_FORTRAN="${NETCDF_DIR}"
-        echo "Found NetCDF via NETCDF_DIR at: ${NETCDF_FORTRAN}"
-    # Check conda environment (second priority for ABI compatibility)
-    # CONDA_LIB_PREFIX is set by get_common_build_environment() and handles
-    # Windows conda layout (CONDA_PREFIX/Library vs CONDA_PREFIX).
-    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nf-config" ]; then
-        NETCDF_FORTRAN="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
-        echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
-    # Try nf-config (NetCDF Fortran config tool)
-    elif command -v nf-config >/dev/null 2>&1; then
-        local nf_prefix
-        nf_prefix="$(nf-config --prefix 2>/dev/null)"
-        if [ -n "$nf_prefix" ] && [ -d "$nf_prefix" ]; then
-            NETCDF_FORTRAN="$nf_prefix"
-            echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    # ── NetCDF-Fortran detection ──
+    # On HPC systems with Spack, NETCDF_ROOT often points to netcdf-c only,
+    # NOT the Fortran bindings. We must use Fortran-specific methods first.
+
+    # 0. If already set and validated (e.g., by configure_libraries via nf-config), keep it
+    if [ -n "${NETCDF_FORTRAN:-}" ] && _has_fortran_netcdf "${NETCDF_FORTRAN}"; then
+        echo "Using pre-set NETCDF_FORTRAN at: ${NETCDF_FORTRAN}"
+    else
+        NETCDF_FORTRAN=""
+
+        # 1. EasyBuild module (Compute Canada, NERSC, etc.)
+        if [ -n "${EBROOTNETCDFMINFORTRAN:-}" ] && [ -d "${EBROOTNETCDFMINFORTRAN}/include" ]; then
+            NETCDF_FORTRAN="${EBROOTNETCDFMINFORTRAN}"
+            echo "Found HPC module NetCDF-Fortran (EasyBuild) at: ${NETCDF_FORTRAN}"
+
+        # 2. Explicit Fortran root variable (Spack, manual HPC setup)
+        elif [ -n "${NETCDF_FORTRAN_ROOT:-}" ] && [ -d "${NETCDF_FORTRAN_ROOT}/include" ]; then
+            NETCDF_FORTRAN="${NETCDF_FORTRAN_ROOT}"
+            echo "Found NetCDF-Fortran via NETCDF_FORTRAN_ROOT at: ${NETCDF_FORTRAN}"
+
+        # 3. nf-config tool (most reliable for any system with netcdf-fortran installed)
+        elif command -v nf-config >/dev/null 2>&1; then
+            local nf_prefix
+            nf_prefix="$(nf-config --prefix 2>/dev/null)"
+            if [ -n "$nf_prefix" ] && [ -d "$nf_prefix" ]; then
+                NETCDF_FORTRAN="$nf_prefix"
+                echo "Found NetCDF-Fortran via nf-config at: ${NETCDF_FORTRAN}"
+            fi
+
+        # 4. Conda environment
+        # CONDA_LIB_PREFIX is set by get_common_build_environment() and handles
+        # Windows conda layout (CONDA_PREFIX/Library vs CONDA_PREFIX).
+        elif [ -n "${CONDA_PREFIX:-}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nf-config" ]; then
+            NETCDF_FORTRAN="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+            echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+        fi
+
+        # 5. Generic HPC variables - but ONLY if they actually contain Fortran files.
+        #    On Spack systems, NETCDF_ROOT typically points to netcdf-c (no .mod files).
+        if [ -z "${NETCDF_FORTRAN}" ]; then
+            if [ -n "${EBROOTNETCDF:-}" ] && _has_fortran_netcdf "${EBROOTNETCDF}"; then
+                NETCDF_FORTRAN="${EBROOTNETCDF}"
+                echo "Found NetCDF-Fortran via EBROOTNETCDF at: ${NETCDF_FORTRAN}"
+            elif [ -n "${NETCDF_ROOT:-}" ] && _has_fortran_netcdf "${NETCDF_ROOT}"; then
+                NETCDF_FORTRAN="${NETCDF_ROOT}"
+                echo "Found NetCDF-Fortran via NETCDF_ROOT at: ${NETCDF_FORTRAN}"
+            elif [ -n "${NETCDF_DIR:-}" ] && _has_fortran_netcdf "${NETCDF_DIR}"; then
+                NETCDF_FORTRAN="${NETCDF_DIR}"
+                echo "Found NetCDF-Fortran via NETCDF_DIR at: ${NETCDF_FORTRAN}"
+            fi
+        fi
+
+        # 6. Fallback: NETCDF env var, system paths
+        if [ -z "${NETCDF_FORTRAN}" ]; then
+            if [ -n "${NETCDF:-}" ] && [ -d "${NETCDF}/include" ]; then
+                NETCDF_FORTRAN="${NETCDF}"
+                echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
+            else
+                # Try common locations (Homebrew, system paths)
+                for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
+                                /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
+                    if [ -d "$try_path/include" ]; then
+                        NETCDF_FORTRAN="$try_path"
+                        echo "Found NetCDF at: $try_path"
+                        break
+                    fi
+                done
+            fi
         fi
     fi
 
-    # Fallback checks if not yet found
-    if [ -z "${NETCDF_FORTRAN}" ] || [ ! -d "${NETCDF_FORTRAN}/include" ]; then
-        if [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
-            echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
-        elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
-            NETCDF_FORTRAN="${NETCDF}"
-            echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
-        else
-            # Try common locations (Homebrew, system paths)
-            for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
-                            /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
-                if [ -d "$try_path/include" ]; then
-                    NETCDF_FORTRAN="$try_path"
-                    echo "Found NetCDF at: $try_path"
-                    break
-                fi
-            done
-        fi
-    fi
-
-    # Find NetCDF C library (may be separate from Fortran on macOS)
+    # ── NetCDF-C detection ──
+    # For C, NETCDF_ROOT is typically correct (it usually IS the C library)
     if [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/lib" ]; then
         NETCDF_C="${EBROOTNETCDF}"
+    elif [ -n "${NETCDF_C_ROOT:-}" ] && [ -d "${NETCDF_C_ROOT}/lib" ]; then
+        NETCDF_C="${NETCDF_C_ROOT}"
     elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/lib" ]; then
         NETCDF_C="${NETCDF_ROOT}"
     elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/lib" ]; then
         NETCDF_C="${NETCDF_DIR}"
-    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nc-config" ]; then
+    elif [ -n "${CONDA_PREFIX:-}" ] && [ -f "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/bin/nc-config" ]; then
         NETCDF_C="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
     elif command -v nc-config >/dev/null 2>&1; then
         local nc_prefix
