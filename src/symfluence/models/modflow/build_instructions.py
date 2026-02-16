@@ -254,7 +254,7 @@ fi
             '''.strip()
         ],
         'dependencies': [],
-        'test_command': 'bin/mf6 --version',
+        'test_command': '--version',
         'verify_install': {
             'file_paths': ['bin/mf6'],
             'check_type': 'exists'
