@@ -81,19 +81,24 @@ PARFLOW_DEFAULT_BOUNDS = {
         'description': 'Snowfall correction factor',
     },
     'SNOW17_MFMAX': {
-        'min': 0.5, 'max': 2.0,
+        'min': 0.5, 'max': 4.0,
         'transform': 'linear',
         'description': 'Max melt factor Jun 21 (mm/C/6hr)',
     },
     'SNOW17_MFMIN': {
-        'min': 0.05, 'max': 0.6,
+        'min': 0.05, 'max': 1.5,
         'transform': 'linear',
         'description': 'Min melt factor Dec 21 (mm/C/6hr)',
     },
     'SNOW17_PXTEMP': {
-        'min': -2.0, 'max': 2.0,
+        'min': -4.0, 'max': 3.0,
         'transform': 'linear',
         'description': 'Rain/snow threshold temperature (C)',
+    },
+    'SNOW_LAPSE_RATE': {
+        'min': 0.003, 'max': 0.010,
+        'transform': 'linear',
+        'description': 'Temperature lapse rate for elevation bands (C/m)',
     },
     # Linear reservoir routing parameters (post-processing, not in .pfidb)
     'ROUTE_ALPHA': {
@@ -126,7 +131,10 @@ PARAM_TO_PFIDB_KEYS = {
 }
 
 # Snow-17 parameter names (handled separately — affect forcing, not subsurface)
-SNOW17_PARAM_NAMES = {'SNOW17_SCF', 'SNOW17_MFMAX', 'SNOW17_MFMIN', 'SNOW17_PXTEMP'}
+SNOW17_PARAM_NAMES = {
+    'SNOW17_SCF', 'SNOW17_MFMAX', 'SNOW17_MFMIN', 'SNOW17_PXTEMP',
+    'SNOW_LAPSE_RATE',
+}
 
 # Routing parameter names (post-processing — not written to .pfidb)
 ROUTING_PARAM_NAMES = {'ROUTE_ALPHA', 'ROUTE_K_SLOW', 'ROUTE_BASEFLOW'}
@@ -264,11 +272,12 @@ class ParFlowParameterManager(BaseParameterManager):
     ) -> None:
         """Regenerate daily forcing BC values using updated Snow-17 params.
 
-        Loads cached hourly forcing, runs Snow-17 with new parameters,
-        and updates the z_upper BC values in the .pfidb entries dict.
+        Loads cached hourly forcing, runs elevation-band Snow-17 with new
+        parameters, and updates the z_upper BC values in the .pfidb entries dict.
         """
         import pandas as pd
         from symfluence.models.snow17.bmi import Snow17BMI
+        from symfluence.models.parflow.preprocessor import ParFlowPreProcessor
 
         cache_path = self.settings_dir / 'hourly_forcing_cache.npz'
         if not cache_path.exists():
@@ -283,9 +292,13 @@ class ParFlowParameterManager(BaseParameterManager):
 
         # Build Snow-17 param dict (strip SNOW17_ prefix)
         s17_params = {}
+        lapse_rate = ParFlowPreProcessor.DEFAULT_LAPSE_RATE
         for k, v in snow_params.items():
-            s17_key = k.replace('SNOW17_', '')
-            s17_params[s17_key] = v
+            if k == 'SNOW_LAPSE_RATE':
+                lapse_rate = v
+            else:
+                s17_key = k.replace('SNOW17_', '')
+                s17_params[s17_key] = v
 
         # Get latitude from config
         lat = float(self.config.get('CATCHMENT_LATITUDE', 51.36))
@@ -301,12 +314,20 @@ class ParFlowParameterManager(BaseParameterManager):
         daily = df_hourly.resample('D').agg({'ppt': 'sum', 'temp': 'mean'})
         daily['doy'] = daily.index.dayofyear
 
-        # Run Snow-17
-        snow = Snow17BMI(params=s17_params, latitude=lat, dt=1.0)
-        snow.initialize()
-        rpm_daily = snow.update_batch(
-            daily['ppt'].values, daily['temp'].values, daily['doy'].values,
-        )
+        # Run elevation-band Snow-17
+        n_days = len(daily)
+        rpm_daily = np.zeros(n_days)
+
+        for band_elev, area_frac in ParFlowPreProcessor.ELEVATION_BANDS:
+            temp_offset = -lapse_rate * (band_elev - ParFlowPreProcessor.BASIN_MEAN_ELEV)
+            temp_band = daily['temp'].values + temp_offset
+
+            snow = Snow17BMI(params=s17_params, latitude=lat, dt=1.0)
+            snow.initialize()
+            rpm_band = snow.update_batch(
+                daily['ppt'].values, temp_band, daily['doy'].values,
+            )
+            rpm_daily += rpm_band * area_frac
 
         # Distribute to hourly and compute daily effective rate
         df_pet = pd.DataFrame({'pet': pet_mm_hr}, index=times)
@@ -358,6 +379,7 @@ class ParFlowParameterManager(BaseParameterManager):
             'SNOW17_MFMAX': 1.0,
             'SNOW17_MFMIN': 0.3,
             'SNOW17_PXTEMP': 0.0,
+            'SNOW_LAPSE_RATE': 0.0065,
             'ROUTE_ALPHA': 0.3,
             'ROUTE_K_SLOW': 20.0,
             'ROUTE_BASEFLOW': 5.0,

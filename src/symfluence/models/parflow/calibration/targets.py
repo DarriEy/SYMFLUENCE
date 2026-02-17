@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
+from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ def _linear_reservoir_routing(
     return q_routed
 
 
+@OptimizerRegistry.register_calibration_target('PARFLOW', 'streamflow')
 class ParFlowStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for ParFlow integrated hydrologic model.
 

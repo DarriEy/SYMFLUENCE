@@ -6,8 +6,8 @@ to MODFLOW 6 recharge time-series format, and combines MODFLOW
 baseflow with SUMMA surface runoff for downstream routing.
 
 Unit conversions:
-    SUMMA scalarSoilDrainage: kg/m2/s → m/d (× 86400 / 1000 = × 86.4)
-    SUMMA scalarSurfaceRunoff: kg/m2/s → m3/s (× area_m2 / 1000)
+    SUMMA scalarSoilDrainage: m/s → m/d (× 86400)
+    SUMMA scalarSurfaceRunoff: m/s → m3/s (× area_m2)
     MODFLOW drain discharge: m3/d → m3/s (÷ 86400)
 """
 
@@ -30,12 +30,65 @@ class SUMMAToMODFLOWCoupler:
         4. Combine surface runoff + baseflow → total streamflow
     """
 
-    # SUMMA kg/m2/s → m/d: (1 kg/m2/s) × (86400 s/d) / (1000 kg/m3) = 86.4 m/d
-    KG_M2_S_TO_M_D = 86400.0 / 1000.0  # 86.4
+    # SUMMA m/s → m/d: (1 m/s) × (86400 s/d) = 86400 m/d
+    M_S_TO_M_D = 86400.0
 
     def __init__(self, config_dict: dict, logger_instance=None):
         self.config_dict = config_dict
         self.logger = logger_instance or logger
+
+    def _open_summa_variable(self, summa_output_dir: Path, variable: str):
+        """Open the SUMMA NetCDF file containing the requested variable.
+
+        Opens each file individually to avoid NaN-padding issues that
+        occur when open_mfdataset merges files with different time
+        dimensions (e.g. hourly timestep file + daily output file).
+
+        Returns:
+            (xr.Dataset, list[Path]) — opened dataset and files used
+        """
+        import xarray as xr
+
+        summa_output_dir = Path(summa_output_dir)
+        nc_files = sorted(summa_output_dir.glob("*_output_*.nc"))
+        if not nc_files:
+            nc_files = sorted(summa_output_dir.glob("*.nc"))
+
+        if not nc_files:
+            raise FileNotFoundError(
+                f"No SUMMA output NetCDF files found in {summa_output_dir}"
+            )
+
+        # Find files that contain the variable and open only those
+        matching_files = []
+        for nc_file in nc_files:
+            ds_check = xr.open_dataset(nc_file)
+            has_var = variable in ds_check
+            ds_check.close()
+            if has_var:
+                matching_files.append(nc_file)
+
+        if not matching_files:
+            # Gather all available variables for error message
+            all_vars = set()
+            for nc_file in nc_files:
+                ds_check = xr.open_dataset(nc_file)
+                all_vars.update(ds_check.data_vars)
+                ds_check.close()
+            raise ValueError(
+                f"Variable '{variable}' not found in SUMMA output. "
+                f"Available: {sorted(all_vars)}"
+            )
+
+        if len(matching_files) == 1:
+            ds = xr.open_dataset(matching_files[0])
+        else:
+            ds = xr.open_mfdataset(matching_files, combine='by_coords')
+
+        self.logger.info(
+            f"Reading {variable} from {len(matching_files)} file(s)"
+        )
+        return ds, matching_files
 
     def extract_recharge_from_summa(
         self,
@@ -51,29 +104,7 @@ class SUMMAToMODFLOWCoupler:
         Returns:
             Recharge time series in m/d with datetime index
         """
-        import xarray as xr
-
-        summa_output_dir = Path(summa_output_dir)
-        nc_files = sorted(summa_output_dir.glob("*_output_*.nc"))
-        if not nc_files:
-            nc_files = sorted(summa_output_dir.glob("*.nc"))
-
-        if not nc_files:
-            raise FileNotFoundError(
-                f"No SUMMA output NetCDF files found in {summa_output_dir}"
-            )
-
-        self.logger.info(f"Reading {variable} from {len(nc_files)} SUMMA output file(s)")
-
-        ds = xr.open_mfdataset(nc_files, combine='by_coords')
-
-        if variable not in ds:
-            available = list(ds.data_vars)
-            ds.close()
-            raise ValueError(
-                f"Variable '{variable}' not found in SUMMA output. "
-                f"Available: {available}"
-            )
+        ds, _ = self._open_summa_variable(summa_output_dir, variable)
 
         data = ds[variable]
 
@@ -87,20 +118,20 @@ class SUMMAToMODFLOWCoupler:
 
         ds.close()
 
-        # Convert kg/m2/s → m/d
-        recharge_m_d = values * self.KG_M2_S_TO_M_D
-
-        # Ensure non-negative
-        recharge_m_d = np.maximum(recharge_m_d, 0.0)
+        # Convert m/s → m/d
+        recharge_m_d = values * self.M_S_TO_M_D
 
         series = pd.Series(recharge_m_d, index=times, name='recharge_m_d')
 
-        # Resample to daily if sub-daily
+        # Resample to daily if sub-daily (preserves NaN correctly)
         if len(series) > 1:
             dt = (series.index[1] - series.index[0]).total_seconds()
             if dt < 86400:
                 series = series.resample('D').mean()
                 self.logger.info("Resampled sub-daily SUMMA output to daily")
+
+        # Replace NaN and ensure non-negative after resampling
+        series = series.fillna(0.0).clip(lower=0.0)
 
         self.logger.info(
             f"Extracted recharge: {len(series)} timesteps, "
@@ -109,61 +140,52 @@ class SUMMAToMODFLOWCoupler:
 
         return series
 
-    def write_modflow_recharge_ts(
+    def write_modflow_recharge_rch(
         self,
         recharge_series: pd.Series,
-        output_path: Path,
+        rch_path: Path,
+        n_stress_periods: int = 0,
     ) -> Path:
-        """Write MODFLOW 6 time-array-series (TAS6) recharge file.
+        """Write MODFLOW 6 RCH package with per-period recharge.
 
-        MODFLOW 6 TAS6 format:
-            BEGIN ATTRIBUTES
-              NAME rch_array
-              METHOD LINEAR
-            END ATTRIBUTES
-
-            BEGIN TIME 0.0
-              CONSTANT <recharge_value>
-            END TIME 0.0
-
-            BEGIN TIME 1.0
-              CONSTANT <recharge_value>
-            END TIME 1.0
-            ...
+        Uses READASARRAYS CONSTANT format — one PERIOD block per stress
+        period.  Periods beyond the recharge series reuse the last value
+        (MODFLOW default behaviour when a period block is omitted).
 
         Args:
             recharge_series: Recharge in m/d with datetime index
-            output_path: Path to write the .ts file
+            rch_path: Path to write the gwf.rch file
+            n_stress_periods: Total stress periods in TDIS (0 = use series length)
 
         Returns:
             Path to written file
         """
-        output_path = Path(output_path)
+        rch_path = Path(rch_path)
 
         lines = [
-            "BEGIN ATTRIBUTES",
-            "  NAME rch_array",
-            "  METHOD LINEAR",
-            "END ATTRIBUTES",
+            "BEGIN OPTIONS",
+            "  READASARRAYS",
+            "END OPTIONS",
             "",
         ]
 
-        # Convert datetime index to simulation days (relative to start)
-        start_time = recharge_series.index[0]
-        for dt, val in recharge_series.items():
-            sim_day = (dt - start_time).total_seconds() / 86400.0
-            lines.append(f"BEGIN TIME {sim_day:.1f}")
-            lines.append(f"  CONSTANT {val:.8e}")
-            lines.append(f"END TIME {sim_day:.1f}")
+        values = recharge_series.values
+        for i, val in enumerate(values):
+            if np.isnan(val):
+                val = 0.0
+            lines.append(f"BEGIN PERIOD {i + 1}")
+            lines.append("  RECHARGE")
+            lines.append(f"    CONSTANT {val:.8e}")
+            lines.append(f"END PERIOD {i + 1}")
             lines.append("")
 
-        output_path.write_text("\n".join(lines))
+        rch_path.write_text("\n".join(lines))
 
         self.logger.info(
-            f"Wrote MODFLOW recharge time-array-series: {len(recharge_series)} values to {output_path}"
+            f"Wrote MODFLOW per-period recharge: {len(recharge_series)} periods to {rch_path}"
         )
 
-        return output_path
+        return rch_path
 
     def extract_surface_runoff(
         self,
@@ -177,25 +199,9 @@ class SUMMAToMODFLOWCoupler:
             variable: SUMMA variable name for surface runoff
 
         Returns:
-            Surface runoff in kg/m2/s with datetime index
+            Surface runoff in m/s with datetime index
         """
-        import xarray as xr
-
-        summa_output_dir = Path(summa_output_dir)
-        nc_files = sorted(summa_output_dir.glob("*_output_*.nc"))
-        if not nc_files:
-            nc_files = sorted(summa_output_dir.glob("*.nc"))
-
-        if not nc_files:
-            raise FileNotFoundError(
-                f"No SUMMA output files found in {summa_output_dir}"
-            )
-
-        ds = xr.open_mfdataset(nc_files, combine='by_coords')
-
-        if variable not in ds:
-            ds.close()
-            raise ValueError(f"Variable '{variable}' not found in SUMMA output")
+        ds, _ = self._open_summa_variable(summa_output_dir, variable)
 
         data = ds[variable]
         for dim in list(data.dims):
@@ -206,7 +212,7 @@ class SUMMAToMODFLOWCoupler:
         values = data.values
         ds.close()
 
-        series = pd.Series(values, index=times, name='surface_runoff_kg_m2_s')
+        series = pd.Series(values, index=times, name='surface_runoff_m_s')
 
         # Resample to daily if sub-daily
         if len(series) > 1:
@@ -214,6 +220,7 @@ class SUMMAToMODFLOWCoupler:
             if dt < 86400:
                 series = series.resample('D').mean()
 
+        series = series.fillna(0.0)
         return series
 
     def combine_flows(
@@ -232,12 +239,16 @@ class SUMMAToMODFLOWCoupler:
         Returns:
             Combined streamflow in m3/s
         """
-        # Convert surface runoff: kg/m2/s → m3/s
-        # (kg/m2/s) × area_m2 / 1000 kg/m3 = m3/s
-        surface_m3s = surface_runoff_kg_m2_s * catchment_area_m2 / 1000.0
+        # Convert surface runoff: m/s → m3/s
+        # (m/s) × area_m2 = m3/s
+        surface_m3s = surface_runoff_kg_m2_s * catchment_area_m2
 
         # Convert drain discharge: m3/d → m3/s
         baseflow_m3s = drain_discharge_m3_d / 86400.0
+
+        # Normalize both indices to date-only for alignment
+        surface_m3s.index = surface_m3s.index.normalize()
+        baseflow_m3s.index = baseflow_m3s.index.normalize()
 
         # Align indices
         common_idx = surface_m3s.index.intersection(baseflow_m3s.index)

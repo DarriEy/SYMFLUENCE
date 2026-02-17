@@ -66,6 +66,10 @@ class CLMModelOptimizer(BaseModelOptimizer):
         """CLM does not use external routing."""
         return False
 
+    def _apply_best_parameters_for_final(self, best_params) -> bool:
+        """Skip — _run_model_for_final_evaluation handles param application."""
+        return True
+
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run CLM for final evaluation using best parameters."""
         best_result = self.get_best_result()
@@ -75,10 +79,23 @@ class CLMModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
 
-        self.worker.apply_parameters(best_params, self.clm_setup_dir)
+        # Use a separate settings dir for final evaluation to avoid
+        # SameFileError when source CLM_input/settings == settings_dir.
+        import shutil
+        final_settings = output_dir / 'settings' / 'CLM'
+        final_settings.mkdir(parents=True, exist_ok=True)
+
+        # Copy base settings
+        for f in self.clm_setup_dir.iterdir():
+            if f.is_file():
+                shutil.copy2(f, final_settings / f.name)
+
+        self.worker.apply_parameters(
+            best_params, final_settings, config=self.config
+        )
 
         return self.worker.run_model(
             self.config,
-            self.clm_setup_dir,
+            final_settings,
             output_dir,
         )

@@ -916,6 +916,124 @@ class ParFlowConfig(BaseModel):
     timeout: int = Field(default=3600, alias='PARFLOW_TIMEOUT', ge=60, le=86400)
 
 
+class PIHMConfig(BaseModel):
+    """PIHM (Penn State Integrated Hydrologic Model) configuration.
+
+    PIHM is a finite-volume, unstructured-mesh, fully-coupled
+    surface-subsurface model solving Richards equation + diffusion wave
+    overland flow + 1D channel routing. Uses SUNDIALS CVODE solver.
+
+    Reference:
+        Qu, Y. & Duffy, C.J. (2007): A semidiscrete finite volume
+        formulation for multiprocess watershed simulation.
+        Water Resources Research 43(8).
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='PIHM_INSTALL_PATH')
+    exe: str = Field(default='pihm', alias='PIHM_EXE')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_PIHM_PATH')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='PIHM_SPATIAL_MODE')
+
+    # Subsurface properties
+    k_sat: float = Field(default=1e-5, alias='PIHM_K_SAT', gt=0)
+    porosity: float = Field(default=0.4, alias='PIHM_POROSITY', gt=0, le=1.0)
+    vg_alpha: float = Field(default=1.0, alias='PIHM_VG_ALPHA', gt=0)
+    vg_n: float = Field(default=2.0, alias='PIHM_VG_N', gt=1.0)
+    macropore_k: float = Field(default=1e-4, alias='PIHM_MACROPORE_K', gt=0)
+    macropore_depth: float = Field(default=0.5, alias='PIHM_MACROPORE_DEPTH', ge=0)
+    soil_depth: float = Field(default=2.0, alias='PIHM_SOIL_DEPTH', gt=0)
+
+    # Overland flow
+    mannings_n: float = Field(default=0.03, alias='PIHM_MANNINGS_N', gt=0)
+
+    # Initial conditions
+    init_gw_depth: float = Field(default=1.0, alias='PIHM_INIT_GW_DEPTH', ge=0)
+
+    # Coupling
+    coupling_source: str = Field(default='SUMMA', alias='PIHM_COUPLING_SOURCE')
+    recharge_variable: str = Field(default='scalarSoilDrainage', alias='PIHM_RECHARGE_VARIABLE')
+
+    # Solver
+    solver_reltol: float = Field(default=1e-3, alias='PIHM_SOLVER_RELTOL', gt=0)
+    solver_abstol: float = Field(default=1e-4, alias='PIHM_SOLVER_ABSTOL', gt=0)
+    timestep_seconds: int = Field(default=60, alias='PIHM_TIMESTEP_SECONDS', ge=1, le=86400)
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_PIHM')
+
+    # Calibration
+    params_to_calibrate: str = Field(
+        default='K_SAT,POROSITY,VG_ALPHA,VG_N,MACROPORE_K,MANNINGS_N,SOIL_DEPTH',
+        alias='PIHM_PARAMS_TO_CALIBRATE'
+    )
+
+    # Execution
+    timeout: int = Field(default=3600, alias='PIHM_TIMEOUT', ge=60, le=86400)
+
+
+class HydroGeoSphereConfig(BaseModel):
+    """HydroGeoSphere (HGS) fully-coupled 3D subsurface + surface model configuration.
+
+    HGS is a control-volume finite-element, fully-coupled 3D variably-saturated
+    subsurface + 2D overland flow + 1D channel flow model. Commercial code from
+    Aquanty with university/research licenses available.
+
+    Reference:
+        Therrien, R., et al. (2010): HydroGeoSphere — A Three-dimensional
+        Numerical Model Describing Fully-integrated Subsurface and Surface
+        Flow and Solute Transport. Groundwater Simulations Group.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Installation
+    install_path: str = Field(default='default', alias='HGS_INSTALL_PATH')
+    exe: str = Field(default='hgs', alias='HGS_EXE')
+    grok_exe: str = Field(default='grok', alias='HGS_GROK_EXE')
+
+    # Settings
+    settings_path: str = Field(default='default', alias='SETTINGS_HGS_PATH')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='HGS_SPATIAL_MODE')
+
+    # Subsurface properties
+    k_sat: float = Field(default=1e-5, alias='HGS_K_SAT', gt=0)
+    porosity: float = Field(default=0.4, alias='HGS_POROSITY', gt=0, le=1.0)
+    vg_alpha: float = Field(default=1.0, alias='HGS_VG_ALPHA', gt=0)
+    vg_n: float = Field(default=2.0, alias='HGS_VG_N', gt=1.0)
+    vg_sres: float = Field(default=0.05, alias='HGS_VG_SRES', ge=0, lt=1.0)
+    ss: float = Field(default=1e-4, alias='HGS_SS', gt=0)
+
+    # Overland flow
+    mannings_n: float = Field(default=0.03, alias='HGS_MANNINGS_N', gt=0)
+
+    # Domain geometry
+    soil_depth: float = Field(default=10.0, alias='HGS_SOIL_DEPTH', gt=0)
+    domain_width: float = Field(default=1000.0, alias='HGS_DOMAIN_WIDTH', gt=0)
+
+    # Coupling
+    coupling_source: str = Field(default='SUMMA', alias='HGS_COUPLING_SOURCE')
+    recharge_variable: str = Field(default='scalarSoilDrainage', alias='HGS_RECHARGE_VARIABLE')
+
+    # Solver
+    solver_max_iterations: int = Field(default=25, alias='HGS_SOLVER_MAX_ITERATIONS', ge=1, le=1000)
+    timestep_seconds: int = Field(default=3600, alias='HGS_TIMESTEP_SECONDS', ge=1, le=86400)
+
+    # Output
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_HGS')
+
+    # Calibration
+    params_to_calibrate: str = Field(
+        default='K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N',
+        alias='HGS_PARAMS_TO_CALIBRATE'
+    )
+
+    # Execution
+    timeout: int = Field(default=7200, alias='HGS_TIMEOUT', ge=60, le=86400)
+
+
 class GNNConfig(BaseModel):
     """GNN (Graph Neural Network) hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -1166,6 +1284,66 @@ class CRHMConfig(BaseModel):
     timeout: int = Field(default=3600, alias='CRHM_TIMEOUT', ge=60, le=86400)
 
 
+class WRFHydroConfig(BaseModel):
+    """WRF-Hydro (NCAR) coupled atmosphere-hydrology model configuration.
+
+    WRF-Hydro is NCAR's community hydrological modeling system and forms
+    the backbone of the US National Water Model. It couples the Noah-MP
+    land surface model with terrain-following routing.
+
+    Reference:
+        Gochis, D.J., et al. (2020): The WRF-Hydro modeling system technical
+        description, (Version 5.1.1). NCAR Technical Note.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='WRFHYDRO_INSTALL_PATH')
+    exe: str = Field(default='wrf_hydro.exe', alias='WRFHYDRO_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_WRFHYDRO_PATH')
+    namelist_file: str = Field(default='namelist.hrldas', alias='WRFHYDRO_NAMELIST_FILE')
+    hydro_namelist: str = Field(default='hydro.namelist', alias='WRFHYDRO_HYDRO_NAMELIST')
+    spatial_mode: SpatialModeType = Field(default='distributed', alias='WRFHYDRO_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_WRFHYDRO')
+    params_to_calibrate: str = Field(
+        default='REFKDT,SLOPE,OVROUGHRTFAC,RETDEPRTFAC,LKSATFAC,BEXP,DKSAT,SMCMAX',
+        alias='WRFHYDRO_PARAMS_TO_CALIBRATE'
+    )
+    lsm: str = Field(default='noahmp', alias='WRFHYDRO_LSM')
+    routing_option: str = Field(default='gridded', alias='WRFHYDRO_ROUTING_OPTION')
+    channel_routing: str = Field(default='diffusive_wave', alias='WRFHYDRO_CHANNEL_ROUTING')
+    restart_frequency: str = Field(default='monthly', alias='WRFHYDRO_RESTART_FREQUENCY')
+    timeout: int = Field(default=7200, alias='WRFHYDRO_TIMEOUT', ge=60, le=86400)
+
+
+class PRMSConfig(BaseModel):
+    """PRMS (Precipitation-Runoff Modeling System) configuration.
+
+    PRMS is a deterministic, distributed-parameter, physical-process
+    watershed model developed by the USGS for simulating the effects
+    of precipitation, climate, and land use on streamflow.
+
+    Reference:
+        Markstrom, S.L., et al. (2015): PRMS-IV, the Precipitation-Runoff
+        Modeling System, Version 4. USGS Techniques and Methods 6-B7.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='PRMS_INSTALL_PATH')
+    exe: str = Field(default='prms', alias='PRMS_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_PRMS_PATH')
+    control_file: str = Field(default='control.dat', alias='PRMS_CONTROL_FILE')
+    parameter_file: str = Field(default='params.dat', alias='PRMS_PARAMETER_FILE')
+    data_file: str = Field(default='data.dat', alias='PRMS_DATA_FILE')
+    spatial_mode: SpatialModeType = Field(default='semi_distributed', alias='PRMS_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_PRMS')
+    params_to_calibrate: str = Field(
+        default='soil_moist_max,soil_rechr_max,tmax_allrain,tmax_allsnow,hru_percent_imperv,carea_max,smidx_coef,slowcoef_lin,gwflow_coef,ssr2gw_rate',
+        alias='PRMS_PARAMS_TO_CALIBRATE'
+    )
+    model_mode: str = Field(default='DAILY', alias='PRMS_MODEL_MODE')
+    timeout: int = Field(default=3600, alias='PRMS_TIMEOUT', ge=60, le=86400)
+
+
 class ModelConfig(BaseModel):
     """Hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -1198,6 +1376,10 @@ class ModelConfig(BaseModel):
     swat: Optional[SWATConfig] = Field(default=None)
     mhm: Optional[MHMConfig] = Field(default=None)
     crhm: Optional[CRHMConfig] = Field(default=None)
+    wrfhydro: Optional[WRFHydroConfig] = Field(default=None)
+    prms: Optional[PRMSConfig] = Field(default=None)
+    pihm: Optional[PIHMConfig] = Field(default=None)
+    hydrogeosphere: Optional[HydroGeoSphereConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -1260,6 +1442,14 @@ class ModelConfig(BaseModel):
             values['mhm'] = MHMConfig()
         if 'CRHM' in models and values.get('crhm') is None:
             values['crhm'] = CRHMConfig()
+        if 'WRFHYDRO' in models and values.get('wrfhydro') is None:
+            values['wrfhydro'] = WRFHydroConfig()
+        if 'PRMS' in models and values.get('prms') is None:
+            values['prms'] = PRMSConfig()
+        if 'PIHM' in models and values.get('pihm') is None:
+            values['pihm'] = PIHMConfig()
+        if 'HYDROGEOSPHERE' in models and values.get('hydrogeosphere') is None:
+            values['hydrogeosphere'] = HydroGeoSphereConfig()
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')

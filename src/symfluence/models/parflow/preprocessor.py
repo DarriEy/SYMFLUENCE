@@ -166,19 +166,41 @@ class ParFlowPreProcessor:
         pet_mm_day = np.maximum(pet_mm_day, 0.0)
         return pet_mm_day / 24.0
 
-    def _apply_snow_model(self, ppt_mm_hr, temp_c_hourly, times):
-        """Apply Snow-17 model to hourly forcing.
+    # Elevation bands for multi-band Snow-17 (Bow at Banff: 787–3528 m)
+    # 5 equal-area bands from hypsometry (P10/P30/P50/P70/P90)
+    ELEVATION_BANDS = [
+        (1521, 0.2),  # Band 1: low elevation, rain-dominated
+        (1890, 0.2),  # Band 2
+        (2099, 0.2),  # Band 3: basin mean (reference)
+        (2340, 0.2),  # Band 4
+        (2614, 0.2),  # Band 5: high elevation, snow-dominated
+    ]
+    BASIN_MEAN_ELEV = 2099.0  # m, reference elevation for lapse rate
+    DEFAULT_LAPSE_RATE = 0.0065  # °C/m, standard environmental lapse rate
 
-        Uses the NWS Snow-17 temperature-index model (Anderson 2006)
-        for snow accumulation and ablation. Operates at daily timestep
-        (aggregates hourly forcing internally) and distributes the
-        daily rain+melt output back to hourly.
+    def _apply_snow_model(self, ppt_mm_hr, temp_c_hourly, times,
+                          lapse_rate=None):
+        """Apply elevation-band Snow-17 model to hourly forcing.
+
+        Runs 5 Snow-17 instances at different elevations with lapse-rate
+        adjusted temperatures. Low-elevation bands melt earlier (March-April),
+        high-elevation bands melt later (June-July), producing a broad
+        spring-summer freshet.
+
+        Args:
+            ppt_mm_hr: hourly precipitation (mm/hr)
+            temp_c_hourly: hourly temperature at basin mean elevation (°C)
+            times: array of timestamps
+            lapse_rate: temperature lapse rate (°C/m), default 0.0065
 
         Returns:
             effective_mm_hr: hourly liquid water input (rain + snowmelt), mm/hr
         """
         import pandas as pd
         from symfluence.models.snow17.bmi import Snow17BMI
+
+        if lapse_rate is None:
+            lapse_rate = self.DEFAULT_LAPSE_RATE
 
         latitude = self._get_latitude()
 
@@ -194,25 +216,36 @@ class ParFlowPreProcessor:
         })
         daily['doy'] = daily.index.dayofyear
 
-        # Run Snow-17 at daily timestep
-        snow = Snow17BMI(latitude=latitude, dt=1.0)
-        snow.initialize()
+        # Run Snow-17 for each elevation band with lapse-rate adjusted temps
+        n_days = len(daily)
+        rpm_weighted = np.zeros(n_days)
+        band_info = []
 
-        rain_plus_melt_daily = snow.update_batch(
-            daily['ppt'].values,
-            daily['temp'].values,
-            daily['doy'].values,
-        )
+        for band_elev, area_frac in self.ELEVATION_BANDS:
+            temp_offset = -lapse_rate * (band_elev - self.BASIN_MEAN_ELEV)
+            temp_band = daily['temp'].values + temp_offset
+
+            snow = Snow17BMI(latitude=latitude, dt=1.0)
+            snow.initialize()
+
+            rpm_band = snow.update_batch(
+                daily['ppt'].values, temp_band, daily['doy'].values,
+            )
+            rpm_weighted += rpm_band * area_frac
+
+            peak_swe = max(
+                float(snow.get_value('swe')),
+                float(snow.get_value('w_i') + snow.get_value('w_q'))
+            )
+            band_info.append(
+                f"{band_elev}m: offset={temp_offset:+.1f}°C, "
+                f"peak_SWE={peak_swe:.0f}mm"
+            )
 
         # Distribute daily rain+melt back to hourly (uniform within each day)
-        # This preserves the total water balance
-        daily_rpm = pd.Series(rain_plus_melt_daily, index=daily.index)
-        peak_swe = max(
-            float(snow.get_value('swe')),
-            float(snow.get_value('w_i') + snow.get_value('w_q'))
-        )
+        daily_rpm = pd.Series(rpm_weighted, index=daily.index)
 
-        # Map daily totals back to hourly rates (mm/day → mm/hr)
+        # Map daily totals back to hourly rates (mm/day -> mm/hr)
         effective = np.zeros(len(df_hourly))
         for date, rpm_mm_day in daily_rpm.items():
             mask = df_hourly.index.normalize() == date
@@ -221,9 +254,12 @@ class ParFlowPreProcessor:
                 effective[mask] = rpm_mm_day / n_hours
 
         self.logger.info(
-            f"Snow-17 model: lat={latitude:.2f}°, "
-            f"peak SWE≈{peak_swe:.0f} mm, "
-            f"mean rain+melt={np.mean(rain_plus_melt_daily):.2f} mm/day, "
+            f"Snow-17 elevation bands (lapse={lapse_rate*1000:.1f} °C/km):"
+        )
+        for info in band_info:
+            self.logger.info(f"  {info}")
+        self.logger.info(
+            f"  Area-weighted: mean rain+melt={np.mean(rpm_weighted):.2f} mm/day, "
             f"mean effective={np.mean(effective):.4f} mm/hr"
         )
         return effective

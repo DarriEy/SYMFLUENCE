@@ -30,7 +30,10 @@ class TestBinaryInstall:
         result = BinaryCommands.install(args)
 
         assert result == ExitCode.SUCCESS
-        mock_manager.get_executables.assert_called_once_with(specific_tools=None, force=False, patched=False)
+        mock_manager.get_executables.assert_called_once_with(
+            specific_tools=None, force=False, patched=False,
+            branch_override=None, git_hash=None,
+        )
 
     @patch('symfluence.cli.binary_service.BinaryManager')
     def test_install_specific_tools(self, mock_binary_manager_class):
@@ -51,7 +54,9 @@ class TestBinaryInstall:
         mock_manager.get_executables.assert_called_once_with(
             specific_tools=['summa', 'mizuroute'],
             force=False,
-            patched=False
+            patched=False,
+            branch_override=None,
+            git_hash=None,
         )
 
     @patch('symfluence.cli.binary_service.BinaryManager')
@@ -70,7 +75,10 @@ class TestBinaryInstall:
         result = BinaryCommands.install(args)
 
         assert result == ExitCode.SUCCESS
-        mock_manager.get_executables.assert_called_once_with(specific_tools=['taudem'], force=True, patched=False)
+        mock_manager.get_executables.assert_called_once_with(
+            specific_tools=['taudem'], force=True, patched=False,
+            branch_override=None, git_hash=None,
+        )
 
     @patch('symfluence.cli.binary_service.BinaryManager')
     def test_install_failure(self, mock_binary_manager_class):

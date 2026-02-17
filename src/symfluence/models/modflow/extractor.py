@@ -152,42 +152,21 @@ class MODFLOWResultExtractor(ModelResultExtractor):
                         break
                     kstp, kper, text, ndim1, ndim2, ndim3, imeth, delt, pertim, totim = header
 
+                    text_clean = text.strip()
                     n_values = ndim1 * ndim2
-                    if imeth == 0:
-                        # Full 3D array
-                        data = struct.unpack(f'{n_values}d', f.read(n_values * 8))
-                    elif imeth == 1:
+
+                    if imeth == 0 or imeth == 1:
                         # Full 3D array
                         data = struct.unpack(f'{n_values}d', f.read(n_values * 8))
                     elif imeth == 6:
-                        # Compact list (MODFLOW 6 default for boundary packages)
-                        # Read auxiliary info (4 text IDs, skip)
-                        f.read(16)  # txt1id1
-                        f.read(16)  # txt2id1
-                        f.read(16)  # txt1id2
-                        f.read(16)  # txt2id2
-                        naux = struct.unpack('i', f.read(4))[0]
-                        for _ in range(naux):
-                            f.read(16)  # aux name
-                        nlist = struct.unpack('i', f.read(4))[0]
-                        data = []
-                        for _ in range(nlist):
-                            f.read(4)  # node1
-                            f.read(4)  # node2
-                            flow = struct.unpack('d', f.read(8))[0]
-                            # Read auxiliary values
-                            for _ in range(naux):
-                                struct.unpack('d', f.read(8))
-                            data.append(flow)
+                        data = self._read_imeth6_data(f, text_clean)
                     else:
                         # Skip unknown imeth
                         self.logger.debug(f"Skipping budget record with imeth={imeth}")
-                        # Try to skip the data - estimate size
                         if n_values > 0:
                             f.read(n_values * 8)
                         continue
 
-                    text_clean = text.strip()
                     if 'DRN' in text_clean:
                         times.append(totim)
                         total_drain = sum(data) if isinstance(data, list) else sum(data)
@@ -210,6 +189,39 @@ class MODFLOWResultExtractor(ModelResultExtractor):
         )
 
         return pd.Series(drain_flows, index=date_index, name='drain_m3d')
+
+    def _read_imeth6_data(self, f, text_clean: str) -> list:
+        """Read compact-list (imeth=6) budget data from a MODFLOW 6 .bud file.
+
+        MODFLOW 6 writes ``naux + 1`` as the naux field (where naux is
+        the actual number of auxiliary variables). It then writes only
+        ``naux`` aux-name records. Each list entry contains ``naux + 1``
+        double values (flow followed by auxiliary values).
+        """
+        # Read 4 text IDs (model/package names)
+        f.read(16)  # txt1id1
+        f.read(16)  # txt2id1
+        f.read(16)  # txt1id2
+        f.read(16)  # txt2id2
+
+        # ndat = actual naux + 1 (includes flow column)
+        ndat = struct.unpack('i', f.read(4))[0]
+        naux = max(ndat - 1, 0)
+
+        for _ in range(naux):
+            f.read(16)  # aux name
+
+        nlist = struct.unpack('i', f.read(4))[0]
+
+        data = []
+        for _ in range(nlist):
+            f.read(4)  # node1
+            f.read(4)  # node2
+            # Read ndat double values: first is flow, rest are auxiliary
+            vals = struct.unpack(f'{ndat}d', f.read(ndat * 8))
+            data.append(vals[0])  # flow value
+
+        return data
 
     def _read_binary_header(self, f):
         """Read a MODFLOW 6 binary head file record header.

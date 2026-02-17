@@ -57,6 +57,7 @@ def generate_flat_to_nested_map(
             'optimization': 'optimization',
             'evaluation': 'evaluation',
             'paths': 'paths',
+            'fews': 'fews',
         }
 
     def get_base_type(field_type: Any) -> Optional[Type]:
@@ -77,7 +78,8 @@ def generate_flat_to_nested_map(
     # In the manual FLAT_TO_NESTED_MAP, evaluation section comes after data section,
     # so evaluation takes precedence for duplicate keys
     section_priority = {'system': 1, 'domain': 2, 'data': 3, 'forcing': 4,
-                       'model': 5, 'optimization': 6, 'evaluation': 7, 'paths': 8}
+                       'model': 5, 'optimization': 6, 'evaluation': 7, 'paths': 8,
+                       'fews': 9}
 
     def walk_model(
         model_class: Type[BaseModel],

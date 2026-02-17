@@ -289,11 +289,12 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             ds.createDimension('yc', nrows)
             ds.createDimension('xc', ncols)
 
-            # Time variable
-            t_var = ds.createVariable('time', 'f8', ('time',))
+            # Time variable — use int32 to match mHM reference format;
+            # mHM's get_time_vector_and_select reads into integer(i8).
+            t_var = ds.createVariable('time', 'i4', ('time',))
             t_var.units = time_units
             t_var.calendar = 'standard'
-            t_var[:] = time_num
+            t_var[:] = np.round(time_num).astype(np.int32)
 
             # xc / yc coordinate variables
             xc_var = ds.createVariable('xc', 'f8', ('xc',))
@@ -304,9 +305,13 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             yc_var.units = 'degrees_north'
             yc_var[:] = yc_vals
 
-            # 2-D lon / lat (yc, xc) — same centre for both rows (lumped)
+            # 2-D lon / lat (yc, xc) — matches mHM reference test data.
+            # mHM's read_header_ascii swaps ncols↔nrows internally, so
+            # Fortran getShape returns (xc, yc, time) and the shape check
+            # passes with var_shape(1)==level2%nrows==ncols, var_shape(2)==level2%ncols==nrows.
             lon_2d = np.full((nrows, ncols), props['lon'])
-            lat_2d = np.array([[props['lat']], [props['lat'] - cellsize]])
+            lat_rows = [props['lat'] - i * cellsize for i in range(nrows)]
+            lat_2d = np.array(lat_rows).reshape(nrows, ncols)
 
             lon_var = ds.createVariable('lon', 'f8', ('yc', 'xc'))
             lon_var.units = 'degrees_east'
@@ -316,7 +321,10 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
             lat_var.units = 'degrees_north'
             lat_var[:] = lat_2d
 
-            # Data variable — replicate 1-D time series to both cells
+            # Data variable — replicate 1-D time series to both cells.
+            # Dimensions (time, yc, xc): matches mHM reference convention.
+            # Fortran reverses to (xc, yc, time); getData reads with
+            # cnt=(nRows_internal, nCols_internal, time_cnt) in Fortran order.
             data_var = ds.createVariable(varname, 'f8', ('time', 'yc', 'xc'), fill_value=fill)
             data_var.long_name = long_name
             data_var.units = units
@@ -554,12 +562,14 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
         # Gauge only on the outlet cell (row 2)
         self._write_asc_grid(self.morph_dir / 'idgauges.asc', -9999, props,
                              value_row2=1)
-        self._write_asc_grid(self.morph_dir / 'LAI_class.asc', 2, props)
+        self._write_asc_grid(self.morph_dir / 'LAI_class.asc', 1, props)
         self._write_asc_grid(self.morph_dir / 'geology_class.asc', 1, props)
 
         # --- Land cover directory grid ---
+        # Class 3 = pervious (appropriate for lumped basins — forest class
+        # over-extracts water via rootFractionCoefficient).
         self._write_asc_grid(
-            self.lcover_dir / f'lc_{start_date.year}.asc', 2, props
+            self.lcover_dir / f'lc_{start_date.year}.asc', 3, props
         )
 
         logger.info(f"Morphological ASCII grids written to {self.morph_dir}")
@@ -633,7 +643,7 @@ class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: i
   mhm_file_RestartIn(1) = ""
   mrm_file_RestartIn(1) = ""
   resolution_Routing(1) = {self.LUMPED_CELLSIZE}
-  timestep = 24
+  timestep = 1
   read_restart = .FALSE.
   optimize = .FALSE.
   optimize_restart = .FALSE.
