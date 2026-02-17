@@ -136,8 +136,9 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         """
         Generate WRF-Hydro LDASIN forcing files from ERA5 data.
 
-        WRF-Hydro expects hourly NetCDF forcing files named:
-        YYYYMMDDHH.LDASIN_DOMAIN1
+        Writes aggregated monthly forcing files first (compact, fast), then
+        unpacks to individual hourly LDASIN files as required by WRF-Hydro.
+        Individual files are cached — re-running skips existing files.
 
         Args:
             start_date: Simulation start date
@@ -148,7 +149,8 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         forcing_data = self._load_forcing_data()
 
         if forcing_data is not None:
-            self._write_ldasin_files(forcing_data, start_date, end_date)
+            self._write_aggregated_forcing(start_date, end_date)
+            self._unpack_forcing_to_ldasin()
         else:
             logger.warning("No forcing data found, generating synthetic forcing")
             self._generate_synthetic_forcing(start_date, end_date)
@@ -177,26 +179,29 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         logger.info(f"Found ERA5 forcing in {forcing_path} ({len(forcing_files)} files)")
         return True  # Data processed file-by-file in _write_ldasin_files
 
-    def _write_ldasin_files(self, forcing_data, start_date: datetime, end_date: datetime) -> None:
+    def _write_aggregated_forcing(self, start_date: datetime, end_date: datetime) -> None:
         """
-        Write LDASIN NetCDF forcing files from ERA5 basin-averaged data.
+        Write aggregated monthly forcing NetCDF files from ERA5 data.
+
+        Creates one file per month in forcing_dir/aggregated/ with all hourly
+        timesteps stored along a time dimension.  This is ~100x faster than
+        writing individual LDASIN files (96 monthly files vs 70k+ hourly).
 
         Maps ERA5 variables to WRF-Hydro LDASIN format:
-          airtemp (K)      → T2D (K)
-          spechum (kg/kg)  → Q2D (kg/kg)
-          windspd (m/s)    → U2D (m/s), V2D = 0
-          airpres (Pa)     → PSFC (Pa)
-          pptrate (mm/s)   → RAINRATE (mm/s = kg/m²/s)
-          SWRadAtm (W/m²)  → SWDOWN (W/m²)
-          LWRadAtm (W/m²)  → LWDOWN (W/m²)
-
-        Processes one monthly ERA5 file at a time to avoid memory issues.
-        Uses netCDF4 directly for performance (70k+ files).
+          airtemp (K)      -> T2D (K)
+          spechum (kg/kg)  -> Q2D (kg/kg)
+          windspd (m/s)    -> U2D (m/s), V2D = 0
+          airpres (Pa)     -> PSFC (Pa)
+          pptrate (mm/s)   -> RAINRATE (mm/s = kg/m^2/s)
+          SWRadAtm (W/m^2) -> SWDOWN (W/m^2)
+          LWRadAtm (W/m^2) -> LWDOWN (W/m^2)
         """
         import xarray as xr
         from netCDF4 import Dataset as NC4Dataset
 
-        # Variable mapping: ERA5 name → (LDASIN name, default_value)
+        aggregated_dir = self.forcing_dir / 'aggregated'
+        aggregated_dir.mkdir(parents=True, exist_ok=True)
+
         var_map = {
             'airtemp': ('T2D', 280.0),
             'spechum': ('Q2D', 0.005),
@@ -208,9 +213,8 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         }
 
         grid_shape = (3, 3)
-        count = 0
+        total_months = 0
 
-        # Process one monthly file at a time (memory efficient)
         forcing_files = sorted(self.forcing_basin_path.glob("*.nc"))
         start_ts = pd.Timestamp(start_date)
         end_ts = pd.Timestamp(end_date)
@@ -218,7 +222,6 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         for fpath in forcing_files:
             ds = xr.open_dataset(fpath).load()
 
-            # Subset to simulation window
             times = pd.DatetimeIndex(ds['time'].values)
             mask = (times >= start_ts) & (times <= end_ts)
             if not mask.any():
@@ -227,43 +230,135 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
 
             ds = ds.isel(time=mask)
             times = pd.DatetimeIndex(ds['time'].values)
+            n_times = len(times)
 
-            # Pre-extract arrays for this month
-            arrays = {}
+            first_ts = pd.Timestamp(times[0])
+            out_name = f"forcing_{first_ts.strftime('%Y%m')}.nc"
+            out_path = aggregated_dir / out_name
+
+            nc = NC4Dataset(str(out_path), 'w', format='NETCDF4')
+            nc.TITLE = "WRF-Hydro aggregated forcing"
+
+            nc.createDimension('time', n_times)
+            nc.createDimension('south_north', grid_shape[0])
+            nc.createDimension('west_east', grid_shape[1])
+
+            # Time coordinate as hours since epoch
+            time_var = nc.createVariable('time', 'f8', ('time',))
+            time_var.units = 'hours since 2000-01-01 00:00:00'
+            time_var.calendar = 'standard'
+            epoch = pd.Timestamp('2000-01-01')
+            time_var[:] = np.array(
+                [(t - epoch).total_seconds() / 3600.0 for t in times]
+            )
+
             for era5_var, (ldasin_var, default) in var_map.items():
+                var = nc.createVariable(
+                    ldasin_var, 'f4',
+                    ('time', 'south_north', 'west_east'),
+                    zlib=True
+                )
                 if era5_var in ds:
                     arr = ds[era5_var].values.squeeze()
-                    arrays[ldasin_var] = (arr, default)
+                    for i in range(n_times):
+                        val = float(arr[i]) if arr.ndim > 0 else float(arr)
+                        if np.isnan(val):
+                            val = default
+                        var[i, :, :] = np.full(grid_shape, val, dtype=np.float32)
                 else:
-                    arrays[ldasin_var] = (None, default)
+                    var[:] = np.full(
+                        (n_times,) + grid_shape, default, dtype=np.float32
+                    )
+
+            v2d = nc.createVariable(
+                'V2D', 'f4',
+                ('time', 'south_north', 'west_east'),
+                zlib=True
+            )
+            v2d[:] = np.zeros((n_times,) + grid_shape, dtype=np.float32)
+
+            nc.close()
+            ds.close()
+            total_months += 1
+            logger.info(f"  Wrote aggregated forcing: {out_name} ({n_times} timesteps)")
+
+        logger.info(f"Generated {total_months} aggregated monthly forcing files")
+
+    def _unpack_forcing_to_ldasin(self) -> int:
+        """
+        Unpack aggregated monthly forcing to individual LDASIN files.
+
+        Reads from forcing_dir/aggregated/ and writes hourly files to
+        forcing_dir/ as YYYYMMDDHH.LDASIN_DOMAIN1 (required by WRF-Hydro).
+        Existing files are skipped (cached), so re-runs are fast.
+
+        Returns:
+            Number of new LDASIN files created.
+        """
+        from netCDF4 import Dataset as NC4Dataset, num2date
+
+        aggregated_dir = self.forcing_dir / 'aggregated'
+        if not aggregated_dir.exists():
+            logger.warning("No aggregated forcing directory found")
+            return 0
+
+        aggregated_files = sorted(aggregated_dir.glob("forcing_*.nc"))
+        if not aggregated_files:
+            logger.warning("No aggregated forcing files found")
+            return 0
+
+        grid_shape = (3, 3)
+        ldasin_vars = [
+            'T2D', 'Q2D', 'U2D', 'V2D', 'PSFC', 'RAINRATE', 'SWDOWN', 'LWDOWN'
+        ]
+
+        created = 0
+        skipped = 0
+
+        for agg_path in aggregated_files:
+            agg = NC4Dataset(str(agg_path), 'r')
+
+            time_var = agg.variables['time']
+            times = num2date(time_var[:], time_var.units, time_var.calendar)
+
+            # Bulk-read all variable data for this month
+            var_data = {}
+            for vname in ldasin_vars:
+                if vname in agg.variables:
+                    var_data[vname] = agg.variables[vname][:]
 
             for i, t in enumerate(times):
-                t_pd = pd.Timestamp(t)
+                t_pd = pd.Timestamp(t.isoformat())
                 fname = t_pd.strftime('%Y%m%d%H') + '.LDASIN_DOMAIN1'
-                out_path = str(self.forcing_dir / fname)
+                out_path = self.forcing_dir / fname
 
-                nc = NC4Dataset(out_path, 'w', format='NETCDF4')
+                if out_path.exists():
+                    skipped += 1
+                    continue
+
+                nc = NC4Dataset(str(out_path), 'w', format='NETCDF4')
+                nc.TITLE = "OUTPUT FROM HRLDAS v20110427"
                 nc.createDimension('south_north', grid_shape[0])
                 nc.createDimension('west_east', grid_shape[1])
 
-                for ldasin_var, (arr, default) in arrays.items():
-                    val = float(arr[i]) if arr is not None else default
-                    if np.isnan(val):
-                        val = default
-                    var = nc.createVariable(ldasin_var, 'f4',
-                                            ('south_north', 'west_east'))
-                    var[:] = np.full(grid_shape, val, dtype=np.float32)
+                for vname in ldasin_vars:
+                    var = nc.createVariable(
+                        vname, 'f4', ('south_north', 'west_east')
+                    )
+                    if vname in var_data:
+                        var[:] = var_data[vname][i]
+                    else:
+                        var[:] = np.zeros(grid_shape, dtype=np.float32)
 
-                var = nc.createVariable('V2D', 'f4',
-                                        ('south_north', 'west_east'))
-                var[:] = np.zeros(grid_shape, dtype=np.float32)
                 nc.close()
-                count += 1
+                created += 1
 
-            ds.close()
-            logger.info(f"  Processed {fpath.name}: {len(times)} timesteps (total: {count})")
+            agg.close()
 
-        logger.info(f"Generated {count} LDASIN forcing files from ERA5 data")
+        logger.info(
+            f"Unpacked LDASIN files: {created} created, {skipped} already cached"
+        )
+        return created
 
     def _generate_synthetic_forcing(self, start_date: datetime, end_date: datetime) -> None:
         """Raise error — synthetic forcing should never be used."""
@@ -274,7 +369,19 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         )
 
     def _generate_domain_files(self) -> None:
-        """Generate wrfinput and geogrid domain files."""
+        """
+        Generate wrfinput_d01.nc domain file for WRF-Hydro/Noah-MP.
+
+        Critical requirements discovered through debugging:
+        - TITLE must be "OUTPUT FROM HRLDAS v20110427" for version detection
+        - All 2D variables must have Time dimension: (Time, south_north, west_east)
+        - Soil variables must have dims: (Time, soil_layers_stag, south_north, west_east)
+        - SEAICE must be included (=0.0) or uninitialized memory causes sea-ice
+          skip path to bypass all physics (SH2O→1.0, LAI→0.01, energy→-9999)
+        - MAPFAC_MX/MY must be present (=1.0) or map factor warnings
+        - SH2O (liquid soil moisture) must be present alongside SMOIS
+        - NUM_LAND_CAT must be 20 (MODIFIED_IGBP_MODIS_NOAH)
+        """
         logger.info("Generating WRF-Hydro domain files...")
 
         from netCDF4 import Dataset as NC4Dataset
@@ -288,7 +395,11 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         wrfinput_path = self.settings_dir / 'wrfinput_d01.nc'
         ds = NC4Dataset(str(wrfinput_path), 'w', format='NETCDF4')
 
+        ny, nx, nsoil = 3, 3, 4
+
         # Global attributes required by WRF-Hydro
+        # TITLE must match "HRLDAS v20110427" for HRLDAS version detection
+        ds.TITLE = "OUTPUT FROM HRLDAS v20110427"
         ds.DX = dx
         ds.DY = dx
         ds.TRUELAT1 = lat
@@ -305,77 +416,77 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
         ds.ISOILWATER = 14
         ds.GRID_ID = 1
         ds.MMINLU = "MODIFIED_IGBP_MODIS_NOAH"
-        ds.NUM_LAND_CAT = 21
-        ds.WEST_EAST_GRID_DIMENSION = 4
-        ds.SOUTH_NORTH_GRID_DIMENSION = 4
-        ds.TITLE = "WRF-Hydro domain for Bow at Banff (lumped)"
+        ds.NUM_LAND_CAT = 20
+        ds.WEST_EAST_GRID_DIMENSION = nx + 1
+        ds.SOUTH_NORTH_GRID_DIMENSION = ny + 1
 
-        # Dimensions
-        ds.createDimension('south_north', 3)
-        ds.createDimension('west_east', 3)
-        ds.createDimension('soil_layers_stag', 4)
+        # Dimensions — Time must be unlimited for HRLDAS I/O
         ds.createDimension('Time', None)
+        ds.createDimension('south_north', ny)
+        ds.createDimension('west_east', nx)
+        ds.createDimension('soil_layers_stag', nsoil)
+        ds.createDimension('DateStrLen', 19)
 
-        # Variables
-        # WRF-Hydro reads XLAT/XLONG/HGT (without _M suffix)
-        hgt = ds.createVariable('HGT', 'f4', ('south_north', 'west_east'))
-        hgt[:] = np.full((3, 3), elev)
+        # Helper to create a 2D variable with Time dimension
+        def create_2d(name, dtype, values):
+            v = ds.createVariable(name, dtype, ('Time', 'south_north', 'west_east'))
+            v[0, :, :] = np.full((ny, nx), values, dtype=dtype)
+            return v
 
-        xlat = ds.createVariable('XLAT', 'f4', ('south_north', 'west_east'))
-        xlat[:] = np.full((3, 3), lat)
+        # Helper to create a soil variable with Time dimension
+        def create_soil(name, dtype, values):
+            v = ds.createVariable(name, dtype,
+                                  ('Time', 'soil_layers_stag', 'south_north', 'west_east'))
+            if hasattr(values, '__len__'):
+                for k in range(nsoil):
+                    v[0, k, :, :] = np.full((ny, nx), values[k], dtype=dtype)
+            else:
+                v[0, :, :, :] = np.full((nsoil, ny, nx), values, dtype=dtype)
+            return v
 
-        xlong = ds.createVariable('XLONG', 'f4', ('south_north', 'west_east'))
-        xlong[:] = np.full((3, 3), lon)
+        # Terrain and coordinates
+        create_2d('HGT', 'f4', elev)
+        create_2d('XLAT', 'f4', lat)
+        create_2d('XLONG', 'f4', lon)
+        create_2d('HGT_M', 'f4', elev)
+        create_2d('XLAT_M', 'f4', lat)
+        create_2d('XLONG_M', 'f4', lon)
 
-        # Also write _M versions for routing modules
-        v = ds.createVariable('HGT_M', 'f4', ('south_north', 'west_east'))
-        v[:] = np.full((3, 3), elev)
-        v = ds.createVariable('XLAT_M', 'f4', ('south_north', 'west_east'))
-        v[:] = np.full((3, 3), lat)
-        v = ds.createVariable('XLONG_M', 'f4', ('south_north', 'west_east'))
-        v[:] = np.full((3, 3), lon)
+        # Land use and soil type (integer)
+        create_2d('IVGTYP', 'i4', 1)    # 1=Evergreen Needleleaf Forest
+        create_2d('ISLTYP', 'i4', 4)    # 4=Silt Loam
 
-        ivgtyp = ds.createVariable('IVGTYP', 'i4', ('south_north', 'west_east'))
-        ivgtyp[:] = np.full((3, 3), 14, dtype=np.int32)  # 14=Evergreen Needleleaf
+        # Deep soil temperature
+        create_2d('TMN', 'f4', 275.0)
 
-        isltyp = ds.createVariable('ISLTYP', 'i4', ('south_north', 'west_east'))
-        isltyp[:] = np.full((3, 3), 4, dtype=np.int32)  # 4=Silt Loam
+        # Vegetation parameters
+        create_2d('LAI', 'f4', 4.0)
+        create_2d('VEGFRA', 'f4', 60.0)
+        create_2d('SHDMIN', 'f4', 10.0)
+        create_2d('SHDMAX', 'f4', 80.0)
 
-        tmn = ds.createVariable('TMN', 'f4', ('south_north', 'west_east'))
-        tmn[:] = np.full((3, 3), 275.0)  # Deep soil temperature ~2°C
+        # Surface state
+        create_2d('TSK', 'f4', 260.0)     # Skin temperature (K)
+        create_2d('CANWAT', 'f4', 0.0)    # Canopy water (kg/m2)
+        create_2d('SNOW', 'f4', 50.0)     # Snow water equivalent (mm)
+        create_2d('SNOWH', 'f4', 0.25)    # Snow depth (m)
 
-        # LAI and vegetation fraction (needed by Noah-MP)
-        lai = ds.createVariable('LAI', 'f4', ('south_north', 'west_east'))
-        lai[:] = np.full((3, 3), 3.0)
+        # Land mask and sea ice
+        create_2d('XLAND', 'f4', 1.0)     # 1=land, 2=water
+        create_2d('SEAICE', 'f4', 0.0)    # CRITICAL: must be 0.0 for land points
 
-        vegfra = ds.createVariable('VEGFRA', 'f4', ('south_north', 'west_east'))
-        vegfra[:] = np.full((3, 3), 60.0)
+        # Map factors (1.0 for small domain)
+        create_2d('MAPFAC_MX', 'f4', 1.0)
+        create_2d('MAPFAC_MY', 'f4', 1.0)
 
-        # Initial soil moisture and temperature
-        smois = ds.createVariable('SMOIS', 'f4', ('soil_layers_stag', 'south_north', 'west_east'))
-        smois[:] = np.full((4, 3, 3), 0.3)
+        # Soil variables — 4 layers
+        create_soil('SMOIS', 'f4', [0.30, 0.32, 0.35, 0.38])   # Total soil moisture
+        create_soil('SH2O', 'f4', [0.20, 0.25, 0.30, 0.35])    # Liquid soil moisture
+        create_soil('TSLB', 'f4', [265.0, 270.0, 273.0, 275.0]) # Soil temperature
 
-        tslb = ds.createVariable('TSLB', 'f4', ('soil_layers_stag', 'south_north', 'west_east'))
-        tslb[:] = np.full((4, 3, 3), 275.0)
-
-        # Snow cover (initially zero)
-        snow = ds.createVariable('SNOW', 'f4', ('south_north', 'west_east'))
-        snow[:] = np.full((3, 3), 0.0)
-
-        canwat = ds.createVariable('CANWAT', 'f4', ('south_north', 'west_east'))
-        canwat[:] = np.full((3, 3), 0.0)
-
-        tsk = ds.createVariable('TSK', 'f4', ('south_north', 'west_east'))
-        tsk[:] = np.full((3, 3), 275.0)  # Skin temperature (K)
-
-        xland = ds.createVariable('XLAND', 'f4', ('south_north', 'west_east'))
-        xland[:] = np.full((3, 3), 1.0)  # 1=land
-
-        shdmin = ds.createVariable('SHDMIN', 'f4', ('south_north', 'west_east'))
-        shdmin[:] = np.full((3, 3), 10.0)  # Min green vegetation fraction %
-
-        shdmax = ds.createVariable('SHDMAX', 'f4', ('south_north', 'west_east'))
-        shdmax[:] = np.full((3, 3), 80.0)  # Max green vegetation fraction %
+        # Soil layer thicknesses
+        dzs = ds.createVariable('DZS', 'f4', ('Time', 'soil_layers_stag'))
+        dzs[0, :] = np.array([0.10, 0.30, 0.60, 1.00], dtype=np.float32)
 
         ds.close()
         logger.info("Generated wrfinput_d01.nc domain file")
@@ -476,35 +587,36 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
 
  HRLDAS_SETUP_FILE = '{self.settings_dir}/wrfinput_d01.nc'
  INDIR = '{self.forcing_dir}'
- OUTDIR = '{self.wrfhydro_input_dir}'
+ OUTDIR = '{self.project_dir / "WRFHydro_output"}'
 
  START_YEAR  = {start_date.year}
  START_MONTH = {start_date.month:02d}
  START_DAY   = {start_date.day:02d}
- START_HOUR  = {start_date.hour:02d}
+ START_HOUR  = {max(start_date.hour, 1):02d}
  START_MIN   = 00
 
  ! Simulation length in hours
- KHOUR = {(end_date - start_date).days * 24}
+ KHOUR = {int((end_date - start_date).total_seconds() // 3600)}
 
- ! Physics options
- DYNAMIC_VEG_OPTION                = 4
+ ! Physics options (simple/robust defaults for standalone HRLDAS)
+ DYNAMIC_VEG_OPTION                = 1
  CANOPY_STOMATAL_RESISTANCE_OPTION = 1
  BTR_OPTION                        = 1
- RUNOFF_OPTION                     = 3
+ RUNOFF_OPTION                     = 1
  SURFACE_DRAG_OPTION               = 1
  SUPERCOOLED_WATER_OPTION          = 1
  FROZEN_SOIL_OPTION                = 1
- RADIATIVE_TRANSFER_OPTION         = 3
- SNOW_ALBEDO_OPTION                = 2
+ RADIATIVE_TRANSFER_OPTION         = 1
+ SNOW_ALBEDO_OPTION                = 1
  PCP_PARTITION_OPTION              = 1
  TBOT_OPTION                       = 2
- TEMP_TIME_SCHEME_OPTION           = 3
- GLACIER_OPTION                    = 2
- SURFACE_RESISTANCE_OPTION         = 4
+ TEMP_TIME_SCHEME_OPTION           = 1
+ GLACIER_OPTION                    = 1
+ SURFACE_RESISTANCE_OPTION         = 1
 
- ! Output
- OUTPUT_TIMESTEP = 3600
+ ! Output — daily is sufficient for streamflow evaluation and
+ ! reduces output from ~70k files to ~2900 over a typical run
+ OUTPUT_TIMESTEP = 86400
  RESTART_FREQUENCY_HOURS = {restart_minutes // 60}
  SPLIT_OUTPUT_COUNT = 1
 
@@ -574,9 +686,9 @@ class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # ty
  GEO_FINEGRID_FLNM = '{self.routing_dir}/Fulldom_hires.nc'
  route_link_f      = '{self.routing_dir}/Route_Link.nc'
 
- ! Output control
+ ! Output control — daily output (matches HRLDAS OUTPUT_TIMESTEP)
  SPLIT_OUTPUT_COUNT = 1
- out_dt             = 60
+ out_dt             = 1440
  rst_dt             = 1440
  rst_typ            = 1
  rst_bi_in          = 0

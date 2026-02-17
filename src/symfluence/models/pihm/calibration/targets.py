@@ -34,7 +34,27 @@ class PIHMStreamflowTarget(StreamflowEvaluator):
         self.settings_dir = Path(settings_dir) if settings_dir else None
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        """Return PIHM output files as simulation file list."""
+        """Return PIHM output files as simulation file list.
+
+        MM-PIHM output is in: sim_dir/output/pihm_lumped/*.river.flx1.txt
+        Search both the direct directory and the MM-PIHM subdirectory.
+        """
+        # MM-PIHM directory structure: output/pihm_lumped/
+        pihm_output = sim_dir / "output" / "pihm_lumped"
+        if pihm_output.exists():
+            files = sorted(pihm_output.glob('*.river.flx*.txt'))
+            if files:
+                return files
+            files = sorted(pihm_output.glob('*.gw.txt'))
+            if files:
+                return files
+
+        # Fallback: search recursively
+        files = sorted(sim_dir.rglob('*.river.flx*.txt'))
+        if files:
+            return files
+
+        # Legacy patterns
         rivflx_files = sorted(sim_dir.glob('*.rivflx*'))
         if rivflx_files:
             return rivflx_files

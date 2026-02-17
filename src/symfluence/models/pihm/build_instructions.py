@@ -30,7 +30,7 @@ def get_pihm_build_instructions():
         'default_path_suffix': 'installs/pihm/bin',
         'default_exe': 'pihm',
         'repository': 'https://github.com/PSUmodeling/MM-PIHM.git',
-        'branch': 'master',
+        'branch': 'main',
         'install_dir': 'pihm',
         'build_commands': [
             r'''
@@ -142,39 +142,52 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
     echo ""
     echo "Binary download failed, attempting source build with CMake..."
 
-    for tool in cmake make; do
+    for tool in cc make; do
         if ! command -v $tool >/dev/null 2>&1; then
-            echo "ERROR: $tool not found. Install with: brew install cmake (or apt install cmake)"
+            echo "ERROR: $tool not found. Install Xcode CLT: xcode-select --install"
             exit 1
         fi
     done
 
-    BUILD_TMPDIR=$(mktemp -d /tmp/pihm_build_XXXXXX)
-    echo "Build directory: ${BUILD_TMPDIR}"
+    # MM-PIHM uses a plain Makefile with bundled CVODE solver
+    # The repo was already cloned by the framework into INSTALL_DIR
+    SRC_DIR="${INSTALL_DIR}"
 
-    echo "Cloning MM-PIHM source..."
-    git clone --depth 1 https://github.com/PSUmodeling/MM-PIHM.git "${BUILD_TMPDIR}/mm-pihm"
+    if [ ! -f "${SRC_DIR}/Makefile" ]; then
+        # If not cloned yet, clone manually
+        BUILD_TMPDIR=$(mktemp -d /tmp/pihm_build_XXXXXX)
+        echo "Cloning MM-PIHM source..."
+        git clone --depth 1 https://github.com/PSUmodeling/MM-PIHM.git "${BUILD_TMPDIR}/mm-pihm"
+        SRC_DIR="${BUILD_TMPDIR}/mm-pihm"
+    fi
 
-    mkdir -p "${BUILD_TMPDIR}/mm-pihm/build"
+    echo "Building MM-PIHM from source in ${SRC_DIR}..."
 
-    echo "Configuring CMake build..."
-    cmake -S "${BUILD_TMPDIR}/mm-pihm" \
-          -B "${BUILD_TMPDIR}/mm-pihm/build" \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}"
-
-    echo "Compiling..."
     NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-    cmake --build "${BUILD_TMPDIR}/mm-pihm/build" -j "${NCPU}"
 
-    echo "Installing to ${INSTALL_DIR}..."
-    cmake --install "${BUILD_TMPDIR}/mm-pihm/build" 2>/dev/null || \
-        cp "${BUILD_TMPDIR}/mm-pihm/build/pihm" "${INSTALL_DIR}/bin/pihm" 2>/dev/null || \
-        cp "${BUILD_TMPDIR}/mm-pihm/build/mm-pihm" "${INSTALL_DIR}/bin/pihm" 2>/dev/null
+    # Build CVODE first (bundled SUNDIALS solver), then PIHM
+    cd "${SRC_DIR}"
+    make clean 2>/dev/null || true
+    make -j "${NCPU}"
 
-    chmod +x "${INSTALL_DIR}/bin/pihm" 2>/dev/null || true
+    # The Makefile places the binary in SRC_DIR/bin/
+    if [ -f "${SRC_DIR}/bin/pihm" ]; then
+        mkdir -p "${INSTALL_DIR}/bin"
+        if [ "${SRC_DIR}" != "${INSTALL_DIR}" ]; then
+            cp "${SRC_DIR}/bin/pihm" "${INSTALL_DIR}/bin/pihm"
+        fi
+        chmod +x "${INSTALL_DIR}/bin/pihm"
+    else
+        echo "ERROR: Build succeeded but pihm binary not found"
+        ls -la "${SRC_DIR}/bin/" 2>/dev/null || echo "bin/ directory missing"
+        exit 1
+    fi
 
-    rm -rf "${BUILD_TMPDIR}"
-    echo "Build artifacts cleaned up"
+    # Cleanup temp dir if we used one
+    if [ -n "${BUILD_TMPDIR:-}" ]; then
+        rm -rf "${BUILD_TMPDIR}"
+    fi
+    echo "Build complete"
 fi
 
 # === Verify installation ===

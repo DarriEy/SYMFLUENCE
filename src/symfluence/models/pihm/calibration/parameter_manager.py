@@ -113,12 +113,38 @@ class PIHMParameterManager(BaseParameterManager):
         return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
-        """Update PIHM input files with new parameter values."""
+        """Update PIHM input files with new parameter values.
+
+        Updates all files that contain calibrated parameters:
+        - .soil (K_SAT, POROSITY, VG_ALPHA, VG_N, MACROPORE_K)
+        - .geol (K_SAT-derived deep K)
+        - .riv  (MANNINGS_N roughness, K_SAT riverbed K)
+        - .mesh (SOIL_DEPTH via ZMIN adjustment)
+        - .ic   (SOIL_DEPTH, POROSITY via initial conditions)
+        - .calib (multiplier form of all params)
+        - .lc   (MANNINGS_N surface roughness)
+        """
         try:
             subsurface_params = {k: v for k, v in params.items() if k not in SNOW17_PARAM_NAMES}
 
             # Update .soil file
             self._update_soil_file(subsurface_params)
+
+            # Update .geol file (deep subsurface K derived from K_SAT)
+            if 'K_SAT' in subsurface_params:
+                self._update_geol_file(subsurface_params)
+
+            # Update .riv file (Manning's N and riverbed K)
+            if 'MANNINGS_N' in subsurface_params or 'K_SAT' in subsurface_params:
+                self._update_riv_file(subsurface_params)
+
+            # Update .mesh file (SOIL_DEPTH changes ZMIN)
+            if 'SOIL_DEPTH' in subsurface_params:
+                self._update_mesh_file(subsurface_params['SOIL_DEPTH'])
+
+            # Update .ic file (SOIL_DEPTH and POROSITY affect initial conditions)
+            if 'SOIL_DEPTH' in subsurface_params or 'POROSITY' in subsurface_params:
+                self._update_ic_file(subsurface_params)
 
             # Update .calib file (multipliers)
             self._update_calib_file(subsurface_params)
@@ -135,7 +161,24 @@ class PIHMParameterManager(BaseParameterManager):
             return False
 
     def _update_soil_file(self, params: Dict[str, float]) -> None:
-        """Update .soil file with new parameter values."""
+        """Update .soil file with new parameter values.
+
+        MM-PIHM .soil format:
+            NUMSOIL  <n>
+            INDEX  SILT  CLAY  OM  BD  KINF  KSATV  KSATH  MAXSMC  MINSMC  ALPHA  BETA  MACHF  MACVF  DMAC  QTZ
+            1      ...   ...   ...
+            DINF   <depth>
+            KMACV_RO  <ratio>
+            KMACH_RO  <ratio>
+
+        Parameter mapping:
+            K_SAT      -> KINF, KSATV, KSATH columns
+            POROSITY   -> MAXSMC column
+            VG_ALPHA   -> ALPHA column
+            VG_N       -> BETA column
+            MACROPORE_K -> MACHF, MACVF columns
+            SOIL_DEPTH -> DINF keyword line
+        """
         soil_files = list(self.settings_dir.glob('*.soil'))
         if not soil_files:
             return
@@ -143,81 +186,121 @@ class PIHMParameterManager(BaseParameterManager):
         soil_path = soil_files[0]
         lines = soil_path.read_text().strip().split('\n')
 
-        if len(lines) < 2:
+        if len(lines) < 3:
             return
 
-        # Parse header (number of soil types)
-        header = lines[0]
-        new_lines = [header]
+        # Line 0: NUMSOIL header, Line 1: column header, Line 2+: data/keywords
+        new_lines = [lines[0], lines[1]]  # Keep NUMSOIL and column header
 
-        for line in lines[1:]:
+        # Parse column header to find column indices
+        col_names = lines[1].split()
+        col_idx = {name: i for i, name in enumerate(col_names)}
+
+        # Map calibration params to .soil column names
+        param_to_col = {
+            'K_SAT': ['KINF', 'KSATV', 'KSATH'],
+            'POROSITY': ['MAXSMC'],
+            'VG_ALPHA': ['ALPHA'],
+            'VG_N': ['BETA'],
+            'MACROPORE_K': ['MACHF', 'MACVF'],
+        }
+
+        for line in lines[2:]:
             parts = line.split()
-            if len(parts) < 10:
+            if not parts:
                 new_lines.append(line)
                 continue
 
-            # Format: id depth k_sat k_satv macro_k macro_depth porosity vg_alpha vg_n s_res
-            soil_id = parts[0]
-            depth = float(params.get('SOIL_DEPTH', parts[1]))
-            k_sat = float(params.get('K_SAT', parts[2]))
-            k_satv = k_sat / 10  # vertical K = horizontal K / 10
-            macro_k = float(params.get('MACROPORE_K', parts[4]))
-            macro_depth = float(parts[5])
-            porosity = float(params.get('POROSITY', parts[6]))
-            vg_alpha = float(params.get('VG_ALPHA', parts[7]))
-            vg_n = float(params.get('VG_N', parts[8]))
-            s_res = float(parts[9])
+            # Keyword lines: DINF, KMACV_RO, KMACH_RO
+            if parts[0] == 'DINF' and 'SOIL_DEPTH' in params:
+                new_lines.append(f"DINF\t{params['SOIL_DEPTH']:.2f}")
+                continue
+            elif parts[0] in ('DINF', 'KMACV_RO', 'KMACH_RO'):
+                new_lines.append(line)
+                continue
 
-            new_lines.append(
-                f"{soil_id} {depth:.4f} {k_sat:.6e} {k_satv:.6e} "
-                f"{macro_k:.6e} {macro_depth:.4f} "
-                f"{porosity:.4f} {vg_alpha:.4f} {vg_n:.4f} {s_res}"
-            )
+            # Data row — try to parse first field as integer (soil index)
+            try:
+                int(parts[0])
+            except ValueError:
+                new_lines.append(line)
+                continue
+
+            # Update data columns
+            values = list(parts)
+            for param_name, col_list in param_to_col.items():
+                if param_name not in params:
+                    continue
+                val = params[param_name]
+                for col_name in col_list:
+                    if col_name in col_idx:
+                        idx = col_idx[col_name]
+                        if idx < len(values):
+                            values[idx] = f"{val:.6e}"
+
+            new_lines.append('\t'.join(values))
 
         soil_path.write_text('\n'.join(new_lines) + '\n')
 
     def _update_calib_file(self, params: Dict[str, float]) -> None:
-        """Update .calib file with calibration multipliers."""
+        """Update .calib file with calibration multipliers.
+
+        The .calib file contains multipliers applied to base values.
+        multiplier = new_value / default_value
+
+        Each calibration parameter may affect multiple .calib keys:
+            K_SAT      -> KSATH, KSATV, KINF
+            MACROPORE_K -> KMACSATH, KMACSATV
+            POROSITY   -> POROSITY
+            VG_ALPHA   -> ALPHA
+            VG_N       -> BETA
+            MANNINGS_N -> ROUGH
+            SOIL_DEPTH -> DROOT
+        """
         calib_files = list(self.settings_dir.glob('*.calib'))
         if not calib_files:
             return
 
-        # The calib file uses multipliers. We compute multiplier from
-        # the ratio of new value to default.
         defaults = {
             'K_SAT': 1e-5,
             'POROSITY': 0.4,
             'VG_ALPHA': 1.0,
             'VG_N': 2.0,
             'MACROPORE_K': 1e-4,
+            'MANNINGS_N': 0.03,
+            'SOIL_DEPTH': 2.0,
+        }
+
+        # Map each .calib keyword to the parameter that controls it
+        calib_key_to_param = {
+            'KSATH': 'K_SAT',
+            'KSATV': 'K_SAT',
+            'KINF': 'K_SAT',
+            'KMACSATH': 'MACROPORE_K',
+            'KMACSATV': 'MACROPORE_K',
+            'POROSITY': 'POROSITY',
+            'ALPHA': 'VG_ALPHA',
+            'BETA': 'VG_N',
+            'ROUGH': 'MANNINGS_N',
+            'DROOT': 'SOIL_DEPTH',
         }
 
         calib_path = calib_files[0]
         lines = calib_path.read_text().strip().split('\n')
         new_lines = []
 
-        param_to_calib = {
-            'K_SAT': 'KSATH',
-            'MACROPORE_K': 'KMACH',
-            'POROSITY': 'POROSITY',
-            'VG_ALPHA': 'ALPHA',
-            'VG_N': 'BETA',
-        }
-
         for line in lines:
             parts = line.split()
             if len(parts) >= 2:
                 key = parts[0]
-                # Check if any param maps to this calib key
-                for param_name, calib_key in param_to_calib.items():
-                    if key == calib_key and param_name in params:
-                        default = defaults.get(param_name, 1.0)
-                        if default != 0:
-                            multiplier = params[param_name] / default
-                        else:
-                            multiplier = 1.0
-                        line = f"{key} {multiplier:.6f}"
-                        break
+                param_name = calib_key_to_param.get(key)
+                if param_name and param_name in params:
+                    default = defaults.get(param_name, 1.0)
+                    if default != 0:
+                        multiplier = params[param_name] / default
+                    else:
+                        multiplier = 1.0
+                    line = f"{key}\t\t{multiplier:.6f}"
             new_lines.append(line)
 
         calib_path.write_text('\n'.join(new_lines) + '\n')
@@ -240,6 +323,185 @@ class PIHMParameterManager(BaseParameterManager):
                 new_lines.append(line)
 
         lc_path.write_text('\n'.join(new_lines) + '\n')
+
+    def _update_geol_file(self, params: Dict[str, float]) -> None:
+        """Update .geol file with deep-subsurface K derived from K_SAT.
+
+        The geology layer uses K_SAT / 100 as a rough approximation
+        for deep bedrock hydraulic conductivity.
+        """
+        geol_files = list(self.settings_dir.glob('*.geol'))
+        if not geol_files:
+            return
+
+        k_sat = params.get('K_SAT')
+        if k_sat is None:
+            return
+
+        geol_k = k_sat / 100.0
+        geol_path = geol_files[0]
+        lines = geol_path.read_text().strip().split('\n')
+        new_lines = []
+
+        for line in lines:
+            parts = line.split()
+            if not parts:
+                new_lines.append(line)
+                continue
+            # Data rows start with an integer index
+            try:
+                int(parts[0])
+            except ValueError:
+                new_lines.append(line)
+                continue
+            # Replace KSATV (col 1) and KSATH (col 2) in data row
+            if len(parts) >= 3:
+                parts[1] = f"{geol_k:.6e}"
+                parts[2] = f"{geol_k:.6e}"
+            new_lines.append('\t'.join(parts))
+
+        geol_path.write_text('\n'.join(new_lines) + '\n')
+
+    def _update_riv_file(self, params: Dict[str, float]) -> None:
+        """Update .riv file with Manning's roughness and riverbed K.
+
+        MM-PIHM .riv MATERIAL section format:
+            INDEX  ROUGH  CWR  KH
+            #-     s/m1/3  -   m/s
+            1      <n>    0.6  <k>
+        """
+        riv_files = list(self.settings_dir.glob('*.riv'))
+        if not riv_files:
+            return
+
+        riv_path = riv_files[0]
+        lines = riv_path.read_text().strip().split('\n')
+        new_lines = []
+        in_material = False
+
+        for line in lines:
+            parts = line.split()
+            if not parts:
+                new_lines.append(line)
+                continue
+
+            # Track which section we're in
+            if parts[0] == 'MATERIAL':
+                in_material = True
+                new_lines.append(line)
+                continue
+            elif parts[0] in ('BC', 'RES', 'SHAPE', 'NUMRIV'):
+                in_material = False
+                new_lines.append(line)
+                continue
+
+            # In MATERIAL section, update data rows (start with integer index)
+            if in_material:
+                try:
+                    int(parts[0])
+                except ValueError:
+                    new_lines.append(line)
+                    continue
+                # MATERIAL data row: INDEX ROUGH CWR KH
+                if len(parts) >= 4:
+                    if 'MANNINGS_N' in params:
+                        parts[1] = f"{params['MANNINGS_N']:.4f}"
+                    if 'K_SAT' in params:
+                        parts[3] = f"{params['K_SAT']:.3E}"
+                    new_lines.append('\t'.join(parts))
+                    continue
+
+            new_lines.append(line)
+
+        riv_path.write_text('\n'.join(new_lines) + '\n')
+
+    def _update_mesh_file(self, soil_depth: float) -> None:
+        """Update .mesh file ZMIN values when SOIL_DEPTH changes.
+
+        ZMIN = ZMAX - soil_depth for each node.
+        """
+        mesh_files = list(self.settings_dir.glob('*.mesh'))
+        if not mesh_files:
+            return
+
+        mesh_path = mesh_files[0]
+        lines = mesh_path.read_text().strip().split('\n')
+        new_lines = []
+        in_nodes = False
+
+        for line in lines:
+            parts = line.split()
+            if not parts:
+                new_lines.append(line)
+                continue
+
+            if parts[0] == 'NUMNODE':
+                in_nodes = True
+                new_lines.append(line)
+                continue
+            elif parts[0] in ('NUMELE', 'INDEX') and not in_nodes:
+                new_lines.append(line)
+                continue
+
+            if in_nodes and parts[0] == 'INDEX':
+                new_lines.append(line)
+                continue
+
+            # Node data rows: INDEX X Y ZMIN ZMAX
+            if in_nodes and len(parts) >= 5:
+                try:
+                    int(parts[0])
+                    zmax = float(parts[4])
+                    parts[3] = f"{zmax - soil_depth:.1f}"
+                    new_lines.append('\t'.join(parts))
+                    continue
+                except (ValueError, IndexError):
+                    pass
+
+            new_lines.append(line)
+
+        mesh_path.write_text('\n'.join(new_lines) + '\n')
+
+    def _update_ic_file(self, params: Dict[str, float]) -> None:
+        """Update binary .ic file when SOIL_DEPTH or POROSITY change.
+
+        Flux-PIHM IC format (2 elements + 1 river):
+            Per element: cmc, sneqv, surf, unsat, gw, t1, snowh,
+                        stc[11], smc[11], swc[11]  = 40 doubles
+            River: stage = 1 double
+            Total: 2*40 + 1 = 81 doubles = 648 bytes
+        """
+        import struct
+
+        ic_files = list(self.settings_dir.glob('*.ic'))
+        if not ic_files:
+            return
+
+        soil_depth = params.get('SOIL_DEPTH', 2.0)
+        porosity = params.get('POROSITY', 0.4)
+
+        init_gw_frac = 0.5
+        init_satn = 0.5
+        gw = soil_depth * init_gw_frac
+        deficit = soil_depth - gw
+        unsat = init_satn * deficit
+
+        MAXLYR = 11
+        min_smc = 0.05
+        init_smc = min_smc + init_satn * (porosity - min_smc)
+        init_temp = 277.15
+
+        def pack_elem():
+            d_ = struct.pack('ddddd', 0.0, 0.0, 0.0, unsat, gw)
+            d_ += struct.pack('dd', init_temp, 0.0)
+            d_ += struct.pack(f'{MAXLYR}d', *([init_temp] * MAXLYR))
+            d_ += struct.pack(f'{MAXLYR}d', *([init_smc] * MAXLYR))
+            d_ += struct.pack(f'{MAXLYR}d', *([init_smc] * MAXLYR))
+            return d_
+
+        data = pack_elem() + pack_elem()
+        data += struct.pack('d', 0.1)  # river stage
+        ic_files[0].write_bytes(data)
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from defaults."""

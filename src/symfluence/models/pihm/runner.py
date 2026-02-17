@@ -1,9 +1,17 @@
 """
 PIHM Model Runner
 
-Executes PIHM (MM-PIHM) from a prepared simulation directory.
-PIHM reads <project>.para from the working directory to discover
-all model input files.
+Executes MM-PIHM from a prepared simulation directory.
+
+MM-PIHM expects the following directory structure:
+    {sim_dir}/
+        input/{project_name}/{project_name}.*   -- all input files
+        output/{project_name}/                   -- output directory (created)
+
+The binary is invoked as:
+    pihm [-o output/{project_name}] {project_name}
+
+from {sim_dir} as the working directory.
 """
 
 import logging
@@ -19,17 +27,22 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 logger = logging.getLogger(__name__)
 
+# Must match PIHMPreProcessor.PROJECT_NAME
+PROJECT_NAME = "pihm_lumped"
+
 
 @ModelRegistry.register_runner("PIHM", method_name="run_pihm")
 class PIHMRunner(BaseModelRunner):
     """
-    Runs PIHM via direct invocation.
+    Runs MM-PIHM via direct invocation.
 
     Handles:
     - Executable path resolution
-    - Input file copying to simulation directory
-    - Model execution (pihm <project_name>)
-    - Output verification (.rivflx, .gwhead, .surf files)
+    - Simulation directory setup with correct MM-PIHM layout:
+          sim_dir/input/{project_name}/  -- input files copied from settings/PIHM
+          sim_dir/output/{project_name}/ -- created for model output
+    - Model execution: pihm [-o output/{project_name}] {project_name}
+    - Output verification (.rivflx, .gw, .surf, .recharge files)
     """
 
     def __init__(self, config, logger, reporting_manager=None):
@@ -40,11 +53,16 @@ class PIHMRunner(BaseModelRunner):
         return "PIHM"
 
     def _get_pihm_executable(self) -> Path:
-        """Get the PIHM executable path."""
+        """Get the Flux-PIHM executable path.
+
+        Uses flux-pihm (Noah LSM build) by default for proper
+        energy-balance ET computation. Falls back to pihm if
+        flux-pihm is not found.
+        """
         return self.get_model_executable(
             install_path_key='PIHM_INSTALL_PATH',
             default_install_subpath='installs/pihm',
-            default_exe_name='pihm',
+            default_exe_name='flux-pihm',
             typed_exe_accessor=lambda: (
                 self.config.model.pihm.exe
                 if self.config.model and self.config.model.pihm
@@ -62,18 +80,21 @@ class PIHMRunner(BaseModelRunner):
 
     def run_pihm(self, sim_dir: Optional[Path] = None, **kwargs) -> Optional[Path]:
         """
-        Execute PIHM.
+        Execute MM-PIHM.
+
+        Sets up the simulation directory with the correct MM-PIHM layout,
+        runs the model, and verifies output.
 
         Args:
             sim_dir: Optional override for simulation directory.
 
         Returns:
-            Path to output directory on success.
+            Path to simulation directory on success.
 
         Raises:
             ModelExecutionError: If execution fails.
         """
-        logger.info(f"Running PIHM for domain: {self.config.domain.name}")
+        logger.info(f"Running MM-PIHM for domain: {self.config.domain.name}")
 
         with symfluence_error_handler(
             "PIHM model execution",
@@ -93,11 +114,17 @@ class PIHMRunner(BaseModelRunner):
             pihm_exe = self._get_pihm_executable()
             logger.info(f"Using PIHM executable: {pihm_exe}")
 
+            # Set up the MM-PIHM directory structure
             self._setup_sim_directory(self.output_dir)
 
-            project_name = "pihm_lumped"
-            cmd = [str(pihm_exe), project_name]
-            logger.info(f"Executing PIHM from: {self.output_dir}")
+            # MM-PIHM command: pihm [-o <name>] <project_name>
+            # PIHM internally prepends "output/" to the -o arg, so pass just the name.
+            # Run from sim_dir which contains input/ and output/ subdirs.
+            cmd = [str(pihm_exe), "-o", PROJECT_NAME, PROJECT_NAME]
+            logger.info(
+                f"Executing MM-PIHM: {' '.join(cmd)} "
+                f"(cwd={self.output_dir})"
+            )
 
             env = os.environ.copy()
             timeout = self._get_timeout()
@@ -113,50 +140,134 @@ class PIHMRunner(BaseModelRunner):
             )
 
             if result.stdout:
-                logger.debug(f"PIHM stdout: {result.stdout[-2000:]}")
+                logger.debug(f"PIHM stdout:\n{result.stdout[-2000:]}")
             if result.stderr:
-                logger.debug(f"PIHM stderr: {result.stderr[-2000:]}")
+                logger.debug(f"PIHM stderr:\n{result.stderr[-2000:]}")
 
             if result.returncode != 0:
                 logger.error(f"PIHM execution returned code {result.returncode}")
-                logger.error(
-                    f"stderr: {result.stderr[-2000:] if result.stderr else 'none'}"
-                )
+                if result.stderr:
+                    logger.error(
+                        f"stderr: {result.stderr[-2000:]}"
+                    )
+                if result.stdout:
+                    logger.error(
+                        f"stdout (last 2000 chars): {result.stdout[-2000:]}"
+                    )
                 raise ModelExecutionError(
                     f"PIHM execution failed with return code {result.returncode}"
                 )
 
-            logger.info("PIHM execution completed successfully")
+            logger.info("MM-PIHM execution completed successfully")
             self._verify_output()
 
             return self.output_dir
 
     def _setup_sim_directory(self, sim_dir: Path) -> None:
-        """Copy all PIHM input files to simulation directory."""
+        """Set up the MM-PIHM simulation directory structure.
+
+        Creates:
+            sim_dir/input/{project_name}/  -- copies all input files here
+            sim_dir/output/{project_name}/ -- empty, for model output
+
+        The preprocessor writes files to settings/PIHM/ with the project name
+        prefix. This method copies them into the correct MM-PIHM layout.
+        """
         if not self.settings_dir.exists():
             raise ModelExecutionError(
                 f"PIHM settings directory not found: {self.settings_dir}. "
                 "Run preprocessing first."
             )
 
+        # Create MM-PIHM directory structure
+        input_dir = sim_dir / "input" / PROJECT_NAME
+        output_dir = sim_dir / "output" / PROJECT_NAME
+        input_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy all input files from settings/PIHM/ to input/{project_name}/
+        file_count = 0
         for src in self.settings_dir.iterdir():
-            if src.is_file():
-                shutil.copy2(src, sim_dir / src.name)
-                logger.debug(f"Copied {src.name} to simulation directory")
+            if src.is_file() and src.name.startswith(PROJECT_NAME):
+                dst = input_dir / src.name
+                shutil.copy2(src, dst)
+                logger.debug(f"Copied {src.name} -> input/{PROJECT_NAME}/")
+                file_count += 1
+
+        if file_count == 0:
+            raise ModelExecutionError(
+                f"No input files found in {self.settings_dir} "
+                f"with prefix '{PROJECT_NAME}'. Run preprocessing first."
+            )
+
+        # Copy global lookup tables from PIHM install dir to input/
+        # MM-PIHM expects vegprmt.tbl, co2.txt, ndep.txt, epc/ at input/ level
+        pihm_exe = self._get_pihm_executable()
+        # The install dir is the MM-PIHM repo root containing input/
+        # Try exe's directory first (exe may be in repo root), then parent
+        install_input = pihm_exe.parent / "input"
+        if not install_input.exists():
+            install_input = pihm_exe.parent.parent / "input"
+        base_input = sim_dir / "input"
+        global_files = ["vegprmt.tbl", "co2.txt", "ndep.txt"]
+        for gf in global_files:
+            src = install_input / gf
+            dst = base_input / gf
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
+                logger.debug(f"Copied global table {gf}")
+        # Copy epc/ directory
+        epc_src = install_input / "epc"
+        epc_dst = base_input / "epc"
+        if epc_src.is_dir() and not epc_dst.exists():
+            shutil.copytree(epc_src, epc_dst)
+            logger.debug("Copied epc/ directory")
+
+        logger.info(
+            f"Set up MM-PIHM directory: {file_count} input files in "
+            f"input/{PROJECT_NAME}/, output -> output/{PROJECT_NAME}/"
+        )
 
     def _verify_output(self) -> None:
-        """Verify PIHM produced valid output files."""
-        rivflx_files = list(self.output_dir.glob("*.rivflx*"))
-        gwhead_files = list(self.output_dir.glob("*.gwhead*"))
+        """Verify MM-PIHM produced valid output files.
 
-        if not rivflx_files and not gwhead_files:
+        Checks for key output files in output/{project_name}/:
+            *.rivflx* -- river fluxes
+            *.surf*   -- surface water
+            *.gw*     -- groundwater
+            *.recharge* -- recharge
+        """
+        pihm_output_dir = self.output_dir / "output" / PROJECT_NAME
+        if not pihm_output_dir.exists():
             raise RuntimeError(
-                f"PIHM did not produce expected output in {self.output_dir}"
+                f"PIHM output directory not found: {pihm_output_dir}"
+            )
+
+        # MM-PIHM output naming: pihm_lumped.river.flx1.txt, pihm_lumped.gw.txt, etc.
+        rivflx_files = list(pihm_output_dir.glob("*.river.flx*.txt"))
+        gw_files = list(pihm_output_dir.glob("*.gw.txt"))
+        surf_files = list(pihm_output_dir.glob("*.surf.txt"))
+        recharge_files = list(pihm_output_dir.glob("*.recharge.txt"))
+
+        all_outputs = rivflx_files + gw_files + surf_files + recharge_files
+
+        if not all_outputs:
+            # List what IS in the output directory for diagnostics
+            existing = list(pihm_output_dir.iterdir())
+            if existing:
+                logger.warning(
+                    f"Output directory contains: "
+                    f"{[f.name for f in existing[:20]]}"
+                )
+            raise RuntimeError(
+                f"MM-PIHM did not produce expected output in {pihm_output_dir}. "
+                "Expected .river.flx, .gw, .surf, or .recharge files."
             )
 
         logger.info(
-            f"Verified PIHM output: {len(rivflx_files)} rivflx file(s), "
-            f"{len(gwhead_files)} gwhead file(s)"
+            f"Verified MM-PIHM output in {pihm_output_dir}: "
+            f"{len(rivflx_files)} rivflx, {len(gw_files)} gw, "
+            f"{len(surf_files)} surf, {len(recharge_files)} recharge file(s)"
         )
 
     def run(self, **kwargs) -> Optional[Path]:
