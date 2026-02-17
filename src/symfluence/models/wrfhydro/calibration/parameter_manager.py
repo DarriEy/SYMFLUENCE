@@ -84,6 +84,7 @@ class WRFHydroParameterManager(BaseParameterManager):
             for param_name, bound_list in config_bounds.items():
                 if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
                     bounds[param_name] = {
+                        **bounds.get(param_name, {}),
                         'min': float(bound_list[0]),
                         'max': float(bound_list[1])
                     }

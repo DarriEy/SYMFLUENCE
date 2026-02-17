@@ -19,7 +19,7 @@ Configuration:
     MODFLOW_PARAMS_TO_CALIBRATE: K,SY,DRAIN_CONDUCTANCE
     COUPLING_MODE: auto (default), dcoupler, or sequential
 
-Calibration loop (per DDS iteration):
+Calibration loop (per DDS iteration, summary):
     1. DDS proposes parameters → split into land-surface + MODFLOW subsets
     2. Update land-surface files (trialParams.nc for SUMMA, etc.)
     3. Rewrite gwf.npf/sto/drn for MODFLOW params
@@ -28,3 +28,4 @@ Calibration loop (per DDS iteration):
     6. Combine surface runoff + drain discharge → total streamflow
     7. KGE against observed → return to DDS
 """
+from .targets import CoupledGWStreamflowTarget  # noqa: F401 - triggers target registration

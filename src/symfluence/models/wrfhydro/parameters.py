@@ -28,7 +28,7 @@ from typing import Dict
 # CALIBRATION PARAMETER BOUNDS  (used by the optimizer / parameter manager)
 # =============================================================================
 
-PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
+PARAM_BOUNDS: Dict[str, Dict] = {
     'REFKDT': {
         'min': 0.1, 'max': 10.0,                   # surface infiltration parameter
     },
@@ -49,9 +49,16 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     },
     'DKSAT': {
         'min': 1e-7, 'max': 1e-5,                  # saturated hydraulic conductivity [m/s]
+        'transform': 'log',                         # log-space sampling for multi-OOM range
     },
     'SMCMAX': {
         'min': 0.3, 'max': 0.6,                    # porosity (max soil moisture content)
+    },
+    'CZIL': {
+        'min': 0.01, 'max': 1.0,                   # Zilitinkevich sfc exchange coeff (ET control)
+    },
+    'FRZK': {
+        'min': 0.0, 'max': 0.5,                    # frozen ground infiltration parameter
     },
 }
 
@@ -69,6 +76,8 @@ DEFAULT_PARAMS: Dict[str, float] = {
     'BEXP': 4.0,
     'DKSAT': 1e-6,
     'SMCMAX': 0.45,
+    'CZIL': 0.1,
+    'FRZK': 0.15,
 }
 
 
@@ -88,4 +97,6 @@ WRFHYDRO_PARAM_TARGETS: Dict[str, Dict] = {
     'BEXP':          {'target': 'soilparm_tbl', 'column': 'BB', 'column_index': 1},
     'DKSAT':         {'target': 'soilparm_tbl', 'column': 'SATDK', 'column_index': 7},
     'SMCMAX':        {'target': 'soilparm_tbl', 'column': 'MAXSMC', 'column_index': 4},
+    'CZIL':          {'target': 'genparm_tbl', 'key': 'CZIL_DATA'},
+    'FRZK':          {'target': 'genparm_tbl', 'key': 'FRZK_DATA'},
 }

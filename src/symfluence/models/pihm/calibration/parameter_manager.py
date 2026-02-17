@@ -10,7 +10,7 @@ forcing regeneration.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
@@ -53,6 +53,16 @@ PIHM_DEFAULT_BOUNDS = {
         'transform': 'linear',
         'description': 'Active soil depth (m)',
     },
+    'GEOL_K_RATIO': {
+        'min': 0.0001, 'max': 0.5,
+        'transform': 'log',
+        'description': 'Ratio of geological K to soil K_SAT (-)',
+    },
+    'INIT_GW_DEPTH': {
+        'min': 0.1, 'max': 5.0,
+        'transform': 'linear',
+        'description': 'Initial groundwater depth (m)',
+    },
     'SNOW17_SCF': {
         'min': 0.7, 'max': 1.4,
         'transform': 'linear',
@@ -93,21 +103,34 @@ class PIHMParameterManager(BaseParameterManager):
         """Return PIHM parameter names from config."""
         return self.pihm_params
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return PIHM parameter bounds."""
-        bounds: Dict[str, Dict[str, float]] = {
-            k: {'min': float(v['min']), 'max': float(v['max'])}
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
+        """Return PIHM parameter bounds with transform info preserved."""
+        bounds: Dict[str, Dict[str, Any]] = {
+            k: {
+                'min': float(v['min']),
+                'max': float(v['max']),
+                'transform': v.get('transform', 'linear'),
+            }
             for k, v in PIHM_DEFAULT_BOUNDS.items()
         }
 
-        config_bounds = self.config.get('PIHM_PARAM_BOUNDS') if isinstance(self.config, dict) else None
+        # Support both dict and Pydantic config objects
+        config_bounds = None
+        if isinstance(self.config, dict):
+            config_bounds = self.config.get('PIHM_PARAM_BOUNDS')
+        elif hasattr(self.config, 'get'):
+            config_bounds = self.config.get('PIHM_PARAM_BOUNDS')
+
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified PIHM parameter bounds")
             for param_name, param_bounds in config_bounds.items():
                 if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    # Preserve transform from defaults if available
+                    transform = bounds.get(param_name, {}).get('transform', 'linear')
                     bounds[param_name] = {
                         'min': float(param_bounds[0]),
                         'max': float(param_bounds[1]),
+                        'transform': transform,
                     }
 
         return bounds
@@ -130,8 +153,8 @@ class PIHMParameterManager(BaseParameterManager):
             # Update .soil file
             self._update_soil_file(subsurface_params)
 
-            # Update .geol file (deep subsurface K derived from K_SAT)
-            if 'K_SAT' in subsurface_params:
+            # Update .geol file (deep subsurface K from K_SAT * GEOL_K_RATIO)
+            if 'K_SAT' in subsurface_params or 'GEOL_K_RATIO' in subsurface_params:
                 self._update_geol_file(subsurface_params)
 
             # Update .riv file (Manning's N and riverbed K)
@@ -142,8 +165,8 @@ class PIHMParameterManager(BaseParameterManager):
             if 'SOIL_DEPTH' in subsurface_params:
                 self._update_mesh_file(subsurface_params['SOIL_DEPTH'])
 
-            # Update .ic file (SOIL_DEPTH and POROSITY affect initial conditions)
-            if 'SOIL_DEPTH' in subsurface_params or 'POROSITY' in subsurface_params:
+            # Update .ic file (SOIL_DEPTH, POROSITY, INIT_GW_DEPTH affect initial conditions)
+            if any(k in subsurface_params for k in ('SOIL_DEPTH', 'POROSITY', 'INIT_GW_DEPTH')):
                 self._update_ic_file(subsurface_params)
 
             # Update .calib file (multipliers)
@@ -325,10 +348,9 @@ class PIHMParameterManager(BaseParameterManager):
         lc_path.write_text('\n'.join(new_lines) + '\n')
 
     def _update_geol_file(self, params: Dict[str, float]) -> None:
-        """Update .geol file with deep-subsurface K derived from K_SAT.
+        """Update .geol file with deep-subsurface K.
 
-        The geology layer uses K_SAT / 100 as a rough approximation
-        for deep bedrock hydraulic conductivity.
+        Uses GEOL_K_RATIO * K_SAT if available, otherwise K_SAT / 100.
         """
         geol_files = list(self.settings_dir.glob('*.geol'))
         if not geol_files:
@@ -338,7 +360,8 @@ class PIHMParameterManager(BaseParameterManager):
         if k_sat is None:
             return
 
-        geol_k = k_sat / 100.0
+        geol_k_ratio = params.get('GEOL_K_RATIO', 0.01)
+        geol_k = k_sat * geol_k_ratio
         geol_path = geol_files[0]
         lines = geol_path.read_text().strip().split('\n')
         new_lines = []
@@ -479,10 +502,11 @@ class PIHMParameterManager(BaseParameterManager):
 
         soil_depth = params.get('SOIL_DEPTH', 2.0)
         porosity = params.get('POROSITY', 0.4)
+        init_gw_depth = params.get('INIT_GW_DEPTH', soil_depth * 0.5)
 
-        init_gw_frac = 0.5
+        # Ensure GW depth doesn't exceed soil depth
+        gw = min(init_gw_depth, soil_depth * 0.95)
         init_satn = 0.5
-        gw = soil_depth * init_gw_frac
         deficit = soil_depth - gw
         unsat = init_satn * deficit
 

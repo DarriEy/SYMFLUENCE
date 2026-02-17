@@ -285,6 +285,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== MODEL CONFIGURATION ==========
     'HYDROLOGICAL_MODEL': ('model', 'hydrological_model'),
     'ROUTING_MODEL': ('model', 'routing_model'),
+    'GROUNDWATER_MODEL': ('model', 'groundwater_model'),
 
     # Model > SUMMA
     'SUMMA_INSTALL_PATH': ('model', 'summa', 'install_path'),

@@ -7,7 +7,7 @@ Parameters are written into HGS .mprops, .oprops, and .grok files.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
@@ -89,19 +89,31 @@ class HGSParameterManager(BaseParameterManager):
     def _get_parameter_names(self) -> List[str]:
         return self.hgs_params
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        bounds: Dict[str, Dict[str, float]] = {
-            k: {'min': float(v['min']), 'max': float(v['max'])}
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
+        bounds: Dict[str, Dict[str, Any]] = {
+            k: {
+                'min': float(v['min']),
+                'max': float(v['max']),
+                'transform': v.get('transform', 'linear'),
+            }
             for k, v in HGS_DEFAULT_BOUNDS.items()
         }
 
-        config_bounds = self.config.get('HGS_PARAM_BOUNDS') if isinstance(self.config, dict) else None
+        # Support both dict and Pydantic config objects
+        config_bounds = None
+        if isinstance(self.config, dict):
+            config_bounds = self.config.get('HGS_PARAM_BOUNDS')
+        elif hasattr(self.config, 'get'):
+            config_bounds = self.config.get('HGS_PARAM_BOUNDS')
+
         if config_bounds and isinstance(config_bounds, dict):
             for param_name, param_bounds in config_bounds.items():
                 if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    transform = bounds.get(param_name, {}).get('transform', 'linear')
                     bounds[param_name] = {
                         'min': float(param_bounds[0]),
                         'max': float(param_bounds[1]),
+                        'transform': transform,
                     }
 
         return bounds

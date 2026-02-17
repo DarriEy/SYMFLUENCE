@@ -26,6 +26,7 @@ from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
 from .worker import CoupledGWWorker  # noqa: F401 - triggers worker registration
+from .targets import CoupledGWStreamflowTarget  # noqa: F401 - triggers target registration
 
 
 @OptimizerRegistry.register_optimizer('COUPLED_GW')
@@ -110,6 +111,57 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
         preprocessor.project_dir = self.project_dir
         preprocessor.run_preprocessing()
 
+    def _extend_parallel_sim_end(
+        self,
+        land_dirs: Dict[int, Dict[str, Path]],
+        fm_name: str,
+    ) -> None:
+        """Overwrite simEndTime in parallel fileManagers with full experiment end.
+
+        The base ``update_file_managers`` sets simEndTime to the calibration
+        period end, which is correct for uncoupled models (faster runs, same
+        calibration-window results).  For COUPLED_GW the MODFLOW transient
+        simulation is path-dependent: groundwater heads — and therefore drain
+        discharge — for the calibration window change when driven by a longer
+        recharge series.  To keep DDS iteration scores consistent with the
+        final evaluation (which always uses the full period), we extend
+        simEndTime here.
+        """
+        sim_end = self._get_config_value(
+            lambda: self.config.domain.time_end,
+            dict_key='EXPERIMENT_TIME_END',
+        )
+        if not sim_end:
+            return
+
+        sim_end = self._adjust_end_time_for_forcing(sim_end)
+
+        for proc_id, dirs in land_dirs.items():
+            fm_path = dirs['settings_dir'] / fm_name
+            if not fm_path.exists():
+                continue
+            try:
+                with open(fm_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                updated = []
+                for line in lines:
+                    if 'simEndTime' in line and not line.strip().startswith('!'):
+                        updated.append(f"simEndTime           '{sim_end}'\n")
+                    else:
+                        updated.append(line)
+
+                with open(fm_path, 'w', encoding='utf-8') as f:
+                    f.writelines(updated)
+
+                self.logger.debug(
+                    f"Extended simEndTime to {sim_end} for coupled process {proc_id}"
+                )
+            except (IOError, OSError) as e:
+                self.logger.error(
+                    f"Failed to extend simEndTime for process {proc_id}: {e}"
+                )
+
     def _setup_parallel_dirs(self) -> None:
         """Setup parallel directories with both land surface and MODFLOW settings."""
         self._ensure_modflow_settings()
@@ -171,6 +223,16 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
                     fm_name,
                 )
 
+                # COUPLED_GW fix: extend simEndTime to full experiment period.
+                # The base update_file_managers truncates simEndTime to the
+                # calibration end, but MODFLOW is a transient GW solver whose
+                # drain discharge for the calibration window depends on the
+                # full recharge history.  Running only through the calibration
+                # end during iterations but the full period during final
+                # evaluation produces different GW heads and thus different
+                # KGE scores for the same calibration window.
+                self._extend_parallel_sim_end(land_dirs, fm_name)
+
         # Copy MODFLOW settings
         source_modflow = self.project_dir / 'settings' / 'MODFLOW'
         if source_modflow.exists():
@@ -188,9 +250,18 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
         )
 
     def _update_file_manager_for_final_run(self) -> None:
-        """Update file manager for final evaluation output path."""
-        pass
+        """Update land surface model file manager for full experiment period.
+
+        During DDS iterations, parallel dirs have simEndTime truncated to the
+        calibration period end. The final evaluation must run over the full
+        experiment period so that MODFLOW's transient groundwater simulation
+        covers the evaluation window and produces consistent drain discharge.
+        Without this, the calibration-period KGE from the final evaluation
+        will differ from the DDS iteration score because MODFLOW results are
+        path-dependent on the recharge time series length.
+        """
+        super()._update_file_manager_for_final_run()
 
     def _restore_file_manager_for_optimization(self) -> None:
-        """Restore file manager after final evaluation."""
-        pass
+        """Restore land surface model file manager to calibration period."""
+        super()._restore_file_manager_for_optimization()

@@ -807,7 +807,7 @@ class MODFLOWConfig(BaseModel):
     nlay: int = Field(default=1, alias='MODFLOW_NLAY', ge=1, le=100)
     nrow: int = Field(default=1, alias='MODFLOW_NROW', ge=1, le=10000)
     ncol: int = Field(default=1, alias='MODFLOW_NCOL', ge=1, le=10000)
-    cell_size: float = Field(default=1000.0, alias='MODFLOW_CELL_SIZE', gt=0)
+    cell_size: Optional[float] = Field(default=None, alias='MODFLOW_CELL_SIZE', gt=0)
 
     # Aquifer properties
     k: float = Field(default=5.0, alias='MODFLOW_K', gt=0)
@@ -1351,6 +1351,7 @@ class ModelConfig(BaseModel):
     # Required model selection
     hydrological_model: Union[str, List[str]] = Field(alias='HYDROLOGICAL_MODEL')
     routing_model: Optional[str] = Field(default=None, alias='ROUTING_MODEL')
+    groundwater_model: Optional[str] = Field(default=None, alias='GROUNDWATER_MODEL')
     fire_model: Optional[str] = Field(default=None, alias='FIRE_MODEL')
 
     # Model-specific configurations (optional, validated only if model is selected)
@@ -1459,6 +1460,15 @@ class ModelConfig(BaseModel):
                 values['mizuroute'] = MizuRouteConfig()
             elif routing_upper == 'DROUTE' and values.get('droute') is None:
                 values['droute'] = DRouteConfig()
+
+        # Auto-create groundwater model config if needed
+        gw_model = values.get('GROUNDWATER_MODEL') or values.get('groundwater_model')
+        if gw_model:
+            gw_upper = str(gw_model).upper()
+            if gw_upper == 'MODFLOW' and values.get('modflow') is None:
+                values['modflow'] = MODFLOWConfig()
+            elif gw_upper == 'PARFLOW' and values.get('parflow') is None:
+                values['parflow'] = ParFlowConfig()
 
         # Auto-create fire model config if needed
         fire_model = values.get('FIRE_MODEL') or values.get('fire_model')
