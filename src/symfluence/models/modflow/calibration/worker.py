@@ -34,9 +34,10 @@ RECHARGE_VARIABLES = {
     'MESH': 'DRAINAGE',
 }
 
-# Map land surface model names to their surface runoff variables
-SURFACE_RUNOFF_VARIABLES = {
-    'SUMMA': 'scalarSurfaceRunoff',
+# Map land surface model names to their total routed runoff variables
+# (used for fast-flow extraction: total_runoff - drainage = fast flow)
+TOTAL_RUNOFF_VARIABLES = {
+    'SUMMA': 'averageRoutedRunoff',
     'CLM': 'QOVER',
     'MESH': 'RUNOFF',
 }

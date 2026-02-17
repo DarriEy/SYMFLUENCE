@@ -77,6 +77,9 @@ class MODFLOWRunner(BaseModelRunner):
         """
         logger.info(f"Running MODFLOW 6 for domain: {self.config.domain.name}")
 
+        # Prepare coupled recharge from upstream land surface model
+        self._prepare_coupled_recharge()
+
         with symfluence_error_handler(
             "MODFLOW 6 model execution",
             logger,
@@ -147,6 +150,55 @@ class MODFLOWRunner(BaseModelRunner):
             self._verify_output()
 
             return self.output_dir
+
+    def _prepare_coupled_recharge(self) -> None:
+        """Extract recharge from upstream land surface model output.
+
+        Checks ``coupling_source`` in MODFLOW config. If a source model
+        is configured (e.g. SUMMA), uses SUMMAToMODFLOWCoupler to read
+        its output, convert soil drainage to MODFLOW recharge, and write
+        the gwf.rch file into the settings directory.
+        """
+        coupling_source = self._get_config_value(
+            lambda: self.config.model.modflow.coupling_source if self.config.model.modflow else None,
+            default=None,
+        )
+        if not coupling_source or str(coupling_source).lower() in ('none', 'default', ''):
+            logger.debug("No coupling source configured — skipping recharge preparation")
+            return
+
+        coupling_source = str(coupling_source).upper()
+        logger.info(f"Preparing coupled recharge from {coupling_source}")
+
+        # Locate upstream model output
+        experiment_id = self.config.domain.experiment_id
+        source_output_dir = (
+            self.project_dir / "simulations" / experiment_id / coupling_source
+        )
+        if not source_output_dir.exists():
+            logger.warning(
+                f"Coupling source output directory not found: {source_output_dir}. "
+                "Skipping recharge extraction — MODFLOW will use existing RCH file."
+            )
+            return
+
+        from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
+
+        recharge_var = self._get_config_value(
+            lambda: self.config.model.modflow.recharge_variable,
+            default='scalarSoilDrainage',
+        )
+
+        coupler = SUMMAToMODFLOWCoupler(self.config_dict, logger_instance=logger)
+        recharge_series = coupler.extract_recharge_from_summa(
+            source_output_dir, variable=recharge_var,
+        )
+
+        rch_path = self.settings_dir / "gwf.rch"
+        self.settings_dir.mkdir(parents=True, exist_ok=True)
+        coupler.write_modflow_recharge_rch(recharge_series, rch_path)
+
+        logger.info(f"Wrote coupled recharge ({len(recharge_series)} periods) to {rch_path}")
 
     def _setup_sim_directory(self, sim_dir: Path) -> None:
         """Copy all MODFLOW input files to simulation directory."""

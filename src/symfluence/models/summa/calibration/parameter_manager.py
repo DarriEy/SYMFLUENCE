@@ -122,11 +122,14 @@ class SUMMAParameterManager(BaseParameterManager):
         """
         Enforce physical constraints between parameters to prevent SUMMA crashes.
 
-        Constraints enforced:
+        Constraints enforced (soil moisture ordering):
         1. theta_sat > theta_res (min gap 0.05)
         2. theta_sat > fieldCapacity (if known)
         3. fieldCapacity > theta_res (if known)
         4. critSoilTranspire > critSoilWilting
+        5. fieldCapacity > critSoilWilting (min gap 0.01)
+        5b. critSoilWilting > theta_res (min gap 0.01)
+        6. albedoMax >= albedoMinWinter
         """
         validated = params.copy()
 
@@ -194,6 +197,46 @@ class SUMMAParameterManager(BaseParameterManager):
                     new_val = crit_trans - 0.01
                     if new_val < 0: new_val = 0.0
                     validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', new_val)
+
+        # 4. fieldCapacity > critSoilWilting — wilting point must be below
+        #    field capacity or the soil column becomes numerically unstable
+        fc = get_scalar('fieldCapacity', {**full_params, **validated})
+        crit_wilt = get_scalar('critSoilWilting', {**full_params, **validated})
+        if fc is not None and crit_wilt is not None:
+            if fc < (crit_wilt + 0.01):
+                if 'critSoilWilting' in validated:
+                    new_val = fc - 0.01
+                    if new_val < 0: new_val = 0.0
+                    validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', new_val)
+                elif 'fieldCapacity' in validated:
+                    new_val = crit_wilt + 0.01
+                    validated['fieldCapacity'] = self._format_parameter_value('fieldCapacity', new_val)
+
+        # 4b. critSoilWilting > theta_res — residual moisture must be below
+        #     wilting point for consistent soil moisture ordering
+        crit_wilt = get_scalar('critSoilWilting', {**full_params, **validated})
+        theta_res = get_scalar('theta_res', {**full_params, **validated})
+        if crit_wilt is not None and theta_res is not None:
+            if crit_wilt < (theta_res + 0.01):
+                if 'theta_res' in validated:
+                    new_val = crit_wilt - 0.01
+                    if new_val < 0.001: new_val = 0.001
+                    validated['theta_res'] = self._format_parameter_value('theta_res', new_val)
+                elif 'critSoilWilting' in validated:
+                    new_val = theta_res + 0.01
+                    validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', new_val)
+
+        # 5. albedoMax >= albedoMinWinter — minimum winter albedo cannot
+        #    exceed the maximum albedo or SUMMA snow calculations fail
+        albedo_max = get_scalar('albedoMax', full_params)
+        albedo_min_w = get_scalar('albedoMinWinter', full_params)
+
+        if albedo_max is not None and albedo_min_w is not None:
+            if albedo_min_w > albedo_max:
+                if 'albedoMinWinter' in validated:
+                    validated['albedoMinWinter'] = self._format_parameter_value('albedoMinWinter', albedo_max)
+                elif 'albedoMax' in validated:
+                    validated['albedoMax'] = self._format_parameter_value('albedoMax', albedo_min_w)
 
         return validated
 

@@ -50,6 +50,20 @@ class ModelManager(BaseManager):
         use_droute = routing_upper == 'DROUTE'
         use_troute = routing_upper in ('TROUTE', 'T-ROUTE', 'T_ROUTE')
 
+        # Add groundwater model if configured (e.g. GROUNDWATER_MODEL: MODFLOW)
+        gw_model = self._get_config_value(
+            lambda: self.config.model.groundwater_model,
+            default=None,
+        )
+        if gw_model:
+            gw_upper = str(gw_model).upper()
+            if gw_upper not in configured_models:
+                configured_models.append(gw_upper)
+                self.logger.info(
+                    f"Adding groundwater model {gw_upper} to workflow "
+                    f"(from GROUNDWATER_MODEL config)"
+                )
+
         for model in configured_models:
             if model not in execution_list:
                 execution_list.append(model)

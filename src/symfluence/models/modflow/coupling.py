@@ -223,6 +223,62 @@ class SUMMAToMODFLOWCoupler:
         series = series.fillna(0.0)
         return series
 
+    def extract_fast_runoff(
+        self,
+        summa_output_dir: Path,
+        total_var: str = 'averageRoutedRunoff',
+        drainage_var: str = 'scalarSoilDrainage',
+    ) -> pd.Series:
+        """Extract fast runoff = total routed runoff minus soil drainage.
+
+        In the coupled SUMMA-MODFLOW setup, soil drainage feeds MODFLOW as
+        recharge.  The remaining SUMMA runoff (surface + lateral subsurface)
+        is the fast-flow component that bypasses the groundwater model.
+
+        Args:
+            summa_output_dir: Path to SUMMA output directory
+            total_var: SUMMA total runoff variable (m/s)
+            drainage_var: SUMMA soil drainage variable (m/s)
+
+        Returns:
+            Fast runoff in m/s (daily) with datetime index
+        """
+        ds_total, _ = self._open_summa_variable(summa_output_dir, total_var)
+        total = ds_total[total_var]
+        for dim in list(total.dims):
+            if dim != 'time' and total.sizes[dim] == 1:
+                total = total.squeeze(dim)
+        times = pd.to_datetime(ds_total['time'].values)
+        total_series = pd.Series(total.values, index=times)
+        ds_total.close()
+
+        ds_drain, _ = self._open_summa_variable(summa_output_dir, drainage_var)
+        drain = ds_drain[drainage_var]
+        for dim in list(drain.dims):
+            if dim != 'time' and drain.sizes[dim] == 1:
+                drain = drain.squeeze(dim)
+        drain_series = pd.Series(drain.values, index=pd.to_datetime(ds_drain['time'].values))
+        ds_drain.close()
+
+        # Resample both to daily
+        for s in [total_series, drain_series]:
+            if len(s) > 1:
+                dt = (s.index[1] - s.index[0]).total_seconds()
+                if dt < 86400:
+                    total_series = total_series.resample('D').mean()
+                    drain_series = drain_series.resample('D').mean()
+                    break
+
+        fast = (total_series - drain_series).clip(lower=0.0).fillna(0.0)
+        fast.name = 'fast_runoff_m_s'
+
+        self.logger.info(
+            f"Fast runoff: mean={fast.mean():.6e} m/s, "
+            f"total routed: {total_series.mean():.6e}, "
+            f"drainage: {drain_series.mean():.6e}"
+        )
+        return fast
+
     def combine_flows(
         self,
         surface_runoff_kg_m2_s: pd.Series,

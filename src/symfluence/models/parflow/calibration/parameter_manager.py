@@ -22,7 +22,7 @@ cached hourly ERA5 data using the new snow model parameters.
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 
 import numpy as np
@@ -191,22 +191,33 @@ class ParFlowParameterManager(BaseParameterManager):
         """Return ParFlow parameter names from config."""
         return self.pf_params
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Return ParFlow parameter bounds, with optional config overrides."""
-        bounds: Dict[str, Dict[str, float]] = {
-            k: {'min': float(v['min']), 'max': float(v['max'])}
+        bounds: Dict[str, Dict[str, Any]] = {
+            k: {
+                'min': float(v['min']),
+                'max': float(v['max']),
+                'transform': v.get('transform', 'linear'),
+            }
             for k, v in PARFLOW_DEFAULT_BOUNDS.items()
         }
 
-        # Allow config overrides
-        config_bounds = self.config.get('PARFLOW_PARAM_BOUNDS') if isinstance(self.config, dict) else None
+        # Allow config overrides (support both dict and Pydantic config)
+        config_bounds = None
+        if isinstance(self.config, dict):
+            config_bounds = self.config.get('PARFLOW_PARAM_BOUNDS')
+        elif hasattr(self.config, 'get'):
+            config_bounds = self.config.get('PARFLOW_PARAM_BOUNDS')
+
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified ParFlow parameter bounds")
             for param_name, param_bounds in config_bounds.items():
                 if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
+                    transform = bounds.get(param_name, {}).get('transform', 'linear')
                     bounds[param_name] = {
                         'min': float(param_bounds[0]),
                         'max': float(param_bounds[1]),
+                        'transform': transform,
                     }
 
         return bounds

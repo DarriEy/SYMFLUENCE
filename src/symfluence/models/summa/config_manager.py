@@ -201,6 +201,56 @@ class SummaConfigManager(PathResolverMixin):
                         f.writelines(new_lines)
                     self.logger.info(f"Updated outputControl.txt with TWS variables: {required_vars}")
 
+            # Ensure coupling variables are in outputControl if a groundwater model is configured
+            gw_model = self.config_dict.get('GROUNDWATER_MODEL', '')
+            if gw_model and str(gw_model).upper() not in ('', 'NONE'):
+                output_control_path = settings_path / 'outputControl.txt'
+                if output_control_path.exists():
+                    with open(output_control_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    coupling_vars = {
+                        'scalarSoilDrainage': '1',
+                        'scalarSurfaceRunoff': '1',
+                    }
+                    added = []
+                    for var, freq in coupling_vars.items():
+                        if var not in content:
+                            content += f"{var} | {freq}\n"
+                            added.append(var)
+
+                    if added:
+                        with open(output_control_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        self.logger.info(
+                            f"Added groundwater coupling variables to outputControl.txt: {added}"
+                        )
+
+                # Disable SUMMA's internal aquifer when coupling with an external
+                # groundwater model.  bigBuckt routes soil drainage through an
+                # internal aquifer, which double-counts recharge that also feeds
+                # MODFLOW.  noXplict passes drainage straight through so only
+                # MODFLOW handles the groundwater component.
+                decisions_path = settings_path / 'modelDecisions.txt'
+                if decisions_path.exists():
+                    with open(decisions_path, 'r', encoding='utf-8') as f:
+                        dec_content = f.read()
+
+                    if 'bigBuckt' in dec_content:
+                        import re
+                        dec_content_new = re.sub(
+                            r'(groundwatr\s+)\S+',
+                            r'\1noXplict',
+                            dec_content,
+                        )
+                        if dec_content_new != dec_content:
+                            with open(decisions_path, 'w', encoding='utf-8') as f:
+                                f.write(dec_content_new)
+                            self.logger.info(
+                                "Set groundwatr=noXplict for external GW coupling "
+                                "(disabled SUMMA internal aquifer to avoid double-counting)"
+                            )
+
             self.logger.info(f"SUMMA base settings copied to {settings_path}")
         except FileNotFoundError as e:
             self.logger.error(f"Source file or directory not found: {e}")

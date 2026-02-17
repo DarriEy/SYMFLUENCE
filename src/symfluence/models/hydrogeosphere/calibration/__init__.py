@@ -9,3 +9,4 @@ Components:
     worker: HGSWorker — model execution and metric calculation
     targets: HGSStreamflowTarget — streamflow extraction for calibration
 """
+from .targets import HGSStreamflowTarget  # noqa: F401 - triggers target registration

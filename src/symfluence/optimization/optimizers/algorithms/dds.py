@@ -142,14 +142,12 @@ class DDSAlgorithm(OptimizationAlgorithm):
                     perturbation = current_r * np.random.standard_normal()
                     x_new[i] = x_best[i] + perturbation
 
-                    # Reflect at boundaries
-                    if x_new[i] < 0:
-                        x_new[i] = -x_new[i]
-                    if x_new[i] > 1:
-                        x_new[i] = 2 - x_new[i]
-
-                    # Clip to bounds
-                    x_new[i] = np.clip(x_new[i], 0, 1)
+                    # Reflect at boundaries (use while loop for large perturbations)
+                    while x_new[i] < 0 or x_new[i] > 1:
+                        if x_new[i] < 0:
+                            x_new[i] = -x_new[i]
+                        if x_new[i] > 1:
+                            x_new[i] = 2.0 - x_new[i]
 
             # Evaluate candidate
             f_new = evaluate_solution(x_new, 0)

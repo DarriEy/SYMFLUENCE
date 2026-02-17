@@ -73,13 +73,22 @@ class MODFLOWPreProcessor:
             if mf_cfg:
                 attr = key.lower()
                 if hasattr(mf_cfg, attr):
-                    return getattr(mf_cfg, attr)
+                    pydantic_val = getattr(mf_cfg, attr)
+                    if pydantic_val is not None:
+                        return pydantic_val
         except (AttributeError, TypeError):
             pass
         return default
 
     def _get_catchment_area_m2(self) -> float:
-        """Get catchment area in m2."""
+        """Get catchment area in m2.
+
+        Resolution order:
+        1. Explicit CATCHMENT_AREA config key (km2)
+        2. config.domain.catchment_area
+        3. Auto-detect from watershed shapefile (UTM projection)
+        4. Fallback default (27 km2)
+        """
         area_km2 = self.config_dict.get('CATCHMENT_AREA')
         if area_km2 is None:
             try:
@@ -87,9 +96,35 @@ class MODFLOWPreProcessor:
             except (AttributeError, TypeError):
                 pass
         if area_km2 is None:
-            self.logger.warning("CATCHMENT_AREA not set, using default 2210 km2")
-            area_km2 = 2210.0
+            # Try to compute from watershed shapefile
+            area_km2 = self._detect_catchment_area_km2()
+        if area_km2 is None:
+            self.logger.warning("CATCHMENT_AREA not set and no shapefile found, using default 27 km2")
+            area_km2 = 27.0
         return float(area_km2) * 1e6
+
+    def _detect_catchment_area_km2(self):
+        """Detect catchment area from the watershed shapefile."""
+        try:
+            import geopandas as gpd
+
+            domain_name = self.config_dict.get('DOMAIN_NAME', '')
+            basin_path = (
+                self.project_dir / 'shapefiles' / 'river_basins'
+                / f"{domain_name}_riverBasins_lumped.shp"
+            )
+            if not basin_path.exists():
+                return None
+
+            gdf = gpd.read_file(str(basin_path))
+            # Project to a metric CRS for accurate area calculation
+            gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
+            area_km2 = gdf_proj.geometry.area.sum() / 1e6
+            self.logger.info(f"Auto-detected catchment area from shapefile: {area_km2:.1f} km2")
+            return area_km2
+        except Exception as e:
+            self.logger.debug(f"Could not auto-detect catchment area: {e}")
+            return None
 
     def _get_time_info(self):
         """Get simulation time range and number of stress periods."""
@@ -134,7 +169,7 @@ class MODFLOWPreProcessor:
         nrow = int(self._get_modflow_cfg('NROW', 1))
         ncol = int(self._get_modflow_cfg('NCOL', 1))
         k = float(self._get_modflow_cfg('K', 5.0))
-        sy = float(self._get_modflow_cfg('SY', 0.15))
+        sy = float(self._get_modflow_cfg('SY', 0.05))
         ss = float(self._get_modflow_cfg('SS', 1e-5))
         top = float(self._get_modflow_cfg('TOP', 1500.0))
         bot = float(self._get_modflow_cfg('BOT', 1400.0))
@@ -148,7 +183,10 @@ class MODFLOWPreProcessor:
             drain_elev = (top + bot) / 2.0
         else:
             drain_elev = float(drain_elev)
-        drain_cond = float(self._get_modflow_cfg('DRAIN_CONDUCTANCE', 50.0))
+        # Scale drain conductance with catchment area to target a ~100-day
+        # aquifer time constant (τ = SY × A / C) with the default SY.
+        drain_cond_default = max(50.0, area_m2 * 0.0005)
+        drain_cond = float(self._get_modflow_cfg('DRAIN_CONDUCTANCE', drain_cond_default))
         nstp = int(self._get_modflow_cfg('NSTP', 1))
 
         n_periods, sp_length, n_days = self._get_time_info()
