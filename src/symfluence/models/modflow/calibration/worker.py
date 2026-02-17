@@ -1,0 +1,335 @@
+"""
+Coupled Groundwater Worker
+
+Executes a land surface model + MODFLOW coupled calibration pipeline.
+The land surface model is determined by LAND_SURFACE_MODEL config key
+and its worker is loaded dynamically from the OptimizerRegistry.
+
+When dCoupler is available, uses CouplingGraphBuilder to construct and
+execute the coupling graph. Otherwise falls back to sequential coupling:
+1. Run land surface model → extract recharge
+2. Write MODFLOW recharge time-series → run MODFLOW
+3. Combine surface runoff + drain discharge → total streamflow
+
+Config keys:
+    LAND_SURFACE_MODEL: Land surface model name (SUMMA, CLM, MESH, etc.)
+    GROUNDWATER_MODEL: Must be MODFLOW
+    COUPLING_MODE: 'dcoupler' or 'sequential' (default: auto-detect)
+"""
+
+import logging
+from pathlib import Path
+from typing import Dict, Any, Optional
+
+from symfluence.optimization.workers.base_worker import BaseWorker
+from symfluence.optimization.registry import OptimizerRegistry
+
+logger = logging.getLogger(__name__)
+
+# Map land surface model names to their recharge output variables
+# and the SUMMA-specific variable for extraction
+RECHARGE_VARIABLES = {
+    'SUMMA': 'scalarSoilDrainage',
+    'CLM': 'QCHARGE',
+    'MESH': 'DRAINAGE',
+}
+
+# Map land surface model names to their surface runoff variables
+SURFACE_RUNOFF_VARIABLES = {
+    'SUMMA': 'scalarSurfaceRunoff',
+    'CLM': 'QOVER',
+    'MESH': 'RUNOFF',
+}
+
+
+@OptimizerRegistry.register_worker('COUPLED_GW')
+class CoupledGWWorker(BaseWorker):
+    """Worker for coupled land-surface + MODFLOW calibration.
+
+    Dynamically loads the land surface model's worker and orchestrates
+    sequential execution with MODFLOW groundwater coupling. Uses dCoupler
+    for graph-based coupling when available.
+    """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
+        super().__init__(config, logger)
+        self._land_worker = None
+        self._land_model_name = None
+
+    @property
+    def land_model_name(self) -> str:
+        """Get land surface model name from config."""
+        if self._land_model_name is None:
+            config = self.config or {}
+            self._land_model_name = config.get('LAND_SURFACE_MODEL', 'SUMMA').upper()
+        assert self._land_model_name is not None
+        return self._land_model_name
+
+    @property
+    def land_worker(self) -> BaseWorker:
+        """Lazy-load the land surface model's worker."""
+        if self._land_worker is None:
+            worker_cls = OptimizerRegistry.get_worker(self.land_model_name)
+            if worker_cls is None:
+                raise ValueError(
+                    f"No worker registered for land surface model "
+                    f"'{self.land_model_name}'"
+                )
+            self._land_worker = worker_cls(config=self.config, logger=self.logger)
+        assert self._land_worker is not None
+        return self._land_worker
+
+    def _use_dcoupler(self, config: Dict[str, Any]) -> bool:
+        """Determine if dCoupler should be used for coupling."""
+        mode = config.get('COUPLING_MODE', 'auto')
+        if mode == 'dcoupler':
+            return True
+        if mode == 'sequential':
+            return False
+        # Auto-detect
+        try:
+            from symfluence.coupling import is_dcoupler_available
+            return is_dcoupler_available()
+        except ImportError:
+            return False
+
+    def apply_parameters(
+        self,
+        params: Dict[str, float],
+        settings_dir: Path,
+        **kwargs,
+    ) -> bool:
+        """Apply parameters to land surface and MODFLOW files."""
+        from .parameter_manager import MODFLOW_DEFAULT_BOUNDS
+
+        config = kwargs.get('config', self.config or {})
+        modflow_param_names = set(MODFLOW_DEFAULT_BOUNDS.keys())
+        modflow_params_str = config.get('MODFLOW_PARAMS_TO_CALIBRATE', '')
+        if modflow_params_str:
+            modflow_param_names.update(
+                p.strip() for p in str(modflow_params_str).split(',') if p.strip()
+            )
+
+        land_params = {k: v for k, v in params.items() if k not in modflow_param_names}
+        modflow_params = {k: v for k, v in params.items() if k in modflow_param_names}
+
+        success = True
+
+        # Apply land surface parameters
+        if land_params:
+            land_settings = self._resolve_land_settings(settings_dir)
+            success = self.land_worker.apply_parameters(
+                land_params, land_settings, **kwargs
+            )
+
+        # Apply MODFLOW parameters by rewriting text files
+        if modflow_params and success:
+            modflow_settings = self._resolve_modflow_settings(settings_dir)
+            try:
+                from .parameter_manager import CoupledGWParameterManager
+                pm = CoupledGWParameterManager(
+                    config, self.logger, settings_dir,
+                )
+                pm.modflow_settings_dir = modflow_settings
+                success = pm._update_modflow_files(modflow_params)
+            except Exception as e:
+                self.logger.error(f"Failed to apply MODFLOW parameters: {e}")
+                success = False
+
+        return success
+
+    def run_model(
+        self,
+        config: Dict[str, Any],
+        settings_dir: Path,
+        output_dir: Path,
+        **kwargs,
+    ) -> bool:
+        """Run the coupled land-surface + MODFLOW pipeline.
+
+        Uses dCoupler graph when available, falls back to sequential coupling.
+        """
+        if self._use_dcoupler(config):
+            return self._run_dcoupler(config, settings_dir, output_dir, **kwargs)
+        return self._run_sequential(config, settings_dir, output_dir, **kwargs)
+
+    def _run_dcoupler(
+        self,
+        config: Dict[str, Any],
+        settings_dir: Path,
+        output_dir: Path,
+        **kwargs,
+    ) -> bool:
+        """Run coupled models via dCoupler CouplingGraph."""
+        try:
+            from symfluence.coupling.graph_builder import CouplingGraphBuilder
+
+            builder = CouplingGraphBuilder()
+            # Graph builder reads HYDROLOGICAL_MODEL for the land component,
+            # so override it with the actual land surface model name.
+            # Also remove ROUTING_MODEL if set to 'none' so the graph builder
+            # doesn't try to look up 'NONE' as a model.
+            graph_config = dict(config)
+            graph_config['HYDROLOGICAL_MODEL'] = self.land_model_name
+            graph_config['GROUNDWATER_MODEL'] = 'MODFLOW'
+            routing = str(graph_config.get('ROUTING_MODEL', '')).upper()
+            if routing in ('NONE', 'N/A', ''):
+                graph_config.pop('ROUTING_MODEL', None)
+            graph = builder.build(graph_config)
+
+            outputs = graph.forward(
+                external_inputs={},
+                n_timesteps=kwargs.get('n_timesteps', 1),
+                dt=kwargs.get('dt', 86400.0),
+            )
+
+            # Save outputs
+            import torch
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for comp_name, comp_outputs in outputs.items():
+                comp_dir = output_dir / comp_name.upper()
+                comp_dir.mkdir(parents=True, exist_ok=True)
+                for flux_name, tensor in comp_outputs.items():
+                    torch.save(tensor, comp_dir / f"{flux_name}.pt")
+
+            self.logger.info("Coupled run via dCoupler completed successfully")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"dCoupler execution failed: {e}")
+            self.logger.info("Falling back to sequential coupling")
+            return self._run_sequential(config, settings_dir, output_dir, **kwargs)
+
+    def _run_sequential(
+        self,
+        config: Dict[str, Any],
+        settings_dir: Path,
+        output_dir: Path,
+        **kwargs,
+    ) -> bool:
+        """Run models sequentially with file-based coupling."""
+        from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
+        from symfluence.models.modflow.runner import MODFLOWRunner
+
+        land_settings = self._resolve_land_settings(settings_dir)
+        modflow_settings = self._resolve_modflow_settings(settings_dir)
+
+        land_output = output_dir / self.land_model_name
+        modflow_output = output_dir / 'MODFLOW'
+        land_output.mkdir(parents=True, exist_ok=True)
+        modflow_output.mkdir(parents=True, exist_ok=True)
+
+        # Step 1: Run land surface model
+        self.logger.info(f"Running {self.land_model_name} (land surface)...")
+        # Filter kwargs to avoid duplicate keyword arguments when delegating
+        land_kwargs = {
+            k: v for k, v in kwargs.items()
+            if k not in ('sim_dir', 'output_dir', 'settings_dir')
+        }
+        land_success = self.land_worker.run_model(
+            config, land_settings, land_output,
+            sim_dir=land_output, **land_kwargs,
+        )
+        if not land_success:
+            self.logger.error(
+                f"{self.land_model_name} execution failed; aborting coupled run"
+            )
+            return False
+
+        # Step 2: Extract recharge and write per-period gwf.rch
+        self.logger.info(
+            f"Coupling {self.land_model_name} recharge to MODFLOW..."
+        )
+        coupler = SUMMAToMODFLOWCoupler(config, self.logger)
+        recharge_var = RECHARGE_VARIABLES.get(
+            self.land_model_name, 'scalarSoilDrainage'
+        )
+        try:
+            recharge = coupler.extract_recharge_from_summa(
+                land_output, variable=recharge_var,
+            )
+            rch_path = modflow_settings / 'gwf.rch'
+            coupler.write_modflow_recharge_rch(recharge, rch_path)
+        except Exception as e:
+            self.logger.error(f"Recharge coupling failed: {e}")
+            return False
+
+        # Step 5: Run MODFLOW from the output directory.
+        # Override the runner's settings_dir so _setup_sim_directory copies
+        # from our worker settings (which have TAS6 recharge), not the
+        # project-level preprocessor defaults.
+        self.logger.info("Running MODFLOW 6 (groundwater)...")
+        try:
+            runner = MODFLOWRunner(config, self.logger)
+            runner.settings_dir = modflow_settings
+            result = runner.run_modflow(sim_dir=modflow_output)
+            if result is None:
+                return False
+        except Exception as e:
+            self.logger.error(f"MODFLOW execution failed: {e}")
+            return False
+
+        self.logger.info(
+            f"Coupled {self.land_model_name}-MODFLOW run completed successfully"
+        )
+        return True
+
+    def calculate_metrics(
+        self,
+        output_dir: Path,
+        config: Dict[str, Any],
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Calculate metrics from combined land-surface + MODFLOW output."""
+        try:
+            from .targets import CoupledGWStreamflowTarget
+
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            domain_name = config.get('DOMAIN_NAME')
+            project_dir = data_dir / f"domain_{domain_name}"
+
+            target = CoupledGWStreamflowTarget(config, project_dir, self.logger)
+            metrics = target.calculate_metrics(output_dir, calibration_only=True)
+
+            if metrics:
+                return metrics
+
+            self.logger.warning("Target returned empty metrics")
+            return {'kge': self.penalty_score}
+
+        except Exception as e:
+            self.logger.error(f"Error calculating coupled metrics: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return {'kge': self.penalty_score}
+
+    def _resolve_land_settings(self, settings_dir: Path) -> Path:
+        """Resolve land surface model settings directory."""
+        candidate = settings_dir / self.land_model_name
+        return candidate if candidate.exists() else settings_dir
+
+    def _resolve_modflow_settings(self, settings_dir: Path) -> Path:
+        """Resolve MODFLOW settings directory."""
+        candidate = settings_dir / 'MODFLOW'
+        if candidate.exists():
+            return candidate
+        candidate = settings_dir.parent / 'MODFLOW'
+        return candidate if candidate.exists() else settings_dir
+
+    @staticmethod
+    def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Static worker function for parallel execution."""
+        return _evaluate_coupled_gw_worker(task_data)
+
+
+def _evaluate_coupled_gw_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Module-level worker function for MPI/ProcessPool execution."""
+    from symfluence.optimization.workers.base_worker import WorkerTask
+    worker = CoupledGWWorker(config=task_data.get('config'))
+    task = WorkerTask.from_legacy_dict(task_data)
+    result = worker.evaluate(task)
+    return result.to_legacy_dict()

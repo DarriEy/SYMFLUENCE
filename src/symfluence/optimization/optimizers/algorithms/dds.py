@@ -60,6 +60,13 @@ class DDSAlgorithm(OptimizationAlgorithm):
         """
         self.logger.debug(f"Starting DDS optimization with {n_params} parameters")
 
+        # Checkpoint callback for crash recovery (saves every N iterations)
+        save_checkpoint = kwargs.get('save_checkpoint')
+        checkpoint_interval = self._get_config_value(
+            lambda: self.config.optimization.dds.checkpoint_interval,
+            default=50, dict_key='DDS_CHECKPOINT_INTERVAL'
+        )
+
         # DDS perturbation range (default 0.2, higher values explore more)
         r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
 
@@ -72,9 +79,16 @@ class DDSAlgorithm(OptimizationAlgorithm):
         initial_guess = kwargs.get('initial_guess')
         if initial_guess is not None and len(initial_guess) == n_params:
             x_best = np.array(initial_guess, dtype=float)
-            self.logger.debug("Using provided initial guess for DDS")
+            self.logger.info(
+                f"DDS using provided initial guess ({n_params} params, "
+                f"mean={x_best.mean():.4f}, range=[{x_best.min():.4f}, {x_best.max():.4f}])"
+            )
         else:
             x_best = np.random.uniform(0, 1, n_params)
+            self.logger.info(
+                f"DDS using RANDOM start (initial_guess={'None' if initial_guess is None else f'len={len(initial_guess)}'}, "
+                f"n_params={n_params})"
+            )
 
         f_best = evaluate_solution(x_best, 0)
 
@@ -161,6 +175,10 @@ class DDSAlgorithm(OptimizationAlgorithm):
             # Log progress every 10 iterations or at the end to reduce log spam
             if iteration % 10 == 0 or iteration == self.max_iterations:
                 log_progress(self.name, iteration, f_best)
+
+            # Periodic checkpoint for crash recovery
+            if save_checkpoint and iteration % checkpoint_interval == 0:
+                save_checkpoint(self.name, iteration)
 
         return {
             'best_solution': x_best,

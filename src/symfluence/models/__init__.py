@@ -60,7 +60,8 @@ _model_names = [
     'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
     'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm',
     'modflow', 'parflow', 'xinanjiang', 'snow17',
-    'swat', 'mhm', 'crhm',
+    'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
+    'pihm', 'hydrogeosphere',
 ]
 
 import importlib as _importlib

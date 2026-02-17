@@ -1592,10 +1592,21 @@ class BaseModelOptimizer(
                 crash_stats=self.get_crash_stats()
             )
 
+        # Checkpoint callback for long-running algorithms
+        def save_checkpoint(algorithm_name: str, iteration: int):
+            """Save intermediate results to disk for crash recovery."""
+            try:
+                self.save_results(algorithm_name, standard_filename=True)
+                self.save_best_params(algorithm_name)
+                self.logger.debug(f"Checkpoint saved at iteration {iteration}")
+            except Exception as e:
+                self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
+
         # Additional callbacks for specific algorithms
         kwargs = {
             'log_initial_population': self.log_initial_population,
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
+            'save_checkpoint': save_checkpoint,
         }
 
         # Seed optimization with best previous result (warm-start) or def file defaults
@@ -1616,6 +1627,13 @@ class BaseModelOptimizer(
             if initial_params_dict:
                 initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
                 kwargs['initial_guess'] = initial_guess
+                self.logger.info(
+                    f"Initial guess prepared: {len(initial_guess)} params, "
+                    f"mean={initial_guess.mean():.4f}, "
+                    f"sample: {list(initial_params_dict.items())[:3]}"
+                )
+            else:
+                self.logger.warning("No initial parameter guess available (dict was None/empty)")
         except (KeyError, AttributeError, ValueError) as e:
             self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
 

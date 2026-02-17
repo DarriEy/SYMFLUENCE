@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
 from .worker import ParFlowWorker  # noqa: F401 - triggers worker registration
+from .targets import ParFlowStreamflowTarget  # noqa: F401 - triggers target registration
 
 
 @OptimizerRegistry.register_optimizer('PARFLOW')

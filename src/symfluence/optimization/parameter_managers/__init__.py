@@ -40,6 +40,9 @@ def _register_parameter_managers():
         'symfluence.models.gnn.calibration.parameter_manager',  # ML parameter manager
         'symfluence.models.sacsma.calibration.parameter_manager',
         'symfluence.models.xinanjiang.calibration.parameter_manager',
+        'symfluence.models.modflow.calibration.parameter_manager',
+        'symfluence.models.pihm.calibration.parameter_manager',
+        'symfluence.models.hydrogeosphere.calibration.parameter_manager',
     ]
 
     for module_path in canonical_modules:
@@ -69,6 +72,9 @@ from symfluence.models.summa.calibration.parameter_manager import SUMMAParameter
 from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
 from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
 from symfluence.models.xinanjiang.calibration.parameter_manager import XinanjiangParameterManager
+from symfluence.models.modflow.calibration.parameter_manager import CoupledGWParameterManager
+from symfluence.models.pihm.calibration.parameter_manager import PIHMParameterManager
+from symfluence.models.hydrogeosphere.calibration.parameter_manager import HGSParameterManager
 
 __all__ = [
     'FUSEParameterManager',
@@ -82,4 +88,7 @@ __all__ = [
     'MLParameterManager',
     'SacSmaParameterManager',
     'XinanjiangParameterManager',
+    'CoupledGWParameterManager',
+    'PIHMParameterManager',
+    'HGSParameterManager',
 ]

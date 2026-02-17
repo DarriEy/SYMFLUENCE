@@ -129,8 +129,8 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             self.logger.warning(f"CDO merge failed or CDO not available: {e}. Falling back to xarray...")
             try:
                 # Fallback to xarray (more portable but slower for huge files)
-                with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time', data_vars='all') as ds:
-                    ds.sortby('time').to_netcdf(merged_forcing_path)
+                with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time', data_vars='all', engine='h5netcdf') as ds:
+                    ds.sortby('time').to_netcdf(merged_forcing_path, engine='h5netcdf')
                 self.logger.info("Xarray merge successful")
             except Exception as xe:
                 self.logger.error(f"Xarray merge also failed: {xe}")
@@ -140,13 +140,13 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         if not merged_forcing_path.exists():
             return None
 
-        with xr.open_dataset(merged_forcing_path) as forcing:
+        with xr.open_dataset(merged_forcing_path, engine='h5netcdf') as forcing:
             forcing = forcing.convert_calendar('standard')
             if self.timeshift != 0:
                 forcing['time'] = forcing['time'] + pd.Timedelta(hours=self.timeshift)
 
             tmp_path = merged_forcing_path.with_suffix('.nc.tmp')
-            forcing.to_netcdf(tmp_path)
+            forcing.to_netcdf(tmp_path, engine='h5netcdf')
 
         os.replace(tmp_path, merged_forcing_path)
         return merged_forcing_path
@@ -225,7 +225,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             unit_conversion: Input units for conversion. If 'mm/s' or 'kg/m²/s' or 'kg m-2 s-1',
                 applies conversion factor of 3600 (seconds per hour) for hourly data.
         """
-        with xr.open_dataset(input_file_name) as ds:
+        with xr.open_dataset(input_file_name, engine='h5netcdf') as ds:
             ds = ds.copy()
 
             # Apply unit conversion

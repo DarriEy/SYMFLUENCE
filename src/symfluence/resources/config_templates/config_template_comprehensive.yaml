@@ -4525,7 +4525,271 @@ PARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N"
 PARFLOW_TIMEOUT: 3600
 
 
-# 9.8. RHESSys Model Configuration
+# 9.8. PIHM Model Configuration
+# ================================================================================
+# Penn State Integrated Hydrologic Model (MM-PIHM)
+# Finite-volume, unstructured-mesh, fully-coupled surface-subsurface model
+
+# PIHM_INSTALL_PATH — Path to PIHM installation directory
+#   Type:        str
+#   Default:     default
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_INSTALL_PATH: default
+
+# PIHM_EXE — Name of the PIHM executable
+#   Type:        str
+#   Default:     pihm
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_EXE: "pihm"
+
+# SETTINGS_PIHM_PATH — Path to PIHM settings directory
+#   Type:        str
+#   Default:     default
+#   Source:      PIHMConfig (model_configs.py)
+SETTINGS_PIHM_PATH: default
+
+# PIHM_SPATIAL_MODE — Spatial discretization mode
+#   Type:        str
+#   Default:     lumped
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_SPATIAL_MODE: lumped
+
+# PIHM_K_SAT — Saturated hydraulic conductivity (m/s)
+#   Type:        float
+#   Default:     1e-5
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_K_SAT: 1.0e-5
+
+# PIHM_POROSITY — Total porosity (-)
+#   Type:        float
+#   Default:     0.4
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_POROSITY: 0.4
+
+# PIHM_VG_ALPHA — van Genuchten alpha parameter (1/m)
+#   Type:        float
+#   Default:     1.0
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_VG_ALPHA: 1.0
+
+# PIHM_VG_N — van Genuchten n parameter (-)
+#   Type:        float
+#   Default:     2.0
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_VG_N: 2.0
+
+# PIHM_MACROPORE_K — Macropore hydraulic conductivity (m/s)
+#   Type:        float
+#   Default:     1e-4
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_MACROPORE_K: 1.0e-4
+
+# PIHM_MACROPORE_DEPTH — Macropore depth (m)
+#   Type:        float
+#   Default:     0.5
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_MACROPORE_DEPTH: 0.5
+
+# PIHM_SOIL_DEPTH — Active soil depth (m)
+#   Type:        float
+#   Default:     2.0
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_SOIL_DEPTH: 2.0
+
+# PIHM_MANNINGS_N — Manning's roughness coefficient
+#   Type:        float
+#   Default:     0.03
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_MANNINGS_N: 0.03
+
+# PIHM_INIT_GW_DEPTH — Initial groundwater depth (m)
+#   Type:        float
+#   Default:     1.0
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_INIT_GW_DEPTH: 1.0
+
+# PIHM_COUPLING_SOURCE — Source model for coupled runs
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_COUPLING_SOURCE: SUMMA
+
+# PIHM_RECHARGE_VARIABLE — SUMMA variable to use as recharge
+#   Type:        str
+#   Default:     scalarSoilDrainage
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_RECHARGE_VARIABLE: scalarSoilDrainage
+
+# PIHM_SOLVER_RELTOL — Solver relative tolerance
+#   Type:        float
+#   Default:     1e-3
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_SOLVER_RELTOL: 1.0e-3
+
+# PIHM_SOLVER_ABSTOL — Solver absolute tolerance
+#   Type:        float
+#   Default:     1e-4
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_SOLVER_ABSTOL: 1.0e-4
+
+# PIHM_TIMESTEP_SECONDS — Model timestep in seconds
+#   Type:        int
+#   Default:     60
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_TIMESTEP_SECONDS: 60
+
+# EXPERIMENT_OUTPUT_PIHM — PIHM output directory path
+#   Type:        str
+#   Default:     default
+#   Source:      PIHMConfig (model_configs.py)
+EXPERIMENT_OUTPUT_PIHM: default
+
+# PIHM_PARAMS_TO_CALIBRATE — Comma-separated list of parameters to calibrate
+#   Type:        str
+#   Default:     K_SAT,POROSITY,VG_ALPHA,VG_N,MACROPORE_K,MANNINGS_N,SOIL_DEPTH
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MACROPORE_K,MANNINGS_N,SOIL_DEPTH"
+
+# PIHM_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     3600
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_TIMEOUT: 3600
+
+
+# 9.9. HydroGeoSphere Model Configuration
+# ================================================================================
+# HydroGeoSphere (HGS) — Control-volume finite-element, fully-coupled
+# 3D variably-saturated subsurface + 2D overland + 1D channel flow model
+
+# HGS_INSTALL_PATH — Path to HGS installation directory
+#   Type:        str
+#   Default:     default
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_INSTALL_PATH: default
+
+# HGS_EXE — Name of the HGS solver executable
+#   Type:        str
+#   Default:     hgs
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_EXE: "hgs"
+
+# HGS_GROK_EXE — Name of the Grok preprocessor executable
+#   Type:        str
+#   Default:     grok
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_GROK_EXE: "grok"
+
+# SETTINGS_HGS_PATH — Path to HGS settings directory
+#   Type:        str
+#   Default:     default
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+SETTINGS_HGS_PATH: default
+
+# HGS_SPATIAL_MODE — Spatial discretization mode
+#   Type:        str
+#   Default:     lumped
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_SPATIAL_MODE: lumped
+
+# HGS_K_SAT — Saturated hydraulic conductivity (m/s)
+#   Type:        float
+#   Default:     1e-5
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_K_SAT: 1.0e-5
+
+# HGS_POROSITY — Total porosity (-)
+#   Type:        float
+#   Default:     0.4
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_POROSITY: 0.4
+
+# HGS_VG_ALPHA — van Genuchten alpha parameter (1/m)
+#   Type:        float
+#   Default:     1.0
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_VG_ALPHA: 1.0
+
+# HGS_VG_N — van Genuchten n parameter (-)
+#   Type:        float
+#   Default:     2.0
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_VG_N: 2.0
+
+# HGS_VG_SRES — Residual saturation (-)
+#   Type:        float
+#   Default:     0.1
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_VG_SRES: 0.1
+
+# HGS_SS — Specific storage (1/m)
+#   Type:        float
+#   Default:     1e-5
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_SS: 1.0e-5
+
+# HGS_MANNINGS_N — Manning's roughness coefficient
+#   Type:        float
+#   Default:     0.03
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_MANNINGS_N: 0.03
+
+# HGS_SOIL_DEPTH — Active soil depth (m)
+#   Type:        float
+#   Default:     2.0
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_SOIL_DEPTH: 2.0
+
+# HGS_DOMAIN_WIDTH — Lateral domain width (m)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_DOMAIN_WIDTH: 1000.0
+
+# HGS_COUPLING_SOURCE — Source model for coupled runs
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_COUPLING_SOURCE: SUMMA
+
+# HGS_RECHARGE_VARIABLE — SUMMA variable to use as recharge
+#   Type:        str
+#   Default:     scalarSoilDrainage
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_RECHARGE_VARIABLE: scalarSoilDrainage
+
+# HGS_SOLVER_MAX_ITERATIONS — Maximum solver iterations
+#   Type:        int
+#   Default:     25
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_SOLVER_MAX_ITERATIONS: 25
+
+# HGS_TIMESTEP_SECONDS — Model timestep in seconds
+#   Type:        int
+#   Default:     3600
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_TIMESTEP_SECONDS: 3600
+
+# EXPERIMENT_OUTPUT_HGS — HGS output directory path
+#   Type:        str
+#   Default:     default
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+EXPERIMENT_OUTPUT_HGS: default
+
+# HGS_PARAMS_TO_CALIBRATE — Comma-separated list of parameters to calibrate
+#   Type:        str
+#   Default:     K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N"
+
+# HGS_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     7200
+#   Source:      HydroGeoSphereConfig (model_configs.py)
+HGS_TIMEOUT: 7200
+
+
+# 9.10. RHESSys Model Configuration
 # ================================================================================
 
 # RHESSYS_INSTALL_PATH
@@ -5051,6 +5315,20 @@ SWAT_WARMUP_YEARS: 2
 #   Usage:      3
 SWAT_TIMEOUT: 3600
 
+# SWAT_PLAPS
+#   Type:        float
+#   Default:     0.0
+#   Source:      SWATConfig (model_configs.py)
+#   Usage:       Precipitation lapse rate (mm H2O/km)
+SWAT_PLAPS: 0.0
+
+# SWAT_TLAPS
+#   Type:        float
+#   Default:     0.0
+#   Source:      SWATConfig (model_configs.py)
+#   Usage:       Temperature lapse rate (deg C/km)
+SWAT_TLAPS: 0.0
+
 
 # 9.10. mHM Model Configuration
 # ================================================================================
@@ -5184,6 +5462,249 @@ CRHM_PARAMS_TO_CALIBRATE: basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,s
 #   Source:      CRHMConfig (model_configs.py)
 #   Usage:      3
 CRHM_TIMEOUT: 3600
+
+
+# 9.12. WRF-Hydro Model Configuration
+# ================================================================================
+
+# WRFHYDRO_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      6
+WRFHYDRO_INSTALL_PATH: default
+
+# WRFHYDRO_EXE
+#   Type:        str
+#   Default:     wrf_hydro.exe
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      5
+WRFHYDRO_EXE: "wrf_hydro.exe"
+
+# SETTINGS_WRFHYDRO_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_WRFHYDRO_PATH: default
+
+# WRFHYDRO_NAMELIST_FILE
+#   Type:        str
+#   Default:     namelist.hrldas
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_NAMELIST_FILE: "namelist.hrldas"
+
+# WRFHYDRO_HYDRO_NAMELIST
+#   Type:        str
+#   Default:     hydro.namelist
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_HYDRO_NAMELIST: "hydro.namelist"
+
+# WRFHYDRO_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_WRFHYDRO
+#   Type:        str
+#   Default:     default
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_WRFHYDRO: default
+
+# WRFHYDRO_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     REFKDT,SLOPE,OVROUGHRTFAC,RETDEPRTFAC,LKSATFAC,BEXP,DKSAT,SMCMAX
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      5
+WRFHYDRO_PARAMS_TO_CALIBRATE: REFKDT,SLOPE,OVROUGHRTFAC,RETDEPRTFAC,LKSATFAC,BEXP,DKSAT,SMCMAX
+
+# WRFHYDRO_LSM
+#   Type:        str
+#   Default:     noahmp
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_LSM: "noahmp"
+
+# WRFHYDRO_ROUTING_OPTION
+#   Type:        str
+#   Default:     gridded
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_ROUTING_OPTION: "gridded"
+
+# WRFHYDRO_CHANNEL_ROUTING
+#   Type:        str
+#   Default:     diffusive_wave
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_CHANNEL_ROUTING: "diffusive_wave"
+
+# WRFHYDRO_RESTART_FREQUENCY
+#   Type:        str
+#   Default:     monthly
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_RESTART_FREQUENCY: "monthly"
+
+# WRFHYDRO_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      WRFHydroConfig (model_configs.py)
+#   Usage:      3
+WRFHYDRO_TIMEOUT: 7200
+
+
+# 9.13. PRMS Model Configuration
+# ================================================================================
+
+# PRMS_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      6
+PRMS_INSTALL_PATH: default
+
+# PRMS_EXE
+#   Type:        str
+#   Default:     prms
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      5
+PRMS_EXE: "prms"
+
+# SETTINGS_PRMS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      5
+SETTINGS_PRMS_PATH: default
+
+# PRMS_CONTROL_FILE
+#   Type:        str
+#   Default:     control.dat
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_CONTROL_FILE: "control.dat"
+
+# PRMS_PARAMETER_FILE
+#   Type:        str
+#   Default:     params.dat
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_PARAMETER_FILE: "params.dat"
+
+# PRMS_DATA_FILE
+#   Type:        str
+#   Default:     data.dat
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_DATA_FILE: "data.dat"
+
+# PRMS_SPATIAL_MODE
+#   Type:        str
+#   Default:     semi_distributed
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_SPATIAL_MODE: "semi_distributed"
+
+# EXPERIMENT_OUTPUT_PRMS
+#   Type:        str
+#   Default:     default
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_PRMS: default
+
+# PRMS_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     soil_moist_max,soil_rechr_max,tmax_allrain,tmax_allsnow,hru_percent_imperv,carea_max,smidx_coef,slowcoef_lin,gwflow_coef,ssr2gw_rate
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      5
+PRMS_PARAMS_TO_CALIBRATE: soil_moist_max,soil_rechr_max,tmax_allrain,tmax_allsnow,hru_percent_imperv,carea_max,smidx_coef,slowcoef_lin,gwflow_coef,ssr2gw_rate
+
+# PRMS_MODEL_MODE
+#   Type:        str
+#   Default:     DAILY
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_MODEL_MODE: "DAILY"
+
+# PRMS_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      3
+PRMS_TIMEOUT: 3600
+
+
+# 9.14. MIKE-SHE Model Configuration
+# ================================================================================
+
+# MIKESHE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Path to MIKE-SHE installation directory
+MIKESHE_INSTALL_PATH: default
+
+# MIKESHE_EXE
+#   Type:        str
+#   Default:     MikeSheEngine.exe
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       MIKE-SHE engine executable name
+MIKESHE_EXE: "MikeSheEngine.exe"
+
+# SETTINGS_MIKESHE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Path to MIKE-SHE settings directory
+SETTINGS_MIKESHE_PATH: default
+
+# MIKESHE_SETUP_FILE
+#   Type:        str
+#   Default:     model.she
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       MIKE-SHE setup file name (.she)
+MIKESHE_SETUP_FILE: "model.she"
+
+# MIKESHE_SPATIAL_MODE
+#   Type:        str
+#   Default:     lumped
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Spatial discretization mode
+MIKESHE_SPATIAL_MODE: "lumped"
+
+# EXPERIMENT_OUTPUT_MIKESHE
+#   Type:        str
+#   Default:     default
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Path to MIKE-SHE experiment output directory
+EXPERIMENT_OUTPUT_MIKESHE: default
+
+# MIKESHE_USE_WINE
+#   Type:        bool
+#   Default:     False
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Run MIKE-SHE via Wine on non-Windows platforms
+MIKESHE_USE_WINE: false
+
+# MIKESHE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Comma-separated list of MIKE-SHE parameters for calibration
+MIKESHE_PARAMS_TO_CALIBRATE: manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage
+
+# MIKESHE_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      MIKESHEConfig (model_configs.py)
+#   Usage:       Maximum runtime in seconds before timeout (60-86400)
+MIKESHE_TIMEOUT: 7200
 
 
 # 18. State Management

@@ -118,6 +118,11 @@ class CLMWorker(BaseWorker):
                     f"Copied CLM settings from {original_settings_dir}"
                 )
 
+            # Reject infeasible parameter combinations early (before file I/O)
+            if not self._validate_params(params):
+                self.logger.warning("Parameter combination rejected by feasibility check")
+                return False
+
             # Apply parameters using parameter manager logic
             from .parameter_manager import CLM_PARAM_DEFS
 
@@ -159,9 +164,6 @@ class CLMWorker(BaseWorker):
             success &= self._update_lnd_in(
                 settings_dir, params_dir, nl_params
             )
-
-            # Validate parameter combinations
-            self._validate_params(params)
 
             return success
 
@@ -395,14 +397,34 @@ class CLMWorker(BaseWorker):
             pass
         return [1, 12]
 
-    def _validate_params(self, params: Dict[str, float]) -> None:
-        """Validate parameter combinations."""
-        # watsat_mult should not produce porosity > 1
-        if 'watsat_mult' in params and params['watsat_mult'] > 1.0:
+    def _validate_params(self, params: Dict[str, float]) -> bool:
+        """Validate parameter combinations for physical feasibility.
+
+        Returns False for combinations known to crash CLM, saving ~3 min
+        of wasted runtime per infeasible evaluation.
+        """
+        # Snow density ordering
+        dmin = params.get('SNOW_DENSITY_MIN')
+        dmax = params.get('SNOW_DENSITY_MAX')
+        if dmin is not None and dmax is not None and dmin >= dmax:
             self.logger.debug(
-                f"watsat_mult={params['watsat_mult']:.3f} > 1.0 — "
-                f"values clamped to < 0.95 in surfdata"
+                f"Infeasible: SNOW_DENSITY_MIN={dmin:.0f} >= "
+                f"SNOW_DENSITY_MAX={dmax:.0f}"
             )
+            return False
+
+        # Low porosity + high conductivity → numerical instability
+        wm = params.get('watsat_mult')
+        hm = params.get('hksat_mult')
+        if wm is not None and hm is not None:
+            if wm < 0.85 and hm > 5.0:
+                self.logger.debug(
+                    f"Infeasible: watsat_mult={wm:.3f} < 0.85 "
+                    f"with hksat_mult={hm:.3f} > 5.0"
+                )
+                return False
+
+        return True
 
     def run_model(
         self,
@@ -476,14 +498,19 @@ class CLMWorker(BaseWorker):
             })
 
             # Run in a new session so MPI_ABORT cannot kill the parent
-            # Python process (Open MPI sends SIGTERM to entire process group)
+            # Python process (Open MPI sends SIGTERM to entire process group).
+            # Write stdout/stderr to files instead of PIPE to avoid deadlock:
+            # CLM+ESMF can write megabytes of output and a full pipe buffer
+            # causes the process to block, appearing as a solver hang.
+            stdout_file = open(output_dir / 'cesm_stdout.log', 'w')
+            stderr_file = open(output_dir / 'cesm_stderr.log', 'w')
             proc = subprocess.Popen(
                 [str(clm_exe)],
                 cwd=str(output_dir),
                 env=env,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_file,
+                stderr=stderr_file,
                 start_new_session=True,
             )
 
@@ -502,6 +529,7 @@ class CLMWorker(BaseWorker):
             poll_interval = 10
             finalization_grace = 60   # seconds after all h0 files written
             cpu_idle_limit = 120      # seconds of 0% CPU before kill
+            no_progress_limit = 600   # seconds with 0 h0 files → assume crash
             expected_h0 = 7           # years 2003-2009 inclusive
             elapsed = 0
             all_done_time = None
@@ -543,7 +571,17 @@ class CLMWorker(BaseWorker):
                         break
                     continue  # skip CPU check when finalization is expected
 
-                # Check 2: CPU idle → solver hang (skip first 60s startup)
+                # Check 2: no output after extended time → SIGSEGV infinite loop
+                if h0_count == 0 and elapsed > no_progress_limit:
+                    self.logger.warning(
+                        f"CLM no progress (0 h0 files after "
+                        f"{elapsed}s) — likely SIGSEGV loop, killing"
+                    )
+                    proc.kill()
+                    proc.wait()
+                    break
+
+                # Check 3: CPU idle → solver hang (skip first 60s startup)
                 if elapsed > 60:
                     cpu = _get_cpu_pct(proc.pid)
                     if cpu < 0.5:
@@ -568,8 +606,9 @@ class CLMWorker(BaseWorker):
                     f"CLM execution timed out after {elapsed}s — killing"
                 )
 
-            _stdout = proc.stdout.read() if proc.stdout else b''
-            stderr = proc.stderr.read() if proc.stderr else b''
+            # Close log files
+            stdout_file.close()
+            stderr_file.close()
 
             # CLM/ESMF often returns non-zero during MPI finalization
             # even when all output was written successfully. Check for
@@ -587,7 +626,11 @@ class CLMWorker(BaseWorker):
                         f"treating as success (ESMF finalization issue)"
                     )
                 else:
-                    stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
+                    # Read stderr from file for error reporting
+                    stderr_path = output_dir / 'cesm_stderr.log'
+                    stderr_text = ''
+                    if stderr_path.exists():
+                        stderr_text = stderr_path.read_text(errors='replace')
                     self.logger.error(
                         f"CLM failed (rc={proc.returncode}, "
                         f"{len(hist_files)} hist files): "
@@ -630,7 +673,10 @@ class CLMWorker(BaseWorker):
             if not hist_files:
                 return {'kge': self.penalty_score, 'error': 'No CLM output'}
 
-            ds = xr.open_mfdataset(hist_files, combine='by_coords')
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', category=FutureWarning)
+                ds = xr.open_mfdataset(hist_files, combine='by_coords')
 
             # Extract QRUNOFF
             if 'QRUNOFF' in ds:

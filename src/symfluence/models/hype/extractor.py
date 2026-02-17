@@ -68,7 +68,7 @@ class HYPEResultExtractor(ModelResultExtractor):
             import xarray as xr
             import numpy as np
 
-            with xr.open_dataset(output_file) as ds:
+            with xr.open_dataset(output_file, engine='h5netcdf') as ds:
                 # Use mizuRoute variables
                 for var_name in ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']:
                     if var_name in ds.variables:

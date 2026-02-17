@@ -155,3 +155,20 @@ paper/
 # Local data directories
 SYMFLUENCE_data/
 **/SYMFLUENCE_data/
+
+# Local build scripts and configs
+build_clm.sh
+Makefile
+config_semi_distributed_troute.yaml
+
+# Local test/development domain directories
+domain_bow_test/
+domain_gssurgo_test/
+domain_polaris_test/
+domain_standalone/
+
+# Paper working directories (local)
+papers/
+
+# Local settings
+settings/

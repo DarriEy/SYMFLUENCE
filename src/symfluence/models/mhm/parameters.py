@@ -50,6 +50,13 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'slowInterflowRecession_Ks': {'min': 1.0, 'max': 30.0},       # slow interflow routing speed
     'muskingumTravelTime_constant': {'min': 0.31, 'max': 0.35},   # channel routing travel time
     'orgMatterContent_forest': {'min': 5.0, 'max': 10.0},         # soil organic matter
+    'minCorrectionFactorPET': {'min': 0.50, 'max': 1.30},        # direct PET multiplier (fAsp)
+    'maxCorrectionFactorPET': {'min': 0.00, 'max': 0.20},        # PET correction range
+    'rootFractionCoefficient_forest': {'min': 0.80, 'max': 0.999},  # forest root depth fraction
+    'fastInterflowRecession_forest': {'min': 1.0, 'max': 3.0},  # fast interflow recession
+    'exponentSlowInterflow': {'min': 0.05, 'max': 0.30},        # slow interflow recession shape
+    'imperviousStorageCapacity': {'min': 0.0, 'max': 5.0},      # impervious surface retention
+    'rechargeFactor_karstic': {'min': -5.0, 'max': 5.0},        # deep groundwater loss adjustment
 }
 
 
@@ -72,6 +79,13 @@ DEFAULT_PARAMS: Dict[str, float] = {
     'slowInterflowRecession_Ks': 15.0,
     'muskingumTravelTime_constant': 0.325,
     'orgMatterContent_forest': 7.0,
+    'minCorrectionFactorPET': 0.90,
+    'maxCorrectionFactorPET': 0.10,
+    'rootFractionCoefficient_forest': 0.97,
+    'fastInterflowRecession_forest': 1.5,
+    'exponentSlowInterflow': 0.125,
+    'imperviousStorageCapacity': 0.5,
+    'rechargeFactor_karstic': -1.0,
 }
 
 
@@ -134,14 +148,14 @@ MHM_PARAMETER_NML_SPEC: List[Tuple[str, List[Tuple[str, float, float, float, int
 
     # -- PET (option 0: aspect-based correction) ------------------------------
     ('PET0', [
-        ('minCorrectionFactorPET', 0.70, 1.30, 0.90, 1, 1),
+        ('minCorrectionFactorPET', 0.50, 1.30, 0.90, 1, 1),
         ('maxCorrectionFactorPET', 0.00, 0.20, 0.10, 1, 1),
         ('aspectTresholdPET',    160.0, 200.0, 180.0, 1, 1),
     ]),
 
     # -- PET (option 1: Hargreaves-Samani) ------------------------------------
     ('PET1', [
-        ('minCorrectionFactorPET', 0.70,   1.30,  0.93,   1, 1),
+        ('minCorrectionFactorPET', 0.50,   1.30,  0.93,   1, 1),
         ('maxCorrectionFactorPET', 0.00,   0.20,  0.19,   1, 1),
         ('aspectTresholdPET',    160.0,   200.0,  171.0,  1, 1),
         ('HargreavesSamaniCoeff',  0.0016,  0.003, 0.0023, 1, 1),
