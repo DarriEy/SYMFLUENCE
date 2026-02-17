@@ -31,7 +31,7 @@ MODFLOW_DEFAULT_BOUNDS = {
         'description': 'Hydraulic conductivity (m/d)',
     },
     'SY': {
-        'min': 0.01, 'max': 0.45,
+        'min': 0.005, 'max': 0.35,
         'transform': 'linear',
         'description': 'Specific yield (-)',
     },
@@ -257,9 +257,9 @@ class CoupledGWParameterManager(BaseParameterManager):
 
         modflow_defaults = {
             'K': float(self.config_dict.get('MODFLOW_K', 5.0)),
-            'SY': float(self.config_dict.get('MODFLOW_SY', 0.15)),
+            'SY': float(self.config_dict.get('MODFLOW_SY', 0.05)),
             'DRAIN_CONDUCTANCE': float(
-                self.config_dict.get('MODFLOW_DRAIN_CONDUCTANCE', 50.0)
+                self.config_dict.get('MODFLOW_DRAIN_CONDUCTANCE', 1e4)
             ),
         }
         for p in self.modflow_params:
