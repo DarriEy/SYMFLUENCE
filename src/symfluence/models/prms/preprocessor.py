@@ -321,7 +321,10 @@ class PRMSPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: 
             write_param("elev_units", 1, "one", 1, 1, 1)      # 1=meters (default 0=feet)
 
             # --- HRU geometry & classification ---
-            write_param("hru_area", 1, "nhru", nhru, 2, 2210.0)  # km² Bow at Banff
+            # PRMS requires hru_area in acres (1 km² = 247.105 acres)
+            area_km2 = 2210.0  # Bow at Banff catchment area
+            area_acres = area_km2 * 247.105
+            write_param("hru_area", 1, "nhru", nhru, 2, f"{area_acres:.1f}")
             write_param("hru_elev", 1, "nhru", nhru, 2, elev)
             write_param("hru_slope", 1, "nhru", nhru, 2, 0.15)
             write_param("hru_lat", 1, "nhru", nhru, 2, lat)

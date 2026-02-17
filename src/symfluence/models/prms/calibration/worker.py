@@ -71,6 +71,8 @@ class PRMSWorker(BaseWorker):
                 for f in original_settings_dir.glob('*.dat'):
                     shutil.copy2(f, settings_dir / f.name)
                 self.logger.debug(f"Copied PRMS files from {original_settings_dir} to {settings_dir}")
+                # Rewrite absolute paths in control.dat to point to worker dir
+                self._update_control_dat_paths(settings_dir, config)
             elif not settings_dir.exists():
                 self.logger.error(f"PRMS settings directory not found: {settings_dir} "
                                   f"(original also missing: {original_settings_dir})")
@@ -114,7 +116,7 @@ class PRMSWorker(BaseWorker):
         """
         try:
             content = param_file.read_text(encoding='utf-8')
-            blocks = content.split('####')
+            blocks = content.split('####\n')
 
             updated_blocks = []
             for block in blocks:
@@ -132,7 +134,7 @@ class PRMSWorker(BaseWorker):
                             break
                 updated_blocks.append(updated_block)
 
-            param_file.write_text('####'.join(updated_blocks), encoding='utf-8')
+            param_file.write_text('####\n'.join(updated_blocks), encoding='utf-8')
             return True
 
         except Exception as e:
@@ -140,8 +142,13 @@ class PRMSWorker(BaseWorker):
             return False
 
     def _replace_block_values(self, block: str, param_name: str, value: float) -> str:
-        """Replace value lines in a PRMS parameter block."""
-        lines = block.strip().split('\n')
+        """Replace value lines in a PRMS parameter block.
+
+        Preserves leading/trailing whitespace in the block so that
+        #### delimiters remain properly separated when blocks are rejoined.
+        """
+        stripped = block.strip()
+        lines = stripped.split('\n')
 
         param_idx = None
         for i, line in enumerate(lines):
@@ -169,7 +176,54 @@ class PRMSWorker(BaseWorker):
         if remaining < len(lines):
             new_lines.extend(lines[remaining:])
 
-        return '\n'.join(new_lines)
+        result = '\n'.join(new_lines)
+        # Preserve the trailing newline so #### delimiters stay on their own line
+        if block.endswith('\n'):
+            result += '\n'
+        return result
+
+    def _update_control_dat_paths(self, settings_dir: Path, config: Dict[str, Any]) -> None:
+        """
+        Rewrite absolute paths in control.dat to point to the worker's settings directory.
+
+        PRMS control.dat stores absolute paths for param_file, data_file,
+        stat_var_file, and csv_output_file. When files are copied to a worker
+        directory, these paths must be updated so PRMS reads/writes in the
+        worker directory rather than the original location.
+
+        Args:
+            settings_dir: Worker's PRMS settings directory
+            config: Configuration dictionary
+        """
+        control_file = config.get('PRMS_CONTROL_FILE', 'control.dat')
+        control_path = settings_dir / control_file
+        if not control_path.exists():
+            return
+
+        try:
+            content = control_path.read_bytes().decode('utf-8', errors='replace')
+            blocks = content.split('####\n')
+            path_keys = {'param_file', 'data_file', 'stat_var_file', 'csv_output_file'}
+
+            updated_blocks = []
+            for block in blocks:
+                lines = block.strip().split('\n')
+                if lines and lines[0].strip() in path_keys:
+                    key = lines[0].strip()
+                    # Format: key / count / type_code / path_value
+                    if len(lines) >= 4:
+                        old_path = Path(lines[-1].strip())
+                        new_path = settings_dir / old_path.name
+                        lines[-1] = str(new_path)
+                        self.logger.debug(f"Updated control.dat {key}: {old_path.name} -> {new_path}")
+                    updated_block = '\n'.join(lines) + '\n'
+                else:
+                    updated_block = block
+                updated_blocks.append(updated_block)
+
+            control_path.write_text('####\n'.join(updated_blocks), encoding='utf-8')
+        except Exception as e:
+            self.logger.warning(f"Could not update control.dat paths: {e}")
 
     def run_model(
         self,

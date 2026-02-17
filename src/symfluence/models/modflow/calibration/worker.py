@@ -122,25 +122,82 @@ class CoupledGWWorker(BaseWorker):
         # Apply land surface parameters
         if land_params:
             land_settings = self._resolve_land_settings(settings_dir)
-            success = self.land_worker.apply_parameters(
-                land_params, land_settings, **kwargs
-            )
+            # Resilience: if settings were deleted by a concurrent cleanup,
+            # regenerate them from the project-level settings.
+            if not (land_settings / 'attributes.nc').exists():
+                self._regenerate_settings(settings_dir, config)
+                land_settings = self._resolve_land_settings(settings_dir)
+            try:
+                success = self.land_worker.apply_parameters(
+                    land_params, land_settings, **kwargs
+                )
+                if not success:
+                    self.logger.error(
+                        f"Land surface parameter application returned False. "
+                        f"settings_dir={land_settings}, "
+                        f"attrs_exists={Path(land_settings / 'attributes.nc').exists()}, "
+                        f"trial_exists={Path(land_settings / 'trialParams.nc').exists()}"
+                    )
+            except Exception as e:
+                self.logger.error(
+                    f"Land surface parameter application raised: {e}",
+                    exc_info=True,
+                )
+                success = False
 
-        # Apply MODFLOW parameters by rewriting text files
+        # Apply MODFLOW parameters by rewriting text files directly
+        # (avoids creating a full CoupledGWParameterManager per iteration)
         if modflow_params and success:
             modflow_settings = self._resolve_modflow_settings(settings_dir)
             try:
-                from .parameter_manager import CoupledGWParameterManager
-                pm = CoupledGWParameterManager(
-                    config, self.logger, settings_dir,
-                )
-                pm.modflow_settings_dir = modflow_settings
-                success = pm._update_modflow_files(modflow_params)
+                success = self._write_modflow_params(modflow_params, modflow_settings, config)
             except Exception as e:
                 self.logger.error(f"Failed to apply MODFLOW parameters: {e}")
                 success = False
 
         return success
+
+    def _write_modflow_params(
+        self,
+        params: Dict[str, float],
+        modflow_dir: Path,
+        config: Dict[str, Any],
+    ) -> bool:
+        """Write MODFLOW parameter files directly (NPF, STO, DRN)."""
+        if 'K' in params:
+            k = float(params['K'])
+            (modflow_dir / "gwf.npf").write_text(
+                "BEGIN OPTIONS\n  SAVE_SPECIFIC_DISCHARGE\nEND OPTIONS\n\n"
+                "BEGIN GRIDDATA\n  ICELLTYPE\n    CONSTANT 1\n"
+                f"  K\n    CONSTANT {k}\nEND GRIDDATA\n"
+            )
+
+        if 'SY' in params:
+            sy = float(params['SY'])
+            ss = float(config.get('MODFLOW_SS', 1e-5))
+            (modflow_dir / "gwf.sto").write_text(
+                "BEGIN OPTIONS\n  SAVE_FLOWS\nEND OPTIONS\n\n"
+                "BEGIN GRIDDATA\n  ICONVERT\n    CONSTANT 1\n"
+                f"  SS\n    CONSTANT {ss}\n  SY\n    CONSTANT {sy}\n"
+                "END GRIDDATA\n\nBEGIN PERIOD 1\n  TRANSIENT\nEND PERIOD 1\n"
+            )
+
+        if 'DRAIN_CONDUCTANCE' in params:
+            drain_elev = config.get('MODFLOW_DRAIN_ELEVATION')
+            if drain_elev is None:
+                top = float(config.get('MODFLOW_TOP', 1500.0))
+                bot = float(config.get('MODFLOW_BOT', 1400.0))
+                drain_elev = (top + bot) / 2.0
+            else:
+                drain_elev = float(drain_elev)
+            cond = float(params['DRAIN_CONDUCTANCE'])
+            (modflow_dir / "gwf.drn").write_text(
+                "BEGIN OPTIONS\n  PRINT_INPUT\n  PRINT_FLOWS\n  SAVE_FLOWS\n"
+                "END OPTIONS\n\nBEGIN DIMENSIONS\n  MAXBOUND 1\nEND DIMENSIONS\n\n"
+                f"BEGIN PERIOD 1\n  1 1 1 {drain_elev} {cond}\nEND PERIOD 1\n"
+            )
+
+        return True
 
     def run_model(
         self,
@@ -319,6 +376,39 @@ class CoupledGWWorker(BaseWorker):
             return candidate
         candidate = settings_dir.parent / 'MODFLOW'
         return candidate if candidate.exists() else settings_dir
+
+    def _regenerate_settings(
+        self,
+        settings_dir: Path,
+        config: Dict[str, Any],
+    ) -> None:
+        """Regenerate settings from project-level source if deleted by concurrent cleanup."""
+        import shutil
+        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        domain_name = config.get('DOMAIN_NAME')
+        project_dir = data_dir / f"domain_{domain_name}"
+
+        # Regenerate land surface settings
+        land_dest = settings_dir / self.land_model_name
+        land_source = project_dir / 'settings' / self.land_model_name
+        if land_source.exists() and not (land_dest / 'attributes.nc').exists():
+            land_dest.mkdir(parents=True, exist_ok=True)
+            for item in land_source.iterdir():
+                if item.is_file():
+                    shutil.copy2(item, land_dest / item.name)
+            self.logger.warning(
+                f"Regenerated {self.land_model_name} settings from {land_source}"
+            )
+
+        # Regenerate MODFLOW settings
+        mf_dest = settings_dir / 'MODFLOW'
+        mf_source = project_dir / 'settings' / 'MODFLOW'
+        if mf_source.exists() and not mf_dest.exists():
+            mf_dest.mkdir(parents=True, exist_ok=True)
+            for item in mf_source.iterdir():
+                if item.is_file():
+                    shutil.copy2(item, mf_dest / item.name)
+            self.logger.warning(f"Regenerated MODFLOW settings from {mf_source}")
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

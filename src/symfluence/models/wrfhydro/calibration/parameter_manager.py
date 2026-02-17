@@ -289,8 +289,8 @@ class WRFHydroParameterManager(BaseParameterManager):
         try:
             worker_settings_dir.mkdir(parents=True, exist_ok=True)
 
-            # Copy namelist files
-            for pattern in ['*.namelist', 'namelist.*', '*.nc']:
+            # Copy namelist files and TBL files
+            for pattern in ['*.namelist', 'namelist.*', '*.nc', '*.TBL']:
                 for f in self.settings_dir.glob(pattern):
                     shutil.copy2(f, worker_settings_dir / f.name)
 

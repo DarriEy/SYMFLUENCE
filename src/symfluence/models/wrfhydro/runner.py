@@ -146,12 +146,32 @@ class WRFHydroRunner(BaseModelRunner):
             shutil.copy2(namelist_file, self.output_dir / namelist_file.name)
             shutil.copy2(hydro_namelist, self.output_dir / hydro_namelist.name)
 
-            # Copy domain/routing files if they exist
+            # Symlink domain/routing files (static, no need to copy)
             for nc_file in ['wrfinput_d01.nc', 'Fulldom_hires.nc', 'Route_Link.nc',
                             'soil_properties.nc', 'GWBUCKPARM.nc']:
                 src_file = self.settings_dir / nc_file
                 if src_file.exists():
-                    shutil.copy2(src_file, self.output_dir / nc_file)
+                    dest = self.output_dir / nc_file
+                    if not (dest.exists() or dest.is_symlink()):
+                        dest.symlink_to(src_file.resolve())
+            for nc_file in ['Fulldom_hires.nc', 'Route_Link.nc']:
+                src_file = self.wrfhydro_input_dir / "routing" / nc_file
+                if src_file.exists():
+                    dest = self.output_dir / nc_file
+                    if not (dest.exists() or dest.is_symlink()):
+                        dest.symlink_to(src_file.resolve())
+
+            # Symlink .TBL files from WRF-Hydro install (Noah-MP lookup tables)
+            wrfhydro_install = wrfhydro_exe.parent.parent
+            tbl_dirs = [wrfhydro_install / 'Run', wrfhydro_install / 'run',
+                        wrfhydro_exe.parent]
+            for tbl_dir in tbl_dirs:
+                if tbl_dir.exists():
+                    for tbl_file in tbl_dir.glob('*.TBL'):
+                        dest = self.output_dir / tbl_file.name
+                        if not (dest.exists() or dest.is_symlink()):
+                            dest.symlink_to(tbl_file.resolve())
+                            logger.debug(f"Symlinked {tbl_file.name} to output dir")
 
             # Build command — WRF-Hydro is MPI-compiled, must use mpirun
             mpi_procs = self._get_config_value(

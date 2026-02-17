@@ -39,11 +39,14 @@ class MODFLOWPreProcessor:
         if not self.config_dict and hasattr(config, 'to_dict'):
             self.config_dict = config.to_dict()
 
-        self.project_dir = Path(
-            self.config_dict.get('PROJECT_DIR', '.')
-        )
         self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
         self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')
+
+        project_dir = self.config_dict.get('PROJECT_DIR')
+        if not project_dir or project_dir == '.':
+            data_dir = self.config_dict.get('SYMFLUENCE_DATA_DIR', '.')
+            project_dir = Path(data_dir) / f"domain_{self.domain_name}"
+        self.project_dir = Path(project_dir)
 
     def _get_cfg(self, key, default=None):
         """Get config value with fallback."""

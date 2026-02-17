@@ -136,7 +136,7 @@ class PRMSParameterManager(BaseParameterManager):
                 return False
 
             content = param_path.read_text(encoding='utf-8')
-            blocks = content.split('####')
+            blocks = content.split('####\n')
 
             updated_blocks = []
             for block in blocks:
@@ -149,7 +149,7 @@ class PRMSParameterManager(BaseParameterManager):
                         self.logger.debug(f"Updated {param_name} = {value:.6f}")
                 updated_blocks.append(updated_block)
 
-            updated_content = '####'.join(updated_blocks)
+            updated_content = '####\n'.join(updated_blocks)
             param_path.write_text(updated_content, encoding='utf-8')
             return True
 
@@ -184,8 +184,12 @@ class PRMSParameterManager(BaseParameterManager):
 
         We replace all value lines (after the type_code line) with the new value.
         For monthly parameters (nmonths dimension), all 12 values are set the same.
+
+        Preserves leading/trailing whitespace so #### delimiters remain
+        properly separated when blocks are rejoined.
         """
-        lines = block.strip().split('\n')
+        stripped = block.strip()
+        lines = stripped.split('\n')
         if not lines:
             return block
 
@@ -226,7 +230,11 @@ class PRMSParameterManager(BaseParameterManager):
         if remaining_start < len(lines):
             new_lines.extend(lines[remaining_start:])
 
-        return '\n'.join(new_lines)
+        result = '\n'.join(new_lines)
+        # Preserve the trailing newline so #### delimiters stay on their own line
+        if block.endswith('\n'):
+            result += '\n'
+        return result
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from parameter file or defaults."""

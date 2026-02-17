@@ -48,7 +48,7 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
         'min': 1.0, 'max': 10.0,                   # Clapp-Hornberger B parameter exponent
     },
     'DKSAT': {
-        'min': 1e-8, 'max': 1e-4,                  # saturated hydraulic conductivity [m/s]
+        'min': 1e-7, 'max': 1e-5,                  # saturated hydraulic conductivity [m/s]
     },
     'SMCMAX': {
         'min': 0.3, 'max': 0.6,                    # porosity (max soil moisture content)
@@ -80,12 +80,12 @@ DEFAULT_PARAMS: Dict[str, float] = {
 # =============================================================================
 
 WRFHYDRO_PARAM_TARGETS: Dict[str, Dict] = {
-    'REFKDT':        {'target': 'hydro_namelist', 'section': 'HYDRO_nlist'},
-    'SLOPE':         {'target': 'hydro_namelist', 'section': 'HYDRO_nlist'},
+    'REFKDT':        {'target': 'genparm_tbl', 'key': 'REFKDT_DATA'},
+    'SLOPE':         {'target': 'genparm_tbl', 'key': 'SLOPE_DATA'},
     'OVROUGHRTFAC':  {'target': 'hydro_namelist', 'section': 'HYDRO_nlist'},
     'RETDEPRTFAC':   {'target': 'hydro_namelist', 'section': 'HYDRO_nlist'},
     'LKSATFAC':      {'target': 'hydro_namelist', 'section': 'HYDRO_nlist'},
-    'BEXP':          {'target': 'hrldas_namelist', 'section': 'NOAHLSM_OFFLINE'},
-    'DKSAT':         {'target': 'hrldas_namelist', 'section': 'NOAHLSM_OFFLINE'},
-    'SMCMAX':        {'target': 'hrldas_namelist', 'section': 'NOAHLSM_OFFLINE'},
+    'BEXP':          {'target': 'soilparm_tbl', 'column': 'BB', 'column_index': 1},
+    'DKSAT':         {'target': 'soilparm_tbl', 'column': 'SATDK', 'column_index': 7},
+    'SMCMAX':        {'target': 'soilparm_tbl', 'column': 'MAXSMC', 'column_index': 4},
 }

@@ -113,16 +113,24 @@ class DirectoryManager:
         """
         Cleanup parallel processing directories.
 
+        Only removes model-specific subdirectories (sim_dir, settings_dir)
+        rather than the shared process root, to avoid destroying other
+        concurrent calibrations sharing the same process directory.
+
         Args:
             parallel_dirs: Dictionary of parallel directory paths per process
         """
         for proc_id, dirs in parallel_dirs.items():
-            root_dir = dirs.get('root')
-            if root_dir and root_dir.exists():
-                try:
-                    shutil.rmtree(root_dir)
-                    self.logger.debug(f"Cleaned up parallel directory for process {proc_id}")
-                except (OSError, PermissionError) as e:
-                    self.logger.warning(
-                        f"Failed to cleanup parallel directory for process {proc_id}: {e}"
-                    )
+            # Remove model-specific directories, not the shared process root
+            for key in ('sim_dir', 'settings_dir'):
+                target = dirs.get(key)
+                if target and target.exists():
+                    try:
+                        shutil.rmtree(target)
+                        self.logger.debug(
+                            f"Cleaned up {key} for process {proc_id}: {target}"
+                        )
+                    except (OSError, PermissionError) as e:
+                        self.logger.warning(
+                            f"Failed to cleanup {key} for process {proc_id}: {e}"
+                        )

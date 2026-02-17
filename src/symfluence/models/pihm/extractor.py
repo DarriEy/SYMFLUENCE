@@ -13,7 +13,6 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from symfluence.models.base.base_extractor import ModelResultExtractor
@@ -40,9 +39,9 @@ class PIHMResultExtractor(ModelResultExtractor):
     def get_output_file_patterns(self) -> Dict[str, List[str]]:
         """Get file patterns for locating PIHM outputs."""
         return {
-            'river_flux': ['*.rivflx*'],
-            'groundwater_head': ['*.gwhead*'],
-            'surface': ['*.surf*'],
+            'river_flux': ['*.river.flx1.txt'],
+            'groundwater_head': ['*.gw.txt'],
+            'surface': ['*.surf.txt'],
         }
 
     def extract_variable(
@@ -70,103 +69,80 @@ class PIHMResultExtractor(ModelResultExtractor):
         else:
             raise ValueError(f"Unknown variable type: {variable_type}")
 
+    def _parse_pihm_txt(self, filepath: Path) -> pd.Series:
+        """Parse MM-PIHM .txt output file.
+
+        Format: "YYYY-MM-DD HH:MM"<tab>value
+        The timestamp is quoted and tab-separated from the numeric value.
+        """
+        times = []
+        values = []
+        with open(filepath) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                # Split on tab: first part is quoted timestamp, second is value
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    try:
+                        ts_str = parts[0].strip('"')
+                        val = float(parts[-1])
+                        times.append(pd.Timestamp(ts_str))
+                        values.append(val)
+                    except (ValueError, IndexError):
+                        continue
+        if not times:
+            return pd.Series(dtype=float)
+        return pd.Series(values, index=pd.DatetimeIndex(times))
+
     def _extract_river_flux(
         self,
         output_path: Path,
         **kwargs,
     ) -> pd.Series:
-        """Extract river flux time series from .rivflx file.
+        """Extract river flux time series from MM-PIHM output.
 
-        PIHM .rivflx format: tab-delimited, first column is epoch time,
-        remaining columns are flux values per river segment.
-        For lumped mode there is one segment.
+        Looks for .river.flx1.txt (downstream discharge) first.
         """
         if output_path.is_dir():
-            files = sorted(output_path.glob("*.rivflx*"))
+            # Try river flux file first
+            files = sorted(output_path.glob("*.river.flx1.txt"))
             if not files:
-                raise ValueError(f"No .rivflx files found in {output_path}")
+                # Fallback to legacy rivflx pattern
+                files = sorted(output_path.glob("*.rivflx*"))
+            if not files:
+                self.logger.warning(f"No river flux files in {output_path}")
+                return pd.Series(dtype=float, name='river_flux_m3s')
             data_file = files[0]
         else:
             data_file = output_path
 
-        start_date = kwargs.get('start_date', '2000-01-01')
+        series = self._parse_pihm_txt(data_file)
+        if series.empty:
+            return pd.Series(dtype=float, name='river_flux_m3s')
 
-        try:
-            data = np.loadtxt(data_file, skiprows=0)
-        except Exception:
-            data = self._read_pihm_output(data_file)
-
-        if data.ndim == 1:
-            data = data.reshape(1, -1)
-
-        n_timesteps = data.shape[0]
-
-        if data.shape[1] >= 2:
-            # First column is time, second is flux
-            values = np.abs(data[:, 1])
-        else:
-            values = np.abs(data[:, 0])
-
-        date_index = pd.date_range(
-            start=start_date,
-            periods=n_timesteps,
-            freq='D',
-        )
-
-        return pd.Series(values[:len(date_index)], index=date_index,
-                         name='river_flux_m3s')
+        series = series.abs()
+        series.name = 'river_flux_m3s'
+        return series
 
     def _extract_gwhead(
         self,
         output_path: Path,
         **kwargs,
     ) -> pd.Series:
-        """Extract groundwater head time series from .gwhead file."""
+        """Extract groundwater head time series from .gw.txt file."""
         if output_path.is_dir():
-            files = sorted(output_path.glob("*.gwhead*"))
+            files = sorted(output_path.glob("*.gw.txt"))
             if not files:
-                raise ValueError(f"No .gwhead files found in {output_path}")
+                files = sorted(output_path.glob("*.gwhead*"))
+            if not files:
+                self.logger.warning(f"No groundwater files in {output_path}")
+                return pd.Series(dtype=float, name='gwhead_m')
             data_file = files[0]
         else:
             data_file = output_path
 
-        start_date = kwargs.get('start_date', '2000-01-01')
-
-        try:
-            data = np.loadtxt(data_file, skiprows=0)
-        except Exception:
-            data = self._read_pihm_output(data_file)
-
-        if data.ndim == 1:
-            data = data.reshape(1, -1)
-
-        n_timesteps = data.shape[0]
-
-        if data.shape[1] >= 2:
-            values = data[:, 1]
-        else:
-            values = data[:, 0]
-
-        date_index = pd.date_range(
-            start=start_date,
-            periods=n_timesteps,
-            freq='D',
-        )
-
-        return pd.Series(values[:len(date_index)], index=date_index,
-                         name='gwhead_m')
-
-    def _read_pihm_output(self, filepath: Path) -> np.ndarray:
-        """Read PIHM output file with flexible parsing."""
-        rows = []
-        with open(filepath) as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                try:
-                    vals = [float(x) for x in line.split()]
-                    rows.append(vals)
-                except ValueError:
-                    continue
-        return np.array(rows) if rows else np.array([]).reshape(0, 0)
+        series = self._parse_pihm_txt(data_file)
+        series.name = 'gwhead_m'
+        return series
