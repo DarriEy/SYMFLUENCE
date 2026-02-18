@@ -48,7 +48,10 @@ class TauDEMExecutor:
         # Add TauDEM to PATH
         os.environ['PATH'] = f"{os.environ['PATH']}:{taudem_dir}"
 
-        # Ensure LD_LIBRARY_PATH includes conda libs for TauDEM's GDAL dependency
+        # Ensure LD_LIBRARY_PATH includes GDAL libs for TauDEM's runtime dependency.
+        # GDAL may come from conda (CONDA_PREFIX/lib) or system HPC modules
+        # (module load gdal sets LD_LIBRARY_PATH in the shell).
+        # We check conda first, then verify GDAL is actually discoverable.
         conda_prefix = os.environ.get('CONDA_PREFIX', '')
         if conda_prefix:
             conda_lib = os.path.join(conda_prefix, 'lib')
@@ -155,9 +158,14 @@ class TauDEMExecutor:
                             full_command = command
                     elif run_cmd and not has_mpi_prefix:
                         # Add MPI prefix for regular commands - use list format
-                        # Use -x to export LD_LIBRARY_PATH to MPI child processes
+                        # Export LD_LIBRARY_PATH to MPI child processes so TauDEM
+                        # can find GDAL libs (from conda env or HPC module load)
                         if run_cmd == "mpirun":
                             full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
+                        elif run_cmd == "srun":
+                            # srun: use --export=ALL to propagate LD_LIBRARY_PATH
+                            # to compute nodes (not all SLURM clusters do this by default)
+                            full_command = [run_cmd, "--export=ALL", "-n", str(self.num_processes)] + shlex.split(command)
                         else:
                             full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
                     elif has_mpi_prefix:
