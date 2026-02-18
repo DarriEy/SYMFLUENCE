@@ -133,12 +133,18 @@ class ModelExecutor(ConfigMixin):
             mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuRoute.exe', dict_key='MIZUROUTE_EXE')
             control_file = settings_dir / self._get_config_value(lambda: self.config.model.mizuroute.control_file, default='mizuroute.control', dict_key='SETTINGS_MIZU_CONTROL_FILE')
 
-            # 1) Find SUMMA timestep file actually produced for this run
-            timestep_files = sorted((output_dir.parent / "SUMMA").glob("*_timestep.nc"))
-            if not timestep_files:
-                self.logger.error(f"No SUMMA timestep files found in {(output_dir.parent / 'SUMMA')}")
-                return False
-            summa_timestep = timestep_files[0].name  # e.g., run_de_opt_run_1_timestep.nc
+            # 1) Find SUMMA output file for mizuRoute input
+            #    Prefer *_for_routing.nc (from lumped→distributed conversion) over *_timestep.nc
+            summa_output_dir = output_dir.parent / "SUMMA"
+            routing_files = sorted(summa_output_dir.glob("*_for_routing.nc"))
+            if routing_files:
+                summa_timestep = routing_files[0].name
+            else:
+                timestep_files = sorted(summa_output_dir.glob("*_timestep.nc"))
+                if not timestep_files:
+                    self.logger.error(f"No SUMMA timestep files found in {summa_output_dir}")
+                    return False
+                summa_timestep = timestep_files[0].name
 
             # 2) Rewrite mizuroute.control paths/names to match this run
             text = control_file.read_text(encoding='utf-8')
@@ -263,13 +269,15 @@ class ModelExecutor(ConfigMixin):
                 # Copy global attributes
                 mizuForcing.attrs.update(summa_ds.attrs)
 
-            # Save converted file
-            mizuForcing.to_netcdf(summa_file, format='NETCDF4')
+            # Write to a SEPARATE routing file to preserve original SUMMA output
+            routing_file = summa_file.parent / f"{summa_file.stem}_for_routing.nc"
+            mizuForcing.to_netcdf(routing_file, format='NETCDF4')
             mizuForcing.close()
+            self.logger.info(f"Wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
 
-            # Fix time precision for mizuRoute compatibility
-            # In a full implementation, we'd import the actual function from worker_scripts
-            # but for this refactor, we keep the structure
+            # Fix time precision for mizuRoute compatibility on the routing file
+            fix_summa_time_precision(routing_file)
+
             return True
 
         except (OSError, RuntimeError, KeyError, ValueError) as e:
