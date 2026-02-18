@@ -343,17 +343,33 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             mizuForcing.to_netcdf(temp_file, format='NETCDF4')
             mizuForcing.close()
 
+            # Write to a SEPARATE routing file to preserve original SUMMA output
+            routing_file = summa_file.parent / f"{summa_file.stem}_for_routing.nc"
+
             # Set permissions and move
             if os.name != 'nt':
                 os.chmod(temp_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
-            shutil.move(str(temp_file), str(summa_file))
+            shutil.move(str(temp_file), str(routing_file))
             temp_file = None
 
-            logger.info("Successfully converted SUMMA file: single lumped GRU for distributed routing")
+            logger.info(f"Successfully wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
 
-            # CRITICAL: Now fix time precision for mizuRoute compatibility
-            fix_summa_time_precision(summa_file)
-            logger.info("Fixed SUMMA time precision for mizuRoute compatibility")
+            # CRITICAL: Now fix time precision for mizuRoute compatibility on the ROUTING file
+            fix_summa_time_precision(routing_file)
+            logger.info("Fixed time precision in routing file for mizuRoute compatibility")
+
+            # Update mizuroute.control to point fname_qsim at the routing file
+            control_file = mizuroute_settings_dir / 'mizuroute.control'
+            if control_file.exists():
+                text = control_file.read_text(encoding='utf-8')
+                new_lines = []
+                for line in text.splitlines(True):
+                    if line.strip().startswith('fname_qsim'):
+                        new_lines.append(f"fname_qsim = '{routing_file.name}'\n")
+                    else:
+                        new_lines.append(line)
+                control_file.write_text("".join(new_lines), encoding='utf-8')
+                logger.info(f"Updated mizuroute.control fname_qsim -> {routing_file.name}")
 
             return True
 

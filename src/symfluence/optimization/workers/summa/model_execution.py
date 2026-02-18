@@ -300,19 +300,23 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         if summa_dir is None:
             summa_dir = Path(task_data['summa_dir'])
 
+        # Prefer *_for_routing.nc (from lumped→distributed conversion) over *_timestep.nc
+        routing_files = list(summa_dir.glob("*_for_routing.nc"))
         expected_files = list(summa_dir.glob("*timestep.nc"))
 
-        if not expected_files:
-            error_msg = f"No SUMMA timestep files found for mizuRoute input: {summa_dir}"
+        if not routing_files and not expected_files:
+            error_msg = f"No SUMMA output files found for mizuRoute input: {summa_dir}"
             logger.error(error_msg)
             debug_info['errors'].append(error_msg)
             return False
 
-        # Fix SUMMA time precision with better error handling
+        # Fix time precision on the file mizuRoute will actually read
+        time_fix_file = routing_files[0] if routing_files else expected_files[0]
+
         try:
-            logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
-            fix_summa_time_precision(expected_files[0])
-            logger.info("SUMMA time precision fixed successfully")
+            logger.info(f"Fixing time precision for mizuRoute compatibility: {time_fix_file.name}")
+            fix_summa_time_precision(time_fix_file)
+            logger.info("Time precision fixed successfully")
         except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
             error_msg = f"Failed to fix SUMMA time precision: {str(e)}"
             logger.error(error_msg)
