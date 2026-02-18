@@ -7,7 +7,6 @@ WRF-Hydro-specific optimizer inheriting from BaseModelOptimizer.
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-import shutil
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
@@ -92,14 +91,7 @@ class WRFHydroModelOptimizer(BaseModelOptimizer):
         )
 
         if success:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            # Copy CHRTOUT and LDASOUT files
-            for pattern in ['*CHRTOUT*', '*LDASOUT*']:
-                search_dir = self.wrfhydro_setup_dir.parent
-                for f in search_dir.glob(pattern):
-                    if f.is_file():
-                        shutil.copy2(f, output_dir / f.name)
-            self.logger.info(f"Copied WRF-Hydro outputs to {output_dir}")
+            self.logger.info(f"WRF-Hydro final evaluation output in {output_dir}")
 
         return success
 
