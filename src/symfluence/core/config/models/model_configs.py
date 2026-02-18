@@ -165,6 +165,68 @@ class HBVConfig(BaseModel):
     default_maxbas: float = Field(default=2.5, alias='HBV_DEFAULT_MAXBAS')
 
 
+class HECHMSConfig(BaseModel):
+    """HEC-HMS hydrological model configuration (native Python/JAX)"""
+    model_config = FROZEN_CONFIG
+
+    backend: Literal['jax', 'numpy'] = Field(default='jax', alias='HECHMS_BACKEND')
+    warmup_days: int = Field(default=365, alias='HECHMS_WARMUP_DAYS', ge=0)
+    params_to_calibrate: str = Field(
+        default='default',
+        alias='HECHMS_PARAMS_TO_CALIBRATE',
+        description="Parameters to calibrate. 'default' for all, or comma-separated list."
+    )
+    calibration_metric: Literal['KGE', 'NSE'] = Field(default='KGE', alias='HECHMS_CALIBRATION_METRIC')
+    pet_method: Literal['input', 'oudin', 'hamon'] = Field(default='input', alias='HECHMS_PET_METHOD')
+    latitude: Optional[float] = Field(default=None, alias='HECHMS_LATITUDE', ge=-90.0, le=90.0)
+    # Initial state
+    initial_snow_swe: float = Field(default=0.0, alias='HECHMS_INITIAL_SNOW_SWE', ge=0.0)
+    initial_gw_storage: float = Field(default=10.0, alias='HECHMS_INITIAL_GW_STORAGE', ge=0.0)
+    # Default parameter values (14 params)
+    default_px_temp: float = Field(default=1.0, alias='HECHMS_DEFAULT_PX_TEMP')
+    default_base_temp: float = Field(default=0.0, alias='HECHMS_DEFAULT_BASE_TEMP')
+    default_ati_meltrate_coeff: float = Field(default=0.98, alias='HECHMS_DEFAULT_ATI_MELTRATE_COEFF')
+    default_meltrate_max: float = Field(default=5.0, alias='HECHMS_DEFAULT_MELTRATE_MAX')
+    default_meltrate_min: float = Field(default=1.0, alias='HECHMS_DEFAULT_MELTRATE_MIN')
+    default_cold_limit: float = Field(default=10.0, alias='HECHMS_DEFAULT_COLD_LIMIT')
+    default_ati_cold_rate_coeff: float = Field(default=0.1, alias='HECHMS_DEFAULT_ATI_COLD_RATE_COEFF')
+    default_water_capacity: float = Field(default=0.05, alias='HECHMS_DEFAULT_WATER_CAPACITY')
+    default_cn: float = Field(default=65.0, alias='HECHMS_DEFAULT_CN')
+    default_initial_abstraction_ratio: float = Field(default=0.2, alias='HECHMS_DEFAULT_INITIAL_ABSTRACTION_RATIO')
+    default_tc: float = Field(default=3.0, alias='HECHMS_DEFAULT_TC')
+    default_r_coeff: float = Field(default=5.0, alias='HECHMS_DEFAULT_R_COEFF')
+    default_gw_storage_coeff: float = Field(default=30.0, alias='HECHMS_DEFAULT_GW_STORAGE_COEFF')
+    default_deep_perc_fraction: float = Field(default=0.1, alias='HECHMS_DEFAULT_DEEP_PERC_FRACTION')
+
+
+class TOPMODELConfig(BaseModel):
+    """TOPMODEL (Beven & Kirkby 1979) hydrological model configuration (native Python/JAX)"""
+    model_config = FROZEN_CONFIG
+
+    backend: Literal['jax', 'numpy'] = Field(default='jax', alias='TOPMODEL_BACKEND')
+    warmup_days: int = Field(default=365, alias='TOPMODEL_WARMUP_DAYS', ge=0)
+    params_to_calibrate: str = Field(
+        default='default',
+        alias='TOPMODEL_PARAMS_TO_CALIBRATE',
+        description="Parameters to calibrate. 'default' for all, or comma-separated list."
+    )
+    calibration_metric: Literal['KGE', 'NSE'] = Field(default='KGE', alias='TOPMODEL_CALIBRATION_METRIC')
+    pet_method: Literal['input', 'oudin', 'hamon'] = Field(default='input', alias='TOPMODEL_PET_METHOD')
+    latitude: Optional[float] = Field(default=None, alias='TOPMODEL_LATITUDE', ge=-90.0, le=90.0)
+    # Default parameter values (11 params)
+    default_m: float = Field(default=0.05, alias='TOPMODEL_DEFAULT_M')
+    default_lnTe: float = Field(default=1.0, alias='TOPMODEL_DEFAULT_LNTE')
+    default_Srmax: float = Field(default=0.05, alias='TOPMODEL_DEFAULT_SRMAX')
+    default_Sr0: float = Field(default=0.01, alias='TOPMODEL_DEFAULT_SR0')
+    default_td: float = Field(default=5.0, alias='TOPMODEL_DEFAULT_TD')
+    default_k_route: float = Field(default=48.0, alias='TOPMODEL_DEFAULT_K_ROUTE')
+    default_DDF: float = Field(default=3.5, alias='TOPMODEL_DEFAULT_DDF')
+    default_T_melt: float = Field(default=0.0, alias='TOPMODEL_DEFAULT_T_MELT')
+    default_T_snow: float = Field(default=1.0, alias='TOPMODEL_DEFAULT_T_SNOW')
+    default_ti_std: float = Field(default=4.0, alias='TOPMODEL_DEFAULT_TI_STD')
+    default_S0: float = Field(default=0.5, alias='TOPMODEL_DEFAULT_S0')
+
+
 class HYPEConfig(BaseModel):
     """HYPE hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -1172,32 +1234,6 @@ class IGNACIOConfig(BaseModel):
         return v
 
 
-class MIKESHEConfig(BaseModel):
-    """MIKE-SHE (DHI) integrated physics-based model configuration.
-
-    MIKE-SHE is a fully integrated, physically-based modelling system
-    that simulates overland flow, unsaturated flow, groundwater flow,
-    channel flow, and evapotranspiration.
-
-    Reference:
-        Graham, D.N. & Butts, M.B. (2005): Flexible, integrated watershed
-        modelling with MIKE SHE. Watershed Models, 245-272.
-    """
-    model_config = FROZEN_CONFIG
-
-    install_path: str = Field(default='default', alias='MIKESHE_INSTALL_PATH')
-    exe: str = Field(default='MikeSheEngine.exe', alias='MIKESHE_EXE')
-    settings_path: str = Field(default='default', alias='SETTINGS_MIKESHE_PATH')
-    setup_file: str = Field(default='model.she', alias='MIKESHE_SETUP_FILE')
-    spatial_mode: SpatialModeType = Field(default='lumped', alias='MIKESHE_SPATIAL_MODE')
-    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MIKESHE')
-    use_wine: bool = Field(default=False, alias='MIKESHE_USE_WINE')
-    params_to_calibrate: str = Field(
-        default='manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage',
-        alias='MIKESHE_PARAMS_TO_CALIBRATE'
-    )
-    timeout: int = Field(default=7200, alias='MIKESHE_TIMEOUT', ge=60, le=86400)
-
 
 class SWATConfig(BaseModel):
     """SWAT (Soil and Water Assessment Tool) model configuration.
@@ -1344,6 +1380,67 @@ class PRMSConfig(BaseModel):
     timeout: int = Field(default=3600, alias='PRMS_TIMEOUT', ge=60, le=86400)
 
 
+class GSFLOWConfig(BaseModel):
+    """GSFLOW (coupled PRMS + MODFLOW-NWT) configuration.
+
+    GSFLOW is a USGS coupled groundwater–surface-water model that integrates
+    PRMS (surface/soil) with MODFLOW-NWT (saturated zone) via SFR and UZF
+    packages for bidirectional exchange.
+
+    Reference:
+        Markstrom, S.L., et al. (2008): GSFLOW—Coupled Ground-Water and
+        Surface-Water Flow Model Based on the Integration of the
+        Precipitation-Runoff Modeling System (PRMS) and the Modular
+        Ground-Water Flow Model (MODFLOW-2005). USGS Techniques and
+        Methods 6-D1.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='GSFLOW_INSTALL_PATH')
+    exe: str = Field(default='gsflow', alias='GSFLOW_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_GSFLOW_PATH')
+    control_file: str = Field(default='gsflow.control', alias='GSFLOW_CONTROL_FILE')
+    parameter_file: str = Field(default='params.dat', alias='GSFLOW_PARAMETER_FILE')
+    modflow_nam_file: str = Field(default='modflow.nam', alias='GSFLOW_MODFLOW_NAM_FILE')
+    spatial_mode: SpatialModeType = Field(default='semi_distributed', alias='GSFLOW_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_GSFLOW')
+    params_to_calibrate: str = Field(
+        default='soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coef,gw_seep_coef,K,SY,slowcoef_lin,carea_max,smidx_coef',
+        alias='GSFLOW_PARAMS_TO_CALIBRATE'
+    )
+    gsflow_mode: str = Field(default='COUPLED', alias='GSFLOW_MODE')
+    timeout: int = Field(default=7200, alias='GSFLOW_TIMEOUT', ge=60, le=86400)
+
+
+class WATFLOODConfig(BaseModel):
+    """WATFLOOD (Kouwen) distributed flood forecasting model configuration.
+
+    WATFLOOD is a physically-based, distributed hydrological model using
+    Grouped Response Units (GRUs) on a regular grid with internal channel
+    routing. It is optimized for flood forecasting with simplified energy
+    balance requiring only precipitation and temperature forcing.
+
+    Reference:
+        Kouwen, N. (2018): WATFLOOD/WATROUTE Hydrological Model Routing
+        & Flood Forecasting System. University of Waterloo.
+    """
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='WATFLOOD_INSTALL_PATH')
+    exe: str = Field(default='watflood', alias='WATFLOOD_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_WATFLOOD_PATH')
+    shed_file: str = Field(default='watershed.shd', alias='WATFLOOD_SHED_FILE')
+    par_file: str = Field(default='params.par', alias='WATFLOOD_PAR_FILE')
+    event_file: str = Field(default='event.evt', alias='WATFLOOD_EVENT_FILE')
+    spatial_mode: SpatialModeType = Field(default='distributed', alias='WATFLOOD_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_WATFLOOD')
+    params_to_calibrate: str = Field(
+        default='R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNING_N',
+        alias='WATFLOOD_PARAMS_TO_CALIBRATE'
+    )
+    timeout: int = Field(default=3600, alias='WATFLOOD_TIMEOUT', ge=60, le=86400)
+
+
 class ModelConfig(BaseModel):
     """Hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -1359,6 +1456,8 @@ class ModelConfig(BaseModel):
     fuse: Optional[FUSEConfig] = Field(default=None)
     gr: Optional[GRConfig] = Field(default=None)
     hbv: Optional[HBVConfig] = Field(default=None)
+    hechms: Optional[HECHMSConfig] = Field(default=None)
+    topmodel: Optional[TOPMODELConfig] = Field(default=None)
     hype: Optional[HYPEConfig] = Field(default=None)
     ngen: Optional[NGENConfig] = Field(default=None)
     mesh: Optional[MESHConfig] = Field(default=None)
@@ -1373,7 +1472,6 @@ class ModelConfig(BaseModel):
     clm: Optional[CLMConfig] = Field(default=None)
     modflow: Optional[MODFLOWConfig] = Field(default=None)
     parflow: Optional[ParFlowConfig] = Field(default=None)
-    mikeshe: Optional[MIKESHEConfig] = Field(default=None)
     swat: Optional[SWATConfig] = Field(default=None)
     mhm: Optional[MHMConfig] = Field(default=None)
     crhm: Optional[CRHMConfig] = Field(default=None)
@@ -1381,6 +1479,8 @@ class ModelConfig(BaseModel):
     prms: Optional[PRMSConfig] = Field(default=None)
     pihm: Optional[PIHMConfig] = Field(default=None)
     hydrogeosphere: Optional[HydroGeoSphereConfig] = Field(default=None)
+    gsflow: Optional[GSFLOWConfig] = Field(default=None)
+    watflood: Optional[WATFLOODConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -1417,6 +1517,10 @@ class ModelConfig(BaseModel):
             values['gr'] = GRConfig()
         if 'HBV' in models and values.get('hbv') is None:
             values['hbv'] = HBVConfig()
+        if 'HECHMS' in models and values.get('hechms') is None:
+            values['hechms'] = HECHMSConfig()
+        if 'TOPMODEL' in models and values.get('topmodel') is None:
+            values['topmodel'] = TOPMODELConfig()
         if 'HYPE' in models and values.get('hype') is None:
             values['hype'] = HYPEConfig()
         if 'NGEN' in models and values.get('ngen') is None:
@@ -1451,6 +1555,10 @@ class ModelConfig(BaseModel):
             values['pihm'] = PIHMConfig()
         if 'HYDROGEOSPHERE' in models and values.get('hydrogeosphere') is None:
             values['hydrogeosphere'] = HydroGeoSphereConfig()
+        if 'GSFLOW' in models and values.get('gsflow') is None:
+            values['gsflow'] = GSFLOWConfig()
+        if 'WATFLOOD' in models and values.get('watflood') is None:
+            values['watflood'] = WATFLOODConfig()
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')

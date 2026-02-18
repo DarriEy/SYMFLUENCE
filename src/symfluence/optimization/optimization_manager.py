@@ -287,6 +287,22 @@ class OptimizationManager(BaseManager):
                 ''
             )
             hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
+
+            # Detect coupled groundwater calibration — when a GROUNDWATER_MODEL
+            # is configured alongside the land-surface model, route to the
+            # COUPLED_GW optimizer so that GW parameters (K, SY, etc.) are
+            # included in the calibration parameter space.
+            gw_model = self._get_config_value(
+                lambda: self.config.model.groundwater_model,
+                None,
+            )
+            if gw_model and str(gw_model).strip().upper() == 'MODFLOW':
+                hydrological_models = ['COUPLED_GW']
+                self.logger.info(
+                    "Using COUPLED_GW calibration pipeline "
+                    "(GROUNDWATER_MODEL: MODFLOW detected)"
+                )
+
             results = []
 
             for model in hydrological_models:

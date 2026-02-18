@@ -534,6 +534,14 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.swat.build_instructions',
         'symfluence.models.mhm.build_instructions',
         'symfluence.models.crhm.build_instructions',
+        'symfluence.models.prms.build_instructions',
+        'symfluence.models.modflow.build_instructions',
+        'symfluence.models.gsflow.build_instructions',
+        'symfluence.models.watflood.build_instructions',
+        'symfluence.models.parflow.build_instructions',
+        'symfluence.models.wrfhydro.build_instructions',
+        'symfluence.models.hydrogeosphere.build_instructions',
+        'symfluence.models.pihm.build_instructions',
     ]
 
     for module_name in model_modules:

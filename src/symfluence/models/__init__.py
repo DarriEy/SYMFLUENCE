@@ -58,10 +58,11 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 _model_names = [
     'summa', 'fuse', 'ngen', 'mizuroute', 'troute', 'droute',
     'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
-    'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm',
-    'modflow', 'parflow', 'xinanjiang', 'snow17',
+    'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm', 'hechms',
+    'topmodel', 'modflow', 'parflow', 'xinanjiang', 'snow17',
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
-    'pihm', 'hydrogeosphere',
+    'pihm', 'hydrogeosphere', 'wmfire',
+    'gsflow', 'watflood',
 ]
 
 import importlib as _importlib

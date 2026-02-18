@@ -22,12 +22,42 @@ Usage:
 import os
 import shutil
 import subprocess
+import sys
 import time
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Callable
+
+
+def augment_conda_library_paths(run_env: Dict[str, str]) -> None:
+    """Prepend ``$CONDA_PREFIX/lib`` to the platform library search path in *run_env*.
+
+    - Linux:   ``LD_LIBRARY_PATH``
+    - macOS:   ``DYLD_LIBRARY_PATH``
+    - Windows: ``PATH`` (conda stores DLLs in ``Library/bin``)
+
+    No-op when ``CONDA_PREFIX`` is unset.  Idempotent (won't add duplicates).
+    Mutates *run_env* in place.  Does **not** touch ``os.environ``.
+    """
+    conda_prefix = run_env.get('CONDA_PREFIX', '')
+    if not conda_prefix:
+        return
+
+    if sys.platform == 'win32':
+        conda_lib = os.path.join(conda_prefix, 'Library', 'bin')
+        env_var = 'PATH'
+    elif sys.platform == 'darwin':
+        conda_lib = os.path.join(conda_prefix, 'lib')
+        env_var = 'DYLD_LIBRARY_PATH'
+    else:  # linux / other posix
+        conda_lib = os.path.join(conda_prefix, 'lib')
+        env_var = 'LD_LIBRARY_PATH'
+
+    current = run_env.get(env_var, '')
+    if conda_lib not in current.split(os.pathsep):
+        run_env[env_var] = f"{conda_lib}{os.pathsep}{current}" if current else conda_lib
 
 
 class ExecutionMode(Enum):
@@ -168,20 +198,9 @@ class ModelExecutor(ABC):
 
         # Merge environment variables
         run_env = os.environ.copy()
+        augment_conda_library_paths(run_env)
         if env:
             run_env.update(env)
-
-        # Windows: prepend conda Library\bin to PATH so compiled model
-        # executables find the correct DLL versions (netCDF, HDF5,
-        # gfortran runtime, openblas, etc.) before any conflicting
-        # copies (e.g. Git for Windows bundles its own MinGW runtime)
-        if os.name == 'nt':
-            conda_prefix = run_env.get('CONDA_PREFIX', '')
-            if conda_prefix:
-                conda_lib_bin = os.path.join(conda_prefix, 'Library', 'bin')
-                current_path = run_env.get('PATH', '')
-                # Always prepend to ensure conda DLLs take priority
-                run_env['PATH'] = f"{conda_lib_bin}{os.pathsep}{current_path}"
 
         # Ensure log directory exists
         log_file = Path(log_file)

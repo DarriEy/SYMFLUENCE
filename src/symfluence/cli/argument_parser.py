@@ -104,7 +104,13 @@ def resolve_step_name(name: str) -> str:
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews']
+EXTERNAL_TOOLS = [
+    'summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool',
+    'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews',
+    'vic', 'clm', 'swat', 'mhm', 'crhm', 'prms', 'modflow', 'gsflow',
+    'watflood', 'parflow', 'wrfhydro', 'hydrogeosphere', 'pihm',
+    'cfuse', 'droute', 'troute', 'wmfire', 'ignacio',
+]
 
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']

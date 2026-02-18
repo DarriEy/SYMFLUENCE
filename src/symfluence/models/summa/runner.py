@@ -82,9 +82,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         """Get environment variables for SUMMA."""
         import os
         import platform
-        env = {
-            'LD_LIBRARY_PATH': os.environ.get('LD_LIBRARY_PATH', ''),
-        }
+        env: Dict[str, str] = {}
         # On x86-64, preload libftz.so to flush denormals to zero.
         # Without this, gfortran's Jacobian produces denormals that
         # propagate to NaN (ARM and Intel Fortran do this by default).

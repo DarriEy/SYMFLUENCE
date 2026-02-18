@@ -223,6 +223,32 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
             "a single-HRU configuration with blowing snow and frozen soil."
         )
     ),
+
+    'GSFLOW': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED},
+        default_mode=SpatialMode.SEMI_DISTRIBUTED,
+        requires_routing={
+            SpatialMode.SEMI_DISTRIBUTED: False,  # Internal SFR routing
+            SpatialMode.LUMPED: False
+        },
+        warning_message=(
+            "GSFLOW couples PRMS surface processes with MODFLOW-NWT groundwater. "
+            "Internal SFR/UZF packages handle GW-SW exchange."
+        )
+    ),
+
+    'WATFLOOD': ModelSpatialCapability(
+        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+        default_mode=SpatialMode.DISTRIBUTED,
+        requires_routing={
+            SpatialMode.DISTRIBUTED: False,  # Internal channel routing
+            SpatialMode.LUMPED: False
+        },
+        warning_message=(
+            "WATFLOOD uses GRU-grid distributed structure with internal "
+            "channel routing. Lumped mode uses a single-GRU configuration."
+        )
+    ),
 }
 
 

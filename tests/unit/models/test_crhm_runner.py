@@ -287,12 +287,14 @@ def test_crhm_executable_exists():
     print(f"CRHM exe: {CRHM_EXE} ({CRHM_EXE.stat().st_size} bytes)")
 
 
+@pytest.mark.skipif(not OBS_FILE.exists(), reason=f"External data not available: {OBS_FILE}")
 def test_crhm_input_files_exist():
     """Verify observation file exists."""
     assert OBS_FILE.exists(), f"Obs file not found: {OBS_FILE}"
     print(f"OBS file: {OBS_FILE} ({OBS_FILE.stat().st_size} bytes)")
 
 
+@pytest.mark.skipif(not OBS_FILE.exists(), reason=f"External data not available: {OBS_FILE}")
 def test_obs_file_format():
     """Verify obs file format is correct for CRHM."""
     with open(OBS_FILE, 'r') as f:
@@ -341,6 +343,7 @@ def test_obs_file_format():
     print("Obs file format: OK")
 
 
+@pytest.mark.skipif(not ORIGINAL_PRJ.exists(), reason=f"External data not available: {ORIGINAL_PRJ}")
 def test_original_prj_missing_display_variable():
     """Verify the original .prj is missing the Display_Variable section."""
     with open(ORIGINAL_PRJ, 'r') as f:
@@ -390,6 +393,7 @@ def test_crhm_reference_badlake():
     print(f"Output: {output_file.stat().st_size} bytes -- reference binary works")
 
 
+@pytest.mark.skipif(not OBS_FILE.exists(), reason=f"External domain data not available: {OBS_FILE}")
 def test_crhm_execution_lumped():
     """Run CRHM with a properly constructed lumped (nhru=1) project file.
 

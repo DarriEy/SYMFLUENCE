@@ -293,25 +293,24 @@ class TestSUMMAMODFLOWCoupling:
         values = 0.002 + 0.001 * np.sin(np.arange(90) * 2 * np.pi / 365)
         return pd.Series(values, index=dates, name='recharge_m_d')
 
-    def test_write_modflow_recharge_ts(self, sample_recharge, tmp_path):
-        """Verify recharge time-series file format."""
+    def test_write_modflow_recharge_rch(self, sample_recharge, tmp_path):
+        """Verify recharge RCH package file format."""
         from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
 
         coupler = SUMMAToMODFLOWCoupler({})
-        ts_file = coupler.write_modflow_recharge_ts(
+        rch_file = coupler.write_modflow_recharge_rch(
             sample_recharge,
-            tmp_path / "recharge.ts",
+            tmp_path / "gwf.rch",
         )
 
-        assert ts_file.exists()
-        content = ts_file.read_text()
+        assert rch_file.exists()
+        content = rch_file.read_text()
 
-        # Verify format
-        assert 'BEGIN ATTRIBUTES' in content
-        assert 'NAME rch_array' in content
-        assert 'METHOD LINEAR' in content
-        assert 'BEGIN TIME 0.0' in content
-        assert 'END TIME 0.0' in content
+        # Verify RCH package format
+        assert 'BEGIN OPTIONS' in content
+        assert 'READASARRAYS' in content
+        assert 'BEGIN PERIOD 1' in content
+        assert 'RECHARGE' in content
         assert 'CONSTANT' in content
 
     def test_combine_flows(self):
@@ -321,17 +320,17 @@ class TestSUMMAMODFLOWCoupling:
         coupler = SUMMAToMODFLOWCoupler({})
         dates = pd.date_range('2000-01-01', periods=30, freq='D')
 
-        # Surface runoff: 0.001 kg/m2/s
-        surface = pd.Series(0.001, index=dates, name='surface')
+        # Surface runoff: 1e-6 m/s
+        surface = pd.Series(1e-6, index=dates, name='surface')
         # Drain discharge: 100 m3/d
         drain = pd.Series(100.0, index=dates, name='drain')
         area_m2 = 2210.0 * 1e6  # 2210 km2
 
         total = coupler.combine_flows(surface, drain, area_m2)
 
-        # Surface: 0.001 * 2210e6 / 1000 = 2210 m3/s
+        # Surface: 1e-6 m/s * 2210e6 m2 = 2210 m3/s
         # Baseflow: 100 / 86400 ≈ 0.001157 m3/s
-        expected_surface = 0.001 * area_m2 / 1000.0
+        expected_surface = 1e-6 * area_m2
         expected_baseflow = 100.0 / 86400.0
 
         assert len(total) == 30
@@ -365,7 +364,7 @@ class TestSUMMAMODFLOWCoupling:
 
         # Create fake SUMMA output
         dates = pd.date_range('2000-01-01', periods=30, freq='D')
-        drainage = np.full(30, 1.157e-5)  # ~1 mm/d in kg/m2/s
+        drainage = np.full(30, 1.157e-8)  # ~0.001 m/d in m/s
 
         ds = xr.Dataset(
             {'scalarSoilDrainage': (['time', 'hru'], drainage.reshape(-1, 1))},
@@ -379,8 +378,8 @@ class TestSUMMAMODFLOWCoupling:
         recharge = coupler.extract_recharge_from_summa(output_dir)
 
         assert len(recharge) == 30
-        # 1.157e-5 kg/m2/s × 86.4 ≈ 0.001 m/d
-        np.testing.assert_allclose(recharge.values[0], 1.157e-5 * 86.4, rtol=0.01)
+        # 1.157e-8 m/s × 86400 s/d ≈ 0.001 m/d
+        np.testing.assert_allclose(recharge.values[0], 1.157e-8 * 86400, rtol=0.01)
         assert (recharge >= 0).all()
 
 

@@ -64,6 +64,11 @@ class SUMMAToMODFLOWCoupler:
         for nc_file in nc_files:
             ds_check = xr.open_dataset(nc_file)
             has_var = variable in ds_check
+            if has_var:
+                time_dim = ds_check.sizes.get('time', -1)
+                self.logger.debug(
+                    f"  {nc_file.name}: has '{variable}', time={time_dim}"
+                )
             ds_check.close()
             if has_var:
                 matching_files.append(nc_file)

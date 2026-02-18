@@ -11,12 +11,14 @@ Tests for the shared model runner infrastructure including:
 - Legacy path aliases
 """
 
+import os
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
 import logging
 
 from symfluence.models.base.base_runner import BaseModelRunner
+from symfluence.models.execution.model_executor import augment_conda_library_paths
 from symfluence.core.config.models import SymfluenceConfig
 
 
@@ -529,3 +531,85 @@ class TestBaseRunnerIntegration:
         assert log_path.exists()
         assert log_path.parent == runner.output_dir
         assert log_path.name == 'logs'
+
+
+class TestAugmentCondaLibraryPaths:
+    """Tests for augment_conda_library_paths helper."""
+
+    def test_linux_ld_library_path(self):
+        """Test that CONDA_PREFIX/lib is prepended to LD_LIBRARY_PATH on Linux."""
+        env = {'CONDA_PREFIX': '/opt/conda', 'LD_LIBRARY_PATH': '/usr/lib'}
+        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+            mock_sys.platform = 'linux'
+            augment_conda_library_paths(env)
+        assert env['LD_LIBRARY_PATH'].startswith('/opt/conda/lib')
+        assert '/usr/lib' in env['LD_LIBRARY_PATH']
+
+    def test_macos_dyld_library_path(self):
+        """Test that CONDA_PREFIX/lib is prepended to DYLD_LIBRARY_PATH on macOS."""
+        env = {'CONDA_PREFIX': '/opt/conda', 'DYLD_LIBRARY_PATH': '/usr/lib'}
+        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+            mock_sys.platform = 'darwin'
+            augment_conda_library_paths(env)
+        assert env['DYLD_LIBRARY_PATH'].startswith('/opt/conda/lib')
+        assert '/usr/lib' in env['DYLD_LIBRARY_PATH']
+
+    def test_windows_path(self):
+        """Test that CONDA_PREFIX/Library/bin is prepended to PATH on Windows."""
+        conda_lib = os.path.join('/opt/conda', 'Library', 'bin')
+        env = {'CONDA_PREFIX': '/opt/conda', 'PATH': '/usr/bin'}
+        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+            mock_sys.platform = 'win32'
+            augment_conda_library_paths(env)
+        assert conda_lib in env['PATH']
+        assert env['PATH'].index(conda_lib) < env['PATH'].index('/usr/bin')
+
+    def test_no_conda_prefix_is_noop(self):
+        """Test that missing CONDA_PREFIX is a no-op."""
+        env = {'PATH': '/usr/bin'}
+        original = env.copy()
+        augment_conda_library_paths(env)
+        assert env == original
+
+    def test_empty_conda_prefix_is_noop(self):
+        """Test that empty CONDA_PREFIX is a no-op."""
+        env = {'CONDA_PREFIX': '', 'PATH': '/usr/bin'}
+        original = env.copy()
+        augment_conda_library_paths(env)
+        assert env == original
+
+    def test_idempotent(self):
+        """Test that calling twice doesn't duplicate the path."""
+        env = {'CONDA_PREFIX': '/opt/conda', 'LD_LIBRARY_PATH': '/usr/lib'}
+        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+            mock_sys.platform = 'linux'
+            augment_conda_library_paths(env)
+            first_value = env['LD_LIBRARY_PATH']
+            augment_conda_library_paths(env)
+            assert env['LD_LIBRARY_PATH'] == first_value
+
+    def test_empty_existing_path(self):
+        """Test augmentation when the library path variable is empty."""
+        env = {'CONDA_PREFIX': '/opt/conda'}
+        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+            mock_sys.platform = 'linux'
+            augment_conda_library_paths(env)
+        assert env['LD_LIBRARY_PATH'] == '/opt/conda/lib'
+
+    def test_execute_model_subprocess_augments_env(self, runner, temp_dir):
+        """Test that execute_model_subprocess passes conda-augmented env to subprocess."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run, \
+             patch.dict(os.environ, {'CONDA_PREFIX': '/opt/conda'}, clear=False), \
+             patch('symfluence.models.base.base_runner.augment_conda_library_paths') as mock_augment:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_run.return_value = mock_result
+
+            runner.execute_model_subprocess(['echo', 'test'], log_file)
+
+            # Verify augment_conda_library_paths was called with the env dict
+            mock_augment.assert_called_once()
+            call_arg = mock_augment.call_args[0][0]
+            assert isinstance(call_arg, dict)
