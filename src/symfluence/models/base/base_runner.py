@@ -20,6 +20,7 @@ import os
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
 from symfluence.models.mixins import ModelComponentMixin
+from symfluence.models.execution.model_executor import augment_conda_library_paths
 from symfluence.models.spatial_modes import (
     get_spatial_mode_from_config,
     validate_spatial_mode
@@ -635,6 +636,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         try:
             # Merge environment variables
             run_env = os.environ.copy()
+            augment_conda_library_paths(run_env)
             if env:
                 run_env.update(env)
 

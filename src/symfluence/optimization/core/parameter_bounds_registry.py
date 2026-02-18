@@ -526,6 +526,59 @@ class ParameterBoundsRegistry:
     }
 
     # ========================================================================
+    # HEC-HMS PARAMETERS
+    # ========================================================================
+    HECHMS_PARAMS: Dict[str, ParameterInfo] = {
+        # Snow (ATI Temperature Index)
+        'px_temp': ParameterInfo(-2.0, 4.0, '°C', 'Rain/snow partition temperature', 'snow'),
+        'base_temp': ParameterInfo(-3.0, 3.0, '°C', 'Base temperature for snowmelt', 'snow'),
+        'ati_meltrate_coeff': ParameterInfo(0.5, 1.5, '-', 'ATI meltrate coefficient', 'snow'),
+        'meltrate_max': ParameterInfo(2.0, 10.0, 'mm/°C/day', 'Maximum melt rate', 'snow'),
+        'meltrate_min': ParameterInfo(0.0, 3.0, 'mm/°C/day', 'Minimum melt rate', 'snow'),
+        'cold_limit': ParameterInfo(0.0, 50.0, 'mm', 'Cold content limit', 'snow'),
+        'ati_cold_rate_coeff': ParameterInfo(0.0, 0.3, '-', 'ATI cold rate coefficient', 'snow'),
+        'water_capacity': ParameterInfo(0.0, 0.3, '-', 'Snowpack liquid water holding capacity', 'snow'),
+
+        # Loss (SCS Curve Number)
+        'cn': ParameterInfo(30.0, 98.0, '-', 'SCS Curve Number', 'soil'),
+        'initial_abstraction_ratio': ParameterInfo(0.05, 0.3, '-', 'Initial abstraction ratio Ia/S', 'soil'),
+
+        # Transform (Clark Unit Hydrograph)
+        'tc': ParameterInfo(0.5, 20.0, 'days', 'Time of concentration', 'routing'),
+        'r_coeff': ParameterInfo(0.5, 20.0, 'days', 'Clark storage coefficient', 'routing'),
+
+        # Baseflow (Linear Reservoir)
+        'gw_storage_coeff': ParameterInfo(1.0, 100.0, 'days', 'GW storage coefficient', 'baseflow'),
+        'deep_perc_fraction': ParameterInfo(0.0, 0.5, '-', 'Deep percolation fraction', 'baseflow'),
+    }
+
+    # ========================================================================
+    # TOPMODEL PARAMETERS (Beven & Kirkby 1979)
+    # ========================================================================
+    TOPMODEL_PARAMS: Dict[str, ParameterInfo] = {
+        # Subsurface / transmissivity
+        'topmodel_m': ParameterInfo(0.001, 0.3, 'm', 'Transmissivity decay parameter', 'soil'),
+        'topmodel_lnTe': ParameterInfo(-7.0, 10.0, 'ln(m²/h)', 'Effective log transmissivity', 'baseflow'),
+        'topmodel_Srmax': ParameterInfo(0.005, 0.5, 'm', 'Max root zone storage', 'soil'),
+        'topmodel_Sr0': ParameterInfo(0.0, 0.1, 'm', 'Initial root zone deficit', 'soil'),
+        'topmodel_td': ParameterInfo(0.1, 50.0, 'h/m', 'Unsaturated zone time delay', 'soil'),
+
+        # Routing
+        'topmodel_k_route': ParameterInfo(1.0, 200.0, 'h', 'Routing reservoir coefficient', 'routing'),
+
+        # Snow (degree-day)
+        'topmodel_DDF': ParameterInfo(0.5, 10.0, 'mm/°C/day', 'Degree-day melt factor', 'snow'),
+        'topmodel_T_melt': ParameterInfo(-2.0, 3.0, '°C', 'Melt threshold temperature', 'snow'),
+        'topmodel_T_snow': ParameterInfo(-2.0, 3.0, '°C', 'Snow/rain threshold temperature', 'snow'),
+
+        # TI distribution
+        'topmodel_ti_std': ParameterInfo(1.0, 10.0, '-', 'TI distribution spread', 'other'),
+
+        # Initial conditions
+        'topmodel_S0': ParameterInfo(0.0, 2.0, 'm', 'Initial mean deficit', 'other'),
+    }
+
+    # ========================================================================
     # XINANJIANG (XAJ) PARAMETERS
     # ========================================================================
     XINANJIANG_PARAMS: Dict[str, ParameterInfo] = {
@@ -551,6 +604,47 @@ class ParameterBoundsRegistry:
         'xaj_CG': ParameterInfo(0.98, 0.998, '-', 'Groundwater recession constant', 'routing'),
     }
 
+    # ========================================================================
+    # GSFLOW (PRMS + MODFLOW-NWT) PARAMETERS
+    # ========================================================================
+    GSFLOW_PARAMS: Dict[str, ParameterInfo] = {
+        # PRMS soil zone parameters
+        'gsflow_soil_moist_max': ParameterInfo(1.0, 15.0, 'inches', 'Max soil moisture storage', 'soil'),
+        'gsflow_soil_rechr_max': ParameterInfo(0.5, 5.0, 'inches', 'Max recharge zone storage', 'soil'),
+        'gsflow_ssr2gw_rate': ParameterInfo(0.001, 0.5, '1/day', 'Gravity reservoir to GW rate', 'baseflow'),
+        'gsflow_gwflow_coef': ParameterInfo(0.001, 0.5, '1/day', 'GW outflow coefficient', 'baseflow'),
+        'gsflow_gw_seep_coef': ParameterInfo(0.001, 0.2, '1/day', 'GW seepage coefficient', 'baseflow'),
+        # MODFLOW-NWT parameters
+        'gsflow_K': ParameterInfo(0.001, 100.0, 'm/d', 'Hydraulic conductivity', 'soil', 'log'),
+        'gsflow_SY': ParameterInfo(0.01, 0.4, '-', 'Specific yield', 'soil'),
+        # PRMS runoff parameters
+        'gsflow_slowcoef_lin': ParameterInfo(0.001, 0.5, '1/day', 'Linear gravity drainage coeff', 'baseflow'),
+        'gsflow_carea_max': ParameterInfo(0.1, 1.0, '-', 'Max contributing area fraction', 'soil'),
+        'gsflow_smidx_coef': ParameterInfo(0.001, 0.10, '-', 'Surface runoff equation coeff', 'soil'),
+        # Snow / climate parameters
+        'gsflow_jh_coef': ParameterInfo(0.005, 0.030, '-', 'Jensen-Haise PET coefficient', 'et'),
+        'gsflow_tmax_allrain': ParameterInfo(1.0, 7.0, 'degC', 'All-rain temperature threshold', 'snow'),
+        'gsflow_tmax_allsnow': ParameterInfo(-3.0, 2.0, 'degC', 'All-snow temperature threshold', 'snow'),
+        'gsflow_rain_adj': ParameterInfo(0.5, 2.0, '-', 'Rainfall adjustment multiplier', 'snow'),
+        'gsflow_snow_adj': ParameterInfo(0.5, 2.0, '-', 'Snowfall adjustment multiplier', 'snow'),
+    }
+
+    # ========================================================================
+    # WATFLOOD PARAMETERS
+    # ========================================================================
+    WATFLOOD_PARAMS: Dict[str, ParameterInfo] = {
+        'watflood_R2N': ParameterInfo(0.01, 5.0, '-', 'Channel Manning roughness multiplier', 'routing'),
+        'watflood_R1N': ParameterInfo(0.01, 5.0, '-', 'Overland flow roughness multiplier', 'routing'),
+        'watflood_AK': ParameterInfo(0.001, 1.0, 'mm/h', 'Upper zone interflow coefficient', 'baseflow'),
+        'watflood_AKF': ParameterInfo(0.001, 1.0, 'mm/h', 'Interflow recession coefficient', 'baseflow'),
+        'watflood_REESSION': ParameterInfo(0.0, 1.0, '-', 'Baseflow recession coefficient', 'baseflow'),
+        'watflood_FLZCOEF': ParameterInfo(0.0, 0.1, '-', 'Lower zone function coefficient', 'baseflow'),
+        'watflood_PWR': ParameterInfo(1.0, 3.0, '-', 'Power on lower zone function', 'baseflow'),
+        'watflood_THETA': ParameterInfo(0.0, 1.0, '-', 'Soil moisture content parameter', 'soil'),
+        'watflood_DS': ParameterInfo(0.0, 1.0, '-', 'Surface depression storage fraction', 'soil'),
+        'watflood_MANNING_N': ParameterInfo(0.01, 0.5, 's/m^1/3', 'Channel Manning roughness', 'routing'),
+    }
+
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
@@ -566,10 +660,14 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.GR_PARAMS)
         self._all_params.update(self.VIC_PARAMS)
         self._all_params.update(self.HBV_PARAMS)
+        self._all_params.update(self.HECHMS_PARAMS)
+        self._all_params.update(self.TOPMODEL_PARAMS)
         self._all_params.update(self.SACSMA_PARAMS)
         self._all_params.update(self.DROUTE_PARAMS)
         self._all_params.update(self.FIRE_PARAMS)
         self._all_params.update(self.XINANJIANG_PARAMS)
+        self._all_params.update(self.GSFLOW_PARAMS)
+        self._all_params.update(self.WATFLOOD_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict]:
         """
@@ -871,6 +969,46 @@ def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
     return get_registry().get_bounds_for_params(hbv_params)
 
 
+def get_hechms_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all HEC-HMS parameter bounds.
+
+    Returns:
+        Dictionary mapping HEC-HMS param_name -> {'min': float, 'max': float}
+    """
+    hechms_params = [
+        # Snow (ATI)
+        'px_temp', 'base_temp', 'ati_meltrate_coeff', 'meltrate_max', 'meltrate_min',
+        'cold_limit', 'ati_cold_rate_coeff', 'water_capacity',
+        # Loss (SCS-CN)
+        'cn', 'initial_abstraction_ratio',
+        # Transform (Clark UH)
+        'tc', 'r_coeff',
+        # Baseflow (Linear Reservoir)
+        'gw_storage_coeff', 'deep_perc_fraction',
+    ]
+    return get_registry().get_bounds_for_params(hechms_params)
+
+
+def get_topmodel_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all TOPMODEL parameter bounds.
+
+    Returns:
+        Dictionary mapping TOPMODEL param_name -> {'min': float, 'max': float}
+        Keys use unprefixed names (m, lnTe, ...) matching TOPMODEL parameter conventions.
+    """
+    topmodel_params = [
+        'topmodel_m', 'topmodel_lnTe', 'topmodel_Srmax', 'topmodel_Sr0', 'topmodel_td',
+        'topmodel_k_route',
+        'topmodel_DDF', 'topmodel_T_melt', 'topmodel_T_snow',
+        'topmodel_ti_std', 'topmodel_S0',
+    ]
+    prefixed = get_registry().get_bounds_for_params(topmodel_params)
+    # Strip topmodel_ prefix so keys match parameter manager conventions
+    return {k.replace('topmodel_', ''): v for k, v in prefixed.items()}
+
+
 def get_vic_bounds() -> Dict[str, Dict[str, float]]:
     """
     Get all VIC parameter bounds.
@@ -958,3 +1096,37 @@ def get_snow17_bounds() -> Dict[str, Dict[str, float]]:
     """
     names = ['SCF', 'PXTEMP', 'MFMAX', 'MFMIN', 'NMF', 'MBASE', 'TIPM', 'UADJ', 'PLWHC', 'DAYGM']
     return get_registry().get_bounds_for_params(names)
+
+
+def get_gsflow_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all GSFLOW (PRMS + MODFLOW-NWT) parameter bounds.
+
+    Returns:
+        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
+        Keys use unprefixed names matching GSFLOW parameter conventions.
+    """
+    gsflow_params = [
+        'gsflow_soil_moist_max', 'gsflow_soil_rechr_max', 'gsflow_ssr2gw_rate',
+        'gsflow_gwflow_coef', 'gsflow_gw_seep_coef', 'gsflow_K', 'gsflow_SY',
+        'gsflow_slowcoef_lin', 'gsflow_carea_max', 'gsflow_smidx_coef',
+    ]
+    prefixed = get_registry().get_bounds_for_params(gsflow_params)
+    return {k.replace('gsflow_', ''): v for k, v in prefixed.items()}
+
+
+def get_watflood_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all WATFLOOD parameter bounds.
+
+    Returns:
+        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
+        Keys use unprefixed names matching WATFLOOD parameter conventions.
+    """
+    watflood_params = [
+        'watflood_R2N', 'watflood_R1N', 'watflood_AK', 'watflood_AKF',
+        'watflood_REESSION', 'watflood_FLZCOEF', 'watflood_PWR',
+        'watflood_THETA', 'watflood_DS', 'watflood_MANNING_N',
+    ]
+    prefixed = get_registry().get_bounds_for_params(watflood_params)
+    return {k.replace('watflood_', ''): v for k, v in prefixed.items()}

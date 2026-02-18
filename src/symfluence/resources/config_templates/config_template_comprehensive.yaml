@@ -3302,6 +3302,13 @@ ROUTING_MODEL: null
 #   Description: Fire model selection (e.g., 'ignacio', 'wmfire')
 FIRE_MODEL: null
 
+# GROUNDWATER_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Groundwater model selection (e.g., 'MODFLOW', 'ParFlow')
+GROUNDWATER_MODEL: null
+
 
 # 7. SUMMA Model Configuration
 # ================================================================================
@@ -3962,6 +3969,272 @@ HBV_DEFAULT_PERC: 2.5
 #   Default:     2.5
 #   Source:      HBVConfig (hbv/config.py)
 HBV_DEFAULT_MAXBAS: 2.5
+
+
+# 9.4a. HEC-HMS Model Configuration (native Python/JAX)
+# ================================================================================
+# HEC-HMS conceptual model reimplemented in Python with JAX backend support.
+# Includes SCS CN runoff, temperature-index snowmelt, and linear reservoir GW.
+
+# HECHMS_BACKEND
+#   Type:        str
+#   Default:     jax
+#   Source:      HECHMSConfig (model_configs.py)
+#   Values:      jax, numpy
+HECHMS_BACKEND: "jax"
+
+# HECHMS_WARMUP_DAYS
+#   Type:        int
+#   Default:     365
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_WARMUP_DAYS: 365
+
+# HECHMS_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     default
+#   Source:      HECHMSConfig (model_configs.py)
+#   Description: Parameters to calibrate. 'default' for all, or comma-separated list.
+HECHMS_PARAMS_TO_CALIBRATE: "default"
+
+# HECHMS_CALIBRATION_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      HECHMSConfig (model_configs.py)
+#   Values:      KGE, NSE
+HECHMS_CALIBRATION_METRIC: "KGE"
+
+# HECHMS_PET_METHOD
+#   Type:        str
+#   Default:     input
+#   Source:      HECHMSConfig (model_configs.py)
+#   Values:      input, oudin, hamon
+HECHMS_PET_METHOD: "input"
+
+# HECHMS_LATITUDE
+#   Type:        float
+#   Default:     None
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_LATITUDE: null
+
+# HECHMS_INITIAL_SNOW_SWE
+#   Type:        float
+#   Default:     0.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_INITIAL_SNOW_SWE: 0.0
+
+# HECHMS_INITIAL_GW_STORAGE
+#   Type:        float
+#   Default:     10.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_INITIAL_GW_STORAGE: 10.0
+
+# HECHMS_DEFAULT_PX_TEMP
+#   Type:        float
+#   Default:     1.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_PX_TEMP: 1.0
+
+# HECHMS_DEFAULT_BASE_TEMP
+#   Type:        float
+#   Default:     0.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_BASE_TEMP: 0.0
+
+# HECHMS_DEFAULT_ATI_MELTRATE_COEFF
+#   Type:        float
+#   Default:     0.98
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_ATI_MELTRATE_COEFF: 0.98
+
+# HECHMS_DEFAULT_MELTRATE_MAX
+#   Type:        float
+#   Default:     5.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_MELTRATE_MAX: 5.0
+
+# HECHMS_DEFAULT_MELTRATE_MIN
+#   Type:        float
+#   Default:     1.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_MELTRATE_MIN: 1.0
+
+# HECHMS_DEFAULT_COLD_LIMIT
+#   Type:        float
+#   Default:     10.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_COLD_LIMIT: 10.0
+
+# HECHMS_DEFAULT_ATI_COLD_RATE_COEFF
+#   Type:        float
+#   Default:     0.1
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_ATI_COLD_RATE_COEFF: 0.1
+
+# HECHMS_DEFAULT_WATER_CAPACITY
+#   Type:        float
+#   Default:     0.05
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_WATER_CAPACITY: 0.05
+
+# HECHMS_DEFAULT_CN
+#   Type:        float
+#   Default:     65.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_CN: 65.0
+
+# HECHMS_DEFAULT_INITIAL_ABSTRACTION_RATIO
+#   Type:        float
+#   Default:     0.2
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_INITIAL_ABSTRACTION_RATIO: 0.2
+
+# HECHMS_DEFAULT_TC
+#   Type:        float
+#   Default:     3.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_TC: 3.0
+
+# HECHMS_DEFAULT_R_COEFF
+#   Type:        float
+#   Default:     5.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_R_COEFF: 5.0
+
+# HECHMS_DEFAULT_GW_STORAGE_COEFF
+#   Type:        float
+#   Default:     30.0
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_GW_STORAGE_COEFF: 30.0
+
+# HECHMS_DEFAULT_DEEP_PERC_FRACTION
+#   Type:        float
+#   Default:     0.1
+#   Source:      HECHMSConfig (model_configs.py)
+HECHMS_DEFAULT_DEEP_PERC_FRACTION: 0.1
+
+
+# 9.4b. TOPMODEL Configuration (native Python/JAX)
+# ================================================================================
+# TOPMODEL (Beven & Kirkby, 1979) reimplemented in Python with JAX backend support.
+# Topographic index-based variable contributing area model with exponential
+# transmissivity profile.
+
+# TOPMODEL_BACKEND
+#   Type:        str
+#   Default:     jax
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Values:      jax, numpy
+TOPMODEL_BACKEND: "jax"
+
+# TOPMODEL_WARMUP_DAYS
+#   Type:        int
+#   Default:     365
+#   Source:      TOPMODELConfig (model_configs.py)
+TOPMODEL_WARMUP_DAYS: 365
+
+# TOPMODEL_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     default
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Parameters to calibrate. 'default' for all, or comma-separated list.
+TOPMODEL_PARAMS_TO_CALIBRATE: "default"
+
+# TOPMODEL_CALIBRATION_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Values:      KGE, NSE
+TOPMODEL_CALIBRATION_METRIC: "KGE"
+
+# TOPMODEL_PET_METHOD
+#   Type:        str
+#   Default:     input
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Values:      input, oudin, hamon
+TOPMODEL_PET_METHOD: "input"
+
+# TOPMODEL_LATITUDE
+#   Type:        float
+#   Default:     None
+#   Source:      TOPMODELConfig (model_configs.py)
+TOPMODEL_LATITUDE: null
+
+# TOPMODEL_DEFAULT_M
+#   Type:        float
+#   Default:     0.05
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Exponential transmissivity decay parameter (m)
+TOPMODEL_DEFAULT_M: 0.05
+
+# TOPMODEL_DEFAULT_LNTE
+#   Type:        float
+#   Default:     1.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Log of effective transmissivity at saturation (ln(m²/h))
+TOPMODEL_DEFAULT_LNTE: 1.0
+
+# TOPMODEL_DEFAULT_SRMAX
+#   Type:        float
+#   Default:     0.05
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Maximum root zone storage deficit (m)
+TOPMODEL_DEFAULT_SRMAX: 0.05
+
+# TOPMODEL_DEFAULT_SR0
+#   Type:        float
+#   Default:     0.01
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Initial root zone storage deficit (m)
+TOPMODEL_DEFAULT_SR0: 0.01
+
+# TOPMODEL_DEFAULT_TD
+#   Type:        float
+#   Default:     5.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Unsaturated zone time delay (h/m)
+TOPMODEL_DEFAULT_TD: 5.0
+
+# TOPMODEL_DEFAULT_K_ROUTE
+#   Type:        float
+#   Default:     48.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Channel routing residence time (h)
+TOPMODEL_DEFAULT_K_ROUTE: 48.0
+
+# TOPMODEL_DEFAULT_DDF
+#   Type:        float
+#   Default:     3.5
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Degree-day factor for snowmelt (mm/°C/day)
+TOPMODEL_DEFAULT_DDF: 3.5
+
+# TOPMODEL_DEFAULT_T_MELT
+#   Type:        float
+#   Default:     0.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Threshold temperature for snowmelt (°C)
+TOPMODEL_DEFAULT_T_MELT: 0.0
+
+# TOPMODEL_DEFAULT_T_SNOW
+#   Type:        float
+#   Default:     1.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Threshold temperature for snowfall (°C)
+TOPMODEL_DEFAULT_T_SNOW: 1.0
+
+# TOPMODEL_DEFAULT_TI_STD
+#   Type:        float
+#   Default:     4.0
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Standard deviation of topographic index distribution
+TOPMODEL_DEFAULT_TI_STD: 4.0
+
+# TOPMODEL_DEFAULT_S0
+#   Type:        float
+#   Default:     0.5
+#   Source:      TOPMODELConfig (model_configs.py)
+#   Description: Initial saturation deficit (m)
+TOPMODEL_DEFAULT_S0: 0.5
 
 
 # 9.5. VIC Model Configuration
@@ -5640,71 +5913,163 @@ PRMS_MODEL_MODE: "DAILY"
 PRMS_TIMEOUT: 3600
 
 
-# 9.14. MIKE-SHE Model Configuration
+# 9.14. GSFLOW Model Configuration
 # ================================================================================
+# GSFLOW couples PRMS surface-process modules with MODFLOW-NWT groundwater.
+# Internal SFR/UZF packages handle bidirectional GW-SW exchange.
 
-# MIKESHE_INSTALL_PATH
+# GSFLOW_INSTALL_PATH
 #   Type:        str
 #   Default:     default
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Path to MIKE-SHE installation directory
-MIKESHE_INSTALL_PATH: default
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      4
+GSFLOW_INSTALL_PATH: default
 
-# MIKESHE_EXE
+# GSFLOW_EXE
 #   Type:        str
-#   Default:     MikeSheEngine.exe
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       MIKE-SHE engine executable name
-MIKESHE_EXE: "MikeSheEngine.exe"
+#   Default:     gsflow
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      4
+GSFLOW_EXE: "gsflow"
 
-# SETTINGS_MIKESHE_PATH
-#   Type:        str
-#   Default:     default
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Path to MIKE-SHE settings directory
-SETTINGS_MIKESHE_PATH: default
-
-# MIKESHE_SETUP_FILE
-#   Type:        str
-#   Default:     model.she
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       MIKE-SHE setup file name (.she)
-MIKESHE_SETUP_FILE: "model.she"
-
-# MIKESHE_SPATIAL_MODE
-#   Type:        str
-#   Default:     lumped
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Spatial discretization mode
-MIKESHE_SPATIAL_MODE: "lumped"
-
-# EXPERIMENT_OUTPUT_MIKESHE
+# SETTINGS_GSFLOW_PATH
 #   Type:        str
 #   Default:     default
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Path to MIKE-SHE experiment output directory
-EXPERIMENT_OUTPUT_MIKESHE: default
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_GSFLOW_PATH: default
 
-# MIKESHE_USE_WINE
-#   Type:        bool
-#   Default:     False
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Run MIKE-SHE via Wine on non-Windows platforms
-MIKESHE_USE_WINE: false
-
-# MIKESHE_PARAMS_TO_CALIBRATE
+# GSFLOW_CONTROL_FILE
 #   Type:        str
-#   Default:     manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Comma-separated list of MIKE-SHE parameters for calibration
-MIKESHE_PARAMS_TO_CALIBRATE: manning_m,detention_storage,Ks_uz,theta_sat,theta_fc,theta_wp,Ks_sz_h,specific_yield,ddf,snow_threshold,max_canopy_storage
+#   Default:     control.dat
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+GSFLOW_CONTROL_FILE: "control.dat"
 
-# MIKESHE_TIMEOUT
+# GSFLOW_PARAMETER_FILE
+#   Type:        str
+#   Default:     params.dat
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+GSFLOW_PARAMETER_FILE: "params.dat"
+
+# GSFLOW_MODFLOW_NAM_FILE
+#   Type:        str
+#   Default:     modflow.nam
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+GSFLOW_MODFLOW_NAM_FILE: "modflow.nam"
+
+# GSFLOW_MODE
+#   Type:        str
+#   Default:     COUPLED
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Values:      PRMS, MODFLOW, COUPLED
+GSFLOW_MODE: "COUPLED"
+
+# GSFLOW_SPATIAL_MODE
+#   Type:        str
+#   Default:     semi_distributed
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+GSFLOW_SPATIAL_MODE: "semi_distributed"
+
+# EXPERIMENT_OUTPUT_GSFLOW
+#   Type:        str
+#   Default:     default
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_GSFLOW: default
+
+# GSFLOW_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coef,gw_seep_coef,K,SY,slowcoef_lin,carea_max,smidx_coef
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      4
+GSFLOW_PARAMS_TO_CALIBRATE: soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coef,gw_seep_coef,K,SY,slowcoef_lin,carea_max,smidx_coef
+
+# GSFLOW_TIMEOUT
 #   Type:        int
 #   Default:     7200
-#   Source:      MIKESHEConfig (model_configs.py)
-#   Usage:       Maximum runtime in seconds before timeout (60-86400)
-MIKESHE_TIMEOUT: 7200
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      3
+GSFLOW_TIMEOUT: 7200
+
+
+# 9.15. WATFLOOD Model Configuration
+# ================================================================================
+# WATFLOOD (Kouwen) uses a GRU-grid distributed structure with internal
+# channel routing. Requires only P and T forcing (simplified energy balance).
+
+# WATFLOOD_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      4
+WATFLOOD_INSTALL_PATH: default
+
+# WATFLOOD_EXE
+#   Type:        str
+#   Default:     watflood
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      4
+WATFLOOD_EXE: "watflood"
+
+# SETTINGS_WATFLOOD_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      4
+SETTINGS_WATFLOOD_PATH: default
+
+# WATFLOOD_SHED_FILE
+#   Type:        str
+#   Default:     watershed.shd
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+WATFLOOD_SHED_FILE: "watershed.shd"
+
+# WATFLOOD_PAR_FILE
+#   Type:        str
+#   Default:     params.par
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+WATFLOOD_PAR_FILE: "params.par"
+
+# WATFLOOD_EVENT_FILE
+#   Type:        str
+#   Default:     event.evt
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+WATFLOOD_EVENT_FILE: "event.evt"
+
+# WATFLOOD_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+WATFLOOD_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_WATFLOOD
+#   Type:        str
+#   Default:     default
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_WATFLOOD: default
+
+# WATFLOOD_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNING_N
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      4
+WATFLOOD_PARAMS_TO_CALIBRATE: R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNING_N
+
+# WATFLOOD_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      WATFLOODConfig (model_configs.py)
+#   Usage:      3
+WATFLOOD_TIMEOUT: 3600
 
 
 # 18. State Management

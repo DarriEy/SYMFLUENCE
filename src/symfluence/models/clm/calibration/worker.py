@@ -736,9 +736,17 @@ class CLMWorker(BaseWorker):
 
             obs_series = pd.Series(obs_values, index=obs_index)
 
-            # Align and compute metrics
+            # Align over calibration period only (not evaluation)
+            cal_period_str = config.get('CALIBRATION_PERIOD')
+            calibration_period = None
+            if cal_period_str:
+                parts = [s.strip() for s in str(cal_period_str).split(',')]
+                if len(parts) == 2:
+                    calibration_period = (parts[0], parts[1])
+
             obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
-                sim_series, obs_series
+                sim_series, obs_series,
+                calibration_period=calibration_period,
             )
 
             results = self._streamflow_metrics.calculate_metrics(

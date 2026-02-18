@@ -242,6 +242,74 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
                     if item.is_file():
                         copy_file(item, dest / item.name)
 
+    def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
+        """Apply best parameters to project-level settings for final evaluation.
+
+        Instead of re-applying parameters to the project-level settings (which
+        can silently fail when the project-level trialParams.nc is missing
+        variables that were added during iteration setup), we copy the
+        already-correct settings files from the parallel directory.  The
+        parallel dir's SUMMA trialParams.nc and MODFLOW files are guaranteed
+        to have the right values because they were successfully used in the
+        best DDS iteration.
+
+        Falls back to direct parameter application if parallel dirs are not
+        available (e.g. single-process mode).
+        """
+        settings_dir = self.project_dir / 'settings'
+
+        # Try copying from the parallel directory first (reliable path)
+        if hasattr(self, 'parallel_dirs') and self.parallel_dirs:
+            proc_dirs = next(iter(self.parallel_dirs.values()))
+            try:
+                # First apply params to the parallel dir (which has the right
+                # trialParams.nc structure)
+                parallel_settings = proc_dirs['settings_dir']
+                self.worker.apply_parameters(
+                    best_params, parallel_settings, config=self.config
+                )
+
+                # Copy calibrated SUMMA settings to project level
+                parallel_land = proc_dirs.get('land_settings_dir')
+                project_land = settings_dir / self.land_model_name
+                if parallel_land and parallel_land.exists():
+                    for item in parallel_land.iterdir():
+                        if item.is_file():
+                            copy_file(item, project_land / item.name)
+                    self.logger.info(
+                        f"Copied calibrated {self.land_model_name} settings "
+                        f"from parallel dir to project settings"
+                    )
+
+                # Copy calibrated MODFLOW settings to project level
+                parallel_mf = proc_dirs.get('modflow_settings_dir')
+                project_mf = settings_dir / 'MODFLOW'
+                if parallel_mf and parallel_mf.exists():
+                    for item in parallel_mf.iterdir():
+                        if item.is_file():
+                            copy_file(item, project_mf / item.name)
+                    self.logger.info(
+                        "Copied calibrated MODFLOW settings "
+                        "from parallel dir to project settings"
+                    )
+
+                return True
+
+            except (ValueError, IOError, RuntimeError) as e:
+                self.logger.warning(
+                    f"Parallel dir copy failed ({e}), falling back to "
+                    f"direct parameter application"
+                )
+
+        # Fallback: apply parameters directly to project-level settings
+        try:
+            return self.worker.apply_parameters(
+                best_params, settings_dir, config=self.config
+            )
+        except (ValueError, IOError, RuntimeError) as e:
+            self.logger.error(f"Error applying parameters for final evaluation: {e}")
+            return False
+
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run coupled model for final evaluation."""
         settings_dir = self.project_dir / 'settings'
@@ -249,17 +317,53 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
             self.config, settings_dir, output_dir,
         )
 
-    def _update_file_manager_for_final_run(self) -> None:
-        """Update land surface model file manager for full experiment period.
+    def _update_file_manager_output_path(self, output_dir: Path) -> None:
+        """Update SUMMA file manager to write output into the land-model subdir.
 
-        During DDS iterations, parallel dirs have simEndTime truncated to the
-        calibration period end. The final evaluation must run over the full
-        experiment period so that MODFLOW's transient groundwater simulation
-        covers the evaluation window and produces consistent drain discharge.
-        Without this, the calibration-period KGE from the final evaluation
-        will differ from the DDS iteration score because MODFLOW results are
-        path-dependent on the recharge time series length.
+        The base class sets outputPath to ``output_dir/`` but the coupled
+        target expects SUMMA output in ``output_dir/SUMMA/`` and MODFLOW
+        output in ``output_dir/MODFLOW/``.  We also restore settingsPath
+        to the project-level SUMMA settings so SUMMA reads the trialParams
+        we just wrote with _apply_best_parameters_for_final.
         """
+        file_manager_path = self._get_final_file_manager_path()
+        if not file_manager_path.exists() or not file_manager_path.is_file():
+            return
+
+        try:
+            with open(file_manager_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            land_output = str(output_dir / self.land_model_name)
+            if not land_output.endswith('/'):
+                land_output += '/'
+
+            land_settings = str(self.project_dir / 'settings' / self.land_model_name)
+            if not land_settings.endswith('/'):
+                land_settings += '/'
+
+            updated_lines = []
+            for line in lines:
+                if 'outputPath' in line and not line.strip().startswith('!'):
+                    updated_lines.append(f"outputPath '{land_output}' \n")
+                elif 'settingsPath' in line and not line.strip().startswith('!'):
+                    updated_lines.append(f"settingsPath '{land_settings}' \n")
+                else:
+                    updated_lines.append(line)
+
+            with open(file_manager_path, 'w', encoding='utf-8') as f:
+                f.writelines(updated_lines)
+
+            self.logger.debug(
+                f"Updated file manager: outputPath={land_output}, "
+                f"settingsPath={land_settings}"
+            )
+
+        except (FileNotFoundError, IOError, ValueError) as e:
+            self.logger.error(f"Failed to update file manager output path: {e}")
+
+    def _update_file_manager_for_final_run(self) -> None:
+        """Update land surface model file manager for full experiment period."""
         super()._update_file_manager_for_final_run()
 
     def _restore_file_manager_for_optimization(self) -> None:

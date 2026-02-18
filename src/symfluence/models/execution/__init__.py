@@ -24,7 +24,8 @@ from .model_executor import (
     ModelExecutor,
     ExecutionResult,
     SlurmJobConfig,
-    ExecutionMode
+    ExecutionMode,
+    augment_conda_library_paths,
 )
 from .spatial_orchestrator import (
     SpatialOrchestrator,
@@ -43,6 +44,7 @@ __all__ = [
     'ExecutionResult',
     'SlurmJobConfig',
     'ExecutionMode',
+    'augment_conda_library_paths',
     'SpatialOrchestrator',
     'SpatialMode',
     'RoutingConfig',

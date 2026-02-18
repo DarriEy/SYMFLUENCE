@@ -270,7 +270,6 @@ class CoupledGWWorker(BaseWorker):
         **kwargs,
     ) -> bool:
         """Run models sequentially with file-based coupling."""
-        from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
         from symfluence.models.modflow.runner import MODFLOWRunner
 
         land_settings = self._resolve_land_settings(settings_dir)
@@ -278,8 +277,14 @@ class CoupledGWWorker(BaseWorker):
 
         land_output = output_dir / self.land_model_name
         modflow_output = output_dir / 'MODFLOW'
-        land_output.mkdir(parents=True, exist_ok=True)
-        modflow_output.mkdir(parents=True, exist_ok=True)
+
+        # Fully recreate output directories to prevent stale/corrupted
+        # NetCDF files from prior killed iterations causing empty output.
+        import shutil
+        for d in (land_output, modflow_output):
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+            d.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Run land surface model
         self.logger.info(f"Running {self.land_model_name} (land surface)...")
@@ -298,33 +303,18 @@ class CoupledGWWorker(BaseWorker):
             )
             return False
 
-        # Step 2: Extract recharge and write per-period gwf.rch
-        self.logger.info(
-            f"Coupling {self.land_model_name} recharge to MODFLOW..."
-        )
-        coupler = SUMMAToMODFLOWCoupler(config, self.logger)
-        recharge_var = RECHARGE_VARIABLES.get(
-            self.land_model_name, 'scalarSoilDrainage'
-        )
-        try:
-            recharge = coupler.extract_recharge_from_summa(
-                land_output, variable=recharge_var,
-            )
-            rch_path = modflow_settings / 'gwf.rch'
-            coupler.write_modflow_recharge_rch(recharge, rch_path)
-        except Exception as e:
-            self.logger.error(f"Recharge coupling failed: {e}")
-            return False
-
-        # Step 5: Run MODFLOW from the output directory.
-        # Override the runner's settings_dir so _setup_sim_directory copies
-        # from our worker settings (which have TAS6 recharge), not the
-        # project-level preprocessor defaults.
+        # Step 2: Run MODFLOW with iteration-specific SUMMA recharge.
+        # Pass land_output as coupling_source_dir so the runner reads
+        # recharge from THIS iteration's SUMMA output (not the project-
+        # level default), writes gwf.rch, and executes mf6.
         self.logger.info("Running MODFLOW 6 (groundwater)...")
         try:
             runner = MODFLOWRunner(config, self.logger)
             runner.settings_dir = modflow_settings
-            result = runner.run_modflow(sim_dir=modflow_output)
+            result = runner.run_modflow(
+                sim_dir=modflow_output,
+                coupling_source_dir=land_output,
+            )
             if result is None:
                 return False
         except Exception as e:

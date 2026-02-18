@@ -251,6 +251,25 @@ class SummaConfigManager(PathResolverMixin):
                                 "(disabled SUMMA internal aquifer to avoid double-counting)"
                             )
 
+            # Apply user-specified SUMMA_DECISION_OPTIONS overrides
+            decisions_path = settings_path / 'modelDecisions.txt'
+            decision_options = self.config_dict.get('SUMMA_DECISION_OPTIONS', {})
+            if decision_options and decisions_path.exists():
+                import re
+                with open(decisions_path, 'r', encoding='utf-8') as f:
+                    dec_content = f.read()
+                for key, values in decision_options.items():
+                    value = values[0] if isinstance(values, list) else values
+                    dec_content, n = re.subn(
+                        rf'({key}\s+)\S+',
+                        rf'\g<1>{value}',
+                        dec_content,
+                    )
+                    if n > 0:
+                        self.logger.info(f"Set {key}={value} from SUMMA_DECISION_OPTIONS")
+                with open(decisions_path, 'w', encoding='utf-8') as f:
+                    f.write(dec_content)
+
             self.logger.info(f"SUMMA base settings copied to {settings_path}")
         except FileNotFoundError as e:
             self.logger.error(f"Source file or directory not found: {e}")

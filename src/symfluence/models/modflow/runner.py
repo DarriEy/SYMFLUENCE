@@ -61,13 +61,18 @@ class MODFLOWRunner(BaseModelRunner):
             default=3600,
         )
 
-    def run_modflow(self, sim_dir: Optional[Path] = None, **kwargs) -> Optional[Path]:
+    def run_modflow(self, sim_dir: Optional[Path] = None, coupling_source_dir: Optional[Path] = None, **kwargs) -> Optional[Path]:
         """
         Execute MODFLOW 6.
 
         Args:
             sim_dir: Optional override for simulation directory. If None,
                      uses standard output path.
+            coupling_source_dir: Optional override for the land-surface model
+                output directory used by recharge extraction.  When called from
+                the CoupledGWWorker during calibration, this points to the
+                iteration-specific SUMMA output so recharge reflects the
+                current parameter set (not the project-level default).
 
         Returns:
             Path to output directory on success.
@@ -78,7 +83,7 @@ class MODFLOWRunner(BaseModelRunner):
         logger.info(f"Running MODFLOW 6 for domain: {self.config.domain.name}")
 
         # Prepare coupled recharge from upstream land surface model
-        self._prepare_coupled_recharge()
+        self._prepare_coupled_recharge(source_dir_override=coupling_source_dir)
 
         with symfluence_error_handler(
             "MODFLOW 6 model execution",
@@ -151,30 +156,44 @@ class MODFLOWRunner(BaseModelRunner):
 
             return self.output_dir
 
-    def _prepare_coupled_recharge(self) -> None:
+    def _prepare_coupled_recharge(self, source_dir_override: Optional[Path] = None) -> None:
         """Extract recharge from upstream land surface model output.
 
         Checks ``coupling_source`` in MODFLOW config. If a source model
         is configured (e.g. SUMMA), uses SUMMAToMODFLOWCoupler to read
         its output, convert soil drainage to MODFLOW recharge, and write
         the gwf.rch file into the settings directory.
+
+        Args:
+            source_dir_override: When provided, read land-surface output
+                from this directory instead of the project-level default.
+                Used during calibration so each iteration gets recharge
+                from the current parameter set.
         """
         coupling_source = self._get_config_value(
             lambda: self.config.model.modflow.coupling_source if self.config.model.modflow else None,
             default=None,
         )
-        if not coupling_source or str(coupling_source).lower() in ('none', 'default', ''):
+
+        # When source_dir_override is provided (calibration), always prepare
+        # recharge from the override directory regardless of coupling_source
+        # config (which may be unreadable when config is a flat dict).
+        if source_dir_override is not None:
+            source_output_dir = Path(source_dir_override)
+            coupling_source = coupling_source or 'SUMMA'
+            coupling_source = str(coupling_source).upper()
+            logger.info(f"Preparing coupled recharge from {coupling_source}")
+        elif coupling_source and str(coupling_source).lower() not in ('none', 'default', ''):
+            coupling_source = str(coupling_source).upper()
+            logger.info(f"Preparing coupled recharge from {coupling_source}")
+            experiment_id = self.config.domain.experiment_id
+            source_output_dir = (
+                self.project_dir / "simulations" / experiment_id / coupling_source
+            )
+        else:
             logger.debug("No coupling source configured — skipping recharge preparation")
             return
 
-        coupling_source = str(coupling_source).upper()
-        logger.info(f"Preparing coupled recharge from {coupling_source}")
-
-        # Locate upstream model output
-        experiment_id = self.config.domain.experiment_id
-        source_output_dir = (
-            self.project_dir / "simulations" / experiment_id / coupling_source
-        )
         if not source_output_dir.exists():
             logger.warning(
                 f"Coupling source output directory not found: {source_output_dir}. "
@@ -187,6 +206,12 @@ class MODFLOWRunner(BaseModelRunner):
         recharge_var = self._get_config_value(
             lambda: self.config.model.modflow.recharge_variable,
             default='scalarSoilDrainage',
+        )
+
+        nc_files = sorted(source_output_dir.glob("*.nc"))
+        logger.debug(
+            f"Coupling source dir: {source_output_dir}, "
+            f"NC files: {[f.name for f in nc_files]}"
         )
 
         coupler = SUMMAToMODFLOWCoupler(self.config_dict, logger_instance=logger)

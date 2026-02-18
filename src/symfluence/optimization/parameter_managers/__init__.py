@@ -43,6 +43,10 @@ def _register_parameter_managers():
         'symfluence.models.modflow.calibration.parameter_manager',
         'symfluence.models.pihm.calibration.parameter_manager',
         'symfluence.models.hydrogeosphere.calibration.parameter_manager',
+        'symfluence.models.hechms.calibration.parameter_manager',
+        'symfluence.models.topmodel.calibration.parameter_manager',
+        'symfluence.models.gsflow.calibration.parameter_manager',
+        'symfluence.models.watflood.calibration.parameter_manager',
     ]
 
     for module_path in canonical_modules:
@@ -75,6 +79,8 @@ from symfluence.models.xinanjiang.calibration.parameter_manager import Xinanjian
 from symfluence.models.modflow.calibration.parameter_manager import CoupledGWParameterManager
 from symfluence.models.pihm.calibration.parameter_manager import PIHMParameterManager
 from symfluence.models.hydrogeosphere.calibration.parameter_manager import HGSParameterManager
+from symfluence.models.gsflow.calibration.parameter_manager import GSFLOWParameterManager
+from symfluence.models.watflood.calibration.parameter_manager import WATFLOODParameterManager
 
 __all__ = [
     'FUSEParameterManager',
@@ -91,4 +97,6 @@ __all__ = [
     'CoupledGWParameterManager',
     'PIHMParameterManager',
     'HGSParameterManager',
+    'GSFLOWParameterManager',
+    'WATFLOODParameterManager',
 ]

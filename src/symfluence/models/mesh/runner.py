@@ -130,19 +130,19 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             # Execute MESH (it must run in the forcing directory)
             self.logger.debug(f"Executing command: {' '.join(map(str, cmd))}")
 
-            # Prepare environment
-            run_env = os.environ.copy()
+            # Prepare environment delta (base handles os.environ copy + conda augmentation)
+            mesh_env: Dict[str, str] = {}
             if sys.platform == 'darwin':
-                # Ensure homebrew paths are included
                 brew_lib = "/opt/homebrew/lib"
-                if brew_lib not in run_env.get("DYLD_LIBRARY_PATH", ""):
-                    run_env['DYLD_LIBRARY_PATH'] = f"{brew_lib}:{run_env.get('DYLD_LIBRARY_PATH', '')}"
+                current = os.environ.get("DYLD_LIBRARY_PATH", "")
+                if brew_lib not in current:
+                    mesh_env['DYLD_LIBRARY_PATH'] = f"{brew_lib}:{current}" if current else brew_lib
 
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
                 cwd=self.forcing_mesh_path,
-                env=run_env,
+                env=mesh_env if mesh_env else None,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully",
                 success_log_level=logging.DEBUG
