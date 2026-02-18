@@ -272,7 +272,7 @@ echo "troute-nwm installed OK"
 # Install the few lightweight deps that are likely missing.
 echo ""
 echo "--- Installing missing runtime dependencies ---"
-"$PYTHON_BIN" -m pip install deprecated toolz joblib -q 2>&1 || true
+"$PYTHON_BIN" -m pip install deprecated toolz joblib pyarrow -q 2>&1 || true
 
 # --- Verify installation ---
 # troute-config requires pydantic v1, which conflicts with SYMFLUENCE's pydantic v2.
