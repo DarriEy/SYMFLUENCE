@@ -44,6 +44,48 @@ def get_summa_build_instructions():
 # Build SUMMA against SUNDIALS + NetCDF, leverage SUMMA's CMake-based build
 set -e
 
+# SUMMA is a serial Fortran program — do NOT use MPI compiler wrappers
+# (mpicc/mpiCC) for CC/CXX. They link against libmpi_cxx which may require
+# a newer libstdc++ than the system linker provides, causing:
+#   "undefined reference to std::ios_base_library_init()@GLIBCXX_3.4.32"
+# Instead, resolve to the underlying gcc/g++/gfortran from the same toolchain.
+_resolve_non_mpi_compiler() {
+    local wrapper="$1" fallback="$2"
+    # If it's an MPI wrapper, extract the underlying compiler
+    if command -v "$wrapper" >/dev/null 2>&1; then
+        case "$(basename "$wrapper")" in
+            mpicc|mpicxx|mpiCC|mpic++)
+                # Try to extract underlying compiler from MPI wrapper
+                local underlying
+                underlying=$("$wrapper" -show 2>/dev/null | awk '{print $1}') || true
+                if [ -n "$underlying" ] && command -v "$underlying" >/dev/null 2>&1; then
+                    echo "$underlying"
+                    return
+                fi
+                ;;
+        esac
+    fi
+    echo "$fallback"
+}
+
+# Ensure all compilers are from the same GCC toolchain
+if [ -n "${FC:-}" ] && [[ "$FC" != */usr/bin/* ]]; then
+    # FC is from a module — derive CC/CXX from the same prefix
+    _fc_dir="$(dirname "$FC")"
+    if [ -x "$_fc_dir/gcc" ]; then
+        export CC="$_fc_dir/gcc"
+        export CXX="$_fc_dir/g++"
+        echo "Using matched compiler toolchain from FC: CC=$CC"
+    else
+        export CC="$(_resolve_non_mpi_compiler "${CC:-gcc}" "gcc")"
+        export CXX="$(_resolve_non_mpi_compiler "${CXX:-g++}" "g++")"
+    fi
+elif echo "${CC:-}" | grep -qE 'mpicc|mpicxx|mpiCC'; then
+    export CC="$(_resolve_non_mpi_compiler "$CC" "gcc")"
+    export CXX="$(_resolve_non_mpi_compiler "${CXX:-g++}" "g++")"
+    echo "Resolved MPI wrappers to: CC=$CC CXX=$CXX"
+fi
+
 export SUNDIALS_DIR="$(realpath ../sundials/install/sundials)"
 echo "Using SUNDIALS from: $SUNDIALS_DIR"
 

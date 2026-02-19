@@ -88,6 +88,30 @@ configure_compilers() {
         return 0
     fi
 
+    # If CC is already set (e.g., by user or HPC module), resolve and trust it.
+    # This handles both absolute paths and bare names (e.g., CC=gcc).
+    if [ -n "$CC" ]; then
+        if [ -x "$CC" ]; then
+            echo "Using pre-set compiler: CC=$CC"
+            [ -n "$CXX" ] && echo "  CXX=$CXX"
+            return 0
+        fi
+        # Bare name — resolve to full path
+        local cc_resolved
+        cc_resolved="$(command -v "$CC" 2>/dev/null)"
+        if [ -n "$cc_resolved" ] && [ -x "$cc_resolved" ]; then
+            export CC="$cc_resolved"
+            if [ -n "$CXX" ]; then
+                local cxx_resolved
+                cxx_resolved="$(command -v "$CXX" 2>/dev/null)"
+                [ -n "$cxx_resolved" ] && [ -x "$cxx_resolved" ] && export CXX="$cxx_resolved"
+            fi
+            echo "Resolved pre-set compiler: CC=$CC"
+            [ -n "$CXX" ] && echo "  CXX=$CXX"
+            return 0
+        fi
+    fi
+
     # Only use system compilers if explicitly requested
     if [ "${SYMFLUENCE_USE_SYSTEM_COMPILERS:-}" = "true" ]; then
         [ -x /usr/bin/gcc ] && export CC=/usr/bin/gcc
@@ -136,11 +160,23 @@ configure_fortran() {
             ;;
     esac
 
-    # Already set and valid
-    if [ -n "$FC" ] && [ -x "$FC" ]; then
-        echo "Using FC=$FC"
-        export FC_EXE="$FC"
-        return 0
+    # Already set — resolve to full path if needed.
+    # Handles both absolute paths (/path/to/gfortran) and bare names (gfortran).
+    if [ -n "$FC" ]; then
+        if [ -x "$FC" ]; then
+            echo "Using FC=$FC"
+            export FC_EXE="$FC"
+            return 0
+        fi
+        # Bare name (e.g., FC=gfortran from env) — resolve via PATH
+        local fc_resolved
+        fc_resolved="$(command -v "$FC" 2>/dev/null)"
+        if [ -n "$fc_resolved" ] && [ -x "$fc_resolved" ]; then
+            export FC="$fc_resolved"
+            export FC_EXE="$FC"
+            echo "Resolved FC=$FC"
+            return 0
+        fi
     fi
 
     # Try conda gfortran first (from compilers package)
@@ -154,11 +190,33 @@ configure_fortran() {
         fi
     fi
 
-    # Fall back to system gfortran
+    # Fall back to gfortran on PATH, but prefer non-system over /usr/bin.
+    # On HPC, 'module load gcc' adds a spack gfortran to PATH that should
+    # take precedence over the ancient /usr/bin/gfortran.
     if command -v gfortran >/dev/null 2>&1; then
-        export FC="$(command -v gfortran)"
+        local fc_path
+        fc_path="$(command -v gfortran)"
+        # Check if there's a non-system gfortran further down PATH
+        # (command -v returns the first match; on some HPC systems /usr/bin
+        # comes before the module's bin/ directory)
+        if [[ "$fc_path" == "/usr/bin/gfortran" ]]; then
+            local alt_fc=""
+            # Search PATH for a gfortran NOT in /usr/bin
+            IFS=':' read -ra _paths <<< "$PATH"
+            for _p in "${_paths[@]}"; do
+                if [[ "$_p" != "/usr/bin" && "$_p" != "/usr/sbin" ]] && [ -x "$_p/gfortran" ]; then
+                    alt_fc="$_p/gfortran"
+                    break
+                fi
+            done
+            if [ -n "$alt_fc" ]; then
+                fc_path="$alt_fc"
+                echo "Preferred module gfortran over /usr/bin/gfortran"
+            fi
+        fi
+        export FC="$fc_path"
         export FC_EXE="$FC"
-        echo "Using system Fortran compiler: FC=$FC"
+        echo "Using Fortran compiler: FC=$FC"
         return 0
     fi
 
