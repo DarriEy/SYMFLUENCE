@@ -93,6 +93,27 @@ class FuseForcingProcessor(BaseForcingProcessor):
         """Return model name for logging."""
         return "FUSE"
 
+    def _infer_spatial_mode_from_domain(self) -> str:
+        """Infer FUSE spatial mode from DOMAIN_DEFINITION_METHOD when FUSE_SPATIAL_MODE is not set."""
+        domain_method = self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            default='lumped',
+            dict_key='DOMAIN_DEFINITION_METHOD'
+        )
+        domain_to_fuse = {
+            'lumped': 'lumped',
+            'point': 'lumped',
+            'semidistributed': 'semi_distributed',
+            'semi_distributed': 'semi_distributed',
+            'distributed': 'distributed',
+            'discretized': 'distributed',
+            'subset': 'semi_distributed',
+            'delineate': 'semi_distributed',
+        }
+        mode = domain_to_fuse.get(str(domain_method).lower(), 'lumped')
+        self.logger.info(f"FUSE_SPATIAL_MODE not set, inferred '{mode}' from DOMAIN_DEFINITION_METHOD='{domain_method}'")
+        return mode
+
     def prepare_forcing_data(self, ts_config: Dict[str, Any], pet_method: str = 'oudin') -> Path:
         """
         Prepare forcing data with support for lumped, semi-distributed, and distributed modes.
@@ -111,8 +132,10 @@ class FuseForcingProcessor(BaseForcingProcessor):
         try:
             self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
 
-            # Get spatial mode configuration
-            spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default='lumped', dict_key='FUSE_SPATIAL_MODE')
+            # Get spatial mode configuration (fall back to DOMAIN_DEFINITION_METHOD if FUSE_SPATIAL_MODE not set)
+            spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default=None, dict_key='FUSE_SPATIAL_MODE')
+            if spatial_mode is None:
+                spatial_mode = self._infer_spatial_mode_from_domain()
             subcatchment_dim = self._get_config_value(lambda: self.config.model.fuse.subcatchment_dim, default='longitude', dict_key='FUSE_SUBCATCHMENT_DIM')
 
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")

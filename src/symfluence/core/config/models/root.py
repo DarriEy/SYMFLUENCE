@@ -438,17 +438,24 @@ class SymfluenceConfig(BaseModel):
             # Map domain definition to appropriate FUSE spatial mode
             domain_to_fuse_mode = {
                 'lumped': 'lumped',
+                'point': 'lumped',
+                'semidistributed': 'semi_distributed',
                 'semi_distributed': 'semi_distributed',
                 'distributed': 'distributed',
                 'discretized': 'distributed',  # Treat discretized as distributed
+                'subset': 'semi_distributed',
+                'delineate': 'semi_distributed',
             }
             expected_fuse_mode = domain_to_fuse_mode.get(self.domain.definition_method)
 
             if expected_fuse_mode and self.model.fuse.spatial_mode != expected_fuse_mode:
-                # Auto-align FUSE spatial mode to match domain definition
-                self.model.fuse = self.model.fuse.model_copy(update={'spatial_mode': expected_fuse_mode})
+                # Warn about mismatch; downstream code infers correct mode from
+                # DOMAIN_DEFINITION_METHOD when FUSE_SPATIAL_MODE is not explicit.
                 issues.append(
-                    f"Auto-aligned FUSE_SPATIAL_MODE to '{expected_fuse_mode}' (DOMAIN_DEFINITION_METHOD is '{self.domain.definition_method}')"
+                    f"FUSE_SPATIAL_MODE is '{self.model.fuse.spatial_mode}' but "
+                    f"DOMAIN_DEFINITION_METHOD is '{self.domain.definition_method}' "
+                    f"(expected '{expected_fuse_mode}'). Downstream processing will "
+                    f"infer the correct spatial mode automatically."
                 )
 
         # Check GR spatial mode
@@ -462,7 +469,7 @@ class SymfluenceConfig(BaseModel):
         # Log alignment actions as info, other issues as warnings
         if issues:
             for issue in issues:
-                if 'Auto-aligned' in issue:
+                if 'Auto-aligned' in issue or 'infer the correct spatial mode' in issue:
                     logger.info(f"Spatial mode configuration: {issue}")
                 else:
                     warnings.warn(f"Spatial mode configuration: {issue}", UserWarning)

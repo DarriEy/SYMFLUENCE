@@ -329,8 +329,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             ts_config = self._get_timestep_config()
             self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
 
-            # Get spatial mode configuration
-            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE', 'lumped')
+            # Get spatial mode configuration (fall back to DOMAIN_DEFINITION_METHOD if FUSE_SPATIAL_MODE not set)
+            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE')
+            if spatial_mode is None:
+                spatial_mode = self._infer_spatial_mode_from_domain()
             subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
 
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
