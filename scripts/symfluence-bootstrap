@@ -1180,11 +1180,26 @@ EOF
                 fi
             fi
 
-            # Persist netCDF library paths into activate script (if discovered)
+            # Persist netCDF library paths into activate script ONLY when
+            # netCDF4 was built from source against system libs.
+            # Skip when pip installed a pre-built wheel (which vendors its own
+            # libhdf5) — injecting system HDF5 paths causes symbol conflicts.
             if [[ -n "${_SYMFLUENCE_NC_LIB_PATHS:-}" ]]; then
-                if ! grep -q "SYMFLUENCE netCDF library paths" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
-                    if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
-                        cat >> "${venv_path}/${VENV_ACTIVATE}" << NCEOF
+                local nc4_vendors_hdf5=false
+                local nc4_libs_dir
+                nc4_libs_dir=$("${venv_path}/bin/python" -c "
+import pathlib, netCDF4._netCDF4 as m
+p = pathlib.Path(m.__file__).parent.parent / 'netcdf4.libs'
+print('yes' if p.is_dir() and any(p.glob('libhdf5*')) else 'no')
+" 2>/dev/null || echo "unknown")
+                if [[ "$nc4_libs_dir" == "yes" ]]; then
+                    nc4_vendors_hdf5=true
+                    print_info "netCDF4 wheel vendors its own HDF5 — skipping system path injection"
+                fi
+                if [[ "$nc4_vendors_hdf5" == "false" ]]; then
+                    if ! grep -q "SYMFLUENCE netCDF library paths" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
+                        if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
+                            cat >> "${venv_path}/${VENV_ACTIVATE}" << NCEOF
 
 # SYMFLUENCE netCDF library paths (auto-discovered from nc-config)
 _SYMFLUENCE_NC_PATHS="${_SYMFLUENCE_NC_LIB_PATHS}"
@@ -1195,7 +1210,8 @@ if [ -n "\$_SYMFLUENCE_NC_PATHS" ]; then
     esac
 fi
 NCEOF
-                        print_info "Persisted netCDF library paths to venv activate script"
+                            print_info "Persisted netCDF library paths to venv activate script"
+                        fi
                     fi
                 fi
             fi
