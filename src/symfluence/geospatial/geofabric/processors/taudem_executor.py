@@ -63,11 +63,17 @@ class TauDEMExecutor:
         """
         Detect available MPI launcher.
 
-        Checks for srun (SLURM) first, then mpirun (generic MPI).
+        Respects MPI_LAUNCHER config override. Otherwise checks for srun
+        (SLURM) first, then mpirun (generic MPI). On HPC systems where
+        TauDEM is built with OpenMPI (not SLURM PMI), set
+        MPI_LAUNCHER: mpirun in the config to bypass srun.
 
         Returns:
             'srun', 'mpirun', or None if no MPI launcher found
         """
+        override = self.config.get('MPI_LAUNCHER')
+        if override and shutil.which(override):
+            return override
         if shutil.which("srun"):
             return "srun"
         elif shutil.which("mpirun"):
@@ -124,6 +130,9 @@ class TauDEMExecutor:
         detected_mpi = self._get_mpi_command()
         run_cmds: List[Optional[str]] = [detected_mpi] if detected_mpi else [None]
         if detected_mpi:
+            # If srun is primary, try mpirun as fallback before no-MPI
+            if detected_mpi == "srun" and shutil.which("mpirun"):
+                run_cmds.append("mpirun")
             run_cmds.append(None)
 
         last_err: Optional[subprocess.CalledProcessError] = None
