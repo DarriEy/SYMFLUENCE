@@ -452,6 +452,141 @@ check_rpy2_dependencies() {
     fi
 }
 
+# ----------------------------------------------------------------------
+# netCDF4 library path discovery (HPC / aarch64)
+# ----------------------------------------------------------------------
+setup_netcdf_environment() {
+    # Only needed on Linux where pre-built netCDF4 wheels may not exist
+    # (e.g., aarch64/ARM) and pip builds from source against system netCDF-C
+    # which may have transitive deps (PnetCDF, curl, etc.) not on LD_LIBRARY_PATH.
+    if [[ "$PLATFORM" != "linux" ]]; then
+        return 0
+    fi
+
+    if ! command -v nc-config >/dev/null 2>&1; then
+        print_info "nc-config not found, skipping netCDF library path setup"
+        return 0
+    fi
+
+    print_info "Auto-detecting netCDF library paths..."
+
+    local nc_lib_paths=()
+
+    # Extract all -L paths from nc-config --libs (catches PnetCDF, curl, sz, etc.)
+    local nc_libs
+    nc_libs=$(nc-config --libs 2>/dev/null || true)
+    if [[ -n "$nc_libs" ]]; then
+        local token
+        for token in $nc_libs; do
+            if [[ "$token" == -L* ]]; then
+                local lpath="${token#-L}"
+                if [[ -d "$lpath" && ":${LD_LIBRARY_PATH:-}:" != *":${lpath}:"* ]]; then
+                    nc_lib_paths+=("$lpath")
+                fi
+            fi
+        done
+    fi
+
+    # Also add nc-config --prefix/lib
+    local nc_prefix
+    nc_prefix=$(nc-config --prefix 2>/dev/null || true)
+    if [[ -n "$nc_prefix" && -d "$nc_prefix/lib" ]]; then
+        if [[ ":${LD_LIBRARY_PATH:-}:" != *":${nc_prefix}/lib:"* ]]; then
+            nc_lib_paths+=("$nc_prefix/lib")
+        fi
+        # Some HPC installs put 64-bit libs in lib64
+        if [[ -d "$nc_prefix/lib64" && ":${LD_LIBRARY_PATH:-}:" != *":${nc_prefix}/lib64:"* ]]; then
+            nc_lib_paths+=("$nc_prefix/lib64")
+        fi
+    fi
+
+    # If h5cc is available, help pip find HDF5 during build
+    if command -v h5cc >/dev/null 2>&1; then
+        local h5_show
+        h5_show=$(h5cc -show 2>/dev/null || true)
+        if [[ -n "$h5_show" ]]; then
+            for token in $h5_show; do
+                if [[ "$token" == -L* ]]; then
+                    local hpath="${token#-L}"
+                    if [[ -d "$hpath" && ":${LD_LIBRARY_PATH:-}:" != *":${hpath}:"* ]]; then
+                        nc_lib_paths+=("$hpath")
+                    fi
+                fi
+            done
+        fi
+        # Set HDF5_DIR so pip/setuptools can find HDF5 headers during build
+        local h5_prefix
+        h5_prefix=$(dirname "$(dirname "$(command -v h5cc)")" 2>/dev/null || true)
+        if [[ -n "$h5_prefix" && -d "$h5_prefix/include" ]]; then
+            export HDF5_DIR="$h5_prefix"
+            print_info "Set HDF5_DIR=$HDF5_DIR"
+        fi
+    fi
+
+    # Export discovered paths
+    if [[ ${#nc_lib_paths[@]} -gt 0 ]]; then
+        local new_paths=""
+        local p
+        for p in "${nc_lib_paths[@]}"; do
+            new_paths="${new_paths:+${new_paths}:}${p}"
+        done
+        export LD_LIBRARY_PATH="${new_paths}:${LD_LIBRARY_PATH:-}"
+        # Store for later persistence into venv activate script
+        export _SYMFLUENCE_NC_LIB_PATHS="$new_paths"
+        print_success "Added netCDF library paths to LD_LIBRARY_PATH:"
+        for p in "${nc_lib_paths[@]}"; do
+            print_info "  $p"
+        done
+    else
+        print_info "No additional netCDF library paths needed"
+    fi
+
+    return 0
+}
+
+verify_netcdf4_import() {
+    # Post-install check: try importing netCDF4 and give actionable diagnostics
+    # Non-fatal — installation continues even if this fails
+    if ! command -v python >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local import_output
+    import_output=$(python -c "import netCDF4; print(f'netCDF4 {netCDF4.__version__}')" 2>&1)
+    local rc=$?
+
+    if [[ $rc -eq 0 ]]; then
+        print_success "Verified: $import_output"
+        return 0
+    fi
+
+    # Diagnose the failure
+    if echo "$import_output" | grep -qi "undefined symbol.*p\?netcdf\|undefined symbol.*pfnc"; then
+        print_warning "netCDF4 import failed: PnetCDF symbols not found"
+        print_info "Your system netCDF-C was built with PnetCDF support but the"
+        print_info "PnetCDF shared library is not on LD_LIBRARY_PATH."
+        print_info "Fix: load the PnetCDF module before activating the venv:"
+        print_info "  module load pnetcdf   # or: module load parallel-netcdf"
+        print_info "Then re-run: symfluence-bootstrap --install"
+    elif echo "$import_output" | grep -qi "undefined symbol"; then
+        local missing_sym
+        missing_sym=$(echo "$import_output" | grep -oP 'undefined symbol: \K\S+' | head -1)
+        print_warning "netCDF4 import failed: undefined symbol${missing_sym:+: $missing_sym}"
+        print_info "A shared library required by netCDF4 is missing from LD_LIBRARY_PATH."
+        if command -v nc-config >/dev/null 2>&1; then
+            print_info "Check nc-config --libs for the library providing this symbol:"
+            print_info "  $(nc-config --libs 2>/dev/null || echo '(nc-config --libs failed)')"
+        fi
+        print_info "Load the appropriate module and re-run the installer."
+    elif echo "$import_output" | grep -qi "No module named"; then
+        print_info "netCDF4 not installed (will be available after dependency install)"
+    else
+        print_warning "netCDF4 import failed: $import_output"
+    fi
+
+    return 0
+}
+
 install_gdal_python() {
     # Check if GDAL Python bindings are already installed
     if python -c "from osgeo import gdal" >/dev/null 2>&1; then
@@ -1045,6 +1180,26 @@ EOF
                 fi
             fi
 
+            # Persist netCDF library paths into activate script (if discovered)
+            if [[ -n "${_SYMFLUENCE_NC_LIB_PATHS:-}" ]]; then
+                if ! grep -q "SYMFLUENCE netCDF library paths" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
+                    if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
+                        cat >> "${venv_path}/${VENV_ACTIVATE}" << NCEOF
+
+# SYMFLUENCE netCDF library paths (auto-discovered from nc-config)
+_SYMFLUENCE_NC_PATHS="${_SYMFLUENCE_NC_LIB_PATHS}"
+if [ -n "\$_SYMFLUENCE_NC_PATHS" ]; then
+    case ":\${LD_LIBRARY_PATH:-}:" in
+        *":\${_SYMFLUENCE_NC_PATHS}:"*) ;;
+        *) export LD_LIBRARY_PATH="\${_SYMFLUENCE_NC_PATHS}:\${LD_LIBRARY_PATH:-}" ;;
+    esac
+fi
+NCEOF
+                        print_info "Persisted netCDF library paths to venv activate script"
+                    fi
+                fi
+            fi
+
             resolve_python_scripts_path "$python_cmd" "$venv_path"
         fi
 
@@ -1054,6 +1209,7 @@ EOF
         $python_cmd -m pip install --upgrade pip || print_warning "pip upgrade failed"
 
         setup_r_environment || print_warning "R setup had issues, continuing..."
+        setup_netcdf_environment || true
 
         # Generate requirements.txt from pyproject.toml (source of truth)
         local req_file="${symfluence_dir}/requirements.txt"
@@ -1123,6 +1279,8 @@ else:
                 command -v gdal-config >/dev/null 2>&1 && install_gdal_python || true
             fi
         fi
+
+        verify_netcdf4_import
 
         print_header "Package"
 
