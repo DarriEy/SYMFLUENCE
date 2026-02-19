@@ -19,7 +19,7 @@ import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
 
 
 @ModelRegistry.register_preprocessor("CLM")
-class CLMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a CLM5 model run.
 

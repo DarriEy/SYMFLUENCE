@@ -32,7 +32,6 @@ from datetime import datetime
 from symfluence.core import ConfigurableMixin
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import require_not_none, OptimizationError
-from symfluence.optimization.registry import OptimizerRegistry
 from ..mixins import (
     ParallelExecutionMixin,
     ResultsTrackingMixin,
@@ -42,7 +41,9 @@ from ..mixins import (
 from ..workers.base_worker import BaseWorker
 from .algorithms import get_algorithm, ALGORITHM_REGISTRY
 from .evaluators import TaskBuilder, PopulationEvaluator
-from .final_evaluation import FinalResultsSaver
+from .final_evaluation import FinalResultsSaver, FinalEvaluationOrchestrator
+from .component_factory import OptimizerComponentFactory
+from .metrics_tracker import EvaluationMetricsTracker
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -132,6 +133,9 @@ class BaseModelOptimizer(
         # Initialize results tracking
         self.__init_results_tracking__()
 
+        # Composed helpers (must be created before model-specific components)
+        self._factory = OptimizerComponentFactory(self.config, self.logger, self.project_dir)
+
         # Create model-specific components
         self.param_manager = self._create_parameter_manager()
         self.calibration_target = self._create_calibration_target()
@@ -181,10 +185,11 @@ class BaseModelOptimizer(
         self._final_evaluation_runner: Optional[Any] = None
         self._results_saver: Optional[FinalResultsSaver] = None
 
-        # Crash rate tracking
-        self._total_evaluations: int = 0
-        self._crash_count: int = 0
-        self._last_crash_warning: int = 0
+        # Composed helpers (factory created earlier, before component creation)
+        self._metrics_tracker = EvaluationMetricsTracker(
+            self.max_iterations, self.logger, self.format_elapsed_time
+        )
+        self._final_orchestrator: Optional[FinalEvaluationOrchestrator] = None
 
     # =========================================================================
     # Lazy-initialized component properties
@@ -237,6 +242,18 @@ class BaseModelOptimizer(
             )
         return require_not_none(self._results_saver, "results_saver", OptimizationError)
 
+    @property
+    def final_orchestrator(self) -> FinalEvaluationOrchestrator:
+        """Lazy-initialized final evaluation orchestrator."""
+        if self._final_orchestrator is None:
+            self._final_orchestrator = FinalEvaluationOrchestrator(
+                config=self.config,
+                logger=self.logger,
+                optimization_settings_dir=self.optimization_settings_dir,
+                results_saver=self.results_saver,
+            )
+        return self._final_orchestrator
+
     def _visualize_progress(self, algorithm: str) -> None:
         """Helper to visualize optimization progress if reporting manager available."""
         if self.reporting_manager:
@@ -264,127 +281,36 @@ class BaseModelOptimizer(
     # =========================================================================
 
     def _create_parameter_manager_default(self):
+        """Default factory for parameter managers using registry discovery.
+
+        Delegates to OptimizerComponentFactory for registry lookup and
+        instantiation.  Override _create_parameter_manager() if a
+        non-standard constructor is needed.
         """
-        Default factory for parameter managers using registry discovery.
-
-        Uses convention-over-configuration:
-        1. Gets model name from _get_model_name()
-        2. Looks up parameter manager class from OptimizerRegistry
-        3. Determines settings directory using standard convention
-        4. Instantiates with standard signature (config, logger, settings_dir)
-
-        Override _create_parameter_manager() if non-standard constructor needed.
-
-        Returns:
-            ParameterManager instance for the model
-
-        Raises:
-            RuntimeError: If parameter manager not registered
-        """
-        model_name = self._get_model_name()
-
-        # Look up parameter manager class from registry
-        param_manager_cls = OptimizerRegistry.get_parameter_manager(model_name)
-
-        if param_manager_cls is None:
-            raise RuntimeError(
-                f"No parameter manager registered for model '{model_name}'. "
-                f"Ensure the parameter manager is decorated with "
-                f"@OptimizerRegistry.register_parameter_manager('{model_name}')"
-            )
-
-        # Determine settings directory using convention
-        settings_dir = self._get_settings_directory()
-
-        self.logger.debug(
-            f"Creating parameter manager: {param_manager_cls.__name__} "
-            f"for {model_name} at {settings_dir}"
-        )
-
-        return param_manager_cls(self.config, self.logger, settings_dir)
+        return self._factory.create_parameter_manager(self._get_model_name())
 
     def _create_worker_default(self) -> BaseWorker:
+        """Default factory for workers using registry discovery.
+
+        Delegates to OptimizerComponentFactory.
         """
-        Default factory for workers using registry discovery.
-
-        Uses convention-over-configuration:
-        1. Gets model name from _get_model_name()
-        2. Looks up worker class from OptimizerRegistry
-        3. Instantiates with standard signature (config, logger)
-
-        All workers use the same constructor signature, so overriding is rarely needed.
-
-        Returns:
-            BaseWorker instance for the model
-
-        Raises:
-            RuntimeError: If worker not registered
-        """
-        model_name = self._get_model_name()
-
-        # Look up worker class from registry
-        worker_cls = OptimizerRegistry.get_worker(model_name)
-
-        if worker_cls is None:
-            raise RuntimeError(
-                f"No worker registered for model '{model_name}'. "
-                f"Ensure the worker is decorated with "
-                f"@OptimizerRegistry.register_worker('{model_name}')"
-            )
-
-        self.logger.debug(f"Creating worker: {worker_cls.__name__} for {model_name}")
-
-        return worker_cls(self.config, self.logger)
+        return self._factory.create_worker(self._get_model_name())
 
     def _create_calibration_target_default(self):
+        """Default factory for calibration targets using centralized factory.
+
+        Delegates to OptimizerComponentFactory.
         """
-        Default factory for calibration targets using centralized factory.
-
-        Uses the existing create_calibration_target() factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Falls back to default (model-agnostic) targets
-
-        This method is rarely overridden as the factory handles all complexity.
-
-        Returns:
-            CalibrationTarget instance for the model and target type
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
         model_name = self._get_model_name()
-
-        # Get target type from config (supports both typed and dict configs)
-        target_type = self._get_config_value(
+        target_type = str(self._get_config_value(
             lambda: self.config.optimization.target,
-            default=self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
-        ) if hasattr(self, '_get_config_value') else self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
-
-        target_type = str(target_type).lower()
-
-        return create_calibration_target(
-            model_name=model_name,
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
+            default='streamflow', dict_key='OPTIMIZATION_TARGET'
+        )).lower()
+        return self._factory.create_calibration_target(model_name, target_type)
 
     def _get_settings_directory(self) -> Path:
-        """
-        Get the model-specific settings directory using convention.
-
-        Convention: {project_dir}/settings/{MODEL_NAME}/
-
-        Override this method if:
-        - Non-standard settings directory location
-        - Settings directory determined dynamically
-
-        Returns:
-            Path to model settings directory
-        """
-        model_name = self._get_model_name()
-        return self.project_dir / 'settings' / model_name
+        """Get model settings directory. Delegates to OptimizerComponentFactory."""
+        return self._factory.get_settings_directory(self._get_model_name())
 
     # =========================================================================
     # Abstract methods - must be implemented by subclasses
@@ -746,34 +672,13 @@ class BaseModelOptimizer(
         population_size: Optional[int] = None,
         crash_stats: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Log optimization progress in consistent format.
-
-        Format: "{ALG} {iter}/{max} ({%}) | Best: {score} | [optional] | Elapsed: {time}"
-        """
-        progress_pct = (iteration / self.max_iterations) * 100
-        elapsed = self.format_elapsed_time()
-
-        msg_parts = [
-            f"{algorithm_name} {iteration}/{self.max_iterations} ({progress_pct:.0f}%)",
-            f"Best: {best_score:.4f}"
-        ]
-
-        if secondary_score is not None:
-            label = secondary_label or "Secondary"
-            msg_parts.append(f"{label}: {secondary_score:.4f}")
-
-        if n_improved is not None and population_size is not None:
-            msg_parts.append(f"Improved: {n_improved}/{population_size}")
-
-        if crash_stats and crash_stats.get('total_evaluations', 0) > 0:
-            msg_parts.append(
-                f"Crashes: {crash_stats['crash_count']}/{crash_stats['total_evaluations']} "
-                f"({crash_stats['crash_rate']:.1%})"
-            )
-
-        msg_parts.append(f"Elapsed: {elapsed}")
-
-        self.logger.info(" | ".join(msg_parts))
+        """Log optimization progress. Delegates to EvaluationMetricsTracker."""
+        self._metrics_tracker.log_iteration_progress(
+            algorithm_name, iteration, best_score,
+            secondary_score=secondary_score, secondary_label=secondary_label,
+            n_improved=n_improved, population_size=population_size,
+            crash_stats=crash_stats
+        )
 
     def log_initial_population(
         self,
@@ -781,18 +686,8 @@ class BaseModelOptimizer(
         population_size: int,
         best_score: float
     ) -> None:
-        """
-        Log initial population evaluation completion.
-
-        Args:
-            algorithm_name: Name of the algorithm
-            population_size: Size of the population
-            best_score: Best score from initial population
-        """
-        self.logger.info(
-            f"{algorithm_name} initial population ({population_size} individuals) "
-            f"complete | Best score: {best_score:.4f}"
-        )
+        """Log initial population completion. Delegates to EvaluationMetricsTracker."""
+        self._metrics_tracker.log_initial_population(algorithm_name, population_size, best_score)
 
     def _evaluate_solution(
         self,
@@ -810,38 +705,12 @@ class BaseModelOptimizer(
             Fitness score
         """
         score = self.population_evaluator.evaluate_solution(normalized_params, proc_id)
-
-        # Track crash rate (penalty scores indicate model crash)
-        self._total_evaluations += 1
-        if score <= self.DEFAULT_PENALTY_SCORE:
-            self._crash_count += 1
-
-        # Warn every 50 evaluations if crash rate exceeds 10%
-        if (self._total_evaluations % 50 == 0
-                and self._total_evaluations > self._last_crash_warning):
-            crash_rate = self._crash_count / self._total_evaluations
-            if crash_rate > 0.10:
-                self.logger.warning(
-                    f"High crash rate: {self._crash_count}/{self._total_evaluations} "
-                    f"({crash_rate:.1%}) evaluations returned penalty score"
-                )
-                self._last_crash_warning = self._total_evaluations
-
+        self._metrics_tracker.track_evaluation(score)
         return score
 
     def get_crash_stats(self) -> Dict[str, Any]:
-        """Return crash rate statistics.
-
-        Returns:
-            Dictionary with 'crash_count', 'total_evaluations', and 'crash_rate'.
-        """
-        rate = (self._crash_count / self._total_evaluations
-                if self._total_evaluations > 0 else 0.0)
-        return {
-            'crash_count': self._crash_count,
-            'total_evaluations': self._total_evaluations,
-            'crash_rate': rate,
-        }
+        """Return crash rate statistics. Delegates to EvaluationMetricsTracker."""
+        return self._metrics_tracker.get_crash_stats()
 
     def _create_gradient_callback(self) -> Optional[Callable]:
         """Create native gradient callback if worker supports autodiff.
@@ -1417,118 +1286,27 @@ class BaseModelOptimizer(
             self._restore_file_manager_for_optimization()
 
     def _extract_period_metrics(self, all_metrics: Dict, period_prefix: str) -> Dict:
-        """
-        Extract metrics for a specific period (Calib or Eval).
+        """Extract metrics for a specific period. Delegates to FinalEvaluationOrchestrator."""
+        return self.final_orchestrator.extract_period_metrics(all_metrics, period_prefix)
 
-        Args:
-            all_metrics: All metrics dictionary
-            period_prefix: Period prefix ('Calib' or 'Eval')
-
-        Returns:
-            Dictionary of period-specific metrics
-        """
-        return FinalResultsSaver.extract_period_metrics(all_metrics, period_prefix)
-
-    def _log_final_evaluation_results(
-        self,
-        calib_metrics: Dict,
-        eval_metrics: Dict
-    ) -> None:
-        """
-        Log detailed final evaluation results.
-
-        Args:
-            calib_metrics: Calibration period metrics
-            eval_metrics: Evaluation period metrics
-        """
-        self.results_saver.log_results(calib_metrics, eval_metrics)
+    def _log_final_evaluation_results(self, calib_metrics: Dict, eval_metrics: Dict) -> None:
+        """Log final evaluation results. Delegates to FinalEvaluationOrchestrator."""
+        self.final_orchestrator.log_results(calib_metrics, eval_metrics)
 
     def _update_file_manager_for_final_run(self) -> None:
-        """Update file manager to use full experiment period (not just calibration)."""
-        file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists() or not file_manager_path.is_file():
-            return
-
-        try:
-            # Get full experiment period from config
-            sim_start = self._get_config_value(lambda: self.config.domain.time_start)
-            sim_end = self._get_config_value(lambda: self.config.domain.time_end)
-
-            if not sim_start or not sim_end:
-                self.logger.warning("Full experiment period not configured, using current settings")
-                return
-
-            # Adjust end time to align with forcing timestep
-            sim_end = self._adjust_end_time_for_forcing(sim_end)
-
-            with open(file_manager_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-
-            updated_lines = []
-            for line in lines:
-                if 'simStartTime' in line and not line.strip().startswith('!'):
-                    updated_lines.append(f"simStartTime         '{sim_start}'\n")
-                elif 'simEndTime' in line and not line.strip().startswith('!'):
-                    updated_lines.append(f"simEndTime           '{sim_end}'\n")
-                else:
-                    updated_lines.append(line)
-
-            with open(file_manager_path, 'w', encoding='utf-8') as f:
-                f.writelines(updated_lines)
-
-            self.logger.debug(f"Updated file manager for full period: {sim_start} to {sim_end}")
-
-        except (FileNotFoundError, IOError, ValueError) as e:
-            self.logger.error(f"Failed to update file manager for final run: {e}")
+        """Update file manager for full experiment period. Delegates to FinalEvaluationOrchestrator."""
+        self.final_orchestrator.update_file_manager_for_final_run(
+            self._get_final_file_manager_path()
+        )
 
 
     def _restore_model_decisions_for_optimization(self) -> None:
-        """Restore model decisions to optimization settings."""
-        backup_path = self.optimization_settings_dir / 'modelDecisions_optimization_backup.txt'
-        model_decisions_path = self.optimization_settings_dir / 'modelDecisions.txt'
-
-        if backup_path.exists():
-            try:
-                with open(backup_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                with open(model_decisions_path, 'w', encoding='utf-8') as f:
-                    f.writelines(lines)
-                self.logger.debug("Restored model decisions to optimization settings")
-            except (FileNotFoundError, IOError, PermissionError) as e:
-                self.logger.error(f"Error restoring model decisions: {e}")
+        """Restore model decisions. Delegates to FinalEvaluationOrchestrator."""
+        self.final_orchestrator.restore_model_decisions()
 
     def _restore_file_manager_for_optimization(self) -> None:
-        """Restore file manager to calibration period settings."""
-        file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists() or not file_manager_path.is_file():
-            return
-
-        try:
-            calib_start = self._get_config_value(lambda: self.config.domain.calibration_start_date)
-            calib_end = self._get_config_value(lambda: self.config.domain.calibration_end_date)
-
-            if not calib_start or not calib_end:
-                return
-
-            with open(file_manager_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-
-            updated_lines = []
-            for line in lines:
-                if 'simStartTime' in line and not line.strip().startswith('!'):
-                    updated_lines.append(f"simStartTime         '{calib_start}'\n")
-                elif 'simEndTime' in line and not line.strip().startswith('!'):
-                    updated_lines.append(f"simEndTime           '{calib_end}'\n")
-                else:
-                    updated_lines.append(line)
-
-            with open(file_manager_path, 'w', encoding='utf-8') as f:
-                f.writelines(updated_lines)
-
-            self.logger.debug("Restored file manager to calibration period")
-
-        except (FileNotFoundError, IOError, ValueError) as e:
-            self.logger.error(f"Failed to restore file manager: {e}")
+        """Restore file manager to calibration period. Delegates to FinalEvaluationOrchestrator."""
+        self.final_orchestrator.restore_file_manager(self._get_final_file_manager_path())
 
     def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
         """Apply best parameters for final evaluation."""
@@ -1543,34 +1321,10 @@ class BaseModelOptimizer(
             return False
 
     def _update_file_manager_output_path(self, output_dir: Path) -> None:
-        """Update file manager with final evaluation output path."""
-        file_manager_path = self._get_final_file_manager_path()
-        if not file_manager_path.exists() or not file_manager_path.is_file():
-            return
-
-        try:
-            with open(file_manager_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-
-            # Ensure path ends with slash
-            output_path_str = str(output_dir)
-            if not output_path_str.endswith('/'):
-                output_path_str += '/'
-
-            updated_lines = []
-            for line in lines:
-                if 'outputPath' in line and not line.strip().startswith('!'):
-                    updated_lines.append(f"outputPath '{output_path_str}' \n")
-                else:
-                    updated_lines.append(line)
-
-            with open(file_manager_path, 'w', encoding='utf-8') as f:
-                f.writelines(updated_lines)
-
-            self.logger.debug(f"Updated output path to: {output_path_str}")
-
-        except (FileNotFoundError, IOError, ValueError) as e:
-            self.logger.error(f"Failed to update output path: {e}")
+        """Update file manager output path. Delegates to FinalEvaluationOrchestrator."""
+        self.final_orchestrator.update_file_manager_output_path(
+            self._get_final_file_manager_path(), output_dir
+        )
 
     def _save_final_evaluation_results(
         self,
@@ -1584,7 +1338,7 @@ class BaseModelOptimizer(
             final_result: Final evaluation results dictionary
             algorithm: Algorithm name (e.g., 'PSO', 'DDS')
         """
-        self.results_saver.save_results(final_result, algorithm)
+        self.final_orchestrator.save_results(final_result, algorithm)
 
     # =========================================================================
     # Cleanup

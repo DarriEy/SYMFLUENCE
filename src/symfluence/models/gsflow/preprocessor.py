@@ -19,12 +19,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
-class GSFLOWPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Pre-processor for GSFLOW model setup."""
 
     def __init__(self, config, logger):

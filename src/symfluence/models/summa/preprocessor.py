@@ -16,7 +16,7 @@ import xarray as xr
 # Local imports
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.mixins import ObservationLoaderMixin
+
 from .forcing_processor import SummaForcingProcessor
 from .config_manager import SummaConfigManager
 from .attributes_manager import SummaAttributesManager
@@ -24,7 +24,7 @@ from .glacier_manager import GlacierAttributesManager
 
 
 @ModelRegistry.register_preprocessor('SUMMA')
-class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
