@@ -20,7 +20,7 @@ import pandas as pd
 import xarray as xr
 
 from ..base import BaseModelPreProcessor
-from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
+from ..mixins import PETCalculatorMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
 from ..registry import ModelRegistry
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
@@ -31,7 +31,7 @@ from symfluence.data.utils.variable_utils import VariableHandler # type: ignore
 
 
 @ModelRegistry.register_preprocessor('FUSE')
-class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
+class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
 

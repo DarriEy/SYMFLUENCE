@@ -20,13 +20,13 @@ import netCDF4 as nc4
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("MHM")
-class MHMPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a mHM model run.
 

@@ -18,12 +18,12 @@ from symfluence.models.hype.config_manager import HYPEConfigManager
 from symfluence.models.hype.geodata_manager import HYPEGeoDataManager
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
-from ..mixins import ObservationLoaderMixin
+
 from symfluence.data.utils.variable_utils import VariableHandler
 
 
 @ModelRegistry.register_preprocessor('HYPE')
-class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
 

@@ -16,13 +16,13 @@ import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("PRMS")
-class PRMSPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a PRMS model run.
 

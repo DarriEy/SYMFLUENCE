@@ -20,7 +20,7 @@ import xarray as xr
 
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
-from symfluence.models.mixins import ModelComponentMixin
+from symfluence.models.mixins import ModelComponentMixin, ObservationLoaderMixin
 from symfluence.core.constants import UnitConversion, ModelDefaults
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):  # type: ignore[misc]
+class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin, ObservationLoaderMixin):  # type: ignore[misc]
     """
     Abstract base class for all model preprocessors.
 

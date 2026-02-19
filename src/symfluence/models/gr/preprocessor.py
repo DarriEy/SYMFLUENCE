@@ -17,7 +17,7 @@ from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.core.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
-from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
+from ..mixins import PETCalculatorMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
 from ..utilities import ForcingDataProcessor
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
@@ -28,7 +28,7 @@ HAS_RPY2 = find_spec("rpy2") is not None
 
 
 @ModelRegistry.register_preprocessor('GR')
-class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
+class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the GR family of models (GR4J, GR5J, GR6J).
 

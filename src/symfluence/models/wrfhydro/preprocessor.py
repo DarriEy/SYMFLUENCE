@@ -17,13 +17,13 @@ import pandas as pd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("WRFHYDRO")
-class WRFHydroPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a WRF-Hydro model run.
 

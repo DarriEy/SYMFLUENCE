@@ -16,13 +16,13 @@ import pandas as pd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("SWAT")
-class SWATPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a SWAT model run.
 

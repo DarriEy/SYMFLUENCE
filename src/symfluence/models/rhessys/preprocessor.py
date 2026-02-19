@@ -19,14 +19,14 @@ import geopandas as gpd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 from symfluence.models.rhessys.climate_generator import RHESSysClimateGenerator
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("RHESSys")
-class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a RHESSys model run.
 

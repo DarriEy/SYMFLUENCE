@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ..base import BaseModelPreProcessor
-from ..mixins import ObservationLoaderMixin
+
 from ..registry import ModelRegistry
 
 from .preprocessing import (
@@ -26,7 +26,7 @@ from .preprocessing import (
 
 
 @ModelRegistry.register_preprocessor('MESH')
-class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the MESH model.
 

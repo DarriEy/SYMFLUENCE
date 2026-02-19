@@ -19,13 +19,13 @@ import geopandas as gpd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.mixins import ObservationLoaderMixin
+
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("VIC")
-class VICPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a VIC model run.
 

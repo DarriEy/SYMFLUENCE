@@ -20,13 +20,13 @@ import yaml
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.mixins import ObservationLoaderMixin
+
 from symfluence.models.utilities import TimeWindowManager, ForcingDataProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
 
 
 @ModelRegistry.register_preprocessor('NGEN')
-class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
+class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for NextGen Framework.
 
