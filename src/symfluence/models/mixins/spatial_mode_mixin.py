@@ -152,9 +152,9 @@ class SpatialModeDetectionMixin:
         """
         domain_method = self._get_domain_definition_method()
 
-        if domain_method == 'delineate':
+        if domain_method in ('delineate', 'distributed'):
             return 'distributed'
-        elif domain_method in ('subset', 'semi_distributed'):
+        elif domain_method in ('subset', 'semi_distributed', 'semidistributed'):
             return 'semi_distributed'
         else:
             return 'lumped'
