@@ -396,30 +396,13 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         """
         return apply_standard_variable_attributes(ds, overrides=overrides)
 
-    _default_nc_engine: str = ""
-
-    @classmethod
-    def _detect_nc_engine(cls) -> str:
-        """Detect the best NetCDF engine once and cache it."""
-        if cls._default_nc_engine:
-            return cls._default_nc_engine
-        # Prefer h5netcdf: uses h5py directly, avoids netCDF-C/HDF5
-        # library conflicts common on HPC (dual libhdf5 from GDAL, etc.)
-        try:
-            import h5netcdf  # noqa: F401
-            cls._default_nc_engine = "h5netcdf"
-        except ImportError:
-            cls._default_nc_engine = "netcdf4"
-        return cls._default_nc_engine
-
     def open_dataset(self, path: Path, **kwargs) -> xr.Dataset:
         """
-        Open a NetCDF dataset with automatic engine selection and fallback.
+        Open a NetCDF dataset with automatic engine fallback.
 
-        Prefers h5netcdf engine (uses h5py, bypasses netCDF-C) to avoid
-        HDF5 library conflicts on HPC systems where GDAL/rasterio load a
-        different libhdf5 than netCDF4. Falls back through all available
-        engines if the primary fails.
+        Tries the default engine first. If that fails with an HDF error
+        (common on HPC where system modules load a conflicting libhdf5),
+        retries with h5netcdf which bypasses the netCDF-C library entirely.
 
         Args:
             path: Path to the NetCDF file
@@ -428,25 +411,13 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         Returns:
             Opened xarray Dataset
         """
-        if "engine" not in kwargs:
-            kwargs["engine"] = self._detect_nc_engine()
-
-        engines = ["h5netcdf", "netcdf4", "scipy"]
-        # Put the chosen engine first, then try the others
-        primary = kwargs.get("engine", "netcdf4")
-        if primary in engines:
-            engines.remove(primary)
-        engines.insert(0, primary)
-
-        last_err = None
-        for engine in engines:
-            try:
-                return xr.open_dataset(path, **{**kwargs, "engine": engine})
-            except Exception as e:
-                last_err = e
-                if engine == engines[0]:
-                    self.logger.warning(
-                        f"{engine} engine failed on {Path(path).name}: {e}. "
-                        f"Trying fallback engines..."
-                    )
-        raise last_err  # type: ignore[misc]
+        try:
+            return xr.open_dataset(path, **kwargs)
+        except OSError as e:
+            if "HDF error" not in str(e) and "Errno -101" not in str(e):
+                raise
+            self.logger.warning(
+                f"netcdf4 engine failed on {Path(path).name} (likely HDF5 "
+                f"library conflict), retrying with h5netcdf engine"
+            )
+            return xr.open_dataset(path, engine="h5netcdf", **kwargs)
