@@ -587,6 +587,76 @@ verify_netcdf4_import() {
     return 0
 }
 
+rebuild_hdf5_packages() {
+    # When a system HDF5 is on LD_LIBRARY_PATH (e.g., from module load gdal),
+    # pip's pre-built wheels for h5py and netCDF4 vendor a DIFFERENT HDF5
+    # version, causing symbol conflicts at runtime. Detect this and rebuild
+    # both packages from source against the system HDF5.
+    if [[ "$PLATFORM" != "linux" ]]; then
+        return 0
+    fi
+
+    # Check if system HDF5 is on LD_LIBRARY_PATH
+    if ! echo "${LD_LIBRARY_PATH:-}" | tr ':' '\n' | grep -qi hdf5; then
+        return 0
+    fi
+
+    # Check if h5cc is available (needed for source build)
+    if ! command -v h5cc >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Check if the installed netCDF4 vendors its own HDF5 (pip wheel)
+    local vendors_hdf5
+    vendors_hdf5=$(python -c "
+import pathlib, netCDF4._netCDF4 as m
+p = pathlib.Path(m.__file__).parent.parent / 'netcdf4.libs'
+print('yes' if p.is_dir() and any(p.glob('libhdf5*')) else 'no')
+" 2>/dev/null || echo "unknown")
+
+    if [[ "$vendors_hdf5" != "yes" ]]; then
+        print_info "netCDF4 already uses system HDF5 — no rebuild needed"
+        return 0
+    fi
+
+    local sys_hdf5_version
+    sys_hdf5_version=$(h5cc -showconfig 2>/dev/null | grep "HDF5 Version:" | awk '{print $NF}' || echo "unknown")
+    local vendored_version
+    vendored_version=$(python -c "import netCDF4; print(netCDF4.__hdf5libversion__)" 2>/dev/null || echo "unknown")
+
+    print_warning "HDF5 library conflict detected:"
+    print_info "  System HDF5 (from loaded modules): $sys_hdf5_version"
+    print_info "  Vendored HDF5 (pip wheel):         $vendored_version"
+    print_info "Rebuilding h5py and netCDF4 from source against system HDF5..."
+
+    local hdf5_dir
+    hdf5_dir=$(dirname "$(dirname "$(command -v h5cc)")" 2>/dev/null || true)
+
+    if [[ -n "$hdf5_dir" ]]; then
+        export HDF5_DIR="$hdf5_dir"
+    fi
+
+    HDF5_DIR="$hdf5_dir" python -m pip install --no-binary h5py --force-reinstall h5py -q 2>&1 && \
+        print_success "h5py rebuilt against system HDF5 $sys_hdf5_version" || \
+        print_warning "h5py source build failed (continuing with vendored wheel)"
+
+    python -m pip install --no-binary netCDF4 --force-reinstall netCDF4 -q 2>&1 && \
+        print_success "netCDF4 rebuilt against system HDF5 $sys_hdf5_version" || \
+        print_warning "netCDF4 source build failed (continuing with vendored wheel)"
+
+    # Verify consistency
+    local h5py_ver nc4_ver
+    h5py_ver=$(python -c "import h5py; print(h5py.version.hdf5_version)" 2>/dev/null || echo "?")
+    nc4_ver=$(python -c "import netCDF4; print(netCDF4.__hdf5libversion__)" 2>/dev/null || echo "?")
+    if [[ "$h5py_ver" == "$nc4_ver" ]]; then
+        print_success "HDF5 versions consistent: h5py=$h5py_ver, netCDF4=$nc4_ver"
+    else
+        print_warning "HDF5 version mismatch: h5py=$h5py_ver, netCDF4=$nc4_ver"
+    fi
+
+    return 0
+}
+
 install_gdal_python() {
     # Check if GDAL Python bindings are already installed
     if python -c "from osgeo import gdal" >/dev/null 2>&1; then
@@ -1297,6 +1367,7 @@ else:
         fi
 
         verify_netcdf4_import
+        rebuild_hdf5_packages
 
         print_header "Package"
 
