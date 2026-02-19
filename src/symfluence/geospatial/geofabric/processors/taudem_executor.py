@@ -59,14 +59,40 @@ class TauDEMExecutor:
             if conda_lib not in current_ld_path:
                 os.environ['LD_LIBRARY_PATH'] = f"{conda_lib}:{current_ld_path}" if current_ld_path else conda_lib
 
+    @staticmethod
+    def _is_openmpi() -> bool:
+        """Check if the available mpirun is OpenMPI."""
+        try:
+            result = subprocess.run(
+                ["mpirun", "--version"],
+                capture_output=True, text=True, timeout=5
+            )
+            return "Open MPI" in result.stdout or "open-mpi" in result.stdout.lower()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
+    @staticmethod
+    def _srun_has_pmi() -> bool:
+        """Check if srun supports PMIx/PMI2 for MPI launch."""
+        try:
+            result = subprocess.run(
+                ["srun", "--mpi=list"],
+                capture_output=True, text=True, timeout=5
+            )
+            output = result.stdout + result.stderr
+            return "pmix" in output.lower() or "pmi2" in output.lower()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
     def _get_mpi_command(self) -> Optional[str]:
         """
-        Detect available MPI launcher.
+        Detect the best available MPI launcher.
 
-        Respects MPI_LAUNCHER config override. Otherwise checks for srun
-        (SLURM) first, then mpirun (generic MPI). On HPC systems where
-        TauDEM is built with OpenMPI (not SLURM PMI), set
-        MPI_LAUNCHER: mpirun in the config to bypass srun.
+        Respects MPI_LAUNCHER config override. Otherwise uses smart detection:
+        - If OpenMPI is detected, always use mpirun (OpenMPI's own launcher)
+          since srun requires SLURM PMI support that OpenMPI often lacks.
+        - If srun is available AND has PMI support, use srun (Intel MPI, MPICH).
+        - Falls back to mpirun, then None.
 
         Returns:
             'srun', 'mpirun', or None if no MPI launcher found
@@ -74,12 +100,24 @@ class TauDEMExecutor:
         override = self.config.get('MPI_LAUNCHER')
         if override and shutil.which(override):
             return override
-        if shutil.which("srun"):
-            return "srun"
-        elif shutil.which("mpirun"):
+
+        has_srun = shutil.which("srun") is not None
+        has_mpirun = shutil.which("mpirun") is not None
+
+        if has_mpirun and self._is_openmpi():
+            self.logger.debug("OpenMPI detected — using mpirun (srun requires PMI support)")
             return "mpirun"
-        else:
-            return None
+
+        if has_srun and self._srun_has_pmi():
+            return "srun"
+
+        if has_mpirun:
+            return "mpirun"
+
+        if has_srun:
+            return "srun"
+
+        return None
 
     def get_mpi_command(self) -> Optional[str]:
         """
