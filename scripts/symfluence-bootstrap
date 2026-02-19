@@ -688,27 +688,7 @@ install_gdal_python() {
 
     print_success "Found system GDAL: $v"
 
-    # GDAL Python bindings < 3.5 use setuptools' use_2to3 which was removed
-    # in setuptools 58+ and is incompatible with Python 3.12+. Skip the
-    # source build and rely on rasterio/fiona pip wheels (they bundle GDAL).
-    local GDAL_MAJOR_V GDAL_MINOR_V
-    GDAL_MAJOR_V=$(echo "$v" | cut -d. -f1)
-    GDAL_MINOR_V=$(echo "$v" | cut -d. -f2)
-    local py_minor
-    py_minor=$(python -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
-    if (( GDAL_MAJOR_V < 3 || (GDAL_MAJOR_V == 3 && GDAL_MINOR_V < 5) )) && (( py_minor >= 12 )); then
-        print_warning "System GDAL $v is too old to build Python bindings on Python 3.${py_minor}"
-        print_info "GDAL functionality is available through rasterio/fiona pip wheels"
-        return 0
-    fi
-
     print_info "Installing matching GDAL Python bindings..."
-
-    # Try exact version first
-    if python -m pip install "GDAL==$v" 2>/dev/null; then
-        print_success "Installed GDAL Python bindings $v"
-        return 0
-    fi
 
     # Extract version components, handling potential suffixes like 3.12.0_1
     local GDAL_MAJOR GDAL_MINOR GDAL_PATCH NEXT_PATCH
@@ -717,13 +697,39 @@ install_gdal_python() {
     GDAL_PATCH=$(echo "$v" | cut -d. -f3 | cut -d_ -f1)
     NEXT_PATCH=$((GDAL_PATCH + 1))
 
+    # GDAL Python bindings < 3.5 use setuptools' use_2to3 which was removed
+    # in setuptools 58+. Temporarily downgrade setuptools to build them.
+    local needs_old_setuptools=false
+    if (( GDAL_MAJOR < 3 || (GDAL_MAJOR == 3 && GDAL_MINOR < 5) )); then
+        local current_setuptools
+        current_setuptools=$(python -c "import setuptools; print(setuptools.__version__)" 2>/dev/null || echo "0")
+        local st_major
+        st_major=$(echo "$current_setuptools" | cut -d. -f1)
+        if (( st_major >= 58 )); then
+            needs_old_setuptools=true
+            print_info "GDAL $v requires setuptools<58 for use_2to3 support"
+            python -m pip install "setuptools<58" -q 2>&1
+        fi
+    fi
+
+    # Try exact version first
+    if python -m pip install "GDAL==$v" 2>/dev/null; then
+        # Restore setuptools
+        [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
+        print_success "Installed GDAL Python bindings $v"
+        return 0
+    fi
+
     # Try version range that allows same patch + post-releases, but not next patch
-    # E.g., for GDAL 3.12.0: allows 3.12.0, 3.12.0.post1, etc. but not 3.12.1
     print_info "Trying GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}..."
-    if python -m pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"; then
+    if python -m pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}" 2>/dev/null; then
+        [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
         print_success "Installed GDAL Python bindings compatible with $v"
         return 0
     fi
+
+    # Restore setuptools before giving up
+    [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
 
     print_error "Failed to install GDAL Python bindings. You may try: python -m pip install GDAL==$v"
     return 1
