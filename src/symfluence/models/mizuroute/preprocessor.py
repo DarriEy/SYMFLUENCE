@@ -342,6 +342,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         from_model = self._get_config_value(
             lambda: self.config.model.mizuroute.from_model if self.config.model and self.config.model.mizuroute else None
         )
+
+        # Infer source model from HYDROLOGICAL_MODEL when MIZU_FROM_MODEL is not set
+        if not from_model or from_model == 'default':
+            from_model = self._get_config_value(
+                lambda: self.config.model.hydrological_model if self.config.model else None,
+                default=None,
+                dict_key='HYDROLOGICAL_MODEL'
+            )
+            if from_model:
+                from_model = from_model.upper()
+                self.logger.info(f"MIZU_FROM_MODEL not set, inferred '{from_model}' from HYDROLOGICAL_MODEL")
+
         fuse_routing = self._get_config_value(
             lambda: self.config.model.fuse.routing_integration if self.config.model and self.config.model.fuse else None
         )

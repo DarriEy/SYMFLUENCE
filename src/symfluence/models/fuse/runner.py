@@ -284,7 +284,13 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         Returns:
             bool: True if mizuRoute routing should be executed, False otherwise.
         """
-        routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'none')
+        routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'default')
+
+        # When FUSE_ROUTING_INTEGRATION is 'default', infer from ROUTING_MODEL
+        if routing_integration == 'default':
+            routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+            if routing_model and routing_model.lower() in ('mizuroute', 'mizu_route', 'mizu'):
+                routing_integration = 'mizuRoute'
 
         if routing_integration == 'mizuRoute':
             if self.spatial_mode in ['semi_distributed', 'distributed']:
@@ -991,7 +997,10 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
 
             for line in lines:
                 stripped = line.strip()
-                if stripped.startswith("'") and 'OUTPUT_PATH' in line:
+                if stripped.startswith("'") and 'SETNGS_PATH' in line:
+                    settings_path = str(self.project_dir / 'settings' / 'FUSE') + '/'
+                    updated_lines.append(f"'{settings_path}'     ! SETNGS_PATH\n")
+                elif stripped.startswith("'") and 'OUTPUT_PATH' in line:
                     updated_lines.append(f"'{output_path}'       ! OUTPUT_PATH\n")
                 elif stripped.startswith("'") and 'INPUT_PATH' in line:
                      updated_lines.append(f"'{input_path_str}'       ! INPUT_PATH\n")
@@ -1006,7 +1015,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             with open(fm_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
-            self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
+            self.logger.debug(f"Updated file manager: SETNGS_PATH={self.project_dir / 'settings' / 'FUSE'}, OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
             return True
 
         except (FileNotFoundError, OSError, PermissionError) as e:
