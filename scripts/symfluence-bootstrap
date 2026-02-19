@@ -1459,6 +1459,61 @@ else:
             export CONDA_PREFIX="${conda_env}"
         fi
 
+        # Lock compiler paths before tool builds.
+        # On HPC, multiple gcc versions may be on PATH from different module
+        # loads (e.g., gdal pulls old gcc as dependency). Explicitly set
+        # CC/CXX/FC to a consistent toolchain to prevent version mismatches.
+        if [[ "$IS_2I2C_ENVIRONMENT" != "true" && "$PLATFORM" == "linux" ]]; then
+            _lock_hpc_compilers() {
+                # Find the newest gcc on PATH (prefer module gcc over /usr/bin)
+                local best_gcc="" best_ver=0
+                IFS=':' read -ra _dirs <<< "$PATH"
+                for _d in "${_dirs[@]}"; do
+                    if [[ -x "$_d/gcc" && "$_d" != "/usr/bin" && "$_d" != "/usr/sbin" ]]; then
+                        local _v
+                        _v=$("$_d/gcc" -dumpversion 2>/dev/null | cut -d. -f1) || continue
+                        if (( _v > best_ver )); then
+                            best_ver=$_v
+                            best_gcc="$_d"
+                        fi
+                    fi
+                done
+                # Fallback to any gcc on PATH
+                if [[ -z "$best_gcc" ]]; then
+                    local _gcc_path
+                    _gcc_path="$(command -v gcc 2>/dev/null)" || return
+                    best_gcc="$(dirname "$_gcc_path")"
+                fi
+                [[ -z "$best_gcc" ]] && return
+
+                [[ -x "$best_gcc/gcc" ]] && export CC="$best_gcc/gcc"
+                [[ -x "$best_gcc/g++" ]] && export CXX="$best_gcc/g++"
+                # gfortran might be in the same dir or a sibling
+                if [[ -x "$best_gcc/gfortran" ]]; then
+                    export FC="$best_gcc/gfortran"
+                else
+                    # Search PATH for gfortran matching the same version
+                    for _d in "${_dirs[@]}"; do
+                        if [[ -x "$_d/gfortran" && "$_d" != "/usr/bin" ]]; then
+                            local _fv
+                            _fv=$("$_d/gfortran" -dumpversion 2>/dev/null | cut -d. -f1) || continue
+                            if (( _fv == best_ver )); then
+                                export FC="$_d/gfortran"
+                                break
+                            fi
+                        fi
+                    done
+                fi
+                if [[ -n "${CC:-}" ]]; then
+                    local _cc_ver _fc_ver
+                    _cc_ver=$("$CC" -dumpversion 2>/dev/null || echo "?")
+                    _fc_ver=$("${FC:-gfortran}" -dumpversion 2>/dev/null || echo "?")
+                    print_info "Locked compilers: CC=$CC (${_cc_ver}), FC=${FC:-gfortran} (${_fc_ver})"
+                fi
+            }
+            _lock_hpc_compilers
+        fi
+
         print_info "Installing external tools..."
         "$venv_cli" binary install || {
             print_error "External tools installation failed"
