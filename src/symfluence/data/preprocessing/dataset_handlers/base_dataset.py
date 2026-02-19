@@ -395,3 +395,50 @@ class BaseDatasetHandler(ABC, ConfigMixin):
             Modified dataset
         """
         return apply_standard_variable_attributes(ds, overrides=overrides)
+
+    def open_dataset(self, path: Path, **kwargs) -> xr.Dataset:
+        """
+        Open a NetCDF dataset with automatic engine fallback.
+
+        Tries the default netcdf4 engine first. If that fails with an HDF
+        error (common when hdf5plugin registers incompatible filters, or
+        system GDAL loads a conflicting HDF5 into the process), falls back
+        to the h5netcdf engine (uses h5py directly, bypasses netCDF-C),
+        then to scipy engine as a last resort.
+
+        Args:
+            path: Path to the NetCDF file
+            **kwargs: Additional arguments passed to xr.open_dataset
+
+        Returns:
+            Opened xarray Dataset
+        """
+        try:
+            return xr.open_dataset(path, **kwargs)
+        except OSError as e:
+            if "HDF error" not in str(e) and "Errno -101" not in str(e):
+                raise
+            self.logger.warning(
+                f"NetCDF4 engine failed with HDF error on {Path(path).name}, "
+                f"trying fallback engines"
+            )
+            # Try h5netcdf (uses h5py, bypasses netCDF-C)
+            try:
+                return xr.open_dataset(path, engine="h5netcdf", **kwargs)
+            except Exception:
+                pass
+            # Try scipy (pure Python, handles NetCDF3/classic only)
+            try:
+                return xr.open_dataset(path, engine="scipy", **kwargs)
+            except Exception:
+                pass
+            # Last resort: unregister hdf5plugin filters and retry netcdf4
+            try:
+                import hdf5plugin  # noqa: F401
+                self.logger.warning(
+                    "hdf5plugin detected — may conflict with NetCDF4. "
+                    "Consider uninstalling: pip uninstall hdf5plugin"
+                )
+            except ImportError:
+                pass
+            raise
