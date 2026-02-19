@@ -687,6 +687,21 @@ install_gdal_python() {
     fi
 
     print_success "Found system GDAL: $v"
+
+    # GDAL Python bindings < 3.5 use setuptools' use_2to3 which was removed
+    # in setuptools 58+ and is incompatible with Python 3.12+. Skip the
+    # source build and rely on rasterio/fiona pip wheels (they bundle GDAL).
+    local GDAL_MAJOR_V GDAL_MINOR_V
+    GDAL_MAJOR_V=$(echo "$v" | cut -d. -f1)
+    GDAL_MINOR_V=$(echo "$v" | cut -d. -f2)
+    local py_minor
+    py_minor=$(python -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
+    if (( GDAL_MAJOR_V < 3 || (GDAL_MAJOR_V == 3 && GDAL_MINOR_V < 5) )) && (( py_minor >= 12 )); then
+        print_warning "System GDAL $v is too old to build Python bindings on Python 3.${py_minor}"
+        print_info "GDAL functionality is available through rasterio/fiona pip wheels"
+        return 0
+    fi
+
     print_info "Installing matching GDAL Python bindings..."
 
     # Try exact version first
@@ -726,17 +741,35 @@ install_python_requirements() {
     print_info "Installing Python dependencies from: $req"
     local tmp="${req}.tmp"
 
-    # Filter out GDAL and rpy2 from the pass, we’ll handle them explicitly
-    grep -v -iE "^(GDAL|rpy2)([>=<~!]|$)" "$req" > "$tmp" 2>/dev/null || cp "$req" "$tmp"
-    local gdal_filtered=false rpy2_filtered=false
+    # Filter out GDAL, rpy2, and torch from the main pass — handle separately
+    grep -v -iE "^(GDAL|rpy2|torch)([>=<~!]|$)" "$req" > "$tmp" 2>/dev/null || cp "$req" "$tmp"
+    local gdal_filtered=false rpy2_filtered=false torch_filtered=false
     grep -qiE "^GDAL([>=<~!]|$)" "$req" && gdal_filtered=true
     grep -qiE "^rpy2([>=<~!]|$)" "$req" && rpy2_filtered=true
+    grep -qiE "^torch([>=<~!]|$)" "$req" && torch_filtered=true
 
     # Try API mode first
     [[ -z "$RPY2_CFFI_MODE" ]] && export RPY2_CFFI_MODE=API
 
+    # Helper: install torch (CPU-only to avoid ~6GB of CUDA libraries)
+    _install_torch() {
+        if [[ "$torch_filtered" != "true" ]]; then return 0; fi
+        # Check if CUDA is actually available (nvidia-smi exists and works)
+        if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+            print_info "GPU detected — installing PyTorch with CUDA support..."
+            python -m pip install torch $pip_flags || print_warning "PyTorch install failed (continuing)"
+        else
+            print_info "No GPU detected — installing CPU-only PyTorch (saves ~6GB)..."
+            python -m pip install torch --index-url https://download.pytorch.org/whl/cpu $pip_flags || {
+                print_warning "CPU-only PyTorch failed, trying default..."
+                python -m pip install torch $pip_flags || print_warning "PyTorch install failed (continuing)"
+            }
+        fi
+    }
+
     if python -m pip install -r "$tmp" $pip_flags; then
         rm -f "$tmp"
+        _install_torch
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install (RPY2_CFFI_MODE=$RPY2_CFFI_MODE)..."
@@ -752,6 +785,7 @@ install_python_requirements() {
     export RPY2_CFFI_MODE=ABI
     if python -m pip install -r "$tmp" $pip_flags; then
         rm -f "$tmp"
+        _install_torch
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install in ABI mode..."
