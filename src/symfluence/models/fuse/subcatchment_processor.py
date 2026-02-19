@@ -369,7 +369,7 @@ class SubcatchmentProcessor:
 
             # Verify the structure
             expected_dims = ['time', 'latitude', 'longitude']
-            for var in ['pr', 'temp', 'pet', 'q_obs']:
+            for var in ['pr', 'precip', 'temp', 'pet', 'q_obs']:
                 if var in subcat_data:
                     actual_dims = list(subcat_data[var].dims)
                     if actual_dims != expected_dims:
