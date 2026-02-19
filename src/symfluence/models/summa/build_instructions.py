@@ -190,6 +190,40 @@ if [ -n "${CONDA_PREFIX:-}" ]; then
     fi
 fi
 
+# Collect library paths for RPATH embedding.
+# On HPC (no conda), libraries come from module-provided paths that won't
+# be on LD_LIBRARY_PATH at runtime. Embedding RPATH in the binary means
+# it finds its libraries without any LD_LIBRARY_PATH at runtime.
+SUMMA_RPATH_DIRS=""
+_add_rpath() {
+    local d="$1"
+    if [ -d "$d" ] && echo ":${SUMMA_RPATH_DIRS}:" | grep -qv ":${d}:"; then
+        SUMMA_RPATH_DIRS="${SUMMA_RPATH_DIRS:+${SUMMA_RPATH_DIRS};}${d}"
+    fi
+}
+# SUNDIALS
+_add_rpath "$SUNDIALS_DIR/lib"
+_add_rpath "$SUNDIALS_DIR/lib64"
+# NetCDF
+for _nc_root in "${NETCDF:-}" "${NETCDF_FORTRAN:-}"; do
+    [ -n "$_nc_root" ] && _add_rpath "$_nc_root/lib" && _add_rpath "$_nc_root/lib64"
+done
+# HDF5
+[ -n "${HDF5_ROOT:-}" ] && _add_rpath "$HDF5_ROOT/lib" && _add_rpath "$HDF5_ROOT/lib64"
+# Conda
+[ -n "${CONDA_PREFIX:-}" ] && _add_rpath "${CONDA_LIB_PREFIX}/lib"
+# LD_LIBRARY_PATH entries (catches HPC module paths)
+if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+    IFS=':' read -ra _ldp <<< "$LD_LIBRARY_PATH"
+    for _d in "${_ldp[@]}"; do
+        [ -n "$_d" ] && _add_rpath "$_d"
+    done
+fi
+if [ -n "$SUMMA_RPATH_DIRS" ]; then
+    SUMMA_EXTRA_CMAKE="$SUMMA_EXTRA_CMAKE -DCMAKE_INSTALL_RPATH=$SUMMA_RPATH_DIRS -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+    echo "RPATH: $SUMMA_RPATH_DIRS"
+fi
+
 # On x86-64 Linux with gfortran, denormalized floats can propagate to NaN
 # in SUMMA's Jacobian. Build a tiny shared library (libftz.so) that sets
 # the FTZ and DAZ bits in the x86 MXCSR register at load time, matching

@@ -102,6 +102,36 @@ if [ "${NETCDF_C}" != "${NETCDF_FORTRAN}" ]; then
     perl -i -ne "print unless /^\s+-L.*NCDF_PATH/" Makefile
 fi
 
+# Embed RPATH so the binary finds its libraries without LD_LIBRARY_PATH.
+# Collect unique library directories from NetCDF, HDF5, and LD_LIBRARY_PATH.
+MIZU_RPATH=""
+_mizu_add_rpath() {
+    local d="$1"
+    if [ -d "$d" ] && echo ":${MIZU_RPATH}:" | grep -qv ":${d}:"; then
+        MIZU_RPATH="${MIZU_RPATH:+${MIZU_RPATH}:}${d}"
+    fi
+}
+for _nr in "${NETCDF_FORTRAN:-}" "${NETCDF_C:-}"; do
+    [ -n "$_nr" ] && _mizu_add_rpath "$_nr/lib" && _mizu_add_rpath "$_nr/lib64"
+done
+[ -n "${HDF5_ROOT:-}" ] && _mizu_add_rpath "$HDF5_ROOT/lib" && _mizu_add_rpath "$HDF5_ROOT/lib64"
+[ -n "${CONDA_PREFIX:-}" ] && _mizu_add_rpath "${CONDA_LIB_PREFIX:-$CONDA_PREFIX}/lib"
+if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+    IFS=':' read -ra _ldp <<< "$LD_LIBRARY_PATH"
+    for _d in "${_ldp[@]}"; do [ -n "$_d" ] && _mizu_add_rpath "$_d"; done
+fi
+if [ -n "$MIZU_RPATH" ]; then
+    # Convert colon-separated to -Wl,-rpath,dir flags
+    RPATH_FLAGS=""
+    IFS=':' read -ra _rps <<< "$MIZU_RPATH"
+    for _rp in "${_rps[@]}"; do
+        RPATH_FLAGS="$RPATH_FLAGS -Wl,-rpath,$_rp"
+    done
+    # Append rpath flags to LIBNETCDF in the Makefile
+    perl -i -pe "s|^(LIBNETCDF\s*=.*)$|\$1 $RPATH_FLAGS|" Makefile
+    echo "RPATH: $MIZU_RPATH"
+fi
+
 # Build
 make clean || true
 echo "Building mizuRoute..."
