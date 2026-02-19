@@ -12,12 +12,12 @@ from symfluence.data.cache import RawForcingCache
 
 
 # Test data bundle configuration
-BUNDLE_VERSION = "v0.6.0"
+BUNDLE_VERSION = "v0.7.0"
 BUNDLE_NAME = f"example_data_{BUNDLE_VERSION}"
 BUNDLE_URL = f"https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-{BUNDLE_VERSION}/{BUNDLE_NAME}.zip"
 
-# Fallback to v0.5.5
-FALLBACK_VERSION = "v0.5.5"
+# Fallback to v0.6.0 (same data, different tag)
+FALLBACK_VERSION = "v0.6.0"
 FALLBACK_NAME = f"example_data_{FALLBACK_VERSION}"
 FALLBACK_URL = f"https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-{FALLBACK_VERSION}/{FALLBACK_NAME}.zip"
 
