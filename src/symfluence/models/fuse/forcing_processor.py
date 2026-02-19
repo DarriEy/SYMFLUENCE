@@ -147,13 +147,17 @@ class FuseForcingProcessor(BaseForcingProcessor):
             # Enable optimized backends for resampling if available
             ds = ds.resample(time=ts_config['resample_freq']).mean()
 
-            # Process temperature and precipitation
-            try:
+            # Ensure consistent variable names after VariableHandler processing.
+            # VariableHandler maps to MODEL_REQUIREMENTS names ('precip', 'temp').
+            # Legacy code and some downstream consumers expect 'pr' and 'temp'.
+            # Also handle pre-VariableHandler names ('pptrate', 'airtemp') as fallback.
+            if 'temp' not in ds and 'airtemp' in ds:
                 ds['temp'] = ds['airtemp']
-                ds['pr'] = ds['pptrate']
-            except KeyError:
-                # Variables may already have correct names or not exist
-                pass
+            if 'pr' not in ds:
+                if 'precip' in ds:
+                    ds['pr'] = ds['precip']
+                elif 'pptrate' in ds:
+                    ds['pr'] = ds['pptrate']
 
             # Calculate PET for the correct spatial configuration
             if spatial_mode == 'lumped':

@@ -54,8 +54,9 @@ class FuseSyntheticDataGenerator:
         """
         self.logger.info("Generating synthetic hydrograph for optimization")
 
-        # Extract data
-        precip = ds['pr'].values  # mm/day
+        # Extract data — handle both 'pr' and 'precip' variable names
+        pr_var = 'pr' if 'pr' in ds else 'precip'
+        precip = ds[pr_var].values  # mm/day
         temp = ds['temp'].values  # °C
         if precip.ndim > 1:
             precip = precip.mean(axis=tuple(range(1, precip.ndim)))
@@ -139,7 +140,7 @@ class FuseSyntheticDataGenerator:
         self.logger.info(f"Generating distributed synthetic hydrograph for {n_subcatchments} subcatchments")
 
         # Create base synthetic hydrograph
-        if 'pr' in ds and 'temp' in ds:
+        if ('pr' in ds or 'precip' in ds) and 'temp' in ds:
             # Use precipitation and temperature to create base hydrograph
             base_hydrograph = self.generate_synthetic_hydrograph(ds, area_km2=100.0)
         else:
