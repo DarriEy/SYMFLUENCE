@@ -57,19 +57,21 @@ else
 fi
 echo "Using Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
 
-# --- Check build dependencies ---
+# --- Install build dependencies if missing ---
+"$PYTHON_BIN" -m pip install 'Cython>=3' numpy -q 2>&1
+
 "$PYTHON_BIN" -c "
 import Cython
 major = int(Cython.__version__.split('.')[0])
 assert major >= 3, f'Cython {Cython.__version__} < 3.0'
 print(f'Cython {Cython.__version__} OK')
 " || {
-    echo "ERROR: Cython >= 3.0 required. Install with: pip install 'Cython>=3'"
+    echo "ERROR: Cython >= 3.0 install failed"
     exit 1
 }
 
 "$PYTHON_BIN" -c "import numpy; print(f'NumPy {numpy.__version__} OK')" || {
-    echo "ERROR: NumPy required. Install with: pip install numpy"
+    echo "ERROR: NumPy install failed"
     exit 1
 }
 
