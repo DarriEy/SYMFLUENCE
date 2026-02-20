@@ -365,12 +365,14 @@ class ModelManager(BaseManager):
         workflow = self._resolve_model_workflow()
         self.logger.info(f"Execution workflow order: {workflow}")
 
-        # Try dCoupler graph-based execution for multi-model workflows
+        # Determine coupling mode. Default is sequential (process-based models
+        # communicate via files). Use COUPLING_MODE=dcoupler to opt in to
+        # graph-based execution for JAX-native or tightly-coupled workflows.
         coupling_mode = self._get_config_value(
             lambda: self.config_dict.get('COUPLING_MODE'),
-            default='auto',
+            default='sequential',
         )
-        if coupling_mode != 'sequential' and len(workflow) > 1:
+        if coupling_mode == 'dcoupler' and len(workflow) > 1:
             if self._try_dcoupler_execution(workflow):
                 return
 
