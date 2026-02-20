@@ -76,9 +76,9 @@ Designed for classroom and workshop settings with step-by-step guidance.
 
 ## Data Access
 
-Example data for **01a – 02c** are provided as a single ~200 MB bundle for quick testing.
+Example data for **01a – 02c** are provided as a single ~354 MB bundle for quick testing.
 
-- **Download:** [GitHub Release – Example Data (01a–03a)](https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.7.0/example_data_v0.7.0.zip)
+- **Download:** [GitHub Release – Example Data (01a–02c)](https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip)
 
 If you have access to institutional storage (e.g. **FIR** or **UCalgary ARC**),
 you may instead point the config paths to your local dataset and set `DATA_ACCESS: 'maf'`.
