@@ -15,6 +15,7 @@ Available Handlers:
     - CONUS404Handler: NCAR/USGS CONUS404 WRF reanalysis
     - NEXGDDPCMIP6Handler: NASA NEX-GDDP-CMIP6 downscaled climate data
     - HRRRHandler: High-Resolution Rapid Refresh
+    - DaymetHandler: Daymet daily surface weather (ORNL DAAC)
 
 Usage:
     from dataset_handlers import DatasetRegistry
@@ -53,6 +54,7 @@ _handler_imports = [
     ('conus404_utils', 'CONUS404Handler'),
     ('nex_gddp_utils', 'NEXGDDPCMIP6Handler'),
     ('hrrr_utils', 'HRRRHandler'),
+    ('daymet_utils', 'DaymetHandler'),
 ]
 
 # Track successfully imported handlers
@@ -97,7 +99,8 @@ __all__ = [
     "AORCHandler",
     "CONUS404Handler",
     "NEXGDDPCMIP6Handler",
-    "HRRRHandler"
+    "HRRRHandler",
+    "DaymetHandler"
 ]
 
 __version__ = "1.0.1"

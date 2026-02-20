@@ -345,6 +345,7 @@ class VariableStandardizer:
             'CASR_V3.1': 'CASR',
             'CASR_V3.2': 'RDRS',
             'CASR': 'RDRS',
+            'DAYMET': 'DayMet',
             'NEX_GDDP': 'NEX-GDDP',
             'NEX_GDDP_CMIP6': 'NEX-GDDP-CMIP6',
         }
