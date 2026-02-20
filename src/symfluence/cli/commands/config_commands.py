@@ -215,10 +215,26 @@ class ConfigCommands(BaseCommand):
         else:
             output = config.to_dict(flatten=False)
 
-        # Apply --diff: keep only values that differ from defaults
+        # Apply --diff: keep only values that differ from Pydantic defaults
         if diff_mode:
-            from symfluence.core.config.defaults import ConfigDefaults
-            defaults = ConfigDefaults.get_defaults()
+            from symfluence.core.config.models import SymfluenceConfig
+
+            # Build a reference config with the same required fields but all
+            # optional fields at their Pydantic defaults.
+            try:
+                ref_config = SymfluenceConfig.from_minimal(
+                    domain_name=config.domain.name,
+                    model=str(config.model.hydrological_model),
+                    forcing_dataset=str(config.forcing.dataset),
+                    EXPERIMENT_TIME_START=config.domain.time_start,
+                    EXPERIMENT_TIME_END=config.domain.time_end,
+                    SYMFLUENCE_DATA_DIR=str(config.system.data_dir),
+                    SYMFLUENCE_CODE_DIR=str(config.system.code_dir),
+                )
+                defaults = ref_config.to_dict(flatten=True)
+            except Exception:
+                # Fallback: empty defaults means everything is shown
+                defaults = {}
 
             if flat_mode:
                 # Filter flat dict: keep keys where value differs from default

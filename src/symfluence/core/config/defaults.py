@@ -1,105 +1,20 @@
 """
-Centralized default configuration values for SYMFLUENCE.
+Default configuration values for SYMFLUENCE.
 
-This module provides default values for optional configuration parameters.
-Required parameters (defined in config_loader.py) must be set in config files.
+All optional-field defaults are defined as Pydantic ``Field(default=...)``
+declarations in the nested config models (``core.config.models.*``).  Flat
+and nested config formats both resolve to the same Pydantic defaults — there
+is a single source of truth.
 
-Model-specific defaults are sourced from Pydantic Field(default=...) declarations
-in each model's config schema via ModelRegistry adapters. Legacy registry layers
-have been removed to keep one source of truth.
+This module retains two helper classes used during config construction:
+- ``ModelDefaults``: forwards to ModelRegistry for model-specific defaults
+- ``ForcingDefaults``: dataset-conditional overrides (e.g. ERA5 → cloud)
 """
 
 from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class ConfigDefaults:
-    """Default configuration values for SYMFLUENCE"""
-
-    # === System Settings ===
-    NUM_PROCESSES = 1
-    # Note: MPI_PROCESSES is a backward compatibility alias, not a separate default.
-    # The alias mapping is in transformers.py FLAT_TO_NESTED_MAP.
-    DEBUG_MODE = False
-    LOG_LEVEL = 'INFO'
-    LOG_TO_FILE = True
-    FORCE_RUN_ALL_STEPS = False
-    STOP_ON_ERROR = True
-
-    # === Resource Paths ===
-    SETTINGS_BASE_DIR = 'src/symfluence/resources/base_settings'
-
-    # === Data Access ===
-    DATA_ACCESS = 'MAF'  # Options: 'MAF', 'cloud'
-    DEM_SOURCE = 'copernicus'  # Options: 'copernicus', 'copdem90', 'fabdem', 'nasadem', 'merit_hydro', 'srtm', 'etopo', 'mapzen', 'alos'
-    LAND_CLASS_NAME = 'default'
-
-    # === Forcing Data ===
-    FORCING_TIME_STEP_SIZE = 3600  # seconds
-    FORCING_VARIABLES = 'default'
-    SUPPLEMENT_FORCING = False
-
-    # === EM-Earth Settings ===
-    EM_EARTH_REGION = 'NorthAmerica'
-    EM_EARTH_MIN_BBOX_SIZE = 0.1  # degrees
-
-    # === Domain Definition ===
-    STREAM_THRESHOLD = 1000  # km²
-    MIN_HRU_SIZE = 0.0
-    MIN_GRU_SIZE = 0.0
-    ELEVATION_BAND_SIZE = 400  # meters
-    RADIATION_CLASS_NUMBER = 1
-    ASPECT_CLASS_NUMBER = 1
-    MOVE_OUTLETS_MAX_DISTANCE = 1000  # meters
-
-    # === Shapefile Settings ===
-    RIVER_BASIN_SHP_AREA = 'GRU_area'
-    RIVER_BASIN_SHP_RM_GRUID = 'GRU_ID'
-    CATCHMENT_SHP_GRUID = 'GRU_ID'
-    RIVER_BASINS_NAME = 'default'
-
-    # === Model Settings ===
-    FUSE_SPATIAL_MODE = 'lumped'  # Options: 'lumped', 'semi_distributed', 'distributed'
-    GR_SPATIAL_MODE = 'lumped'
-
-    # === Optimization ===
-    NUMBER_OF_ITERATIONS = 1000
-    RANDOM_SEED = 42
-    LAPSE_RATE = -0.0065  # °C/m (standard atmospheric lapse rate)
-
-    # === Drop Analysis ===
-    DROP_ANALYSIS_MIN_THRESHOLD = 100
-    DROP_ANALYSIS_MAX_THRESHOLD = 10000
-    DROP_ANALYSIS_NUM_THRESHOLDS = 20
-
-    @classmethod
-    def get_defaults(cls) -> Dict[str, Any]:
-        """
-        Get all default values as a dictionary.
-
-        Returns:
-            Dict[str, Any]: Dictionary of configuration defaults
-        """
-        return {
-            k: v for k, v in vars(cls).items()
-            if not k.startswith('_') and k.isupper()
-        }
-
-    @classmethod
-    def get_default(cls, key: str, fallback: Any = None) -> Any:
-        """
-        Get a single default value.
-
-        Args:
-            key: Configuration key name
-            fallback: Value to return if key not found in defaults
-
-        Returns:
-            Default value for the key, or fallback if not found
-        """
-        return getattr(cls, key, fallback)
 
 
 class ModelDefaults:

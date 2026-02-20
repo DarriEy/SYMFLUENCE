@@ -166,7 +166,7 @@ Integration:
 
     The module integrates with:
     - core.config.models.SymfluenceConfig: Pydantic schema definition
-    - core.config.defaults.ConfigDefaults: Default value provider
+    - core.config.defaults.ModelDefaults/ForcingDefaults: Model/forcing-specific overrides
     - core.exceptions.ConfigurationError: Custom exception types
 
 Error Recovery:
@@ -198,7 +198,7 @@ Notes:
 
 See Also:
     - core.config.models.SymfluenceConfig: Pydantic configuration schema
-    - core.config.defaults.ConfigDefaults: Default configuration values
+    - core.config.defaults: ModelDefaults/ForcingDefaults helpers
     - core.config.config_manager.ConfigManager: Configuration access interface
     - core.exceptions.ConfigurationError: Configuration-related exceptions
     - cli.commands.config_commands: CLI configuration management commands
