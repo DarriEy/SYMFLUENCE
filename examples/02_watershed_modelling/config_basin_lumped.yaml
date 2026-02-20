@@ -80,7 +80,7 @@ KEEP_RAW_FORCING: true
 ERA5_ZARR_PATH: gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3
 ERA5_TIME_STEP_HOURS: 1
 HYDROLOGICAL_MODEL: SUMMA
-ROUTING_MODEL: mizuRoute
+ROUTING_MODEL: none
 SUMMA_INSTALL_PATH: default
 SUMMA_EXE: summa_sundials.exe
 SETTINGS_SUMMA_PATH: default
