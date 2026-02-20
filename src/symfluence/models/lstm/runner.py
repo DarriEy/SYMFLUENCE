@@ -50,6 +50,8 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
     Supports both lumped and distributed modes with dRoute integration.
     """
 
+    MODEL_NAME = "LSTM"
+
     @property
     def lstm_config(self):
         """Access LSTM-specific configuration."""
@@ -100,9 +102,6 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
 
         self.model: Optional[LSTMModel] = None
         self.hru_ids: list[Any] = []
-
-    def _get_model_name(self) -> str:
-        return "LSTM"
 
     def run_lstm(self):
         """
@@ -225,7 +224,7 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
                         epochs=self.lstm_config.epochs,
                         learning_rate=self.lstm_config.learning_rate
                     )
-                elif self.spatial_mode == 'lumped':
+                elif self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
                     self._train_model(
                         X_tensor,
                         y_tensor,
@@ -561,7 +560,7 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
 
         self._log_memory_usage()
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
             X_input = X_tensor
         else:
             # Flatten HRUs for inference: (B, T, N, F) -> (B*N, T, F)
@@ -594,7 +593,7 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
 
         lookback = self.preprocessor.lookback
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
             # Create a DataFrame for predictions
             pred_df = pd.DataFrame(predictions, columns=columns, index=common_dates[lookback:])
             # Join predictions with the original averaged features

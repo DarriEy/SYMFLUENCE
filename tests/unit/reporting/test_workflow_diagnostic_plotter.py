@@ -507,11 +507,14 @@ class TestModelOutputDiagnostics:
                 # Mock xarray dataset
                 mock_ds = Mock()
                 mock_ds.data_vars = ['scalarTotalRunoff', 'scalarSWE']
-                mock_var = Mock()
+                mock_var = MagicMock()
                 mock_var.values = np.random.random((100,))
                 mock_var.dims = ['time']
                 mock_var.mean.return_value = mock_var
                 mock_var.plot = Mock()
+                mock_time_coord = MagicMock()
+                mock_time_coord.values = np.arange(100)
+                mock_var.__getitem__ = Mock(return_value=mock_time_coord)
                 mock_ds.__getitem__ = Mock(return_value=mock_var)
                 mock_ds.close = Mock()
                 mock_xr.return_value = mock_ds

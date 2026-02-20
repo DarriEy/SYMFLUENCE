@@ -80,10 +80,11 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
     ),
 
     'LSTM': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
         default_mode=SpatialMode.LUMPED,
         requires_routing={
             SpatialMode.DISTRIBUTED: False,  # LSTM handles routing internally
+            SpatialMode.SEMI_DISTRIBUTED: False,
             SpatialMode.LUMPED: False
         },
         warning_message=(
