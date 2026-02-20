@@ -4,24 +4,10 @@ Constants for the SYMFLUENCE TUI.
 Step lists, key bindings, color tokens, and status values.
 """
 
+from symfluence.workflow_steps import WORKFLOW_STEP_ITEMS
+
 # Workflow step definitions (matches WorkflowOrchestrator.define_workflow_steps)
-WORKFLOW_STEPS = [
-    ("setup_project", "Set up project structure"),
-    ("create_pour_point", "Create watershed pour point"),
-    ("acquire_attributes", "Acquire geospatial attributes"),
-    ("define_domain", "Define hydrological domain"),
-    ("discretize_domain", "Discretize into HRUs"),
-    ("process_observed_data", "Process observed data"),
-    ("acquire_forcings", "Acquire forcing data"),
-    ("model_agnostic_preprocessing", "Model-agnostic preprocessing"),
-    ("model_specific_preprocessing", "Model-specific preprocessing"),
-    ("run_model", "Run hydrological model"),
-    ("postprocess_results", "Post-process results"),
-    ("calibrate_model", "Calibrate model"),
-    ("run_benchmarking", "Run benchmarking"),
-    ("run_decision_analysis", "Run decision analysis"),
-    ("run_sensitivity_analysis", "Run sensitivity analysis"),
-]
+WORKFLOW_STEPS = list(WORKFLOW_STEP_ITEMS)
 
 # Run status values
 STATUS_COMPLETED = "completed"

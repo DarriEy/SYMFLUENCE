@@ -10,29 +10,13 @@ import logging
 import panel as pn
 import param
 
+from symfluence.workflow_steps import WORKFLOW_STEP_DESCRIPTION_MAP
 from ..utils.threading_utils import WorkflowThread
 
 logger = logging.getLogger(__name__)
 
 # Step descriptions (mirrors WorkflowCommands.WORKFLOW_STEPS)
-STEP_INFO = {
-    'setup_project': 'Initialize project directory structure and shapefiles',
-    'create_pour_point': 'Create pour point shapefile from coordinates',
-    'acquire_attributes': 'Download and process geospatial attributes',
-    'define_domain': 'Define hydrological domain boundaries and river basins',
-    'discretize_domain': 'Discretize domain into HRUs or modeling units',
-    'process_observed_data': 'Process observational data (streamflow, etc.)',
-    'acquire_forcings': 'Acquire meteorological forcing data',
-    'model_agnostic_preprocessing': 'Model-agnostic preprocessing of forcing and attribute data',
-    'model_specific_preprocessing': 'Setup model-specific input files and configuration',
-    'run_model': 'Execute the hydrological model simulation',
-    'calibrate_model': 'Run model calibration and parameter optimization',
-    'run_emulation': 'Run emulation-based optimization if configured',
-    'run_benchmarking': 'Run benchmarking analysis against observations',
-    'run_decision_analysis': 'Run decision analysis for model comparison',
-    'run_sensitivity_analysis': 'Run sensitivity analysis on model parameters',
-    'postprocess_results': 'Postprocess and finalize model results',
-}
+STEP_INFO = dict(WORKFLOW_STEP_DESCRIPTION_MAP)
 
 STEP_ORDER = list(STEP_INFO.keys())
 

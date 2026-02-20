@@ -167,8 +167,8 @@ class TestWorkflowStatus:
     """Test workflow status command."""
 
     @patch('symfluence.core.SYMFLUENCE')
-    def test_status_with_method(self, mock_symfluence_class, temp_config_dir):
-        """Test status when get_workflow_status exists."""
+    def test_status_success(self, mock_symfluence_class, temp_config_dir):
+        """Test workflow status retrieval."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
 
         mock_instance = MagicMock()
@@ -185,24 +185,6 @@ class TestWorkflowStatus:
 
         assert result == ExitCode.SUCCESS
         mock_instance.get_workflow_status.assert_called_once()
-
-    @patch('symfluence.core.SYMFLUENCE')
-    def test_status_without_method(self, mock_symfluence_class, temp_config_dir):
-        """Test status when get_workflow_status doesn't exist (beta message)."""
-        config_file = temp_config_dir / "config_files" / "config_template.yaml"
-
-        mock_instance = MagicMock(spec=[])  # No get_workflow_status
-        mock_symfluence_class.return_value = mock_instance
-
-        args = Namespace(
-            config=str(config_file),
-            debug=False,
-            visualise=False
-        )
-
-        result = WorkflowCommands.status(args)
-
-        assert result == ExitCode.SUCCESS
 
 
 class TestWorkflowValidate:
