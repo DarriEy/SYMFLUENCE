@@ -15,7 +15,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner('IGNACIO', method_name='run_ignacio')
+@ModelRegistry.register_runner('IGNACIO')
 class IGNACIORunner(BaseModelRunner):
     """
     Runs the IGNACIO fire spread model.
@@ -30,6 +30,8 @@ class IGNACIORunner(BaseModelRunner):
     - Collecting and organizing outputs
     """
 
+
+    MODEL_NAME = "IGNACIO"
     def __init__(self, config, logger_instance=None, reporting_manager=None):
         """
         Initialize the IGNACIO runner.
@@ -44,10 +46,6 @@ class IGNACIORunner(BaseModelRunner):
         # IGNACIO-specific paths
         self.ignacio_input_dir = self.project_dir / "IGNACIO_input"
         self.ignacio_config_path = self.ignacio_input_dir / "ignacio_config.yaml"
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "IGNACIO"
 
     def run_ignacio(self, **kwargs) -> Optional[Path]:
         """
@@ -191,6 +189,10 @@ class IGNACIORunner(BaseModelRunner):
         except Exception as e:
             self.logger.error(f"IGNACIO CLI execution failed: {e}")
             return False
+
+    def run(self, **kwargs) -> Optional[Path]:
+        """Execute IGNACIO fire spread simulation."""
+        return self.run_ignacio(**kwargs)
 
     def _should_create_output_dir(self) -> bool:
         """Don't create output dir in __init__, we do it in run_ignacio."""

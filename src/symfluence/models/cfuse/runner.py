@@ -18,7 +18,7 @@ import xarray as xr
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.execution import SpatialOrchestrator
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
@@ -73,11 +73,12 @@ def _get_model_config(structure: str) -> dict:
 
 
 @ModelRegistry.register_runner('CFUSE', method_name='run_cfuse')
-class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
+class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """
     Runner class for the cFUSE hydrological model.
 
     Supports:
+
     - Lumped mode (single catchment simulation)
     - Distributed mode (per-HRU simulation with optional routing)
     - PyTorch backend for autodiff/gradient computation
@@ -89,6 +90,8 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
         spatial_mode: 'lumped' or 'distributed'
         model_structure: cFUSE model structure name
     """
+
+    MODEL_NAME = "CFUSE"
 
     def __init__(
         self,
@@ -189,10 +192,6 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
                 self._n_states = cfuse_core.get_num_active_states(self._model_config)
             except Exception as e:
                 self.logger.debug(f"Could not get state count from cfuse_core, using default: {e}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for cFUSE."""
-        return "CFUSE"
 
     def _setup_model_specific_paths(self) -> None:
         """Set up cFUSE-specific paths."""

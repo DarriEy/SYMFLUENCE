@@ -92,9 +92,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         # Generates: input_info.txt, elev_bands.txt, fm_control.txt
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "FUSE"
+    MODEL_NAME = "FUSE"
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
@@ -156,6 +154,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.synthetic_data_generator = FuseSyntheticDataGenerator(logger=self.logger)
 
     def _get_fuse_file_id(self) -> str:
+
         """Get a short file ID for FUSE outputs and settings.
 
         FUSE Fortran uses a CHARACTER(LEN=6) buffer for FMODEL_ID,
@@ -319,141 +318,146 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return self.synthetic_data_generator.generate_synthetic_hydrograph(ds, area_km2, mean_temp_threshold)
 
     def prepare_forcing_data(self):
-        """
-        Prepare forcing data with support for lumped, semi-distributed, and distributed modes.
-        Supports configurable timesteps based on FORCING_TIME_STEP_SIZE config parameter.
-        """
+        """Prepare forcing data for lumped, semi-distributed, or distributed FUSE."""
         try:
             t0 = time.time()
-            # Get timestep configuration
             ts_config = self._get_timestep_config()
-            self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
-
-            # Get spatial mode configuration (fall back to DOMAIN_DEFINITION_METHOD if FUSE_SPATIAL_MODE not set)
-            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE')
-            if spatial_mode is None:
-                spatial_mode = self._infer_spatial_mode_from_domain()
+            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE') or self._infer_spatial_mode_from_domain()
             subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
 
-            self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
+            ds = self._load_forcing_dataset(ts_config)
+            ds = self._organize_and_resample(ds, spatial_mode, subcatchment_dim, ts_config)
+            obs_ds, pet = self._compute_observations_and_pet(ds, spatial_mode, ts_config)
+            output_file = self._save_fuse_forcing(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
 
-            # Read and process forcing data
-            forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
-            if not forcing_files:
-                raise FileNotFoundError("No forcing files found in basin-averaged data directory")
-
-            # Basin-averaged forcing data is already in CFIF format (from model-agnostic preprocessing)
-            variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
-                                            dataset='CFIF', model='FUSE')
-            self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
-
-            t1 = time.time()
-            # Open the forcing datasets
-            if len(forcing_files) == 1:
-                ds = xr.open_dataset(forcing_files[0])
-            else:
-                ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
-            self.logger.info(f"PERF: Opening dataset took {time.time() - t1:.2f}s")
-
-            t2 = time.time()
-            ds = variable_handler.process_forcing_data(ds)
-            self.logger.info(f"PERF: process_forcing_data took {time.time() - t2:.2f}s")
-
-            t3 = time.time()
-            ds = self.subset_to_simulation_time(ds, "Forcing")
-            self.logger.info(f"PERF: subset_to_simulation_time took {time.time() - t3:.2f}s")
-
-            # Spatial organization based on mode BEFORE resampling
-            t4 = time.time()
-            if spatial_mode == 'lumped':
-                ds = self._prepare_lumped_forcing(ds)
-            elif spatial_mode == 'semi_distributed':
-                ds = self._prepare_semi_distributed_forcing(ds, subcatchment_dim)
-            elif spatial_mode == 'distributed':
-                ds = self._prepare_distributed_forcing(ds)
-            else:
-                raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
-            self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
-
-            # Resample to target resolution AFTER spatial organization
-            t5 = time.time()
-            self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
-            ds = ds.resample(time=ts_config['resample_freq']).mean()
-            self.logger.info(f"PERF: Resampling took {time.time() - t5:.2f}s")
-
-            # Variables already renamed by variable_handler.process_forcing_data() above:
-            # - airtemp -> temp
-            # - pptrate -> precip
-
-            # Handle streamflow observations
-            t6 = time.time()
-            time_window = self.get_simulation_time_window()
-            obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
-            self.logger.info(f"PERF: Loading observations took {time.time() - t6:.2f}s")
-
-            # Get PET method from config (default to 'oudin')
-            pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
-            self.logger.debug(f"Using PET method: {pet_method}")
-
-            # Calculate PET for the correct spatial configuration
-            t7 = time.time()
-            if spatial_mode == 'lumped':
-                catchment = gpd.read_file(self.catchment_path)
-                mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
-                pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
-            else:
-                # For distributed modes, calculate PET after spatial organization and resampling
-                pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
-
-            # Ensure PET is also at target resolution
-            pet = pet.resample(time=ts_config['resample_freq']).mean()
-            self.logger.debug(f"PET data resampled to {ts_config['time_label']} resolution")
-            self.logger.info(f"PERF: PET calculation took {time.time() - t7:.2f}s")
-
-            # Create FUSE forcing dataset
-            t8 = time.time()
-            fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
-            self.logger.info(f"PERF: _create_fuse_forcing_dataset took {time.time() - t8:.2f}s")
-
-            # Capture actual simulation dates from the final dataset
-            # FUSE uses days since 1970-01-01
-            try:
-                t9 = time.time()
-                time_vals = fuse_forcing['time'].values
-                if len(time_vals) > 0:
-                    dates = pd.to_datetime(time_vals, unit='D', origin='1970-01-01')
-                    self.actual_start_time = dates.min().to_pydatetime()
-                    self.actual_end_time = dates.max().to_pydatetime()
-                    self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
-                self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
-            except Exception as e:
-                self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
-
-            # Release any open handles and materialize data before writing to avoid lazy write hangs
-            try:
-                if hasattr(ds, "close"):
-                    ds.close()
-            except Exception as e:
-                self.logger.debug(f"Could not close forcing dataset: {e}")
-
-            self.logger.info("Materializing FUSE forcing dataset before write")
-            fuse_forcing = fuse_forcing.load()
-
-            # Save forcing data
-            t10 = time.time()
-            output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
-            encoding = self._get_encoding_dict(fuse_forcing)
-            fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'],
-                                encoding=encoding, format='NETCDF4')
-
-            self.logger.info(f"PERF: Saving NetCDF took {time.time() - t10:.2f}s")
             self.logger.info(f"PERF: Total prepare_forcing_data took {time.time() - t0:.2f}s")
-            self.logger.debug(f"FUSE forcing data saved: {output_file}")
             return output_file
 
         except Exception as e:
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
+
+    # ------------------------------------------------------------------
+    # Helpers for prepare_forcing_data
+    # ------------------------------------------------------------------
+
+    def _load_forcing_dataset(self, ts_config):
+        """Open forcing files, apply variable handler, and subset to sim time."""
+        self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
+
+        forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
+        if not forcing_files:
+            raise FileNotFoundError("No forcing files found in basin-averaged data directory")
+
+        variable_handler = VariableHandler(
+            config=self.config_dict, logger=self.logger, dataset='CFIF', model='FUSE'
+        )
+        self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
+
+        t1 = time.time()
+        if len(forcing_files) == 1:
+            ds = xr.open_dataset(forcing_files[0])
+        else:
+            ds = xr.open_mfdataset(
+                forcing_files, data_vars='all', combine='nested', concat_dim='time'
+            ).sortby('time')
+        self.logger.info(f"PERF: Opening dataset took {time.time() - t1:.2f}s")
+
+        t2 = time.time()
+        ds = variable_handler.process_forcing_data(ds)
+        self.logger.info(f"PERF: process_forcing_data took {time.time() - t2:.2f}s")
+
+        t3 = time.time()
+        ds = self.subset_to_simulation_time(ds, "Forcing")
+        self.logger.info(f"PERF: subset_to_simulation_time took {time.time() - t3:.2f}s")
+
+        return ds
+
+    def _organize_and_resample(self, ds, spatial_mode, subcatchment_dim, ts_config):
+        """Apply spatial organisation and resample to target timestep."""
+        self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
+
+        t4 = time.time()
+        if spatial_mode == 'lumped':
+            ds = self._prepare_lumped_forcing(ds)
+        elif spatial_mode == 'semi_distributed':
+            ds = self._prepare_semi_distributed_forcing(ds, subcatchment_dim)
+        elif spatial_mode == 'distributed':
+            ds = self._prepare_distributed_forcing(ds)
+        else:
+            raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+        self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
+
+        t5 = time.time()
+        self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
+        ds = ds.resample(time=ts_config['resample_freq']).mean()
+        self.logger.info(f"PERF: Resampling took {time.time() - t5:.2f}s")
+
+        return ds
+
+    def _compute_observations_and_pet(self, ds, spatial_mode, ts_config):
+        """Load streamflow observations and calculate PET."""
+        t6 = time.time()
+        time_window = self.get_simulation_time_window()
+        obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
+        self.logger.info(f"PERF: Loading observations took {time.time() - t6:.2f}s")
+
+        pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
+        self.logger.debug(f"Using PET method: {pet_method}")
+
+        t7 = time.time()
+        if spatial_mode == 'lumped':
+            catchment = gpd.read_file(self.catchment_path)
+            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
+            pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
+        else:
+            pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
+
+        pet = pet.resample(time=ts_config['resample_freq']).mean()
+        self.logger.debug(f"PET data resampled to {ts_config['time_label']} resolution")
+        self.logger.info(f"PERF: PET calculation took {time.time() - t7:.2f}s")
+
+        return obs_ds, pet
+
+    def _save_fuse_forcing(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config):
+        """Create FUSE dataset, capture dates, materialise, and write NetCDF."""
+        t8 = time.time()
+        fuse_forcing = self._create_fuse_forcing_dataset(
+            ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config
+        )
+        self.logger.info(f"PERF: _create_fuse_forcing_dataset took {time.time() - t8:.2f}s")
+
+        # Capture actual simulation dates (FUSE uses days since 1970-01-01)
+        try:
+            t9 = time.time()
+            time_vals = fuse_forcing['time'].values
+            if len(time_vals) > 0:
+                dates = pd.to_datetime(time_vals, unit='D', origin='1970-01-01')
+                self.actual_start_time = dates.min().to_pydatetime()
+                self.actual_end_time = dates.max().to_pydatetime()
+                self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
+            self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
+        except Exception as e:
+            self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
+
+        try:
+            if hasattr(ds, "close"):
+                ds.close()
+        except Exception as e:
+            self.logger.debug(f"Could not close forcing dataset: {e}")
+
+        self.logger.info("Materializing FUSE forcing dataset before write")
+        fuse_forcing = fuse_forcing.load()
+
+        t10 = time.time()
+        output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
+        encoding = self._get_encoding_dict(fuse_forcing)
+        fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'],
+                               encoding=encoding, format='NETCDF4')
+
+        self.logger.info(f"PERF: Saving NetCDF took {time.time() - t10:.2f}s")
+        self.logger.debug(f"FUSE forcing data saved: {output_file}")
+        return output_file
 
 
     def _calculate_pet(self, temp_data: xr.DataArray, lat: float, method: str = 'oudin') -> xr.DataArray:

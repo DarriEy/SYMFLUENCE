@@ -17,7 +17,7 @@ import torch.optim as optim
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..execution import UnifiedModelExecutor
+from ..execution import SpatialOrchestrator
 from symfluence.core.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
@@ -28,7 +28,7 @@ from .preprocessor import GNNPreProcessor
 from .postprocessor import GNNPostprocessor
 
 @ModelRegistry.register_runner('GNN', method_name='run_gnn')
-class GNNRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
+class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """Runner for the Spatio-Temporal GNN Hydrological Model.
 
     Orchestrates the complete GNN workflow: data loading, graph construction,
@@ -55,6 +55,8 @@ class GNNRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
         outlet_indices: List of node indices at watersheds outlets
         outlet_hru_ids: List of HRU IDs at outlets (for output mapping)
     """
+
+    MODEL_NAME = "GNN"
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
@@ -106,9 +108,6 @@ class GNNRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
         self.hru_ids: list[Any] = []
         self.outlet_indices: list[Any] = []
         self.outlet_hru_ids: list[Any] = []
-
-    def _get_model_name(self) -> str:
-        return "GNN"
 
     def run_gnn(self):
         """Run the complete GNN model workflow.

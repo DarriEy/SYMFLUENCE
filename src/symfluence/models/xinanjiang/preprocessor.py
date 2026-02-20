@@ -29,6 +29,8 @@ class XinanjiangPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin): 
     - Temperature (C) - for PET calculation if needed
     """
 
+
+    MODEL_NAME = "XINANJIANG"
     def __init__(
         self,
         config: Union[Dict[str, Any], Any],
@@ -54,9 +56,6 @@ class XinanjiangPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin): 
             else None,
             None
         )
-
-    def _get_model_name(self) -> str:
-        return "XINANJIANG"
 
     def run_preprocessing(self) -> bool:
         """Run Xinanjiang preprocessing workflow."""
@@ -249,33 +248,16 @@ class XinanjiangPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin): 
         return np.ones(len(time)) * 2.0  # ~2 mm/day constant fallback
 
     def _calculate_hamon_pet(self, temp: np.ndarray, time_values) -> np.ndarray:
-        """Calculate PET using simplified Hamon method (mm/day).
+        """Calculate PET using Hamon method (mm/day)."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
-        Uses the same formulation as SAC-SMA and HBV preprocessors:
-        PET = 0.55 * (dayl/12)^2 * esat, where esat is saturated vapor
-        pressure (kPa) from the Magnus formula. PET is zero when temp <= 0.
-        """
         self.logger.info("Calculating PET using Hamon method")
         dates = pd.to_datetime(time_values)
         doy = dates.dayofyear.values
-        lat_rad = np.radians(self.latitude if self.latitude else 45.0)
-
-        # Solar declination
-        decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * doy - 1.39)
-        # Sunset hour angle
-        omega = np.arccos(np.clip(-np.tan(lat_rad) * np.tan(decl), -1.0, 1.0))
-        # Day length (hours)
-        dayl = 24.0 / np.pi * omega
-
-        # Saturated vapour pressure (kPa) — Magnus formula
-        esat = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
-
-        # Hamon PET (mm/day)
-        pet = 0.55 * (dayl / 12.0) ** 2 * esat
-        pet = np.where(temp > 0.0, pet, 0.0)
-        pet = np.maximum(pet, 0.0)
-
-        return pet
+        lat = self.latitude if self.latitude else 45.0
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat)
+        # XAJ zeros PET at sub-zero temperatures
+        return np.where(temp > 0.0, pet, 0.0)
 
     def _prepare_observations(self) -> None:
         """Copy observation files for validation."""

@@ -42,9 +42,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     - MESHDataPreprocessor: Shapefile and data preparation
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for MESH."""
-        return "MESH"
+    MODEL_NAME = "MESH"
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
@@ -273,6 +271,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         Handles spinup period calculation and GRU class detection.
 
         Returns:
+
             Dictionary containing all meshflow configuration parameters.
         """
 

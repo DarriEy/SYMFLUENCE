@@ -30,10 +30,8 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
     t-route run without any dependency on other routing model utilities.
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "troute"
 
+    MODEL_NAME = "troute"
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)

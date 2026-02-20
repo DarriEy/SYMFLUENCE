@@ -27,11 +27,14 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
     Uses the Unified Model Execution Framework for subprocess execution.
 
     Attributes:
+
         config (Dict[str, Any]): Configuration settings for MESH model
         logger (Any): Logger object for recording run information
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
+
+    MODEL_NAME = "MESH"
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
@@ -70,10 +73,6 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
 
         # Initialize forcing_mesh_path to forcing_dir (can be overridden for parallel execution)
         self.forcing_mesh_path = self.forcing_dir
-
-    def _get_model_name(self) -> str:
-        """Return model name for MESH."""
-        return "MESH"
 
     def _get_output_dir(self) -> Path:
         """MESH output directory."""

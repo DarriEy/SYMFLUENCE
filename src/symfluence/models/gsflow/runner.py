@@ -4,130 +4,61 @@ GSFLOW Model Runner.
 Executes the GSFLOW binary which internally couples PRMS and MODFLOW-NWT.
 """
 
-import logging
-import os
-import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from symfluence.models.base import BaseModelRunner
+from symfluence.models.registry import ModelRegistry
 
-logger = logging.getLogger(__name__)
 
-
+@ModelRegistry.register_runner('GSFLOW')
 class GSFLOWRunner(BaseModelRunner):
     """Runner for the GSFLOW coupled model."""
 
-    def _get_model_name(self) -> str:
-        """Return the model name."""
-        return 'GSFLOW'
+    MODEL_NAME = "GSFLOW"
 
-    def run(self, **kwargs) -> Optional[Path]:
-        """Run GSFLOW model.
+    def _setup_model_specific_paths(self) -> None:
+        """Set up GSFLOW-specific paths."""
+        self.setup_dir = self.project_dir / 'GSFLOW_input' / 'settings'
 
-        Executes the single gsflow binary with a combined control file.
-        GSFLOW internally manages PRMS-MODFLOW-NWT coupling.
-        """
-        try:
-            settings_dir = self.project_dir / 'GSFLOW_input' / 'settings'
-            output_dir = self.project_dir / 'GSFLOW_output'
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Get executable
-            gsflow_exe = self._get_executable()
-            if not gsflow_exe.exists():
-                logger.error(f"GSFLOW executable not found: {gsflow_exe}")
-                return None
-
-            # Get control file
-            control_file = self._get_config_value(
-                lambda: self.config.model.gsflow.control_file,
-                default='control.dat',
-                dict_key='GSFLOW_CONTROL_FILE'
-            )
-            control_path = settings_dir / control_file
-            if not control_path.exists():
-                logger.error(f"GSFLOW control file not found: {control_path}")
-                return None
-
-            # Build command
-            cmd = [str(gsflow_exe), str(control_path)]
-
-            env = os.environ.copy()
-            env['MallocStackLogging'] = '0'
-
-            timeout = self._get_config_value(
-                lambda: self.config.model.gsflow.timeout,
-                default=7200,
-                dict_key='GSFLOW_TIMEOUT'
-            )
-
-            stdout_file = output_dir / 'gsflow_stdout.log'
-            stderr_file = output_dir / 'gsflow_stderr.log'
-
-            logger.info(f"Running GSFLOW: {' '.join(cmd)}")
-
-            with open(stdout_file, 'w') as stdout_f, \
-                 open(stderr_file, 'w') as stderr_f:
-                result = subprocess.run(
-                    cmd,
-                    cwd=str(settings_dir),
-                    env=env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout_f,
-                    stderr=stderr_f,
-                    timeout=timeout
-                )
-
-            if result.returncode != 0:
-                logger.error(f"GSFLOW failed with return code {result.returncode}")
-                return None
-
-            # Verify output
-            if self._verify_output(settings_dir, output_dir):
-                return output_dir
-            return None
-
-        except subprocess.TimeoutExpired:
-            logger.warning(f"GSFLOW timed out after {timeout}s")
-            return None
-        except Exception as e:
-            logger.error(f"Error running GSFLOW: {e}")
-            return None
-
-    def _get_executable(self) -> Path:
-        """Get GSFLOW executable path."""
-        install_path = self._get_config_value(
-            lambda: self.config.model.gsflow.install_path,
-            default='default',
-            dict_key='GSFLOW_INSTALL_PATH'
-        )
-        exe_name = self._get_config_value(
-            lambda: self.config.model.gsflow.exe,
-            default='gsflow',
-            dict_key='GSFLOW_EXE'
+        self.gsflow_exe = self.get_model_executable(
+            install_path_key='GSFLOW_INSTALL_PATH',
+            default_install_subpath='installs/gsflow/bin',
+            default_exe_name='gsflow',
+            typed_exe_accessor=lambda: (
+                self.config.model.gsflow.exe
+                if self.config.model and self.config.model.gsflow
+                else None
+            ),
+            must_exist=True,
         )
 
-        if install_path == 'default':
-            return self.data_dir / "installs" / "gsflow" / "bin" / exe_name
+    def _get_output_dir(self) -> Path:
+        """GSFLOW output directory."""
+        return self.project_dir / 'GSFLOW_output'
 
-        install_path = Path(install_path)
-        if install_path.is_dir():
-            return install_path / exe_name
-        return install_path
-
-    def _verify_output(self, settings_dir: Path, output_dir: Path) -> bool:
-        """Verify GSFLOW produced output files."""
-        output_files = (
-            list(settings_dir.glob('statvar*')) +
-            list(output_dir.glob('statvar*')) +
-            list(settings_dir.glob('*.csv')) +
-            list(output_dir.glob('*.csv'))
+    def _build_run_command(self) -> Optional[List[str]]:
+        """Build GSFLOW execution command."""
+        control_file = self._get_config_value(
+            lambda: self.config.model.gsflow.control_file,
+            default='control.dat',
+            dict_key='GSFLOW_CONTROL_FILE',
         )
+        control_path = self.setup_dir / control_file
+        return [str(self.gsflow_exe), str(control_path)]
 
-        if not output_files:
-            logger.error("No GSFLOW output files produced")
-            return False
+    def _get_run_cwd(self) -> Optional[Path]:
+        """Run from settings directory."""
+        return self.setup_dir
 
-        logger.info(f"GSFLOW output verified: {len(output_files)} files")
-        return True
+    def _get_run_environment(self):
+        """Suppress macOS malloc logging."""
+        return {'MallocStackLogging': '0'}
+
+    def _get_run_timeout(self) -> int:
+        """GSFLOW timeout from config."""
+        return self._get_config_value(
+            lambda: self.config.model.gsflow.timeout,
+            default=7200,
+            dict_key='GSFLOW_TIMEOUT',
+        )

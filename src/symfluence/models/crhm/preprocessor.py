@@ -33,6 +33,8 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
       with a header block followed by space-separated data columns
     """
 
+
+    MODEL_NAME = "CRHM"
     def __init__(self, config, logger):
         """
         Initialize the CRHM preprocessor.
@@ -54,10 +56,6 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             dict_key='CRHM_SPATIAL_MODE'
         )
         logger.info(f"CRHM spatial mode: {self.spatial_mode}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "CRHM"
 
     def run_preprocessing(self) -> bool:
         """

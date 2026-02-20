@@ -15,7 +15,7 @@ import xarray as xr
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.execution import SpatialOrchestrator
 from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
 from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -33,7 +33,7 @@ except ImportError:
 @ModelRegistry.register_runner('HECHMS', method_name='run_hechms')
 class HecHmsRunner(  # type: ignore[misc]
     BaseModelRunner,
-    UnifiedModelExecutor,
+    SpatialOrchestrator,
     SpatialModeDetectionMixin,
     ObservationLoaderMixin
 ):
@@ -41,10 +41,13 @@ class HecHmsRunner(  # type: ignore[misc]
     Runner class for the HEC-HMS hydrological model.
 
     Supports:
+
     - Lumped mode (single catchment simulation)
     - JAX backend for autodiff/JIT compilation
     - NumPy fallback when JAX unavailable
     """
+
+    MODEL_NAME = "HECHMS"
 
     def __init__(
         self,
@@ -80,10 +83,6 @@ class HecHmsRunner(  # type: ignore[misc]
 
         # Lazy model function
         self._simulate_fn = None
-
-    def _get_model_name(self) -> str:
-        """Return model name for HEC-HMS."""
-        return "HECHMS"
 
     def _setup_model_specific_paths(self) -> None:
         """Set up HEC-HMS-specific paths."""

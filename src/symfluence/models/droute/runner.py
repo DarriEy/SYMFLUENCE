@@ -53,6 +53,8 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
         execution_mode: 'python' or 'subprocess'
     """
 
+    MODEL_NAME = "dRoute"
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -88,10 +90,6 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
         # Cached network and routing function
         self._network_config = None
         self._routing_fn = None
-
-    def _get_model_name(self) -> str:
-        """Return model name for dRoute."""
-        return "dRoute"
 
     def _should_create_output_dir(self) -> bool:
         """dRoute creates directories on-demand."""

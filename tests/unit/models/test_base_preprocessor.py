@@ -13,8 +13,7 @@ from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 class ConcretePreProcessor(BaseModelPreProcessor):
     """Concrete implementation for testing."""
 
-    def _get_model_name(self) -> str:
-        return "TEST"
+    MODEL_NAME = "TEST"
 
     def run_preprocessing(self):
         pass
@@ -270,21 +269,20 @@ class TestCopyBaseSettings:
 class TestAbstractMethods:
     """Test abstract method requirements."""
 
-    def test_requires_get_model_name(self, config, logger):
-        """Test that _get_model_name must be implemented."""
+    def test_requires_model_name(self, config, logger):
+        """Test that MODEL_NAME or _get_model_name() must be provided."""
         class IncompletePreProcessor(BaseModelPreProcessor):
             def run_preprocessing(self):
                 pass
-            # Missing _get_model_name
+            # Missing MODEL_NAME and _get_model_name override
 
-        with pytest.raises(TypeError):
+        with pytest.raises(NotImplementedError):
             IncompletePreProcessor(config, logger)
 
     def test_requires_run_preprocessing(self, config, logger):
         """Test that run_preprocessing must be implemented."""
         class IncompletePreProcessor(BaseModelPreProcessor):
-            def _get_model_name(self) -> str:
-                return "TEST"
+            MODEL_NAME = "TEST"
             # Missing run_preprocessing
 
         with pytest.raises(TypeError):

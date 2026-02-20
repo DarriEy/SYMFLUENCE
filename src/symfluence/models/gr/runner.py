@@ -20,7 +20,7 @@ import rasterio.mask
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
-from ..execution import UnifiedModelExecutor
+from ..execution import SpatialOrchestrator
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
@@ -45,13 +45,14 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
+class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
     Supports both lumped and distributed spatial modes.
 
     Uses the Unified Model Execution Framework for:
+
     - Subprocess execution (via ModelExecutor)
     - Spatial mode handling and routing (via SpatialOrchestrator)
     - Output format conversion (via OutputConverterMixin)
@@ -62,6 +63,8 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
+
+    MODEL_NAME = "GR"
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None, settings_dir: Optional[Path] = None):
         """
@@ -125,10 +128,6 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
             self.gr_setup_dir = self.project_dir / "settings" / "GR"
 
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
-
-    def _get_model_name(self) -> str:
-        """Return model name for GR."""
-        return "GR"
 
     def _get_output_dir(self) -> Path:
         """GR uses output_path naming."""

@@ -46,11 +46,11 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
     Otherwise, uses a built-in pure-Python Muskingum-Cunge routing kernel
     that reads the same topology file and produces compatible output.
     """
+
+    MODEL_NAME = "TRoute"
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
-
-    def _get_model_name(self) -> str:
-        return "TRoute"
 
     def _should_create_output_dir(self) -> bool:
         return False

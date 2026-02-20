@@ -25,6 +25,8 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
     Uses the Unified Model Execution Framework for subprocess execution.
     """
 
+    MODEL_NAME = "NGEN"
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
@@ -47,25 +49,12 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             must_exist=True
         )
 
-    def _get_model_name(self) -> str:
-        """Return model name for NextGen."""
-        return "NGEN"
-
     def _should_create_output_dir(self) -> bool:
         """NGEN creates directories on-demand in run_ngen."""
         return False
 
     def run_ngen(self, experiment_id: str = None):
-        """
-        Execute NextGen model simulation.
-
-        Args:
-            experiment_id: Optional experiment identifier. If None, uses config value.
-
-        Runs ngen with the prepared catchment, nexus, forcing, and configuration files.
-        Supports both native execution and NGIAB Docker-based execution.
-        """
-        # Check if NGIAB Docker execution is requested
+        """Execute NextGen model simulation."""
         use_ngiab = self.config_dict.get('USE_NGIAB', False)
         if use_ngiab:
             self.logger.info("Using NGIAB Docker for NextGen execution")
@@ -78,173 +67,46 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             self.logger,
             error_type=ModelExecutionError
         ):
-            # Get experiment info
             if experiment_id is None:
                 if self.config:
                     experiment_id = self.config.domain.experiment_id
                 else:
                     experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
 
-            # Check if parallel worker has provided isolated output directory
             if '_ngen_output_dir' in self.config_dict:
                 output_dir = Path(self.config_dict['_ngen_output_dir'])
             else:
                 output_dir = self.get_experiment_output_dir(experiment_id)
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Setup paths for ngen execution
-            if self.config:
-                domain_name = self.config.domain.name
-            else:
-                domain_name = self.config_dict.get('DOMAIN_NAME')
-
-            # Force GeoJSON on macOS due to widespread GPKG/SQLite mismatch issues in ngen builds
-            import platform
-            use_geojson = getattr(self, "_use_geojson_catchments", False)
-            if platform.system() == "Darwin":
-                self.logger.debug("Forcing GeoJSON catchments on macOS for stability")
-                use_geojson = True
-
-            if use_geojson:
-                catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
-            else:
-                catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.gpkg"
-            fallback_catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
-            nexus_file = self.ngen_setup_dir / "nexus.geojson"
-            realization_file = self.ngen_setup_dir / "realization_config.json"
-
-            # Verify required files exist
-            self.verify_required_files(
-                [catchment_file, nexus_file, realization_file],
-                context="NextGen model execution"
+            catchment_file, fallback_catchment_file, nexus_file, realization_file, use_geojson = (
+                self._resolve_ngen_paths(output_dir)
             )
 
-            # Clean stale output files to prevent ngen from appending to
-            # previous iteration's data (causes CSV parsing errors in calibration)
-            for stale_pattern in ['nex-*.csv', 'cat-*.csv']:
-                for stale_file in output_dir.glob(stale_pattern):
-                    stale_file.unlink()
-
-            # Ensure realization_config uses absolute library paths
-            # Patch a copy to avoid side effects if multiple runs use same settings_dir
-            patched_realization = output_dir / "realization_config_patched.json"
+            # Build ngen command with patched realization
             import shutil
+            patched_realization = output_dir / "realization_config_patched.json"
             shutil.copy(realization_file, patched_realization)
             self._patch_realization_libraries(patched_realization)
 
-            # Build ngen command
             ngen_cmd = [
-                str(self.ngen_exe),
-                str(catchment_file),
-                "all",
-                str(nexus_file),
-                "all",
-                str(patched_realization)
+                str(self.ngen_exe), str(catchment_file), "all",
+                str(nexus_file), "all", str(patched_realization),
             ]
-
             self.logger.debug(f"Running command: {' '.join(ngen_cmd)}")
 
-            # Run ngen
             log_file = output_dir / "ngen_log.txt"
+            env = self._setup_ngen_environment()
+
             try:
-                # Setup environment for NGEN execution
-                env = os.environ.copy()
-
-                # Determine ngen_base directory first (needed for venv and library paths)
-                if self.config and self.config.model.ngen:
-                    install_path = self.config.model.ngen.install_path
-                else:
-                    install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-
-                if install_path == 'default':
-                    ngen_base = self.data_dir.parent / 'installs' / 'ngen'
-                else:
-                    p = Path(install_path)
-                    if p.name == 'cmake_build':
-                        ngen_base = p.parent
-                    else:
-                        ngen_base = p
-
-                # Check if NGEN has a dedicated virtual environment (ngen_venv)
-                # This is used when NGEN is built against a specific NumPy version
-                ngen_venv = ngen_base / "ngen_venv"
-                if ngen_venv.exists():
-                    # Use the NGEN-specific venv to ensure NumPy version compatibility
-                    self.logger.debug(f"Using NGEN venv: {ngen_venv}")
-                    env['VIRTUAL_ENV'] = str(ngen_venv)
-                    env.pop('PYTHONHOME', None)
-                    env.pop('PYTHONPATH', None)
-
-                    # Prepend ngen_venv/bin to PATH
-                    ngen_venv_bin = str(ngen_venv / "bin")
-                    if 'PATH' in env:
-                        # Remove other venvs from PATH, then prepend ngen_venv
-                        path_parts = env['PATH'].split(os.pathsep)
-                        filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
-                                          and '/.venv' not in p.lower()
-                                          and '/envs/' not in p.lower()]
-                        env['PATH'] = ngen_venv_bin + os.pathsep + os.pathsep.join(filtered_parts)
-                    else:
-                        env['PATH'] = ngen_venv_bin
-                else:
-                    # No NGEN venv - remove Python environment variables to avoid version mismatches
-                    # NGEN is linked to the system/Homebrew Python, not the venv
-                    # NumPy version mismatch between build and runtime causes SIGABRT
-                    env.pop('PYTHONPATH', None)
-                    env.pop('PYTHONHOME', None)
-                    env.pop('VIRTUAL_ENV', None)
-
-                    # Remove virtual environment from PATH so NGEN finds system Python
-                    # This prevents NumPy version mismatch errors
-                    if 'PATH' in env:
-                        path_parts = env['PATH'].split(os.pathsep)
-                        # Filter out venv bin directories
-                        filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
-                                          and '/.venv' not in p.lower()
-                                          and '/envs/' not in p.lower()]
-                        env['PATH'] = os.pathsep.join(filtered_parts)
-
-                # Ensure library paths are set for BMI modules
-                # This is especially important for MPI/multiprocessing workers
-                # (ngen_base was already computed above for venv check)
-
-                # Try both ngen_base/extern and ngen_base/cmake_build/extern
-                lib_paths = []
-                for sub in ["extern/sloth/cmake_build", "extern/cfe/cmake_build",
-                            "extern/evapotranspiration/evapotranspiration/cmake_build",
-                            "extern/noah-owp-modular/cmake_build"]:
-                    p1 = ngen_base / sub
-                    p2 = ngen_base / "cmake_build" / sub
-                    if p1.exists(): lib_paths.append(str(p1.resolve()))
-                    elif p2.exists(): lib_paths.append(str(p2.resolve()))
-
-                # Add ngen build dir itself and brew libs
-                lib_paths.append(str(self.ngen_exe.parent.resolve()))
-                lib_paths.append("/opt/homebrew/lib")
-
-                # Set library path based on OS
-                lib_path_str = os.pathsep.join(lib_paths)
-
-                # Set both for safety, though only one might be used by the linker
-                for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
-                    existing_path = env.get(var, '')
-                    env[var] = f"{lib_path_str}{os.pathsep}{existing_path}" if existing_path else lib_path_str
-
-                self.logger.debug(f"Executing ngen with DYLD_LIBRARY_PATH={env.get('DYLD_LIBRARY_PATH')}")
-
                 self.execute_subprocess(
-                    ngen_cmd,
-                    log_file,
-                    cwd=self.ngen_exe.parent,  # Run from ngen build directory (needed for relative library paths)
-                    env=env,  # Use modified environment with library paths
+                    ngen_cmd, log_file,
+                    cwd=self.ngen_exe.parent, env=env,
                     success_message="NextGen model run completed successfully",
                 )
-
-                # Move outputs from build directory to output directory
                 self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
 
-                # Run t-route routing if configured
-                if self.config_dict.get('NGEN_RUN_TROUTE', True):  # Default to True
+                if self.config_dict.get('NGEN_RUN_TROUTE', True):
                     self.logger.debug("Starting t-route routing...")
                     troute_success = self._run_troute_routing(output_dir)
                     if not troute_success:
@@ -255,42 +117,146 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 return True
 
             except subprocess.CalledProcessError as e:
-                # On macOS, code -6 (SIGABRT) is common for GPKG issues if SQLite is missing/mismatched
-                is_likely_sqlite_issue = (e.returncode == -6)
+                return self._handle_gpkg_fallback(
+                    e, ngen_cmd, log_file, env, output_dir,
+                    use_geojson, fallback_catchment_file,
+                )
 
-                if not use_geojson and fallback_catchment_file.exists():
-                    try:
-                        log_text = log_file.read_text(encoding='utf-8', errors='ignore')
-                    except (FileNotFoundError, OSError, PermissionError):
-                        log_text = ""
-                    sqlite_error = "SQLite3 support required to read GeoPackage files"
+    def _resolve_ngen_paths(self, output_dir):
+        """Resolve catchment, nexus, and realization paths; clean stale outputs.
 
-                    if is_likely_sqlite_issue or sqlite_error in log_text:
-                        self.logger.warning(
-                            f"NGEN failed (code {e.returncode}); retrying with GeoJSON catchments"
-                        )
-                        ngen_cmd[1] = str(fallback_catchment_file)
-                        try:
-                            self.execute_subprocess(
-                                ngen_cmd,
-                                log_file,
-                                cwd=self.ngen_exe.parent,
-                                env=env,
-                                success_message="NextGen model run completed successfully (GeoJSON fallback)",
-                            )
-                            self._use_geojson_catchments = True
-                            self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
-                            return True
-                        except subprocess.CalledProcessError as retry_error:
-                            self.logger.error(
-                                f"NextGen model run failed with error code {retry_error.returncode}"
-                            )
-                            self.logger.error(f"Check log file: {log_file}")
-                            return False
+        Returns (catchment_file, fallback_catchment_file, nexus_file,
+        realization_file, use_geojson).
+        """
+        if self.config:
+            domain_name = self.config.domain.name
+        else:
+            domain_name = self.config_dict.get('DOMAIN_NAME')
 
-                self.logger.error(f"NextGen model run failed with error code {e.returncode}")
-                self.logger.error(f"Check log file: {log_file}")
-                return False
+        import platform
+        use_geojson = getattr(self, "_use_geojson_catchments", False)
+        if platform.system() == "Darwin":
+            self.logger.debug("Forcing GeoJSON catchments on macOS for stability")
+            use_geojson = True
+
+        if use_geojson:
+            catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
+        else:
+            catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.gpkg"
+        fallback_catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
+        nexus_file = self.ngen_setup_dir / "nexus.geojson"
+        realization_file = self.ngen_setup_dir / "realization_config.json"
+
+        self.verify_required_files(
+            [catchment_file, nexus_file, realization_file],
+            context="NextGen model execution",
+        )
+
+        for stale_pattern in ['nex-*.csv', 'cat-*.csv']:
+            for stale_file in output_dir.glob(stale_pattern):
+                stale_file.unlink()
+
+        return catchment_file, fallback_catchment_file, nexus_file, realization_file, use_geojson
+
+    def _setup_ngen_environment(self):
+        """Build subprocess environment dict with venv and library paths."""
+        env = os.environ.copy()
+
+        if self.config and self.config.model.ngen:
+            install_path = self.config.model.ngen.install_path
+        else:
+            install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
+
+        if install_path == 'default':
+            ngen_base = self.data_dir.parent / 'installs' / 'ngen'
+        else:
+            p = Path(install_path)
+            ngen_base = p.parent if p.name == 'cmake_build' else p
+
+        # Virtual-environment handling
+        ngen_venv = ngen_base / "ngen_venv"
+        if ngen_venv.exists():
+            self.logger.debug(f"Using NGEN venv: {ngen_venv}")
+            env['VIRTUAL_ENV'] = str(ngen_venv)
+            env.pop('PYTHONHOME', None)
+            env.pop('PYTHONPATH', None)
+            ngen_venv_bin = str(ngen_venv / "bin")
+            if 'PATH' in env:
+                path_parts = env['PATH'].split(os.pathsep)
+                filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
+                                  and '/.venv' not in p.lower()
+                                  and '/envs/' not in p.lower()]
+                env['PATH'] = ngen_venv_bin + os.pathsep + os.pathsep.join(filtered_parts)
+            else:
+                env['PATH'] = ngen_venv_bin
+        else:
+            env.pop('PYTHONPATH', None)
+            env.pop('PYTHONHOME', None)
+            env.pop('VIRTUAL_ENV', None)
+            if 'PATH' in env:
+                path_parts = env['PATH'].split(os.pathsep)
+                filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
+                                  and '/.venv' not in p.lower()
+                                  and '/envs/' not in p.lower()]
+                env['PATH'] = os.pathsep.join(filtered_parts)
+
+        # BMI library paths
+        lib_paths = []
+        for sub in ["extern/sloth/cmake_build", "extern/cfe/cmake_build",
+                     "extern/evapotranspiration/evapotranspiration/cmake_build",
+                     "extern/noah-owp-modular/cmake_build"]:
+            p1 = ngen_base / sub
+            p2 = ngen_base / "cmake_build" / sub
+            if p1.exists():
+                lib_paths.append(str(p1.resolve()))
+            elif p2.exists():
+                lib_paths.append(str(p2.resolve()))
+
+        lib_paths.append(str(self.ngen_exe.parent.resolve()))
+        lib_paths.append("/opt/homebrew/lib")
+        lib_path_str = os.pathsep.join(lib_paths)
+
+        for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
+            existing_path = env.get(var, '')
+            env[var] = f"{lib_path_str}{os.pathsep}{existing_path}" if existing_path else lib_path_str
+
+        self.logger.debug(f"Executing ngen with DYLD_LIBRARY_PATH={env.get('DYLD_LIBRARY_PATH')}")
+        return env
+
+    def _handle_gpkg_fallback(self, error, ngen_cmd, log_file, env,
+                              output_dir, use_geojson, fallback_catchment_file):
+        """Retry with GeoJSON catchments on SQLite/GPKG failure."""
+        is_likely_sqlite_issue = (error.returncode == -6)
+
+        if not use_geojson and fallback_catchment_file.exists():
+            try:
+                log_text = log_file.read_text(encoding='utf-8', errors='ignore')
+            except (FileNotFoundError, OSError, PermissionError):
+                log_text = ""
+            sqlite_error = "SQLite3 support required to read GeoPackage files"
+
+            if is_likely_sqlite_issue or sqlite_error in log_text:
+                self.logger.warning(
+                    f"NGEN failed (code {error.returncode}); retrying with GeoJSON catchments"
+                )
+                ngen_cmd[1] = str(fallback_catchment_file)
+                try:
+                    self.execute_subprocess(
+                        ngen_cmd, log_file,
+                        cwd=self.ngen_exe.parent, env=env,
+                        success_message="NextGen model run completed successfully (GeoJSON fallback)",
+                    )
+                    self._use_geojson_catchments = True
+                    self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
+                    return True
+                except subprocess.CalledProcessError as retry_error:
+                    self.logger.error(f"NextGen model run failed with error code {retry_error.returncode}")
+                    self.logger.error(f"Check log file: {log_file}")
+                    return False
+
+        self.logger.error(f"NextGen model run failed with error code {error.returncode}")
+        self.logger.error(f"Check log file: {log_file}")
+        return False
 
     def _patch_realization_libraries(self, realization_file: Path):
         """Patch realization config to use absolute paths for libraries and init_configs."""

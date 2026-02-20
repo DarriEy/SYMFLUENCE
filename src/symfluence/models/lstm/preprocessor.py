@@ -43,6 +43,8 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         spatial_mode: 'lumped' or 'distributed' based on domain method
     """
 
+
+    MODEL_NAME = "LSTM"
     def __init__(
         self,
         config: Union['SymfluenceConfig', Dict[str, Any]],
@@ -90,10 +92,6 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         self.target_scaler = StandardScaler()
         self.output_size = 1
         self.target_names = ['streamflow']
-
-    def _get_model_name(self) -> str:
-        """Return the model name."""
-        return "LSTM"
 
     def run_preprocessing(self) -> bool:
         """

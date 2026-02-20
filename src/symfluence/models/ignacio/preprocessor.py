@@ -30,6 +30,8 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
     This includes generating the YAML configuration file that IGNACIO expects.
     """
 
+
+    MODEL_NAME = "IGNACIO"
     def __init__(self, config, logger_instance=None, reporting_manager=None):
         """
         Initialize the IGNACIO preprocessor.
@@ -44,10 +46,6 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
         # Setup IGNACIO-specific paths
         self.ignacio_input_dir = self.project_dir / "IGNACIO_input"
         self.ignacio_config_path = self.ignacio_input_dir / "ignacio_config.yaml"
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "IGNACIO"
 
     def run_preprocessing(self, **kwargs) -> bool:
         """

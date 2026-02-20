@@ -36,6 +36,8 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     - Restart files (optional): For warm-start simulations
     """
 
+
+    MODEL_NAME = "WRFHYDRO"
     def __init__(self, config, logger):
         """
         Initialize the WRF-Hydro preprocessor.
@@ -64,10 +66,6 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         else:
             self.spatial_mode = 'distributed'
         logger.info(f"WRF-Hydro spatial mode: {self.spatial_mode}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "WRFHYDRO"
 
     def run_preprocessing(self) -> bool:
         """

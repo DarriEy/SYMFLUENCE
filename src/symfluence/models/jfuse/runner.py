@@ -18,7 +18,7 @@ import xarray as xr
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.execution import SpatialOrchestrator
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
@@ -118,11 +118,12 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('JFUSE', method_name='run_jfuse')
-class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
+class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """
     Runner class for the jFUSE hydrological model.
 
     Supports:
+
     - Lumped mode (single catchment simulation)
     - Distributed mode (per-HRU simulation with optional routing)
     - JAX backend for autodiff/JIT compilation
@@ -134,6 +135,8 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
         spatial_mode: 'lumped' or 'distributed'
         model_config_name: jFUSE model structure name
     """
+
+    MODEL_NAME = "JFUSE"
 
     def __init__(
         self,
@@ -229,10 +232,6 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
         # Lazy-loaded model
         self._model = None
         self._coupled_model = None
-
-    def _get_model_name(self) -> str:
-        """Return model name for jFUSE."""
-        return "JFUSE"
 
     def _setup_model_specific_paths(self) -> None:
         """Set up jFUSE-specific paths."""

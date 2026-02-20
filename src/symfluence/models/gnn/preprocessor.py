@@ -33,6 +33,8 @@ class GNNPreProcessor(LSTMPreProcessor):
     4. Identifies outlet nodes for target assignment
     """
 
+
+    MODEL_NAME = "GNN"
     def __init__(
         self,
         config: Union['SymfluenceConfig', Dict[str, Any]],
@@ -64,10 +66,6 @@ class GNNPreProcessor(LSTMPreProcessor):
         self.ordered_hru_ids: List[Any] = []
         self.outlet_indices: List[int] = []
         self.outlet_hru_ids: List[Any] = []
-
-    def _get_model_name(self) -> str:
-        """Return the model name."""
-        return "GNN"
 
     def load_graph_structure(self) -> torch.Tensor:
         """

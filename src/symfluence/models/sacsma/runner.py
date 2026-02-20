@@ -15,7 +15,7 @@ import xarray as xr
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.execution import SpatialOrchestrator
 from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
 from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -25,11 +25,13 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 @ModelRegistry.register_runner('SACSMA', method_name='run_sacsma')
 class SacSmaRunner(  # type: ignore[misc]
     BaseModelRunner,
-    UnifiedModelExecutor,
+    SpatialOrchestrator,
     SpatialModeDetectionMixin,
     ObservationLoaderMixin
 ):
     """Runner for the SAC-SMA + Snow-17 coupled model."""
+
+    MODEL_NAME = "SACSMA"
 
     def __init__(
         self,
@@ -78,9 +80,6 @@ class SacSmaRunner(  # type: ignore[misc]
             else None,
             'numpy'
         )
-
-    def _get_model_name(self) -> str:
-        return "SACSMA"
 
     def _setup_model_specific_paths(self) -> None:
         if hasattr(self, 'settings_dir') and self.settings_dir:

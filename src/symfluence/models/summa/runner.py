@@ -49,9 +49,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         project_dir (Path): Directory for the current project.
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for SUMMA."""
-        return "SUMMA"
+    MODEL_NAME = "SUMMA"
 
     def _setup_model_specific_paths(self) -> None:
         """Set up SUMMA-specific paths."""

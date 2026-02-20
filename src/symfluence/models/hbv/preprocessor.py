@@ -34,6 +34,8 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
     (per-HRU time series for mizuRoute integration).
     """
 
+
+    MODEL_NAME = "HBV"
     def __init__(
         self,
         config: Union[Dict[str, Any], Any],
@@ -82,10 +84,6 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
             lambda: self.config.model.hbv.timestep_hours if self.config.model and self.config.model.hbv else None,
             24
         )
-
-    def _get_model_name(self) -> str:
-        """Return model name for HBV."""
-        return "HBV"
 
     def run_preprocessing(self) -> bool:
         """
@@ -700,113 +698,37 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
         temp: np.ndarray,
         time: pd.DatetimeIndex
     ) -> np.ndarray:
-        """
-        Calculate PET using Hamon method.
+        """Calculate PET using Hamon method."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
-        Simple temperature-based PET that requires only temperature and day length.
-
-        Args:
-            temp: Daily mean temperature (°C)
-            time: Time index for day length calculation
-
-        Returns:
-            PET array (mm/day)
-        """
         self.logger.info("Calculating PET using Hamon method")
 
-        # Get latitude for day length calculation
         if self.latitude is None:
-            # Try to get from catchment centroid
             try:
                 import geopandas as gpd
                 catchment = gpd.read_file(self.get_catchment_path())
                 centroid = catchment.to_crs(epsg=4326).unary_union.centroid
                 lat = centroid.y
             except (FileNotFoundError, KeyError, IndexError, ValueError):
-                lat = 45.0  # Default mid-latitude
+                lat = 45.0
                 self.logger.warning(f"Using default latitude {lat}° for PET calculation")
         else:
             lat = self.latitude
 
-        # Calculate day length (convert to numpy array if pandas Index/Series)
-        day_of_year = np.asarray(time.dayofyear)
-        lat_rad = np.deg2rad(lat)
-
-        # Solar declination
-        decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
-
-        # Sunset hour angle
-        sunset_angle = np.arccos(-np.tan(lat_rad) * np.tan(decl))
-        sunset_angle = np.clip(sunset_angle, 0, np.pi)  # Handle polar regions
-
-        # Day length in hours
-        day_length = 24 / np.pi * sunset_angle
-
-        # Saturated vapor pressure (kPa)
-        es = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
-
-        # Hamon PET (mm/day)
-        # PET = 0.165 * D * es / (T + 273.3) * 216.7
-        # Simplified: PET = k * D^2 * es / (T + 273.3)
-        pet = 0.55 * (day_length / 12) ** 2 * es
-
-        # Ensure non-negative
-        pet = np.maximum(pet, 0.0)
-
-        return pet
+        doy = np.asarray(time.dayofyear)
+        return PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat)
 
     def _calculate_thornthwaite_pet(
         self,
         temp: np.ndarray,
         time: pd.DatetimeIndex
     ) -> np.ndarray:
-        """
-        Calculate PET using Thornthwaite method.
+        """Calculate PET using Thornthwaite method."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
-        Monthly temperature-based method with day length correction.
-
-        Args:
-            temp: Daily mean temperature (°C)
-            time: Time index
-
-        Returns:
-            PET array (mm/day)
-        """
         self.logger.info("Calculating PET using Thornthwaite method")
-
-        # Monthly average temperature
-        df = pd.DataFrame({'temp': temp}, index=time)
-        monthly_temp = df.resample('ME').mean()
-
-        # Heat index (sum of monthly indices)
-        monthly_temp_pos = np.maximum(monthly_temp['temp'].values, 0)
-        heat_index = np.sum((monthly_temp_pos / 5) ** 1.514)
-
-        # Exponent
-        a = 6.75e-7 * heat_index ** 3 - 7.71e-5 * heat_index ** 2 + 1.79e-2 * heat_index + 0.492
-
-        # Calculate daily PET
-        pet = np.zeros_like(temp)
-        for i, t in enumerate(temp):
-            if t > 0:
-                pet[i] = 16 * ((10 * t / heat_index) ** a)
-            else:
-                pet[i] = 0
-
-        # Day length correction (approximate)
-        day_of_year = time.dayofyear
         lat = self.latitude if self.latitude else 45.0
-        lat_rad = np.deg2rad(lat)
-        decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
-        sunset_angle = np.arccos(-np.tan(lat_rad) * np.tan(decl))
-        sunset_angle = np.clip(sunset_angle, 0, np.pi)
-        day_length = 24 / np.pi * sunset_angle
-        correction = day_length / 12.0
-
-        # Convert from mm/month to mm/day and apply correction
-        pet = pet / 30 * correction
-
-        return np.maximum(pet, 0.0)
+        return PETCalculatorMixin.thornthwaite_pet_numpy(temp, time, lat)
 
     def _spatially_average_to_hrus(
         self,

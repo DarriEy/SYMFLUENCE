@@ -29,6 +29,8 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
     - Potential evapotranspiration (mm/day)
     """
 
+
+    MODEL_NAME = "SACSMA"
     def __init__(
         self,
         config: Union[Dict[str, Any], Any],
@@ -54,9 +56,6 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             else None,
             None
         )
-
-    def _get_model_name(self) -> str:
-        return "SACSMA"
 
     def run_preprocessing(self) -> bool:
         """Run SAC-SMA preprocessing workflow."""
@@ -224,8 +223,9 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
     def _calculate_hamon_pet(self, temp: np.ndarray, time: pd.DatetimeIndex) -> np.ndarray:
         """Calculate PET using Hamon method."""
-        self.logger.info("Calculating PET using Hamon method")
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
+        self.logger.info("Calculating PET using Hamon method")
         lat = self.latitude
         if lat is None:
             try:
@@ -237,16 +237,8 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
                 lat = 45.0
                 self.logger.warning(f"Using default latitude {lat}°")
 
-        day_of_year = np.asarray(time.dayofyear)
-        lat_rad = np.deg2rad(lat)
-        decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
-        sunset_angle = np.arccos(
-            np.clip(-np.tan(lat_rad) * np.tan(decl), -1, 1)
-        )
-        day_length = 24 / np.pi * sunset_angle
-        es = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
-        pet = 0.55 * (day_length / 12) ** 2 * es
-        return np.maximum(pet, 0.0)
+        doy = np.asarray(time.dayofyear) if hasattr(time, 'dayofyear') else np.asarray(pd.to_datetime(time).dayofyear)
+        return PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat)
 
     def _prepare_observations(self) -> None:
         """Copy observation data for validation."""

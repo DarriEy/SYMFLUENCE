@@ -23,10 +23,8 @@ class WATFLOODRunner(BaseModelRunner):
     and the executable (copy-exe pattern, similar to MESH).
     """
 
-    def _get_model_name(self) -> str:
-        """Return the model name."""
-        return 'WATFLOOD'
 
+    MODEL_NAME = "WATFLOOD"
     def run(self, **kwargs) -> Optional[Path]:
         """Run WATFLOOD model."""
         try:

@@ -34,6 +34,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
     Handles model execution, output processing, and file management.
 
     Now uses the model execution framework for:
+
     - Subprocess execution (via BaseModelRunner execution mixins)
     - Spatial mode handling and routing (via SpatialOrchestrator)
     - Output format conversion (via OutputConverterMixin)
@@ -44,6 +45,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
+
+    MODEL_NAME = "FUSE"
 
     def __init__(self, config, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
@@ -121,10 +124,6 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         # FUSE-specific: result_dir is an alias for output_dir (backward compatibility)
         self.output_dir = self.get_experiment_output_dir()
         self.setup_path_aliases({'result_dir': 'output_dir'})
-
-    def _get_model_name(self) -> str:
-        """Return model name for FUSE."""
-        return "FUSE"
 
     def _get_output_dir(self) -> Path:
         """FUSE uses custom result_dir naming."""

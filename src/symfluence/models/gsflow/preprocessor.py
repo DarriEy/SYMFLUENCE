@@ -27,15 +27,14 @@ logger = logging.getLogger(__name__)
 class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Pre-processor for GSFLOW model setup."""
 
+
+    MODEL_NAME = "GSFLOW"
     def __init__(self, config, logger):
         super().__init__(config, logger)
         self.gsflow_input_dir = self.project_dir / 'GSFLOW_input'
         self.settings_dir = self.gsflow_input_dir / 'settings'
         self.modflow_dir = self.settings_dir / 'modflow'
         self.output_dir = self.settings_dir / 'output'  # inside settings for portability
-
-    def _get_model_name(self) -> str:
-        return 'GSFLOW'
 
     # ------------------------------------------------------------------
     # Main entry

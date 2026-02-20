@@ -41,6 +41,8 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     - Gauge data for calibration/validation
     """
 
+    MODEL_NAME = "MHM"
+
     # Grid resolution for the 2-row lumped layout.  Two cells at this
     # size give approximately the same total area as a single 0.5° cell.
     LUMPED_CELLSIZE: float = 0.35
@@ -83,10 +85,6 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             else:
                 self.spatial_mode = 'lumped'
         logger.info(f"mHM spatial mode: {self.spatial_mode}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "MHM"
 
     def run_preprocessing(self) -> bool:
         """
@@ -852,6 +850,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Lookup tables written to {self.morph_dir}")
 
     def _generate_gauge_data(self) -> None:
+
         """
         Generate gauge observation data file for mHM.
 

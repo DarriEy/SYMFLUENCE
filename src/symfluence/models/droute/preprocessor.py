@@ -65,10 +65,8 @@ class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):  # type: ign
         >>> preprocessor.run_preprocessing()
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "dRoute"
 
+    MODEL_NAME = "dRoute"
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the dRoute preprocessor.

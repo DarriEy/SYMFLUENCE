@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 PROJECT_NAME = "pihm_lumped"
 
 
-@ModelRegistry.register_runner("PIHM", method_name="run_pihm")
+@ModelRegistry.register_runner("PIHM")
 class PIHMRunner(BaseModelRunner):
     """
     Runs MM-PIHM via direct invocation.
@@ -45,12 +45,11 @@ class PIHMRunner(BaseModelRunner):
     - Output verification (.rivflx, .gw, .surf, .recharge files)
     """
 
+
+    MODEL_NAME = "PIHM"
     def __init__(self, config, logger, reporting_manager=None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
         self.settings_dir = self.project_dir / "settings" / "PIHM"
-
-    def _get_model_name(self) -> str:
-        return "PIHM"
 
     def _get_pihm_executable(self) -> Path:
         """Get the Flux-PIHM executable path.
