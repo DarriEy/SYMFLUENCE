@@ -2,12 +2,19 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from symfluence.cli.argument_parser import WORKFLOW_STEPS as CLI_WORKFLOW_STEPS
 from symfluence.cli.commands.workflow_commands import WorkflowCommands
-from symfluence.gui.components.workflow_runner import STEP_ORDER as GUI_STEP_ORDER
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
-from symfluence.tui.constants import WORKFLOW_STEPS as TUI_WORKFLOW_STEPS
 from symfluence.workflow_steps import WORKFLOW_STEP_NAMES
+
+try:
+    from symfluence.gui.components.workflow_runner import STEP_ORDER as GUI_STEP_ORDER
+    from symfluence.tui.constants import WORKFLOW_STEPS as TUI_WORKFLOW_STEPS
+    _HAS_GUI_DEPS = True
+except ImportError:
+    _HAS_GUI_DEPS = False
 
 
 def _build_orchestrator() -> WorkflowOrchestrator:
@@ -31,6 +38,7 @@ def _build_orchestrator() -> WorkflowOrchestrator:
     return WorkflowOrchestrator(managers, config, logger)
 
 
+@pytest.mark.skipif(not _HAS_GUI_DEPS, reason="panel/textual not installed")
 def test_frontend_step_lists_match_shared_metadata():
     """CLI/TUI/GUI lists must match shared workflow step names."""
     assert list(CLI_WORKFLOW_STEPS) == WORKFLOW_STEP_NAMES
