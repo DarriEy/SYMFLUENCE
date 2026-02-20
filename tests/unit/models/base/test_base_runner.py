@@ -3,7 +3,8 @@ Unit tests for BaseModelRunner.
 
 Tests for the shared model runner infrastructure including:
 - Installation path resolution
-- Subprocess execution
+- Subprocess execution (execute_subprocess and legacy execute_model_subprocess)
+- SLURM method accessibility
 - File verification
 - Configuration path resolution
 - Output verification
@@ -12,13 +13,19 @@ Tests for the shared model runner infrastructure including:
 """
 
 import os
+import warnings
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
 import logging
 
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.execution.model_executor import augment_conda_library_paths
+from symfluence.models.execution.model_executor import (
+    augment_conda_library_paths,
+    ExecutionResult,
+    ExecutionMode,
+    SlurmJobConfig,
+)
 from symfluence.core.config.models import SymfluenceConfig
 
 
@@ -613,3 +620,368 @@ class TestAugmentCondaLibraryPaths:
             mock_augment.assert_called_once()
             call_arg = mock_augment.call_args[0][0]
             assert isinstance(call_arg, dict)
+
+
+class TestExecuteSubprocess:
+    """Tests for the canonical execute_subprocess method on BaseModelRunner."""
+
+    def test_returns_execution_result(self, runner, temp_dir):
+        """Test that execute_subprocess returns an ExecutionResult."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            result = runner.execute_subprocess(
+                ['echo', 'test'],
+                log_file,
+                check=False
+            )
+
+            assert isinstance(result, ExecutionResult)
+            assert result.success is True
+            assert result.return_code == 0
+            assert result.log_file == log_file
+
+    def test_failure_returns_execution_result(self, runner, temp_dir):
+        """Test non-zero exit code returns ExecutionResult with success=False."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 42
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            result = runner.execute_subprocess(
+                ['false'],
+                log_file,
+                check=False
+            )
+
+            assert isinstance(result, ExecutionResult)
+            assert result.success is False
+            assert result.return_code == 42
+            assert result.error_message is not None
+
+    def test_check_raises_on_failure(self, runner, temp_dir):
+        """Test that check=True raises CalledProcessError on non-zero exit."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 1
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            with pytest.raises(subprocess.CalledProcessError):
+                runner.execute_subprocess(
+                    ['false'],
+                    log_file,
+                    check=True
+                )
+
+    def test_timeout_returns_execution_result(self, runner, temp_dir):
+        """Test that timeout returns ExecutionResult rather than raising."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired('test_cmd', 5)
+
+            result = runner.execute_subprocess(
+                ['sleep', '100'],
+                log_file,
+                timeout=5,
+                check=False
+            )
+
+            assert isinstance(result, ExecutionResult)
+            assert result.success is False
+            assert result.return_code == -1
+            assert 'Timeout' in result.error_message
+
+    def test_duration_tracked(self, runner, temp_dir):
+        """Test that execution duration is tracked."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            result = runner.execute_subprocess(
+                ['echo', 'test'],
+                log_file,
+                check=False
+            )
+
+            assert result.duration_seconds >= 0.0
+
+    def test_env_merged(self, runner, temp_dir):
+        """Test that custom env vars are merged."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            runner.execute_subprocess(
+                ['echo', 'test'],
+                log_file,
+                env={'MY_VAR': 'my_value'},
+                check=False
+            )
+
+            call_kwargs = mock_run.call_args[1]
+            assert call_kwargs['env']['MY_VAR'] == 'my_value'
+
+    def test_log_dir_created(self, runner, temp_dir):
+        """Test that log directory is created if missing."""
+        log_file = temp_dir / 'deep' / 'nested' / 'dir' / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            runner.execute_subprocess(
+                ['echo', 'test'],
+                log_file,
+                check=False
+            )
+
+            assert log_file.parent.exists()
+
+    def test_custom_success_message(self, runner, temp_dir, mock_logger):
+        """Test custom success message is logged."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            runner.execute_subprocess(
+                ['echo', 'test'],
+                log_file,
+                success_message="Custom done!",
+                check=False
+            )
+
+            mock_logger.info.assert_any_call("Custom done!")
+
+
+class TestExecuteModelSubprocessDeprecation:
+    """Tests for backward compatibility of the deprecated execute_model_subprocess."""
+
+    def test_emits_deprecation_warning(self, runner, temp_dir):
+        """Test that execute_model_subprocess emits a DeprecationWarning."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_run.return_value = mock_result
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                runner.execute_model_subprocess(['echo', 'test'], log_file)
+
+                # Find deprecation warnings
+                dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+                assert len(dep_warnings) >= 1
+                assert 'execute_subprocess' in str(dep_warnings[0].message)
+
+    def test_still_returns_completed_process(self, runner, temp_dir):
+        """Test that deprecated method still returns CompletedProcess."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock(spec=subprocess.CompletedProcess)
+            mock_result.returncode = 0
+            mock_run.return_value = mock_result
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                result = runner.execute_model_subprocess(['echo', 'test'], log_file)
+
+            assert result.returncode == 0
+
+
+class TestSlurmMethodsOnBaseRunner:
+    """Tests that SLURM methods are accessible on plain BaseModelRunner."""
+
+    def test_is_slurm_available(self, runner):
+        """Test is_slurm_available is callable on base runner."""
+        # Should return bool (False on dev machines without SLURM)
+        result = runner.is_slurm_available()
+        assert isinstance(result, bool)
+
+    def test_create_slurm_script(self, runner):
+        """Test create_slurm_script produces valid script content."""
+        config = SlurmJobConfig(
+            job_name='test-job',
+            time_limit='01:00:00',
+            memory='2G',
+        )
+        script = runner.create_slurm_script(
+            config=config,
+            commands=['echo "hello"'],
+        )
+
+        assert '#!/bin/bash' in script
+        assert '#SBATCH --job-name=test-job' in script
+        assert '#SBATCH --time=01:00:00' in script
+        assert '#SBATCH --mem=2G' in script
+        assert 'echo "hello"' in script
+
+    def test_create_slurm_script_with_array(self, runner):
+        """Test SLURM script includes array directive."""
+        config = SlurmJobConfig(
+            job_name='array-job',
+            array_size=9,
+        )
+        script = runner.create_slurm_script(
+            config=config,
+            commands=['echo $SLURM_ARRAY_TASK_ID'],
+        )
+
+        assert '#SBATCH --array=0-9' in script
+        assert 'SLURM Array Task ID' in script
+
+    def test_estimate_optimal_grus_per_job(self, runner):
+        """Test GRU estimation logic."""
+        # Small domain
+        assert runner.estimate_optimal_grus_per_job(5) == 1
+
+        # Medium domain
+        result = runner.estimate_optimal_grus_per_job(200)
+        assert result > 0
+
+        # Large domain
+        result = runner.estimate_optimal_grus_per_job(50000)
+        assert result > 0
+        assert result <= 50000
+
+    def test_execute_in_mode_local(self, runner, temp_dir):
+        """Test execute_in_mode with LOCAL mode delegates to execute_subprocess."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            result = runner.execute_in_mode(
+                mode=ExecutionMode.LOCAL,
+                command=['echo', 'test'],
+                log_file=log_file,
+                check=False,
+            )
+
+            assert isinstance(result, ExecutionResult)
+            assert result.success is True
+
+    def test_execute_in_mode_slurm_requires_config(self, runner, temp_dir):
+        """Test execute_in_mode raises ValueError when SLURM mode lacks config."""
+        with pytest.raises(ValueError, match="slurm_config required"):
+            runner.execute_in_mode(
+                mode=ExecutionMode.SLURM,
+                command=['echo', 'test'],
+                log_file=temp_dir / 'test.log',
+            )
+
+    def test_run_with_retry_success_first_attempt(self, runner, temp_dir):
+        """Test run_with_retry succeeds on first attempt."""
+        log_file = temp_dir / 'test.log'
+
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.returncode = 0
+            mock_result.stdout = None
+            mock_result.stderr = None
+            mock_run.return_value = mock_result
+
+            result = runner.run_with_retry(
+                command=['echo', 'test'],
+                log_file=log_file,
+                max_attempts=3,
+                retry_delay=0,
+            )
+
+            assert result.success is True
+            # Should only be called once (first attempt succeeds)
+            assert mock_run.call_count == 1
+
+
+class TestRunnerHierarchyBackwardCompat:
+    """Tests that existing inheritance patterns still work."""
+
+    def test_pattern_c_with_model_executor(self, base_config, mock_logger):
+        """Test Pattern C: BaseModelRunner + ModelExecutor works."""
+        from symfluence.models.execution.model_executor import ModelExecutor
+
+        class PatternCRunner(BaseModelRunner, ModelExecutor):
+            def _get_model_name(self):
+                return "PATTERN_C"
+
+        data_dir = base_config.system.data_dir
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        runner = PatternCRunner(base_config, mock_logger)
+        assert runner.model_name == "PATTERN_C"
+        # execute_subprocess comes from BaseModelRunner
+        assert hasattr(runner, 'execute_subprocess')
+        assert hasattr(runner, 'is_slurm_available')
+
+    def test_pattern_b_with_unified_executor(self, base_config, mock_logger):
+        """Test Pattern B: BaseModelRunner + UnifiedModelExecutor works."""
+        from symfluence.models.execution.unified_executor import UnifiedModelExecutor
+
+        class PatternBRunner(BaseModelRunner, UnifiedModelExecutor):
+            def _get_model_name(self):
+                return "PATTERN_B"
+
+        data_dir = base_config.system.data_dir
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        runner = PatternBRunner(base_config, mock_logger)
+        assert runner.model_name == "PATTERN_B"
+        assert hasattr(runner, 'execute_subprocess')
+        # SpatialOrchestrator methods come via UnifiedModelExecutor
+        assert hasattr(runner, 'get_spatial_config')
+
+    def test_pattern_d_base_only(self, base_config, mock_logger):
+        """Test Pattern D: BaseModelRunner only now has execution methods."""
+        class PatternDRunner(BaseModelRunner):
+            def _get_model_name(self):
+                return "PATTERN_D"
+
+        data_dir = base_config.system.data_dir
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        runner = PatternDRunner(base_config, mock_logger)
+        assert runner.model_name == "PATTERN_D"
+        # These used to require ModelExecutor mixin, now built-in
+        assert hasattr(runner, 'execute_subprocess')
+        assert hasattr(runner, 'is_slurm_available')
+        assert hasattr(runner, 'create_slurm_script')
+        assert hasattr(runner, 'run_with_retry')
+        assert hasattr(runner, 'execute_in_mode')

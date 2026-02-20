@@ -2,8 +2,7 @@
 UnifiedModelRunner - Template for implementing new hydrological models.
 
 This module provides a base class that combines:
-- BaseModelRunner (paths, config, logging)
-- ModelExecutor (subprocess, SLURM execution)
+- BaseModelRunner (paths, config, logging, subprocess/SLURM execution)
 - SpatialOrchestrator (spatial modes, routing)
 
 New models can inherit from UnifiedModelRunner and implement only the
@@ -31,7 +30,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..base import BaseModelRunner
 from ..execution import (
-    UnifiedModelExecutor,
+    SpatialOrchestrator,
     ExecutionResult,
     SlurmJobConfig,
     ExecutionMode,
@@ -69,7 +68,7 @@ class ModelRunResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
+class UnifiedModelRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """
     Base class for hydrological model runners using the unified framework.
 

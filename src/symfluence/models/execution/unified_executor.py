@@ -1,28 +1,15 @@
 """
 UnifiedModelExecutor - Combined execution framework for model runners.
 
-This module provides a single mixin class that combines the capabilities of:
-- ModelExecutor: subprocess execution, SLURM job management, retry logic
-- SpatialOrchestrator: spatial mode handling, routing integration
+.. deprecated::
+    Execution capabilities are now built into ``BaseModelRunner``.
+    ``UnifiedModelExecutor`` is kept as a thin shim that re-exports
+    ``SpatialOrchestrator`` so existing ``class MyRunner(BaseModelRunner,
+    UnifiedModelExecutor)`` declarations continue to work.
 
-Usage:
-    class MyRunner(BaseModelRunner, UnifiedModelExecutor):
-        def run_model(self):
-            # Execution capabilities from ModelExecutor
-            result = self.execute_subprocess(
-                command=['./model.exe', '-c', 'config.txt'],
-                log_file=self.get_log_path() / 'run.log'
-            )
-
-            # Spatial capabilities from SpatialOrchestrator
-            if self.requires_routing():
-                output = self.route_model_output(output)
-
-This consolidates the common inheritance pattern:
-    class OldRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, ...):
-
-Into a cleaner form:
-    class NewRunner(BaseModelRunner, UnifiedModelExecutor, ...):
+    Migration path:
+        - Replace ``UnifiedModelExecutor`` with ``SpatialOrchestrator`` in
+          inheritance lists (or remove it entirely if routing is not needed).
 """
 
 from .model_executor import (
@@ -40,32 +27,17 @@ from .spatial_orchestrator import (
 )
 
 
-class UnifiedModelExecutor(ModelExecutor, SpatialOrchestrator):
+class UnifiedModelExecutor(SpatialOrchestrator):
     """
-    Combined mixin providing both execution and spatial/routing capabilities.
+    Deprecated combined mixin — now equivalent to ``SpatialOrchestrator``.
 
-    This class inherits from both ModelExecutor and SpatialOrchestrator,
-    providing a single mixin for model runners that need both capabilities.
+    Execution methods (``execute_subprocess``, SLURM helpers, etc.) have been
+    absorbed into ``BaseModelRunner``.  This class inherits only from
+    ``SpatialOrchestrator`` to provide routing / spatial-mode capabilities.
 
-    Inherited from ModelExecutor:
-        - execute_subprocess: Run commands locally with logging
-        - submit_slurm_job: Submit SLURM jobs
-        - submit_slurm_array: Submit SLURM job arrays
-        - monitor_slurm_job: Wait for SLURM job completion
-        - create_slurm_script: Generate SLURM batch scripts
-        - run_with_retry: Execute with automatic retry
-        - execute_in_mode: Execute in LOCAL or SLURM mode
-
-    Inherited from SpatialOrchestrator:
-        - get_spatial_config: Build spatial configuration
-        - requires_routing: Check if routing is needed
-        - convert_to_routing_format: Transform output for routing
-        - route_model_output: Execute routing model
-
-    Note:
-        Neither ModelExecutor nor SpatialOrchestrator define abstract methods,
-        so this class also defines none. Both parent classes use ABC for type
-        hinting purposes but don't require subclass implementations.
+    Existing runner declarations like
+    ``class FUSERunner(BaseModelRunner, UnifiedModelExecutor)``
+    continue to work unchanged.
     """
     pass
 
