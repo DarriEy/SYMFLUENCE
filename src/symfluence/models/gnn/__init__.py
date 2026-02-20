@@ -1,81 +1,57 @@
-"""Graph Neural Network (GNN) Hydrological Model.
+"""Graph Neural Network model for spatio-temporal hydrological prediction.
 
-This module implements a Spatio-Temporal Graph Neural Network for hydrological
-prediction and water routing. The model combines:
-
-1. **Temporal Processing**: LSTM processes time series forcing data (precipitation,
-   temperature, etc.) independently at each node to extract temporal features.
-
-2. **Spatial Processing**: A directed graph layer propagates information along the
-   river network DAG (directed acyclic graph), modeling how water flows from upstream
-   to downstream nodes.
-
-3. **Prediction**: Final readout layer produces streamflow predictions at each node.
-
-Design Rationale:
-    The GNN approach addresses limitations of lumped and purely distributed models:
-    - Unlike lumped models, GNNs capture spatial heterogeneity and routing dynamics
-    - Unlike purely distributed models, GNNs learn routing patterns from data rather
-      than requiring physical equations
-    - The adjacency matrix encodes the river network topology, ensuring predictions
-      respect the actual watershed structure
-
-Graph Structure:
-    - Nodes: Hydrologic units (HRUs) or subcatchments
-    - Edges: Directed edges from upstream (US) to downstream (DS) nodes
-    - Adjacency Matrix: Sparse N×N matrix where A[i,j]=1 if water flows from j to i
-
-Key Components:
-    GNNRunner: Main orchestrator for model workflow (data, training, simulation)
-    GNNModel: PyTorch model architecture (LSTM + GNN layers)
-    GNNPreProcessor: Data loading, normalization, tensor preparation
-    GNNPostprocessor: Output formatting and result saving
-
-Configuration Parameters:
-    GNN_HIDDEN_SIZE: LSTM hidden dimension (default: 64)
-    GNN_OUTPUT_SIZE: GNN layer output dimension (default: 32)
-    GNN_DROPOUT: Dropout rate for regularization (default: 0.2)
-    GNN_EPOCHS: Training epochs (default: 100)
-    GNN_BATCH_SIZE: Batch size for training (default: 16)
-    GNN_LEARNING_RATE: Adam optimizer learning rate (default: 0.005)
-    GNN_USE_SNOW: Include snow cover as input feature (default: False)
-    GNN_LOAD: Load pre-trained model instead of training (default: False)
-
-Typical Workflow:
-    1. Initialize GNNRunner with config
-    2. Load forcing data (precipitation, temperature) and observations
-    3. Construct river network adjacency matrix from delineation
-    4. Train model on historical data (or load pre-trained)
-    5. Simulate forward period to generate streamflow predictions
-
-Limitations and Considerations:
-    - Requires spatially distributed domain (not suitable for lumped mode)
-    - Graph structure must be consistent between training and simulation
-    - Model learns routing implicitly; interpret results with domain knowledge
-    - For operational forecasting, retrain regularly with new observations
+Combines LSTM temporal processing with directed-graph spatial propagation
+along the river network DAG for distributed streamflow forecasting.
 """
 
-from .runner import GNNRunner
-from .preprocessor import GNNPreProcessor
-from .postprocessor import GNNPostprocessor
+from typing import TYPE_CHECKING
 
-__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor']
+# Lazy import mapping — avoids importing PyTorch at module level
+_LAZY_IMPORTS = {
+    'GNNRunner': ('.runner', 'GNNRunner'),
+    'GNNPreProcessor': ('.preprocessor', 'GNNPreProcessor'),
+    'GNNPostprocessor': ('.postprocessor', 'GNNPostprocessor'),
+}
 
 
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-from .config import GNNConfigAdapter
-ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
+def __getattr__(name: str):
+    """Lazy import handler for GNN module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-# Register result extractor with ModelRegistry
-from .extractor import GNNResultExtractor
-ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
 
-# Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('GNN')(GNNPreProcessor)
+def __dir__():
+    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
 
-# Register runner with ModelRegistry (method_name must match the actual method in runner.py)
-ModelRegistry.register_runner('GNN', method_name='run_gnn')(GNNRunner)
 
-# Register postprocessor with ModelRegistry
-ModelRegistry.register_postprocessor('GNN')(GNNPostprocessor)
+def register_with_model_registry():
+    """Register GNN components with the ModelRegistry."""
+    from .config import GNNConfigAdapter
+    from .extractor import GNNResultExtractor
+    from .preprocessor import GNNPreProcessor
+    from .runner import GNNRunner
+    from .postprocessor import GNNPostprocessor
+    from symfluence.models.registry import ModelRegistry
+
+    ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
+    ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
+    ModelRegistry.register_preprocessor('GNN')(GNNPreProcessor)
+    ModelRegistry.register_runner('GNN', method_name='run_gnn')(GNNRunner)
+    ModelRegistry.register_postprocessor('GNN')(GNNPostprocessor)
+
+
+# Eagerly register when module is imported
+register_with_model_registry()
+
+
+if TYPE_CHECKING:
+    from .runner import GNNRunner
+    from .preprocessor import GNNPreProcessor
+    from .postprocessor import GNNPostprocessor
+
+
+__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor', 'register_with_model_registry']

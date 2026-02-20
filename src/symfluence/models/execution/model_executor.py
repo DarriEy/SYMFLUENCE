@@ -1,17 +1,4 @@
-"""
-Model execution types and utilities.
-
-This module provides the data types and helper functions used by the execution
-framework.  The ``ModelExecutor`` class is a deprecated empty shim — all
-execution methods now live directly on ``BaseModelRunner``.
-
-Types exported:
-    - ``ExecutionMode``: Enum for local / SLURM execution
-    - ``SlurmJobConfig``: Dataclass for SLURM job parameters
-    - ``ExecutionResult``: Dataclass for execution outcomes
-    - ``augment_conda_library_paths``: Helper to set conda library paths
-    - ``ModelExecutor``: **Deprecated** empty mixin (kept for MRO compatibility)
-"""
+"""Execution types: ExecutionMode, SlurmJobConfig, ExecutionResult, and helpers."""
 
 import os
 import sys
@@ -111,21 +98,21 @@ class ExecutionResult:
 
 
 class ModelExecutor(ABC):
-    """
-    Deprecated mixin — execution methods have been absorbed into BaseModelRunner.
+    """Deprecated shim — remove from inheritance lists.
 
-    .. deprecated::
-        All execution methods (``execute_subprocess``, SLURM helpers,
-        ``run_with_retry``, ``execute_in_mode``) now live directly on
-        ``BaseModelRunner``.  This class is kept as an empty shim so that
-        existing runner declarations like
-        ``class MESHRunner(BaseModelRunner, ModelExecutor)`` continue to
-        resolve without changes.  It will be removed in a future release.
-
-    Migration:
-        - Pattern C runners: remove ``ModelExecutor`` from the inheritance list.
-        - Pattern D runners: no change needed — they already only inherit
-          ``BaseModelRunner`` and now gain execution capabilities for free.
+    Execution methods now live on ``BaseModelRunner`` via
+    ``SubprocessExecutionMixin`` and ``SlurmExecutionMixin``.
     """
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        import warnings
+        warnings.warn(
+            f"{cls.__name__} inherits from ModelExecutor which is deprecated. "
+            "Remove ModelExecutor from the inheritance list — execution methods "
+            "are now provided by BaseModelRunner.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     pass

@@ -20,7 +20,6 @@ import xarray as xr
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.execution import ModelExecutor
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
@@ -39,7 +38,7 @@ def _check_troute_available() -> bool:
 
 
 @ModelRegistry.register_runner('TROUTE', method_name='run_troute')
-class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
+class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
     """
     A standalone runner for the t-route model.
 
@@ -158,7 +157,7 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
         with symfluence_error_handler(
             "t-route model execution", self.logger, error_type=ModelExecutionError
         ):
-            self.execute_model_subprocess(
+            self.execute_subprocess(
                 command,
                 log_file_path,
                 success_message=(

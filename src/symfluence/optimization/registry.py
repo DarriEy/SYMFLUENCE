@@ -1,11 +1,4 @@
-"""
-SYMFLUENCE Optimizer Registry
-
-Provides a central registry for model-specific optimizers, workers,
-parameter managers, and calibration targets to enable easy extension.
-
-This follows the pattern established by ModelRegistry in models/registry.py.
-"""
+"""Central registry for model-specific optimizers, workers, and parameter managers."""
 
 import logging
 from typing import Dict, Type, Optional, List, Any
@@ -39,20 +32,7 @@ class OptimizerRegistry:
 
     @classmethod
     def register_optimizer(cls, model_name: str):
-        """
-        Decorator to register a model-specific optimizer.
-
-        Args:
-            model_name: Name of the model (e.g., 'SUMMA', 'FUSE', 'NGEN')
-
-        Returns:
-            Decorator function that registers the optimizer class
-
-        Example:
-            @OptimizerRegistry.register_optimizer('FUSE')
-            class FUSEOptimizer(BaseModelOptimizer):
-                ...
-        """
+        """Decorator to register a model-specific optimizer."""
         def decorator(optimizer_cls):
             key = model_name.upper()
             logger.debug(f"Registering optimizer for {key}: {optimizer_cls}")
@@ -62,20 +42,7 @@ class OptimizerRegistry:
 
     @classmethod
     def register_worker(cls, model_name: str):
-        """
-        Decorator to register a model-specific worker.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            Decorator function that registers the worker class
-
-        Example:
-            @OptimizerRegistry.register_worker('FUSE')
-            class FUSEWorker(BaseWorker):
-                ...
-        """
+        """Decorator to register a model-specific worker."""
         def decorator(worker_cls):
             key = model_name.upper()
             logger.debug(f"Registering worker for {key}: {worker_cls}")
@@ -94,21 +61,7 @@ class OptimizerRegistry:
 
     @classmethod
     def register_calibration_target(cls, model_name: str, target_type: str = 'streamflow'):
-        """
-        Decorator to register a model-specific calibration target.
-
-        Args:
-            model_name: Name of the model
-            target_type: Type of target (e.g., 'streamflow', 'snow', 'et')
-
-        Returns:
-            Decorator function that registers the calibration target class
-
-        Example:
-            @OptimizerRegistry.register_calibration_target('FUSE', 'streamflow')
-            class FUSEStreamflowTarget(StreamflowEvaluator):
-                ...
-        """
+        """Decorator to register a model-specific calibration target."""
         def decorator(target_cls):
             key = f"{model_name.upper()}_{target_type.upper()}"
             cls._calibration_targets[key] = target_cls
@@ -122,28 +75,12 @@ class OptimizerRegistry:
 
     @classmethod
     def get_optimizer(cls, model_name: str) -> Optional[Type]:
-        """
-        Get the registered optimizer class for a model.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            The optimizer class, or None if not found
-        """
+        """Get registered optimizer class for a model, or None."""
         return cls._optimizers.get(model_name.upper())
 
     @classmethod
     def get_worker(cls, model_name: str) -> Optional[Type]:
-        """
-        Get the registered worker class for a model.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            The worker class, or None if not found
-        """
+        """Get registered worker class for a model, or None."""
         return cls._workers.get(model_name.upper())
 
     @classmethod
@@ -161,16 +98,7 @@ class OptimizerRegistry:
         model_name: str,
         target_type: str = 'streamflow'
     ) -> Optional[Type]:
-        """
-        Get the registered calibration target class for a model and target type.
-
-        Args:
-            model_name: Name of the model
-            target_type: Type of target
-
-        Returns:
-            The calibration target class, or None if not found
-        """
+        """Get registered calibration target class, or None."""
         key = f"{model_name.upper()}_{target_type.upper()}"
         return cls._calibration_targets.get(key)
 
@@ -180,55 +108,27 @@ class OptimizerRegistry:
 
     @classmethod
     def list_models(cls) -> List[str]:
-        """
-        List all registered model names.
-
-        Returns:
-            Sorted list of model names that have optimizers registered
-        """
+        """List all registered model names."""
         return sorted(cls._optimizers.keys())
 
     @classmethod
     def list_optimizers(cls) -> List[str]:
-        """
-        List all registered optimizer model names (alias for list_models).
-
-        Returns:
-            Sorted list of model names that have optimizers registered
-        """
+        """List all registered optimizer model names."""
         return sorted(cls._optimizers.keys())
 
     @classmethod
     def list_workers(cls) -> List[str]:
-        """
-        List all registered worker model names.
-
-        Returns:
-            Sorted list of model names that have workers registered
-        """
+        """List all registered worker model names."""
         return sorted(cls._workers.keys())
 
     @classmethod
     def list_calibration_targets(cls) -> List[str]:
-        """
-        List all registered calibration target keys.
-
-        Returns:
-            Sorted list of calibration target keys (model_type)
-        """
+        """List all registered calibration target keys."""
         return sorted(cls._calibration_targets.keys())
 
     @classmethod
     def is_registered(cls, model_name: str) -> bool:
-        """
-        Check if a model has an optimizer registered.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            True if the model has an optimizer registered
-        """
+        """Check if a model has an optimizer registered."""
         return model_name.upper() in cls._optimizers
 
     # =========================================================================
@@ -237,15 +137,7 @@ class OptimizerRegistry:
 
     @classmethod
     def get_available_algorithms(cls, model_name: str) -> List[str]:
-        """
-        Get available optimization algorithms for a model.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            List of algorithm names available for the model
-        """
+        """Get available optimization algorithms for a model."""
         optimizer_cls = cls.get_optimizer(model_name)
         if optimizer_cls is None:
             return []
@@ -261,9 +153,7 @@ class OptimizerRegistry:
 
     @classmethod
     def clear(cls):
-        """
-        Clear all registrations. Primarily useful for testing.
-        """
+        """Clear all registrations (for testing)."""
         cls._optimizers.clear()
         cls._workers.clear()
         cls._parameter_managers.clear()
@@ -272,12 +162,7 @@ class OptimizerRegistry:
 
     @classmethod
     def summary(cls) -> Dict[str, Any]:
-        """
-        Get a summary of all registered components.
-
-        Returns:
-            Dictionary with registration counts and details
-        """
+        """Get summary of all registered components."""
         return {
             'optimizers': list(cls._optimizers.keys()),
             'workers': list(cls._workers.keys()),

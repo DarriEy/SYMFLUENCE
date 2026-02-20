@@ -13,12 +13,11 @@ from typing import Dict, Any, Optional
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.execution import ModelExecutor
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('NGEN', method_name='run_ngen')
-class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
+class NgenRunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner for NextGen Framework simulations.
 
@@ -233,13 +232,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
 
                 self.logger.debug(f"Executing ngen with DYLD_LIBRARY_PATH={env.get('DYLD_LIBRARY_PATH')}")
 
-                self.execute_model_subprocess(
+                self.execute_subprocess(
                     ngen_cmd,
                     log_file,
                     cwd=self.ngen_exe.parent,  # Run from ngen build directory (needed for relative library paths)
                     env=env,  # Use modified environment with library paths
                     success_message="NextGen model run completed successfully",
-                    success_log_level=logging.DEBUG
                 )
 
                 # Move outputs from build directory to output directory
@@ -273,13 +271,12 @@ class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                         )
                         ngen_cmd[1] = str(fallback_catchment_file)
                         try:
-                            self.execute_model_subprocess(
+                            self.execute_subprocess(
                                 ngen_cmd,
                                 log_file,
                                 cwd=self.ngen_exe.parent,
                                 env=env,
                                 success_message="NextGen model run completed successfully (GeoJSON fallback)",
-                                success_log_level=logging.DEBUG
                             )
                             self._use_geojson_catchments = True
                             self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
