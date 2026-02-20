@@ -160,6 +160,9 @@ include = [
   "examples/"
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/symfluence"]
+
 # NOTE: pytest configuration is in pytest.ini (authoritative source)
 # This avoids duplication and ensures consistent test configuration
 
@@ -191,20 +194,14 @@ select = [
     "F",   # Pyflakes (undefined names, unused imports, etc.)
 ]
 
-# Ignore rules that are intentional patterns or have many pre-existing violations
+# Ignore rules that are intentional patterns
 ignore = [
-    # F401 (unused imports) - FIXED
+    # F401 (unused imports) remains enforced globally.
+    # Exceptions are limited via per-file ignores below.
     "F403",  # Star imports - intentional for re-exports in __init__.py
     "F405",  # Name may be undefined from star import - related to F403
-    # F601 (duplicate dict keys) - FIXED
-    # F821 (undefined names) - FIXED
-    # F841 (unused variables) - FIXED
     "E701",  # Multiple statements on one line (colon) - common guard clause pattern
-    # E702 (semicolon statements) - FIXED
     "E402",  # Module level import not at top - intentional for optional deps/deprecation
-    # E722 (bare except) - FIXED (0 violations)
-    # E712 (comparison to True/False) - FIXED
-    # E741 (ambiguous variable name) - FIXED
 ]
 
 [tool.ruff.lint.per-file-ignores]
