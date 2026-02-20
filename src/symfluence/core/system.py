@@ -213,6 +213,15 @@ class SYMFLUENCE:
             manifest = self.provenance.write(self.logging_manager.log_dir)
             self.logger.info(f"Run manifest written to: {manifest}")
 
+    def get_workflow_status(self) -> Dict[str, Any]:
+        """
+        Return workflow completion status from the orchestrator.
+
+        Returns:
+            Dict[str, Any]: Workflow status payload with step_details and counts.
+        """
+        return self.workflow_orchestrator.get_workflow_status()
+
     def run_diagnostics_for_step(self, step_name: str) -> List[str]:
         """
         Run diagnostic plots for a specific workflow step on existing outputs.

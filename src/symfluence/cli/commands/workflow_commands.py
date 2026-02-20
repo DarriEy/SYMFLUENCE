@@ -12,30 +12,17 @@ from .base import (
     cli_exception_handler_with_profiling,
 )
 from ..exit_codes import ExitCode
+from symfluence.workflow_steps import (
+    WORKFLOW_STEP_ALIAS_REVERSE,
+    WORKFLOW_STEP_DESCRIPTION_MAP,
+)
 
 
 class WorkflowCommands(BaseCommand):
     """Handlers for workflow category commands."""
 
     # Workflow step definitions (from original CLIArgumentManager)
-    WORKFLOW_STEPS = {
-        'setup_project': 'Initialize project directory structure and shapefiles',
-        'create_pour_point': 'Create pour point shapefile from coordinates',
-        'acquire_attributes': 'Download and process geospatial attributes (soil, land class, etc.)',
-        'define_domain': 'Define hydrological domain boundaries and river basins',
-        'discretize_domain': 'Discretize domain into HRUs or other modeling units',
-        'process_observed_data': 'Process observational data (streamflow, etc.)',
-        'acquire_forcings': 'Acquire meteorological forcing data',
-        'model_agnostic_preprocessing': 'Run model-agnostic preprocessing of forcing and attribute data',
-        'model_specific_preprocessing': 'Setup model-specific input files and configuration',
-        'run_model': 'Execute the hydrological model simulation',
-        'calibrate_model': 'Run model calibration and parameter optimization',
-        'run_emulation': 'Run emulation-based optimization if configured',
-        'run_benchmarking': 'Run benchmarking analysis against observations',
-        'run_decision_analysis': 'Run decision analysis for model comparison',
-        'run_sensitivity_analysis': 'Run sensitivity analysis on model parameters',
-        'postprocess_results': 'Postprocess and finalize model results'
-    }
+    WORKFLOW_STEPS = dict(WORKFLOW_STEP_DESCRIPTION_MAP)
 
     @staticmethod
     @cli_exception_handler_with_profiling
@@ -178,19 +165,8 @@ class WorkflowCommands(BaseCommand):
         BaseCommand._console.info("Workflow Status:")
         BaseCommand._console.rule()
 
-        # Call the status method from SYMFLUENCE if it exists
-        if hasattr(symfluence, 'get_workflow_status'):
-            status_info = symfluence.get_workflow_status()
-            BaseCommand._console.info(status_info)
-        else:
-            # Feature in development - provide helpful guidance
-            BaseCommand._console.warning("[BETA] Workflow status tracking is under development")
-            BaseCommand._console.info("Current workaround: Check the log files in your domain directory:")
-            BaseCommand._console.indent("- logs/workflow_progress.log (if exists)")
-            BaseCommand._console.indent("- Check timestamps on output files to gauge progress")
-            BaseCommand._console.info("Available workflow steps:")
-            for i, step_name in enumerate(WorkflowCommands.WORKFLOW_STEPS.keys(), 1):
-                BaseCommand._console.indent(f"{i:2}. {step_name}")
+        status_info = symfluence.get_workflow_status()
+        BaseCommand._console.info(status_info)
 
         return ExitCode.SUCCESS
 
@@ -227,12 +203,10 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from ..argument_parser import _STEP_ALIAS_REVERSE
-
         BaseCommand._console.info("Available workflow steps:")
         BaseCommand._console.rule()
         for i, (step_name, description) in enumerate(WorkflowCommands.WORKFLOW_STEPS.items(), 1):
-            aliases = _STEP_ALIAS_REVERSE.get(step_name, [])
+            aliases = WORKFLOW_STEP_ALIAS_REVERSE.get(step_name, [])
             alias_str = f'  (aliases: {", ".join(aliases)})' if aliases else ''
             BaseCommand._console.info(f"{i:2}. {step_name:35s} - {description}{alias_str}")
         BaseCommand._console.rule()

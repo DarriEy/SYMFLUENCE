@@ -59,10 +59,19 @@ class TestWorkflowOrchestrator:
         with patch.object(orchestrator, 'define_workflow_steps') as mock_define:
             mock_define.return_value = []
 
-            results = orchestrator.run_individual_steps(["unknown"])
+            with pytest.raises(ValueError, match="Step 'unknown' not recognized"):
+                orchestrator.run_individual_steps(["unknown"])
 
-            assert len(results) == 0
-            orchestrator.logger.warning.assert_called_with("Step 'unknown' not recognized; skipping")
+    def test_run_individual_steps_unrecognized_continue_on_error(self, orchestrator):
+        """Test unrecognized step recorded as failure when continue_on_error=True."""
+        with patch.object(orchestrator, 'define_workflow_steps') as mock_define:
+            mock_define.return_value = []
+
+            results = orchestrator.run_individual_steps(["unknown"], continue_on_error=True)
+
+            assert len(results) == 1
+            assert results[0]["success"] is False
+            assert "not recognized" in results[0]["error"]
 
     def test_run_individual_steps_failure(self, orchestrator):
         """Test step failure behavior."""

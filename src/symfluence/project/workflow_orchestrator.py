@@ -507,14 +507,24 @@ class WorkflowOrchestrator(ConfigMixin):
         workflow_steps = self.define_workflow_steps()
         cli_to_step = {step.cli_name: step for step in workflow_steps}
 
-        results = []
+        results: List[Dict[str, Any]] = []
 
         self.logger.info(f"Starting individual step execution: {', '.join(step_names)}")
 
         for idx, cli_name in enumerate(step_names, 1):
             step = cli_to_step.get(cli_name)
             if not step:
-                self.logger.warning(f"Step '{cli_name}' not recognized; skipping")
+                valid = ", ".join(sorted(cli_to_step.keys()))
+                message = (
+                    f"Step '{cli_name}' not recognized. "
+                    f"Valid steps: {valid}"
+                )
+                self.logger.error(message)
+                if self.logging_manager:
+                    self.logging_manager.log_completion(False, message)
+                results.append({"cli": cli_name, "fn": None, "success": False, "error": message})
+                if not continue_on_error:
+                    raise ValueError(message)
                 continue
 
             # Log step header

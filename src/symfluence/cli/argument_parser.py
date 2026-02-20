@@ -19,65 +19,28 @@ Categories:
 import argparse
 from typing import Optional, List
 
+from symfluence.workflow_steps import (
+    WORKFLOW_STEP_ALIASES,
+    WORKFLOW_STEP_ALIAS_REVERSE,
+    WORKFLOW_STEP_NAMES,
+    resolve_workflow_step_name,
+)
+
 try:
     from symfluence.symfluence_version import __version__
 except ImportError:
     __version__ = "0+unknown"
 
 # Workflow steps available for individual execution
-WORKFLOW_STEPS = [
-    'setup_project',
-    'create_pour_point',
-    'acquire_attributes',
-    'define_domain',
-    'discretize_domain',
-    'process_observed_data',
-    'acquire_forcings',
-    'model_agnostic_preprocessing',
-    'model_specific_preprocessing',
-    'run_model',
-    'calibrate_model',
-    'run_emulation',
-    'run_benchmarking',
-    'run_decision_analysis',
-    'run_sensitivity_analysis',
-    'postprocess_results'
-]
+WORKFLOW_STEPS = list(WORKFLOW_STEP_NAMES)
 
 # Short aliases for workflow steps (alias -> canonical name)
-STEP_ALIASES = {
-    'setup':          'setup_project',
-    'pour_point':     'create_pour_point',
-    'pp':             'create_pour_point',
-    'attributes':     'acquire_attributes',
-    'attrs':          'acquire_attributes',
-    'domain':         'define_domain',
-    'discretize':     'discretize_domain',
-    'obs_data':       'process_observed_data',
-    'obs':            'process_observed_data',
-    'forcings':       'acquire_forcings',
-    'agnostic_prep':  'model_agnostic_preprocessing',
-    'map':            'model_agnostic_preprocessing',
-    'specific_prep':  'model_specific_preprocessing',
-    'msp':            'model_specific_preprocessing',
-    'model':          'run_model',
-    'calibrate':      'calibrate_model',
-    'cal':            'calibrate_model',
-    'emulation':      'run_emulation',
-    'emu':            'run_emulation',
-    'benchmark':      'run_benchmarking',
-    'bench':          'run_benchmarking',
-    'decision':       'run_decision_analysis',
-    'sensitivity':    'run_sensitivity_analysis',
-    'sa':             'run_sensitivity_analysis',
-    'postprocess':    'postprocess_results',
-    'post':           'postprocess_results',
-}
+STEP_ALIASES = dict(WORKFLOW_STEP_ALIASES)
 
 # Build reverse lookup: canonical name -> list of aliases
-_STEP_ALIAS_REVERSE: dict[str, list[str]] = {}
-for _alias, _canon in STEP_ALIASES.items():
-    _STEP_ALIAS_REVERSE.setdefault(_canon, []).append(_alias)
+_STEP_ALIAS_REVERSE: dict[str, list[str]] = {
+    key: list(value) for key, value in WORKFLOW_STEP_ALIAS_REVERSE.items()
+}
 
 
 def resolve_step_name(name: str) -> str:
@@ -89,16 +52,10 @@ def resolve_step_name(name: str) -> str:
     Raises:
         argparse.ArgumentTypeError: If the name is not recognised.
     """
-    if name in WORKFLOW_STEPS:
-        return name
-    if name in STEP_ALIASES:
-        return STEP_ALIASES[name]
-    # Build a helpful error message
-    all_accepted = sorted(set(WORKFLOW_STEPS) | set(STEP_ALIASES.keys()))
-    raise argparse.ArgumentTypeError(
-        f"unknown step '{name}'. Valid steps and aliases:\n  "
-        + "\n  ".join(all_accepted)
-    )
+    try:
+        return resolve_workflow_step_name(name)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 # Domain definition methods
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
