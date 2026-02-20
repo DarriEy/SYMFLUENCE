@@ -30,6 +30,8 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
     - Potential evapotranspiration (mm/day)
     """
 
+    MODEL_NAME = "HECHMS"
+
     def __init__(
         self,
         config: Union[Dict[str, Any], Any],
@@ -59,10 +61,6 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             lambda: self.config.model.hechms.latitude if self.config.model and self.config.model.hechms else None,
             None
         )
-
-    def _get_model_name(self) -> str:
-        """Return model name for HEC-HMS."""
-        return "HECHMS"
 
     def run_preprocessing(self) -> bool:
         """
@@ -113,6 +111,7 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
         forcing_file = None
         for f in possible_files:
+
             if f.exists():
                 forcing_file = f
                 break
@@ -213,46 +212,17 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
     def _calculate_pet(self, forcing_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate PET using the Oudin method (or Hamon fallback)."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+
         temp = forcing_data['temp']
         time_index = forcing_data['time']
+        lat = self.latitude if self.latitude else 45.0
+        doy = np.array([t.timetuple().tm_yday for t in time_index])
 
         if self.pet_method == 'oudin':
-            # Oudin (2005) radiation-based PET
-            lat_rad = np.radians(self.latitude if self.latitude else 45.0)
-            doy = np.array([t.timetuple().tm_yday for t in time_index])
-
-            # Solar declination
-            decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * doy - 1.39)
-
-            # Sunset hour angle
-            ws = np.arccos(-np.tan(lat_rad) * np.tan(decl))
-
-            # Extraterrestrial radiation (MJ/m2/day)
-            dr = 1.0 + 0.033 * np.cos(2.0 * np.pi / 365.0 * doy)
-            ra = (24.0 * 60.0 / np.pi) * 0.0820 * dr * (
-                ws * np.sin(lat_rad) * np.sin(decl) +
-                np.cos(lat_rad) * np.cos(decl) * np.sin(ws)
-            )
-
-            # Oudin PET formula
-            pet = np.where(
-                temp + 5.0 > 0.0,
-                ra / (100.0 * 2.45) * (temp + 5.0),
-                0.0
-            )
-            pet = np.maximum(pet, 0.0)
-
+            pet = PETCalculatorMixin.oudin_pet_numpy(temp, doy, lat)
         else:
-            # Hamon PET fallback
-            doy = np.array([t.timetuple().tm_yday for t in time_index])
-            lat_rad = np.radians(self.latitude if self.latitude else 45.0)
-            decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * doy - 1.39)
-            ws = np.arccos(np.clip(-np.tan(lat_rad) * np.tan(decl), -1, 1))
-            daylight_hours = 24.0 * ws / np.pi
-
-            sat_vp = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
-            pet = 0.1651 * daylight_hours * sat_vp / (temp + 273.2) * 29.8
-            pet = np.maximum(pet, 0.0)
+            pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat, coefficient=0.1651)
 
         forcing_data['pet'] = pet
         self.logger.info(f"Calculated PET using {self.pet_method} method, mean={np.mean(pet):.2f} mm/day")

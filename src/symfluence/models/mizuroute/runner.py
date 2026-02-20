@@ -29,22 +29,21 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
     Uses the Unified Model Execution Framework for subprocess execution.
 
     Attributes:
+
         config (Dict[str, Any]): Configuration settings for the model run.
         logger (Any): Logger object for recording run information.
         root_path (Path): Root path for the project.
         domain_name (str): Name of the domain being processed.
         project_dir (Path): Directory for the current project.
     """
+
+    MODEL_NAME = "MizuRoute"
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
         # MizuRoute uses 'root_path' alias for backwards compatibility
         self.setup_path_aliases({'root_path': 'data_dir'})
-
-    def _get_model_name(self) -> str:
-        """Return model name for MizuRoute."""
-        return "MizuRoute"
 
     def _should_create_output_dir(self) -> bool:
         """MizuRoute creates directories on-demand."""

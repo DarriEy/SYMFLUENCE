@@ -38,6 +38,9 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
     Provides common initialization, path management, and utility methods
     that are shared across different hydrological model preprocessors.
 
+    Subclasses should set ``MODEL_NAME`` as a class variable. The legacy
+    ``_get_model_name()`` method is still supported as a fallback.
+
     Inherits:
         PathResolverMixin: Path resolution with typed config access
         ShapefileAccessMixin: Shapefile column name properties
@@ -53,6 +56,8 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         forcing_dir: Directory for model-specific forcing inputs
         forcing_basin_path: Directory for basin-averaged forcing data
     """
+
+    MODEL_NAME: str = ""
 
     def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger: logging.Logger):
         """
@@ -102,7 +107,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             'DOMAIN_NAME',
             'FORCING_DATASET',
         ]
-        self.validate_config(required_keys, f"{self._get_model_name()} preprocessing")
+        self.validate_config(required_keys, f"{self.MODEL_NAME or self.__class__.__name__} preprocessing")
 
     def _get_base_file_path(self, file_type: str, path_key: str,
                        name_key: str, default_name: str) -> Path:
@@ -524,15 +529,22 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         """
         pass
 
-    @abstractmethod
     def _get_model_name(self) -> str:
         """
         Get the name of the model.
 
+        Prefers the ``MODEL_NAME`` class variable. Subclasses that still
+        override this method will continue to work.
+
         Returns:
             Model name string (e.g., 'SUMMA', 'FUSE', 'GR')
         """
-        pass
+        if self.MODEL_NAME:
+            return self.MODEL_NAME
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must set MODEL_NAME class variable "
+            "or implement _get_model_name()"
+        )
 
     @abstractmethod
     def run_preprocessing(self) -> bool:

@@ -33,13 +33,12 @@ class ParFlowRunner(BaseModelRunner):
     - Output verification (*.pfb files)
     """
 
+
+    MODEL_NAME = "PARFLOW"
     def __init__(self, config, logger, reporting_manager=None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
         self.settings_dir = self.project_dir / "settings" / "PARFLOW"
-
-    def _get_model_name(self) -> str:
-        return "PARFLOW"
 
     def _get_parflow_executable(self) -> Path:
         """Get the ParFlow executable path."""

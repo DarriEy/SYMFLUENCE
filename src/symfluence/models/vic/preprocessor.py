@@ -36,6 +36,8 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     - Global parameter file: Model control settings
     """
 
+    MODEL_NAME = "VIC"
+
     def __init__(self, config, logger):
         """
         Initialize the VIC preprocessor.
@@ -73,10 +75,6 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             else:
                 self.spatial_mode = 'lumped'
         logger.info(f"VIC spatial mode: {self.spatial_mode}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "VIC"
 
     def run_preprocessing(self) -> bool:
         """
@@ -575,6 +573,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         params['veg_rough'] = np.zeros((nveg, 12, nlat, nlon))
         params['displacement'] = np.zeros((nveg, 12, nlat, nlon))
         for m in range(12):
+
             params['LAI'][0, m, :, :] = monthly_lai[m]
             params['albedo'][0, m, :, :] = monthly_albedo[m]
             params['veg_rough'][0, m, :, :] = monthly_veg_rough[m]
@@ -767,6 +766,17 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds
 
+    # VIC variable name → candidate forcing variable names
+    VIC_VAR_MAP = {
+        'AIR_TEMP': ['airtemp', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP'],
+        'PREC': ['pptrate', 'precipitation', 'pr', 'precip', 'tp', 'PREC'],
+        'SWDOWN': ['SWRadAtm', 'ssrd', 'rsds', 'swdown', 'SWDOWN', 'shortwave'],
+        'LWDOWN': ['LWRadAtm', 'strd', 'rlds', 'lwdown', 'LWDOWN', 'longwave'],
+        'PRESSURE': ['airpres', 'sp', 'ps', 'pres', 'pressure', 'PRESSURE'],
+        'VP': ['vp', 'vapor_pressure', 'VP'],
+        'WIND': ['windspd', 'wind_speed', 'sfcWind', 'wind', 'WIND'],
+    }
+
     def _write_forcing_files(
         self,
         forcing_ds: xr.Dataset,
@@ -779,221 +789,190 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         lon = domain_ds['lon'].values
         mask = domain_ds['mask'].values
 
-        # VIC 5 image driver requires: PREC, AIR_TEMP, SWDOWN, LWDOWN,
-        # PRESSURE, VP, WIND — all at subdaily resolution
-        #
-        # VIC expected units:
-        #   AIR_TEMP:  °C
-        #   PREC:      mm/timestep
-        #   SWDOWN:    W/m²
-        #   LWDOWN:    W/m²
-        #   PRESSURE:  Pa
-        #   VP:        Pa
-        #   WIND:      m/s
-        var_map = {
-            'AIR_TEMP': ['airtemp', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP'],
-            'PREC': ['pptrate', 'precipitation', 'pr', 'precip', 'tp', 'PREC'],
-            'SWDOWN': ['SWRadAtm', 'ssrd', 'rsds', 'swdown', 'SWDOWN', 'shortwave'],
-            'LWDOWN': ['LWRadAtm', 'strd', 'rlds', 'lwdown', 'LWDOWN', 'longwave'],
-            'PRESSURE': ['airpres', 'sp', 'ps', 'pres', 'pressure', 'PRESSURE'],
-            'VP': ['vp', 'vapor_pressure', 'VP'],
-            'WIND': ['windspd', 'wind_speed', 'sfcWind', 'wind', 'WIND'],
-        }
-
-        # Determine forcing timestep in seconds for rate conversions
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='D')
         if len(times) > 1:
             dt_seconds = float((pd.Timestamp(times[1]) - pd.Timestamp(times[0])).total_seconds())
         else:
-            dt_seconds = 3600.0  # default hourly
+            dt_seconds = 3600.0
 
-        # Prepare output dataset
         out_ds = xr.Dataset(coords={'time': times, 'lat': lat, 'lon': lon})
+        shape = (len(times), len(lat), len(lon))
 
-        for vic_var, candidates in var_map.items():
-            found = False
-            for candidate in candidates:
-                if candidate in forcing_ds:
-                    data = forcing_ds[candidate].values
-                    src_var = candidate
-
-                    # Handle different forcing shapes
-                    if data.ndim == 1:
-                        # Time series only - broadcast to grid
-                        data_grid = np.zeros((len(times), len(lat), len(lon)))
-                        for i in range(len(lat)):
-                            for j in range(len(lon)):
-                                if mask[i, j] == 1:
-                                    data_grid[:, i, j] = data[:len(times)]
-                        data = data_grid
-                    elif data.ndim == 2:
-                        # (time, points) - flatten spatial and broadcast to grid
-                        data_grid = np.zeros((len(times), len(lat), len(lon)))
-                        flat_data = data[:len(times), 0] if data.shape[1] >= 1 else data[:len(times)].flatten()
-                        for i in range(len(lat)):
-                            for j in range(len(lon)):
-                                if mask[i, j] == 1:
-                                    data_grid[:, i, j] = flat_data
-                        data = data_grid
-
-                    # --- Unit conversions ---
-                    src_units = forcing_ds[src_var].attrs.get('units', '')
-
-                    if vic_var == 'AIR_TEMP':
-                        # VIC expects °C; convert from K if needed
-                        if src_units == 'K' or np.nanmean(data) > 100:
-                            data = data - 273.15
-                            logger.info(f"Converted {src_var} from K to °C")
-
-                    elif vic_var == 'PREC':
-                        # VIC expects mm/timestep
-                        if 'mm/s' in src_units or src_var == 'pptrate':
-                            # mm/s -> mm/timestep
-                            data = data * dt_seconds
-                            logger.info(f"Converted {src_var} from mm/s to mm/timestep (×{dt_seconds})")
-                        elif src_units == 'm' or src_var == 'tp':
-                            # meters total -> mm
-                            data = data * 1000.0
-                            logger.info(f"Converted {src_var} from m to mm")
-                        elif 'kg' in src_units and 'm-2' in src_units and 's-1' in src_units:
-                            # kg m-2 s-1 -> mm/timestep (1 kg/m² = 1 mm)
-                            data = data * dt_seconds
-                            logger.info(f"Converted {src_var} from kg/m²/s to mm/timestep")
-
-                    elif vic_var in ('SWDOWN', 'LWDOWN'):
-                        # VIC expects W/m²; ERA5 ssrd/strd are in J/m² (accumulated per timestep)
-                        if src_var in ('ssrd', 'strd'):
-                            data = data / dt_seconds
-                            logger.info(f"Converted {src_var} from J/m² to W/m² (÷{dt_seconds})")
-                        elif 'J' in src_units and 'm' in src_units:
-                            data = data / dt_seconds
-                            logger.info(f"Converted {src_var} from {src_units} to W/m²")
-
-                    elif vic_var == 'PRESSURE':
-                        # VIC expects Pa
-                        if src_units == 'kPa' or np.nanmean(data) < 200:
-                            data = data * 1000.0
-                            logger.info(f"Converted {src_var} from kPa to Pa")
-                        # Already Pa if mean > 10000
-
-                    out_ds[vic_var] = (['time', 'lat', 'lon'], data[:len(times)])
-                    found = True
-                    break
-
-            if not found:
-                # Derive or estimate missing variables
-                shape = (len(times), len(lat), len(lon))
-
-                if vic_var == 'VP':
-                    # Try to derive from specific humidity + pressure
-                    spechum_var = None
-                    for c in ['spechum', 'specific_humidity', 'huss', 'q']:
-                        if c in forcing_ds:
-                            spechum_var = c
-                            break
-
-                    if spechum_var is not None and 'PRESSURE' in out_ds:
-                        logger.info(f"Deriving VP from specific humidity ({spechum_var}) and pressure")
-                        q_data = forcing_ds[spechum_var].values
-                        # Broadcast to grid if needed
-                        if q_data.ndim == 1:
-                            q_grid = np.zeros(shape)
-                            for i in range(len(lat)):
-                                for j in range(len(lon)):
-                                    if mask[i, j] == 1:
-                                        q_grid[:, i, j] = q_data[:len(times)]
-                            q_data = q_grid
-                        elif q_data.ndim == 2:
-                            flat_q = q_data[:len(times), 0] if q_data.shape[1] >= 1 else q_data[:len(times)].flatten()
-                            q_grid = np.zeros(shape)
-                            for i in range(len(lat)):
-                                for j in range(len(lon)):
-                                    if mask[i, j] == 1:
-                                        q_grid[:, i, j] = flat_q
-                            q_data = q_grid
-
-                        # VP (Pa) = q * P / (0.622 + 0.378 * q)
-                        pressure_pa = out_ds['PRESSURE'].values
-                        data = q_data[:len(times)] * pressure_pa / (0.622 + 0.378 * q_data[:len(times)])
-                        out_ds[vic_var] = (['time', 'lat', 'lon'], data)
-                        continue
-                    elif 'AIR_TEMP' in out_ds:
-                        logger.warning(f"Variable {vic_var} not found in forcing, estimating from temperature")
-                        temp_c = out_ds['AIR_TEMP'].values
-                        # Tetens formula: saturated VP in Pa; assume 60% RH
-                        es_pa = 610.8 * np.exp(17.27 * temp_c / (temp_c + 237.3))
-                        data = 0.6 * es_pa
-                    else:
-                        logger.warning(f"Variable {vic_var} not found, using default 500 Pa")
-                        data = 500.0 * np.ones(shape)
-
-                elif vic_var == 'AIR_TEMP':
-                    logger.warning(f"Variable {vic_var} not found in forcing, estimating")
-                    base = 5 + 10 * np.sin(2 * np.pi * np.arange(len(times)) / 365)
-                    data = base[:, np.newaxis, np.newaxis] * np.ones(shape)
-                elif vic_var == 'PREC':
-                    logger.warning(f"Variable {vic_var} not found in forcing, using zeros")
-                    data = np.zeros(shape)
-                elif vic_var == 'SWDOWN':
-                    logger.warning(f"Variable {vic_var} not found in forcing, estimating")
-                    base = 150 + 100 * np.sin(2 * np.pi * (np.arange(len(times)) - 80) / 365)
-                    data = np.maximum(0, base[:, np.newaxis, np.newaxis] * np.ones(shape))
-                elif vic_var == 'LWDOWN':
-                    logger.warning(f"Variable {vic_var} not found in forcing, estimating")
-                    if 'AIR_TEMP' in out_ds:
-                        temp_c = out_ds['AIR_TEMP'].values
-                        temp_k = temp_c + 273.15
-                        # Stefan-Boltzmann approximation
-                        data = 0.75 * 5.67e-8 * temp_k ** 4
-                    else:
-                        data = 300.0 * np.ones(shape)
-                elif vic_var == 'PRESSURE':
-                    logger.warning(f"Variable {vic_var} not found in forcing, estimating")
-                    elev = self._get_catchment_properties().get('elev', 1000.0)
-                    p0 = 101325.0  # sea level Pa
-                    data = p0 * np.exp(-elev / 8500.0) * np.ones(shape)
-                else:  # WIND
-                    logger.warning(f"Variable {vic_var} not found in forcing, estimating")
-                    data = np.abs(np.random.normal(3, 1, shape))
-
-                # Broadcast if needed
-                if data.ndim == 1:
-                    data = data[:, np.newaxis, np.newaxis] * np.ones(shape)
-                elif data.ndim == 2:
-                    flat = data[:len(times), 0] if data.shape[1] >= 1 else data.flatten()
-                    data = flat[:, np.newaxis, np.newaxis] * np.ones(shape)
-
+        for vic_var, candidates in self.VIC_VAR_MAP.items():
+            data = self._find_and_convert_variable(
+                forcing_ds, vic_var, candidates, times, dt_seconds, mask, lat, lon
+            )
+            if data is not None:
                 out_ds[vic_var] = (['time', 'lat', 'lon'], data[:len(times)])
+            else:
+                data = self._derive_missing_variable(
+                    vic_var, forcing_ds, out_ds, times, mask, lat, lon
+                )
+                if vic_var == 'VP' and data is None:
+                    continue  # VP was added directly to out_ds by _derive_missing_variable
+                if data is not None:
+                    data = self._broadcast_to_grid(data, shape, times, mask, lat, lon)
+                    out_ds[vic_var] = (['time', 'lat', 'lon'], data[:len(times)])
 
         # Apply mask
-        for var in ['PREC', 'AIR_TEMP', 'SWDOWN', 'LWDOWN', 'PRESSURE', 'VP', 'WIND']:
+        for var in self.VIC_VAR_MAP:
             if var in out_ds:
                 for t in range(len(times)):
                     out_ds[var].values[t, mask == 0] = np.nan
 
-        # Add attributes
         out_ds.attrs['title'] = f'VIC forcing file for {self.domain_name}'
         out_ds.attrs['history'] = f'Created by SYMFLUENCE on {datetime.now().isoformat()}'
 
         # VIC expects one forcing file per year with complete hourly timesteps
-        # starting at midnight. Reindex to ensure completeness.
         time_index = pd.DatetimeIndex(times)
-        start_year = time_index[0].year
-        end_year = time_index[-1].year
         encoding = {'time': {'calendar': 'standard', 'units': 'hours since 1900-01-01'}}
 
-        for year in range(start_year, end_year + 1):
+        for year in range(time_index[0].year, time_index[-1].year + 1):
             year_start = pd.Timestamp(f'{year}-01-01 00:00:00')
             year_end = pd.Timestamp(f'{year}-12-31 23:00:00')
             full_year_times = pd.date_range(year_start, year_end, freq='h')
 
-            # Select this year's data and reindex to full year
             year_ds = out_ds.sel(time=slice(year_start, year_end))
             year_ds = year_ds.reindex(time=full_year_times, method='nearest')
 
             forcing_path = self.forcing_dir / f'{self.domain_name}_forcing.{year}.nc'
             year_ds.to_netcdf(forcing_path, encoding=encoding)
             logger.info(f"Forcing file written: {forcing_path}")
+
+    def _find_and_convert_variable(
+        self, forcing_ds, vic_var, candidates, times, dt_seconds, mask, lat, lon
+    ):
+        """Search forcing dataset for a VIC variable and apply unit conversion.
+
+        Returns converted 3-D array (time, lat, lon) or None if not found.
+        """
+        for candidate in candidates:
+            if candidate not in forcing_ds:
+                continue
+
+            data = forcing_ds[candidate].values
+            data = self._broadcast_to_grid(
+                data, (len(times), len(lat), len(lon)), times, mask, lat, lon
+            )
+            src_units = forcing_ds[candidate].attrs.get('units', '')
+
+            if vic_var == 'AIR_TEMP':
+                if src_units == 'K' or np.nanmean(data) > 100:
+                    data = data - 273.15
+                    logger.info(f"Converted {candidate} from K to °C")
+
+            elif vic_var == 'PREC':
+                if 'mm/s' in src_units or candidate == 'pptrate':
+                    data = data * dt_seconds
+                    logger.info(f"Converted {candidate} from mm/s to mm/timestep (×{dt_seconds})")
+                elif src_units == 'm' or candidate == 'tp':
+                    data = data * 1000.0
+                    logger.info(f"Converted {candidate} from m to mm")
+                elif 'kg' in src_units and 'm-2' in src_units and 's-1' in src_units:
+                    data = data * dt_seconds
+                    logger.info(f"Converted {candidate} from kg/m²/s to mm/timestep")
+
+            elif vic_var in ('SWDOWN', 'LWDOWN'):
+                if candidate in ('ssrd', 'strd'):
+                    data = data / dt_seconds
+                    logger.info(f"Converted {candidate} from J/m² to W/m² (÷{dt_seconds})")
+                elif 'J' in src_units and 'm' in src_units:
+                    data = data / dt_seconds
+                    logger.info(f"Converted {candidate} from {src_units} to W/m²")
+
+            elif vic_var == 'PRESSURE':
+                if src_units == 'kPa' or np.nanmean(data) < 200:
+                    data = data * 1000.0
+                    logger.info(f"Converted {candidate} from kPa to Pa")
+
+            return data
+
+        return None
+
+    def _derive_missing_variable(
+        self, vic_var, forcing_ds, out_ds, times, mask, lat, lon
+    ):
+        """Derive or estimate a missing VIC variable.
+
+        For VP derived from specific humidity, data is added directly to *out_ds*
+        and None is returned.  For all other variables, the synthetic array is
+        returned (may need broadcasting).
+        """
+        shape = (len(times), len(lat), len(lon))
+
+        if vic_var == 'VP':
+            spechum_var = None
+            for c in ['spechum', 'specific_humidity', 'huss', 'q']:
+                if c in forcing_ds:
+                    spechum_var = c
+                    break
+
+            if spechum_var is not None and 'PRESSURE' in out_ds:
+                logger.info(f"Deriving VP from specific humidity ({spechum_var}) and pressure")
+                q_data = forcing_ds[spechum_var].values
+                q_data = self._broadcast_to_grid(q_data, shape, times, mask, lat, lon)
+                pressure_pa = out_ds['PRESSURE'].values
+                data = q_data[:len(times)] * pressure_pa / (0.622 + 0.378 * q_data[:len(times)])
+                out_ds[vic_var] = (['time', 'lat', 'lon'], data)
+                return None  # sentinel: already added to out_ds
+            elif 'AIR_TEMP' in out_ds:
+                logger.warning(f"Variable {vic_var} not found in forcing, estimating from temperature")
+                temp_c = out_ds['AIR_TEMP'].values
+                es_pa = 610.8 * np.exp(17.27 * temp_c / (temp_c + 237.3))
+                return 0.6 * es_pa
+            else:
+                logger.warning(f"Variable {vic_var} not found, using default 500 Pa")
+                return 500.0 * np.ones(shape)
+
+        elif vic_var == 'AIR_TEMP':
+            logger.warning(f"Variable {vic_var} not found in forcing, estimating")
+            base = 5 + 10 * np.sin(2 * np.pi * np.arange(len(times)) / 365)
+            return base[:, np.newaxis, np.newaxis] * np.ones(shape)
+
+        elif vic_var == 'PREC':
+            logger.warning(f"Variable {vic_var} not found in forcing, using zeros")
+            return np.zeros(shape)
+
+        elif vic_var == 'SWDOWN':
+            logger.warning(f"Variable {vic_var} not found in forcing, estimating")
+            base = 150 + 100 * np.sin(2 * np.pi * (np.arange(len(times)) - 80) / 365)
+            return np.maximum(0, base[:, np.newaxis, np.newaxis] * np.ones(shape))
+
+        elif vic_var == 'LWDOWN':
+            logger.warning(f"Variable {vic_var} not found in forcing, estimating")
+            if 'AIR_TEMP' in out_ds:
+                temp_k = out_ds['AIR_TEMP'].values + 273.15
+                return 0.75 * 5.67e-8 * temp_k ** 4
+            return 300.0 * np.ones(shape)
+
+        elif vic_var == 'PRESSURE':
+            logger.warning(f"Variable {vic_var} not found in forcing, estimating")
+            elev = self._get_catchment_properties().get('elev', 1000.0)
+            return 101325.0 * np.exp(-elev / 8500.0) * np.ones(shape)
+
+        else:  # WIND
+            logger.warning(f"Variable {vic_var} not found in forcing, estimating")
+            return np.abs(np.random.normal(3, 1, shape))
+
+    @staticmethod
+    def _broadcast_to_grid(data, shape, times, mask, lat, lon):
+        """Broadcast 1-D or 2-D data to (time, lat, lon) grid."""
+        if data.ndim == 1:
+            data_grid = np.zeros(shape)
+            for i in range(len(lat)):
+                for j in range(len(lon)):
+                    if mask[i, j] == 1:
+                        data_grid[:, i, j] = data[:len(times)]
+            return data_grid
+        elif data.ndim == 2:
+            flat_data = data[:len(times), 0] if data.shape[1] >= 1 else data[:len(times)].flatten()
+            data_grid = np.zeros(shape)
+            for i in range(len(lat)):
+                for j in range(len(lon)):
+                    if mask[i, j] == 1:
+                        data_grid[:, i, j] = flat_data
+            return data_grid
+        return data
 
     def _generate_synthetic_forcing(self, start_date: datetime, end_date: datetime) -> None:
         """Generate synthetic forcing data for testing."""

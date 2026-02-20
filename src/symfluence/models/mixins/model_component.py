@@ -61,5 +61,5 @@ class ModelComponentMixin:
         self.domain_name = self.config.domain.name
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        # Model-specific initialization
-        self.model_name = self._get_model_name()
+        # Model-specific initialization — prefer MODEL_NAME class variable
+        self.model_name = getattr(self.__class__, 'MODEL_NAME', None) or self._get_model_name()

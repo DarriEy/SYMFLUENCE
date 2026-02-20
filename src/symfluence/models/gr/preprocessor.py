@@ -106,9 +106,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         ModelExecutionError: If preprocessing fails
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for GR."""
-        return "GR"
+    MODEL_NAME = "GR"
 
     def __init__(self, config, logger):
         if not HAS_RPY2:
@@ -175,6 +173,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
             # Handle spatial organization based on mode
             if self.spatial_mode == 'lumped':
+
                 self.logger.info("Preparing lumped forcing data")
                 # Apply area-weighted aggregation if HRU dimension exists
                 if 'hru' in ds.dims:

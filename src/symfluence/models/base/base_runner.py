@@ -11,8 +11,9 @@ Provides shared infrastructure for all model execution modules including:
 - Spatial mode validation (Phase 3)
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List, TYPE_CHECKING
 
@@ -39,7 +40,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
     Provides initialization, path management, subprocess/SLURM execution,
     and utility methods shared across hydrological model runners.
 
-    Subclasses must implement ``_get_model_name() → str``.
+    Subclasses should set ``MODEL_NAME`` as a class variable. The legacy
+    ``_get_model_name()`` method is still supported as a fallback.
 
     Optional hooks: ``_setup_model_specific_paths()``,
     ``_should_create_output_dir()``, ``_get_output_dir()``,
@@ -49,6 +51,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
     ``execute_in_mode``, SLURM helpers) are provided via
     ``SubprocessExecutionMixin`` and ``SlurmExecutionMixin``.
     """
+
+    MODEL_NAME: str = ""
 
     def __init__(
         self,
@@ -104,7 +108,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         ]
         self.validate_config(
             required_keys,
-            f"{self._get_model_name()} runner initialization"
+            f"{self.MODEL_NAME or self.__class__.__name__} runner initialization"
         )
 
     def _validate_spatial_mode(self) -> None:
@@ -158,17 +162,22 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
         return routing_model and routing_model.lower() not in ('none', 'default', '')
 
-    @abstractmethod
     def _get_model_name(self) -> str:
         """
         Return the name of the model.
 
-        Must be implemented by subclasses.
+        Prefers the ``MODEL_NAME`` class variable. Subclasses that still
+        override this method will continue to work.
 
         Returns:
             Model name (e.g., 'SUMMA', 'FUSE', 'GR')
         """
-        pass
+        if self.MODEL_NAME:
+            return self.MODEL_NAME
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must set MODEL_NAME class variable "
+            "or implement _get_model_name()"
+        )
 
     def _setup_model_specific_paths(self) -> None:
         """
@@ -208,35 +217,156 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         experiment_id = self.config.domain.experiment_id
         return self.project_dir / 'simulations' / experiment_id / self.model_name
 
-    def run(self, **kwargs) -> Optional[Path]:
-        """
-        Execute the model using the registered run method.
+    # =========================================================================
+    # Template Method Hooks for Default run()
+    # =========================================================================
 
-        Provides a uniform interface for all model runners by delegating
-        to the model-specific run method (run_fuse, run_hbv, etc.).
+    def _build_run_command(self) -> Optional[List[str]]:
+        """Build subprocess command. Return None for in-process models.
 
-        Args:
-            **kwargs: Arguments passed to the model-specific run method
+        Override this to opt into the default ``run()`` template. The
+        template handles logging, subprocess execution, and output
+        verification automatically.
 
         Returns:
-            Path to output directory on success, None on failure
+            List of command arguments, or None to skip template execution.
+        """
+        return None
 
-        Raises:
-            NotImplementedError: If model doesn't implement the run method
+    def _get_expected_outputs(self) -> List[str]:
+        """Return expected output filenames for verification.
+
+        Empty list skips verification.
+
+        Returns:
+            List of filenames expected in ``output_dir``.
+        """
+        return []
+
+    def _get_run_cwd(self) -> Optional[Path]:
+        """Working directory for subprocess. Defaults to ``setup_dir``.
+
+        Returns:
+            Path to working directory, or None for default.
+        """
+        return getattr(self, 'setup_dir', None)
+
+    def _get_run_environment(self) -> Optional[Dict[str, str]]:
+        """Extra environment variables merged into ``os.environ``.
+
+        Return None to use the default environment.
+
+        Returns:
+            Dict of extra env vars, or None.
+        """
+        return None
+
+    def _get_run_timeout(self) -> int:
+        """Subprocess timeout in seconds.
+
+        Returns:
+            Timeout value (default 3600).
+        """
+        return 3600
+
+    def _prepare_run(self) -> None:
+        """Pre-run preparation hook.
+
+        Called after ``output_dir`` is created but before subprocess
+        execution.  Use this to copy files to ``output_dir``, create
+        required subdirectories, etc.
+        """
+        pass
+
+    # =========================================================================
+    # run() — Template Method + Legacy Dispatch
+    # =========================================================================
+
+    def run(self, **kwargs) -> Optional[Path]:
+        """Execute the model.
+
+        Dispatch order:
+
+        1. **Legacy dispatch**: If the registry has a ``method_name`` other
+           than ``'run'`` for this model (e.g. ``'run_fuse'``), delegate to
+           that method.  This preserves backward compatibility for complex
+           runners.
+        2. **Template execution**: If ``_build_run_command()`` returns a
+           command list, execute it via ``execute_subprocess``, verify
+           outputs, and return ``output_dir``.
+        3. Raise ``NotImplementedError`` if neither path applies.
+
+        Args:
+            **kwargs: Passed to the legacy run method if used.
+
+        Returns:
+            Path to output directory on success, None on failure.
         """
         from symfluence.models.registry import ModelRegistry
+        from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
+        # --- Legacy dispatch ---
         method_name = ModelRegistry.get_runner_method(self.model_name)
-        if method_name is None:
-            method_name = f"run_{self.model_name.lower()}"
+        if method_name and method_name != 'run':
+            run_method = getattr(self, method_name, None)
+            if run_method is not None:
+                return run_method(**kwargs)
 
-        run_method = getattr(self, method_name, None)
-        if run_method is None:
-            raise NotImplementedError(
-                f"Model {self.model_name} does not implement {method_name}()"
-            )
+        # --- Default template ---
+        cmd = self._build_run_command()
+        if cmd is not None:
+            self.logger.info(f"Running {self.model_name} for domain: {self.domain_name}")
 
-        return run_method(**kwargs)
+            with symfluence_error_handler(
+                f"{self.model_name} model execution",
+                self.logger,
+                error_type=ModelExecutionError,
+            ):
+                # Ensure output directory exists
+                self.output_dir = self._get_output_dir()
+                self.ensure_dir(self.output_dir)
+
+                # Pre-run preparation (file staging, etc.)
+                self._prepare_run()
+
+                # Set up logging
+                log_dir = self.get_log_path()
+                current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_file = log_dir / f'{self.model_name.lower()}_run_{current_time}.log'
+
+                # Build environment
+                env = self._get_run_environment()
+
+                # Execute
+                result = self.execute_subprocess(
+                    cmd,
+                    log_file,
+                    cwd=self._get_run_cwd(),
+                    env=env,
+                    timeout=self._get_run_timeout(),
+                    check=False,
+                    success_message=f"{self.model_name} simulation completed successfully",
+                )
+
+                if not result.success:
+                    self.logger.error(
+                        f"{self.model_name} simulation failed "
+                        f"(rc={result.return_code})"
+                    )
+                    return None
+
+                # Verify expected outputs
+                expected = self._get_expected_outputs()
+                if expected and not self.verify_model_outputs(expected):
+                    return None
+
+                return self.output_dir
+
+        # --- Neither path matched ---
+        raise NotImplementedError(
+            f"Model {self.model_name} must either override run(), implement "
+            f"_build_run_command(), or register a method_name in the registry."
+        )
 
     def backup_settings(self, source_dir: Path, backup_subdir: str = "run_settings") -> None:
         """

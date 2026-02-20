@@ -32,6 +32,8 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     - data.dat: Data file with forcing time series (precip, temp)
     """
 
+
+    MODEL_NAME = "PRMS"
     def __init__(self, config, logger):
         """
         Initialize the PRMS preprocessor.
@@ -58,10 +60,6 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         else:
             self.spatial_mode = 'semi_distributed'
         logger.info(f"PRMS spatial mode: {self.spatial_mode}")
-
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "PRMS"
 
     def run_preprocessing(self) -> bool:
         """

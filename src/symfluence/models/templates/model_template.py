@@ -186,10 +186,18 @@ class UnifiedModelRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[
     # Abstract Methods (must be implemented by subclasses)
     # =========================================================================
 
-    @abstractmethod
     def _get_model_name(self) -> str:
-        """Return the model name (e.g., 'SUMMA', 'FUSE')."""
-        pass
+        """Return the model name (e.g., 'SUMMA', 'FUSE').
+
+        Prefers the ``MODEL_NAME`` class variable. Subclasses that still
+        override this method will continue to work.
+        """
+        if self.MODEL_NAME:
+            return self.MODEL_NAME
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must set MODEL_NAME class variable "
+            "or implement _get_model_name()"
+        )
 
     @abstractmethod
     def _build_command(self) -> List[str]:

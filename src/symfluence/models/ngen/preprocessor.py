@@ -40,10 +40,8 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     Inherits observation loading from ObservationLoaderMixin.
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "NGEN"
 
+    MODEL_NAME = "NGEN"
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the NextGen preprocessor.

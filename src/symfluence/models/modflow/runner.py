@@ -20,7 +20,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("MODFLOW", method_name="run_modflow")
+@ModelRegistry.register_runner("MODFLOW")
 class MODFLOWRunner(BaseModelRunner):
     """
     Runs MODFLOW 6 via direct mf6 invocation.
@@ -32,13 +32,12 @@ class MODFLOWRunner(BaseModelRunner):
     - Output verification (*.hds and *.bud files)
     """
 
+
+    MODEL_NAME = "MODFLOW"
     def __init__(self, config, logger, reporting_manager=None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
         self.settings_dir = self.project_dir / "settings" / "MODFLOW"
-
-    def _get_model_name(self) -> str:
-        return "MODFLOW"
 
     def _get_mf6_executable(self) -> Path:
         """Get the MODFLOW 6 (mf6) executable path."""

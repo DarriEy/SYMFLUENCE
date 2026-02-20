@@ -33,6 +33,8 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
     (per-HRU time series for routing integration).
     """
 
+
+    MODEL_NAME = "JFUSE"
     def __init__(
         self,
         config: Union[Dict[str, Any], Any],
@@ -93,10 +95,6 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
             lambda: self.config.model.jfuse.enable_snow if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
             True
         )
-
-    def _get_model_name(self) -> str:
-        """Return model name for jFUSE."""
-        return "JFUSE"
 
     def run_preprocessing(self) -> bool:
         """
@@ -449,52 +447,21 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
         temp: np.ndarray,
         time: pd.DatetimeIndex
     ) -> np.ndarray:
-        """
-        Calculate PET using Hamon method.
+        """Calculate PET using Hamon method."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
-        Args:
-            temp: Daily mean temperature (degC)
-            time: Time index for day length calculation
-
-        Returns:
-            PET array (mm/day)
-        """
         self.logger.info("Calculating PET using Hamon method")
-
-        # Get latitude for day length calculation
         try:
             import geopandas as gpd
             catchment = gpd.read_file(self.get_catchment_path())
             centroid = catchment.to_crs(epsg=4326).union_all().centroid
             lat = centroid.y
         except (FileNotFoundError, KeyError, IndexError, ValueError):
-            lat = 45.0  # Default mid-latitude
+            lat = 45.0
             self.logger.warning(f"Using default latitude {lat} for PET calculation")
 
-        # Calculate day length
-        day_of_year = np.asarray(time.dayofyear)
-        lat_rad = np.deg2rad(lat)
-
-        # Solar declination
-        decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
-
-        # Sunset hour angle (clip argument to [-1, 1] to prevent NaN from arccos)
-        cos_arg = -np.tan(lat_rad) * np.tan(decl)
-        cos_arg = np.clip(cos_arg, -1.0, 1.0)
-        sunset_angle = np.arccos(cos_arg)
-        sunset_angle = np.clip(sunset_angle, 0, np.pi)
-
-        # Day length in hours
-        day_length = 24 / np.pi * sunset_angle
-
-        # Saturated vapor pressure (kPa)
-        es = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
-
-        # Hamon PET (mm/day)
-        pet = 0.55 * (day_length / 12) ** 2 * es
-        pet = np.maximum(pet, 0.0)
-
-        return pet
+        doy = np.asarray(time.dayofyear)
+        return PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat)
 
     def _spatially_average_to_hrus(
         self,

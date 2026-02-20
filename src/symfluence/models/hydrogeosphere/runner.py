@@ -20,7 +20,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("HYDROGEOSPHERE", method_name="run_hydrogeosphere")
+@ModelRegistry.register_runner("HYDROGEOSPHERE")
 class HGSRunner(BaseModelRunner):
     """
     Runs HydroGeoSphere via grok + hgs invocation.
@@ -32,12 +32,11 @@ class HGSRunner(BaseModelRunner):
     - Output verification (.hen, hydrograph files)
     """
 
+
+    MODEL_NAME = "HYDROGEOSPHERE"
     def __init__(self, config, logger, reporting_manager=None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
         self.settings_dir = self.project_dir / "settings" / "HYDROGEOSPHERE"
-
-    def _get_model_name(self) -> str:
-        return "HYDROGEOSPHERE"
 
     def _get_hgs_executable(self) -> Path:
         """Get the HGS solver executable path."""

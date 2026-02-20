@@ -15,7 +15,7 @@ import xarray as xr
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import UnifiedModelExecutor
+from symfluence.models.execution import SpatialOrchestrator
 from symfluence.models.state import StateCapableMixin, StateFormat, StateMetadata, ModelState
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
@@ -38,7 +38,7 @@ except ImportError:
 @ModelRegistry.register_runner('HBV', method_name='run_hbv')
 class HBVRunner(  # type: ignore[misc]
     BaseModelRunner,
-    UnifiedModelExecutor,
+    SpatialOrchestrator,
     StateCapableMixin,
     MizuRouteConfigMixin,
     SpatialModeDetectionMixin,
@@ -48,6 +48,7 @@ class HBVRunner(  # type: ignore[misc]
     Runner class for the HBV-96 hydrological model.
 
     Supports:
+
     - Lumped mode (single catchment simulation)
     - Distributed mode (per-HRU simulation with mizuRoute routing)
     - JAX backend for autodiff/JIT compilation
@@ -59,6 +60,8 @@ class HBVRunner(  # type: ignore[misc]
         spatial_mode: 'lumped' or 'distributed'
         backend: 'jax' or 'numpy'
     """
+
+    MODEL_NAME = "HBV"
 
     def __init__(
         self,
@@ -150,10 +153,6 @@ class HBVRunner(  # type: ignore[misc]
         self._simulate_fn = None
         self._loss_fn = None
         self._grad_fn = None
-
-    def _get_model_name(self) -> str:
-        """Return model name for HBV."""
-        return "HBV"
 
     def _setup_model_specific_paths(self) -> None:
         """Set up HBV-specific paths."""

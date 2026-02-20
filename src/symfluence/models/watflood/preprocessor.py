@@ -31,13 +31,12 @@ logger = logging.getLogger(__name__)
 class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Pre-processor for WATFLOOD model setup (lumped 1-cell basin)."""
 
+    MODEL_NAME = "WATFLOOD"
+
     def __init__(self, config, logger):
         super().__init__(config, logger)
         self.watflood_dir = self.project_dir / 'WATFLOOD_input'
         self.settings_dir = self.watflood_dir / 'settings'
-
-    def _get_model_name(self) -> str:
-        return 'WATFLOOD'
 
     # ------------------------------------------------------------------
     # Main entry
@@ -272,6 +271,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             # 11. Reach grid (0=no reach)
             for _ in range(nc):
+
                 f.write(_grid_line(z3))
 
             # 12. Land class fraction: conifer = 1.0 at active cell

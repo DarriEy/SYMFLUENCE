@@ -63,10 +63,8 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Creates SUMMA input files in: project_dir/forcing/SUMMA_input/
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for directory structure."""
-        return "SUMMA"
 
+    MODEL_NAME = "SUMMA"
     def __init__(self, config, logger):
         """
         Initialize the SummaPreProcessor.

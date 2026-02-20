@@ -1,0 +1,214 @@
+"""
+CLM Surface Data and Parameter Generator
+
+Generates the CLM5 surface data file (surfdata_clm.nc) and copies
+the default parameter file (clm5_params.nc).
+"""
+import logging
+import shutil
+
+import numpy as np
+
+
+logger = logging.getLogger(__name__)
+
+
+class CLMSurfaceGenerator:
+    """Generates CLM surface data and copies parameter files.
+
+    Parameters
+    ----------
+    preprocessor : CLMPreProcessor
+        Parent preprocessor instance providing config, paths, and
+        geometry helpers.
+    """
+
+    def __init__(self, preprocessor):
+        self.pp = preprocessor
+
+    def generate_surface_data(self) -> None:
+        """Generate CLM5 surface data file.
+
+        Uses netCDF4 directly (not xarray) to ensure all required dimensions
+        exist in the file even without attached variables.  CLM5.3 checks
+        for dimension existence via ncd_inq_dimid at several init stages.
+
+        Required dimensions: lsmlat, lsmlon, natpft(15), cft(2), lsmpft(17),
+        nlevsoi(10), nlevurb(5), nglcec(10), nglcecp1(11), time(12).
+
+        Required variables beyond basic land cover/soil:
+        - PCT_CFT, PCT_GLC_MEC, TOPO_GLC_MEC, GLACIER_REGION
+        - zbedrock, mxsoil_color, gdp, peatf, abm, LAKEDEPTH
+        - EF1_BTR/FET/FDT/SHR/GRS/CRP (MEGAN emission factors)
+        - MONTHLY_LAI/SAI/HEIGHT_TOP/HEIGHT_BOT (satellite phenology)
+
+        Coordinates MUST match the ESMF mesh center exactly.
+        """
+        import netCDF4 as nc4
+
+        lat, lon, _ = self.pp.domain_generator.get_catchment_centroid()
+        pct_sand = self.get_soil_property('PCT_SAND', default=45.0)
+        pct_clay = self.get_soil_property('PCT_CLAY', default=20.0)
+        mean_elev = self.pp.domain_generator.get_mean_elevation()
+
+        surfdata_file = self.pp._get_config_value(
+            lambda: self.pp.config.model.clm.surfdata_file,
+            default='surfdata_clm.nc', dict_key='CLM_SURFDATA_FILE'
+        )
+        filepath = self.pp.params_dir / surfdata_file
+        ds = nc4.Dataset(str(filepath), 'w', format='NETCDF4_CLASSIC')
+
+        # -- Dimensions (all required by CLM5.3 init checks) --
+        ds.createDimension('lsmlat', 1)
+        ds.createDimension('lsmlon', 1)
+        ds.createDimension('natpft', 15)
+        ds.createDimension('cft', 2)
+        ds.createDimension('lsmpft', 17)  # natpft + cft
+        ds.createDimension('nlevsoi', 10)
+        ds.createDimension('nlevurb', 5)
+        ds.createDimension('nglcec', 10)
+        ds.createDimension('nglcecp1', 11)
+        ds.createDimension('time', 12)
+
+        # -- Global attributes --
+        ds.Dataset_Version = np.float32(5.3)
+        ds.title = f'CLM surface data for {self.pp.domain_name}'
+        ds.source = 'SYMFLUENCE'
+
+        # Helper to create 2D scalar fields
+        def add_2d(name, val, dtype='f8', **attrs):
+            v = ds.createVariable(name, dtype, ('lsmlat', 'lsmlon'))
+            v[:] = val
+            for k, a in attrs.items():
+                setattr(v, k, a)
+
+        # -- Spatial coordinates (must match ESMF mesh center) --
+        add_2d('LATIXY', lat, units='degrees_north')
+        add_2d('LONGXY', lon, units='degrees_east')
+        add_2d('LANDFRAC_PFT', 1.0)
+        add_2d('PFTDATA_MASK', 1, dtype='i4')
+
+        # -- Land cover fractions --
+        add_2d('PCT_NATVEG', 100.0)
+        add_2d('PCT_CROP', 0.0)
+        add_2d('PCT_LAKE', 0.0)
+        add_2d('PCT_WETLAND', 0.0)
+        add_2d('PCT_GLACIER', 0.0)
+        add_2d('PCT_OCEAN', 0.0)
+        add_2d('PCT_URBAN', 0.0)
+
+        # PFT distribution: 5% bare, 60% needleleaf evergreen, 35% c3 arctic
+        pct_nat = np.zeros((1, 1, 15))
+        pct_nat[0, 0, 0] = 5.0
+        pct_nat[0, 0, 1] = 60.0
+        pct_nat[0, 0, 12] = 35.0
+        v = ds.createVariable('PCT_NAT_PFT', 'f8', ('lsmlat', 'lsmlon', 'natpft'))
+        v[:] = pct_nat
+
+        # CFT distribution (must sum to 100 within crop landunit)
+        pct_cft = np.zeros((1, 1, 2))
+        pct_cft[0, 0, 0] = 100.0
+        v = ds.createVariable('PCT_CFT', 'f8', ('lsmlat', 'lsmlon', 'cft'))
+        v[:] = pct_cft
+
+        # -- Topography --
+        add_2d('FMAX', 0.5)
+        add_2d('TOPO', mean_elev, units='m')
+        add_2d('STD_ELEV', 500.0, units='m')
+        add_2d('SLOPE', 15.0)
+
+        # -- Soil properties (10 layers) --
+        n_sl = 10
+        for vname, val, kw in [
+            ('PCT_SAND', pct_sand, {'units': '%'}),
+            ('PCT_CLAY', pct_clay, {'units': '%'}),
+            ('watsat', 0.45, {}),
+            ('hksat', 0.005, {'units': 'mm/s'}),
+            ('sucsat', 200.0, {'units': 'mm'}),
+            ('bsw', 6.0, {}),
+        ]:
+            v = ds.createVariable(vname, 'f8', ('lsmlat', 'lsmlon', 'nlevsoi'))
+            v[:] = np.full((1, 1, n_sl), val)
+            for k, a in kw.items():
+                setattr(v, k, a)
+
+        # Organic matter -- decreases with depth
+        org_vals = np.zeros((1, 1, n_sl))
+        org_vals[0, 0, 0:3] = [30.0, 15.0, 5.0]
+        v = ds.createVariable('ORGANIC', 'f8', ('lsmlat', 'lsmlon', 'nlevsoi'))
+        v[:] = org_vals
+        v.units = 'kg/m3'
+
+        add_2d('SOIL_COLOR', 15, dtype='i4')
+        add_2d('zbedrock', 2.0, units='m')
+
+        # -- Glacier elevation classes (must sum to 100) --
+        pct_glc = np.zeros((1, 1, 11))
+        pct_glc[0, 0, 0] = 100.0
+        v = ds.createVariable('PCT_GLC_MEC', 'f8', ('lsmlat', 'lsmlon', 'nglcecp1'))
+        v[:] = pct_glc
+        v = ds.createVariable('TOPO_GLC_MEC', 'f8', ('lsmlat', 'lsmlon', 'nglcecp1'))
+        v[:] = np.zeros((1, 1, 11))
+        add_2d('GLACIER_REGION', 0, dtype='i4')
+
+        # -- Scalars and fire/VOC data --
+        v = ds.createVariable('mxsoil_color', 'i4', ())
+        v[:] = 20
+        add_2d('gdp', 40.0)
+        add_2d('peatf', 0.0)
+        add_2d('abm', 7, dtype='i4')
+        add_2d('LAKEDEPTH', 10.0, units='m')
+
+        # MEGAN isoprene emission factors
+        for ef_name, ef_val in [('EF1_BTR', 10000.), ('EF1_FET', 2000.),
+                                 ('EF1_FDT', 2000.), ('EF1_SHR', 4000.),
+                                 ('EF1_GRS', 800.), ('EF1_CRP', 1.)]:
+            add_2d(ef_name, ef_val, units='ug/m2/hr')
+
+        # -- Monthly vegetation data for satellite phenology (SP) --
+        # LAI seasonal cycle for active PFTs
+        lai_tree = [2.5, 2.5, 2.5, 3.0, 3.5, 4.0, 4.5, 4.5, 4.0, 3.5, 3.0, 2.5]
+        lai_grass = [0., 0., 0., 0.2, 0.5, 1.2, 1.5, 1.5, 0.8, 0.3, 0., 0.]
+
+        for vname, pft_vals, attrs in [
+            ('MONTHLY_LAI',
+             {1: lai_tree, 12: lai_grass},
+             {'units': 'm^2/m^2', 'long_name': 'monthly leaf area index'}),
+            ('MONTHLY_SAI',
+             {1: [1.0]*12, 12: [0.5]*12},
+             {'units': 'm^2/m^2', 'long_name': 'monthly stem area index'}),
+            ('MONTHLY_HEIGHT_TOP',
+             {1: [17.0]*12, 12: [0.5]*12},
+             {'units': 'm', 'long_name': 'monthly vegetation height top'}),
+            ('MONTHLY_HEIGHT_BOT',
+             {1: [8.5]*12, 12: [0.1]*12},
+             {'units': 'm', 'long_name': 'monthly vegetation height bottom'}),
+        ]:
+            data = np.zeros((12, 17, 1, 1))
+            for pft_idx, monthly_vals in pft_vals.items():
+                for m in range(12):
+                    data[m, pft_idx, 0, 0] = monthly_vals[m]
+            v = ds.createVariable(vname, 'f8',
+                                  ('time', 'lsmpft', 'lsmlat', 'lsmlon'))
+            v[:] = data
+            for k, a in attrs.items():
+                setattr(v, k, a)
+
+        ds.close()
+        logger.info(f"Generated CLM surface data: {filepath}")
+
+    def copy_default_params(self) -> None:
+        """Copy default clm5_params.nc from CLM installation."""
+        install_path = self.pp._get_install_path()
+        params_src = install_path / 'share' / 'clm5_params.nc'
+        params_file = self.pp._get_config_value(
+            lambda: self.pp.config.model.clm.params_file,
+            default='clm5_params.nc', dict_key='CLM_PARAMS_FILE'
+        )
+        params_dst = self.pp.params_dir / params_file
+
+        if params_src.exists():
+            shutil.copy2(params_src, params_dst)
+            logger.info(f"Copied default CLM parameters: {params_dst}")
+        else:
+            logger.warning(f"Default clm5_params.nc not found at {params_src}")

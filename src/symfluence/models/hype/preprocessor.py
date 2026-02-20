@@ -43,6 +43,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         - Handle spinup period and time zone adjustments
 
     Workflow Steps:
+
         1. Initialize paths and load configuration
         2. Process forcing data and convert to daily timestep
         3. Generate geographic data files from catchment attributes
@@ -103,9 +104,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         The model handles internal routing, so mizuRoute is not needed.
     """
 
-    def _get_model_name(self) -> str:
-        """Return model name for HYPE."""
-        return "HYPE"
+    MODEL_NAME = "HYPE"
 
     def __init__(self, config, logger: logging.Logger, params: Optional[Dict[str, Any]] = None):
         """

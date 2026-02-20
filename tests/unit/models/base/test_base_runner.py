@@ -32,8 +32,7 @@ from symfluence.core.config.models import SymfluenceConfig
 class ConcreteModelRunner(BaseModelRunner):
     """Concrete implementation of BaseModelRunner for testing."""
 
-    def _get_model_name(self) -> str:
-        return "TEST_MODEL"
+    MODEL_NAME = "TEST_MODEL"
 
 
 def _create_config(tmp_path, overrides=None):
