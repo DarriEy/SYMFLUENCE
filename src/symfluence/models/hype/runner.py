@@ -12,12 +12,11 @@ import logging
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..execution import ModelExecutor
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('HYPE', method_name='run_hype')
-class HYPERunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
+class HYPERunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner class for the HYPE model within SYMFLUENCE.
     Handles model execution and run-time management.
@@ -99,17 +98,16 @@ class HYPERunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             # Execute HYPE
             self.logger.debug(f"Executing command: {' '.join(map(str, cmd))}")
 
-            result = self.execute_model_subprocess(
+            result = self.execute_subprocess(
                 cmd,
                 log_file,
                 cwd=self.setup_dir,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="HYPE simulation completed successfully",
-                success_log_level=logging.DEBUG
             )
 
             # Check execution success
-            if result.returncode == 0 and self._verify_outputs():
+            if result.success and self._verify_outputs():
                 return self.output_dir
             else:
                 self.logger.error("HYPE simulation failed")

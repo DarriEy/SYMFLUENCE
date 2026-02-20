@@ -14,13 +14,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from ..base import BaseModelRunner
-from ..execution import ModelExecutor
 from ..registry import ModelRegistry
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MESH', method_name='run_mesh')
-class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
+class MESHRunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner class for the MESH model.
     Handles model execution, state management, and output processing.
@@ -138,22 +137,21 @@ class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
                 if brew_lib not in current:
                     mesh_env['DYLD_LIBRARY_PATH'] = f"{brew_lib}:{current}" if current else brew_lib
 
-            result = self.execute_model_subprocess(
+            result = self.execute_subprocess(
                 cmd,
                 log_file,
                 cwd=self.forcing_mesh_path,
                 env=mesh_env if mesh_env else None,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully",
-                success_log_level=logging.DEBUG
             )
 
             outputs_ok = self._verify_outputs()
             # Check execution success (accept non-zero if outputs are valid)
             if outputs_ok:
-                if result.returncode != 0:
+                if not result.success:
                     self.logger.warning(
-                        f"MESH exited with code {result.returncode} but required outputs were found; treating as success."
+                        f"MESH exited with code {result.return_code} but required outputs were found; treating as success."
                     )
                 # Copy outputs from forcing directory to output directory
                 self._copy_outputs()

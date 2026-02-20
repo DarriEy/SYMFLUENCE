@@ -1,16 +1,4 @@
-"""
-UnifiedModelExecutor - Combined execution framework for model runners.
-
-.. deprecated::
-    Execution capabilities are now built into ``BaseModelRunner``.
-    ``UnifiedModelExecutor`` is kept as a thin shim that re-exports
-    ``SpatialOrchestrator`` so existing ``class MyRunner(BaseModelRunner,
-    UnifiedModelExecutor)`` declarations continue to work.
-
-    Migration path:
-        - Replace ``UnifiedModelExecutor`` with ``SpatialOrchestrator`` in
-          inheritance lists (or remove it entirely if routing is not needed).
-"""
+"""Deprecated shim — UnifiedModelExecutor is now equivalent to SpatialOrchestrator."""
 
 from .model_executor import (
     ModelExecutor,
@@ -28,17 +16,22 @@ from .spatial_orchestrator import (
 
 
 class UnifiedModelExecutor(SpatialOrchestrator):
-    """
-    Deprecated combined mixin — now equivalent to ``SpatialOrchestrator``.
+    """Deprecated shim — replace with ``SpatialOrchestrator``.
 
-    Execution methods (``execute_subprocess``, SLURM helpers, etc.) have been
-    absorbed into ``BaseModelRunner``.  This class inherits only from
-    ``SpatialOrchestrator`` to provide routing / spatial-mode capabilities.
-
-    Existing runner declarations like
-    ``class FUSERunner(BaseModelRunner, UnifiedModelExecutor)``
-    continue to work unchanged.
+    Execution methods now live on ``BaseModelRunner`` via mixins.
+    This class is equivalent to ``SpatialOrchestrator``.
     """
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        import warnings
+        warnings.warn(
+            f"{cls.__name__} inherits from UnifiedModelExecutor which is deprecated. "
+            "Replace with SpatialOrchestrator in the inheritance list.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     pass
 
 

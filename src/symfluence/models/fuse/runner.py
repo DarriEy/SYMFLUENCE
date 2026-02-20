@@ -1,8 +1,8 @@
 """
 FUSE Runner Module
 
-Refactored to use the Unified Model Execution Framework:
-- UnifiedModelExecutor: Combined execution and spatial orchestration
+Refactored to use the model execution framework:
+- SpatialOrchestrator: Combined execution and spatial orchestration
 """
 
 import logging
@@ -17,7 +17,7 @@ import xarray as xr
 
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
-from ..execution import UnifiedModelExecutor
+from ..execution import SpatialOrchestrator
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..registry import ModelRegistry
 from .subcatchment_processor import SubcatchmentProcessor
@@ -28,13 +28,13 @@ from symfluence.core.exceptions import (
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
+class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.
 
-    Now uses the Unified Model Execution Framework for:
-    - Subprocess execution (via ModelExecutor)
+    Now uses the model execution framework for:
+    - Subprocess execution (via BaseModelRunner execution mixins)
     - Spatial mode handling and routing (via SpatialOrchestrator)
     - Output format conversion (via OutputConverterMixin)
 
@@ -60,7 +60,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             reporting_manager: Optional reporting manager for experiment tracking.
 
         Note:
-            Uses Unified Model Execution Framework mixins for subprocess execution,
+            Uses model execution framework mixins for subprocess execution,
             spatial orchestration, output conversion, and mizuRoute integration.
         """
         # Call base class
@@ -1027,7 +1027,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         Execute the FUSE model with specified run mode.
 
         Constructs and executes the FUSE command with the given mode,
-        capturing output to a log file. Uses ModelExecutor mixin for
+        capturing output to a log file. Uses BaseModelRunner execution mixins for
         subprocess management.
 
         Args:
@@ -1067,15 +1067,15 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         log_file = self.get_log_path() / f'fuse_{mode}.log'
 
         try:
-            result = self.execute_model_subprocess(
+            result = self.execute_subprocess(
                 command,
                 log_file,
                 cwd=self.setup_dir,  # Run from settings directory where input_info.txt lives
                 check=False,  # Don't raise, we'll return boolean
                 success_message="FUSE execution completed"
             )
-            self.logger.info(f"FUSE return code: {result.returncode}")
-            return result.returncode == 0
+            self.logger.info(f"FUSE return code: {result.return_code}")
+            return result.success
 
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed with error: {str(e)}")

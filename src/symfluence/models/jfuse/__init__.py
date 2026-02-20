@@ -1,48 +1,14 @@
-"""
-jFUSE Model Integration for SYMFLUENCE.
+"""jFUSE (JAX-based FUSE) differentiable hydrological model.
 
 .. warning::
-    **EXPERIMENTAL MODULE** - This module is in active development and should be
-    used at your own risk. The API may change without notice in future releases.
-    Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
+    **EXPERIMENTAL** — API may change without notice.
 
-This module provides integration for jFUSE (JAX-based FUSE), a differentiable
-hydrological model that supports gradient-based calibration via JAX autodiff.
-
-jFUSE implements the Framework for Understanding Structural Errors (FUSE) model
-with support for:
-- Multiple model structures (PRMS, Sacramento, TOPMODEL, VIC)
-- Both lumped and distributed spatial modes
-- Native gradient computation via JAX autodiff
-- Efficient JIT compilation for fast model execution
-
-Components:
-    Preprocessor: Prepares forcing data (precip, temp, PET)
-    Runner: Executes jFUSE simulations
-    Postprocessor: Extracts streamflow results
-    Extractor: Advanced result analysis utilities
-    Worker: Calibration worker with native gradient support
-    ParameterManager: Parameter bounds and transformations
-
-Example Usage:
-
-    Basic simulation:
-    >>> from symfluence.models.jfuse import JFUSERunner
-    >>> runner = JFUSERunner(config, logger)
-    >>> output = runner.run_jfuse()
-
-    Gradient-based calibration:
-    >>> from symfluence.models.jfuse import JFUSEWorker
-    >>> worker = JFUSEWorker(config, logger)
-    >>> if worker.supports_native_gradients():
-    ...     loss, grads = worker.evaluate_with_gradient(params, 'kge')
-
-Requirements:
-    - jfuse: pip install jfuse (or from local development install)
-    - JAX: pip install jax jaxlib (for gradient computation)
+Supports multiple model structures, gradient-based calibration via JAX
+autodiff, and both lumped and distributed spatial modes.
 """
 
 import warnings
+from typing import TYPE_CHECKING
 
 # Emit experimental warning on import
 warnings.warn(
@@ -52,35 +18,17 @@ warnings.warn(
     stacklevel=2
 )
 
-# Import components to trigger registration with registries
-from .config import JFUSEConfig, JFUSEConfigAdapter
-from .preprocessor import JFUSEPreProcessor
-from .runner import JFUSERunner
-from .postprocessor import JFUSEPostprocessor, JFUSERoutedPostprocessor
-from .extractor import JFUSEResultExtractor
-
-# Import calibration components
-from .calibration import JFUSEWorker, JFUSEParameterManager, get_jfuse_calibration_bounds
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
-
-# Register result extractor with ModelRegistry
-ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
-
-# Check for jFUSE availability
+# Lightweight availability probes (cheap — no heavy imports)
 try:
-    import jfuse
+    import jfuse  # noqa: F401
     HAS_JFUSE = True
     JFUSE_VERSION = getattr(jfuse, '__version__', 'unknown')
 except ImportError:
     HAS_JFUSE = False
     JFUSE_VERSION = None
 
-# Check for JAX availability
 try:
-    import jax
+    import jax  # noqa: F401
     HAS_JAX = True
     JAX_VERSION = jax.__version__
 except ImportError:
@@ -89,12 +37,7 @@ except ImportError:
 
 
 def check_jfuse_installation() -> dict:
-    """
-    Check jFUSE and JAX installation status.
-
-    Returns:
-        Dictionary with installation status and version info.
-    """
+    """Check jFUSE and JAX installation status."""
     return {
         'jfuse_installed': HAS_JFUSE,
         'jfuse_version': JFUSE_VERSION,
@@ -104,22 +47,67 @@ def check_jfuse_installation() -> dict:
     }
 
 
+# Lazy import mapping — avoids importing JAX/jfuse internals at module level
+_LAZY_IMPORTS = {
+    'JFUSEConfig': ('.config', 'JFUSEConfig'),
+    'JFUSEConfigAdapter': ('.config', 'JFUSEConfigAdapter'),
+    'JFUSEPreProcessor': ('.preprocessor', 'JFUSEPreProcessor'),
+    'JFUSERunner': ('.runner', 'JFUSERunner'),
+    'JFUSEPostprocessor': ('.postprocessor', 'JFUSEPostprocessor'),
+    'JFUSERoutedPostprocessor': ('.postprocessor', 'JFUSERoutedPostprocessor'),
+    'JFUSEResultExtractor': ('.extractor', 'JFUSEResultExtractor'),
+    'JFUSEWorker': ('.calibration', 'JFUSEWorker'),
+    'JFUSEParameterManager': ('.calibration', 'JFUSEParameterManager'),
+    'get_jfuse_calibration_bounds': ('.calibration', 'get_jfuse_calibration_bounds'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for jFUSE module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return list(_LAZY_IMPORTS.keys()) + [
+        'HAS_JFUSE', 'HAS_JAX', 'JFUSE_VERSION', 'JAX_VERSION',
+        'check_jfuse_installation', 'register_with_model_registry',
+    ]
+
+
+def register_with_model_registry():
+    """Register jFUSE components with the ModelRegistry."""
+    from .config import JFUSEConfigAdapter
+    from .extractor import JFUSEResultExtractor
+    from symfluence.models.registry import ModelRegistry
+
+    ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
+    ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
+
+
+# Eagerly register when module is imported
+register_with_model_registry()
+
+
+if TYPE_CHECKING:
+    from .config import JFUSEConfig, JFUSEConfigAdapter
+    from .preprocessor import JFUSEPreProcessor
+    from .runner import JFUSERunner
+    from .postprocessor import JFUSEPostprocessor, JFUSERoutedPostprocessor
+    from .extractor import JFUSEResultExtractor
+    from .calibration import JFUSEWorker, JFUSEParameterManager, get_jfuse_calibration_bounds
+
+
 __all__ = [
-    # Configuration
-    'JFUSEConfig',
-    'JFUSEConfigAdapter',
-    # Model components
-    'JFUSEPreProcessor',
-    'JFUSERunner',
-    'JFUSEPostprocessor',
-    'JFUSERoutedPostprocessor',
-    'JFUSEResultExtractor',
-    # Calibration components
-    'JFUSEWorker',
-    'JFUSEParameterManager',
-    'get_jfuse_calibration_bounds',
-    # Utilities
+    'JFUSEConfig', 'JFUSEConfigAdapter',
+    'JFUSEPreProcessor', 'JFUSERunner', 'JFUSEPostprocessor',
+    'JFUSERoutedPostprocessor', 'JFUSEResultExtractor',
+    'JFUSEWorker', 'JFUSEParameterManager', 'get_jfuse_calibration_bounds',
     'check_jfuse_installation',
-    'HAS_JFUSE',
-    'HAS_JAX',
+    'HAS_JFUSE', 'HAS_JAX',
+    'register_with_model_registry',
 ]

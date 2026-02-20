@@ -15,12 +15,11 @@ import pandas as pd
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.execution import ModelExecutor
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
-class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
+class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
     """
     A class to run the mizuRoute model.
 
@@ -512,7 +511,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
             mizu_command = [str(self.mizu_exe), str(settings_path / control_file)]
             self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)}')
 
-            self.execute_model_subprocess(
+            self.execute_subprocess(
                 mizu_command,
                 mizu_log_path / mizu_log_name,
                 success_message="mizuRoute run completed successfully"

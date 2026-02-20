@@ -45,75 +45,11 @@ from .timing import TimingMixin
 
 
 class ConfigurableMixin(LoggingMixin, ProjectContextMixin, FileUtilsMixin, ValidationMixin, TimingMixin):
-    """
-    Unified mixin for classes requiring logging, config, project context,
-    file utils, validation, and timing.
+    """Unified mixin: logging + config + project paths + file utils + validation + timing.
 
-    This is the **recommended mixin** for most SYMFLUENCE components that need
-    to be aware of the project structure and configuration.
-
-    Provides
-    --------
-    From LoggingMixin:
-        - self.logger : logging.Logger
-            Module-specific logger instance
-
-    From ConfigMixin (via ProjectContextMixin):
-        - self.config : SymfluenceConfig
-            Typed configuration object (must be set by subclass)
-        - self.config_dict : Dict[str, Any]
-            Flattened config dictionary for legacy code
-        - Convenience properties: experiment_id, domain_definition_method,
-          time_start, time_end, calibration_period, evaluation_period,
-          forcing_dataset, hydrological_model, routing_model, optimization_metric
-
-    From ProjectContextMixin:
-        - self.data_dir : Path
-            Root data directory
-        - self.domain_name : str
-            Domain identifier
-        - self.project_dir : Path
-            Project directory ({data_dir}/domain_{domain_name})
-        - Standard subdirectories: project_shapefiles_dir, project_forcing_dir,
-          project_observations_dir, project_simulations_dir, project_settings_dir
-
-    From FileUtilsMixin:
-        - ensure_dir(path) : Path
-            Create directory if it doesn't exist
-        - copy_file(src, dst) : Path
-            Copy file with logging
-        - copy_tree(src, dst) : Path
-            Copy directory tree
-        - safe_delete(path) : bool
-            Delete file/directory with error handling
-
-    From ValidationMixin:
-        - validate_config(required_keys) : bool
-            Validate required config keys exist
-        - validate_file(path) : bool
-            Validate file exists
-        - validate_dir(path) : bool
-            Validate directory exists
-
-    From TimingMixin:
-        - time_limit(task_name) : ContextManager
-            Log execution time of code block
-
-    Requirements
-    ------------
-    Subclasses must set ``self.config`` to a SymfluenceConfig instance
-    before accessing config-dependent properties.
-
-    Example
-    -------
-    >>> class MyProcessor(ConfigurableMixin):
-    ...     def __init__(self, config):
-    ...         self.config = config
-    ...
-    ...     def run(self):
-    ...         self.logger.info(f"Running for {self.domain_name}")
-    ...         with self.time_limit("main processing"):
-    ...             self.ensure_dir(self.project_dir / "output")
+    Recommended mixin for most SYMFLUENCE components. Subclasses must set
+    ``self.config`` to a SymfluenceConfig before using config-dependent properties.
+    See parent mixins for available methods and properties.
     """
 
     def _resolve_config_value(self, typed_accessor, dict_key=None, default=None):

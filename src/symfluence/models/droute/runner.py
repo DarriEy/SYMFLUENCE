@@ -12,7 +12,6 @@ import numpy as np
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.execution import ModelExecutor
 from symfluence.models.droute.mixins import DRouteConfigMixin
 from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
@@ -27,7 +26,7 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('DROUTE', method_name='run_droute')
-class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):  # type: ignore[misc]
+class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
     """
     Runner for the dRoute routing model.
 
@@ -227,7 +226,7 @@ class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):  # type: 
         self.logger.debug(f"Running dRoute command: {' '.join(command)}")
 
         # Execute
-        self.execute_model_subprocess(
+        self.execute_subprocess(
             command,
             log_file,
             success_message="dRoute run completed successfully"

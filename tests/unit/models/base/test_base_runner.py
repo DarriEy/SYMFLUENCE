@@ -609,7 +609,7 @@ class TestAugmentCondaLibraryPaths:
 
         with patch('subprocess.run') as mock_run, \
              patch.dict(os.environ, {'CONDA_PREFIX': '/opt/conda'}, clear=False), \
-             patch('symfluence.models.base.base_runner.augment_conda_library_paths') as mock_augment:
+             patch('symfluence.models.mixins.subprocess_execution.augment_conda_library_paths') as mock_augment:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result

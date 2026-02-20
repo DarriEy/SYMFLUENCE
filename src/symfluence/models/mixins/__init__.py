@@ -6,6 +6,8 @@ from .dataset_builder import DatasetBuilderMixin
 from .output_converter import OutputConverterMixin
 from .model_component import ModelComponentMixin
 from .spatial_mode_mixin import SpatialModeDetectionMixin
+from .subprocess_execution import SubprocessExecutionMixin
+from .slurm_execution import SlurmExecutionMixin
 
 __all__ = [
     'PETCalculatorMixin',
@@ -14,4 +16,6 @@ __all__ = [
     'OutputConverterMixin',
     'ModelComponentMixin',
     'SpatialModeDetectionMixin',
+    'SubprocessExecutionMixin',
+    'SlurmExecutionMixin',
 ]
