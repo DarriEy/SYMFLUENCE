@@ -255,30 +255,41 @@ class TestConfigResolve:
         assert parsed['domain']['name'] == 'test_basin'
 
     @patch('symfluence.core.config.transformers.transform_flat_to_nested')
-    @patch('symfluence.core.config.defaults.ConfigDefaults.get_defaults')
+    @patch('symfluence.core.config.models.SymfluenceConfig')
     @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
-    def test_resolve_diff_mode(self, mock_load_config, mock_get_defaults, mock_transform, capsys):
+    def test_resolve_diff_mode(self, mock_load_config, mock_config_cls, mock_transform, capsys):
         """Test resolve with --diff shows only non-default values."""
         mock_config = MagicMock()
+        mock_config.domain.name = 'my_custom'
+        mock_config.domain.time_start = '2020-01-01 00:00'
+        mock_config.domain.time_end = '2020-12-31 23:00'
+        mock_config.model.hydrological_model = 'SUMMA'
+        mock_config.forcing.dataset = 'ERA5'
+        mock_config.system.data_dir = '/data'
+        mock_config.system.code_dir = '/code'
         # Nested output for the default (non-flat) path
         mock_config.to_dict.side_effect = lambda flatten: (
             {'DOMAIN_NAME': 'my_custom', 'NUM_PROCESSES': 1}
             if flatten else {'domain': {'name': 'my_custom'}}
         )
         mock_load_config.return_value = mock_config
-        mock_get_defaults.return_value = {
-            'DOMAIN_NAME': 'default_domain',
-            'NUM_PROCESSES': 1  # same as resolved → should be filtered out
+
+        # Mock the reference config built by from_minimal
+        mock_ref_config = MagicMock()
+        mock_ref_config.to_dict.return_value = {
+            'DOMAIN_NAME': 'my_custom',  # same → filtered out
+            'NUM_PROCESSES': 1  # same → filtered out
         }
+        mock_config_cls.from_minimal.return_value = mock_ref_config
         mock_transform.return_value = {'domain': {'name': 'my_custom'}}
 
         result = ConfigCommands.resolve(self._make_args(diff=True))
 
         assert result == ExitCode.SUCCESS
-        # The transform should have been called with only changed keys
+        # With ref matching resolved, both keys are same → empty changed set
         mock_transform.assert_called_once()
         call_args = mock_transform.call_args[0][0]
-        assert 'DOMAIN_NAME' in call_args
+        # Both DOMAIN_NAME and NUM_PROCESSES have same values → filtered out
         assert 'NUM_PROCESSES' not in call_args
 
     @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')

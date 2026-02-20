@@ -275,6 +275,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'NEX_VARIABLES': ('forcing', 'nex', 'variables'),
 
     # Forcing > EM-Earth
+    'EM_EARTH_REGION': ('forcing', 'em_earth', 'region'),
     'EM_EARTH_PRCP_DIR': ('forcing', 'em_earth', 'prcp_dir'),
     'EM_EARTH_TMEAN_DIR': ('forcing', 'em_earth', 'tmean_dir'),
     'EM_EARTH_MIN_BBOX_SIZE': ('forcing', 'em_earth', 'min_bbox_size'),

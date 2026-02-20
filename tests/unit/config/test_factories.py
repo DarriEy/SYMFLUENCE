@@ -264,3 +264,118 @@ class TestFactoryRoundTrip:
         # Verify bracket access works
         assert config1['DOMAIN_NAME'] == flat['DOMAIN_NAME']
         assert config1['EXPERIMENT_ID'] == flat['EXPERIMENT_ID']
+
+
+class TestFlatNestedParity:
+    """Verify flat and nested configs resolve to the same Pydantic defaults."""
+
+    def create_temp_config(self, content: str) -> Path:
+        """Helper to create temporary config file"""
+        fd, path = tempfile.mkstemp(suffix='.yaml')
+        with os.fdopen(fd, 'w') as f:
+            f.write(content)
+        return Path(path)
+
+    def test_flat_nested_defaults_match(self):
+        """Flat and nested configs with same required fields produce identical defaults.
+
+        This is the core invariant: after removing ConfigDefaults pre-seeding,
+        both paths should resolve optional fields to the same Pydantic defaults.
+        """
+        # Flat format config (uppercase keys)
+        flat_yaml = """
+SYMFLUENCE_DATA_DIR: /data
+SYMFLUENCE_CODE_DIR: /code
+DOMAIN_NAME: parity_test
+EXPERIMENT_ID: run_1
+EXPERIMENT_TIME_START: "2020-01-01 00:00"
+EXPERIMENT_TIME_END: "2020-12-31 23:00"
+DOMAIN_DEFINITION_METHOD: lumped
+SUB_GRID_DISCRETIZATION: grus
+HYDROLOGICAL_MODEL: SUMMA
+FORCING_DATASET: ERA5
+"""
+        # Nested format config (hierarchical)
+        nested_yaml = """
+system:
+  data_dir: /data
+  code_dir: /code
+domain:
+  name: parity_test
+  experiment_id: run_1
+  time_start: "2020-01-01 00:00"
+  time_end: "2020-12-31 23:00"
+  definition_method: lumped
+  discretization: grus
+model:
+  hydrological_model: SUMMA
+forcing:
+  dataset: ERA5
+"""
+        flat_path = self.create_temp_config(flat_yaml)
+        nested_path = self.create_temp_config(nested_yaml)
+
+        try:
+            flat_config = SymfluenceConfig.from_file(flat_path)
+            nested_config = SymfluenceConfig.from_file(nested_path)
+
+            flat_dict = flat_config.to_dict(flatten=True)
+            nested_dict = nested_config.to_dict(flatten=True)
+
+            # All optional fields that exist in both should have the same values
+            all_keys = set(flat_dict.keys()) | set(nested_dict.keys())
+            mismatches = {}
+            for key in all_keys:
+                if key in flat_dict and key in nested_dict:
+                    if flat_dict[key] != nested_dict[key]:
+                        mismatches[key] = (flat_dict[key], nested_dict[key])
+
+            assert not mismatches, (
+                f"Flat/nested config defaults diverge on {len(mismatches)} keys:\n"
+                + "\n".join(
+                    f"  {k}: flat={v[0]!r}, nested={v[1]!r}"
+                    for k, v in sorted(mismatches.items())
+                )
+            )
+        finally:
+            flat_path.unlink()
+            nested_path.unlink()
+
+    def test_lapse_rate_is_positive(self):
+        """LAPSE_RATE default should be positive 0.0065, not the old negative value."""
+        config = SymfluenceConfig.from_minimal(
+            domain_name='test',
+            model='SUMMA',
+            EXPERIMENT_TIME_START='2020-01-01 00:00',
+            EXPERIMENT_TIME_END='2020-12-31 23:00'
+        )
+        assert config.forcing.lapse_rate == 0.0065
+
+    def test_flat_config_uses_pydantic_defaults(self):
+        """Flat config loading should use Pydantic defaults, not old ConfigDefaults."""
+        flat_yaml = """
+SYMFLUENCE_DATA_DIR: /data
+SYMFLUENCE_CODE_DIR: /code
+DOMAIN_NAME: default_test
+EXPERIMENT_ID: run_1
+EXPERIMENT_TIME_START: "2020-01-01 00:00"
+EXPERIMENT_TIME_END: "2020-12-31 23:00"
+DOMAIN_DEFINITION_METHOD: lumped
+SUB_GRID_DISCRETIZATION: grus
+HYDROLOGICAL_MODEL: SUMMA
+FORCING_DATASET: ERA5
+"""
+        config_path = self.create_temp_config(flat_yaml)
+
+        try:
+            config = SymfluenceConfig.from_file(config_path)
+
+            # These were the 8 conflict values — all should match Pydantic now
+            assert config.forcing.lapse_rate == 0.0065  # was -0.0065 in ConfigDefaults
+            assert config.domain.delineation.stream_threshold == 5000.0  # was 1000
+            assert config.domain.elevation_band_size == 200.0  # was 400
+            assert config.domain.delineation.move_outlets_max_distance == 200.0  # was 1000
+            assert config.system.random_seed is None  # was 42
+            assert config.domain.delineation.drop_analysis_num_thresholds == 10  # was 20
+        finally:
+            config_path.unlink()

@@ -3130,6 +3130,13 @@ EM_EARTH_MIN_BBOX_SIZE: 0.1
 #   Usage:      3
 EM_EARTH_PRCP_DIR: null
 
+# EM_EARTH_REGION
+#   Type:        str
+#   Default:     NorthAmerica
+#   Source:      EMEarthConfig (forcing.py)
+#   Usage:      1
+EM_EARTH_REGION: "NorthAmerica"
+
 # EM_EARTH_TMEAN_DIR
 #   Type:        str
 #   Default:     None
@@ -4796,6 +4803,222 @@ PARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N"
 #   Default:     3600
 #   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_TIMEOUT: 3600
+
+
+# 9.7b. CLM-ParFlow Coupled Model Configuration
+# ================================================================================
+# ParFlow with tightly-coupled CLM (Common Land Model) land surface scheme
+# Built from ParFlow source with -DPARFLOW_HAVE_CLM=ON
+
+# CLMPARFLOW_INSTALL_PATH — Path to CLM-ParFlow installation directory
+#   Type:        str
+#   Default:     default
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_INSTALL_PATH: default
+
+# CLMPARFLOW_EXE — CLM-ParFlow executable name
+#   Type:        str
+#   Default:     parflow
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_EXE: "parflow"
+
+# CLMPARFLOW_DIR — CLM-ParFlow working directory
+#   Type:        str
+#   Default:     default
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_DIR: default
+
+# SETTINGS_CLMPARFLOW_PATH — Path to CLM-ParFlow settings directory
+#   Type:        str
+#   Default:     default
+#   Source:      CLMParFlowConfig (model_configs.py)
+SETTINGS_CLMPARFLOW_PATH: default
+
+# CLMPARFLOW_SPATIAL_MODE — Spatial mode for CLM-ParFlow simulations
+#   Type:        str
+#   Default:     lumped
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_SPATIAL_MODE: "lumped"
+
+# CLMPARFLOW_NX — Number of grid cells in X direction
+#   Type:        int
+#   Default:     3
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_NX: 3
+
+# CLMPARFLOW_NY — Number of grid cells in Y direction
+#   Type:        int
+#   Default:     1
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_NY: 1
+
+# CLMPARFLOW_NZ — Number of grid cells in Z direction
+#   Type:        int
+#   Default:     1
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_NZ: 1
+
+# CLMPARFLOW_DX — Grid cell size in X direction (meters)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_DX: 1000.0
+
+# CLMPARFLOW_DY — Grid cell size in Y direction (meters)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_DY: 1000.0
+
+# CLMPARFLOW_DZ — Grid cell size in Z direction (meters)
+#   Type:        float
+#   Default:     2.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_DZ: 2.0
+
+# CLMPARFLOW_TOP — Top of domain elevation (meters)
+#   Type:        float
+#   Default:     2.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_TOP: 2.0
+
+# CLMPARFLOW_BOT — Bottom of domain elevation (meters)
+#   Type:        float
+#   Default:     0.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_BOT: 0.0
+
+# CLMPARFLOW_K_SAT — Saturated hydraulic conductivity (m/hr)
+#   Type:        float
+#   Default:     5.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_K_SAT: 5.0
+
+# CLMPARFLOW_POROSITY — Soil porosity (fraction)
+#   Type:        float
+#   Default:     0.4
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_POROSITY: 0.4
+
+# CLMPARFLOW_VG_ALPHA — van Genuchten alpha parameter (1/m)
+#   Type:        float
+#   Default:     1.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_VG_ALPHA: 1.0
+
+# CLMPARFLOW_VG_N — van Genuchten n parameter (dimensionless)
+#   Type:        float
+#   Default:     2.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_VG_N: 2.0
+
+# CLMPARFLOW_S_RES — Residual saturation (fraction)
+#   Type:        float
+#   Default:     0.1
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_S_RES: 0.1
+
+# CLMPARFLOW_S_SAT — Maximum saturation (fraction)
+#   Type:        float
+#   Default:     1.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_S_SAT: 1.0
+
+# CLMPARFLOW_SS — Specific storage (1/m)
+#   Type:        float
+#   Default:     1.0e-05
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_SS: 1.0e-05
+
+# CLMPARFLOW_MANNINGS_N — Manning's roughness coefficient
+#   Type:        float
+#   Default:     0.03
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_MANNINGS_N: 0.03
+
+# CLMPARFLOW_SLOPE_X — Surface slope in X direction
+#   Type:        float
+#   Default:     0.01
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_SLOPE_X: 0.01
+
+# CLMPARFLOW_INITIAL_PRESSURE — Initial pressure head (meters)
+#   Type:        float
+#   Default:     None
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_INITIAL_PRESSURE: null
+
+# CLMPARFLOW_VEGM_FILE — CLM vegetation map file
+#   Type:        str
+#   Default:     drv_vegm.dat
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_VEGM_FILE: "drv_vegm.dat"
+
+# CLMPARFLOW_VEGP_FILE — CLM vegetation parameter file
+#   Type:        str
+#   Default:     drv_vegp.dat
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_VEGP_FILE: "drv_vegp.dat"
+
+# CLMPARFLOW_DRV_CLMIN_FILE — CLM driver input file
+#   Type:        str
+#   Default:     drv_clmin.dat
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_DRV_CLMIN_FILE: "drv_clmin.dat"
+
+# CLMPARFLOW_ISTEP_START — Starting timestep index for CLM
+#   Type:        int
+#   Default:     1
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_ISTEP_START: 1
+
+# CLMPARFLOW_METFILE — CLM meteorological forcing filename
+#   Type:        str
+#   Default:     forcing.1d
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_METFILE: "forcing.1d"
+
+# CLMPARFLOW_METPATH — Path to CLM meteorological forcing files
+#   Type:        str
+#   Default:     default
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_METPATH: default
+
+# CLMPARFLOW_SOLVER — ParFlow solver type
+#   Type:        str
+#   Default:     Richards
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_SOLVER: "Richards"
+
+# CLMPARFLOW_TIMESTEP_HOURS — Simulation timestep (hours)
+#   Type:        float
+#   Default:     1.0
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_TIMESTEP_HOURS: 1.0
+
+# CLMPARFLOW_NUM_PROCS — Number of MPI processes
+#   Type:        int
+#   Default:     1
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_NUM_PROCS: 1
+
+# EXPERIMENT_OUTPUT_CLMPARFLOW — Output directory for CLM-ParFlow results
+#   Type:        str
+#   Default:     default
+#   Source:      CLMParFlowConfig (model_configs.py)
+EXPERIMENT_OUTPUT_CLMPARFLOW: default
+
+# CLMPARFLOW_PARAMS_TO_CALIBRATE — Parameters to calibrate
+#   Type:        str
+#   Default:     K_SAT,POROSITY,VG_ALPHA,VG_N,S_RES,MANNINGS_N,...
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,S_RES,MANNINGS_N,SNOW17_SCF,SNOW17_MFMAX,SNOW17_MFMIN,SNOW17_PXTEMP,SNOW_LAPSE_RATE,ROUTE_ALPHA,ROUTE_K_SLOW,ROUTE_BASEFLOW"
+
+# CLMPARFLOW_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     7200
+#   Source:      CLMParFlowConfig (model_configs.py)
+CLMPARFLOW_TIMEOUT: 7200
 
 
 # 9.8. PIHM Model Configuration

@@ -43,6 +43,7 @@ class EMEarthConfig(BaseModel):
     """EM-Earth ensemble meteorological forcing settings"""
     model_config = FROZEN_CONFIG
 
+    region: str = Field(default='NorthAmerica', alias='EM_EARTH_REGION')
     prcp_dir: Optional[str] = Field(default=None, alias='EM_EARTH_PRCP_DIR')
     tmean_dir: Optional[str] = Field(default=None, alias='EM_EARTH_TMEAN_DIR')
     min_bbox_size: float = Field(default=0.1, alias='EM_EARTH_MIN_BBOX_SIZE')

@@ -161,7 +161,6 @@ def from_file_factory(
         _normalize_key,
         _format_validation_error
     )
-    from symfluence.core.config.defaults import ConfigDefaults
     from symfluence.core.config.transformers import transform_flat_to_nested
     from symfluence.core.exceptions import ConfigurationError
     from pydantic import ValidationError
@@ -199,9 +198,9 @@ def from_file_factory(
                 override_nested = transform_flat_to_nested(normalized_overrides)
                 nested_config = _deep_merge(nested_config, override_nested)
     else:
-        # Handle flat config format (original behavior)
-        # Start with defaults
-        config_dict = ConfigDefaults.get_defaults().copy()
+        # Handle flat config format — Pydantic Field defaults are the single
+        # source of truth; no pre-seeding with a separate defaults dict.
+        config_dict = {}
 
         # Add sensible defaults for required system paths
         if 'SYMFLUENCE_CODE_DIR' not in config_dict:
