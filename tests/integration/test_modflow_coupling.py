@@ -453,11 +453,11 @@ class TestMODFLOWRegistration:
         assert ModelRegistry.get_postprocessor('MODFLOW') is not None
 
     def test_modflow_runner_method(self):
-        """Verify runner method name is registered."""
+        """Verify runner has a run() method (direct override, no method_name dispatch)."""
         from symfluence.models.registry import ModelRegistry
 
-        method = ModelRegistry.get_runner_method('MODFLOW')
-        assert method == 'run_modflow'
+        runner_cls = ModelRegistry.get_runner('MODFLOW')
+        assert hasattr(runner_cls, 'run'), "MODFLOWRunner must have a run() method"
 
 
 # ---------------------------------------------------------------------------
