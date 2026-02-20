@@ -43,7 +43,7 @@ class BasicConfigParams(param.Parameterized):
     forcing_dataset = param.Selector(
         default='ERA5',
         objects=['ERA5', 'RDRS', 'CASR', 'CARRA', 'CERRA', 'MSWEP', 'AORC',
-                 'CONUS404', 'HRRR', 'NLDAS', 'NLDAS2', 'NEX-GDDP', 'EM-EARTH', 'local'],
+                 'CONUS404', 'HRRR', 'DAYMET', 'NLDAS', 'NLDAS2', 'NEX-GDDP', 'EM-EARTH', 'local'],
         doc="Meteorological forcing dataset"
     )
 
