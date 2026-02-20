@@ -222,7 +222,7 @@ class ToolInstaller(BaseService):
             tool_name: Name of the tool about to be built.
 
         Returns:
-            True (always proceeds, with a warning for missing tools).
+            True if all essential build tools are found, False otherwise.
         """
         bash = self._find_bash()
         is_wsl = (
@@ -230,6 +230,13 @@ class ToolInstaller(BaseService):
             and bash
             and os.path.basename(bash).lower() == "wsl.exe"
         )
+
+        # Check against the build environment PATH (which may include
+        # additional directories from _get_clean_build_env), not just
+        # the current process PATH.
+        build_env = self._get_clean_build_env()
+        build_path = build_env.get("PATH", "")
+
         missing = []
         for tool in ("cmake", "gfortran", "make"):
             if is_wsl:
@@ -240,12 +247,12 @@ class ToolInstaller(BaseService):
                 )
                 if probe.returncode != 0:
                     missing.append(tool)
-            elif not shutil.which(tool):
+            elif not shutil.which(tool, path=build_path):
                 missing.append(tool)
 
         if missing:
-            self._console.warning(
-                f"Missing build tools for {tool_name}: {', '.join(missing)}"
+            self._console.error(
+                f"Missing required build tools for {tool_name}: {', '.join(missing)}"
             )
             if sys.platform == "win32":
                 self._console.indent(
@@ -270,6 +277,25 @@ class ToolInstaller(BaseService):
                 self._console.indent(
                     "  brew install cmake gcc make             # macOS"
                 )
+                # HPC hint: detect module system (lmod/environment-modules).
+                # 'module' is a shell function, not a binary, so check env vars.
+                has_modules = any(
+                    os.environ.get(v) for v in
+                    ("LMOD_DIR", "MODULESHOME", "LOADEDMODULES")
+                )
+                if has_modules:
+                    self._console.indent(
+                        "  module load cmake gcc              # HPC (check 'module avail')"
+                    )
+
+            if getattr(self, "_force", False):
+                self._console.warning(
+                    "--force passed: proceeding despite missing build tools"
+                )
+                return True
+
+            return False
+
         return True
 
     def _get_clean_build_env(self) -> Dict[str, str]:
@@ -376,9 +402,13 @@ class ToolInstaller(BaseService):
                 if os.path.exists("/usr/bin/ld"):
                     env["LD"] = "/usr/bin/ld"
             else:
-                # Non-2i2c environment - ensure /usr/bin is accessible
-                if "/usr/bin" not in env.get("PATH", "").split(sep)[0]:
-                    env["PATH"] = "/usr/bin" + sep + env.get("PATH", "")
+                # Non-2i2c, non-conda environment (HPC, desktop Linux).
+                # Append /usr/bin as a fallback so basic tools are reachable,
+                # but do NOT prepend — that would override HPC module-loaded
+                # compilers (e.g. gfortran from `module load gcc/13.3`).
+                current_path = env.get("PATH", "")
+                if "/usr/bin" not in current_path.split(sep):
+                    env["PATH"] = current_path + sep + "/usr/bin"
 
         # Set SYMFLUENCE_PATCHED if patched mode is enabled
         if getattr(self, '_patched', False):
