@@ -236,6 +236,9 @@ fi
 # On HPC (no conda), libraries come from module-provided paths that won't
 # be on LD_LIBRARY_PATH at runtime. Embedding RPATH in the binary means
 # it finds its libraries without any LD_LIBRARY_PATH at runtime.
+SUMMA_INSTALL_LIB="$(pwd)/lib"
+mkdir -p "$SUMMA_INSTALL_LIB"
+
 SUMMA_RPATH_DIRS=""
 _add_rpath() {
     local d="$1"
@@ -243,6 +246,8 @@ _add_rpath() {
         SUMMA_RPATH_DIRS="${SUMMA_RPATH_DIRS:+${SUMMA_RPATH_DIRS};}${d}"
     fi
 }
+# SUMMA's own lib directory (libsumma.so lives here after install)
+_add_rpath "$SUMMA_INSTALL_LIB"
 # SUNDIALS
 _add_rpath "$SUNDIALS_DIR/lib"
 _add_rpath "$SUNDIALS_DIR/lib64"
@@ -307,6 +312,33 @@ cmake -S build -B cmake_build \
 # Build all targets (repo scripts use 'all', not just 'summa_sundials')
 cmake --build cmake_build --target all -j ${NCORES:-4}
 
+# Stage libsumma.so into lib/ so the binary can find it via RPATH.
+# CMake may place it in cmake_build/lib/, cmake_build/, or lib/.
+for libcandidate in \
+    cmake_build/lib/libsumma.so \
+    cmake_build/libsumma.so \
+    lib/libsumma.so; do
+    if [ -f "$libcandidate" ]; then
+        if [ "$libcandidate" != "lib/libsumma.so" ]; then
+            cp -f "$libcandidate" lib/libsumma.so
+            echo "Staged: $libcandidate -> lib/libsumma.so"
+        else
+            echo "libsumma.so already at lib/libsumma.so"
+        fi
+        break
+    fi
+done
+if [ ! -f "lib/libsumma.so" ]; then
+    echo "WARNING: libsumma.so not found in build output, searching..."
+    _found_lib=$(find cmake_build -name 'libsumma.so*' -type f 2>/dev/null | head -1)
+    if [ -n "$_found_lib" ]; then
+        cp -f "$_found_lib" lib/libsumma.so
+        echo "Staged: $_found_lib -> lib/libsumma.so"
+    else
+        echo "ERROR: libsumma.so not found anywhere in build tree"
+    fi
+fi
+
 # Stage binary into bin/ and provide standard name.
 # On Windows, cmake appends .exe to the target name "summa_sundials.exe",
 # producing "summa_sundials.exe.exe".  Normalise to summa_sundials.exe.
@@ -338,12 +370,10 @@ done
         'test_command': '--version',
         'verify_install': {
             'file_paths': [
-                'bin/summa.exe',
                 'bin/summa_sundials.exe',
-                'cmake_build/bin/summa.exe',
-                'cmake_build/bin/summa_sundials.exe'
+                'lib/libsumma.so',
             ],
-            'check_type': 'exists_any'
+            'check_type': 'exists'
         },
         'order': 2
     }
