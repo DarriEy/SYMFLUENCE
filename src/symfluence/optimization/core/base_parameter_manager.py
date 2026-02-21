@@ -370,6 +370,62 @@ class BaseParameterManager(ConfigMixin, ABC):
                 return float(np.mean(arr))
         return float(value)
 
+    def _apply_config_bounds_override(
+        self,
+        bounds: Dict[str, Dict[str, float]],
+        config_bounds: Optional[Dict],
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Merge config-specified bound overrides into registry bounds,
+        preserving transform metadata.
+
+        Config bounds can be specified as:
+            - [min, max] list/tuple: overrides min/max, preserves registry transform
+            - {'min': ..., 'max': ...} dict: overrides min/max, preserves registry transform
+            - {'min': ..., 'max': ..., 'transform': 'log'} dict: overrides everything
+
+        Args:
+            bounds: Base bounds from registry (modified in-place and returned).
+            config_bounds: User-specified overrides from config, or None.
+
+        Returns:
+            The merged bounds dict.
+        """
+        if not config_bounds:
+            return bounds
+
+        for param_name, override in config_bounds.items():
+            existing = bounds.get(param_name, {})
+
+            if isinstance(override, (list, tuple)) and len(override) == 2:
+                new_entry = {'min': float(override[0]), 'max': float(override[1])}
+                if 'transform' in existing:
+                    new_entry['transform'] = existing['transform']
+                bounds[param_name] = new_entry
+
+            elif isinstance(override, dict) and 'min' in override and 'max' in override:
+                new_entry = dict(existing)  # Start with existing (preserves transform)
+                new_entry['min'] = float(override['min'])
+                new_entry['max'] = float(override['max'])
+                if 'transform' in override:
+                    new_entry['transform'] = override['transform']
+                bounds[param_name] = new_entry
+
+            else:
+                self.logger.warning(
+                    f"Invalid bounds format for {param_name}: {override} "
+                    f"(expected [min, max] or {{'min': ..., 'max': ...}})"
+                )
+                continue
+
+            self.logger.debug(
+                f"Config override: {param_name} -> "
+                f"[{bounds[param_name]['min']}, {bounds[param_name]['max']}]"
+                f"{' (transform=' + bounds[param_name]['transform'] + ')' if 'transform' in bounds[param_name] else ''}"
+            )
+
+        return bounds
+
     def _format_parameter_value(self, param_name: str, value: float) -> Any:
         """
         Format denormalized value for model-specific needs.

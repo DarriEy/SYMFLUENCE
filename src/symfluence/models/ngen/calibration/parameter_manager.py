@@ -141,44 +141,26 @@ class NgenParameterManager(BaseParameterManager):
         base_bounds = get_ngen_bounds()
         bounds = {}
 
-        # Load config-specified bounds per module
+        # Load config-specified bounds per module and merge into base_bounds
+        # (preserves transform metadata via _apply_config_bounds_override)
         config_bounds_keys = {
             'CFE': 'NGEN_CFE_PARAM_BOUNDS',
             'NOAH': 'NGEN_NOAH_PARAM_BOUNDS',
             'PET': 'NGEN_PET_PARAM_BOUNDS',
         }
-        config_bounds = {}
         for module, config_key in config_bounds_keys.items():
             module_bounds = self._get_config_value(
-                lambda ck=config_key: None,  # type: ignore[misc]  # No typed config path for bounds yet
+                lambda ck=config_key: None,  # type: ignore[misc]
                 default=None,
                 dict_key=config_key
             )
             if isinstance(module_bounds, dict):
-                for param_name, bound_values in module_bounds.items():
-                    if isinstance(bound_values, (list, tuple)) and len(bound_values) == 2:
-                        # Start with min/max from config
-                        param_bounds = {
-                            'min': float(bound_values[0]),
-                            'max': float(bound_values[1])
-                        }
-                        # Preserve 'transform' from registry if it exists (e.g., 'log' for
-                        # parameters like satdk, dksat, Cgw that span multiple orders of magnitude)
-                        if param_name in base_bounds and 'transform' in base_bounds[param_name]:
-                            param_bounds['transform'] = base_bounds[param_name]['transform']
-                        config_bounds[f"{module}.{param_name}"] = param_bounds
+                self._apply_config_bounds_override(base_bounds, module_bounds)
 
         for module, params in self.params_to_calibrate.items():
             for param in params:
                 full_param_name = f"{module}.{param}"
-                if full_param_name in config_bounds:
-                    bounds[full_param_name] = config_bounds[full_param_name]
-                    transform_str = f" (transform={config_bounds[full_param_name].get('transform', 'linear')})"
-                    self.logger.debug(
-                        f"Using config bounds for {full_param_name}: "
-                        f"[{config_bounds[full_param_name]['min']}, {config_bounds[full_param_name]['max']}]{transform_str}"
-                    )
-                elif param in base_bounds:
+                if param in base_bounds:
                     bounds[full_param_name] = base_bounds[param]
                 else:
                     self.logger.warning(

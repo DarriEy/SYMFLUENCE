@@ -175,20 +175,7 @@ class CLMParameterManager(BaseParameterManager):
         # Config overrides
         config_bounds = self.config.get('CLM_PARAM_BOUNDS', {})
         if config_bounds:
-            for param_name, bound_list in config_bounds.items():
-                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
-                    existing = bounds.get(param_name, {})
-                    bounds[param_name] = {
-                        'min': float(bound_list[0]),
-                        'max': float(bound_list[1]),
-                    }
-                    # Preserve transform from registry
-                    if 'transform' in existing:
-                        bounds[param_name]['transform'] = existing['transform']
-                    self.logger.debug(
-                        f"Config override for {param_name}: "
-                        f"[{bound_list[0]}, {bound_list[1]}]"
-                    )
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         # Log bounds
         for param_name in self.clm_params:

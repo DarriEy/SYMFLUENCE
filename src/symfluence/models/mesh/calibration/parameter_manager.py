@@ -400,21 +400,7 @@ class MESHParameterManager(BaseParameterManager):
         config_bounds = self.config.get('MESH_PARAM_BOUNDS', {})
         if config_bounds:
             self.logger.debug(f"Using config-specified MESH bounds for: {list(config_bounds.keys())}")
-            for param_name, param_bounds in config_bounds.items():
-                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    # Preserve registry transform if it exists
-                    existing = bounds.get(param_name, {})
-                    new_entry = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
-                    if 'transform' in existing:
-                        new_entry['transform'] = existing['transform']
-                    bounds[param_name] = new_entry
-                elif isinstance(param_bounds, dict):
-                    # Merge: config dict wins for min/max, but preserve
-                    # registry transform unless config explicitly sets one
-                    existing = bounds.get(param_name, {})
-                    merged = dict(existing)
-                    merged.update(param_bounds)
-                    bounds[param_name] = merged
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 

@@ -52,29 +52,26 @@ class IGNACIOParameterManager(BaseParameterManager):
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
         """
-        Load parameter bounds from config or registry defaults.
+        Load parameter bounds from registry defaults, with config overrides.
 
-        Config key IGNACIO_PARAM_BOUNDS takes priority over registry.
+        Config key IGNACIO_PARAM_BOUNDS overrides min/max while preserving
+        transform metadata from the registry.
         """
-        config_bounds = self.config_dict.get('IGNACIO_PARAM_BOUNDS', {})
         registry_bounds = get_ignacio_bounds()
 
         bounds = {}
         for param in self.ignacio_params:
-            if param in config_bounds:
-                b = config_bounds[param]
-                bounds[param] = {
-                    'min': b[0] if isinstance(b, (list, tuple)) else b.get('min', 0),
-                    'max': b[1] if isinstance(b, (list, tuple)) else b.get('max', 1),
-                    'transform': b.get('transform', 'linear') if isinstance(b, dict) else 'linear',
-                }
-            elif param in registry_bounds:
+            if param in registry_bounds:
                 bounds[param] = registry_bounds[param]
             else:
                 self.logger.warning(
                     f"No bounds found for IGNACIO param '{param}', using [0, 1]"
                 )
-                bounds[param] = {'min': 0.0, 'max': 1.0, 'transform': 'linear'}
+                bounds[param] = {'min': 0.0, 'max': 1.0}
+
+        config_bounds = self.config_dict.get('IGNACIO_PARAM_BOUNDS', {})
+        if config_bounds:
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 
