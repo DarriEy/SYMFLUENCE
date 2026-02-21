@@ -47,6 +47,7 @@ def _register_parameter_managers():
         'symfluence.models.topmodel.calibration.parameter_manager',
         'symfluence.models.gsflow.calibration.parameter_manager',
         'symfluence.models.watflood.calibration.parameter_manager',
+        'symfluence.models.clmparflow.calibration.parameter_manager',
     ]
 
     for module_path in canonical_modules:

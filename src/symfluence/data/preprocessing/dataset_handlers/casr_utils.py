@@ -204,7 +204,7 @@ class CASRHandler(BaseDatasetHandler):
                 datasets = []
                 for file in daily_files:
                     try:
-                        ds = xr.open_dataset(file)
+                        ds = self.open_dataset(file)
                         ds = ds.drop_duplicates(dim='time')
                         datasets.append(ds)
                     except Exception as e:
@@ -325,7 +325,7 @@ class CASRHandler(BaseDatasetHandler):
             self.logger.info(f"Using CASR file for grid: {casr_file}")
 
             # Read CASR data - similar structure to RDRS
-            with xr.open_dataset(casr_file) as ds:
+            with self.open_dataset(casr_file) as ds:
                 rlat, rlon = ds.rlat.values, ds.rlon.values
                 lat, lon = ds.lat.values, ds.lon.values
 

@@ -37,7 +37,7 @@ class WATFLOODParameterManager(BaseParameterManager):
         )
         self.watflood_params = [p.strip() for p in params_str.split(',') if p.strip()]
 
-        self.par_file = self.config_dict.get('WATFLOOD_PAR_FILE', 'params.par')
+        self.par_file = self.config_dict.get('WATFLOOD_PAR_FILE', 'bow.par')
 
     def _get_parameter_names(self) -> List[str]:
         """Get ordered list of parameter names to calibrate."""
@@ -64,7 +64,10 @@ class WATFLOODParameterManager(BaseParameterManager):
     def apply_parameters(self, params: Dict[str, float], target_dir: Optional[Path] = None) -> bool:
         """Apply parameters to WATFLOOD .par file."""
         target = target_dir or self.settings_dir
-        par_path = target / self.par_file
+        # Check basin/ subdirectory first (standard WATFLOOD layout)
+        par_path = target / 'basin' / self.par_file
+        if not par_path.exists():
+            par_path = target / self.par_file
 
         if not par_path.exists():
             self.logger.warning(f"WATFLOOD .par file not found: {par_path}")

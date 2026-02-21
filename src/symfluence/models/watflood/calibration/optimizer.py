@@ -40,9 +40,13 @@ class WATFLOODModelOptimizer(BaseModelOptimizer):
     def _get_final_file_manager_path(self) -> Path:
         par_file = self._get_config_value(
             lambda: self.config.model.watflood.par_file,
-            default='params.par',
+            default='bow.par',
             dict_key='WATFLOOD_PAR_FILE'
         )
+        # Check basin/ subdirectory first (standard WATFLOOD layout)
+        basin_path = self.watflood_setup_dir / 'basin' / par_file
+        if basin_path.exists():
+            return basin_path
         return self.watflood_setup_dir / par_file
 
     def _create_parameter_manager(self):

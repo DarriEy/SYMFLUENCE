@@ -14,6 +14,7 @@ from datetime import datetime
 import json
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 
 class Benchmarker(ConfigMixin):
     def __init__(self, config: dict, logger):
@@ -247,7 +248,10 @@ class BenchmarkPreprocessor(ConfigMixin):
 
     def _load_streamflow_data(self) -> pd.DataFrame:
         """Load and basic process streamflow data."""
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_streamflow_processed.csv"
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        streamflow_path = first_existing_path(
+            streamflow_observation_candidates(self.project_dir, domain_name)
+        )
         data = pd.read_csv(streamflow_path, parse_dates=['datetime'], index_col='datetime')
         # Ensure the index is sorted for a faster merge later on
         data.sort_index(inplace=True)

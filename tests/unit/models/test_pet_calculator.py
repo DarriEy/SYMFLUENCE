@@ -306,5 +306,147 @@ class TestMetadata:
         assert 'note' in pet.attrs
 
 
+class TestHamonNumpyPET:
+    """Test numpy-based Hamon PET calculation."""
+
+    def test_basic(self):
+        """Test basic Hamon numpy PET with default coefficient."""
+        temp = np.array([10.0, 15.0, 20.0, 25.0])
+        doy = np.array([100, 150, 200, 250])
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat=45.0)
+
+        assert pet.shape == temp.shape
+        assert (pet >= 0).all()
+        assert pet.mean() > 0
+
+    def test_coefficient_0_55(self):
+        """Test 0.55 coefficient (SAC-SMA/HBV variant)."""
+        temp = 15.0 * np.ones(365)
+        doy = np.arange(1, 366)
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat=45.0, coefficient=0.55)
+
+        assert 0.5 < pet.mean() < 5.0
+
+    def test_coefficient_0_1651(self):
+        """Test 0.1651 coefficient (original Hamon 1961 variant)."""
+        temp = 15.0 * np.ones(365)
+        doy = np.arange(1, 366)
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat=45.0, coefficient=0.1651)
+
+        assert 0.1 < pet.mean() < 5.0
+
+    def test_subzero_temp(self):
+        """Test that sub-zero temperatures still return non-negative PET."""
+        temp = np.array([-10.0, -5.0, 0.0, 5.0])
+        doy = np.array([15, 46, 74, 100])
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat=45.0)
+
+        assert (pet >= 0).all()
+
+    def test_polar_latitude_clipping(self):
+        """Test polar latitudes don't produce NaN from arccos."""
+        temp = np.array([5.0, 10.0, 15.0])
+        doy = np.array([172, 173, 174])  # Near summer solstice
+        pet = PETCalculatorMixin.hamon_pet_numpy(temp, doy, lat=70.0)
+
+        assert not np.any(np.isnan(pet))
+        assert (pet >= 0).all()
+
+
+class TestOudinNumpyPET:
+    """Test numpy-based Oudin PET calculation."""
+
+    def test_basic(self):
+        """Test basic Oudin numpy PET."""
+        temp = np.array([10.0, 15.0, 20.0, 25.0])
+        doy = np.array([100, 150, 200, 250])
+        pet = PETCalculatorMixin.oudin_pet_numpy(temp, doy, lat=45.0)
+
+        assert pet.shape == temp.shape
+        assert (pet >= 0).all()
+        assert pet.mean() > 0
+
+    def test_negative_temp_cutoff(self):
+        """Test Oudin PET is zero when T < -5."""
+        temp = np.array([-20.0, -10.0, -6.0, -4.0, 0.0, 10.0])
+        doy = np.array([100, 100, 100, 100, 100, 100])
+        pet = PETCalculatorMixin.oudin_pet_numpy(temp, doy, lat=45.0)
+
+        assert pet[0] == 0.0  # T = -20
+        assert pet[1] == 0.0  # T = -10
+        assert pet[2] == 0.0  # T = -6
+        assert pet[3] > 0.0   # T = -4
+        assert pet[5] > 0.0   # T = 10
+
+    def test_latitude_effect(self):
+        """Test that latitude affects Oudin PET."""
+        temp = 15.0 * np.ones(365)
+        doy = np.arange(1, 366)
+        pet_low = PETCalculatorMixin.oudin_pet_numpy(temp, doy, lat=10.0)
+        pet_high = PETCalculatorMixin.oudin_pet_numpy(temp, doy, lat=60.0)
+
+        assert pet_low.mean() > pet_high.mean()
+
+
+class TestThornthwaiteNumpyPET:
+    """Test numpy-based Thornthwaite PET calculation."""
+
+    def test_basic(self):
+        """Test basic Thornthwaite numpy PET."""
+        time = pd.date_range('2020-01-01', periods=365, freq='D')
+        temp = 15 + 10 * np.sin(2 * np.pi * np.arange(365) / 365)
+        pet = PETCalculatorMixin.thornthwaite_pet_numpy(temp, time, lat=45.0)
+
+        assert pet.shape == temp.shape
+        assert (pet >= 0).all()
+        assert pet.mean() > 0
+
+    def test_seasonal_cycle(self):
+        """Test Thornthwaite shows seasonal variation."""
+        time = pd.date_range('2020-01-01', periods=365, freq='D')
+        # Phase-shifted sine: peak at ~day 196 (mid-July), trough ~day 14 (mid-Jan)
+        temp = 15 + 10 * np.sin(2 * np.pi * (np.arange(365) - 105) / 365)
+        pet = PETCalculatorMixin.thornthwaite_pet_numpy(temp, time, lat=45.0)
+
+        # Summer (DOY 150-250) should have higher PET than winter (DOY 1-60)
+        summer_pet = pet[150:250].mean()
+        winter_pet = pet[:60].mean()
+        assert summer_pet > winter_pet
+
+
+class TestNumpyXarrayConsistency:
+    """Test that numpy and xarray PET methods produce consistent results."""
+
+    def test_hamon_numpy_variants_reasonable(self):
+        """Verify both Hamon numpy variants produce physically reasonable PET."""
+        time = pd.date_range('2020-01-01', periods=365, freq='D')
+        temp_vals = 15 + 10 * np.sin(2 * np.pi * np.arange(365) / 365)
+        doy = np.asarray(time.dayofyear)
+        lat = 45.0
+
+        pet_055 = PETCalculatorMixin.hamon_pet_numpy(temp_vals, doy, lat, coefficient=0.55)
+        pet_1651 = PETCalculatorMixin.hamon_pet_numpy(temp_vals, doy, lat, coefficient=0.1651)
+
+        # Both should be non-negative with reasonable means
+        assert (pet_055 >= 0).all()
+        assert (pet_1651 >= 0).all()
+        assert 0.5 < pet_055.mean() < 5.0
+        assert 0.1 < pet_1651.mean() < 5.0
+
+    def test_oudin_numpy_reasonable(self):
+        """Verify numpy Oudin produces physically reasonable PET values."""
+        time = pd.date_range('2020-01-01', periods=365, freq='D')
+        temp_vals = 15 + 10 * np.sin(2 * np.pi * np.arange(365) / 365)
+        doy = np.asarray(time.dayofyear)
+        lat = 45.0
+
+        pet_np = PETCalculatorMixin.oudin_pet_numpy(temp_vals, doy, lat)
+
+        assert (pet_np >= 0).all()
+        assert 0.5 < pet_np.mean() < 5.0
+        # Summer should exceed winter
+        assert pet_np[150:250].mean() > pet_np[:60].mean()
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

@@ -46,6 +46,7 @@ from typing import List, Optional, TYPE_CHECKING
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.core.constants import UnitConverter
+from symfluence.data.observation.paths import et_observation_candidates, first_existing_path
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -494,63 +495,17 @@ class ETEvaluator(ModelEvaluator):
         et_obs_path = self.config_dict.get('ET_OBS_PATH')
         if et_obs_path:
             return Path(et_obs_path)
-
-        # MOD16/MODIS ET
-        if self.obs_source in {'mod16', 'modis', 'modis_et', 'mod16a2'}:
-            return (
-                self.project_dir
-                / "observations"
-                / "et"
-                / "preprocessed"
-                / f"{self.domain_name}_modis_et_processed.csv"
-            )
-
-        # FLUXCOM ET
-        if self.obs_source in {'fluxcom', 'fluxcom_et'}:
-            return (
-                self.project_dir
-                / "observations"
-                / "et"
-                / "preprocessed"
-                / f"{self.domain_name}_fluxcom_et_processed.csv"
-            )
-
-        # GLEAM ET
-        if self.obs_source == 'gleam':
-            return (
-                self.project_dir
-                / "observations"
-                / "et"
-                / "preprocessed"
-                / f"{self.domain_name}_gleam_et_processed.csv"
-            )
-
-        # FluxNet
-        if self.obs_source == 'fluxnet':
-            # Try multiple possible paths for FLUXNET data
-            fluxnet_station = self._get_config_value(
-                lambda: self.config.evaluation.fluxnet.station,
-                default=''
-            )
-            possible_paths = [
-                self.project_dir / "observations" / "et" / "preprocessed" / f"{self.domain_name}_fluxnet_et_processed.csv",
-                self.project_dir / "observations" / "energy_fluxes" / "processed" / f"{self.domain_name}_fluxnet_processed.csv",
-                self.project_dir / "observations" / "fluxnet" / f"{self.domain_name}_FLUXNET_{fluxnet_station}.csv",
-            ]
-            for path in possible_paths:
-                if path.exists():
-                    return path
-            # Return default path (will trigger acquisition if not exists)
-            return possible_paths[0]
-
-        # Default: FluxNet energy fluxes
-        return (
-            self.project_dir
-            / "observations"
-            / "energy_fluxes"
-            / "processed"
-            / f"{self.domain_name}_fluxnet_processed.csv"
+        fluxnet_station = self._get_config_value(
+            lambda: self.config.evaluation.fluxnet.station,
+            default=''
         )
+        candidates = et_observation_candidates(
+            self.project_dir,
+            self.domain_name,
+            self.obs_source,
+            fluxnet_station=fluxnet_station,
+        )
+        return first_existing_path(candidates)
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         """Identify ET data column based on observation source and target.

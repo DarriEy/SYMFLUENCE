@@ -46,8 +46,8 @@ def summa_basic_preset():
             'EXPERIMENT_OUTPUT_SUMMA': 'default',
 
             # mizuRoute settings
-            'INSTALL_PATH_MIZUROUTE': 'default',
-            'EXE_NAME_MIZUROUTE': 'mizuRoute.exe',
+            'MIZUROUTE_INSTALL_PATH': 'default',
+            'MIZUROUTE_EXE': 'mizuRoute.exe',
             'SETTINGS_MIZU_PATH': 'default',
             'SETTINGS_MIZU_WITHIN_BASIN': 0,
             'SETTINGS_MIZU_ROUTING_DT': 3600,

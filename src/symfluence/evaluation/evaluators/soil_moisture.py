@@ -43,6 +43,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.data.observation.paths import first_existing_path, soil_moisture_observation_candidates
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -480,17 +481,13 @@ class SoilMoistureEvaluator(ModelEvaluator):
         return sim_data
 
     def get_observed_data_path(self) -> Path:
-        if self.optimization_target == 'sm_point':
-            return self.project_dir / "observations" / "soil_moisture" / "point" / "processed" / f"{self.domain_name}_sm_processed.csv"
-        elif self.optimization_target == 'sm_smap':
-            return self.project_dir / "observations" / "soil_moisture" / "smap" / "processed" / f"{self.domain_name}_smap_processed.csv"
-        elif self.optimization_target == 'sm_ismn':
-            return self.project_dir / "observations" / "soil_moisture" / "ismn" / "processed" / f"{self.domain_name}_ismn_processed.csv"
-        elif self.optimization_target == 'sm_esa':
-            return self.project_dir / "observations" / "soil_moisture" / "esa_sm" / "processed" / f"{self.domain_name}_esa_processed.csv"
-        else:
-            # Fallback path if target not perfectly set
-            return self.project_dir / "observations" / "soil_moisture" / "processed" / f"{self.domain_name}_sm_processed.csv"
+        return first_existing_path(
+            soil_moisture_observation_candidates(
+                self.project_dir,
+                self.domain_name,
+                self.optimization_target,
+            )
+        )
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'sm_point':

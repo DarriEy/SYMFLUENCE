@@ -10,6 +10,7 @@ All methods automatically detect and handle temperature units (Kelvin or Celsius
 """
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from symfluence.core.constants import PhysicalConstants
 
@@ -263,3 +264,130 @@ class PETCalculatorMixin:
         self.logger.debug("PET calculation complete (Hargreaves)")
 
         return pet
+
+    # ------------------------------------------------------------------
+    # Numpy-based static methods for models that work with raw arrays
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def hamon_pet_numpy(
+        temp_c: np.ndarray,
+        day_of_year: np.ndarray,
+        lat: float,
+        coefficient: float = 0.55,
+    ) -> np.ndarray:
+        """Hamon PET (mm/day) from numpy arrays.
+
+        Two common coefficient variants exist in the literature:
+        - 0.55: ``PET = 0.55 * (D/12)^2 * e_sat``  (used by SAC-SMA, HBV, XAJ)
+        - 0.1651: ``PET = 0.1651 * D * e_sat / (T+273.2) * 29.8``  (Hamon 1961
+          original formulation used by TOPMODEL, HEC-HMS)
+
+        When *coefficient* is 0.1651 this method switches to the original
+        Hamon (1961) formulation automatically.
+
+        Args:
+            temp_c: Temperature in Celsius (1-D array, length *n*).
+            day_of_year: Day-of-year integers (1-D array, length *n*).
+            lat: Latitude in degrees.
+            coefficient: Hamon coefficient (default 0.55).
+
+        Returns:
+            PET array (mm/day), same shape as *temp_c*.
+        """
+        lat_rad = np.deg2rad(lat)
+        decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * day_of_year - 1.39)
+        cos_arg = np.clip(-np.tan(lat_rad) * np.tan(decl), -1.0, 1.0)
+        sunset_angle = np.arccos(cos_arg)
+        day_length = 24.0 / np.pi * sunset_angle
+
+        e_sat = 0.6108 * np.exp(17.27 * temp_c / (temp_c + 237.3))
+
+        if coefficient == 0.1651:
+            # Original Hamon (1961) formulation
+            pet = 0.1651 * day_length * e_sat / (temp_c + 273.2) * 29.8
+        else:
+            # Simplified variant (coefficient * (D/12)^2 * e_sat)
+            pet = coefficient * (day_length / 12.0) ** 2 * e_sat
+
+        return np.maximum(pet, 0.0)
+
+    @staticmethod
+    def oudin_pet_numpy(
+        temp_c: np.ndarray,
+        day_of_year: np.ndarray,
+        lat: float,
+    ) -> np.ndarray:
+        """Oudin PET (mm/day) from numpy arrays.
+
+        Reference:
+            Oudin et al. (2005). "Which potential evapotranspiration input
+            for a lumped rainfall-runoff model?"
+
+        Args:
+            temp_c: Temperature in Celsius (1-D array).
+            day_of_year: Day-of-year integers (1-D array).
+            lat: Latitude in degrees.
+
+        Returns:
+            PET array (mm/day).
+        """
+        lat_rad = np.deg2rad(lat)
+        decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * day_of_year - 1.39)
+        cos_arg = np.clip(-np.tan(lat_rad) * np.tan(decl), -1.0, 1.0)
+        ws = np.arccos(cos_arg)
+        dr = 1.0 + 0.033 * np.cos(2.0 * np.pi / 365.0 * day_of_year)
+
+        # Extraterrestrial radiation (MJ/m²/day)
+        ra = (24.0 * 60.0 / np.pi) * 0.0820 * dr * (
+            ws * np.sin(lat_rad) * np.sin(decl)
+            + np.cos(lat_rad) * np.cos(decl) * np.sin(ws)
+        )
+
+        pet = np.where(temp_c + 5.0 > 0.0, ra / (100.0 * 2.45) * (temp_c + 5.0), 0.0)
+        return np.maximum(pet, 0.0)
+
+    @staticmethod
+    def thornthwaite_pet_numpy(
+        temp_c: np.ndarray,
+        time: pd.DatetimeIndex,
+        lat: float,
+    ) -> np.ndarray:
+        """Thornthwaite PET (mm/day) from numpy arrays.
+
+        Args:
+            temp_c: Daily mean temperature in Celsius (1-D array).
+            time: DatetimeIndex matching *temp_c*.
+            lat: Latitude in degrees.
+
+        Returns:
+            PET array (mm/day).
+        """
+        # Monthly average temperature for heat index
+        df = pd.DataFrame({'temp': temp_c}, index=time)
+        monthly_temp = df.resample('ME').mean()
+        monthly_temp_pos = np.maximum(monthly_temp['temp'].values, 0.0)
+        heat_index = np.sum((monthly_temp_pos / 5.0) ** 1.514)
+
+        # Thornthwaite exponent
+        a = (6.75e-7 * heat_index ** 3
+             - 7.71e-5 * heat_index ** 2
+             + 1.79e-2 * heat_index
+             + 0.492)
+
+        # Daily PET (mm/month equivalent)
+        pet = np.where(temp_c > 0.0, 16.0 * (10.0 * temp_c / heat_index) ** a, 0.0)
+
+        # Day-length correction
+        doy = np.asarray(time.dayofyear)
+        lat_rad = np.deg2rad(lat)
+        decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * doy - 1.39)
+        cos_arg = np.clip(-np.tan(lat_rad) * np.tan(decl), -1.0, 1.0)
+        sunset_angle = np.arccos(cos_arg)
+        day_length = 24.0 / np.pi * sunset_angle
+        correction = day_length / 12.0
+
+        # Convert from mm/month to mm/day and apply correction
+        pet = pet / 30.0 * correction
+
+        return np.maximum(pet, 0.0)

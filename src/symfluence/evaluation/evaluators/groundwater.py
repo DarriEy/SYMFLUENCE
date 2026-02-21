@@ -39,6 +39,7 @@ from typing import Any, cast, Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.data.observation.paths import first_existing_path, groundwater_observation_candidates
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -370,12 +371,13 @@ class GroundwaterEvaluator(ModelEvaluator):
         return tws_data
 
     def get_observed_data_path(self) -> Path:
-        if self.optimization_target == 'gw_depth':
-            return self.project_dir / "observations" / "groundwater" / "depth" / "processed" / f"{self.domain_name}_gw_processed.csv"
-        elif self.optimization_target == 'gw_grace':
-            return self.project_dir / "observations" / "groundwater" / "grace" / "processed" / f"{self.domain_name}_grace_processed.csv"
-        else:
-            return self.project_dir / "observations" / "groundwater" / "depth" / "processed" / f"{self.domain_name}_gw_processed.csv"
+        return first_existing_path(
+            groundwater_observation_candidates(
+                self.project_dir,
+                self.domain_name,
+                self.optimization_target,
+            )
+        )
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'gw_depth':

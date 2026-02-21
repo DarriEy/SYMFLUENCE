@@ -75,10 +75,10 @@ class SUMMAToMODFLOWCoupler:
 
         if not matching_files:
             # Gather all available variables for error message
-            all_vars = set()
+            all_vars: set[str] = set()
             for nc_file in nc_files:
                 ds_check = xr.open_dataset(nc_file)
-                all_vars.update(ds_check.data_vars)
+                all_vars.update(str(var_name) for var_name in ds_check.data_vars)
                 ds_check.close()
             raise ValueError(
                 f"Variable '{variable}' not found in SUMMA output. "

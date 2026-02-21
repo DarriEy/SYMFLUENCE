@@ -72,9 +72,9 @@ class FEWSPostAdapter:
 
         # 2. Build FEWSConfig
         fews_cfg = self._fews_config or FEWSConfig(
-            work_dir=str(run_info.work_dir),
-            data_format=self.data_format,
-            id_map_file=self.id_map_path,
+            FEWS_WORK_DIR=str(run_info.work_dir),
+            FEWS_DATA_FORMAT=self.data_format,
+            FEWS_ID_MAP_FILE=self.id_map_path,
         )
 
         # 3. Build ID mapper

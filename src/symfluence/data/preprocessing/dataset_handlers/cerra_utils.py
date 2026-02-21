@@ -150,7 +150,7 @@ class CERRAHandler(BaseDatasetHandler):
 
             self.logger.info(f"Processing CERRA file: {f}")
             try:
-                ds = xr.open_dataset(f)
+                ds = self.open_dataset(f)
             except Exception as e:
                 self.logger.error(f"Error opening CERRA file {f}: {e}")
                 continue
@@ -197,7 +197,7 @@ class CERRAHandler(BaseDatasetHandler):
             self.logger.info(f"Using CERRA file: {cerra_file}")
 
             # Read CERRA data
-            with xr.open_dataset(cerra_file) as ds:
+            with self.open_dataset(cerra_file) as ds:
                 var_lat, var_lon = self.get_coordinate_names()
 
                 # Handle both 1D and 2D coordinates

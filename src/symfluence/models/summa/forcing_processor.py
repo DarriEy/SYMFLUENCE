@@ -11,7 +11,7 @@ import gc
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, cast
 
 # Third-party imports
 import geopandas as gpd  # type: ignore
@@ -116,25 +116,54 @@ class SummaForcingProcessor(BaseForcingProcessor):
         return "SUMMA"
 
     def apply_datastep_and_lapse_rate(self):
-        """
-        Apply temperature lapse rate corrections to the forcing data with improved memory efficiency.
+        """Apply temperature lapse rate corrections to forcing data.
 
-        This optimized version:
-        - Processes files in batches to control memory usage
-        - Uses explicit garbage collection
-        - Minimizes intermediate object creation
-        - Provides progress monitoring and memory usage tracking
+        Orchestrates file discovery, topology loading, lapse-rate
+        pre-calculation, and batch processing of forcing files.
         """
         self.logger.info("Starting memory-efficient temperature lapse rate and data step application")
 
-        # Find intersection file
-        intersect_base = f"{self.domain_name}_{self._get_config_value(lambda: self.config.forcing.dataset)}_intersected_shapefile"
+        intersect_csv = self._find_intersection_file()
+        topo_data = self._load_topology_data(intersect_csv)
+        forcing_files = self._get_forcing_files()
+        self._prepare_forcing_output_dir()
+        lapse_values, lapse_rate = self._precalculate_lapse_corrections(topo_data)
+        del topo_data
+        gc.collect()
+        self._process_forcing_batches(forcing_files, lapse_values, lapse_rate)
+
+        del lapse_values
+        gc.collect()
+
+        if self._source_calendar in ('noleap', '365_day'):
+            self._insert_noleap_leap_days()
+
+        self.logger.info(
+            f"Completed processing of {len(forcing_files)} "
+            f"{self.forcing_dataset.upper()} forcing files with temperature lapsing"
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers for apply_datastep_and_lapse_rate
+    # ------------------------------------------------------------------
+
+    def _find_intersection_file(self):
+        """Locate the intersection CSV (or shapefile) for topology weighting."""
+        intersect_base = (
+            f"{self.domain_name}_"
+            f"{self._get_config_value(lambda: self.config.forcing.dataset)}"
+            f"_intersected_shapefile"
+        )
         intersect_csv = self.intersect_path / f"{intersect_base}.csv"
         intersect_shp = self.intersect_path / f"{intersect_base}.shp"
 
         # Fallback for legacy naming in data bundle
         if not intersect_csv.exists() and not intersect_shp.exists() and self.domain_name == 'bow_banff_minimal':
-            legacy_base = f"Bow_at_Banff_lumped_{self._get_config_value(lambda: self.config.forcing.dataset)}_intersected_shapefile"
+            legacy_base = (
+                f"Bow_at_Banff_lumped_"
+                f"{self._get_config_value(lambda: self.config.forcing.dataset)}"
+                f"_intersected_shapefile"
+            )
             if (self.intersect_path / f"{legacy_base}.csv").exists():
                 intersect_csv = self.intersect_path / f"{legacy_base}.csv"
                 self.logger.info(f"Using legacy intersection CSV: {intersect_csv.name}")
@@ -142,7 +171,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 intersect_shp = self.intersect_path / f"{legacy_base}.shp"
                 self.logger.info(f"Using legacy intersection SHP: {intersect_shp.name}")
 
-        # Handle shapefile to CSV conversion if needed
+        # Convert shapefile → CSV if needed
         if not intersect_csv.exists() and intersect_shp.exists():
             self.logger.info(f"Converting {intersect_shp} to CSV format")
             try:
@@ -150,17 +179,15 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 shp_df['weight'] = shp_df['AP1']
                 shp_df.to_csv(intersect_csv, index=False)
                 self.logger.info(f"Successfully created {intersect_csv}")
-                del shp_df  # Explicit cleanup
+                del shp_df
                 gc.collect()
             except Exception as e:
                 self.logger.error(f"Failed to convert shapefile to CSV: {str(e)}")
                 raise
         elif not intersect_csv.exists() and not intersect_shp.exists():
-            # Fallback: check for remapping weights file which often contains the same info
             hru_id_field = self._get_config_value(lambda: self.config.domain.catchment_shp_hruid)
             case_name = f"{self.domain_name}_{self._get_config_value(lambda: self.config.forcing.dataset)}"
             remap_file = self.intersect_path / f"{case_name}_{hru_id_field}_remapping.csv"
-
             if remap_file.exists():
                 self.logger.info(f"Intersected shapefile missing, falling back to remapping weights: {remap_file.name}")
                 intersect_csv = remap_file
@@ -170,21 +197,19 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.error(f"Expected remap file: {remap_file.name}")
                 raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
 
-        # Load topology data efficiently
+        return intersect_csv
+
+    def _load_topology_data(self, intersect_csv):
+        """Load intersection CSV with truncated-column handling."""
         self.logger.info("Loading topology data...")
         try:
-            # First read column names to check for truncation
-            # Shapefiles truncate field names to 10 characters
             sample_df = pd.read_csv(intersect_csv, nrows=0)
-
-            # Build dtype dict with potentially truncated column names
             dtype_dict = {}
 
-            # Handle GRU ID (may be truncated)
+            # Handle GRU ID (may be truncated to 10 chars by shapefile)
             gru_col = f'S_1_{self.gruId}'
             if gru_col not in sample_df.columns:
-                # Try to find truncated version (10 char limit)
-                gru_col_truncated = f'S_1_{self.gruId}'[:10]
+                gru_col_truncated = gru_col[:10]
                 if gru_col_truncated in sample_df.columns:
                     dtype_dict[gru_col_truncated] = 'int32'
                 else:
@@ -195,8 +220,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             # Handle HRU ID (may be truncated)
             hru_col = f'S_1_{self.hruId}'
             if hru_col not in sample_df.columns:
-                # Try to find truncated version (10 char limit)
-                hru_col_truncated = f'S_1_{self.hruId}'[:10]
+                hru_col_truncated = hru_col[:10]
                 if hru_col_truncated in sample_df.columns:
                     dtype_dict[hru_col_truncated] = 'int32'
                     self.logger.info(f"Using truncated column name: {hru_col_truncated} (original: {hru_col})")
@@ -205,34 +229,28 @@ class SummaForcingProcessor(BaseForcingProcessor):
             else:
                 dtype_dict[hru_col] = 'int32'
 
-            # Add other standard columns
             dtype_dict.update({
-                'S_2_ID': 'Int32',  # Nullable integer to handle NA values
+                'S_2_ID': 'Int32',
                 'S_2_elev_m': 'float32',
-                'weight': 'float32'
+                'weight': 'float32',
             })
-
-            # Handle elevation column (may be S_1_elev_m or S_1_elev_mean)
             if 'S_1_elev_m' in sample_df.columns:
                 dtype_dict['S_1_elev_m'] = 'float32'
             elif 'S_1_elev_mean' in sample_df.columns:
                 dtype_dict['S_1_elev_mean'] = 'float32'
 
-            # Use chunked reading for very large CSV files
             topo_data = pd.read_csv(intersect_csv, dtype=dtype_dict)
 
-            # Rename truncated columns back to full names for consistency
+            # Rename truncated columns back to full names
             rename_dict = {}
             if f'S_1_{self.hruId}' not in topo_data.columns:
-                hru_col_truncated = f'S_1_{self.hruId}'[:10]
-                if hru_col_truncated in topo_data.columns:
-                    rename_dict[hru_col_truncated] = f'S_1_{self.hruId}'
-
+                trunc = f'S_1_{self.hruId}'[:10]
+                if trunc in topo_data.columns:
+                    rename_dict[trunc] = f'S_1_{self.hruId}'
             if f'S_1_{self.gruId}' not in topo_data.columns:
-                gru_col_truncated = f'S_1_{self.gruId}'[:10]
-                if gru_col_truncated in topo_data.columns:
-                    rename_dict[gru_col_truncated] = f'S_1_{self.gruId}'
-
+                trunc = f'S_1_{self.gruId}'[:10]
+                if trunc in topo_data.columns:
+                    rename_dict[trunc] = f'S_1_{self.gruId}'
             if rename_dict:
                 self.logger.info(f"Renaming truncated columns: {rename_dict}")
                 topo_data.rename(columns=rename_dict, inplace=True)
@@ -240,22 +258,25 @@ class SummaForcingProcessor(BaseForcingProcessor):
             self.logger.info(f"Loaded topology data: {len(topo_data)} rows, {topo_data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
             self.logger.info(f"Columns after rename: {topo_data.columns.tolist()[:15]}")
             self.logger.info(f"Sample HRU IDs: {topo_data[f'S_1_{self.hruId}'].head(5).tolist()}")
+            return topo_data
         except Exception as e:
             self.logger.error(f"Error loading topology data: {str(e)}")
             raise
 
-        # Get forcing files and log memory info
-        forcing_files = [f for f in os.listdir(self.forcing_basin_path)
-                        if f.startswith(f"{self.domain_name}") and f.endswith('.nc')]
+    def _get_forcing_files(self):
+        """Return sorted list of basin forcing file names."""
+        forcing_files = [
+            f for f in os.listdir(self.forcing_basin_path)
+            if f.startswith(f"{self.domain_name}") and f.endswith('.nc')
+        ]
         forcing_files.sort()
-
-        total_files = len(forcing_files)
-        self.logger.info(f"Found {total_files} forcing files to process")
-
-        if total_files == 0:
+        self.logger.info(f"Found {len(forcing_files)} forcing files to process")
+        if not forcing_files:
             raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
+        return forcing_files
 
-        # Prepare output directory
+    def _prepare_forcing_output_dir(self):
+        """Create output directory and remove stale forcing files."""
         self.forcing_summa_path.mkdir(parents=True, exist_ok=True)
         prefix = f"{self.domain_name}_{self.forcing_dataset}".lower()
         for existing_file in self.forcing_summa_path.glob("*.nc"):
@@ -267,17 +288,18 @@ class SummaForcingProcessor(BaseForcingProcessor):
             except OSError as exc:
                 self.logger.warning(f"Failed to remove stale SUMMA forcing file {existing_file}: {exc}")
 
-        # Define column names and lapse rate
+    def _precalculate_lapse_corrections(self, topo_data):
+        """Pre-calculate per-HRU weighted lapse-rate corrections.
+
+        Returns (lapse_values DataFrame indexed by hruId, lapse_rate in K/m).
+        """
         gru_id = f'S_1_{self.gruId}'
         hru_id = f'S_1_{self.hruId}'
         catchment_elev = 'S_1_elev_m'
         forcing_elev = 'S_2_elev_m'
         weights = 'weight'
-        # LAPSE_RATE: Handle both K/m (default 0.0065) and K/km (e.g. 6.5) units
-        raw_lapse = float(self._get_config_value(lambda: self.config.forcing.lapse_rate))
 
-        # If the absolute value is small (< 0.1), assume it's already in K/m.
-        # Otherwise, assume it's in K/km and convert to K/m.
+        raw_lapse = float(self._get_config_value(lambda: self.config.forcing.lapse_rate))
         if abs(raw_lapse) < 0.1:
             lapse_rate_km = raw_lapse * 1000.0
             lapse_rate = raw_lapse
@@ -285,83 +307,59 @@ class SummaForcingProcessor(BaseForcingProcessor):
             lapse_rate_km = raw_lapse
             lapse_rate = raw_lapse / 1000.0
 
-        # Most atmospheric lapse rates are positive (temp decreases with height)
-        # but our formula: T_catch = T_force + lapse_rate * (Z_force - Z_catch)
-        # If Z_force > Z_catch (forcing is higher/colder), and lapse_rate is positive:
-        # T_catch = T_force + positive * positive = warmer. (CORRECT)
-        # If the user provided a negative lapse rate (e.g. -6.5 K/km), it would
-        # result in T_catch being colder than T_force when catchment is lower.
-        # We'll log a warning if it looks like a sign error.
         if raw_lapse < 0:
-            self.logger.warning(f"Negative LAPSE_RATE ({raw_lapse}) detected. "
-                              "This will make higher elevations warmer. "
-                              "Standard lapse rates should be positive in SYMFLUENCE.")
+            self.logger.warning(
+                f"Negative LAPSE_RATE ({raw_lapse}) detected. "
+                "This will make higher elevations warmer. "
+                "Standard lapse rates should be positive in SYMFLUENCE."
+            )
 
         if catchment_elev not in topo_data.columns and 'S_1_elev_mean' in topo_data.columns:
             catchment_elev = 'S_1_elev_mean'
 
-        # Pre-calculate lapse values efficiently
         self.logger.info(f"Pre-calculating lapse rate corrections (Rate: {lapse_rate_km:.2f} K/km)...")
-        topo_data['lapse_values'] = topo_data[weights] * lapse_rate * (topo_data[forcing_elev] - topo_data[catchment_elev])
+        topo_data['lapse_values'] = (
+            topo_data[weights] * lapse_rate * (topo_data[forcing_elev] - topo_data[catchment_elev])
+        )
 
-        # Calculate weighted lapse values for each HRU
         if gru_id == hru_id:
             lapse_values = topo_data.groupby([hru_id])['lapse_values'].sum().reset_index()
         else:
             lapse_values = topo_data.groupby([gru_id, hru_id])['lapse_values'].sum().reset_index()
 
-        # Sort and set hruID as index
         lapse_values = lapse_values.sort_values(hru_id).set_index(hru_id)
-
-        # Clean up topology data to free memory
-        del topo_data
-        gc.collect()
         self.logger.info(f"Prepared lapse corrections for {len(lapse_values)} HRUs")
         self.logger.info(f"Lapse values HRU IDs: {lapse_values.index.tolist()}")
+        return lapse_values, lapse_rate
 
-        # Determine batch size based on available memory and file count
+    def _process_forcing_batches(self, forcing_files, lapse_values, lapse_rate):
+        """Process forcing files in memory-efficient batches."""
+        total_files = len(forcing_files)
         batch_size = self._determine_batch_size(total_files)
         self.logger.info(f"Processing files in batches of {batch_size}")
 
-        # Process files in batches
         for batch_start in range(0, total_files, batch_size):
             batch_end = min(batch_start + batch_size, total_files)
             batch_files = forcing_files[batch_start:batch_end]
 
-            # Log memory usage before batch
             memory_before = psutil.Process().memory_info().rss / 1024**2
             self.logger.debug(f"Memory usage before batch: {memory_before:.1f} MB")
 
-            # Process each file in the batch
             for i, file in enumerate(batch_files):
                 try:
                     self._process_single_file(file, lapse_values, lapse_rate)
-
-                    # Log progress every 10 files or for small batches
                     if (i + 1) % 10 == 0 or batch_size <= 10:
                         batch_start + i + 1
-
                 except Exception as e:
                     self.logger.error(f"Error processing file {file}: {str(e)}")
                     raise
 
-            # Force garbage collection after each batch
             gc.collect()
-
-            # Log memory usage after batch
             memory_after = psutil.Process().memory_info().rss / 1024**2
-            self.logger.debug(f"Memory usage after batch: {memory_after:.1f} MB "
-                            f"(delta: {memory_after - memory_before:+.1f} MB)")
-
-        # Final cleanup
-        del lapse_values
-        gc.collect()
-
-        # Insert leap day forcing files for noleap calendar sources
-        if self._source_calendar in ('noleap', '365_day'):
-            self._insert_noleap_leap_days()
-
-        self.logger.info(f"Completed processing of {total_files} {self.forcing_dataset.upper()} forcing files with temperature lapsing")
+            self.logger.debug(
+                f"Memory usage after batch: {memory_after:.1f} MB "
+                f"(delta: {memory_after - memory_before:+.1f} MB)"
+            )
 
     def _process_single_file(self, file: str, lapse_values: pd.DataFrame, lapse_rate: float):
         """
@@ -641,7 +639,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
                 # v28 and v01 are 1-D (hru,)
                 nhru = len(v28)
-                interp = np.zeros((24, nhru), dtype=np.float64)
+                interp: np.ndarray = np.zeros((24, nhru), dtype=np.float64)
                 for h_idx, w in enumerate(weights):
                     interp[h_idx, :] = (1.0 - w) * v28 + w * v01
 
@@ -1132,7 +1130,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         Returns:
             Wind speed magnitude (m/s)
         """
-        windspd = np.sqrt(u ** 2 + v ** 2)
+        windspd = cast(xr.DataArray, np.sqrt(u ** 2 + v ** 2))
 
         # Set attributes
         windspd.attrs = {

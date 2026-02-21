@@ -109,7 +109,7 @@ class ERA5Handler(BaseDatasetHandler):
                 self.logger.debug(f"Processing {raw_file.name} -> {output_file.name}")
                 try:
                     # Use load() to read into memory and close file handle immediately
-                    with xr.open_dataset(raw_file) as ds:
+                    with self.open_dataset(raw_file) as ds:
                         # Apply standardization (renaming vars like tp->pptrate)
                         ds_processed = self.process_dataset(ds)
                         ds_processed.load() # Load into memory
@@ -185,7 +185,7 @@ class ERA5Handler(BaseDatasetHandler):
 
             # Open the file and get the dimensions
             try:
-                with xr.open_dataset(forcing_file) as src:
+                with self.open_dataset(forcing_file) as src:
                     lat = src[source_name_lat].values
                     lon = src[source_name_lon].values
 

@@ -209,7 +209,7 @@ def read_routed_streamflow(
             log.error(f"No routed runoff variable. Variables: {list(ds.variables.keys())}")
             return None
 
-        simulated_streamflow = simulated.to_pandas()
+        simulated_streamflow = simulated.to_series()
 
     if not isinstance(simulated_streamflow.index, pd.DatetimeIndex):
         simulated_streamflow.index = pd.to_datetime(simulated_streamflow.index)

@@ -173,7 +173,7 @@ class RDRSHandler(BaseDatasetHandler):
         """
         self.logger.info(f"Processing consolidated cloud file: {consolidated_file.name}")
 
-        ds = xr.open_dataset(consolidated_file)
+        ds = self.open_dataset(consolidated_file)
         ds = self.process_dataset(ds)
 
         years = range(start_year - 1, end_year + 1)
@@ -266,7 +266,7 @@ class RDRSHandler(BaseDatasetHandler):
                 datasets = []
                 for file in daily_files:
                     try:
-                        ds = xr.open_dataset(file)
+                        ds = self.open_dataset(file)
                         datasets.append(ds)
                     except Exception as e:
                         self.logger.error(f"Error opening RDRS file {file}: {str(e)}")
@@ -355,7 +355,7 @@ class RDRSHandler(BaseDatasetHandler):
                 raise FileNotFoundError("No RDRS monthly file found")
 
             # Read grid information
-            with xr.open_dataset(merged_forcing_path / forcing_file) as ds:
+            with self.open_dataset(merged_forcing_path / forcing_file) as ds:
                 rlat, rlon = ds.rlat.values, ds.rlon.values
                 lat, lon = ds.lat.values, ds.lon.values
 

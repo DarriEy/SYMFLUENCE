@@ -180,8 +180,8 @@ class MultiGaugeMetrics:
                     self.logger.error(f"No routed runoff variable found in {mizuroute_output_path}")
                     return None
 
-                # Convert to pandas Series
-                sim = runoff.to_pandas()
+                # Convert to pandas Series (avoid DataFrame return from generic stubs)
+                sim = runoff.to_series()
 
                 # Ensure datetime index
                 if not isinstance(sim.index, pd.DatetimeIndex):

@@ -10,6 +10,7 @@ import json
 import logging
 import threading
 from pathlib import Path
+from typing import Any, Callable
 
 import panel as pn
 import param
@@ -340,13 +341,19 @@ class DomainBrowser(param.Parameterized):
         """Return action buttons appropriate for the file type."""
         buttons = []
 
+        def _bind_path_action(button: Any, action: Callable[[Path], None]) -> None:
+            def _handler(_event: Any, p: Path = filepath) -> None:
+                action(p)
+
+            button.on_click(_handler)
+
         if suffix in ('.tif', '.tiff'):
             btn = pn.widgets.Button(
                 name='Map', button_type='primary', width=50, height=24,
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            btn.on_click(lambda e, p=filepath: self._action_map_raster(p))
+            _bind_path_action(btn, self._action_map_raster)
             buttons.append(btn)
 
         elif suffix == '.shp':
@@ -355,7 +362,7 @@ class DomainBrowser(param.Parameterized):
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            btn.on_click(lambda e, p=filepath: self._action_map_shapefile(p))
+            _bind_path_action(btn, self._action_map_shapefile)
             buttons.append(btn)
 
         elif suffix in ('.nc', '.nc4'):
@@ -364,7 +371,7 @@ class DomainBrowser(param.Parameterized):
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            view_btn.on_click(lambda e, p=filepath: self._action_view_netcdf(p))
+            _bind_path_action(view_btn, self._action_view_netcdf)
             buttons.append(view_btn)
 
         elif suffix == '.csv':
@@ -373,7 +380,7 @@ class DomainBrowser(param.Parameterized):
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            view_btn.on_click(lambda e, p=filepath: self._action_view_csv(p))
+            _bind_path_action(view_btn, self._action_view_csv)
             buttons.append(view_btn)
 
         elif suffix in ('.png', '.jpg', '.jpeg'):
@@ -382,7 +389,7 @@ class DomainBrowser(param.Parameterized):
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            view_btn.on_click(lambda e, p=filepath: self._action_view_image(p))
+            _bind_path_action(view_btn, self._action_view_image)
             buttons.append(view_btn)
 
         elif suffix == '.json':
@@ -391,7 +398,7 @@ class DomainBrowser(param.Parameterized):
                 styles={'font-size': '10px', 'padding': '0 4px'},
                 margin=(0, 2),
             )
-            view_btn.on_click(lambda e, p=filepath: self._action_view_json(p))
+            _bind_path_action(view_btn, self._action_view_json)
             buttons.append(view_btn)
 
         return buttons

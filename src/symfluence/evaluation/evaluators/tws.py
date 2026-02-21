@@ -17,6 +17,11 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.data.observation.paths import (
+    first_existing_path,
+    tws_default_observation_path,
+    tws_observation_candidates,
+)
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -376,48 +381,14 @@ class TWSEvaluator(ModelEvaluator):
         tws_obs_path = self.config_dict.get('TWS_OBS_PATH')
         if tws_obs_path:
             return Path(tws_obs_path)
-
-        # Search in multiple possible locations for GRACE data
-        # Support both observations/grace and observations/storage/grace paths
-        obs_base = self.project_dir / 'observations'
-
-        if self.optimization_target == 'stor_mb':
-            # Independent storage anomaly observations (e.g. glacier mass balance)
-            search_dirs = [
-                obs_base / 'storage' / 'mass_balance',
-                obs_base / 'mass_balance',
-            ]
-            potential_patterns = [
-                 f'{self.domain_name}_mass_balance.csv',
-                 'obs_mass_balance.csv',
-                 'mass_balance.csv',
-            ]
-        else:
-            search_dirs = [
-                obs_base / 'storage' / 'grace',  # Ashley's glacier domain setup
-                obs_base / 'grace',               # Standard location
-            ]
-            potential_patterns = [
-                f'{self.domain_name}_HRUs_GRUs_grace_tws_anomaly.csv',  # HRU-specific format
-                f'{self.domain_name}_HRUs_elevation_grace_tws_anomaly_by_hru.csv',  # Elevation-based HRU
-                f'{self.domain_name}_grace_tws_processed.csv',
-                f'{self.domain_name}_grace_tws_anomaly.csv',
-                'grace_tws_anomaly.csv',
-                'tws_anomaly.csv',
-            ]
-
-        for obs_dir in search_dirs:
-            if not obs_dir.exists():
-                continue
-            preprocessed_dir = obs_dir / 'preprocessed'
-            for pattern in potential_patterns:
-                for search_dir in [preprocessed_dir, obs_dir]:
-                    path = search_dir / pattern
-                    if path.exists():
-                        return path
-
-        # Fallback to default
-        return obs_base / 'grace' / 'preprocessed' / f'{self.domain_name}_grace_tws_processed.csv'
+        return first_existing_path(
+            tws_observation_candidates(
+                self.project_dir,
+                self.domain_name,
+                self.optimization_target,
+            ),
+            default=tws_default_observation_path(self.project_dir, self.domain_name),
+        )
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         """Identify GRACE data column from multiple processing center options.
