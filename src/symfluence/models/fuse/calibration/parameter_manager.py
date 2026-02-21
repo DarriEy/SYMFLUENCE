@@ -117,20 +117,10 @@ class FUSEParameterManager(BaseParameterManager):
                 )
 
         # Check for user-specified bounds in config
-        # Use config_dict to handle both typed and dict configs
         config_bounds = self.config_dict.get('FUSE_PARAM_BOUNDS')
-
         if config_bounds:
             self.logger.info("Using FUSE_PARAM_BOUNDS from config (overriding registry defaults)")
-            for param_name, param_bounds in config_bounds.items():
-                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    bounds[param_name] = {'min': float(param_bounds[0]), 'max': float(param_bounds[1])}
-                    self.logger.debug(f"  {param_name}: [{param_bounds[0]}, {param_bounds[1]}]")
-                elif isinstance(param_bounds, dict) and 'min' in param_bounds and 'max' in param_bounds:
-                    bounds[param_name] = {'min': float(param_bounds['min']), 'max': float(param_bounds['max'])}
-                    self.logger.debug(f"  {param_name}: [{param_bounds['min']}, {param_bounds['max']}]")
-                else:
-                    self.logger.warning(f"Invalid bounds format for {param_name}: {param_bounds}")
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 

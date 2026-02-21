@@ -162,7 +162,7 @@ class CLMParFlowParameterManager(BaseParameterManager):
             for k, v in CLMPARFLOW_DEFAULT_BOUNDS.items()
         }
 
-        # Allow config overrides
+        # Allow config overrides (preserves transform metadata from registry)
         config_bounds = None
         if isinstance(self.config, dict):
             config_bounds = self.config.get('CLMPARFLOW_PARAM_BOUNDS')
@@ -171,14 +171,7 @@ class CLMParFlowParameterManager(BaseParameterManager):
 
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified CLMParFlow parameter bounds")
-            for param_name, param_bounds in config_bounds.items():
-                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    transform = bounds.get(param_name, {}).get('transform', 'linear')
-                    bounds[param_name] = {
-                        'min': float(param_bounds[0]),
-                        'max': float(param_bounds[1]),
-                        'transform': transform,
-                    }
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 

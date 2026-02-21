@@ -123,15 +123,7 @@ class PIHMParameterManager(BaseParameterManager):
 
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified PIHM parameter bounds")
-            for param_name, param_bounds in config_bounds.items():
-                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    # Preserve transform from defaults if available
-                    transform = bounds.get(param_name, {}).get('transform', 'linear')
-                    bounds[param_name] = {
-                        'min': float(param_bounds[0]),
-                        'max': float(param_bounds[1]),
-                        'transform': transform,
-                    }
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 

@@ -127,21 +127,10 @@ class RHESSysParameterManager(BaseParameterManager):
         # Start with registry defaults
         bounds = get_rhessys_bounds()
 
-        # Check for config overrides (preserve transform from registry)
+        # Check for config overrides (preserves transform metadata from registry)
         config_bounds = self.config.get('RHESSYS_PARAM_BOUNDS', {})
         if config_bounds:
-            for param_name, bound_list in config_bounds.items():
-                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
-                    # Preserve existing transform setting from registry
-                    existing_transform = bounds.get(param_name, {}).get('transform', 'linear')
-                    bounds[param_name] = {
-                        'min': float(bound_list[0]),
-                        'max': float(bound_list[1]),
-                        'transform': existing_transform,  # type: ignore[dict-item]
-                    }
-                    self.logger.debug(
-                        f"Using config bounds for {param_name}: [{bound_list[0]}, {bound_list[1]}]"
-                    )
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         # Log final bounds for calibrated parameters
         for param_name in self.rhessys_params:

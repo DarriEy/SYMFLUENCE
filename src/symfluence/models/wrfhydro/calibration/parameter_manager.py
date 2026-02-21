@@ -78,19 +78,10 @@ class WRFHydroParameterManager(BaseParameterManager):
 
         bounds = dict(PARAM_BOUNDS)
 
-        # Check for config overrides
+        # Check for config overrides (preserves transform metadata from registry)
         config_bounds = self.config.get('WRFHYDRO_PARAM_BOUNDS', {})
         if config_bounds:
-            for param_name, bound_list in config_bounds.items():
-                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
-                    bounds[param_name] = {
-                        **bounds.get(param_name, {}),
-                        'min': float(bound_list[0]),
-                        'max': float(bound_list[1])
-                    }
-                    self.logger.debug(
-                        f"Using config bounds for {param_name}: [{bound_list[0]}, {bound_list[1]}]"
-                    )
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         for param_name in self.wrfhydro_params:
             if param_name in bounds:

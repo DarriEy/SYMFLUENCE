@@ -202,7 +202,7 @@ class ParFlowParameterManager(BaseParameterManager):
             for k, v in PARFLOW_DEFAULT_BOUNDS.items()
         }
 
-        # Allow config overrides (support both dict and Pydantic config)
+        # Allow config overrides (preserves transform metadata from registry)
         config_bounds = None
         if isinstance(self.config, dict):
             config_bounds = self.config.get('PARFLOW_PARAM_BOUNDS')
@@ -211,14 +211,7 @@ class ParFlowParameterManager(BaseParameterManager):
 
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified ParFlow parameter bounds")
-            for param_name, param_bounds in config_bounds.items():
-                if isinstance(param_bounds, (list, tuple)) and len(param_bounds) == 2:
-                    transform = bounds.get(param_name, {}).get('transform', 'linear')
-                    bounds[param_name] = {
-                        'min': float(param_bounds[0]),
-                        'max': float(param_bounds[1]),
-                        'transform': transform,
-                    }
+            self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 
