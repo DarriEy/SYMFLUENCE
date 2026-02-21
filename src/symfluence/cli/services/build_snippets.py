@@ -274,6 +274,20 @@ configure_libraries
 
 # Threads
 export NCORES="${NCORES:-4}"
+
+# ================================================================
+# Portable in-place sed
+# ================================================================
+# macOS sed requires an explicit backup extension with -i (e.g. sed -i ''),
+# while GNU sed treats the next argument as the sed expression.  This wrapper
+# abstracts the difference so build scripts can use `_sed_i 's/foo/bar/' file`.
+_sed_i() {
+    if [ "$(uname -s)" = "Darwin" ]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
     '''.strip()
 
 

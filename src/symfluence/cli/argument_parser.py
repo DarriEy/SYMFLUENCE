@@ -65,7 +65,7 @@ EXTERNAL_TOOLS = [
     'summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool',
     'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews',
     'vic', 'clm', 'swat', 'mhm', 'crhm', 'prms', 'modflow', 'gsflow',
-    'watflood', 'parflow', 'wrfhydro', 'hydrogeosphere', 'pihm',
+    'watflood', 'parflow', 'wrfhydro', 'pihm',
     'cfuse', 'droute', 'troute', 'wmfire', 'ignacio',
 ]
 

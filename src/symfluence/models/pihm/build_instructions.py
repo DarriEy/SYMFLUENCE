@@ -166,20 +166,32 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
     NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
     # Build CVODE first (bundled SUNDIALS solver), then PIHM
+    # Must be sequential: PIHM needs CVODE headers installed before compiling
     cd "${SRC_DIR}"
     make clean 2>/dev/null || true
-    make -j "${NCPU}"
+    make cvode
+    make pihm -j "${NCPU}"
 
-    # The Makefile places the binary in SRC_DIR/bin/
-    if [ -f "${SRC_DIR}/bin/pihm" ]; then
-        mkdir -p "${INSTALL_DIR}/bin"
-        if [ "${SRC_DIR}" != "${INSTALL_DIR}" ]; then
-            cp "${SRC_DIR}/bin/pihm" "${INSTALL_DIR}/bin/pihm"
+    # The Makefile places the binary in the source root (gcc -o pihm ...)
+    PIHM_BIN=""
+    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/bin/pihm"; do
+        if [ -f "$p" ]; then
+            PIHM_BIN="$p"
+            break
         fi
+    done
+    if [ -z "$PIHM_BIN" ]; then
+        # Fallback: search for any executable named pihm
+        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 -name "pihm" -type f 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$PIHM_BIN" ]; then
+        mkdir -p "${INSTALL_DIR}/bin"
+        cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm"
         chmod +x "${INSTALL_DIR}/bin/pihm"
     else
         echo "ERROR: Build succeeded but pihm binary not found"
-        ls -la "${SRC_DIR}/bin/" 2>/dev/null || echo "bin/ directory missing"
+        find "${SRC_DIR}" -maxdepth 2 -name "pihm*" -type f 2>/dev/null || echo "No pihm files found"
         exit 1
     fi
 

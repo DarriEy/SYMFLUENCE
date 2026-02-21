@@ -74,6 +74,7 @@ if [ -z "$SRC_DIR" ]; then
 fi
 
 echo "Found GSFLOW source at: $SRC_DIR"
+GSFLOW_INSTALL_ROOT="$(pwd)"
 cd "$SRC_DIR"
 
 # === Patch makelist for modern gfortran + macOS ===
@@ -206,7 +207,7 @@ cp modflow/*.mod gsflow/ 2>/dev/null || true
 cp prms/*.mod gsflow/ 2>/dev/null || true
 cd gsflow && make -j1 FC=gfortran 2>&1 && cd ..
 
-cd - >/dev/null
+cd "$GSFLOW_INSTALL_ROOT"
 
 # Find the built executable
 GSFLOW_EXE=""

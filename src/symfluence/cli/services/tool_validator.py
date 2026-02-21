@@ -75,6 +75,9 @@ class ToolValidator(BaseService):
 
         # Validate each tool (skip optional tools that aren't installed)
         for tool_name, tool_info in self.external_tools.items():
+            if tool_info.get('hidden', False):
+                validation_results["skipped_tools"].append(tool_name)
+                continue
             if tool_info.get('optional', False):
                 # Check if optional tool is actually installed before validating.
                 # Use default_path_suffix (e.g. installs/clm/bin) which includes

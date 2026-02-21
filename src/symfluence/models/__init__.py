@@ -61,7 +61,7 @@ _model_names = [
     'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm', 'hechms',
     'topmodel', 'modflow', 'parflow', 'clmparflow', 'xinanjiang', 'snow17',
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
-    'pihm', 'hydrogeosphere', 'wmfire',
+    'pihm', 'wmfire',
     'gsflow', 'watflood',
 ]
 

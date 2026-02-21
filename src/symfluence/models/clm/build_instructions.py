@@ -280,6 +280,40 @@ if [ -f "$PIO_NC" ] && ! grep -q "ifndef _FillValue" "$PIO_NC"; then
     echo "PIO patched successfully"
 fi
 
+# === STEP 2b: Patch CMakeLists.txt for CMake 4.x compatibility ===
+# CMake 4.x removed support for cmake_minimum_required(VERSION < 3.5).
+# PIO, MCT, and other vendored libraries may use old minimum versions.
+# Patch all CMakeLists.txt files under CTSM_ROOT to use VERSION 3.5 minimum.
+echo "Patching CMakeLists.txt files for CMake 4.x compatibility..."
+$PYTHON3 -c "
+import re, os, glob
+
+root = '$CTSM_ROOT'
+pattern = re.compile(
+    r'cmake_minimum_required\s*\(\s*VERSION\s+([0-9]+(?:\.[0-9]+)*)',
+    re.IGNORECASE,
+)
+patched = 0
+for path in glob.glob(os.path.join(root, '**', 'CMakeLists.txt'), recursive=True):
+    with open(path) as f:
+        orig = f.read()
+    def bump(m):
+        ver = m.group(1)
+        parts = list(map(int, ver.split('.')))
+        # Only patch if version < 3.5
+        if parts[0] < 3 or (parts[0] == 3 and (len(parts) < 2 or parts[1] < 5)):
+            return m.group(0).replace(ver, '3.5')
+        return m.group(0)
+    txt = pattern.sub(bump, orig)
+    if txt != orig:
+        with open(path, 'w') as f:
+            f.write(txt)
+        rel = os.path.relpath(path, root)
+        print(f'  Patched: {rel}')
+        patched += 1
+print(f'  {patched} file(s) patched for CMake 4.x compatibility')
+"
+
 # === STEP 3: Inject ESMFMKFILE into homebrew machine config ===
 # ESMFMKFILE is now set, so $ESMFMKFILE expands correctly
 MACH_XML="${CTSM_ROOT}/ccs_config/machines/homebrew/config_machines.xml"
@@ -400,9 +434,22 @@ with open('env_mach_specific.xml','w') as f: f.write(c)
     echo "Injected ESMFMKFILE=$ESMFMKFILE into env_mach_specific.xml"
 fi
 
-# On Linux/HPC, inject separate NetCDF-C and NetCDF-Fortran paths for CIME
-# (on macOS these are typically co-located under Homebrew so this isn't needed)
-if [ "$UNAME_S" = "Linux" ] && [ -n "${NETCDF_FORTRAN:-}" ]; then
+# Inject NetCDF paths into CIME environment.
+# On macOS (Homebrew), NetCDF-C and NetCDF-Fortran are separate packages in
+# different prefixes, so we must always detect and inject both paths.
+# On Linux/HPC the common_build_environment already sets NETCDF_C / NETCDF_FORTRAN.
+if [ -z "${NETCDF_C:-}" ] && command -v nc-config >/dev/null 2>&1; then
+    NETCDF_C=$(nc-config --prefix 2>/dev/null || true)
+fi
+if [ -z "${NETCDF_FORTRAN:-}" ] && command -v nf-config >/dev/null 2>&1; then
+    NETCDF_FORTRAN=$(nf-config --prefix 2>/dev/null || true)
+fi
+# Fallback: if only nc-config is available, assume Fortran is co-located
+if [ -z "${NETCDF_FORTRAN:-}" ] && [ -n "${NETCDF_C:-}" ]; then
+    NETCDF_FORTRAN="$NETCDF_C"
+fi
+
+if [ -n "${NETCDF_C:-}" ] && [ -n "${NETCDF_FORTRAN:-}" ]; then
     if ! grep -q "NETCDF_FORTRAN_PATH" env_mach_specific.xml 2>/dev/null; then
         $PYTHON3 -c "
 with open('env_mach_specific.xml') as f: c = f.read()

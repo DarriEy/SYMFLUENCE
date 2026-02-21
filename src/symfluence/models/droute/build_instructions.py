@@ -98,7 +98,8 @@ eval cmake .. \
     -DDMC_ENABLE_AD=ON \
     -DDMC_BUILD_PYTHON=OFF \
     -DPYTHON_EXECUTABLE="$PYTHON_EXE" \
-    -DCMAKE_INSTALL_PREFIX="../install"
+    -DCMAKE_INSTALL_PREFIX="../install" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Fix 4: conda netCDF cmake config injects MSVC-only /utf-8 flag.
 # Strip it from generated flags files so GCC doesn't choke.

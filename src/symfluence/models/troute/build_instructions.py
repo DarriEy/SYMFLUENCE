@@ -37,7 +37,7 @@ def get_troute_build_instructions():
         'config_path_key': 'TROUTE_INSTALL_PATH',
         'config_exe_key': 'TROUTE_PKG_PATH',
         'default_path_suffix': 'installs/t-route/src/troute-nwm',
-        'default_exe': 'nwm_routing/__main__.py',
+        'default_exe': 'src/nwm_routing/__main__.py',
         'repository': 'https://github.com/NOAA-OWP/t-route.git',
         'branch': None,
         'install_dir': 't-route',
