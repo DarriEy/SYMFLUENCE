@@ -528,9 +528,9 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         if self.fuse_sim_dir.exists():
             default_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
             sce_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_sce.nc"
-            if default_params.exists() and not sce_params.exists():
+            if default_params.exists():
                 copy_file(default_params, sce_params)
-                self.logger.info("Initialized para_sce.nc from default parameters")
+                self.logger.info("Copied DDS best parameters to para_sce.nc")
 
     def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
         """

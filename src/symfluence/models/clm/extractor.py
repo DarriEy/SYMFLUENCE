@@ -167,7 +167,7 @@ class CLMResultExtractor(ModelResultExtractor):
         ds = self._open_history(output_dir)
         if ds is None:
             return []
-        variables = list(ds.data_vars)
+        variables = [str(var_name) for var_name in ds.data_vars]
         ds.close()
         return variables
 

@@ -9,7 +9,7 @@ FORCE_RUN_ALL_STEPS: false
 USE_LOCAL_SCRATCH: false
 STOP_ON_ERROR: true
 DOMAIN_NAME: Sagehen_Creek_near_Truckee
-EXPERIMENT_ID: workshop_run_1
+EXPERIMENT_ID: workshop_run_3
 EXPERIMENT_TIME_START: 2016-01-01 01:00
 EXPERIMENT_TIME_END: 2020-12-31 23:00
 CALIBRATION_PERIOD: 2017-01-01, 2019-12-31
@@ -109,9 +109,11 @@ SETTINGS_SUMMA_PARALLEL_PATH: default
 SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe
 EXPERIMENT_OUTPUT_SUMMA: default
 EXPERIMENT_LOG_SUMMA: default
-PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,newSnowDenMin,Fcapil,k_soil,theta_sat,critSoilWilting,theta_res,f_impede,tempCritRain,fieldCapacity
+PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,newSnowDenMin,Fcapil,k_soil,theta_sat,critSoilWilting,theta_res,f_impede,tempCritRain,fieldCapacity,qSurfScale
 BASIN_PARAMS_TO_CALIBRATE: routingGammaShape,routingGammaScale
-SUMMA_DECISION_OPTIONS: {}
+SUMMA_DECISION_OPTIONS:
+  hc_profile:
+  - pow_prof
 CALIBRATE_DEPTH: false
 SETTINGS_SUMMA_GLACIER_MODE: false
 SETTINGS_SUMMA_GLACIER_ATTRIBUTES: attributes_glac.nc
@@ -121,10 +123,10 @@ OPTIMIZATION_METHODS:
 - iteration
 OPTIMIZATION_TARGET: streamflow
 CALIBRATION_VARIABLE: streamflow
-CALIBRATION_TIMESTEP: hourly
+CALIBRATION_TIMESTEP: daily
 ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
 OPTIMIZATION_METRIC: KGE
-NUMBER_OF_ITERATIONS: 100
+NUMBER_OF_ITERATIONS: 300
 POPULATION_SIZE: 50
 FINAL_EVALUATION_NUMERICAL_METHOD: ida
 CLEANUP_PARALLEL_DIRS: true
@@ -310,19 +312,31 @@ MODFLOW_PARAMS_TO_CALIBRATE: K,SY,DRAIN_CONDUCTANCE
 PARAMETER_BOUNDS:
   K:
   - 0.1
-  - 50.0
+  - 100.0
   SY:
   - 0.005
-  - 0.2
+  - 0.25
   fieldCapacity:
-  - 0.1
+  - 0.05
   - 0.45
   critSoilWilting:
   - 0.01
   - 0.4
+  albedoMax:
+  - 0.5
+  - 0.95
   albedoMinWinter:
-  - 0.55
+  - 0.45
+  - 0.85
+  theta_sat:
+  - 0.35
   - 0.85
   theta_res:
   - 0.01
-  - 0.12
+  - 0.15
+  routingGammaShape:
+  - 1.0
+  - 5.0
+  DRAIN_CONDUCTANCE:
+  - 1000.0
+  - 500000.0

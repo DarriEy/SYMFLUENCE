@@ -14,6 +14,12 @@ from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer # typ
 from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.analysis_registry import AnalysisRegistry
+from symfluence.data.observation.paths import (
+    first_existing_path,
+    streamflow_observation_candidates,
+    tws_default_observation_path,
+    tws_observation_candidates,
+)
 
 from symfluence.core.mixins import ConfigurableMixin
 
@@ -410,6 +416,71 @@ class AnalysisManager(ConfigurableMixin):
 
         return sensitivity_analyzer.run_sensitivity_analysis(results_file)
 
+    def run_koopman_analysis(
+        self,
+        ensemble_df: pd.DataFrame,
+        obs_streamflow: pd.Series,
+        train_end: str = "2007-12-31",
+        eval_start: str = "2008-01-01",
+        rank: Optional[int] = None,
+        delay_lags: int = 7,
+        svd_threshold: float = 0.99,
+        analyzer_name: str = "DEFAULT",
+    ) -> Optional[Dict]:
+        """Run Koopman operator analysis of a multi-model hydrological ensemble.
+
+        Uses EDMD with structurally diverse model outputs as lifting functions
+        to approximate the Koopman operator. Extracts dominant dynamical modes,
+        timescales, and mode loadings.
+
+        Args:
+            ensemble_df: (T, N) DataFrame of model outputs (m^3/s), aligned daily
+            obs_streamflow: (T,) Series of observed streamflow (m^3/s)
+            train_end: Last training date (default "2007-12-31")
+            eval_start: First evaluation date (default "2008-01-01")
+            rank: Explicit DMD rank (None = auto from SVD threshold)
+            delay_lags: Number of delay-embedding lags (default 7)
+            svd_threshold: Cumulative energy threshold for rank selection
+            analyzer_name: Registry key for the Koopman analyzer (default "DEFAULT")
+
+        Returns:
+            Dict with eigenvalues, timescales, metrics, mode_loadings, etc.,
+            or None if analysis failed.
+        """
+        self.logger.info("Starting Koopman operator analysis")
+
+        # Ensure the koopman_analysis module is imported to trigger registration
+        try:
+            import symfluence.evaluation.koopman_analysis  # noqa: F401
+        except ImportError:
+            pass
+
+        analyzer_cls = AnalysisRegistry.get_koopman_analyzer(analyzer_name)
+        if analyzer_cls is None:
+            self.logger.error(
+                f"No Koopman analyzer registered as '{analyzer_name}'. "
+                f"Available: {AnalysisRegistry.list_koopman_analyzers()}"
+            )
+            return None
+
+        try:
+            analyzer = analyzer_cls(
+                self.config, self.logger, self.reporting_manager,
+                delay_lags=delay_lags, svd_threshold=svd_threshold,
+            )
+            results = analyzer.run_koopman_analysis(
+                ensemble_df, obs_streamflow,
+                train_end=train_end, eval_start=eval_start, rank=rank,
+            )
+            self.logger.info("Koopman operator analysis completed successfully")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Error during Koopman analysis: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
+
     def run_decision_analysis(self) -> Optional[Dict]:
         """
         Run decision analysis to assess the impact of model structure choices.
@@ -586,13 +657,18 @@ class AnalysisManager(ConfigurableMixin):
         obs = {}
 
         # Streamflow
-        sf_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        sf_file = first_existing_path(
+            streamflow_observation_candidates(self.project_dir, self.domain_name)
+        )
         if sf_file.exists():
             df = pd.read_csv(sf_file, parse_dates=True, index_col=0)
             obs['STREAMFLOW'] = df.iloc[:, 0]
 
         # GRACE/TWS
-        tws_file = self.project_dir / "observations" / "grace" / "preprocessed" / f"{self.domain_name}_grace_tws_processed.csv"
+        tws_file = first_existing_path(
+            tws_observation_candidates(self.project_dir, self.domain_name, "stor_grace"),
+            default=tws_default_observation_path(self.project_dir, self.domain_name),
+        )
         if tws_file.exists():
             df = pd.read_csv(tws_file, parse_dates=True, index_col=0)
             if 'grace_jpl_anomaly' in df.columns:
@@ -638,7 +714,9 @@ class AnalysisManager(ConfigurableMixin):
             requirements['decision_analysis'] = True
 
         # Check for processed observations (required for all analyses)
-        obs_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        obs_file = first_existing_path(
+            streamflow_observation_candidates(self.project_dir, self.domain_name)
+        )
         if not obs_file.exists():
             self.logger.warning("Processed observations not found - all analyses may fail")
             requirements = {key: False for key in requirements}

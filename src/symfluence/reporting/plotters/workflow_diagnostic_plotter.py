@@ -496,7 +496,10 @@ class WorkflowDiagnosticPlotter(BasePlotter):
                 if 'time' in data.dims:
                     data = data.isel(time=0)
                 if len(data.dims) >= 2:
-                    data.plot(ax=ax1, cmap='viridis')
+                    img = np.asarray(data.values)
+                    if img.ndim == 1:
+                        img = img[np.newaxis, :]
+                    ax1.imshow(img, cmap='viridis', aspect='auto')
                     ax1.set_title(f'Spatial Coverage ({var_name})', fontsize=self.plot_config.FONT_SIZE_TITLE)
             else:
                 ax1.text(0.5, 0.5, 'No spatial data found', ha='center', va='center',
@@ -615,7 +618,10 @@ class WorkflowDiagnosticPlotter(BasePlotter):
                 if 'time' in raw_data.dims:
                     raw_data = raw_data.isel(time=0)
                 if len(raw_data.dims) >= 2:
-                    raw_data.plot(ax=ax1, cmap='Blues')
+                    img = np.asarray(raw_data.values)
+                    if img.ndim == 1:
+                        img = img[np.newaxis, :]
+                    ax1.imshow(img, cmap='Blues', aspect='auto')
                 ax1.set_title(f'Raw {var_name}', fontsize=self.plot_config.FONT_SIZE_TITLE)
             else:
                 ax1.text(0.5, 0.5, 'No comparable variable', ha='center', va='center',
@@ -664,7 +670,10 @@ class WorkflowDiagnosticPlotter(BasePlotter):
                     ax3.set_xlabel('HRU Index')
                     ax3.set_ylabel(f'Mean {var_name}')
                 else:
-                    remap_mean.plot(ax=ax3, cmap='Blues')
+                    img = np.asarray(remap_mean.values)
+                    if img.ndim == 1:
+                        img = img[np.newaxis, :]
+                    ax3.imshow(img, cmap='Blues', aspect='auto')
                 ax3.set_title('Remapped Per-HRU', fontsize=self.plot_config.FONT_SIZE_TITLE)
             else:
                 ax3.text(0.5, 0.5, 'No remapped data', ha='center', va='center',
@@ -756,11 +765,11 @@ class WorkflowDiagnosticPlotter(BasePlotter):
             if nc_files:
                 try:
                     import xarray as xr
-                    all_vars = []
+                    all_vars: List[str] = []
                     for nc_file in nc_files[:5]:  # Limit to first 5 files
                         try:
                             ds = xr.open_dataset(nc_file)
-                            all_vars.extend(list(ds.data_vars))
+                            all_vars.extend(str(v) for v in ds.data_vars)
                             ds.close()
                         except (OSError, ValueError, KeyError) as e:
                             self.logger.debug(f"Could not read {nc_file.name} for variable inventory: {e}")
@@ -882,7 +891,7 @@ class WorkflowDiagnosticPlotter(BasePlotter):
 
             # Open the output file
             ds = xr.open_dataset(output_nc)
-            data_vars = list(ds.data_vars)
+            data_vars = [str(v) for v in ds.data_vars]
 
             # Panel 1: Variable ranges
             ax1 = axes[0]
@@ -960,7 +969,7 @@ class WorkflowDiagnosticPlotter(BasePlotter):
                     if dim != 'time':
                         ts_data = ts_data.mean(dim=dim)
 
-                ts_data.plot(ax=ax3, color='steelblue', linewidth=0.5)
+                ax3.plot(ts_data['time'].values, ts_data.values, color='steelblue', linewidth=0.5)
                 ax3.set_title(f'{plot_var} Time Series', fontsize=self.plot_config.FONT_SIZE_TITLE)
                 ax3.set_xlabel('Time')
                 ax3.tick_params(axis='x', rotation=45)

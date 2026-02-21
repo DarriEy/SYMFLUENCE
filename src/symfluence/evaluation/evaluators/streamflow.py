@@ -18,6 +18,7 @@ from typing import cast, List, Optional, TYPE_CHECKING
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.core.constants import UnitConverter
+from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -823,7 +824,9 @@ class StreamflowEvaluator(ModelEvaluator):
             dict_key='OBSERVATIONS_PATH'
         )
         if obs_path == 'default' or not obs_path:
-            return self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+            return first_existing_path(
+                streamflow_observation_candidates(self.project_dir, self.domain_name)
+            )
         return Path(obs_path)
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:

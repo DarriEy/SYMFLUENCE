@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.provenance import record_step
+from symfluence.data.observation.paths import observation_output_candidates_by_family
 
 
 @dataclass
@@ -91,6 +92,36 @@ class WorkflowOrchestrator(ConfigMixin):
 
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
 
+    @staticmethod
+    def _normalize_config_list(value: Any) -> List[str]:
+        """Normalize scalar/string/list config values to uppercase string tokens."""
+        if value is None:
+            return []
+
+        if isinstance(value, str):
+            items = [part.strip() for part in value.split(",") if part.strip()]
+            return [item.upper() for item in items]
+
+        if isinstance(value, (list, tuple, set)):
+            items = [str(item).strip() for item in value]
+            return [item.upper() for item in items if item]
+
+        normalized = str(value).strip()
+        return [normalized.upper()] if normalized else []
+
+    @staticmethod
+    def _tokens_include(tokens: List[str], *needles: str) -> bool:
+        """Return True when any needle is present in any token."""
+        return any(any(needle in token for needle in needles) for token in tokens)
+
+    def _observation_output_paths(self) -> Dict[str, List[Path]]:
+        """Canonical + legacy candidate output paths by observation family."""
+        return observation_output_candidates_by_family(self.project_dir, self.domain_name)
+
+    def _has_observation_output(self, family: str) -> bool:
+        """Return True when any candidate output exists for an observation family."""
+        return any(path.exists() for path in self._observation_output_paths().get(family, []))
+
     def _check_observed_data_exists(self) -> bool:
         """
         Check if required observed data files exist based on configuration.
@@ -104,53 +135,65 @@ class WorkflowOrchestrator(ConfigMixin):
         Returns:
             bool: True if at least one required observation type has been processed
         """
-        evaluation_data = self._get_config_value(lambda: self.config.evaluation.evaluation_data, default=[], dict_key='EVALUATION_DATA')
-        self._get_config_value(lambda: self.config.data.additional_observations, default=[], dict_key='ADDITIONAL_OBSERVATIONS')
+        evaluation_data = self._normalize_config_list(
+            self._get_config_value(
+                lambda: self.config.evaluation.evaluation_data,
+                default=[],
+                dict_key='EVALUATION_DATA',
+            )
+        )
+        additional_observations = self._normalize_config_list(
+            self._get_config_value(
+                lambda: self.config.data.additional_observations,
+                default=[],
+                dict_key='ADDITIONAL_OBSERVATIONS',
+            )
+        )
+        requested_tokens = evaluation_data + additional_observations
 
-        # Check for snow data (SWE, SCA)
-        if any(obs_type.upper() in ['SWE', 'SCA', 'SNOW'] for obs_type in evaluation_data) or \
-           self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL') or self._get_config_value(lambda: self.config.evaluation.modis_snow.download, dict_key='DOWNLOAD_MODIS_SNOW'):
-            snow_files = [
-                self.project_dir / "observations" / "snow" / "swe" / "processed" / f"{self.domain_name}_swe_processed.csv",
-                self.project_dir / "observations" / "snow" / "sca" / "processed" / f"{self.domain_name}_sca_processed.csv",
-                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
-                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv",
-            ]
-            if any(f.exists() for f in snow_files):
-                return True
+        check_snow = (
+            self._tokens_include(requested_tokens, "SWE", "SCA", "SNOW")
+            or bool(self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL'))
+            or bool(self._get_config_value(lambda: self.config.evaluation.modis_snow.download, dict_key='DOWNLOAD_MODIS_SNOW'))
+        )
+        if check_snow and self._has_observation_output("snow"):
+            return True
 
-        # Check for soil moisture data
-        if any('SM_' in str(obs_type).upper() for obs_type in evaluation_data):
-            sm_files = [
-                self.project_dir / "observations" / "soil_moisture" / "point" / "processed" / f"{self.domain_name}_sm_processed.csv",
-                self.project_dir / "observations" / "soil_moisture" / "smap" / "processed" / f"{self.domain_name}_smap_processed.csv",
-                self.project_dir / "observations" / "soil_moisture" / "ismn" / "processed" / f"{self.domain_name}_ismn_processed.csv",
-            ]
-            if any(f.exists() for f in sm_files):
-                return True
+        check_soil_moisture = self._tokens_include(
+            requested_tokens,
+            "SM_",
+            "SMAP",
+            "ISMN",
+            "SOIL_MOISTURE",
+        )
+        if check_soil_moisture and self._has_observation_output("soil_moisture"):
+            return True
 
-        # Check for streamflow data (default)
-        if any(obs_type.upper() in ['STREAMFLOW', 'DISCHARGE'] for obs_type in evaluation_data) or \
-           self._get_config_value(lambda: self.config.data.download_usgs_data, dict_key='DOWNLOAD_USGS_DATA') or self._get_config_value(lambda: self.config.evaluation.streamflow.download_wsc, dict_key='DOWNLOAD_WSC_DATA'):
-            streamflow_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
-            if streamflow_file.exists():
-                return True
+        check_streamflow = (
+            self._tokens_include(
+                requested_tokens,
+                "STREAMFLOW",
+                "DISCHARGE",
+                "USGS_STREAMFLOW",
+                "WSC_STREAMFLOW",
+                "SMHI_STREAMFLOW",
+                "LAMAH_ICE_STREAMFLOW",
+                "GRDC_STREAMFLOW",
+            )
+            or bool(self._get_config_value(lambda: self.config.data.download_usgs_data, dict_key='DOWNLOAD_USGS_DATA'))
+            or bool(self._get_config_value(lambda: self.config.evaluation.streamflow.download_wsc, dict_key='DOWNLOAD_WSC_DATA'))
+        )
+        if check_streamflow and self._has_observation_output("streamflow"):
+            return True
 
-        # Check for ET data
-        if any('ET' in str(obs_type).upper() for obs_type in evaluation_data):
-            et_files = [
-                self.project_dir / "observations" / "et" / "preprocessed" / f"{self.domain_name}_modis_et_processed.csv",
-                self.project_dir / "observations" / "et" / "preprocessed" / f"{self.domain_name}_fluxnet_et_processed.csv",
-            ]
-            if any(f.exists() for f in et_files):
-                return True
+        check_et = self._tokens_include(requested_tokens, "ET", "FLUXNET", "MODIS_ET", "OPENET")
+        if check_et and self._has_observation_output("et"):
+            return True
 
-        # If no specific evaluation data is defined, check for streamflow as default
-        if not evaluation_data:
-            return (self.project_dir / "observations" / "streamflow" / "preprocessed" /
-                    f"{self.domain_name}_streamflow_processed.csv").exists()
+        # Default for generic configs: streamflow is the minimum expected observation.
+        if not requested_tokens:
+            return self._has_observation_output("streamflow")
 
-        # If we got here and evaluation_data is defined but nothing found, return False
         return False
 
     def define_workflow_steps(self) -> List[WorkflowStep]:

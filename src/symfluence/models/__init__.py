@@ -59,7 +59,7 @@ _model_names = [
     'summa', 'fuse', 'ngen', 'mizuroute', 'troute', 'droute',
     'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
     'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm', 'hechms',
-    'topmodel', 'modflow', 'parflow', 'xinanjiang', 'snow17',
+    'topmodel', 'modflow', 'parflow', 'clmparflow', 'xinanjiang', 'snow17',
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
     'pihm', 'hydrogeosphere', 'wmfire',
     'gsflow', 'watflood',

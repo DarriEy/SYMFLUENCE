@@ -376,7 +376,7 @@ class HRRRHandler(BaseDatasetHandler):
         for f in files:
             self.logger.info(f"Processing HRRR file: {f}")
             try:
-                ds = xr.open_dataset(f)
+                ds = self.open_dataset(f)
             except Exception as e:
                 self.logger.error(f"Error opening HRRR file {f}: {e}")
                 continue
@@ -418,7 +418,7 @@ class HRRRHandler(BaseDatasetHandler):
         hrrr_file = hrrr_files[0]
         self.logger.info(f"Using HRRR file for grid: {hrrr_file}")
 
-        with xr.open_dataset(hrrr_file) as ds:
+        with self.open_dataset(hrrr_file) as ds:
             var_lat, var_lon = self.get_coordinate_names()
 
             if var_lat in ds.coords:

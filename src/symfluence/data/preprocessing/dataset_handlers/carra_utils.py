@@ -101,7 +101,7 @@ class CARRAHandler(BaseDatasetHandler):
             return
 
         # Check first file to see if normalization is needed
-        with xr.open_dataset(carra_files[0]) as ds:
+        with self.open_dataset(carra_files[0]) as ds:
             lons = ds.longitude.values
             lats = ds.latitude.values
             needs_lon_fix = lons.max() > 180
@@ -120,7 +120,7 @@ class CARRAHandler(BaseDatasetHandler):
 
         for nc_file in carra_files:
             # Load into memory and close file handle before writing
-            with xr.open_dataset(nc_file) as ds:
+            with self.open_dataset(nc_file) as ds:
                 ds_loaded = ds.load()
 
             modified = False
@@ -181,7 +181,7 @@ class CARRAHandler(BaseDatasetHandler):
             self.logger.info(f"Using CARRA file: {carra_file}")
 
             # Read CARRA data
-            with xr.open_dataset(carra_file) as ds:
+            with self.open_dataset(carra_file) as ds:
                 lats = ds.latitude.values
                 lons = ds.longitude.values
 

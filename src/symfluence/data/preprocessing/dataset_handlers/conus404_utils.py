@@ -461,7 +461,7 @@ class CONUS404Handler(BaseDatasetHandler):
         for f in files:
             self.logger.info(f"Processing CONUS404 file: {f}")
             try:
-                ds = xr.open_dataset(f)
+                ds = self.open_dataset(f)
             except Exception as e:
                 self.logger.error(f"Error opening CONUS404 file {f}: {e}")
                 continue
@@ -526,7 +526,7 @@ class CONUS404Handler(BaseDatasetHandler):
         conus_file = conus_files[0]
         self.logger.info(f"Using CONUS404 file for grid: {conus_file}")
 
-        with xr.open_dataset(conus_file) as ds:
+        with self.open_dataset(conus_file) as ds:
             var_lat, var_lon = self.get_coordinate_names()
 
             if var_lat in ds.coords:

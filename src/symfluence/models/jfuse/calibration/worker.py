@@ -486,7 +486,7 @@ class JFUSEWorker(InMemoryModelWorker):
 
     def initialize(self, task: Optional[WorkerTask] = None) -> bool:
         """Initialize model and load data with jFUSE-specific setup."""
-        if self._initialized:
+        if getattr(self, "_initialized", False):
             return True
 
         # Load forcing — use distributed loader if in distributed mode
@@ -631,7 +631,7 @@ class JFUSEWorker(InMemoryModelWorker):
             mapping_df = pd.read_csv(mapping_file)
             # Filter to non-coastal GRUs
             non_coastal_df = mapping_df[mapping_df['is_coastal'] == False]  # noqa: E712
-            non_coastal_indices = non_coastal_df['fuse_gru_idx'].values
+            non_coastal_indices = np.asarray(non_coastal_df['fuse_gru_idx'].values, dtype=int)
             n_non_coastal = len(non_coastal_indices)
             precip = precip[:, non_coastal_indices]
             temp = temp[:, non_coastal_indices]

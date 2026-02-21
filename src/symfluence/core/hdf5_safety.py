@@ -164,9 +164,10 @@ def clear_xarray_cache() -> None:
             # Try to find CachingFileManager's cache
             if hasattr(fm, 'CachingFileManager'):
                 cfm = fm.CachingFileManager
-                if hasattr(cfm, '_cache'):
+                cache = getattr(cfm, '_cache', None)
+                if cache is not None:
                     try:
-                        cfm._cache.clear()
+                        cache.clear()
                     except (TypeError, AttributeError):
                         pass
 

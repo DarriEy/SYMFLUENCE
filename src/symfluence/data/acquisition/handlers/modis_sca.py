@@ -18,7 +18,7 @@ import pandas as pd
 import xarray as xr
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Any, Dict, Optional, List, cast
 from ..registry import AcquisitionRegistry
 from .earthaccess_base import BaseEarthaccessAcquirer
 
@@ -179,7 +179,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
 
         self.logger.info(f"Processing {len(hdf_files)} {product} HDF files")
 
-        records = []
+        records: List[Dict[str, Any]] = []
         for hdf_path in sorted(hdf_files):
             try:
                 # Extract date from filename (e.g., MOD10A1.A2017001.h10v03...)
@@ -218,12 +218,12 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
             return None
 
         # Create xarray dataset
-        records = sorted(records, key=lambda x: x['date'])
-        times = [r['date'] for r in records]
-        data_stack = np.stack([r['data'] for r in records], axis=0)
+        records = sorted(records, key=lambda x: cast(datetime, x['date']))
+        times = [cast(datetime, r['date']) for r in records]
+        data_stack = np.stack([cast(np.ndarray, r['data']) for r in records], axis=0)
 
         # Get coordinates from first record
-        first_coords = records[0]['coords']
+        first_coords = cast(Dict[str, Any], records[0]['coords'])
         lat_key = 'lat' if 'lat' in first_coords else 'y'
         lon_key = 'lon' if 'lon' in first_coords else 'x'
 

@@ -11,6 +11,7 @@ import threading
 import time
 from math import log, tan, pi
 from pathlib import Path
+from typing import Any, cast
 
 import panel as pn
 import param
@@ -27,6 +28,7 @@ from ..utils.threading_utils import run_on_ui_thread
 from .raster_layer import read_tiff_for_bokeh
 
 logger = logging.getLogger(__name__)
+bokeh_figure = cast(Any, figure)
 
 # Web Mercator helpers
 _R = 6378137.0  # Earth radius (m)
@@ -128,7 +130,7 @@ class MapView(param.Parameterized):
         self._clear_bbox_btn.on_click(self._on_clear_bbox)
 
     def _build_figure(self):
-        p = figure(
+        p = bokeh_figure(
             x_range=(-20000000, 20000000),
             y_range=(-7000000, 12000000),
             x_axis_type='mercator',
@@ -204,7 +206,7 @@ class MapView(param.Parameterized):
             line_color='green', line_width=2, line_dash='dashed',
             legend_label='Bounding Box',
         )
-        box_edit = BoxEditTool(renderers=[self._bbox_renderer], num_objects=1)
+        box_edit = BoxEditTool(renderers=cast(Any, [self._bbox_renderer]), num_objects=1)
         p.add_tools(box_edit)
 
         # Watch for bbox data changes from the draw tool

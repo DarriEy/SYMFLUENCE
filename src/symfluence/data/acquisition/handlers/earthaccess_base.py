@@ -164,8 +164,8 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
 
         try:
             import earthaccess
-            auth = earthaccess.login()
-            if not auth:
+            earthaccess_auth = earthaccess.login()
+            if not earthaccess_auth:
                 raise RuntimeError("earthaccess authentication failed")
             session = earthaccess.get_requests_https_session()
         except ImportError:
@@ -175,9 +175,9 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
             try:
                 import netrc
                 nrc = netrc.netrc()
-                auth = nrc.authenticators('urs.earthdata.nasa.gov')
-                if auth:
-                    session.auth = (auth[0], auth[2])
+                netrc_auth = nrc.authenticators('urs.earthdata.nasa.gov')
+                if netrc_auth:
+                    session.auth = (netrc_auth[0], netrc_auth[2])
             except Exception:
                 pass
 

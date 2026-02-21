@@ -22,6 +22,7 @@ from . import evaluators
 from .structure_ensemble import BaseStructureEnsembleAnalyzer
 from .output_file_locator import OutputFileLocator, get_output_file_locator
 from .metric_transformer import MetricTransformer
+from .koopman_analysis import KoopmanAnalyzer
 
 __all__ = [
     "EvaluationRegistry",
@@ -31,4 +32,5 @@ __all__ = [
     "OutputFileLocator",
     "get_output_file_locator",
     "MetricTransformer",
+    "KoopmanAnalyzer",
 ]

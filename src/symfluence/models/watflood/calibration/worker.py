@@ -1,7 +1,7 @@
 """
 WATFLOOD Worker.
 
-Worker implementation for WATFLOOD model optimization.
+Worker implementation for WATFLOOD model optimization via Wine execution.
 """
 
 import logging
@@ -39,23 +39,51 @@ class WATFLOODWorker(BaseWorker):
 
             if original_dir.exists() and original_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
-                for f in original_dir.iterdir():
-                    if f.is_file():
-                        shutil.copy2(f, settings_dir / f.name)
+                # Copy entire directory tree (WATFLOOD needs subdirectories)
+                if not (settings_dir / 'basin').exists():
+                    for item in original_dir.iterdir():
+                        dest = settings_dir / item.name
+                        if item.is_dir():
+                            if not dest.exists():
+                                shutil.copytree(item, dest)
+                        else:
+                            shutil.copy2(item, dest)
 
-            par_file = config.get('WATFLOOD_PAR_FILE', 'params.par')
-            par_path = settings_dir / par_file
+            # Find .par file (check basin/ subdirectory too)
+            par_file = config.get('WATFLOOD_PAR_FILE', 'bow.par')
+            par_path = settings_dir / 'basin' / par_file
             if not par_path.exists():
-                self.logger.error(f"WATFLOOD .par file not found: {par_path}")
-                return False
+                par_path = settings_dir / par_file
+            if not par_path.exists():
+                # Search for any .par file
+                par_files = list(settings_dir.rglob('*.par'))
+                if par_files:
+                    par_path = par_files[0]
+                else:
+                    self.logger.error(f"No .par file found in {settings_dir}")
+                    return False
 
             content = par_path.read_text(encoding='utf-8')
             for param_name, value in params.items():
-                pattern = re.compile(
-                    rf'^(\s*{re.escape(param_name)}\s+)([\d.eE+\-]+)',
+                # Match WATFLOOD .par format: keyword  0.300E+02
+                # Try scientific notation format first
+                pattern_sci = re.compile(
+                    rf'^(\s*{re.escape(param_name)}\s+)([\d.]+E[+\-]\d+)',
                     re.MULTILINE | re.IGNORECASE
                 )
-                content = pattern.sub(lambda m: f"{m.group(1)}{value:.6f}", content)
+                if pattern_sci.search(content):
+                    content = pattern_sci.sub(
+                        lambda m: f"{m.group(1)}{value:.3E}", content
+                    )
+                else:
+                    # Try decimal format
+                    pattern_dec = re.compile(
+                        rf'^(\s*{re.escape(param_name)}\s+)([\d.eE+\-]+)',
+                        re.MULTILINE | re.IGNORECASE
+                    )
+                    content = pattern_dec.sub(
+                        lambda m: f"{m.group(1)}{value:.6f}", content
+                    )
 
             par_path.write_text(content, encoding='utf-8')
             return True
@@ -64,33 +92,42 @@ class WATFLOODWorker(BaseWorker):
             return False
 
     def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs) -> bool:
-        """Run WATFLOOD model from working directory."""
+        """Run WATFLOOD model via Wine."""
         try:
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
             sim_dir.mkdir(parents=True, exist_ok=True)
 
             install_path = config.get('WATFLOOD_INSTALL_PATH', 'default')
-            exe_name = config.get('WATFLOOD_EXE', 'watflood')
+            exe_name = config.get('WATFLOOD_EXE', 'charm64x.exe')
             if install_path == 'default':
-                watflood_exe = data_dir / "installs" / "watflood" / "bin" / exe_name
+                install_dir = data_dir / "installs" / "watflood" / "bin"
             else:
                 p = Path(install_path)
-                watflood_exe = p / exe_name if p.is_dir() else p
+                install_dir = p if p.is_dir() else p.parent
 
+            watflood_exe = install_dir / exe_name
             if not watflood_exe.exists():
                 self.logger.error(f"WATFLOOD executable not found: {watflood_exe}")
                 return False
 
-            # Copy exe to working dir (MESH pattern)
-            work_exe = settings_dir / watflood_exe.name
-            if not work_exe.exists():
-                shutil.copy2(watflood_exe, work_exe)
-                work_exe.chmod(0o755)
+            # Copy exe + DLLs to working dir
+            for f in install_dir.iterdir():
+                if f.suffix.lower() in ('.exe', '.dll'):
+                    dest = settings_dir / f.name
+                    if not dest.exists():
+                        shutil.copy2(f, dest)
 
-            cmd = [str(work_exe)]
+            # Find Wine
+            wine_cmd = self._find_wine()
+            if wine_cmd is None:
+                self.logger.error("Wine not found")
+                return False
+
+            cmd = [wine_cmd, exe_name]
             env = os.environ.copy()
             env['MallocStackLogging'] = '0'
+            env['WINEDEBUG'] = '-all'
             timeout = config.get('WATFLOOD_TIMEOUT', 3600)
 
             try:
@@ -105,18 +142,23 @@ class WATFLOODWorker(BaseWorker):
                 self.logger.warning(f"WATFLOOD timed out after {timeout}s")
                 return False
 
+            # WATFLOOD may exit non-zero but still produce valid output
             if result.returncode != 0:
-                self._last_error = f"WATFLOOD failed with return code {result.returncode}"
-                self.logger.error(self._last_error)
-                return False
+                self.logger.warning(f"WATFLOOD exited with code {result.returncode}")
 
-            # Collect outputs
-            for pattern in ['*.tb0', '*.csv']:
-                for f in settings_dir.glob(pattern):
-                    if f.is_file():
-                        shutil.copy2(f, sim_dir / f.name)
+            # Collect outputs from settings_dir and results/
+            for src in [settings_dir, settings_dir / 'results']:
+                if src.exists():
+                    for pattern in ['*.tb0', '*.csv', 'spl*', 'resin*']:
+                        for f in src.glob(pattern):
+                            if f.is_file():
+                                shutil.copy2(f, sim_dir / f.name)
 
-            output_files = list(sim_dir.glob('*.tb0')) + list(sim_dir.glob('*.csv'))
+            output_files = (
+                list(sim_dir.glob('*.tb0')) +
+                list(sim_dir.glob('*.csv')) +
+                list(sim_dir.glob('spl*'))
+            )
             if not output_files:
                 self._last_error = "No WATFLOOD output files produced"
                 self.logger.error(self._last_error)
@@ -127,12 +169,26 @@ class WATFLOODWorker(BaseWorker):
             self.logger.error(f"Error running WATFLOOD: {e}")
             return False
 
+    @staticmethod
+    def _find_wine() -> Optional[str]:
+        """Find Wine executable."""
+        for candidate in ['wine', '/opt/homebrew/bin/wine', '/usr/local/bin/wine']:
+            try:
+                subprocess.run(
+                    [candidate, '--version'],
+                    capture_output=True, timeout=10
+                )
+                return candidate
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        return None
+
     def calculate_metrics(self, output_dir: Path, config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Calculate metrics from WATFLOOD output."""
         try:
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
 
-            # Find output files
+            # Find output files — WATFLOOD writes spl*.tb0 for streamflow
             tb0_files = list(sim_dir.glob('spl*.tb0')) + list(sim_dir.glob('resin*.tb0'))
             csv_files = list(sim_dir.glob('*.csv'))
             output_files = tb0_files + csv_files
@@ -184,7 +240,7 @@ class WATFLOODWorker(BaseWorker):
                 data_start = 0
                 for i, line in enumerate(lines):
                     stripped = line.strip()
-                    if stripped and not stripped.startswith((':','#')) and stripped[0].isdigit():
+                    if stripped and not stripped.startswith((':', '#')) and stripped[0].isdigit():
                         data_start = i
                         break
                 dates, values = [], []

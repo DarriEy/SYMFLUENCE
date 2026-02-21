@@ -92,6 +92,7 @@ class AnalysisRegistry:
 
     _sensitivity_analyzers: Dict[str, Type] = {}
     _decision_analyzers: Dict[str, Type] = {}
+    _koopman_analyzers: Dict[str, Type] = {}
 
     @classmethod
     def register_sensitivity_analyzer(cls, model_name: str):
@@ -196,7 +197,8 @@ class AnalysisRegistry:
         """
         return {
             'sensitivity': cls.list_sensitivity_analyzers(),
-            'decision': cls.list_decision_analyzers()
+            'decision': cls.list_decision_analyzers(),
+            'koopman': cls.list_koopman_analyzers(),
         }
 
     @classmethod
@@ -222,3 +224,67 @@ class AnalysisRegistry:
             True if analyzer is registered, False otherwise
         """
         return model_name.upper() in cls._decision_analyzers
+
+    # ------------------------------------------------------------------
+    # Koopman analyzers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def register_koopman_analyzer(cls, name: str = "DEFAULT"):
+        """Decorator to register a Koopman operator analyzer.
+
+        Koopman analyzers use EDMD with multi-model ensemble outputs as
+        lifting functions to approximate the Koopman operator of the
+        watershed system.
+
+        Args:
+            name: Analyzer identifier (default "DEFAULT")
+
+        Returns:
+            Decorator function that registers the class
+
+        Example:
+            @AnalysisRegistry.register_koopman_analyzer()
+            class KoopmanAnalyzer:
+                def __init__(self, config, logger, reporting_manager=None):
+                    ...
+                def run_koopman_analysis(self, ensemble_df, obs_streamflow):
+                    ...
+        """
+        def decorator(analyzer_cls: Type) -> Type:
+            cls._koopman_analyzers[name.upper()] = analyzer_cls
+            return analyzer_cls
+        return decorator
+
+    @classmethod
+    def get_koopman_analyzer(cls, name: str = "DEFAULT") -> Optional[Type]:
+        """Get a registered Koopman analyzer class.
+
+        Args:
+            name: Analyzer identifier (default "DEFAULT")
+
+        Returns:
+            Analyzer class if registered, None otherwise
+        """
+        return cls._koopman_analyzers.get(name.upper())
+
+    @classmethod
+    def list_koopman_analyzers(cls) -> List[str]:
+        """List all registered Koopman analyzers.
+
+        Returns:
+            Sorted list of registered Koopman analyzer names
+        """
+        return sorted(list(cls._koopman_analyzers.keys()))
+
+    @classmethod
+    def has_koopman_analyzer(cls, name: str = "DEFAULT") -> bool:
+        """Check if a Koopman analyzer is registered.
+
+        Args:
+            name: Analyzer identifier
+
+        Returns:
+            True if analyzer is registered, False otherwise
+        """
+        return name.upper() in cls._koopman_analyzers

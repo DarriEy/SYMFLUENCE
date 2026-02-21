@@ -459,12 +459,9 @@ MESH_ENABLE_FROZEN_SOIL: true
 #   Usage:      9
 MIZUROUTE_EXE: "mizuRoute.exe"
 
-# EXE_NAME_MIZUROUTE (DEPRECATED - use MIZUROUTE_EXE instead)
-#   Type:        str
-#   Default:     mizuRoute.exe
-#   Source:      MizuRouteConfig (model_configs.py)
-#   DEPRECATED:  Will be removed in v2.0. Use MIZUROUTE_EXE instead.
-EXE_NAME_MIZUROUTE: "mizuRoute.exe"
+# EXE_NAME_MIZUROUTE (DEPRECATED - removed from templates)
+#   Legacy key support remains for backward compatibility in user configs,
+#   but templates now use only MIZUROUTE_EXE.
 
 # EXPERIMENT_LOG_MIZUROUTE
 #   Type:        str
@@ -487,12 +484,9 @@ EXPERIMENT_OUTPUT_MIZUROUTE: default
 #   Usage:      9
 MIZUROUTE_INSTALL_PATH: default
 
-# INSTALL_PATH_MIZUROUTE (DEPRECATED - use MIZUROUTE_INSTALL_PATH instead)
-#   Type:        str
-#   Default:     default
-#   Source:      MizuRouteConfig (model_configs.py)
-#   DEPRECATED:  Will be removed in v2.0. Use MIZUROUTE_INSTALL_PATH instead.
-INSTALL_PATH_MIZUROUTE: default
+# INSTALL_PATH_MIZUROUTE (DEPRECATED - removed from templates)
+#   Legacy key support remains for backward compatibility in user configs,
+#   but templates now use only MIZUROUTE_INSTALL_PATH.
 
 # MIZU_FROM_MODEL
 #   Type:        str

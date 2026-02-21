@@ -12,6 +12,7 @@ Provides five sub-tabs:
 import logging
 import threading
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import panel as pn
@@ -24,6 +25,7 @@ from ..data.results_loader import ResultsLoader
 from ..utils.threading_utils import run_on_ui_thread
 
 logger = logging.getLogger(__name__)
+bokeh_figure = cast(Any, figure)
 
 # Category -> subdirectory mapping (for legacy Saved Plots tab)
 RESULT_CATEGORIES = {
@@ -134,11 +136,17 @@ class ResultsViewer(param.Parameterized):
             disable_while_running = bool(spec.get('disable_while_running', False))
             btn = pn.widgets.Button(name=label, button_type=button_type, width=190)
             if callback is not None:
-                btn.on_click(lambda event, fn=callback: fn())
+                def _invoke_callback(_event: Any, fn=callback) -> None:
+                    fn()
+
+                btn.on_click(_invoke_callback)
             if disable_while_running:
                 btn.disabled = bool(self.state.is_running)
+                def _sync_disabled(event: Any, button=btn) -> None:
+                    setattr(button, 'disabled', bool(event.new))
+
                 self.state.param.watch(
-                    lambda event, button=btn: setattr(button, 'disabled', bool(event.new)),
+                    _sync_disabled,
                     'is_running',
                 )
             buttons.append(btn)
@@ -223,7 +231,7 @@ class ResultsViewer(param.Parameterized):
             return container
 
         # Build Bokeh figure
-        p = figure(
+        p = bokeh_figure(
             title='Hydrograph',
             x_axis_type='datetime',
             tools='pan,wheel_zoom,box_zoom,reset,hover',
@@ -326,7 +334,7 @@ class ResultsViewer(param.Parameterized):
             return container
 
         # --- Top figure: score vs iteration ---
-        p_score = figure(
+        p_score = bokeh_figure(
             title='Calibration Convergence',
             tools='pan,wheel_zoom,box_zoom,reset,hover',
             active_scroll='wheel_zoom',
@@ -376,7 +384,7 @@ class ResultsViewer(param.Parameterized):
                 sizing_mode='stretch_width',
             )
 
-            p_params = figure(
+            p_params = bokeh_figure(
                 title='Parameter Evolution (normalized)',
                 tools='pan,wheel_zoom,box_zoom,reset',
                 active_scroll='wheel_zoom',
@@ -594,7 +602,7 @@ class ResultsViewer(param.Parameterized):
             ))
             return container
 
-        p = figure(
+        p = bokeh_figure(
             title='Flow Duration Curve',
             x_axis_type='log',
             y_axis_type='log',

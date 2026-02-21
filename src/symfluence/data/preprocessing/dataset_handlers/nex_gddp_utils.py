@@ -385,7 +385,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         for f in files:
             self.logger.info(f"Processing NEX-GDDP-CMIP6 file: {f}")
             try:
-                ds = xr.open_dataset(f)
+                ds = self.open_dataset(f)
             except Exception as e:
                 self.logger.error(f"Error opening NEX-GDDP-CMIP6 file {f}: {e}")
                 continue
@@ -428,7 +428,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         nex_file = nex_files[0]
         self.logger.info(f"Using NEX-GDDP-CMIP6 file for grid: {nex_file}")
 
-        with xr.open_dataset(nex_file) as ds:
+        with self.open_dataset(nex_file) as ds:
             var_lat, var_lon = self.get_coordinate_names()
 
             if var_lat in ds.coords:

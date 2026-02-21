@@ -163,13 +163,21 @@ class TRoutePlotter(BasePlotter):
                     if 'feature_id' in var_data.dims:
                         feature_means = var_data.mean(dim='time').values
                         outlet_idx = int(np.argmax(feature_means))
-                        series = var_data.isel(feature_id=outlet_idx).to_pandas()
+                        series = var_data.isel(feature_id=outlet_idx).to_series()
                     elif 'seg' in var_data.dims:
                         seg_means = var_data.mean(dim='time').values
                         outlet_idx = int(np.argmax(seg_means))
-                        series = var_data.isel(seg=outlet_idx).to_pandas()
+                        series = var_data.isel(seg=outlet_idx).to_series()
                     else:
-                        series = var_data.squeeze().to_pandas()
+                        series_candidate = var_data.squeeze().to_pandas()
+                        if isinstance(series_candidate, pd.Series):
+                            series = series_candidate
+                        elif isinstance(series_candidate, pd.DataFrame):
+                            if series_candidate.empty:
+                                continue
+                            series = series_candidate.iloc[:, 0]
+                        else:
+                            series = pd.Series(series_candidate)
 
                     # Resample to daily
                     series.index = pd.to_datetime(series.index)
