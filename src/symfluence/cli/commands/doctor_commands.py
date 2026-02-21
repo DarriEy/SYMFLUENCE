@@ -181,7 +181,21 @@ def _report_data_dir(console) -> bool:
         console.indent("source: SYMFLUENCE_DATA_DIR environment variable")
         return _check_dir(console, p)
 
-    # Common fallbacks
+    # Use the canonical resolver (sibling of code dir)
+    try:
+        from symfluence.core.config.factories import _resolve_default_data_dir
+        resolved = Path(_resolve_default_data_dir())
+        console.info(f"DATA_DIR: {resolved}")
+        console.indent("source: sibling of detected code directory")
+        if resolved.exists():
+            return _check_dir(console, resolved)
+        # Directory doesn't exist yet — that's fine, it will be created on first install
+        console.indent("directory will be created on first install")
+        return True
+    except Exception:
+        pass
+
+    # Last resort fallback
     home_default = Path.home() / "SYMFLUENCE_data"
     if home_default.exists():
         console.info(f"DATA_DIR: {home_default}")
@@ -190,7 +204,7 @@ def _report_data_dir(console) -> bool:
 
     console.warning("DATA_DIR: not set")
     console.indent(
-        "Set SYMFLUENCE_DATA_DIR env var or create ~/SYMFLUENCE_data"
+        "Set SYMFLUENCE_DATA_DIR env var or run from a repository checkout"
     )
     return True  # not fatal — will be set per-project via config
 

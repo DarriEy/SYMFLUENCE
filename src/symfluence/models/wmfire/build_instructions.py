@@ -140,12 +140,16 @@ fi
 CXX=${CXX:-g++}
 echo "Using C++ compiler: $CXX"
 
+# Upstream WMFire code initializes double-typed struct fields from int values
+# using brace-init ({i, j}). Modern Clang treats this as an error (-Wc++11-narrowing).
+CXXFLAGS_EXTRA="-Wno-c++11-narrowing"
+
 # Compile object files
 echo "Compiling RanNums.cpp..."
-$CXX -c -fPIC $BOOST_INCLUDE -O2 -o RanNums.o RanNums.cpp
+$CXX -c -fPIC $BOOST_INCLUDE $CXXFLAGS_EXTRA -O2 -o RanNums.o RanNums.cpp
 
 echo "Compiling WMFire.cpp..."
-$CXX -c -fPIC $BOOST_INCLUDE -O2 -o WMFire.o WMFire.cpp
+$CXX -c -fPIC $BOOST_INCLUDE $CXXFLAGS_EXTRA -O2 -o WMFire.o WMFire.cpp
 
 # Link into shared library
 echo "Linking $WMFIRE_LIB..."

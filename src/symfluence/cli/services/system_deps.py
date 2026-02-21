@@ -213,6 +213,19 @@ class SystemDepsRegistry:
             if found:
                 path = f"(pkg-config: {pkg_config_name})"
 
+        # Homebrew keg-only fallback: on macOS, packages like openblas and
+        # lapack are "keg-only" (not symlinked into the Homebrew prefix), so
+        # their .pc files are invisible to pkg-config by default.  Probe the
+        # keg's own pkgconfig directory.
+        if not found and pkg_config_name and self._platform == Platform.BREW:
+            brew_formulas = dep_info.get("packages", {}).get("brew", "")
+            if brew_formulas:
+                found, version = self._check_brew_keg_pkg_config(
+                    pkg_config_name, brew_formulas.split()
+                )
+                if found:
+                    path = f"(brew keg: {pkg_config_name})"
+
         # Version comparison
         min_version = dep_info.get("min_version")
         if found and version and min_version:
@@ -359,6 +372,64 @@ class SystemDepsRegistry:
                 return True, result.stdout.strip()
         except (subprocess.TimeoutExpired, OSError):
             pass
+        return False, None
+
+    @staticmethod
+    def _check_brew_keg_pkg_config(pkg_config_name: str, brew_formulas: List[str]) -> tuple:
+        """Probe Homebrew keg-only packages for pkg-config metadata.
+
+        Keg-only formulae (openblas, lapack, zlib, etc.) are not symlinked
+        into the Homebrew prefix, so their ``.pc`` files are invisible to
+        ``pkg-config`` by default.  This method runs ``brew --prefix <formula>``
+        for each formula, collects ``lib/pkgconfig`` directories that exist,
+        and re-runs ``pkg-config`` with those paths prepended.
+
+        Args:
+            pkg_config_name: The pkg-config module name (e.g. ``"openblas"``).
+            brew_formulas: One or more Homebrew formula names to probe.
+
+        Returns:
+            ``(found, version)`` tuple, same contract as ``_check_pkg_config``.
+        """
+        pkg_config = shutil.which("pkg-config")
+        brew = shutil.which("brew")
+        if not pkg_config or not brew:
+            return False, None
+
+        keg_pc_dirs: List[str] = []
+        for formula in brew_formulas:
+            try:
+                result = subprocess.run(
+                    [brew, "--prefix", formula],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode == 0:
+                    prefix = result.stdout.strip()
+                    pc_dir = os.path.join(prefix, "lib", "pkgconfig")
+                    if os.path.isdir(pc_dir):
+                        keg_pc_dirs.append(pc_dir)
+            except (subprocess.TimeoutExpired, OSError):
+                continue
+
+        if not keg_pc_dirs:
+            return False, None
+
+        # Prepend keg dirs to existing PKG_CONFIG_PATH and retry
+        extra = ":".join(keg_pc_dirs)
+        env = os.environ.copy()
+        env["PKG_CONFIG_PATH"] = extra + ":" + env.get("PKG_CONFIG_PATH", "")
+
+        try:
+            result = subprocess.run(
+                [pkg_config, "--modversion", pkg_config_name],
+                capture_output=True, text=True, timeout=5,
+                env=env,
+            )
+            if result.returncode == 0:
+                return True, result.stdout.strip()
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
         return False, None
 
     @staticmethod

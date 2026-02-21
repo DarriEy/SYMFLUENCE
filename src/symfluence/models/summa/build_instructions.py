@@ -185,7 +185,7 @@ case "$(uname -s 2>/dev/null)" in
         if grep -q 'int(max_steps)' build/source/engine/summaSolve4ida.f90 2>/dev/null && \
            ! grep -q 'int(max_steps, kind=8)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
             echo "Patching summaSolve4ida.f90: int(max_steps) -> int(max_steps, kind=8)"
-            sed -i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
+            _sed_i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
         fi
         ;;
 esac
@@ -198,7 +198,9 @@ esac
 if grep -q 'total_soil_depth' build/source/engine/soilLiqFlx.f90 2>/dev/null; then
     if ! grep -q 'total_soil_depth = ' build/source/engine/soilLiqFlx.f90 2>/dev/null; then
         echo "Patching soilLiqFlx.f90: initializing total_soil_depth"
-        sed -i '/depthWettingFront = (rootZoneLiq\/availCapacity)/i\   total_soil_depth = sum(in_surfaceFlx % mLayerDepth)' build/source/engine/soilLiqFlx.f90
+        awk '/depthWettingFront = \(rootZoneLiq\/availCapacity\)/{print "   total_soil_depth = sum(in_surfaceFlx % mLayerDepth)"}1' \
+            build/source/engine/soilLiqFlx.f90 > build/source/engine/soilLiqFlx.f90.tmp \
+            && mv build/source/engine/soilLiqFlx.f90.tmp build/source/engine/soilLiqFlx.f90
     fi
 fi
 

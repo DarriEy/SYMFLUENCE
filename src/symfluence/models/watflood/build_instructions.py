@@ -155,4 +155,5 @@ fi
         },
         'order': 24,
         'optional': True,
+        'hidden': True,
     }

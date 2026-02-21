@@ -212,8 +212,9 @@ class SystemDiagnostics(BaseService):
         binary_rows = []
 
         for name, tool_info in self.external_tools.items():
-            if name == "sundials":
-                continue  # Skip library-only tool
+            # Skip hidden tools (e.g. watflood) and library-only tools (e.g. sundials)
+            if tool_info.get('hidden', False) or tool_info.get('library_only', False):
+                continue
 
             found = False
             location = None
@@ -264,6 +265,10 @@ class SystemDiagnostics(BaseService):
                                 found = True
                                 location = npm_exe_path
                                 break
+
+            # Skip optional tools that aren't installed — avoids a wall of MISSING
+            if tool_info.get('optional', False) and not found:
+                continue
 
             status = "[green]OK[/green]" if found else "[red]MISSING[/red]"
             loc_str = str(location) if location else "-"

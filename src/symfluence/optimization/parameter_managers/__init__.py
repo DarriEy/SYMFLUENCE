@@ -42,7 +42,7 @@ def _register_parameter_managers():
         'symfluence.models.xinanjiang.calibration.parameter_manager',
         'symfluence.models.modflow.calibration.parameter_manager',
         'symfluence.models.pihm.calibration.parameter_manager',
-        'symfluence.models.hydrogeosphere.calibration.parameter_manager',
+
         'symfluence.models.hechms.calibration.parameter_manager',
         'symfluence.models.topmodel.calibration.parameter_manager',
         'symfluence.models.gsflow.calibration.parameter_manager',
@@ -79,7 +79,7 @@ from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParamet
 from symfluence.models.xinanjiang.calibration.parameter_manager import XinanjiangParameterManager
 from symfluence.models.modflow.calibration.parameter_manager import CoupledGWParameterManager
 from symfluence.models.pihm.calibration.parameter_manager import PIHMParameterManager
-from symfluence.models.hydrogeosphere.calibration.parameter_manager import HGSParameterManager
+
 from symfluence.models.gsflow.calibration.parameter_manager import GSFLOWParameterManager
 from symfluence.models.watflood.calibration.parameter_manager import WATFLOODParameterManager
 
@@ -97,7 +97,7 @@ __all__ = [
     'XinanjiangParameterManager',
     'CoupledGWParameterManager',
     'PIHMParameterManager',
-    'HGSParameterManager',
+
     'GSFLOWParameterManager',
     'WATFLOODParameterManager',
 ]

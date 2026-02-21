@@ -137,8 +137,9 @@ print('makelist patched successfully')
 fi
 
 if [ -f "Makefile" ] || [ -f "makefile" ]; then
-    NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
-    make -j${NCORES} FC=gfortran CC=gcc 2>&1
+    # PRMS Fortran Makefiles have incomplete .mod dependency declarations,
+    # so parallel make races on module files. Use -j1 for correctness.
+    make -j1 FC=gfortran CC=gcc 2>&1
 else
     echo "ERROR: No Makefile found"
     ls -la

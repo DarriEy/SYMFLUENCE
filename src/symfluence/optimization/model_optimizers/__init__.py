@@ -47,7 +47,7 @@ def _register_optimizers():
         'symfluence.models.crhm.calibration.optimizer',
         'symfluence.models.modflow.calibration.optimizer',
         'symfluence.models.pihm.calibration.optimizer',
-        'symfluence.models.hydrogeosphere.calibration.optimizer',
+
         'symfluence.models.hechms.calibration.optimizer',
         'symfluence.models.topmodel.calibration.optimizer',
         'symfluence.models.gsflow.calibration.optimizer',

@@ -397,6 +397,152 @@ class TestCheckDepWSLFallback:
         mock_wsl.assert_not_called()
 
 
+# ── Homebrew keg-only fallback ─────────────────────────────────────────────
+
+class TestBrewKegPkgConfig:
+    """Test _check_brew_keg_pkg_config and its integration in check_dep."""
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_finds_keg_only_openblas(self, mock_which, mock_run):
+        """Detects openblas via brew --prefix when standard pkg-config fails."""
+        mock_which.side_effect = lambda cmd: {
+            "pkg-config": "/opt/homebrew/bin/pkg-config",
+            "brew": "/opt/homebrew/bin/brew",
+        }.get(cmd)
+
+        mock_run.side_effect = [
+            # brew --prefix openblas
+            Mock(returncode=0, stdout="/opt/homebrew/opt/openblas\n", stderr=""),
+            # pkg-config --modversion openblas (with augmented PKG_CONFIG_PATH)
+            Mock(returncode=0, stdout="0.3.31\n", stderr=""),
+        ]
+
+        with patch("os.path.isdir", return_value=True):
+            found, version = SystemDepsRegistry._check_brew_keg_pkg_config(
+                "openblas", ["openblas"]
+            )
+
+        assert found is True
+        assert version == "0.3.31"
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_returns_false_when_formula_not_installed(self, mock_which, mock_run):
+        """Returns (False, None) when brew --prefix fails."""
+        mock_which.side_effect = lambda cmd: {
+            "pkg-config": "/usr/bin/pkg-config",
+            "brew": "/opt/homebrew/bin/brew",
+        }.get(cmd)
+        mock_run.return_value = Mock(returncode=1, stdout="", stderr="")
+
+        found, version = SystemDepsRegistry._check_brew_keg_pkg_config(
+            "openblas", ["openblas"]
+        )
+        assert found is False
+        assert version is None
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_returns_false_when_no_pc_dir(self, mock_which, mock_run):
+        """Returns (False, None) when keg exists but has no lib/pkgconfig."""
+        mock_which.side_effect = lambda cmd: {
+            "pkg-config": "/usr/bin/pkg-config",
+            "brew": "/opt/homebrew/bin/brew",
+        }.get(cmd)
+        mock_run.return_value = Mock(
+            returncode=0, stdout="/opt/homebrew/opt/openblas\n", stderr=""
+        )
+
+        with patch("os.path.isdir", return_value=False):
+            found, version = SystemDepsRegistry._check_brew_keg_pkg_config(
+                "openblas", ["openblas"]
+            )
+        assert found is False
+
+    @patch("shutil.which", return_value=None)
+    def test_returns_false_when_no_brew(self, mock_which):
+        """Returns (False, None) when brew is not available."""
+        found, version = SystemDepsRegistry._check_brew_keg_pkg_config(
+            "openblas", ["openblas"]
+        )
+        assert found is False
+
+    def test_multiple_formulas_probed(self):
+        """Probes multiple brew formulas (e.g. 'openblas lapack')."""
+        brew_calls = []
+
+        def mock_run_side_effect(cmd, **kwargs):
+            if cmd[0].endswith("brew"):
+                brew_calls.append(cmd[2])  # formula name
+                # First formula not found, second found
+                if cmd[2] == "lapack":
+                    return Mock(returncode=0,
+                                stdout="/opt/homebrew/opt/lapack\n", stderr="")
+                return Mock(returncode=1, stdout="", stderr="")
+            # pkg-config call
+            return Mock(returncode=0, stdout="3.12.0\n", stderr="")
+
+        with patch("shutil.which", side_effect=lambda cmd: f"/usr/bin/{cmd}"), \
+             patch("subprocess.run", side_effect=mock_run_side_effect), \
+             patch("os.path.isdir", return_value=True):
+            found, version = SystemDepsRegistry._check_brew_keg_pkg_config(
+                "lapack", ["openblas", "lapack"]
+            )
+
+        assert found is True
+        assert "openblas" in brew_calls
+        assert "lapack" in brew_calls
+
+
+class TestCheckDepBrewKegFallback:
+    """Test that check_dep uses brew keg fallback on BREW platform."""
+
+    def test_brew_keg_fallback_triggers_for_blas(self):
+        """On BREW platform, blas dep falls back to keg detection."""
+        reg = _fresh_registry()
+        reg._platform = Platform.BREW
+
+        with patch("shutil.which", return_value=None), \
+             patch.object(SystemDepsRegistry, "_check_pkg_config",
+                          return_value=(False, None)), \
+             patch.object(SystemDepsRegistry, "_check_brew_keg_pkg_config",
+                          return_value=(True, "0.3.31")) as mock_keg:
+            result = reg.check_dep("blas")
+
+        assert result.found is True
+        assert result.version == "0.3.31"
+        assert "brew keg" in result.path
+        mock_keg.assert_called_once_with("openblas", ["openblas", "lapack"])
+
+    def test_brew_keg_fallback_not_triggered_on_apt(self):
+        """Keg fallback should not trigger on non-BREW platforms."""
+        reg = _fresh_registry()
+        reg._platform = Platform.APT
+
+        with patch("shutil.which", return_value=None), \
+             patch.object(SystemDepsRegistry, "_check_pkg_config",
+                          return_value=(False, None)), \
+             patch.object(SystemDepsRegistry, "_check_brew_keg_pkg_config") as mock_keg:
+            reg.check_dep("blas")
+
+        mock_keg.assert_not_called()
+
+    def test_brew_keg_fallback_skipped_when_already_found(self):
+        """Keg fallback should not trigger when standard pkg-config succeeds."""
+        reg = _fresh_registry()
+        reg._platform = Platform.BREW
+
+        with patch("shutil.which", return_value=None), \
+             patch.object(SystemDepsRegistry, "_check_pkg_config",
+                          return_value=(True, "0.3.31")), \
+             patch.object(SystemDepsRegistry, "_check_brew_keg_pkg_config") as mock_keg:
+            result = reg.check_dep("blas")
+
+        assert result.found is True
+        mock_keg.assert_not_called()
+
+
 # ── Version comparison ───────────────────────────────────────────────────
 
 class TestVersionGe:

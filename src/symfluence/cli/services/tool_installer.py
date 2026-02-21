@@ -618,6 +618,10 @@ class ToolInstaller(BaseService):
         # Print summary
         self._print_installation_summary(installation_results, dry_run)
 
+        # Generate toolchain metadata after successful installs
+        if not dry_run and installation_results["successful"]:
+            self._generate_toolchain_metadata(install_base_dir)
+
         return installation_results
 
     def _clone_repository(
@@ -929,3 +933,119 @@ class ToolInstaller(BaseService):
             self._console.error("Errors encountered:")
             for error in results["errors"]:
                 self._console.indent(f"- {error}")
+
+    def _generate_toolchain_metadata(self, install_base_dir: Path) -> None:
+        """
+        Generate toolchain.json with compiler, library, and tool metadata.
+
+        Called automatically after successful installs so that
+        ``symfluence doctor`` can report toolchain information.
+
+        Args:
+            install_base_dir: The ``installs/`` directory.
+        """
+        import json
+        import platform
+        from datetime import datetime, timezone
+
+        toolchain: Dict[str, Any] = {}
+
+        # Platform
+        arch = platform.machine()
+        os_name = {"Darwin": "macos", "Linux": "linux"}.get(
+            platform.system(), platform.system().lower()
+        )
+        toolchain["platform"] = f"{os_name}-{arch}"
+        toolchain["build_date"] = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+        # SYMFLUENCE version
+        try:
+            from symfluence.symfluence_version import __version__
+            toolchain["symfluence_version"] = __version__
+        except ImportError:
+            toolchain["symfluence_version"] = "unknown"
+
+        # Compilers
+        compilers: Dict[str, str] = {}
+        for name, cmds in [
+            ("fortran", ["gfortran --version", "ifort --version"]),
+            ("c", ["gcc --version", "clang --version"]),
+            ("cxx", ["g++ --version", "clang++ --version"]),
+        ]:
+            for cmd in cmds:
+                exe = cmd.split()[0]
+                if shutil.which(exe):
+                    try:
+                        r = subprocess.run(
+                            cmd.split(), capture_output=True, text=True, timeout=5,
+                        )
+                        compilers[name] = r.stdout.strip().split("\n")[0]
+                    except Exception:
+                        compilers[name] = exe
+                    break
+            else:
+                compilers[name] = "not found"
+        toolchain["compilers"] = compilers
+
+        # Libraries
+        libraries: Dict[str, str] = {}
+        for lib_name, cmd in [
+            ("netcdf", "nc-config --version"),
+            ("netcdf_fortran", "nf-config --version"),
+            ("hdf5", "h5cc -showconfig"),
+        ]:
+            exe = cmd.split()[0]
+            if shutil.which(exe):
+                try:
+                    r = subprocess.run(
+                        cmd.split(), capture_output=True, text=True, timeout=5,
+                    )
+                    out = r.stdout.strip()
+                    if lib_name == "hdf5":
+                        for line in out.split("\n"):
+                            if "HDF5 Version" in line:
+                                out = line.split(":")[-1].strip()
+                                break
+                    libraries[lib_name] = out.split("\n")[0]
+                except Exception:
+                    libraries[lib_name] = "unknown"
+            else:
+                libraries[lib_name] = "not found"
+        toolchain["libraries"] = libraries
+
+        # Installed tools — scan git repos for commit/branch info
+        tools_meta: Dict[str, Any] = {}
+        for name, info in self.external_tools.items():
+            tool_dir = install_base_dir / info.get("install_dir", name)
+            if not tool_dir.exists():
+                continue
+            entry: Dict[str, Any] = {"installed": True}
+            git_dir = tool_dir / ".git"
+            if git_dir.exists():
+                try:
+                    commit = subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        capture_output=True, text=True, cwd=tool_dir, timeout=5,
+                    ).stdout.strip()
+                    branch = subprocess.run(
+                        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                        capture_output=True, text=True, cwd=tool_dir, timeout=5,
+                    ).stdout.strip()
+                    entry["commit"] = commit
+                    entry["branch"] = branch
+                except Exception:
+                    pass
+            tools_meta[name] = entry
+        toolchain["tools"] = tools_meta
+
+        # Write
+        out_path = install_base_dir / "toolchain.json"
+        try:
+            out_path.write_text(
+                json.dumps(toolchain, indent=2) + "\n", encoding="utf-8",
+            )
+            self._console.success(f"Toolchain metadata written to {out_path}")
+        except OSError as e:
+            self._console.warning(f"Could not write toolchain metadata: {e}")
