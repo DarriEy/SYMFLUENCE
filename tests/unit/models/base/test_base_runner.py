@@ -782,7 +782,7 @@ class TestExecuteSubprocess:
                 check=False
             )
 
-            mock_logger.info.assert_any_call("Custom done!")
+            mock_logger.log.assert_any_call(logging.INFO, "Custom done!")
 
 
 class TestExecuteModelSubprocessDeprecation:

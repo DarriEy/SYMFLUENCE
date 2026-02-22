@@ -23,10 +23,10 @@ class TestRoutingDecider:
         assert not self.decider.needs_routing(config, 'SUMMA')
 
     def test_routing_model_mizuroute(self):
-        """Test that ROUTING_MODEL=mizuroute enables routing."""
+        """Test that ROUTING_MODEL=mizuroute enables routing for non-lumped domains."""
         config = {
             'ROUTING_MODEL': 'mizuroute',
-            'DOMAIN_DEFINITION_METHOD': 'lumped'
+            'DOMAIN_DEFINITION_METHOD': 'distributed'
         }
         assert self.decider.needs_routing(config, 'SUMMA')
 
