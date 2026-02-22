@@ -16,8 +16,8 @@ Output:
     settings/CLMPARFLOW/drv_clmin.dat         -- CLM driver input
     settings/CLMPARFLOW/drv_vegm.dat          -- Vegetation map
     settings/CLMPARFLOW/drv_vegp.dat          -- Vegetation parameters
-    settings/CLMPARFLOW/forcing.1d            -- Met forcing for CLM
-    settings/CLMPARFLOW/daily_rainfall.npy    -- daily net rainfall [m/hr]
+    data/forcing/CLMPARFLOW_input/forcing.1d            -- Met forcing for CLM
+    data/forcing/CLMPARFLOW_input/daily_rainfall.npy    -- daily net rainfall [m/hr]
 """
 
 import logging
@@ -28,6 +28,7 @@ from typing import Optional
 import numpy as np
 
 from symfluence.models.registry import ModelRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +82,9 @@ class CLMParFlowPreProcessor:
         return default
 
     def _get_forcing_dir(self) -> Optional[Path]:
-        basin_avg = self.project_dir / 'forcing' / 'basin_averaged_data'
+        basin_avg = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
         if basin_avg.exists():
-            nc_files = list(basin_avg.glob('*ERA5_remapped*.nc'))
+            nc_files = list(basin_avg.glob('*_remapped*.nc'))
             if nc_files:
                 return basin_avg
 
@@ -94,7 +95,7 @@ class CLMParFlowPreProcessor:
                 sub = fp / 'basin_averaged_data'
                 if sub.exists():
                     return sub
-                nc_files = list(fp.glob('*ERA5*.nc'))
+                nc_files = list(fp.glob('*_remapped*.nc'))
                 if nc_files:
                     return fp
         return None
@@ -274,7 +275,7 @@ class CLMParFlowPreProcessor:
                 nc_files = sorted(forcing_dir.glob('*.nc'))
 
             self.logger.info(
-                f"Reading ERA5 forcing from {len(nc_files)} files"
+                f"Reading forcing from {len(nc_files)} files"
             )
 
             all_ppt, all_temp, all_times = [], [], []
@@ -625,7 +626,13 @@ class CLMParFlowPreProcessor:
         settings_dir = self.project_dir / "settings" / "CLMPARFLOW"
         settings_dir.mkdir(parents=True, exist_ok=True)
 
-        self.logger.info(f"Generating CLMParFlow input files in {settings_dir}")
+        forcing_output_dir = resolve_data_subdir(
+            self.project_dir, 'forcing'
+        ) / 'CLMPARFLOW_input'
+        forcing_output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.logger.info(f"Generating CLMParFlow settings in {settings_dir}")
+        self.logger.info(f"Generating CLMParFlow forcing in {forcing_output_dir}")
 
         nx = int(self._get_pf_cfg('NX', 3))
         ny = int(self._get_pf_cfg('NY', 1))
@@ -661,8 +668,8 @@ class CLMParFlowPreProcessor:
         )
         self.logger.info(f"Timesteps: {n_steps} x {timestep_hours} hours")
 
-        # Prepare daily rainfall from ERA5 (also writes CLM met forcing)
-        rainfall_entries = self._prepare_daily_rainfall(settings_dir)
+        # Prepare daily rainfall (also writes CLM met forcing to forcing dir)
+        rainfall_entries = self._prepare_daily_rainfall(forcing_output_dir)
 
         runname = self.domain_name
 
