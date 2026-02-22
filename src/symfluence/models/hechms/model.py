@@ -445,7 +445,7 @@ def simulate_jax(
                               warmup_days, day_of_year_start)
 
     if initial_state is None:
-        initial_state = create_initial_state(cn=float(params.cn), use_jax=True)
+        initial_state = create_initial_state(cn=params.cn, use_jax=True)
 
     n_steps = precip.shape[0]
 

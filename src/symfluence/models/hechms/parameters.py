@@ -205,7 +205,7 @@ def create_params_from_dict(
 
 
 def create_initial_state(
-    cn: float = 65.0,
+    cn=65.0,
     use_jax: bool = True
 ) -> HecHmsState:
     """
@@ -213,26 +213,28 @@ def create_initial_state(
 
     Args:
         cn: Curve Number for computing initial soil deficit.
+            Can be a JAX tracer when use_jax=True (no float() cast).
         use_jax: Whether to use JAX arrays.
 
     Returns:
         HecHmsState namedtuple.
     """
-    # Initial soil deficit = maximum retention S
-    s_max = 25400.0 / max(cn, 1.0) - 254.0
-
     if use_jax and HAS_JAX:
+        # Use jnp.maximum instead of Python max() to preserve JAX tracers
+        s_max = 25400.0 / jnp.maximum(cn, 1.0) - 254.0
         return HecHmsState(
             snow_swe=jnp.array(0.0),
             snow_liquid=jnp.array(0.0),
             snow_ati=jnp.array(0.0),
             snow_cold_content=jnp.array(0.0),
-            soil_deficit=jnp.array(s_max),
+            soil_deficit=s_max,
             clark_storage=jnp.array(0.0),
             gw_storage_1=jnp.array(10.0),
             gw_storage_2=jnp.array(5.0),
         )
     else:
+        # NumPy path: safe to use Python max()
+        s_max = 25400.0 / max(float(cn), 1.0) - 254.0
         return HecHmsState(
             snow_swe=np.float64(0.0),
             snow_liquid=np.float64(0.0),

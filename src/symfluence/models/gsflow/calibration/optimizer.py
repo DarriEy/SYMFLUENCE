@@ -77,6 +77,12 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
         return success
 
     def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """Run final evaluation with split-sample support.
+
+        Calculates calibration-period metrics using CALIBRATION_PERIOD and,
+        if EVALUATION_PERIOD is configured, computes independent evaluation
+        metrics on the held-out period.
+        """
         self.logger.info("=" * 60)
         self.logger.info("RUNNING GSFLOW FINAL EVALUATION")
         self.logger.info("=" * 60)
@@ -88,6 +94,7 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
             if not self._run_model_for_final_evaluation(final_output_dir):
                 return None
 
+            # Calibration period metrics (uses CALIBRATION_PERIOD from config)
             metrics = self.worker.calculate_metrics(
                 final_output_dir, self.config, sim_dir=final_output_dir
             )
@@ -95,13 +102,49 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
             if not metrics or metrics.get('kge', -999) <= -999:
                 return None
 
-            return {
+            calib_metrics = {
+                "KGE_Calib": metrics.get('kge', -999),
+                "NSE_Calib": metrics.get('nse', -999),
+            }
+            self.logger.info(
+                f"Calibration period: KGE={metrics.get('kge', 'N/A'):.4f}, "
+                f"NSE={metrics.get('nse', 'N/A'):.4f}"
+            )
+
+            # Evaluation period metrics (if EVALUATION_PERIOD is configured)
+            eval_metrics: Dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_raw = self.worker.calculate_metrics(
+                    final_output_dir, self.config,
+                    sim_dir=final_output_dir, period=eval_period
+                )
+                if eval_raw and eval_raw.get('kge', -999) > -900:
+                    eval_metrics = {
+                        "KGE_Eval": float(eval_raw.get('kge', 0.0)),
+                        "NSE_Eval": float(eval_raw.get('nse', 0.0)),
+                    }
+                    self.logger.info(
+                        f"Evaluation period: KGE={eval_raw.get('kge', 'N/A'):.4f}, "
+                        f"NSE={eval_raw.get('nse', 'N/A'):.4f}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Could not compute evaluation-period metrics "
+                        f"for period '{eval_period}'"
+                    )
+
+            final_result = {
                 'final_metrics': metrics,
-                'calibration_metrics': {"KGE_Calib": metrics.get('kge', -999)},
-                'evaluation_metrics': {"KGE_Eval": metrics.get('kge', -999)},
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
                 'success': True,
                 'best_params': best_params
             }
+
+            self._save_final_evaluation_results(final_result, 'DDS')
+            return final_result
+
         except Exception as e:
             self.logger.error(f"Error in final evaluation: {e}")
             return None

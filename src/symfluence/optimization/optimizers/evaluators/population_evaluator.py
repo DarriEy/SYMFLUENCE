@@ -129,15 +129,22 @@ class PopulationEvaluator:
         self,
         results: List[Dict],
         n_individuals: int,
-        n_objectives: int
+        n_objectives: int,
+        objective_names: Optional[List[str]] = None
     ) -> np.ndarray:
         """
         Extract objective values from batch results.
+
+        Supports two result formats:
+        1. Explicit 'objectives' list (SUMMA workers)
+        2. Metrics dict fallback — extracts named metrics from 'metrics' or
+           top-level keys (JAX/in-memory workers)
 
         Args:
             results: List of result dictionaries
             n_individuals: Number of individuals in population
             n_objectives: Number of objectives
+            objective_names: Ordered metric names (e.g., ['KGE', 'NSE'])
 
         Returns:
             Array of objective values (n_individuals x n_objectives)
@@ -158,11 +165,23 @@ class PopulationEvaluator:
                 )
 
             if obj and len(obj) == n_objectives:
+                # Explicit objectives list (SUMMA workers)
                 objectives[idx] = np.array(obj, dtype=float)
-                if not np.any(np.isnan(objectives[idx])) and objectives[idx][0] != self.DEFAULT_PENALTY_SCORE:
-                    valid_count += 1
+            elif objective_names:
+                # Fall back to metrics dict (JAX/in-memory workers)
+                metrics = result.get('metrics', {})
+                extracted = []
+                for name in objective_names:
+                    # Try exact match, then case-insensitive in metrics and top-level
+                    val = metrics.get(name, metrics.get(name.lower(),
+                           result.get(name.lower(), self.DEFAULT_PENALTY_SCORE)))
+                    extracted.append(float(val) if val is not None else self.DEFAULT_PENALTY_SCORE)
+                objectives[idx] = np.array(extracted, dtype=float)
             else:
                 self.logger.warning(f"Task {idx} returned objectives={obj}")
+
+            if not np.any(np.isnan(objectives[idx])) and objectives[idx][0] != self.DEFAULT_PENALTY_SCORE:
+                valid_count += 1
 
         self.logger.debug(
             f"Batch objectives: {len(results)} returned, {valid_count} valid objective sets"
@@ -273,7 +292,9 @@ class PopulationEvaluator:
 
         worker_func = self._resolve_worker_function()
         results = self.execute_batch(tasks, worker_func)
-        objectives = self._extract_objectives(results, n_individuals, n_objectives)
+        objectives = self._extract_objectives(
+            results, n_individuals, n_objectives, objective_names=objective_names
+        )
 
         return objectives
 

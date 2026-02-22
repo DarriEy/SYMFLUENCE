@@ -14,7 +14,7 @@ from datetime import datetime
 import json
 
 from symfluence.core.mixins import ConfigMixin
-from symfluence.core.mixins.project import ProjectContextMixin
+from symfluence.core.mixins.project import ProjectContextMixin, resolve_data_subdir
 from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 
 class Benchmarker(ConfigMixin):
@@ -259,16 +259,15 @@ class BenchmarkPreprocessor(ProjectContextMixin):
 
     def _load_forcing_data(self) -> pd.DataFrame:
         """Load and process forcing data, returning hourly dataframe."""
-        forcing_path = self.project_forcing_dir / "basin_averaged_data"
+        forcing_path = resolve_data_subdir(self.project_dir, 'forcing') / "basin_averaged_data"
         # Use open_mfdataset to load all netCDF files at once efficiently
         combined_ds = xr.open_mfdataset(list(forcing_path.glob("*.nc")), combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override').sortby('time')
         # Average across HRUs
         averaged_ds = combined_ds.mean(dim='hru')
 
-        # Convert precipitation from kg m⁻² s⁻¹ (mm/s) to mm/day
-        # ERA5 pptrate is in kg m⁻² s⁻¹ which equals mm/s for water (density 1000 kg/m³)
-        from symfluence.core.constants import UnitConversion
-        precip_data = averaged_ds['pptrate'] * UnitConversion.SECONDS_PER_DAY  # 86400
+        # Convert precipitation from kg m⁻² s⁻¹ (mm/s) to mm per timestep-hour.
+        # Forcing data is hourly; _process_to_daily() sums 24 values to get mm/day.
+        precip_data = averaged_ds['pptrate'] * 3600  # mm/s -> mm/hr
 
         # Create DataFrame directly using to_series for better integration
         forcing_df = pd.DataFrame({

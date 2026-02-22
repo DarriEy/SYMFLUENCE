@@ -10,9 +10,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 import numpy as np
+import pandas as pd
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.evaluation.metrics import calculate_all_metrics
 from .worker import TopmodelWorker  # noqa: F401 - Import to trigger worker registration
 
 
@@ -79,7 +81,11 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
         )
 
     def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
-        """Run final evaluation with consistent warmup handling for TOPMODEL."""
+        """Run final evaluation with consistent warmup handling for TOPMODEL.
+
+        Calculates separate metrics for calibration and evaluation periods,
+        matching the in-memory warmup handling used during optimization.
+        """
         self.logger.info("=" * 60)
         self.logger.info("RUNNING FINAL EVALUATION")
         self.logger.info("=" * 60)
@@ -108,38 +114,146 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
                 self.worker._time_index[self.worker.warmup_days:] if self.worker._time_index is not None else None
             )
 
-            # Calculate metrics using worker's in-memory data
-            from symfluence.evaluation.metrics import kge, nse
+            # Get time index and observations
+            time_index = self.worker._time_index
+            observations = self.worker._observations
 
-            obs = self.worker._observations
-            sim = runoff
+            if time_index is None or observations is None:
+                self.logger.error("Missing time index or observations for metric calculation")
+                return None
 
-            if obs is not None and len(obs) == len(sim):
-                warmup = self.worker.warmup_days
-                obs_eval = obs[warmup:]
-                sim_eval = sim[warmup:]
+            # Parse calibration and evaluation periods
+            calib_period = self._parse_period_config('calibration_period', 'CALIBRATION_PERIOD')
+            eval_period = self._parse_period_config('evaluation_period', 'EVALUATION_PERIOD')
 
-                valid = ~np.isnan(obs_eval) & ~np.isnan(sim_eval)
-                if np.sum(valid) > 30:
-                    kge_score = kge(obs_eval[valid], sim_eval[valid])
-                    nse_score = nse(obs_eval[valid], sim_eval[valid])
-                    self.logger.info(f"Final evaluation KGE: {kge_score:.4f}, NSE: {nse_score:.4f}")
+            # Calculate metrics for calibration period (with warmup skip)
+            calib_metrics = self._calculate_period_metrics_inmemory(
+                runoff, observations, time_index,
+                calib_period, 'Calib',
+                skip_warmup=True
+            )
 
-                    metrics = {'KGE': kge_score, 'NSE': nse_score}
-                    self._log_final_evaluation_results(metrics, {})
+            # Calculate metrics for evaluation period (no warmup skip needed)
+            eval_metrics = {}
+            if eval_period[0] and eval_period[1]:
+                eval_metrics = self._calculate_period_metrics_inmemory(
+                    runoff, observations, time_index,
+                    eval_period, 'Eval',
+                    skip_warmup=False
+                )
 
-                    return {
-                        'final_metrics': metrics,
-                        'success': True,
-                        'best_params': best_params,
-                        'output_dir': str(final_output_dir),
-                    }
+            # Combine all metrics
+            all_metrics = {**calib_metrics, **eval_metrics}
 
-            self.logger.warning("Could not calculate final metrics")
-            return {'best_params': best_params, 'output_dir': str(final_output_dir)}
+            # Add unprefixed versions for backward compatibility
+            for k, v in calib_metrics.items():
+                unprefixed = k.replace('Calib_', '')
+                if unprefixed not in all_metrics:
+                    all_metrics[unprefixed] = v
+
+            # Log results
+            self._log_final_evaluation_results(
+                {k: v for k, v in calib_metrics.items()},
+                {k: v for k, v in eval_metrics.items()}
+            )
+
+            return {
+                'final_metrics': all_metrics,
+                'calibration_metrics': calib_metrics,
+                'evaluation_metrics': eval_metrics,
+                'success': True,
+                'best_params': best_params,
+                'output_dir': str(final_output_dir),
+            }
 
         except Exception as e:
             self.logger.error(f"Final evaluation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
             return None
+
+    def _parse_period_config(self, attr_name: str, dict_key: str):
+        """Parse a period configuration string into start/end timestamps."""
+        period_str = self._get_config_value(
+            lambda: getattr(self.config.domain, attr_name, ''),
+            default='',
+            dict_key=dict_key
+        )
+        if not period_str:
+            return (None, None)
+
+        try:
+            dates = [d.strip() for d in period_str.split(',')]
+            if len(dates) >= 2:
+                return (pd.Timestamp(dates[0]), pd.Timestamp(dates[1]))
+        except (ValueError, AttributeError) as e:
+            self.logger.debug(f"Could not parse period string '{period_str}': {e}")
+        return (None, None)
+
+    def _calculate_period_metrics_inmemory(
+        self,
+        runoff: np.ndarray,
+        observations: np.ndarray,
+        time_index: pd.DatetimeIndex,
+        period: tuple,
+        prefix: str,
+        skip_warmup: bool = True
+    ) -> Dict[str, float]:
+        """Calculate metrics for a specific period using in-memory data.
+
+        Warmup is skipped from the full simulation start before filtering
+        to the target period, matching the calibration behavior.
+        """
+        try:
+            if skip_warmup and len(runoff) > self.worker.warmup_days:
+                runoff = runoff[self.worker.warmup_days:]
+                observations = observations[self.worker.warmup_days:]
+                time_index = time_index[self.worker.warmup_days:]
+
+            sim_series = pd.Series(runoff, index=time_index)
+            obs_series = pd.Series(observations, index=time_index)
+
+            if period[0] and period[1]:
+                period_mask = (time_index >= period[0]) & (time_index <= period[1])
+                sim_period = sim_series[period_mask]
+                obs_period = obs_series[period_mask]
+                self.logger.info(
+                    f"{prefix} period: {period[0].date()} to {period[1].date()}, "
+                    f"{len(sim_period)} points"
+                )
+            else:
+                sim_period = sim_series
+                obs_period = obs_series
+
+            common_idx = sim_period.index.intersection(obs_period.index)
+            if len(common_idx) == 0:
+                self.logger.warning(f"No common indices for {prefix} period")
+                return {}
+
+            sim_aligned = sim_period.loc[common_idx].values
+            obs_aligned = obs_period.loc[common_idx].values
+
+            valid_mask = ~(np.isnan(sim_aligned) | np.isnan(obs_aligned))
+            sim_valid = sim_aligned[valid_mask]
+            obs_valid = obs_aligned[valid_mask]
+
+            if len(sim_valid) < 10:
+                self.logger.warning(f"Insufficient valid points for {prefix} metrics: {len(sim_valid)}")
+                return {}
+
+            metrics_result = calculate_all_metrics(
+                pd.Series(obs_valid),
+                pd.Series(sim_valid)
+            )
+
+            prefixed_metrics = {}
+            for key, value in metrics_result.items():
+                prefixed_metrics[f"{prefix}_{key}"] = value
+
+            return prefixed_metrics
+
+        except Exception as e:
+            self.logger.error(f"Error calculating {prefix} metrics: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return {}

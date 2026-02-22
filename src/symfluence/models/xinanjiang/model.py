@@ -425,10 +425,7 @@ def step_jax(
         params.UM, params.LM, params.DM, params.C, params.K, xp
     )
 
-    # Net rainfall
-    pe = precip - params.K * pet + eu + el + ed
-    # More precisely: PE = P - E, where E = EU + EL + ED
-    # and EU = min(EP, WU+P), so PE = P - (EU+EL+ED)
+    # Net rainfall: PE = P - E, where E = EU + EL + ED
     pe = precip - (eu + el + ed)
 
     # 2. Runoff generation (saturation excess)

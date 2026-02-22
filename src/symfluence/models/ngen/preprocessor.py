@@ -123,21 +123,18 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             )
         elif self._include_noah and not self._include_pet:
             # Get the ET fallback configuration
-            self._noah_et_fallback = self.config_dict.get('NGEN_NOAH_ET_FALLBACK', 'ETRAN')
-            valid_fallbacks = ['ETRAN', 'EDIR', 'ECAN']
+            self._noah_et_fallback = self.config_dict.get('NGEN_NOAH_ET_FALLBACK', 'EVAPOTRANS')
+            valid_fallbacks = ['EVAPOTRANS', 'ETRAN', 'ECAN', 'QSEVA']
             if self._noah_et_fallback not in valid_fallbacks:
                 self.logger.warning(
-                    f"Invalid NGEN_NOAH_ET_FALLBACK '{self._noah_et_fallback}', using 'ETRAN'"
+                    f"Invalid NGEN_NOAH_ET_FALLBACK '{self._noah_et_fallback}', using 'EVAPOTRANS'"
                 )
-                self._noah_et_fallback = 'ETRAN'
+                self._noah_et_fallback = 'EVAPOTRANS'
 
-            self.logger.warning(
+            self.logger.info(
                 f"NOAH enabled but PET disabled: CFE will receive NOAH's {self._noah_et_fallback} "
-                f"(actual ET) instead of potential ET. This is a simplification that may cause "
-                f"underestimation of ET demand since {self._noah_et_fallback} is already "
-                f"soil-moisture limited. For physically correct potential ET, enable PET module "
-                f"(ENABLE_PET: True) or set NGEN_NOAH_ET_FALLBACK to 'EDIR' for bare-soil "
-                f"dominated catchments."
+                f"(actual ET) instead of potential ET. For physically correct potential ET, "
+                f"enable PET module (ENABLE_PET: True)."
             )
         else:
             self._noah_et_fallback = None
@@ -823,7 +820,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         catchment_gdf = gpd.read_file(self.get_catchment_path())
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, catchment_gdf.crs)
-        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'EVAPOTRANS')
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_all_configs(catchment_gdf, self.hru_id_col)
 
@@ -841,7 +838,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_file: Path to forcing NetCDF file.
         """
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
-        noah_et_fallback = getattr(self, '_noah_et_fallback', 'ETRAN')
+        noah_et_fallback = getattr(self, '_noah_et_fallback', 'EVAPOTRANS')
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth, noah_et_fallback=noah_et_fallback)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
 

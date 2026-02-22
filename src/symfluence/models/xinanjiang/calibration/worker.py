@@ -13,7 +13,7 @@ import random
 import time
 import traceback
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -300,6 +300,105 @@ class XinanjiangWorker(InMemoryModelWorker):
         except Exception as e:
             self.logger.warning(f"Gradient computation failed: {e}")
             return None
+
+    def evaluate_with_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Tuple[float, Optional[Dict[str, float]]]:
+        """Evaluate loss and compute gradient in single pass.
+
+        Uses JAX value_and_grad for efficient combined computation.
+        Falls back to separate loss evaluation if JAX is unavailable.
+
+        Args:
+            params: Parameter values
+            metric: Metric to evaluate ('kge' or 'nse')
+
+        Returns:
+            Tuple of (loss_value, gradient_dict or None)
+        """
+        if not self.supports_native_gradients() or not self.use_jax:
+            loss = self._evaluate_loss(params, metric)
+            return loss, None
+
+        if not self._initialized:
+            if not self.initialize():
+                return self.penalty_score, None
+
+        try:
+            import jax
+            import jax.numpy as jnp
+
+            assert self._forcing is not None, "Forcing data not loaded"
+            assert self._observations is not None, "Observations not loaded"
+
+            precip = jnp.array(self._forcing['precip'])
+            pet = jnp.array(self._forcing['pet'])
+            obs = jnp.array(self._observations)
+
+            if self.snow_module == 'snow17' and 'temp' in self._forcing:
+                # Coupled Snow-17 + XAJ path
+                from symfluence.models.xinanjiang.losses import (
+                    kge_loss_coupled, nse_loss_coupled,
+                )
+
+                temp = jnp.array(self._forcing['temp'])
+
+                # Compute day_of_year from time index
+                if self._time_index is not None:
+                    doy = jnp.array(
+                        [d.timetuple().tm_yday for d in self._time_index]
+                    )
+                else:
+                    doy = jnp.tile(
+                        jnp.arange(1, 366),
+                        len(precip) // 365 + 1,
+                    )[:len(precip)]
+
+                latitude = self.latitude
+                si = self.si
+
+                def loss_fn(params_array, param_names):
+                    params_dict = dict(zip(param_names, params_array))
+                    if metric.lower() == 'nse':
+                        return nse_loss_coupled(
+                            params_dict, precip, temp, pet, obs, doy,
+                            warmup_days=self.warmup_days,
+                            latitude=latitude, si=si, use_jax=True,
+                        )
+                    return kge_loss_coupled(
+                        params_dict, precip, temp, pet, obs, doy,
+                        warmup_days=self.warmup_days,
+                        latitude=latitude, si=si, use_jax=True,
+                    )
+            else:
+                # Standard XAJ path (no snow coupling)
+                from symfluence.models.xinanjiang.losses import kge_loss, nse_loss
+
+                def loss_fn(params_array, param_names):
+                    params_dict = dict(zip(param_names, params_array))
+                    if metric.lower() == 'nse':
+                        return nse_loss(
+                            params_dict, precip, pet, obs,
+                            warmup_days=self.warmup_days, use_jax=True,
+                        )
+                    return kge_loss(
+                        params_dict, precip, pet, obs,
+                        warmup_days=self.warmup_days, use_jax=True,
+                    )
+
+            value_and_grad_fn = jax.value_and_grad(loss_fn)
+            param_names = list(params.keys())
+            param_values = jnp.array([params[k] for k in param_names])
+            loss_val, grad_values = value_and_grad_fn(param_values, param_names)
+
+            gradient = dict(zip(param_names, np.array(grad_values)))
+            return float(loss_val), gradient
+
+        except Exception as e:
+            self.logger.error(f"Error in evaluate_with_gradient: {e}")
+            return self.penalty_score, None
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

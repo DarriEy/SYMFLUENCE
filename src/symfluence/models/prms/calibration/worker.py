@@ -198,6 +198,9 @@ class PRMSWorker(BaseWorker):
         if 'tmax_allsnow' in p and 'tmax_allrain' in p:
             if p['tmax_allsnow'] >= p['tmax_allrain']:
                 p['tmax_allsnow'] = p['tmax_allrain'] - 2.0
+        if 'soil2gw_max' in p and 'soil_moist_max' in p:
+            if p['soil2gw_max'] > p['soil_moist_max']:
+                p['soil2gw_max'] = p['soil_moist_max'] * 0.5
         return p
 
     def _update_control_dat_paths(self, settings_dir: Path, config: Dict[str, Any]) -> None:

@@ -63,7 +63,7 @@ class NgenConfigGenerator(ConfigMixin):
         self._include_pet = True
         self._include_noah = True
         self._include_sloth = False
-        self._noah_et_fallback = 'ETRAN'  # Default when PET disabled but NOAH enabled
+        self._noah_et_fallback = 'EVAPOTRANS'  # Default when PET disabled but NOAH enabled
 
     def set_module_availability(
         self,
@@ -71,7 +71,7 @@ class NgenConfigGenerator(ConfigMixin):
         pet: bool = True,
         noah: bool = True,
         sloth: bool = False,
-        noah_et_fallback: str = 'ETRAN'
+        noah_et_fallback: str = 'EVAPOTRANS'
     ):
         """Set which NGEN modules are available.
 
@@ -82,9 +82,11 @@ class NgenConfigGenerator(ConfigMixin):
             sloth: Enable SLOTH ice fraction module
             noah_et_fallback: When PET disabled but NOAH enabled, which NOAH output
                 to use as CFE's ET input. Options:
-                - 'ETRAN': Transpiration (default) - dominant for vegetated areas
-                - 'EDIR': Direct soil evaporation - better for sparse vegetation
-                - 'ECAN': Canopy evaporation - rarely appropriate alone
+                - 'EVAPOTRANS': Total evapotranspiration rate [m/s] (default) -
+                    correct units for CFE's water_potential_evaporation_flux
+                - 'ETRAN': Transpiration [mm] - WRONG UNITS (accumulated depth,
+                    dimensionally incompatible with CFE's m/s requirement)
+                - 'QSEVA': Evaporation rate [mm/s] - rate but wrong dimension
                 Note: All are ACTUAL ET (soil-moisture limited), not potential ET.
                 For proper potential ET, enable the PET module.
         """
@@ -256,7 +258,7 @@ soil_storage={params['soil_storage']}[m/m]
 K_nash={params['k_nash']}[]
 K_lf={params['k_lf']}[]
 nash_storage=0.0,0.0
-giuh_ordinates=0.06,0.51,0.28,0.12,0.03
+giuh_ordinates={self._generate_giuh_ordinates(catchment_area_km2)}
 num_timesteps={num_steps}
 verbosity=1
 surface_runoff_scheme=GIUH
@@ -427,10 +429,19 @@ shortwave_radiation_provided=1
         # Absolute path to parameters directory
         param_dir = str((self.setup_dir / "NOAH" / "parameters").resolve()) + "/"
 
+        # Extract terrain slope from catchment attributes if available
+        terrain_slope = 0.01  # Default: gentle slope (more physical than 0.0)
+        if catchment_row is not None:
+            for slope_attr in ['terrain_slope', 'slope_mean', 'mean_slope', 'SLOPE', 'slope']:
+                if slope_attr in catchment_row.index and pd.notna(catchment_row[slope_attr]):
+                    terrain_slope = float(catchment_row[slope_attr])
+                    self.logger.debug(f"Using terrain slope from {slope_attr}: {terrain_slope}")
+                    break
+
         # Default NOAH options
         options = {
             'dt': 3600.0,
-            'terrain_slope': 0.0,
+            'terrain_slope': terrain_slope,
             'azimuth': 0.0,
             'zref': 10.0,
             'rain_snow_thresh': 1.0,
@@ -557,7 +568,12 @@ shortwave_radiation_provided=1
 
         forcing_provider = self.config_dict.get('NGEN_FORCING_PROVIDER')
         if not forcing_provider:
-            forcing_provider = "CsvPerFeature" if sys.platform == "darwin" else "NetCDF"
+            # CsvPerFeature: works but has SIGSEGV bug on macOS ARM64 (~19% crash rate,
+            # mitigated by retry logic in runner.py).
+            # NetCDF: avoids SIGSEGV but requires AORC-format NetCDF with epoch_start
+            # attribute and CSDMS variable names. Our forcing pipeline doesn't yet
+            # produce this format, so default to CsvPerFeature for now.
+            forcing_provider = "CsvPerFeature"
 
         # Handle simulation times
         sim_start = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
@@ -711,13 +727,14 @@ shortwave_radiation_provided=1
                         "SFCPRS": "land_surface_air__pressure"
                     },
                     # Expose NOAH outputs for coupling with CFE
+                    # Variable names must match NOAH-OWP BMI output_items
+                    # (see bmi_noahowp.f90 noahowp_output_var_names)
                     "output_variables": [
-                        "QINSUR",      # Net water input to soil surface [mm/s]
-                        "ETRAN",       # Transpiration [mm/s]
-                        "EDIR",        # Direct soil evaporation [mm/s]
-                        "ECAN",        # Canopy evaporation [mm/s]
-                        "RUNSF",       # Surface runoff [mm/s]
-                        "RUNSB"        # Subsurface runoff [mm/s]
+                        "QINSUR",       # Net water input to soil surface [m/s]
+                        "EVAPOTRANS",   # Total evapotranspiration rate [m/s]
+                        "ETRAN",        # Transpiration [mm] (accumulated per timestep)
+                        "ECAN",         # Canopy interception evaporation [mm]
+                        "QSEVA"         # Direct soil evaporation rate [mm/s]
                     ]
                 }
             })
@@ -756,10 +773,11 @@ shortwave_radiation_provided=1
                 variables_map["water_potential_evaporation_flux"] = "water_potential_evaporation_flux"
             elif self._include_noah:
                 # Fallback: if PET is not enabled but NOAH is, use configured NOAH output
-                # Options: ETRAN (transpiration), EDIR (direct soil evap), ECAN (canopy evap)
-                # NOTE: These are ACTUAL ET (soil-moisture limited), not potential ET.
-                # This is a simplification - for proper potential ET, enable PET module.
-                et_var = getattr(self, '_noah_et_fallback', 'ETRAN')
+                # EVAPOTRANS (m/s) is the only NOAH output with correct units for CFE.
+                # ETRAN/ECAN are in mm (accumulated depth) — dimensionally incompatible.
+                # NOTE: This is ACTUAL ET (soil-moisture limited), not potential ET.
+                # For proper potential ET, enable PET module.
+                et_var = getattr(self, '_noah_et_fallback', 'EVAPOTRANS')
                 variables_map["water_potential_evaporation_flux"] = et_var
 
             modules.append({
@@ -778,6 +796,50 @@ shortwave_radiation_provided=1
             })
 
         return modules
+
+    @staticmethod
+    def _generate_giuh_ordinates(catchment_area_km2: float) -> str:
+        """Generate GIUH ordinates appropriate for basin size.
+
+        Uses a gamma-distribution-shaped unit hydrograph with response time
+        scaled to catchment area. Small basins get short, peaked responses;
+        large basins get longer, flatter responses.
+
+        Args:
+            catchment_area_km2: Catchment area in km²
+
+        Returns:
+            Comma-separated string of ordinates summing to 1.0
+        """
+        import math
+
+        # Estimate response time in hours (empirical: sqrt(area) / 2, min 2h)
+        response_time = max(math.sqrt(catchment_area_km2) / 2.0, 2.0)
+
+        # Number of ordinates: cover ~2x response time, min 5
+        n_ordinates = max(int(response_time * 2), 5)
+        # Cap at 48 ordinates (2 days at hourly timestep)
+        n_ordinates = min(n_ordinates, 48)
+
+        # Gamma distribution shape: k=2 gives realistic geomorphological response
+        k = 2.0
+        theta = response_time / k  # scale parameter
+
+        # Generate gamma PDF values at each hour
+        ordinates = []
+        for i in range(1, n_ordinates + 1):
+            t = float(i)
+            # Gamma PDF: t^(k-1) * exp(-t/theta) / (theta^k * Gamma(k))
+            val = (t ** (k - 1)) * math.exp(-t / theta) / (theta ** k * math.gamma(k))
+            ordinates.append(val)
+
+        # Normalize to sum to 1.0
+        total = sum(ordinates)
+        if total > 0:
+            ordinates = [o / total for o in ordinates]
+
+        # Format with 4 decimal places
+        return ','.join(f'{o:.4f}' for o in ordinates)
 
     def _get_wgs84_centroid(self, catchment_row: gpd.GeoSeries):
         """Get the centroid of a catchment in WGS84 coordinates."""

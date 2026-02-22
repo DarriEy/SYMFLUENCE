@@ -505,16 +505,14 @@ class BaseModelOptimizer(
     def _supports_multi_objective(self) -> bool:
         """Check if this model supports multi-objective optimization (NSGA-II).
 
-        Currently, only SUMMA has the worker infrastructure to return multiple
-        objectives per evaluation. Non-SUMMA models use BaseWorker which only
-        returns a single score, causing NSGA-II to receive penalty values for
-        all objectives.
+        All models support multi-objective optimization. SUMMA workers return
+        explicit 'objectives' lists; JAX/in-memory workers return 'metrics'
+        dicts from which objectives are extracted by name (e.g., KGE, NSE).
 
         Returns:
-            True if NSGA-II is supported, False otherwise.
+            True if multi-objective is supported, False otherwise.
         """
-        # Only SUMMA workers have multi-objective support via worker_orchestration.py
-        return self._get_model_name().upper() == 'SUMMA'
+        return True
 
     def _log_calibration_alignment(self) -> None:
         """Log basic calibration alignment info before optimization starts."""

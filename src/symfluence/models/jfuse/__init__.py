@@ -88,6 +88,11 @@ def register_with_model_registry():
     ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
     ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
 
+    # Import component modules to trigger their @ModelRegistry.register_* decorators
+    from . import preprocessor  # noqa: F401 — registers JFUSEPreProcessor
+    from . import runner  # noqa: F401 — registers JFUSERunner
+    from . import postprocessor  # noqa: F401 — registers JFUSEPostprocessor
+
 
 # Eagerly register when module is imported
 register_with_model_registry()

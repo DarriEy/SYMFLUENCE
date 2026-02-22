@@ -12,7 +12,7 @@ import random
 import time
 import traceback
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,7 @@ from symfluence.core.mixins.project import resolve_data_subdir
 
 # Lazy JAX import
 if HAS_JAX:
+    import jax
     import jax.numpy as jnp
 
 
@@ -35,6 +36,7 @@ class HecHmsWorker(InMemoryModelWorker):
     Supports:
     - Standard evolutionary optimization (evaluate -> apply -> run -> metrics)
     - Efficient in-memory simulation (no file I/O during calibration)
+    - Native gradient computation via JAX autodiff for gradient-based optimization
     """
 
     def __init__(
@@ -246,6 +248,139 @@ class HecHmsWorker(InMemoryModelWorker):
     def _initialize_model(self) -> bool:
         """Initialize HEC-HMS model components."""
         return self._ensure_simulate_fn()
+
+    # =========================================================================
+    # Native Gradient Support (JAX autodiff)
+    # =========================================================================
+
+    def supports_native_gradients(self) -> bool:
+        """Check if native gradient computation is available.
+
+        HEC-HMS supports native gradients via JAX autodiff when JAX is installed.
+
+        Returns:
+            True if JAX is available.
+        """
+        return HAS_JAX and self._use_jax
+
+    def compute_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Optional[Dict[str, float]]:
+        """Compute gradient of loss with respect to parameters.
+
+        Uses JAX autodiff for efficient gradient computation.
+
+        Args:
+            params: Current parameter values
+            metric: Metric to compute gradient for ('kge' or 'nse')
+
+        Returns:
+            Dictionary of parameter gradients, or None if JAX unavailable.
+        """
+        if not HAS_JAX or not self._use_jax:
+            return None
+
+        if not self._initialized:
+            if not self.initialize():
+                return None
+
+        try:
+            from symfluence.models.hechms.losses import kge_loss, nse_loss
+
+            assert self._forcing is not None
+            precip = jnp.array(self._forcing['precip'])
+            temp = jnp.array(self._forcing['temp'])
+            pet = jnp.array(self._forcing['pet'])
+            obs = jnp.array(self._observations)
+
+            # Determine day of year start from time index
+            doy_start = 1
+            if self._time_index is not None and len(self._time_index) > 0:
+                doy_start = self._time_index[0].timetuple().tm_yday
+
+            def loss_fn(params_array, param_names):
+                params_dict = dict(zip(param_names, params_array))
+                if metric.lower() == 'nse':
+                    return nse_loss(params_dict, precip, temp, pet, obs,
+                                   self.warmup_days, use_jax=True,
+                                   day_of_year_start=doy_start)
+                return kge_loss(params_dict, precip, temp, pet, obs,
+                               self.warmup_days, use_jax=True,
+                               day_of_year_start=doy_start)
+
+            grad_fn = jax.grad(loss_fn)
+            param_names = list(params.keys())
+            param_values = jnp.array([params[k] for k in param_names])
+            grad_values = grad_fn(param_values, param_names)
+
+            return dict(zip(param_names, np.array(grad_values)))
+
+        except Exception as e:
+            self.logger.error(f"Error computing gradient: {e}")
+            self.logger.debug(traceback.format_exc())
+            return None
+
+    def evaluate_with_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Tuple[float, Optional[Dict[str, float]]]:
+        """Evaluate loss and compute gradient in single pass.
+
+        Uses JAX value_and_grad for efficient computation.
+
+        Args:
+            params: Parameter values
+            metric: Metric to evaluate
+
+        Returns:
+            Tuple of (loss_value, gradient_dict)
+        """
+        if not HAS_JAX or not self._use_jax:
+            loss = self._evaluate_loss(params, metric)
+            return loss, None
+
+        if not self._initialized:
+            if not self.initialize():
+                return self.penalty_score, None
+
+        try:
+            from symfluence.models.hechms.losses import kge_loss, nse_loss
+
+            assert self._forcing is not None
+            precip = jnp.array(self._forcing['precip'])
+            temp = jnp.array(self._forcing['temp'])
+            pet = jnp.array(self._forcing['pet'])
+            obs = jnp.array(self._observations)
+
+            # Determine day of year start from time index
+            doy_start = 1
+            if self._time_index is not None and len(self._time_index) > 0:
+                doy_start = self._time_index[0].timetuple().tm_yday
+
+            def loss_fn(params_array, param_names):
+                params_dict = dict(zip(param_names, params_array))
+                if metric.lower() == 'nse':
+                    return nse_loss(params_dict, precip, temp, pet, obs,
+                                   self.warmup_days, use_jax=True,
+                                   day_of_year_start=doy_start)
+                return kge_loss(params_dict, precip, temp, pet, obs,
+                               self.warmup_days, use_jax=True,
+                               day_of_year_start=doy_start)
+
+            value_and_grad_fn = jax.value_and_grad(loss_fn)
+            param_names = list(params.keys())
+            param_values = jnp.array([params[k] for k in param_names])
+            loss_val, grad_values = value_and_grad_fn(param_values, param_names)
+
+            gradient = dict(zip(param_names, np.array(grad_values)))
+            return float(loss_val), gradient
+
+        except Exception as e:
+            self.logger.error(f"Error in evaluate_with_gradient: {e}")
+            return self.penalty_score, None
 
     # =========================================================================
     # Static Worker Function for Process Pool

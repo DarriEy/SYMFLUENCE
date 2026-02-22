@@ -26,11 +26,11 @@ from typing import Dict, Tuple
 
 PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'CN2': {'min': -0.25, 'max': 0.25},           # relative change to curve number
-    'ALPHA_BF': {'min': 0.0, 'max': 1.0},          # baseflow alpha factor [1/days]
-    'GW_DELAY': {'min': 0.0, 'max': 150.0},        # groundwater delay time [days]
+    'ALPHA_BF': {'min': 0.01, 'max': 1.0},         # baseflow alpha factor [1/days]
+    'GW_DELAY': {'min': 0.5, 'max': 150.0},        # groundwater delay time [days]
     'GWQMN': {'min': 0.0, 'max': 300.0},           # threshold depth for return flow [mm H2O]
     'GW_REVAP': {'min': 0.02, 'max': 0.2},         # groundwater "revap" coefficient
-    'ESCO': {'min': 0.0, 'max': 1.0},              # soil evaporation compensation factor
+    'ESCO': {'min': 0.01, 'max': 1.0},             # soil evaporation compensation factor
     'SOL_AWC': {'min': -0.25, 'max': 0.25},        # relative change to available water capacity
     'SOL_K': {'min': -0.25, 'max': 0.25},          # relative change to sat. hyd. conductivity
     'SURLAG': {'min': 0.05, 'max': 24.0},          # surface runoff lag coefficient [days]
@@ -39,9 +39,9 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'SMFMX': {'min': 0.5, 'max': 10.0},            # max melt rate for snow [mm/deg C/day]
     'SMFMN': {'min': 0.1, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
     'TIMP': {'min': 0.01, 'max': 1.0},             # snow pack temperature lag factor
-    'CH_K2': {'min': 0.0, 'max': 50.0},            # channel hydraulic conductivity [mm/hr]
-    'RCHRG_DP': {'min': 0.0, 'max': 0.5},          # deep aquifer percolation fraction
-    'EPCO': {'min': 0.01, 'max': 1.0},               # plant uptake compensation factor
+    'CH_K2': {'min': 0.0, 'max': 30.0},            # channel hydraulic conductivity [mm/hr]
+    'RCHRG_DP': {'min': 0.0, 'max': 0.3},          # deep aquifer percolation fraction
+    'EPCO': {'min': 0.01, 'max': 1.0},             # plant uptake compensation factor
 }
 
 # Default parameter values (midpoint of bounds or typical values)

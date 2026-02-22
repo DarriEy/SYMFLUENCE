@@ -234,6 +234,14 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
+# Enable NetCDF forcing provider (avoids SIGSEGV bug in CsvPerFeatureForcingProvider)
+if nc-config --libs >/dev/null 2>&1; then
+  CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_NETCDF=ON"
+  echo "NetCDF-C found ($(nc-config --version 2>/dev/null || echo 'unknown')). Enabling NetCDF forcing provider."
+else
+  echo "WARNING: NetCDF-C not found. CsvPerFeature forcing will be used (may crash on macOS ARM64)."
+fi
+
 # On Windows, disable tests (symlinks require admin privileges) and UDUNITS2
 # (import library handling issues on MinGW)
 case "$(uname -s 2>/dev/null)" in
@@ -358,6 +366,9 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_SQLITE3=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
+  if nc-config --libs >/dev/null 2>&1; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_NETCDF=ON"
+  fi
   case "$(uname -s 2>/dev/null)" in
       MSYS*|MINGW*|CYGWIN*)
           FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_TESTS=OFF"
@@ -596,6 +607,20 @@ if [ -d "extern/t-route/src" ]; then
   fi
 else
   echo "t-route submodule not found - routing will not be available"
+fi
+
+# ================================================================
+# Fix UDUNITS2 XML path for statically-linked builds
+# ================================================================
+# When UDUNITS2 is statically linked, it resolves the XML database path
+# relative to the executable (via dladdr): <exe_dir>/../share/udunits/udunits2.xml
+# But our build installs UDUNITS2 into a udunits2/ subdirectory. Create a
+# symlink so the path resolves correctly regardless of how it's computed.
+if [ -d "udunits2/share/udunits" ] && [ ! -e "share/udunits" ]; then
+  echo "Creating UDUNITS2 XML symlink for static-link path resolution..."
+  mkdir -p share
+  ln -s "$(pwd)/udunits2/share/udunits" share/udunits
+  echo "UDUNITS2 XML symlink created: share/udunits -> udunits2/share/udunits"
 fi
 
 echo ""

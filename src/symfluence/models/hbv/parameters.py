@@ -41,11 +41,11 @@ PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
     'fc': (50.0, 700.0),      # Maximum soil moisture storage / field capacity (mm)
     'lp': (0.3, 1.0),         # Soil moisture threshold for ET reduction (fraction of FC)
     'beta': (1.0, 6.0),       # Shape coefficient for soil moisture routine
-    'k0': (0.05, 0.99),       # Recession coefficient for fast flow (1/day)
-    'k1': (0.01, 0.5),        # Recession coefficient for slow flow (1/day)
+    'k0': (0.05, 0.5),        # Recession coefficient for fast flow (1/day)
+    'k1': (0.01, 0.3),        # Recession coefficient for slow flow (1/day)
     'k2': (0.0001, 0.1),      # Recession coefficient for baseflow (1/day)
     'uzl': (0.0, 100.0),      # Threshold for fast flow (mm)
-    'perc': (0.0, 10.0),      # Maximum percolation rate (mm/day)
+    'perc': (0.0, 20.0),      # Maximum percolation rate (mm/day)
     'maxbas': (1.0, 7.0),     # Length of triangular routing function (days)
     'smoothing': (1.0, 50.0), # Smoothing factor for thresholds (dimensionless)
 }

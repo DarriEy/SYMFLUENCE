@@ -34,10 +34,10 @@ from typing import Dict
 
 PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'soil_moist_max': {
-        'min': 1.0, 'max': 15.0,                   # inches, maximum soil moisture storage
+        'min': 1.0, 'max': 20.0,                   # inches, maximum soil moisture storage
     },
     'soil_rechr_max': {
-        'min': 0.5, 'max': 5.0,                    # inches, maximum recharge zone storage
+        'min': 0.5, 'max': 10.0,                   # inches, maximum recharge zone storage
     },
     'tmax_allrain': {
         'min': 30.0, 'max': 50.0,                  # degF, temp above which all precip is rain
@@ -52,7 +52,7 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
         'min': 0.1, 'max': 1.0,                    # fraction, maximum contributing area
     },
     'smidx_coef': {
-        'min': 0.001, 'max': 0.06,                 # coefficient in surface runoff equation
+        'min': 0.001, 'max': 0.10,                 # coefficient in surface runoff equation
     },
     'slowcoef_lin': {
         'min': 0.001, 'max': 0.5,                  # linear gravity drainage coefficient
@@ -61,7 +61,10 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
         'min': 0.001, 'max': 0.5,                  # groundwater outflow coefficient
     },
     'ssr2gw_rate': {
-        'min': 0.001, 'max': 0.5,                  # gravity reservoir to GW rate
+        'min': 0.001, 'max': 1.0,                  # gravity reservoir to GW rate
+    },
+    'soil2gw_max': {
+        'min': 0.01, 'max': 5.0,                   # inches/day, max soil-to-GW percolation
     },
 }
 
@@ -73,14 +76,15 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
 DEFAULT_PARAMS: Dict[str, float] = {
     'soil_moist_max': 6.0,
     'soil_rechr_max': 2.0,
-    'tmax_allrain': 3.3,          # degC (converted from degF in preprocessing)
-    'tmax_allsnow': 0.0,
+    'tmax_allrain': 3.3,          # degF (PRMS convention; preprocessor may convert)
+    'tmax_allsnow': 0.0,          # degF (PRMS convention; preprocessor may convert)
     'hru_percent_imperv': 0.01,
     'carea_max': 0.6,
     'smidx_coef': 0.01,
     'slowcoef_lin': 0.015,
     'gwflow_coef': 0.015,
     'ssr2gw_rate': 0.1,
+    'soil2gw_max': 0.5,
 }
 
 
@@ -103,4 +107,5 @@ PRMS_PARAM_SPEC: Dict[str, Dict] = {
     'slowcoef_lin':        {'dimension': 'nhru', 'type_code': 2},
     'gwflow_coef':         {'dimension': 'nhru', 'type_code': 2},
     'ssr2gw_rate':         {'dimension': 'nhru', 'type_code': 2},
+    'soil2gw_max':         {'dimension': 'nhru', 'type_code': 2},
 }

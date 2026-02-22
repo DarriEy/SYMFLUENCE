@@ -61,10 +61,23 @@ except ImportError:
     FUSEModule = None
 
 
-def _get_model_config(structure: str) -> dict:
-    """Get model configuration for a given structure."""
+def _get_model_config(structure: str, decision_options: Optional[Dict] = None) -> dict:
+    """Get model configuration for a given structure.
+
+    Args:
+        structure: Model structure name ('vic', 'prms', 'custom', etc.)
+        decision_options: Optional dict of FUSE decision names (e.g.
+            {'ARCH1': 'tension1_1', 'ARCH2': 'tens2pll_2', ...})
+
+    Returns:
+        Config dict with integer enum values for cfuse_core.
+    """
     if not HAS_CFUSE:
         return {}
+
+    # If FUSE decision options provided, build config from them
+    if decision_options and isinstance(decision_options, dict):
+        return _build_config_from_decisions(decision_options)
 
     configs = {
         'vic': VIC_CONFIG,
@@ -78,6 +91,84 @@ def _get_model_config(structure: str) -> dict:
     if structure_lower in configs:
         return configs[structure_lower].to_dict()
     return PRMS_CONFIG.to_dict()
+
+
+def _build_config_from_decisions(decisions: dict) -> dict:
+    """Build a cFUSE config dict from Fortran FUSE decision options.
+
+    Converts FUSE decision names to FUSEConfig enum integers that
+    cfuse_core expects.
+
+    Args:
+        decisions: Dict mapping FUSE decision keys to option names.
+
+    Returns:
+        Config dict with integer values for cfuse_core.
+    """
+    from cfuse.config import (
+        FUSEConfig, UpperLayerArch, LowerLayerArch, BaseflowType,
+        PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
+    )
+
+    # Resolve list values (from YAML format) to single strings
+    resolved = {}
+    for key, value in decisions.items():
+        if isinstance(value, list):
+            resolved[key] = value[0] if value else None
+        else:
+            resolved[key] = value
+
+    # Map FUSE decision names to cfuse enums
+    arch1_map = {
+        'onestate_1': UpperLayerArch.SINGLE_STATE,
+        'tension1_1': UpperLayerArch.TENSION_FREE,
+        'tension2_1': UpperLayerArch.TENSION2_FREE,
+    }
+    arch2_map = {
+        'fixedsiz_2': LowerLayerArch.SINGLE_NOEVAP,
+        'unlimfrc_2': LowerLayerArch.SINGLE_NOEVAP,
+        'unlimpow_2': LowerLayerArch.SINGLE_EVAP,
+        'tens2pll_2': LowerLayerArch.TENSION_2RESERV,
+    }
+    baseflow_map = {
+        'fixedsiz_2': BaseflowType.LINEAR,
+        'unlimfrc_2': BaseflowType.LINEAR,
+        'unlimpow_2': BaseflowType.NONLINEAR,
+        'tens2pll_2': BaseflowType.PARALLEL_LINEAR,
+    }
+    qperc_map = {
+        'perc_f2sat': PercolationType.FREE_STORAGE,
+        'perc_w2sat': PercolationType.TOTAL_STORAGE,
+        'perc_lower': PercolationType.LOWER_DEMAND,
+    }
+    qsurf_map = {
+        'arno_x_vic': SurfaceRunoffType.UZ_PARETO,
+        'prms_varnt': SurfaceRunoffType.UZ_LINEAR,
+        'tmdl_param': SurfaceRunoffType.LZ_GAMMA,
+    }
+    esoil_map = {
+        'sequential': EvaporationType.SEQUENTIAL,
+        'rootweight': EvaporationType.ROOT_WEIGHT,
+    }
+    qintf_map = {
+        'intflwnone': InterflowType.NONE,
+        'intflwsome': InterflowType.LINEAR,
+    }
+
+    arch2_val = resolved.get('ARCH2', 'fixedsiz_2')
+
+    config = FUSEConfig(
+        upper_arch=arch1_map.get(resolved.get('ARCH1', 'tension1_1'), UpperLayerArch.TENSION_FREE),
+        lower_arch=arch2_map.get(arch2_val, LowerLayerArch.SINGLE_NOEVAP),
+        baseflow=baseflow_map.get(arch2_val, BaseflowType.LINEAR),
+        percolation=qperc_map.get(resolved.get('QPERC', 'perc_f2sat'), PercolationType.FREE_STORAGE),
+        surface_runoff=qsurf_map.get(resolved.get('QSURF', 'arno_x_vic'), SurfaceRunoffType.UZ_PARETO),
+        evaporation=esoil_map.get(resolved.get('ESOIL', 'rootweight'), EvaporationType.ROOT_WEIGHT),
+        interflow=qintf_map.get(resolved.get('QINTF', 'intflwnone'), InterflowType.NONE),
+        enable_snow=resolved.get('SNOWM', 'temp_index') != 'no_snowmod',
+    )
+
+    return config.to_dict()
 
 
 @OptimizerRegistry.register_worker('CFUSE')
@@ -130,7 +221,10 @@ class CFUSEWorker(InMemoryModelWorker):
             self.device = None
 
         # Model config dict for C++ core
-        self.config_dict = _get_model_config(self.model_structure)
+        decision_options = self.config.get('CFUSE_DECISION_OPTIONS')
+        self.config_dict = _get_model_config(self.model_structure, decision_options)
+        if decision_options:
+            self.logger.info(f"Built cFUSE config from FUSE decisions: {self.config_dict}")
         if self.enable_snow:
             self.config_dict['enable_snow'] = True
 
@@ -296,13 +390,17 @@ class CFUSEWorker(InMemoryModelWorker):
         return np.array([full_params.get(name, 0.0) for name in PARAM_NAMES], dtype=np.float32)
 
     def _get_initial_states(self) -> np.ndarray:
-        """Get initial state array."""
+        """Get initial state array.
+
+        Defaults to zero initial states for consistency across FUSE
+        implementations. Override with CFUSE_INITIAL_S1/S2 config keys.
+        """
         states = np.zeros((self._n_hrus, self._n_states), dtype=np.float32)
-        states[:, 0] = self.config.get('CFUSE_INITIAL_S1', 50.0)
+        states[:, 0] = self.config.get('CFUSE_INITIAL_S1', 0.0)
         if self._n_states > 1:
-            states[:, 1] = 20.0
+            states[:, 1] = self.config.get('CFUSE_INITIAL_S1_FREE', 0.0)
         if self._n_states > 2:
-            states[:, 2] = self.config.get('CFUSE_INITIAL_S2', 200.0)
+            states[:, 2] = self.config.get('CFUSE_INITIAL_S2', 0.0)
         return states
 
     # =========================================================================

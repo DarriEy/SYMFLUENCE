@@ -367,8 +367,9 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
                 self.logger.info(f"Early stopping triggered at epoch {epoch}")
                 break
 
+            n_batches = max(X_train.size(0) // batch_size, 1)
             if (epoch + 1) % 10 == 0:
-                self.logger.info(f'Epoch [{epoch + 1}/{epochs}], Train Loss: {total_loss:.4f}, Val Loss: {val_loss:.4f}')
+                self.logger.info(f'Epoch [{epoch + 1}/{epochs}], Train Loss: {total_loss / n_batches:.4f}, Val Loss: {val_loss:.4f}')
 
         self.logger.info("LSTM model training completed")
 

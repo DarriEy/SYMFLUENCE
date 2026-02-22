@@ -541,8 +541,6 @@ class SWATWorker(BaseWorker):
 
             return np.array(flow_values)
 
-            return arr
-
         except Exception as e:
             self.logger.error(f"Error parsing output.rch: {e}")
             return None

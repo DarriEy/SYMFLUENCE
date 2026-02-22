@@ -23,6 +23,7 @@ Tools Defined Here (Infrastructure):
     - GIStool: Geospatial data extraction tool
     - Datatool: Meteorological data processing tool
     - NGIAB: NextGen In A Box deployment system
+    - Enzyme AD: Automatic differentiation via LLVM (used by cFUSE)
 
 Tools Defined in Model Directories:
     - SUMMA: src/symfluence/models/summa/build_instructions.py
@@ -504,6 +505,221 @@ cd ngiab
         },
         'order': 10,
         'optional': True,  # Not installed by default with --install
+    })
+
+
+    # ================================================================
+    # Enzyme AD - Automatic Differentiation (used by cFUSE)
+    # ================================================================
+    BuildInstructionsRegistry.register_instructions('enzyme', {
+        'description': 'Enzyme AD - Automatic Differentiation via LLVM',
+        'config_path_key': None,
+        'config_exe_key': None,
+        'default_path_suffix': 'installs/enzyme',
+        'default_exe': None,
+        'repository': 'https://github.com/EnzymeAD/Enzyme.git',
+        'branch': 'main',
+        'install_dir': 'enzyme',
+        'build_commands': [
+            r'''
+echo "=== Enzyme AD Build Starting ==="
+
+ENZYME_ROOT="$(pwd)"
+OS_NAME="$(uname -s)"
+
+# ── Detect LLVM ──────────────────────────────────────────────────
+echo ""
+echo "=== Detecting LLVM ==="
+
+LLVM_DIR=""
+LLVM_VERSION=""
+CXX_COMPILER=""
+C_COMPILER=""
+
+if [ "$OS_NAME" = "Darwin" ]; then
+    # macOS: Homebrew LLVM (generic, then versioned)
+    for llvm_base in /opt/homebrew/opt/llvm /usr/local/opt/llvm; do
+        if [ -d "$llvm_base" ] && [ -x "$llvm_base/bin/clang++" ]; then
+            CXX_COMPILER="$llvm_base/bin/clang++"
+            C_COMPILER="$llvm_base/bin/clang"
+            [ -d "$llvm_base/lib/cmake/llvm" ] && LLVM_DIR="$llvm_base/lib/cmake/llvm"
+            LLVM_VERSION=$("$CXX_COMPILER" --version | sed -nE 's/.*version ([0-9]+).*/\1/p' | head -1)
+            echo "Found Homebrew LLVM $LLVM_VERSION at $llvm_base"
+            break
+        fi
+    done
+
+    if [ -z "$CXX_COMPILER" ]; then
+        for ver in 21 20 19 18 17; do
+            for prefix in /opt/homebrew/opt /usr/local/opt; do
+                llvm_base="$prefix/llvm@$ver"
+                if [ -d "$llvm_base" ] && [ -x "$llvm_base/bin/clang++" ]; then
+                    CXX_COMPILER="$llvm_base/bin/clang++"
+                    C_COMPILER="$llvm_base/bin/clang"
+                    [ -d "$llvm_base/lib/cmake/llvm" ] && LLVM_DIR="$llvm_base/lib/cmake/llvm"
+                    LLVM_VERSION="$ver"
+                    echo "Found Homebrew LLVM@$ver at $llvm_base"
+                    break 2
+                fi
+            done
+        done
+    fi
+
+    # Auto-install via Homebrew if not found
+    if [ -z "$CXX_COMPILER" ]; then
+        if command -v brew >/dev/null 2>&1; then
+            echo "No Homebrew LLVM found. Installing via: brew install llvm"
+            brew install llvm 2>&1
+            for llvm_base in /opt/homebrew/opt/llvm /usr/local/opt/llvm; do
+                if [ -d "$llvm_base" ] && [ -x "$llvm_base/bin/clang++" ]; then
+                    CXX_COMPILER="$llvm_base/bin/clang++"
+                    C_COMPILER="$llvm_base/bin/clang"
+                    [ -d "$llvm_base/lib/cmake/llvm" ] && LLVM_DIR="$llvm_base/lib/cmake/llvm"
+                    LLVM_VERSION=$("$CXX_COMPILER" --version | sed -nE 's/.*version ([0-9]+).*/\1/p' | head -1)
+                    echo "Installed Homebrew LLVM $LLVM_VERSION"
+                    break
+                fi
+            done
+        else
+            echo "WARNING: Homebrew not found. Cannot auto-install LLVM."
+        fi
+    fi
+else
+    # Linux: llvm-config (generic, then versioned)
+    if command -v llvm-config >/dev/null 2>&1; then
+        LLVM_DIR="$(llvm-config --cmakedir 2>/dev/null)"
+        LLVM_VERSION="$(llvm-config --version 2>/dev/null | sed -nE 's/^([0-9]+).*/\1/p')"
+        for cmd in "clang++-$LLVM_VERSION" clang++; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+                CXX_COMPILER="$(which "$cmd")"
+                C_COMPILER="$(which "${cmd%%++*}")"
+                break
+            fi
+        done
+        [ -n "$CXX_COMPILER" ] && echo "Found system LLVM $LLVM_VERSION"
+    fi
+    if [ -z "$CXX_COMPILER" ]; then
+        for ver in 21 20 19 18 17; do
+            if command -v "llvm-config-$ver" >/dev/null 2>&1; then
+                LLVM_DIR="$(llvm-config-$ver --cmakedir 2>/dev/null)"
+                LLVM_VERSION="$ver"
+                if command -v "clang++-$ver" >/dev/null 2>&1; then
+                    CXX_COMPILER="$(which "clang++-$ver")"
+                    C_COMPILER="$(which "clang-$ver")"
+                    echo "Found system LLVM $LLVM_VERSION"
+                fi
+                break
+            fi
+        done
+    fi
+fi
+
+if [ -z "$LLVM_DIR" ]; then
+    echo "ERROR: LLVM cmake directory not found."
+    echo "Install LLVM: brew install llvm (macOS) or apt install llvm-dev (Linux)"
+    exit 1
+fi
+
+echo "LLVM cmake dir: $LLVM_DIR"
+echo "LLVM version:   $LLVM_VERSION"
+
+# ── Select branch ────────────────────────────────────────────────
+echo ""
+echo "=== Selecting Enzyme Branch ==="
+
+if [ "$LLVM_VERSION" -ge 20 ] 2>/dev/null; then
+    ENZYME_BRANCH="main"
+else
+    ENZYME_BRANCH="v$LLVM_VERSION"
+    # Verify remote branch exists
+    if ! git ls-remote --heads origin "$ENZYME_BRANCH" 2>/dev/null | grep -q "$ENZYME_BRANCH"; then
+        echo "Branch $ENZYME_BRANCH not found, using main"
+        ENZYME_BRANCH="main"
+    fi
+fi
+echo "Using branch: $ENZYME_BRANCH"
+git checkout "$ENZYME_BRANCH" 2>/dev/null || \
+    git fetch --depth 1 origin "$ENZYME_BRANCH" 2>/dev/null && \
+    git checkout "$ENZYME_BRANCH" 2>/dev/null || \
+    echo "Staying on current branch"
+
+# ── Build Enzyme ─────────────────────────────────────────────────
+echo ""
+echo "=== Building Enzyme ==="
+
+# Use _build (not build) to avoid collision with Bazel BUILD file
+# on case-insensitive filesystems (macOS HFS+/APFS)
+ENZYME_BUILD_DIR="$ENZYME_ROOT/enzyme/_build"
+mkdir -p "$ENZYME_BUILD_DIR"
+cd "$ENZYME_BUILD_DIR"
+
+echo "Configuring with LLVM $LLVM_VERSION..."
+cmake .. \
+    -DLLVM_DIR="$LLVM_DIR" \
+    -DCMAKE_BUILD_TYPE=Release 2>&1
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Enzyme CMake configuration failed"
+    exit 1
+fi
+
+# Determine parallel jobs
+if [ -n "$NPROC" ]; then
+    JOBS=$NPROC
+elif command -v nproc >/dev/null 2>&1; then
+    JOBS=$(nproc)
+elif command -v sysctl >/dev/null 2>&1; then
+    JOBS=$(sysctl -n hw.ncpu)
+else
+    JOBS=4
+fi
+
+echo "Building with $JOBS parallel jobs..."
+make -j"$JOBS" 2>&1
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Enzyme build failed"
+    exit 1
+fi
+
+# ── Create predictable symlinks ──────────────────────────────────
+echo ""
+echo "=== Creating Library Symlinks ==="
+
+mkdir -p "$ENZYME_ROOT/lib"
+cd "$ENZYME_BUILD_DIR/Enzyme"
+
+for lib in ClangEnzyme-*.dylib LLVMEnzyme-*.dylib ClangEnzyme-*.so LLVMEnzyme-*.so; do
+    if [ -f "$lib" ]; then
+        # Predictable name (e.g., ClangEnzyme.dylib) for easy discovery
+        base=$(echo "$lib" | sed -E 's/-[0-9]+//')
+        ln -sf "$ENZYME_BUILD_DIR/Enzyme/$lib" "$ENZYME_ROOT/lib/$base"
+        ln -sf "$ENZYME_BUILD_DIR/Enzyme/$lib" "$ENZYME_ROOT/lib/$lib"
+        echo "Linked: lib/$base -> $lib"
+    fi
+done
+
+cd "$ENZYME_ROOT"
+
+echo ""
+echo "=== Enzyme AD Build Complete ==="
+echo "Installation path: $ENZYME_ROOT"
+echo "LLVM version: $LLVM_VERSION"
+ls -la "$ENZYME_ROOT/lib/"
+            '''.strip()
+        ],
+        'dependencies': [],
+        'test_command': None,
+        'verify_install': {
+            'file_paths': [
+                'lib/ClangEnzyme.dylib',
+                'lib/LLVMEnzyme.so',
+            ],
+            'check_type': 'exists_any'
+        },
+        'order': 14,  # Before cfuse (order=15)
+        'optional': True,
+        'library_only': True,
     })
 
 
