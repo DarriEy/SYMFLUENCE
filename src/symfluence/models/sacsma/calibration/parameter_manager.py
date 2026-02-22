@@ -25,8 +25,8 @@ class SacSmaParameterManager(BaseParameterManager):
     def __init__(self, config: Dict, logger: logging.Logger, settings_dir: Path):
         super().__init__(config, logger, settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
 
         # Snow module determines parameter set
         self.snow_module = str(config.get('SACSMA_SNOW_MODULE', 'snow17'))

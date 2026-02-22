@@ -7,14 +7,18 @@ data preprocessing, model execution, optimization, and analysis phases.
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, List, Callable
+from typing import Dict, Any, List, Callable, TYPE_CHECKING, Union
 from datetime import datetime
 from dataclasses import dataclass
 
+from symfluence.core.config.coercion import ensure_config
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.provenance import record_step
 from symfluence.data.observation.paths import observation_output_candidates_by_family
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 @dataclass
@@ -51,7 +55,7 @@ class WorkflowOrchestrator(ConfigMixin):
 
     Attributes:
         managers (Dict[str, Any]): Dictionary of manager instances
-        config (Dict[str, Any]): Configuration dictionary
+        config (SymfluenceConfig): Typed configuration object
         logger (logging.Logger): Logger instance
         domain_name (str): Name of the hydrological domain
         experiment_id (str): ID of the current experiment
@@ -59,19 +63,21 @@ class WorkflowOrchestrator(ConfigMixin):
         logging_manager: Reference to logging manager for enhanced formatting
     """
 
-    def __init__(self, managers: Dict[str, Any], config: Dict[str, Any], logger: logging.Logger, logging_manager=None, provenance=None):
+    def __init__(
+        self,
+        managers: Dict[str, Any],
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger: logging.Logger,
+        logging_manager=None,
+        provenance=None,
+    ):
         """
         Initialize the workflow orchestrator.
 
-        Sets up the orchestrator with references to all manager components, the
-        configuration, and the logger. This creates the central coordination point
-        for the entire SYMFLUENCE workflow.
-
         Args:
-            managers (Dict[str, Any]): Dictionary of manager instances for each
-                                      functional area (project, domain, data, etc.)
-            config (Dict[str, Any]): Configuration dictionary with all settings
-            logger (logging.Logger): Logger instance for recording operations
+            managers: Dictionary of manager instances for each functional area
+            config: SymfluenceConfig instance (dicts are auto-converted)
+            logger: Logger instance for recording operations
             logging_manager: Reference to LoggingManager for enhanced formatting
             provenance: Optional RunProvenance instance for step-level tracking
 
@@ -79,17 +85,16 @@ class WorkflowOrchestrator(ConfigMixin):
             KeyError: If essential configuration values are missing
         """
         self.managers = managers
-        from symfluence.core.config.coercion import coerce_config
-        self._config = coerce_config(config, warn=False)
+        self._config = ensure_config(config)
         self.logger = logger
         self.logging_manager = logging_manager
         self.provenance = provenance
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self.config.domain.name
+        self.experiment_id = self.config.domain.experiment_id
 
-        data_dir = config.get('SYMFLUENCE_DATA_DIR')
+        data_dir = self.config.system.data_dir
         if not data_dir:
-            raise KeyError("SYMFLUENCE_DATA_DIR not found in config")
+            raise KeyError("system.data_dir not configured")
 
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
 
@@ -137,25 +142,17 @@ class WorkflowOrchestrator(ConfigMixin):
             bool: True if at least one required observation type has been processed
         """
         evaluation_data = self._normalize_config_list(
-            self._get_config_value(
-                lambda: self.config.evaluation.evaluation_data,
-                default=[],
-                dict_key='EVALUATION_DATA',
-            )
+            self.config.evaluation.evaluation_data
         )
         additional_observations = self._normalize_config_list(
-            self._get_config_value(
-                lambda: self.config.data.additional_observations,
-                default=[],
-                dict_key='ADDITIONAL_OBSERVATIONS',
-            )
+            self.config.data.additional_observations
         )
         requested_tokens = evaluation_data + additional_observations
 
         check_snow = (
             self._tokens_include(requested_tokens, "SWE", "SCA", "SNOW")
-            or bool(self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL'))
-            or bool(self._get_config_value(lambda: self.config.evaluation.modis_snow.download, dict_key='DOWNLOAD_MODIS_SNOW'))
+            or bool(self.config.evaluation.snotel.download)
+            or bool(self.config.evaluation.modis_snow.download)
         )
         if check_snow and self._has_observation_output("snow"):
             return True
@@ -181,8 +178,8 @@ class WorkflowOrchestrator(ConfigMixin):
                 "LAMAH_ICE_STREAMFLOW",
                 "GRDC_STREAMFLOW",
             )
-            or bool(self._get_config_value(lambda: self.config.data.download_usgs_data, dict_key='DOWNLOAD_USGS_DATA'))
-            or bool(self._get_config_value(lambda: self.config.evaluation.streamflow.download_wsc, dict_key='DOWNLOAD_WSC_DATA'))
+            or bool(self.config.data.download_usgs_data)
+            or bool(self.config.evaluation.streamflow.download_wsc)
         )
         if check_streamflow and self._has_observation_output("streamflow"):
             return True
@@ -206,8 +203,8 @@ class WorkflowOrchestrator(ConfigMixin):
         """
 
         # Get configured analyses
-        analyses = self._get_config_value(lambda: self.config.evaluation.analyses, default=[], dict_key='ANALYSES')
-        optimizations = self._get_config_value(lambda: self.config.optimization.methods, default=[], dict_key='OPTIMIZATION_METHODS')
+        analyses = self.config.evaluation.analyses or []
+        optimizations = self.config.optimization.methods or []
 
         return [
             # --- Project Initialization ---
@@ -241,7 +238,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 cli_name="define_domain",
                 func=self.managers['domain'].define_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "river_basins" /
-                        f"{self.domain_name}_riverBasins_{self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')}.shp").exists(),
+                        f"{self.domain_name}_riverBasins_{self.config.domain.definition_method}.shp").exists(),
                 description="Defining hydrological domain boundaries"
             ),
             WorkflowStep(
@@ -249,7 +246,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 cli_name="discretize_domain",
                 func=self.managers['domain'].discretize_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "catchment" /
-                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')).replace(',','_')}.shp").exists(),
+                        f"{self.domain_name}_HRUs_{str(self.config.domain.discretization).replace(',','_')}.shp").exists(),
                 description="Discretizing domain into hydrological response units"
             ),
 
@@ -288,7 +285,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 name="preprocess_models",
                 cli_name="model_specific_preprocessing",
                 func=self.managers['model'].preprocess_models,
-                check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self._get_config_value(lambda: self.config.model.hydrological_model, default='SUMMA', dict_key='HYDROLOGICAL_MODEL')}*")),
+                check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self.config.model.hydrological_model or 'SUMMA'}*")),
                 description="Preprocessing model-specific input files"
             ),
             WorkflowStep(
@@ -296,7 +293,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 cli_name="run_model",
                 func=self.managers['model'].run_models,
                 check_func=lambda: (self.project_dir / "simulations" /
-                        f"{self.experiment_id}_{self._get_config_value(lambda: self.config.model.hydrological_model, default='SUMMA', dict_key='HYDROLOGICAL_MODEL')}_output.nc").exists(),
+                        f"{self.experiment_id}_{self.config.model.hydrological_model or 'SUMMA'}_output.nc").exists(),
                 description="Running hydrological model simulation"
             ),
             WorkflowStep(
@@ -460,7 +457,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 record_step(self.provenance, step_name, 0.0, status="failed", error=str(e))
 
                 # Decide whether to continue or stop
-                if self._get_config_value(lambda: self.config.system.stop_on_error, default=True, dict_key='STOP_ON_ERROR'):
+                if self.config.system.stop_on_error:
                     self.logger.error("Workflow stopped due to error (STOP_ON_ERROR=True)")
                     raise
                 else:
@@ -491,41 +488,14 @@ class WorkflowOrchestrator(ConfigMixin):
         """
         Validate that all prerequisites are met before running the workflow.
 
-        This method performs a series of checks to ensure that the workflow can be
-        executed successfully:
-        1. Verifies that all required configuration parameters are present
-        2. Confirms that all manager components have been properly initialized
-
-        These validations help prevent runtime errors by catching configuration or
-        initialization issues before workflow execution begins.
+        Config-level validation (required keys, types, ranges) is handled by
+        Pydantic at SymfluenceConfig construction time. This method focuses on
+        runtime prerequisites: manager initialization and manager readiness.
 
         Returns:
             bool: True if all prerequisites are met, False otherwise
-
-        Note:
-            This method logs detailed information about any validation failures,
-            making it useful for diagnosing configuration problems.
         """
         valid = True
-
-        # Check configuration validity (support both old and new config keys)
-        required_checks = [
-            ('DOMAIN_NAME', lambda: self.config.domain.name),
-            ('EXPERIMENT_ID', lambda: self.config.domain.experiment_id),
-            ('HYDROLOGICAL_MODEL', lambda: self.config.model.hydrological_model),
-            ('DOMAIN_DEFINITION_METHOD', lambda: self.config.domain.definition_method),
-            ('SUB_GRID_DISCRETIZATION', lambda: self.config.domain.discretization),
-        ]
-
-        for key, accessor in required_checks:
-            if not self._get_config_value(accessor, dict_key=key):
-                self.logger.error(f"Required configuration missing: {key}")
-                valid = False
-
-        # Check for data directory
-        if not self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'):
-            self.logger.error("Required configuration missing: SYMFLUENCE_DATA_DIR")
-            valid = False
 
         # Check manager initialization
         required_managers = ['project', 'domain', 'data', 'model', 'analysis', 'optimization']
@@ -533,6 +503,14 @@ class WorkflowOrchestrator(ConfigMixin):
             if manager_name not in self.managers:
                 self.logger.error(f"Required manager not initialized: {manager_name}")
                 valid = False
+
+        # Check manager readiness
+        for name, manager in self.managers.items():
+            if hasattr(manager, 'validate_readiness'):
+                readiness = manager.validate_readiness()
+                for check, passed in readiness.items():
+                    if not passed:
+                        self.logger.warning(f"Manager '{name}' readiness check failed: {check}")
 
         return valid
 

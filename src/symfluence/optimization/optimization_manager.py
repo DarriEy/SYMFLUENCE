@@ -291,12 +291,8 @@ class OptimizationManager(BaseManager):
             # Skip external DDS for FUSE when built-in SCE calibration is enabled.
             # FUSE's internal calib_sce (run in step 11) makes external DDS redundant.
             if 'FUSE' in hydrological_models:
-                use_internal = self._get_config_value(
-                    lambda: self.config.model.fuse.run_internal_calibration
-                    if self.config.model and self.config.model.fuse else None,
-                    default=True,
-                    dict_key='FUSE_RUN_INTERNAL_CALIBRATION'
-                )
+                fuse_cfg = self.config.model.fuse if self.config.model else None
+                use_internal = fuse_cfg.run_internal_calibration if fuse_cfg else True
                 if use_internal:
                     self.logger.info(
                         "Skipping external optimization for FUSE — "
@@ -581,31 +577,50 @@ class OptimizationManager(BaseManager):
         """
         Validate optimization configuration settings.
 
+        .. deprecated::
+            Use :meth:`validate_readiness` instead. Algorithm and metric
+            validation is now handled by Pydantic validators at config
+            construction time.
+
         Returns:
             Dict[str, bool]: Dictionary containing validation results
         """
-        validation = {
-            'algorithm_valid': False,
-            'model_supported': False,
-            'parameters_defined': False,
-            'metric_valid': False
+        import warnings
+        warnings.warn(
+            "validate_optimization_configuration() is deprecated, use validate_readiness()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        readiness = self.validate_readiness()
+        # Return legacy-compatible shape
+        return {
+            'model_supported': readiness.get('model_supported', False),
+            'parameters_defined': readiness.get('parameters_defined', False),
         }
 
-        # Check algorithm
-        algorithm = self._get_config_value(
-            lambda: self.config.optimization.algorithm,
-            ''
-        )
-        supported_algorithms = ['DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE', 'BASIN-HOPPING', 'BASINHOPPING', 'BH', 'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA', 'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO', 'MOEAD', 'MOEA-D', 'MOEA_D', 'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING', 'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN']
-        validation['algorithm_valid'] = algorithm in supported_algorithms
+    def validate_readiness(self) -> Dict[str, bool]:
+        """
+        Validate that this manager is ready for execution.
 
-        # Check model support
+        Checks runtime prerequisites that Pydantic cannot verify:
+        whether the configured model has a registered optimizer and
+        whether calibration parameters are defined.
+
+        Returns:
+            Dict mapping check names to pass/fail booleans.
+        """
+        results = {}
+
+        # Check model support via optimizer registry
         models_str = self._get_config_value(
             lambda: self.config.model.hydrological_model,
             ''
         )
-        models = str(models_str).split(',')
-        validation['model_supported'] = 'SUMMA' in [m.strip() for m in models]
+        models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
+        model_supported = any(
+            OptimizerRegistry.get_optimizer(m) is not None for m in models
+        ) if models else False
+        results['model_supported'] = model_supported
 
         # Check parameters to calibrate
         local_params = self._get_config_value(
@@ -616,17 +631,9 @@ class OptimizationManager(BaseManager):
             lambda: self.config.optimization.basin_params_to_calibrate,
             ''
         )
-        validation['parameters_defined'] = bool(local_params or basin_params)
+        results['parameters_defined'] = bool(local_params or basin_params)
 
-        # Check metric
-        valid_metrics = ['KGE', 'NSE', 'RMSE', 'MAE', 'KGEp', 'correlation']
-        metric = self._get_config_value(
-            lambda: self.config.optimization.metric,
-            ''
-        )
-        validation['metric_valid'] = metric in valid_metrics
-
-        return validation
+        return results
 
     def get_available_optimizers(self) -> Dict[str, str]:
         """

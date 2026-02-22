@@ -7,11 +7,14 @@ and ``AttributesNetCDFBuilder`` into a single ``build_all()`` entry point.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Union
 
 from .forcings_builder import ForcingsStoreBuilder
 from .observations_builder import ObservationsNetCDFBuilder
 from .attributes_builder import AttributesNetCDFBuilder
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +28,23 @@ class ModelReadyStoreBuilder:
         Root of the SYMFLUENCE domain directory.
     domain_name : str
         Name of the hydrological domain.
+    config : SymfluenceConfig or dict, optional
+        Typed config or legacy flat dict.
     config_dict : dict, optional
-        Full configuration dictionary.
+        Deprecated. Use ``config`` instead.
     """
 
     def __init__(
         self,
         project_dir: Path,
         domain_name: str,
+        config: Optional[Union['SymfluenceConfig', dict]] = None,
         config_dict: Optional[dict] = None,
     ) -> None:
         self.project_dir = project_dir
         self.domain_name = domain_name
-        self.config_dict = config_dict or {}
+        # Accept either typed config or legacy dict
+        self._config = config if config is not None else config_dict
 
     # ------------------------------------------------------------------
     # Public API
@@ -53,10 +60,20 @@ class ModelReadyStoreBuilder:
 
         logger.info("Model-ready data store build complete")
 
+    def _cfg(self, key: str, default=None):
+        """Get config value from typed config or legacy dict."""
+        cfg = self._config
+        if cfg is None:
+            return default
+        if isinstance(cfg, dict):
+            return cfg.get(key, default)
+        # Typed SymfluenceConfig — use .get() backward-compat layer
+        return cfg.get(key, default)
+
     def build_forcings(self) -> Optional[Path]:
         """Build the forcings section. Skip if no basin_averaged_data."""
-        forcing_dataset = self.config_dict.get('FORCING_DATASET', 'ERA5')
-        strategy = self.config_dict.get('MODEL_READY_FORCING_STRATEGY', 'symlink')
+        forcing_dataset = self._cfg('FORCING_DATASET', 'ERA5')
+        strategy = self._cfg('MODEL_READY_FORCING_STRATEGY', 'symlink')
 
         builder = ForcingsStoreBuilder(
             project_dir=self.project_dir,
@@ -71,7 +88,7 @@ class ModelReadyStoreBuilder:
         builder = ObservationsNetCDFBuilder(
             project_dir=self.project_dir,
             domain_name=self.domain_name,
-            config_dict=self.config_dict,
+            config=self._config,
         )
         return builder.build()
 
@@ -80,7 +97,7 @@ class ModelReadyStoreBuilder:
         builder = AttributesNetCDFBuilder(
             project_dir=self.project_dir,
             domain_name=self.domain_name,
-            config_dict=self.config_dict,
+            config=self._config,
         )
         return builder.build()
 

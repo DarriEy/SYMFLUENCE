@@ -185,6 +185,43 @@ class CodeAnalysisError(SYMFLUENCEError):
     pass
 
 
+class ConfigValidationError(ConfigurationError):
+    """
+    Configuration validation failures.
+
+    Raised when:
+    - Model configuration fails schema validation
+    - Required configuration fields have invalid values
+    - Cross-field validation constraints are violated
+    """
+    pass
+
+
+class EvaluationError(SYMFLUENCEError):
+    """
+    Model evaluation and analysis failures.
+
+    Raised when:
+    - Benchmarking analysis fails
+    - Sensitivity analysis encounters errors
+    - Decision analysis fails
+    - Metric calculation errors
+    """
+    pass
+
+
+class ReportingError(SYMFLUENCEError):
+    """
+    Visualization and reporting failures.
+
+    Raised when:
+    - Plot generation fails
+    - Report creation encounters errors
+    - Visualization data is missing or invalid
+    """
+    pass
+
+
 # =============================================================================
 # Validation Helpers
 # =============================================================================
@@ -295,3 +332,34 @@ def symfluence_error_handler(
             logger.error(f"Error during {operation}: {e}", exc_info=True)
         if reraise:
             raise error_type(f"Failed during {operation}: {e}") from e
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+
+__all__ = [
+    # Base
+    'SYMFLUENCEError',
+    # Domain exceptions
+    'ConfigurationError',
+    'ConfigValidationError',
+    'ModelExecutionError',
+    'DataAcquisitionError',
+    'OptimizationError',
+    'WorkerExecutionError',
+    'RetryExhaustedError',
+    'GeospatialError',
+    'ValidationError',
+    'FileOperationError',
+    'DiscretizationError',
+    'ShapefileError',
+    'RasterProcessingError',
+    'CodeAnalysisError',
+    'EvaluationError',
+    'ReportingError',
+    # Helpers
+    'require',
+    'require_not_none',
+    'symfluence_error_handler',
+]

@@ -279,24 +279,25 @@ jobs:
               ;;
             quick)
               echo "QUICK TESTS: Comprehensive validation (~20 min)"
-              echo "1. Unit tests (all)"
+              echo "1. Unit tests (all, parallel)"
               echo "2. Binary validation"
               echo "3. Package imports"
               echo "4. Integration tests (basic)"
               echo "5. Quick workflow (3-hour SUMMA)"
               echo ""
 
-              # Run unit tests first (fast)
+              # Run unit tests first (parallel for speed)
               echo "========================================="
-              echo "Running unit tests..."
+              echo "Running unit tests (parallel)..."
               echo "========================================="
-              pytest -v --tb=short -m "unit" tests/unit/
+              pytest --tb=short -m "unit" -q tests/unit/
 
               # Run all ci_quick tests (includes smoke, binary validation, quick workflows)
+              # Serial for e2e tests that need exclusive resource access
               echo "========================================="
               echo "Running quick integration & e2e tests..."
               echo "========================================="
-              pytest -v --tb=short -m "ci_quick" tests/
+              pytest -v --tb=short -n 0 -m "ci_quick" tests/
               ;;
             full)
               echo "FULL TESTS: Complete validation suite (~90 min)"
@@ -309,29 +310,29 @@ jobs:
               echo "7. Calibration workflow"
               echo ""
 
-              # Run unit tests
+              # Run unit tests (parallel for speed)
               echo "========================================="
-              echo "1/4: Running unit tests..."
+              echo "1/4: Running unit tests (parallel)..."
               echo "========================================="
-              pytest -v --tb=short -m "unit" tests/unit/
+              pytest --tb=short -m "unit" -q tests/unit/
 
-              # Run integration tests
+              # Run integration tests (serial - external model binaries)
               echo "========================================="
               echo "2/4: Running integration tests..."
               echo "========================================="
-              pytest -v --tb=short -m "integration and not calibration and not slow" tests/integration/
+              pytest -v --tb=short -n 0 -m "integration and not calibration and not slow" tests/integration/
 
-              # Run quick e2e tests
+              # Run quick e2e tests (serial - workflow tests)
               echo "========================================="
               echo "3/4: Running quick e2e tests..."
               echo "========================================="
-              pytest -v --tb=short -m "ci_quick" tests/e2e/
+              pytest -v --tb=short -n 0 -m "ci_quick" tests/e2e/
 
-              # Run full e2e tests (long-running)
+              # Run full e2e tests (serial - long-running)
               echo "========================================="
               echo "4/4: Running full e2e tests (1-month simulations)..."
               echo "========================================="
-              pytest -v --tb=short -m "ci_full" tests/e2e/
+              pytest -v --tb=short -n 0 -m "ci_full" tests/e2e/
               ;;
             *)
               echo "Unknown test level: ${TEST_LEVEL}"

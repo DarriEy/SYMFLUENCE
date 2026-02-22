@@ -111,8 +111,15 @@ from .core.config.models import SymfluenceConfig
 from .core.exceptions import (
     SYMFLUENCEError,
     ConfigurationError,
+    ConfigValidationError,
     ModelExecutionError,
-    DataAcquisitionError
+    DataAcquisitionError,
+    OptimizationError,
+    GeospatialError,
+    ValidationError,
+    FileOperationError,
+    EvaluationError,
+    ReportingError,
 )
 
 __all__ = [
@@ -120,9 +127,16 @@ __all__ = [
     "SymfluenceConfig",
     "SYMFLUENCEError",
     "ConfigurationError",
+    "ConfigValidationError",
     "ModelExecutionError",
     "DataAcquisitionError",
-    "__version__"
+    "OptimizationError",
+    "GeospatialError",
+    "ValidationError",
+    "FileOperationError",
+    "EvaluationError",
+    "ReportingError",
+    "__version__",
 ]
 
 # Suppress overly verbose external logging/warnings

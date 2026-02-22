@@ -227,10 +227,9 @@ class CouplingGraphBuilder:
 
         Looks for HRU-to-reach mapping in the topology file.
         """
-        if isinstance(config, dict):
+        topology_file = _get_cfg(config, lambda: config.model.topology_file, default=None)
+        if topology_file is None and isinstance(config, dict):
             topology_file = config.get("TOPOLOGY_FILE")
-        else:
-            topology_file = _get_cfg(config, lambda: config.model.topology_file, default=None)
         if topology_file is None:
             return None
 

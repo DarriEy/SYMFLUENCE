@@ -32,9 +32,16 @@ class VICModelOptimizer(BaseModelOptimizer):
         optimization_settings_dir: Optional[Path] = None,
         reporting_manager: Optional[Any] = None
     ):
-        self.experiment_id = config.get('EXPERIMENT_ID')
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = config.get('DOMAIN_NAME')
+        # Extract config values before super().__init__ (which may reference them).
+        # Supports both typed SymfluenceConfig and plain dict.
+        if isinstance(config, dict):
+            self.experiment_id = config.get('EXPERIMENT_ID')
+            self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            self.domain_name = config.get('DOMAIN_NAME')
+        else:
+            self.experiment_id = config.domain.experiment_id
+            self.data_dir = Path(config.system.data_dir)
+            self.domain_name = config.domain.name
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         self.vic_setup_dir = self.project_dir / 'settings' / 'VIC'

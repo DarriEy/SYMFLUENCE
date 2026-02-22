@@ -21,6 +21,7 @@ from symfluence.data.observation.paths import (
     tws_observation_candidates,
 )
 
+from symfluence.core.exceptions import EvaluationError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -312,10 +313,12 @@ class AnalysisManager(ConfigurableMixin):
         """
         self.logger.info("Starting benchmarking analysis")
 
-        try:
-            # Use typed config if available
-            # Use typed config for sub-components
-
+        with symfluence_error_handler(
+            "benchmarking analysis",
+            self.logger,
+            reraise=False,
+            error_type=EvaluationError
+        ):
             # Preprocess data for benchmarking
             preprocessor = BenchmarkPreprocessor(self.config, self.logger)
 
@@ -349,11 +352,7 @@ class AnalysisManager(ConfigurableMixin):
                 self.logger.warning("Benchmarking completed but results file not found")
                 return None
 
-        except Exception as e:
-            self.logger.error(f"Error during benchmarking: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return None
 
     def run_sensitivity_analysis(self) -> Optional[Dict]:
         """
@@ -393,7 +392,12 @@ class AnalysisManager(ConfigurableMixin):
 
         sensitivity_results = {}
 
-        try:
+        with symfluence_error_handler(
+            "sensitivity analysis",
+            self.logger,
+            reraise=False,
+            error_type=EvaluationError
+        ):
             models_str = self._get_config_value(
                 lambda: self.config.model.hydrological_model,
                 ''
@@ -422,11 +426,7 @@ class AnalysisManager(ConfigurableMixin):
 
             return sensitivity_results if sensitivity_results else None
 
-        except Exception as e:
-            self.logger.error(f"Error during sensitivity analysis: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return None
 
     def _run_generic_sensitivity_analysis(self, model: str) -> Optional[Dict]:
         """
@@ -496,7 +496,12 @@ class AnalysisManager(ConfigurableMixin):
             )
             return None
 
-        try:
+        with symfluence_error_handler(
+            "Koopman operator analysis",
+            self.logger,
+            reraise=False,
+            error_type=EvaluationError
+        ):
             analyzer = analyzer_cls(
                 self.config, self.logger, self.reporting_manager,
                 delay_lags=delay_lags, svd_threshold=svd_threshold,
@@ -508,11 +513,7 @@ class AnalysisManager(ConfigurableMixin):
             self.logger.info("Koopman operator analysis completed successfully")
             return results
 
-        except Exception as e:
-            self.logger.error(f"Error during Koopman analysis: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return None
 
     def run_decision_analysis(self) -> Optional[Dict]:
         """
@@ -546,7 +547,12 @@ class AnalysisManager(ConfigurableMixin):
 
         decision_results = {}
 
-        try:
+        with symfluence_error_handler(
+            "decision analysis",
+            self.logger,
+            reraise=False,
+            error_type=EvaluationError
+        ):
             models_str = self._get_config_value(
                 lambda: self.config.model.hydrological_model,
                 ''
@@ -586,11 +592,7 @@ class AnalysisManager(ConfigurableMixin):
 
             return decision_results if decision_results else None
 
-        except Exception as e:
-            self.logger.error(f"Error during decision analysis: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return None
 
     def _import_model_analyzers(self) -> None:
         """
@@ -714,43 +716,52 @@ class AnalysisManager(ConfigurableMixin):
         """
         Validate that requirements are met for running analyses.
 
-        This method checks whether the necessary files and data are available
-        to run each type of analysis. It verifies:
-
-        1. For benchmarking: Existence of processed observation data
-        2. For sensitivity analysis: Existence of optimization results
-        3. For decision analysis: Existence of model simulation outputs
-
-        These validations help prevent runtime errors by ensuring that analyses
-        only run when their prerequisites are met.
+        .. deprecated::
+            Use :meth:`validate_readiness` instead.
 
         Returns:
-            Dict[str, bool]: Dictionary indicating which analyses can be run:
-                          - benchmarking: Whether benchmarking can be run
-                          - sensitivity_analysis: Whether sensitivity analysis can be run
-                          - decision_analysis: Whether decision analysis can be run
+            Dict[str, bool]: Dictionary indicating which analyses can be run.
         """
-        requirements = {
-            'benchmarking': True,  # Benchmarking has minimal requirements
+        import warnings
+        warnings.warn(
+            "validate_analysis_requirements() is deprecated, use validate_readiness()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.validate_readiness()
+
+    def validate_readiness(self) -> Dict[str, bool]:
+        """
+        Validate that this manager is ready for execution.
+
+        Checks runtime prerequisites: processed observations, optimization
+        results (for sensitivity), and simulation outputs (for decision analysis).
+        All analyses require processed observations as a baseline.
+
+        Returns:
+            Dict mapping check names to pass/fail booleans.
+        """
+        results = {
+            'benchmarking': True,
             'sensitivity_analysis': False,
-            'decision_analysis': False
+            'decision_analysis': False,
         }
 
         # Check for optimization results (required for sensitivity analysis)
         if self._find_optimization_results() is not None:
-            requirements['sensitivity_analysis'] = True
+            results['sensitivity_analysis'] = True
 
         # Check for model outputs (required for decision analysis)
         simulation_dir = self.project_dir / "simulations" / self.experiment_id
         if simulation_dir.exists():
-            requirements['decision_analysis'] = True
+            results['decision_analysis'] = True
 
-        # Check for processed observations (required for all analyses)
+        # Processed observations are a prerequisite for all analyses
         obs_file = first_existing_path(
             streamflow_observation_candidates(self.project_dir, self.domain_name)
         )
         if not obs_file.exists():
             self.logger.warning("Processed observations not found - all analyses may fail")
-            requirements = {key: False for key in requirements}
+            results = {key: False for key in results}
 
-        return requirements
+        return results

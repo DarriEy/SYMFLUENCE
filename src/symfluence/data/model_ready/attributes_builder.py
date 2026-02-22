@@ -9,13 +9,16 @@ topology, terrain, soil, landcover, climate, and hydrogeology.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Union
 
 import numpy as np
 
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
 from symfluence.core.mixins.project import resolve_data_subdir
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +32,10 @@ class AttributesNetCDFBuilder:
         Root of the SYMFLUENCE domain directory.
     domain_name : str
         Name of the hydrological domain.
+    config : SymfluenceConfig or dict, optional
+        Typed config or legacy flat dict.
     config_dict : dict, optional
-        Configuration dictionary for shapefile column names, etc.
+        Deprecated. Use ``config`` instead.
     """
 
     # Groups that we attempt to build; each is optional.
@@ -48,11 +53,14 @@ class AttributesNetCDFBuilder:
         self,
         project_dir: Path,
         domain_name: str,
+        config: Optional[Union['SymfluenceConfig', dict]] = None,
         config_dict: Optional[dict] = None,
     ) -> None:
         self.project_dir = project_dir
         self.domain_name = domain_name
-        self.config_dict = config_dict or {}
+        self._config = config if config is not None else config_dict
+
+        self._config_fallback = (config_dict or {}) if config is None else {}
 
         self.intersect_dir = project_dir / 'shapefiles' / 'catchment_intersection'
         self.catchment_dir = project_dir / 'shapefiles' / 'catchment'
@@ -62,6 +70,15 @@ class AttributesNetCDFBuilder:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def _cfg(self, key: str, default=None):
+        """Get config value from typed config or legacy dict."""
+        cfg = self._config
+        if cfg is None:
+            return default
+        if isinstance(cfg, dict):
+            return cfg.get(key, default)
+        return cfg.get(key, default)
 
     def build(self) -> Optional[Path]:
         """Build the attributes NetCDF file.
@@ -128,8 +145,8 @@ class AttributesNetCDFBuilder:
             return False
 
 
-        id_col = self.config_dict.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
-        area_col = self.config_dict.get('CATCHMENT_SHP_AREA', 'HRU_area')
+        id_col = self._cfg('CATCHMENT_SHP_HRUID', 'HRU_ID')
+        area_col = self._cfg('CATCHMENT_SHP_AREA', 'HRU_area')
 
         grp = root.createGroup('hru_identity')
         n_hru = len(gdf)
@@ -367,8 +384,8 @@ class AttributesNetCDFBuilder:
         import geopandas as gpd
 
         # Try organized path first, then flat path
-        definition_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+        definition_method = self._cfg('DOMAIN_DEFINITION_METHOD', 'lumped')
+        experiment_id = self._cfg('EXPERIMENT_ID', 'run_1')
         candidates = [
             self.catchment_dir / definition_method / experiment_id,
             self.catchment_dir,

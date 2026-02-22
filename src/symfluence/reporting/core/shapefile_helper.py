@@ -90,10 +90,17 @@ class ShapefileHelper(ConfigMixin):
         if project_dir is not None:
             self.project_dir = project_dir
         else:
-            self.project_dir = (
-                Path(config.get(ConfigKeys.SYMFLUENCE_DATA_DIR, '.')) /
-                f"domain_{config.get(ConfigKeys.DOMAIN_NAME, 'unknown')}"
+            data_dir = self._get_config_value(
+                lambda: self.config.system.data_dir,
+                default='.',
+                dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR
             )
+            domain_name = self._get_config_value(
+                lambda: self.config.domain.name,
+                default='unknown',
+                dict_key=ConfigKeys.DOMAIN_NAME
+            )
+            self.project_dir = Path(data_dir) / f"domain_{domain_name}"
 
         self._cache: Dict[str, Any] = {}
 

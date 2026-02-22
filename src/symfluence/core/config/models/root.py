@@ -141,16 +141,8 @@ class SymfluenceConfig(BaseModel):
         }
 
         if 'DOMAIN_DEFINITION_METHOD' in values:
-            allowed_definition_methods = {
-                'lumped',
-                'semidistributed',
-                'discretized',
-                'distributed',
-                'distribute',
-                'subset',
-                'point',
-                'delineate',
-            }
+            from symfluence.core.config.constants import VALID_DOMAIN_METHODS_WITH_LEGACY
+            allowed_definition_methods = VALID_DOMAIN_METHODS_WITH_LEGACY
             if values.get('DOMAIN_DEFINITION_METHOD') not in allowed_definition_methods:
                 raise ValueError(
                     "DOMAIN_DEFINITION_METHOD must be one of "
@@ -199,15 +191,15 @@ class SymfluenceConfig(BaseModel):
     def validate_time_periods(self):
         """Validate that time periods make logical sense"""
         from symfluence.core.exceptions import ConfigurationError
+        from symfluence.core.validation import validate_date_range
 
         try:
-            start = pd.to_datetime(self.domain.time_start)
-            end = pd.to_datetime(self.domain.time_end)
-
-            if start >= end:
-                raise ConfigurationError(
-                    f"EXPERIMENT_TIME_START ({start}) must be before EXPERIMENT_TIME_END ({end})"
-                )
+            start, end = validate_date_range(
+                self.domain.time_start,
+                self.domain.time_end,
+                context="experiment time period",
+                logger=logger,
+            )
 
             # Validate calibration period is within experiment period
             if self.domain.calibration_period:
@@ -230,6 +222,8 @@ class SymfluenceConfig(BaseModel):
         except Exception as e:
             if "ConfigurationError" in str(type(e)):
                 raise
+            if "ValidationError" in str(type(e)):
+                raise ConfigurationError(str(e))
             raise ConfigurationError(f"Invalid date format: {e}")
 
         return self
@@ -238,6 +232,7 @@ class SymfluenceConfig(BaseModel):
     def validate_coordinates(self):
         """Validate coordinate formats and bounds"""
         from symfluence.core.exceptions import ConfigurationError
+        from symfluence.core.validation import validate_bounding_box
 
         # Validate pour point coordinates
         if self.domain.pour_point_coords:
@@ -264,22 +259,27 @@ class SymfluenceConfig(BaseModel):
                 north, west, south, east = self.domain.bounding_box_coords.split('/')
                 north_f, west_f, south_f, east_f = float(north), float(west), float(south), float(east)
 
-                if not (-90 <= south_f <= north_f <= 90):
-                    raise ConfigurationError(
-                        f"BOUNDING_BOX_COORDS invalid latitude range: south={south_f}, north={north_f}"
-                    )
-                if not (-180 <= west_f <= 180 and -180 <= east_f <= 180):
-                    raise ConfigurationError(
-                        "BOUNDING_BOX_COORDS longitude out of range [-180, 180]"
-                    )
-                if south_f >= north_f:
-                    raise ConfigurationError(
-                        f"BOUNDING_BOX_COORDS: south ({south_f}) must be < north ({north_f})"
-                    )
+                validate_bounding_box(
+                    {
+                        'lat_min': south_f,
+                        'lat_max': north_f,
+                        'lon_min': west_f,
+                        'lon_max': east_f,
+                    },
+                    context="BOUNDING_BOX_COORDS",
+                    logger=logger,
+                )
             except ValueError:
                 raise ConfigurationError(
                     f"BOUNDING_BOX_COORDS must be 'north/west/south/east' format, got '{self.domain.bounding_box_coords}'"
                 )
+            except Exception as e:
+                if "ConfigurationError" in str(type(e)):
+                    raise
+                # Translate lat_min/lat_max to south/north for user-facing messages
+                msg = str(e).replace('lat_min', 'south latitude').replace('lat_max', 'north latitude')
+                msg = msg.replace('lon_min', 'west longitude').replace('lon_max', 'east longitude')
+                raise ConfigurationError(msg)
 
         return self
 
@@ -288,140 +288,26 @@ class SymfluenceConfig(BaseModel):
         """
         Validate model-specific required fields based on HYDROLOGICAL_MODEL.
 
-        Uses ModelRegistry for validation when available, falling back to
-        legacy hardcoded validation for backward compatibility.
+        Delegates to ModelRegistry for all model-specific validation.
         """
         from symfluence.core.exceptions import ConfigurationError
+        from symfluence.models.registry import ModelRegistry
+        from symfluence.core.config.transformers import flatten_nested_config
 
         models = self._parse_models()
+        flat_config = flatten_nested_config(self)
         all_errors = []
 
-        # Helper to check if value is unset
-        def is_unset(value):
-            return value is None or (isinstance(value, str) and value in ['', 'None'])
+        for model_name in models:
+            try:
+                ModelRegistry.validate_model_config(model_name, flat_config)
+            except Exception as e:
+                all_errors.append(f"{model_name}: {str(e)}")
 
-        # Try ModelRegistry validation first (NEW PATTERN)
-        try:
-            from symfluence.models.registry import ModelRegistry
-            from symfluence.core.config.transformers import flatten_nested_config
-
-            # Convert to flat config for model validators
-            flat_config = flatten_nested_config(self)
-
-            # Validate each model using ModelRegistry
-            for model_name in models:
-                try:
-                    ModelRegistry.validate_model_config(model_name, flat_config)
-                except Exception as e:
-                    # Collect validation errors
-                    all_errors.append(f"{model_name}: {str(e)}")
-        except ImportError:
-            # ModelRegistry not available, use legacy validation below
-            pass
-        except Exception as e:
-            # If ModelRegistry validation fails, log and fall back to legacy
-            import logging
-            logging.debug(f"ModelRegistry validation failed: {e}, using legacy validation")
-
-        # LEGACY VALIDATION (BACKWARD COMPATIBILITY)
-        # Only run if ModelRegistry validation didn't catch everything
-        if not all_errors:
-            missing_fields = []
-
-            # SUMMA requirements - validate only if summa config provided
-            if 'SUMMA' in models and self.model.summa:
-                summa_required = {
-                    'SUMMA_EXE': self.model.summa.exe,
-                    'SETTINGS_SUMMA_PATH': self.model.summa.settings_path,
-                }
-                for field, value in summa_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for SUMMA)")
-
-            # FUSE requirements - validate only if fuse config provided
-            if 'FUSE' in models and self.model.fuse:
-                fuse_required = {
-                    'FUSE_EXE': self.model.fuse.exe,
-                    'SETTINGS_FUSE_PATH': self.model.fuse.settings_path,
-                }
-                for field, value in fuse_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for FUSE)")
-
-            # GR requirements - validate only if gr config provided
-            if 'GR' in models and self.model.gr:
-                gr_required = {
-                    'GR_EXE': self.model.gr.exe,
-                    'SETTINGS_GR_PATH': self.model.gr.settings_path,
-                }
-                for field, value in gr_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for GR)")
-
-            # HYPE requirements - validate only if hype config provided
-            if 'HYPE' in models and self.model.hype:
-                hype_required = {
-                    'SETTINGS_HYPE_PATH': self.model.hype.settings_path,
-                }
-                for field, value in hype_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for HYPE)")
-
-            # NGEN requirements - validate only if ngen config provided
-            if 'NGEN' in models and self.model.ngen:
-                ngen_required = {
-                    'NGEN_EXE': self.model.ngen.exe,
-                    'NGEN_INSTALL_PATH': self.model.ngen.install_path,
-                }
-                for field, value in ngen_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for NGEN)")
-
-            # MESH requirements - validate only if mesh config provided
-            if 'MESH' in models and self.model.mesh:
-                mesh_required = {
-                    'MESH_EXE': self.model.mesh.exe,
-                    'SETTINGS_MESH_PATH': self.model.mesh.settings_path,
-                }
-                for field, value in mesh_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for MESH)")
-
-            # RHESSys requirements - validate only if rhessys config provided
-            if 'RHESSYS' in models and self.model.rhessys:
-                rhessys_required = {
-                    'RHESSYS_EXE': self.model.rhessys.exe,
-                    'SETTINGS_RHESSYS_PATH': self.model.rhessys.settings_path,
-                }
-                for field, value in rhessys_required.items():
-                    if is_unset(value):
-                        missing_fields.append(f"{field} (required for RHESSys)")
-
-            # Routing model requirements - validate only if mizuroute config provided
-            if self.model.routing_model:
-                routing_model = self.model.routing_model.upper()
-                if routing_model == 'MIZUROUTE' and self.model.mizuroute:
-                    mizu_required = {
-                        'MIZUROUTE_EXE': self.model.mizuroute.exe,
-                        'MIZUROUTE_INSTALL_PATH': self.model.mizuroute.install_path,
-                    }
-                    for field, value in mizu_required.items():
-                        if is_unset(value):
-                            missing_fields.append(f"{field} (required for mizuRoute)")
-
-            if missing_fields:
-                raise ConfigurationError(
-                    "Model-specific configuration incomplete:\n"
-                    + "\n".join(f"  • {field}" for field in missing_fields)
-                    + f"\n\nSelected models: {', '.join(models)}"
-                    + (f"\nRouting model: {self.model.routing_model}" if self.model.routing_model else "")
-                )
-
-        # Raise errors from ModelRegistry validation if any
         if all_errors:
             raise ConfigurationError(
                 "Model configuration validation failed:\n"
-                + "\n".join(f"  • {error}" for error in all_errors)
+                + "\n".join(f"  - {error}" for error in all_errors)
             )
 
         return self
@@ -493,29 +379,19 @@ class SymfluenceConfig(BaseModel):
         errors = []
 
         # Validate optimization algorithm
-        valid_algorithms = [
-            'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS',
-            'SCE-UA', 'SCEUA', 'NSGA-II', 'NSGA2',
-            'ADAM', 'LBFGS', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE',
-            'BASIN-HOPPING', 'BASINHOPPING', 'BH',
-            'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA',
-            'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO',
-            'MOEAD', 'MOEA-D', 'MOEA_D',
-            'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING',
-            'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN'
-        ]
-        if self.optimization.algorithm not in valid_algorithms:
+        from symfluence.core.config.constants import VALID_OPTIMIZATION_ALGORITHMS
+        if self.optimization.algorithm not in VALID_OPTIMIZATION_ALGORITHMS:
             errors.append(
                 f"ITERATIVE_OPTIMIZATION_ALGORITHM '{self.optimization.algorithm}' not recognized. "
-                f"Valid algorithms: {', '.join(valid_algorithms)}"
+                f"Valid algorithms: {', '.join(sorted(VALID_OPTIMIZATION_ALGORITHMS))}"
             )
 
         # Validate optimization metric (uppercase for case-insensitive matching)
-        valid_metrics = ['KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION']
-        if self.optimization.metric not in valid_metrics:
+        from symfluence.core.config.constants import VALID_OPTIMIZATION_METRICS
+        if self.optimization.metric not in VALID_OPTIMIZATION_METRICS:
             errors.append(
                 f"OPTIMIZATION_METRIC '{self.optimization.metric}' not recognized. "
-                f"Valid metrics: {', '.join(valid_metrics)}"
+                f"Valid metrics: {', '.join(sorted(VALID_OPTIMIZATION_METRICS))}"
             )
 
         # Validate iterations and population size

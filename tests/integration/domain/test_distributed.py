@@ -75,12 +75,12 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     config["ELEVATION_BAND_SIZE"] = 1600  # Reduced spatial resolution (was 800)
 
     # Optimized: 3-day test window (need sufficient data points for KGE calculation)
-    # Note: Forcing data is for Feb 2014, so use dates that match the available data
-    config["EXPERIMENT_TIME_START"] = "2014-02-01 00:00"
-    config["EXPERIMENT_TIME_END"] = "2014-02-03 23:00"
-    config["CALIBRATION_PERIOD"] = "2014-02-01 12:00, 2014-02-03 00:00"
-    config["EVALUATION_PERIOD"] = "2014-02-03 00:00, 2014-02-03 23:00"
-    config["SPINUP_PERIOD"] = "2014-02-01 00:00, 2014-02-01 12:00"
+    # Note: Forcing data is for Jan 2004, so use dates that match the available data
+    config["EXPERIMENT_TIME_START"] = "2004-01-01 00:00"
+    config["EXPERIMENT_TIME_END"] = "2004-01-03 23:00"
+    config["CALIBRATION_PERIOD"] = "2004-01-01 12:00, 2004-01-03 00:00"
+    config["EVALUATION_PERIOD"] = "2004-01-03 00:00, 2004-01-03 23:00"
+    config["SPINUP_PERIOD"] = "2004-01-01 00:00, 2004-01-01 12:00"
 
     # Streamflow
     config["STATION_ID"] = "05BB001"

@@ -7,9 +7,10 @@ orchestration patterns for DataManager, ModelManager, and OptimizationManager.
 
 import logging
 from abc import ABC
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.core.config.coercion import ensure_config
+from symfluence.core.exceptions import symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ class BaseManager(ConfigurableMixin, ABC):
 
     def __init__(
         self,
-        config: Union['SymfluenceConfig', Dict[str, Any]],
+        config: 'SymfluenceConfig',
         logger: logging.Logger,
         reporting_manager: Optional[Any] = None
     ):
@@ -46,14 +47,13 @@ class BaseManager(ConfigurableMixin, ABC):
         Initialize the base manager.
 
         Args:
-            config: SymfluenceConfig instance or dict (auto-converted)
+            config: SymfluenceConfig instance
             logger: Logger instance
             reporting_manager: Optional ReportingManager instance
 
         Raises:
             TypeError: If config cannot be converted to SymfluenceConfig
         """
-        # Use centralized config coercion (handles dict -> SymfluenceConfig conversion)
         self._config = ensure_config(config)
 
         self.logger = logger
@@ -101,16 +101,14 @@ class BaseManager(ConfigurableMixin, ABC):
         self.logger.debug(f"Starting {operation_name} for: {items}")
 
         for item in items:
-            try:
+            with symfluence_error_handler(
+                f"processing {item} in {operation_name}",
+                self.logger
+            ):
                 self.logger.debug(f"Processing {item}")
                 result = handler(item)
                 if result is not None:
                     results.append(result)
-            except Exception as e:
-                self.logger.error(f"Error processing {item} in {operation_name}: {e}")
-                import traceback
-                self.logger.error(traceback.format_exc())
-                raise
 
         self.logger.debug(f"Completed {operation_name}: {len(results)} successful")
         return results
@@ -164,6 +162,22 @@ class BaseManager(ConfigurableMixin, ABC):
         """
         self.logger.debug(f"Initializing {service_class.__name__}")
         return service_class(*args, **kwargs)
+
+    def validate_readiness(self) -> Dict[str, bool]:
+        """
+        Validate that this manager is ready for execution.
+
+        Override in subclasses to check runtime prerequisites:
+        file existence, directory state, external dependencies.
+
+        Config-level validation should NOT be here — that belongs
+        in Pydantic validators (core/config/models/).
+
+        Returns:
+            Dict mapping check names to pass/fail booleans.
+            Empty dict means no runtime checks needed.
+        """
+        return {}
 
     def get_status(self) -> Dict[str, Any]:
         """

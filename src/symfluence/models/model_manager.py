@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities.routing_decider import RoutingDecider
 
@@ -276,7 +277,11 @@ class ModelManager(BaseManager):
         self.logger.debug(f"Preprocessing workflow order: {workflow}")
 
         for model in workflow:
-            try:
+            with symfluence_error_handler(
+                f"preprocessing model {model}",
+                self.logger,
+                error_type=ModelExecutionError
+            ):
                 # Create model input directory
                 model_input_dir = self.project_forcing_dir / f"{model}_input"
                 model_input_dir.mkdir(parents=True, exist_ok=True)
@@ -326,21 +331,18 @@ class ModelManager(BaseManager):
                     # Some models like LSTM don't need preprocessing
                     self.logger.debug(f"No run_preprocessing method for {model} preprocessor")
 
-            except Exception as e:
-                self.logger.error(f"Error preprocessing model {model}: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
-                raise
-
             # Generate preprocessing diagnostics
             if self.reporting_manager:
-                try:
+                with symfluence_error_handler(
+                    f"generating preprocessing diagnostics for {model}",
+                    self.logger,
+                    reraise=False,
+                    error_type=ModelExecutionError
+                ):
                     self.reporting_manager.diagnostic_model_preprocessing(
                         input_dir=model_input_dir,
                         model_name=model
                     )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate preprocessing diagnostics for {model}: {e}")
 
         self.logger.info("Model-specific preprocessing completed")
 
@@ -409,12 +411,15 @@ class ModelManager(BaseManager):
 
             # Generate conservation diagnostics if enabled
             if self.reporting_manager and getattr(graph, '_conservation', None):
-                try:
+                with symfluence_error_handler(
+                    "generating conservation diagnostics",
+                    self.logger,
+                    reraise=False,
+                    error_type=ModelExecutionError
+                ):
                     self.reporting_manager.diagnostic_coupling_conservation(
                         graph, self.project_dir / "diagnostics"
                     )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate conservation diagnostics: {e}")
 
             return True
 
@@ -428,7 +433,11 @@ class ModelManager(BaseManager):
     def _run_sequential(self, workflow: List[str]):
         """Execute models sequentially using registered runners (legacy path)."""
         for model in workflow:
-            try:
+            with symfluence_error_handler(
+                f"running model {model}",
+                self.logger,
+                error_type=ModelExecutionError
+            ):
                 self.logger.info(f"Running model: {model}")
                 runner_class = ModelRegistry.get_runner(model)
                 if runner_class is None:
@@ -443,15 +452,14 @@ class ModelManager(BaseManager):
                     self.logger.error(f"Runner method '{method_name}' not found for model: {model}")
                     continue
 
-            except Exception as e:
-                self.logger.error(f"Error running model {model}: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
-                raise
-
             # Generate model output diagnostics
             if self.reporting_manager:
-                try:
+                with symfluence_error_handler(
+                    f"generating output diagnostics for {model}",
+                    self.logger,
+                    reraise=False,
+                    error_type=ModelExecutionError
+                ):
                     output_dir = self.project_dir / f"{model}_output"
                     if output_dir.exists():
                         output_files = list(output_dir.glob("*.nc"))
@@ -460,8 +468,6 @@ class ModelManager(BaseManager):
                                 output_nc=output_files[0],
                                 model_name=model
                             )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate output diagnostics for {model}: {e}")
 
     def postprocess_results(self):
         """
@@ -483,7 +489,12 @@ class ModelManager(BaseManager):
         workflow = self._resolve_model_workflow()
 
         for model in workflow:
-            try:
+            with symfluence_error_handler(
+                f"post-processing model {model}",
+                self.logger,
+                reraise=False,
+                error_type=ModelExecutionError
+            ):
                 # Get postprocessor class from registry
                 postprocessor_class = ModelRegistry.get_postprocessor(model)
 
@@ -504,11 +515,6 @@ class ModelManager(BaseManager):
                 else:
                     self.logger.warning(f"No extraction method found for {model} postprocessor")
                     continue
-
-            except Exception as e:
-                self.logger.error(f"Error post-processing model {model}: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
 
         # Note: visualize_timeseries_results is now triggered automatically by extract_streamflow/save_streamflow_to_results
 
@@ -621,7 +627,12 @@ class ModelManager(BaseManager):
             kge(), kge_prime(), nse(): Metric calculation functions
             evaluation.metrics: Metric library
         """
-        try:
+        with symfluence_error_handler(
+            "calculating baseline metrics",
+            self.logger,
+            reraise=False,
+            error_type=ModelExecutionError
+        ):
             import numpy as np
             from symfluence.evaluation.metrics import kge, nse, kge_prime
 
@@ -746,9 +757,6 @@ class ModelManager(BaseManager):
 
             self.logger.info("=" * 60)
 
-        except Exception as e:
-            self.logger.debug(f"Could not calculate baseline metrics: {e}")
-
 
 
 
@@ -778,7 +786,12 @@ class ModelManager(BaseManager):
         for model in models:
             visualizer = ModelRegistry.get_visualizer(model)
             if visualizer:
-                try:
+                with symfluence_error_handler(
+                    f"{model} visualization",
+                    self.logger,
+                    reraise=False,
+                    error_type=ModelExecutionError
+                ):
                     self.logger.info(f"Using registered visualizer for {model}")
                     visualizer(
                         self.reporting_manager,
@@ -787,16 +800,17 @@ class ModelManager(BaseManager):
                         self.experiment_id,
                         workflow
                     )
-                except Exception as e:
-                    self.logger.error(f"Error during {model} visualization: {str(e)}")
             else:
                 self.logger.info(f"Visualization for {model} not yet implemented or registered")
 
         # Generate Camille's model comparison overview (auto-detects outputs)
-        try:
+        with symfluence_error_handler(
+            "generating model comparison overview",
+            self.logger,
+            reraise=False,
+            error_type=ModelExecutionError
+        ):
             self.reporting_manager.generate_model_comparison_overview(
                 experiment_id=self.experiment_id,
                 context='run_model'
             )
-        except Exception as e:
-            self.logger.warning(f"Could not generate model comparison overview: {str(e)}")

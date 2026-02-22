@@ -338,12 +338,12 @@ jobs:
           echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
-      - name: Run unit tests
+      - name: Run unit tests (parallel)
         run: |
           echo "========================================="
-          echo "Running unit tests..."
+          echo "Running unit tests (parallel)..."
           echo "========================================="
-          pytest -v --tb=short -m "unit" tests/unit/ || echo "No unit tests found or tests failed"
+          pytest --tb=short -m "unit" -q tests/unit/
 
   binary-validation:
     name: Binary Validation
@@ -473,14 +473,20 @@ jobs:
           echo "$TOOLS_DIR/mizuRoute/route/bin" >> $GITHUB_PATH
           echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
 
-      - name: Run integration tests
+          # Restore test data (needed for integration tests)
+          if [ -f testdata.tar.gz ]; then
+            tar -xzf testdata.tar.gz -C $SYMFLUENCE_DATA
+            rm testdata.tar.gz
+          fi
+
+      - name: Run integration tests (serial)
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running integration tests..."
           echo "========================================="
-          pytest -v --tb=short -m "integration" tests/integration/ || echo "No integration tests or tests failed"
+          pytest -v --tb=short -n 0 -m "integration" tests/integration/
 
   e2e-quick:
     name: E2E Quick (3-hour SUMMA)

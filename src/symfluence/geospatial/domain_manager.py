@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, Tuple, Union, TYPE_CHECKING
 from symfluence.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
 from symfluence.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
 
+from symfluence.core.exceptions import GeospatialError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -299,7 +300,12 @@ class DomainManager(ConfigurableMixin):
 
         # Generate diagnostic plots if enabled
         if self.reporting_manager and artifacts.river_basins_path:
-            try:
+            with symfluence_error_handler(
+                "generating domain definition diagnostics",
+                self.logger,
+                reraise=False,
+                error_type=GeospatialError
+            ):
                 import geopandas as gpd
                 basin_gdf = gpd.read_file(artifacts.river_basins_path)
                 dem_path = self.project_attributes_dir / 'elevation' / 'dem' / f"{self.domain_name}_elv.tif"
@@ -307,8 +313,6 @@ class DomainManager(ConfigurableMixin):
                     basin_gdf=basin_gdf,
                     dem_path=dem_path if dem_path.exists() else None
                 )
-            except Exception as e:
-                self.logger.debug(f"Could not generate domain definition diagnostics: {e}")
 
         self.logger.debug("Domain definition workflow finished")
 
@@ -324,7 +328,11 @@ class DomainManager(ConfigurableMixin):
         Returns:
             Tuple of HRU shapefile(s) and discretization artifacts
         """
-        try:
+        with symfluence_error_handler(
+            "domain discretization",
+            self.logger,
+            error_type=GeospatialError
+        ):
             discretization_method = self._get_config_value(
                 lambda: self.config.domain.discretization
             )
@@ -343,7 +351,12 @@ class DomainManager(ConfigurableMixin):
 
             # Generate diagnostic plots if enabled
             if self.reporting_manager and artifacts.hru_paths:
-                try:
+                with symfluence_error_handler(
+                    "generating discretization diagnostics",
+                    self.logger,
+                    reraise=False,
+                    error_type=GeospatialError
+                ):
                     import geopandas as gpd
                     # hru_paths can be Path or Dict[str, Path]
                     hru_path = artifacts.hru_paths
@@ -355,16 +368,8 @@ class DomainManager(ConfigurableMixin):
                         hru_gdf=hru_gdf,
                         method=discretization_method
                     )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate discretization diagnostics: {e}")
 
             return hru_shapefile, artifacts
-
-        except Exception as e:
-            self.logger.error(f"Error during domain discretization: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            raise
 
     def visualize_domain(self) -> Optional[Path]:
         """
@@ -439,42 +444,37 @@ class DomainManager(ConfigurableMixin):
 
     def validate_domain_configuration(self) -> bool:
         """
-        Validate the domain configuration settings.
+        Validate domain configuration settings.
 
-        Validates:
-            - Required settings are present
-            - Definition method is valid (point, lumped, semidistributed, distributed)
-            - Bounding box format is correct
-            - Subset configurations have required geofabric_type
-            - Grid source is valid for distributed method
+        .. deprecated::
+            Use :meth:`validate_readiness` instead. Config-level checks
+            (required keys, definition method, bounding box format) are now
+            handled by Pydantic validators at config construction time.
 
         Returns:
             True if configuration is valid, False otherwise
         """
-        required_settings = [
-            ('DOMAIN_NAME', lambda: self.config.domain.name),
-            ('DOMAIN_DEFINITION_METHOD', lambda: self.config.domain.definition_method),
-            ('SUB_GRID_DISCRETIZATION', lambda: self.config.domain.discretization),
-            ('BOUNDING_BOX_COORDS', lambda: self.config.domain.bounding_box_coords)
-        ]
-
-        # Check required settings
-        for setting_name, typed_accessor in required_settings:
-            val = self._get_config_value(typed_accessor)
-            if not val:
-                self.logger.error(f"Required domain setting missing: {setting_name}")
-                return False
-
-        # Validate domain definition method
-        # Note: Legacy values (delineate, distribute, subset, discretized) are mapped
-        # by the config validator to new values
-        valid_methods = ['point', 'lumped', 'semidistributed', 'distributed']
-        domain_method = self._get_config_value(
-            lambda: self.config.domain.definition_method
+        import warnings
+        warnings.warn(
+            "validate_domain_configuration() is deprecated, use validate_readiness()",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        if domain_method not in valid_methods:
-            self.logger.error(f"Invalid domain definition method: {domain_method}. Must be one of {valid_methods}")
-            return False
+        readiness = self.validate_readiness()
+        return all(readiness.values()) if readiness else True
+
+    def validate_readiness(self) -> Dict[str, bool]:
+        """
+        Validate that this manager is ready for execution.
+
+        Checks runtime prerequisites that Pydantic cannot verify at
+        config construction time: subset geofabric config and grid
+        source for distributed method.
+
+        Returns:
+            Dict mapping check names to pass/fail booleans.
+        """
+        results = {}
 
         # Validate subset configuration
         subset_from_geofabric = self._get_config_value(
@@ -486,51 +486,29 @@ class DomainManager(ConfigurableMixin):
                 lambda: self.config.domain.delineation.geofabric_type,
                 default='na'
             )
-            if geofabric_type == 'na' or not geofabric_type:
+            ok = geofabric_type not in ('na', '', None)
+            if not ok:
                 self.logger.error(
                     "subset_from_geofabric=True requires GEOFABRIC_TYPE to be set. "
                     "Valid values: merit, tdx, nws, hydrosheds, etc."
                 )
-                return False
+            results['subset_config'] = ok
 
         # Validate grid_source for distributed method
+        domain_method = self._get_config_value(
+            lambda: self.config.domain.definition_method
+        )
         if domain_method == 'distributed':
             grid_source = self._get_config_value(
                 lambda: self.config.domain.grid_source,
                 default='generate'
             )
             valid_grid_sources = ['generate', 'native']
-            if grid_source not in valid_grid_sources:
+            ok = grid_source in valid_grid_sources
+            if not ok:
                 self.logger.error(
                     f"Invalid grid_source: {grid_source}. Must be one of {valid_grid_sources}"
                 )
-                return False
+            results['grid_source'] = ok
 
-        # Validate bounding box format
-        bbox = self._get_config_value(
-            lambda: self.config.domain.bounding_box_coords,
-            ''
-        )
-        bbox_parts = str(bbox).split('/')
-        if len(bbox_parts) != 4:
-            self.logger.error(f"Invalid bounding box format: {bbox}. Expected format: lat_max/lon_min/lat_min/lon_max")
-            return False
-
-        try:
-            # Check if values are valid floats
-            lat_max, lon_min, lat_min, lon_max = map(float, bbox_parts)
-
-            # Basic validation of coordinates
-            if lat_max <= lat_min:
-                self.logger.error(f"Invalid bounding box: lat_max ({lat_max}) must be greater than lat_min ({lat_min})")
-                return False
-            if lon_max <= lon_min:
-                self.logger.error(f"Invalid bounding box: lon_max ({lon_max}) must be greater than lon_min ({lon_min})")
-                return False
-
-        except ValueError:
-            self.logger.error(f"Invalid bounding box values: {bbox}. All values must be numeric.")
-            return False
-
-        self.logger.info("Domain configuration validation passed")
-        return True
+        return results

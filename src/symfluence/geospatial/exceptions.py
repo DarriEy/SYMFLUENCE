@@ -40,7 +40,7 @@ from contextlib import contextmanager
 from typing import Generator, Optional, Type
 import logging
 
-from symfluence.core.exceptions import GeospatialError
+from symfluence.core.exceptions import GeospatialError, ShapefileError
 
 
 # =============================================================================
@@ -109,21 +109,6 @@ class SubsettingError(DelineationError):
 # =============================================================================
 # File Operation Exceptions
 # =============================================================================
-
-class ShapefileError(GeospatialError):
-    """
-    Shapefile I/O and processing failures.
-
-    Raised when reading, writing, or processing shapefiles fails.
-
-    Examples:
-        - Shapefile not found
-        - Invalid shapefile format
-        - Missing required columns (GRU_ID, geometry)
-        - CRS mismatch between shapefiles
-    """
-    pass
-
 
 class RasterError(GeospatialError):
     """

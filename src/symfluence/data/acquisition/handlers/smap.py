@@ -270,7 +270,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                     # Close file handle
                     try:
                         files[0].close()
-                    except:
+                    except Exception:
                         pass
 
             except Exception:
