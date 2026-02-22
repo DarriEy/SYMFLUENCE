@@ -74,8 +74,8 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
             return username, password
 
         # 3. Try config file
-        username = self.config_dict.get('EARTHDATA_USERNAME')
-        password = self.config_dict.get('EARTHDATA_PASSWORD')
+        username = self._get_config_value(lambda: None, default=None, dict_key='EARTHDATA_USERNAME')
+        password = self._get_config_value(lambda: None, default=None, dict_key='EARTHDATA_PASSWORD')
         if username and password:
             self.logger.debug("Using Earthdata credentials from config file")
             return username, password

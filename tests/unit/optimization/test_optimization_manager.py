@@ -158,8 +158,8 @@ class TestModelCalibration:
             # so we mock _get_config_value to return False for that specific check.
             original_get = manager._get_config_value
             def _get_config_value_override(accessor, default=None, **kwargs):
-                # When default is the dict lookup for FUSE_RUN_INTERNAL_CALIBRATION, return False
-                if default is True and not kwargs.get('dict_key'):
+                # When checking FUSE_RUN_INTERNAL_CALIBRATION, return False
+                if kwargs.get('dict_key') == 'FUSE_RUN_INTERNAL_CALIBRATION':
                     return False
                 return original_get(accessor, default, **kwargs)
 

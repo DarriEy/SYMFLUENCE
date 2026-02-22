@@ -391,7 +391,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
         # Allow a small tolerance for daily outputs (end-date handling edge case)
         tolerance_days = 1
         try:
-            tolerance_days = int(self.config_dict.get('MESH_DAILY_TOLERANCE_DAYS', tolerance_days))
+            tolerance_days = int(self._get_config_value(lambda: self.config.model.mesh.daily_tolerance_days, default=tolerance_days))
         except (TypeError, ValueError):
             tolerance_days = 1
         return rows >= max(0, expected_days - tolerance_days)

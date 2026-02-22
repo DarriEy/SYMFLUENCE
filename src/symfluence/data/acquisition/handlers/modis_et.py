@@ -74,12 +74,12 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
         output_dir.mkdir(parents=True, exist_ok=True)
         processed_file = output_dir / f"{self.domain_name}_MOD16_ET.nc"
 
-        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             self.logger.info(f"Using existing MOD16 ET file: {processed_file}")
             return processed_file
 
         # Check if AppEEARS mode is requested
-        use_appeears = self.config_dict.get('MOD16_USE_APPEEARS', False)
+        use_appeears = self._get_config_value(lambda: None, default=False, dict_key='MOD16_USE_APPEEARS')
 
         if use_appeears:
             self.logger.info("Using AppEEARS API (legacy mode)")
@@ -95,7 +95,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
         # Get products
         # Note: Using MOD16A2GF (Gap-Filled) as standard MOD16A2 is not in CMR cloud
-        merge_products = self.config_dict.get('MOD16_MERGE_PRODUCTS', False)
+        merge_products = self._get_config_value(lambda: None, default=False, dict_key='MOD16_MERGE_PRODUCTS')
         products = ['MOD16A2GF']
         if merge_products:
             products.append('MYD16A2GF')
@@ -141,10 +141,10 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
         self.logger.info(f"Processing {len(files)} MOD16 HDF files...")
 
-        variable = self.config_dict.get('MOD16_VARIABLE', 'ET_500m')
-        qc_filter = self.config_dict.get('MOD16_QC_FILTER', True)
-        convert_to_daily = self.config_dict.get('MOD16_CONVERT_TO_DAILY', True)
-        target_units = self.config_dict.get('MOD16_UNITS', 'mm_day')
+        variable = self._get_config_value(lambda: None, default='ET_500m', dict_key='MOD16_VARIABLE')
+        qc_filter = self._get_config_value(lambda: None, default=True, dict_key='MOD16_QC_FILTER')
+        convert_to_daily = self._get_config_value(lambda: None, default=True, dict_key='MOD16_CONVERT_TO_DAILY')
+        target_units = self._get_config_value(lambda: None, default='mm_day', dict_key='MOD16_UNITS')
 
         results = []
         for i, hdf_path in enumerate(sorted(files)):
@@ -369,15 +369,15 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 "EARTHDATA_PASSWORD environment variables or add to ~/.netrc"
             )
 
-        products = self.config_dict.get('MOD16_PRODUCTS', ['MOD16A2.061'])
+        products = self._get_config_value(lambda: None, default=['MOD16A2.061'], dict_key='MOD16_PRODUCTS')
         if isinstance(products, str):
             products = [p.strip() for p in products.split(',')]
 
-        merge_products = self.config_dict.get('MOD16_MERGE_PRODUCTS', False)
+        merge_products = self._get_config_value(lambda: None, default=False, dict_key='MOD16_MERGE_PRODUCTS')
         if merge_products and 'MYD16A2.061' not in products:
             products.append('MYD16A2.061')
 
-        variable = self.config_dict.get('MOD16_VARIABLE', 'ET_500m')
+        variable = self._get_config_value(lambda: None, default='ET_500m', dict_key='MOD16_VARIABLE')
 
         product_files = {}
         for product in products:
@@ -455,7 +455,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
         output_file = output_dir / f"{self.domain_name}_{product_name}_raw.nc"
 
-        if output_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             return output_file
 
         token = self._appeears_login(username, password)
@@ -499,7 +499,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
         task_name = f"SYMFLUENCE_{self.domain_name}_{product}_ET_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         layers = [{"product": product_full, "layer": variable}]
-        if self.config_dict.get('MOD16_QC_FILTER', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='MOD16_QC_FILTER'):
             layers.append({"product": product_full, "layer": "ET_QC_500m"})
 
         task_request = {
@@ -653,9 +653,9 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
         variable: str
     ):
         """Process AppEEARS products into final output."""
-        convert_to_daily = self.config_dict.get('MOD16_CONVERT_TO_DAILY', True)
-        qc_filter = self.config_dict.get('MOD16_QC_FILTER', True)
-        target_units = self.config_dict.get('MOD16_UNITS', 'mm_day')
+        convert_to_daily = self._get_config_value(lambda: None, default=True, dict_key='MOD16_CONVERT_TO_DAILY')
+        qc_filter = self._get_config_value(lambda: None, default=True, dict_key='MOD16_QC_FILTER')
+        target_units = self._get_config_value(lambda: None, default='mm_day', dict_key='MOD16_UNITS')
 
         datasets = {}
         for product, path in product_files.items():

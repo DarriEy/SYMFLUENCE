@@ -205,11 +205,12 @@ class SpatialOrchestrator(ABC):
             spatial_mode_key = f"{model_name.upper()}_SPATIAL_MODE"
 
         # Get spatial mode with fallback to domain method
-        mode_str = self.config_dict.get(spatial_mode_key)
+        mode_str = self._get_config_value(lambda: None, default=None, dict_key=spatial_mode_key)
 
         # Handle 'auto' mode - resolve from DOMAIN_DEFINITION_METHOD
         if mode_str in (None, 'auto', 'default'):
-            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            domain_method = self._get_config_value(
+                lambda: self.config.domain.definition_method, default='lumped')
             # Map domain definition method to spatial mode
             if domain_method == 'delineate':
                 mode_str = 'distributed'
@@ -225,11 +226,16 @@ class SpatialOrchestrator(ABC):
             routing_key = f"{model_name.upper()}_ROUTING_INTEGRATION"
 
         # Get routing configuration
-        routing_str = self.config_dict.get(routing_key, self.config_dict.get('ROUTING_MODEL', 'none'))
+        routing_str = self._get_config_value(
+            lambda: self.config.model.routing_model,
+            default='none',
+            dict_key=routing_key
+        )
         routing_model = RoutingModel.from_string(routing_str)
 
         # Build routing config - handle 'default' config value
-        routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        routing_var_config = self._get_config_value(
+            lambda: None, default='averageRoutedRunoff', dict_key='SETTINGS_MIZU_ROUTING_VAR')
         if routing_var_config in ('default', None, ''):
             routing_var = 'averageRoutedRunoff'  # Default for SUMMA
         else:
@@ -237,12 +243,14 @@ class SpatialOrchestrator(ABC):
         routing_config = RoutingConfig(
             model=routing_model,
             routing_var=routing_var,
-            routing_units=self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s'),
+            routing_units=self._get_config_value(
+                lambda: None, default='m/s', dict_key='SETTINGS_MIZU_ROUTING_UNITS'),
         )
 
         # Add topology file if routing is configured
         if routing_model != RoutingModel.NONE:
-            topology_file = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
+            topology_file = self._get_config_value(
+                lambda: None, default='topology.nc', dict_key='SETTINGS_MIZU_TOPOLOGY')
 
             # Determine settings dir based on model
             if routing_model == RoutingModel.MIZUROUTE:
@@ -261,8 +269,10 @@ class SpatialOrchestrator(ABC):
         return SpatialConfig(
             mode=mode,
             routing=routing_config,
-            domain_method=self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
-            routing_delineation=self.config_dict.get('ROUTING_DELINEATION', 'lumped'),
+            domain_method=self._get_config_value(
+                lambda: self.config.domain.definition_method, default='lumped'),
+            routing_delineation=self._get_config_value(
+                lambda: None, default='lumped', dict_key='ROUTING_DELINEATION'),
         )
 
     def requires_routing(self, spatial_config: Optional[SpatialConfig] = None) -> bool:
@@ -740,9 +750,11 @@ class SpatialOrchestrator(ABC):
         import geopandas as gpd
 
         if shapefile_path is None:
-            catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME', 'default')
+            catchment_name = self._get_config_value(
+                lambda: None, default='default', dict_key='CATCHMENT_SHP_NAME')
             if catchment_name == 'default':
-                discretization = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'catchment')
+                discretization = self._get_config_value(
+                    lambda: self.config.domain.discretization, default='catchment')
                 catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
             shapefile_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
 
@@ -755,7 +767,8 @@ class SpatialOrchestrator(ABC):
             if gdf.empty:
                 self.logger.warning(f"Shapefile is empty: {shapefile_path}")
                 return 1
-            gru_col = self.config_dict.get('CATCHMENT_SHP_GRUID', 'GRU_ID')
+            gru_col = self._get_config_value(
+                lambda: None, default='GRU_ID', dict_key='CATCHMENT_SHP_GRUID')
             if gru_col in gdf.columns:
                 return len(gdf[gru_col].unique())
             else:

@@ -37,12 +37,9 @@ class Sentinel1SMHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire Sentinel-1 SM data via cloud acquisition."""
-        s1_dir = Path(self.config_dict.get(
-            'SENTINEL1_SM_DIR',
-            self.project_observations_dir / "soil_moisture" / "sentinel1"
-        ))
+        s1_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "soil_moisture" / "sentinel1", dict_key='SENTINEL1_SM_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = s1_dir.exists() and (
             any(s1_dir.glob("*.zip")) or
             any(s1_dir.glob("*.nc")) or
@@ -140,16 +137,13 @@ class Sentinel1SMHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():

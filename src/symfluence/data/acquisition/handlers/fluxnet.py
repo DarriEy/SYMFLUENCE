@@ -154,8 +154,8 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             return user_id, user_email
 
         # 2. Config file
-        user_id = self.config_dict.get('AMERIFLUX_USER_ID')
-        user_email = self.config_dict.get('AMERIFLUX_USER_EMAIL')
+        user_id = self._get_config_value(lambda: None, default=None, dict_key='AMERIFLUX_USER_ID')
+        user_email = self._get_config_value(lambda: None, default=None, dict_key='AMERIFLUX_USER_EMAIL')
         if user_id and user_email:
             return user_id, user_email
 
@@ -201,7 +201,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             return None
 
         # Prefer FULLSET files, then daily, then half-hourly
-        resolution_pref = self.config_dict.get('FLUXNET_TEMPORAL_RESOLUTION', 'DD')
+        resolution_pref = self._get_config_value(lambda: None, default='DD', dict_key='FLUXNET_TEMPORAL_RESOLUTION')
 
         best_file = None
         for f in matching_files:
@@ -259,7 +259,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         self.logger.info(f"Downloading from AmeriFlux API: {station_id}")
 
         # Get data policy for the site
-        data_policy = self.config_dict.get('AMERIFLUX_DATA_POLICY', 'CCBY4.0')
+        data_policy = self._get_config_value(lambda: None, default='CCBY4.0', dict_key='AMERIFLUX_DATA_POLICY')
 
         try:
             # First, check site availability and get correct data policy
@@ -275,10 +275,11 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                 'site_ids': [station_id],
                 'data_product': 'BASE-BADM',
                 'data_policy': data_policy,
-                'intended_use': self.config_dict.get('AMERIFLUX_INTENDED_USE', 'model'),
-                'description': self.config.get(
-                    'AMERIFLUX_DESCRIPTION',
-                    f'Hydrological model calibration for {self.domain_name}'
+                'intended_use': self._get_config_value(lambda: None, default='model', dict_key='AMERIFLUX_INTENDED_USE'),
+                'description': self._get_config_value(
+                    lambda: None,
+                    default=f'Hydrological model calibration for {self.domain_name}',
+                    dict_key='AMERIFLUX_DESCRIPTION'
                 ),
                 'is_test': False  # Set True for testing (no email to site PIs)
             }
@@ -581,12 +582,12 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             self.logger.info("Converted LE (W/m²) to ET (mm/day)")
 
         # Apply quality filtering if requested
-        if self.config_dict.get('FLUXNET_QC_FILTER', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='FLUXNET_QC_FILTER'):
             for var in ['LE', 'H', 'ET']:
                 qc_col = f'{var}_QC'
                 if qc_col in result.columns and var in result.columns:
                     # QC values: 0=measured, 1=good gap-fill, 2=medium, 3=poor
-                    max_qc = self.config_dict.get('FLUXNET_MAX_QC', 1)
+                    max_qc = self._get_config_value(lambda: None, default=1, dict_key='FLUXNET_MAX_QC')
                     mask = result[qc_col] > max_qc
                     result.loc[mask, var] = np.nan
                     self.logger.info(f"Applied QC filter to {var} (max QC={max_qc})")

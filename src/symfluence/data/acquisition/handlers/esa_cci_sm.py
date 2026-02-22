@@ -92,11 +92,11 @@ class ESACCISMAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin)
 
         # Build CDS request
         request = {
-            'variable': [self.config_dict.get('ESA_CCI_SM_VARIABLE', 'surface_soil_moisture_volumetric')],
-            'type_of_sensor': [self.config_dict.get('ESA_CCI_SM_SENSOR', 'combined')],
-            'time_aggregation': [self.config_dict.get('ESA_CCI_SM_TIME_AGGREGATION', 'daily')],
-            'type_of_record': [self.config_dict.get('ESA_CCI_SM_RECORD_TYPE', 'cdr')],
-            'version': [self.config_dict.get('ESA_CCI_SM_VERSION', 'v202312')],
+            'variable': [self._get_config_value(lambda: None, default='surface_soil_moisture_volumetric', dict_key='ESA_CCI_SM_VARIABLE')],
+            'type_of_sensor': [self._get_config_value(lambda: None, default='combined', dict_key='ESA_CCI_SM_SENSOR')],
+            'time_aggregation': [self._get_config_value(lambda: None, default='daily', dict_key='ESA_CCI_SM_TIME_AGGREGATION')],
+            'type_of_record': [self._get_config_value(lambda: None, default='cdr', dict_key='ESA_CCI_SM_RECORD_TYPE')],
+            'version': [self._get_config_value(lambda: None, default='v202312', dict_key='ESA_CCI_SM_VERSION')],
             'year': [str(year)],
             'month': [f"{month:02d}"],
             'day': [f"{d:02d}" for d in range(1, days_in_month + 1)],

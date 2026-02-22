@@ -28,7 +28,7 @@ import pandas as pd
 import xarray as xr
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -60,14 +60,14 @@ class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         output_file = output_dir / f"{self.domain_name}_Sentinel2_snow.nc"
-        force = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         if output_file.exists() and not force:
             self.logger.info(f"Using existing Sentinel-2 snow file: {output_file}")
             return output_file
 
-        max_cloud = self.config_dict.get('S2_SNOW_MAX_CLOUD_COVER', 50)
-        min_land = self.config_dict.get('S2_SNOW_MIN_LAND_PIXELS', 100)
+        max_cloud = self._get_config_value(lambda: None, default=50, dict_key='S2_SNOW_MAX_CLOUD_COVER')
+        min_land = self._get_config_value(lambda: None, default=100, dict_key='S2_SNOW_MIN_LAND_PIXELS')
 
         # Sentinel-2A launched 2015-06-23
         start = max(self.start_date, pd.Timestamp('2015-06-23'))

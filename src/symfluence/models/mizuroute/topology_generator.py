@@ -67,15 +67,15 @@ class MizuRouteTopologyGenerator:
             self._create_point_topology_file()
             return
 
-        river_network_path = self.pp.config_dict.get('RIVER_NETWORK_SHP_PATH')
-        river_network_name = self.pp.config_dict.get('RIVER_NETWORK_SHP_NAME')
+        river_network_path = self.pp._get_config_value(lambda: self.pp.config.paths.river_network_shp_path, default='default')
+        river_network_name = self.pp._get_config_value(lambda: self.pp.config.paths.river_network_shp_name, default='default')
         method_suffix = self.pp._get_method_suffix()
 
         # Check if this is lumped domain with distributed routing
         # If so, use the delineated river network (from distributed delineation)
         is_lumped_to_distributed = (
             self.pp.domain_definition_method == 'lumped' and
-            self.pp.config_dict.get('ROUTING_DELINEATION', 'river_network') == 'river_network'
+            self.pp._get_config_value(lambda: self.pp.config.model.mizuroute.routing_delineation, default='river_network') == 'river_network'
         )
 
         # For lumped-to-distributed, use delineated river network and catchments
@@ -89,8 +89,8 @@ class MizuRouteTopologyGenerator:
         else:
             river_network_path = Path(river_network_path)
 
-        river_basin_path = self.pp.config_dict.get('RIVER_BASINS_PATH')
-        river_basin_name = self.pp.config_dict.get('RIVER_BASINS_NAME')
+        river_basin_path = self.pp._get_config_value(lambda: self.pp.config.paths.river_basins_path, default='default')
+        river_basin_name = self.pp._get_config_value(lambda: self.pp.config.paths.river_basins_name, default='default')
 
         if river_basin_name == 'default':
             river_basin_name = f"{self.pp.domain_name}_riverBasins_{routing_suffix}.shp"
@@ -379,7 +379,7 @@ class MizuRouteTopologyGenerator:
             self.pp.logger.warning(f"Fixed {invalid_count} invalid downstream segment references in grid topology")
 
         # Get cell size for segment length
-        grid_cell_size = self.pp.config_dict.get('GRID_CELL_SIZE', 1000.0)
+        grid_cell_size = self.pp._get_config_value(lambda: self.pp.config.model.mizuroute.grid_cell_size, default=1000.0)
         lengths = np.full(num_cells, float(grid_cell_size))
 
         # HRU variables (each cell is also an HRU)

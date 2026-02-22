@@ -89,7 +89,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _get_mizuroute_executable_path(self) -> Path:
         """Get path to mizuRoute executable."""
-        mizu_install = self.config_dict.get('MIZUROUTE_INSTALL_PATH', 'default')
+        mizu_install = self._get_config_value(lambda: self.config.model.mizuroute.install_path, default='default', dict_key='MIZUROUTE_INSTALL_PATH')
         if mizu_install == 'default':
             return self.data_dir / 'installs' / 'mizuRoute' / 'route' / 'bin' / 'mizuRoute.exe'
         return Path(mizu_install)

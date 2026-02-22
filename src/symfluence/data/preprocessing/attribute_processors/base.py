@@ -102,7 +102,7 @@ class BaseAttributeProcessor(ConfigMixin):
         Returns:
             Resolved path
         """
-        path_value = self.config_dict.get(config_key)
+        path_value = self._get_config_value(lambda: None, dict_key=config_key)
 
         if path_value == 'default' or path_value is None:
             return self.project_dir / default_subfolder

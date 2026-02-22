@@ -46,7 +46,11 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         self.fuse_runner = FUSERunner(config, logger)
 
         # Use short FUSE file ID (Fortran CHARACTER(LEN=6) limit in selectmodl.f90)
-        self.fuse_file_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        self.fuse_file_id = self._get_config_value(
+            lambda: self.config.model.fuse.file_id,
+            default=self.experiment_id,
+            dict_key='FUSE_FILE_ID'
+        )
         self.model_decisions_path = (self.project_dir / "settings" / "FUSE" /
                                    f"fuse_zDecisions_{self.fuse_file_id}.txt")
 
@@ -70,7 +74,11 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             'SNOWM': ['temp_index', 'no_snowmod']
         }
 
-        config_options = self.config_dict.get('FUSE_DECISION_OPTIONS')
+        config_options = self._get_config_value(
+            lambda: self.config.model.fuse.decision_options,
+            default=None,
+            dict_key='FUSE_DECISION_OPTIONS'
+        )
 
         if config_options:
             self.logger.info("Using decision options from configuration")
@@ -137,7 +145,11 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         Returns:
             Dict: Dictionary containing KGE, NSE, MAE, and RMSE.
         """
-        obs_file_path = self.config_dict.get('OBSERVATIONS_PATH')
+        obs_file_path = self._get_config_value(
+            lambda: self.config.paths.observations,
+            default=None,
+            dict_key='OBSERVATIONS_PATH'
+        )
         if obs_file_path == 'default' or not obs_file_path:
             obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
         else:
@@ -222,11 +234,24 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
     def _calculate_catchment_area(self) -> float:
         """Calculate total catchment area in km2."""
-        basin_name = self.config_dict.get('RIVER_BASINS_NAME', 'default')
+        basin_name = self._get_config_value(
+            lambda: self.config.paths.river_basins_name,
+            default='default',
+            dict_key='RIVER_BASINS_NAME'
+        )
         if basin_name == 'default':
-            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')}.shp"
+            definition_method = self._get_config_value(
+                lambda: self.config.domain.definition_method,
+                default='lumped',
+                dict_key='DOMAIN_DEFINITION_METHOD'
+            )
+            basin_name = f"{self.domain_name}_riverBasins_{definition_method}.shp"
 
-        basin_path = self.config_dict.get('RIVER_BASINS_PATH')
+        basin_path = self._get_config_value(
+            lambda: self.config.paths.river_basins_path,
+            default=None,
+            dict_key='RIVER_BASINS_PATH'
+        )
         if not basin_path or basin_path == 'default':
             basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
         else:

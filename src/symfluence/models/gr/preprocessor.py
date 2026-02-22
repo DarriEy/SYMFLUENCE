@@ -309,10 +309,10 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         # Get area from river basins shapefile
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
+        basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name, default=None)
         if basin_name == 'default' or basin_name is None:
             method_suffix = self._get_method_suffix()
-            basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
+            basin_name = f"{self.domain_name}_riverBasins_{method_suffix}.shp"
         basin_path = basin_dir / basin_name
 
         if basin_path.exists():
@@ -417,10 +417,10 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
             # Get area for unit conversion
             basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-            basin_name = self.config_dict.get('RIVER_BASINS_NAME')
+            basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name, default=None)
             if basin_name == 'default' or basin_name is None:
                 method_suffix = self._get_method_suffix()
-                basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
+                basin_name = f"{self.domain_name}_riverBasins_{method_suffix}.shp"
             basin_path = basin_dir / basin_name
             basin_gdf = gpd.read_file(basin_path)
 

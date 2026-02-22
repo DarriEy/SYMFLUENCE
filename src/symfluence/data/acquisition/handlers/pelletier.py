@@ -94,7 +94,7 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
         pelletier_dir = self._attribute_dir("soilclass") / "pelletier"
         pelletier_dir.mkdir(parents=True, exist_ok=True)
 
-        variables = self.config_dict.get('PELLETIER_VARIABLES', _DEFAULT_VARIABLES)
+        variables = self._get_config_value(lambda: None, default=_DEFAULT_VARIABLES, dict_key='PELLETIER_VARIABLES')
         variables = [v for v in variables if v in _PELLETIER_FILES]
 
         if not variables:

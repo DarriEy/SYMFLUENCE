@@ -37,7 +37,7 @@ class TRouteModelOptimizer(BaseModelOptimizer):
         Updates parameters in the T-Route topology file (NetCDF).
         Supports updating Manning's n ('n', 'mannings_n').
         """
-        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        topology_name = self._get_config_value(lambda: None, default='troute_topology.nc', dict_key='SETTINGS_TROUTE_TOPOLOGY')
         topology_path = self.preprocessor.setup_dir / topology_name
 
         if not topology_path.exists():

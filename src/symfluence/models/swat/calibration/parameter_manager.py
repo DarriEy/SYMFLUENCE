@@ -44,8 +44,8 @@ class SWATParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, swat_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse SWAT parameters to calibrate from config
         swat_params_str = None
@@ -56,7 +56,7 @@ class SWATParameterManager(BaseParameterManager):
             pass
 
         if swat_params_str is None:
-            swat_params_str = config.get('SWAT_PARAMS_TO_CALIBRATE')
+            swat_params_str = self._get_config_value(lambda: self.config.model.swat.params_to_calibrate, default=None, dict_key='SWAT_PARAMS_TO_CALIBRATE')
 
         if swat_params_str is None:
             swat_params_str = 'CN2,ALPHA_BF,GW_DELAY,GWQMN,GW_REVAP,ESCO,SOL_AWC,SOL_K,SURLAG,SFTMP,SMTMP,SMFMX,SMFMN,TIMP'
@@ -67,7 +67,7 @@ class SWATParameterManager(BaseParameterManager):
         self.swat_params = [p.strip() for p in str(swat_params_str).split(',') if p.strip()]
 
         # Path to SWAT settings directory (standard layout)
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.txtinout_dir = self.project_dir / 'settings' / 'SWAT'
 
@@ -87,7 +87,7 @@ class SWATParameterManager(BaseParameterManager):
         swat_bounds = dict(PARAM_BOUNDS)
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('SWAT_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='SWAT_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(swat_bounds, config_bounds)
 

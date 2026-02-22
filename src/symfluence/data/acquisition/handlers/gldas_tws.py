@@ -126,10 +126,10 @@ class GLDASAcquirer(BaseAcquisitionHandler):
             bbox = self.config.domain.bounding_box
             return (bbox['lon_min'], bbox['lat_min'], bbox['lon_max'], bbox['lat_max'])
         except (AttributeError, KeyError):
-            lat_min = float(self.config_dict.get('LATITUDE_MIN', -90))
-            lat_max = float(self.config_dict.get('LATITUDE_MAX', 90))
-            lon_min = float(self.config_dict.get('LONGITUDE_MIN', -180))
-            lon_max = float(self.config_dict.get('LONGITUDE_MAX', 180))
+            lat_min = float(self._get_config_value(lambda: None, default=-90, dict_key='LATITUDE_MIN'))
+            lat_max = float(self._get_config_value(lambda: None, default=90, dict_key='LATITUDE_MAX'))
+            lon_min = float(self._get_config_value(lambda: None, default=-180, dict_key='LONGITUDE_MIN'))
+            lon_max = float(self._get_config_value(lambda: None, default=180, dict_key='LONGITUDE_MAX'))
             return (lon_min, lat_min, lon_max, lat_max)
 
     @staticmethod

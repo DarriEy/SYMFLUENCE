@@ -8,7 +8,7 @@ Handles geological and hydrogeological attributes including:
 - Derived hydrogeological properties
 """
 
-import pickle
+import pickle  # nosec B403 - used for caching geology lookup tables, not untrusted data
 from pathlib import Path
 from typing import Dict, Any
 import numpy as np
@@ -53,10 +53,8 @@ class GeologyProcessor(BaseAttributeProcessor):
         results: Dict[str, Any] = {}
 
         # Define path to GLHYMPS data (configurable via GLHYMPS_PATH)
-        glhymps_path = Path(self.config_dict.get(
-            'GLHYMPS_PATH',
-            str(self.data_dir / 'geospatial' / 'glhymps' / 'raw' / 'glhymps.shp')
-        ))
+        glhymps_path = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'glhymps' / 'raw' / 'glhymps.shp'), dict_key='GLHYMPS_PATH')
+        )
 
         # Check if GLHYMPS file exists
         if not glhymps_path.exists():
@@ -73,7 +71,7 @@ class GeologyProcessor(BaseAttributeProcessor):
             self.logger.info(f"Loading cached GLHYMPS results from {cache_file}")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
+                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
             except Exception as e:
                 self.logger.warning(f"Error loading cached GLHYMPS results: {str(e)}")
 
@@ -333,10 +331,8 @@ class GeologyProcessor(BaseAttributeProcessor):
 
         # Define path to geological map data (configurable via GEOLOGY_DIR)
         # This could be GMNA (Geological Map of North America) or similar dataset
-        geo_map_path = Path(self.config_dict.get(
-            'GEOLOGY_DIR',
-            str(self.data_dir / 'geospatial' / 'geology' / 'raw')
-        ))
+        geo_map_path = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'geology' / 'raw'), dict_key='GEOLOGY_DIR')
+        )
 
         # Check if geological map directory exists
         if not geo_map_path.exists():

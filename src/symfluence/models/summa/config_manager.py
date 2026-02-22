@@ -10,7 +10,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, Optional, Tuple, Any, Callable
+from typing import Dict, Optional, Tuple, Any, Callable, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 # Third-party imports
 import netCDF4 as nc4  # type: ignore
@@ -34,9 +37,23 @@ class SummaConfigManager(PathResolverMixin):
         """Return the config dict for PathResolverMixin compatibility."""
         return getattr(self, '_config_dict_data', {})
 
+    def _get_cfg(self, typed_accessor: Optional[Callable] = None,
+                 dict_key: Optional[str] = None, default: Any = None) -> Any:
+        """Get config value with typed config first, dict fallback."""
+        if typed_accessor and self._typed_config:
+            try:
+                val = typed_accessor()
+                if val is not None:
+                    return val
+            except (AttributeError, TypeError):
+                pass
+        if dict_key:
+            return self.config_dict.get(dict_key, default)
+        return default
+
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: Union[Dict[str, Any], 'SymfluenceConfig'],
         logger: Any,
         project_dir: Path,
         setup_dir: Path,
@@ -60,7 +77,7 @@ class SummaConfigManager(PathResolverMixin):
         Initialize the SUMMA Configuration Manager.
 
         Args:
-            config: Configuration dictionary containing setup parameters
+            config: Configuration dict or typed SymfluenceConfig
             logger: Logger object for recording processing information
             project_dir: Path to the project directory
             setup_dir: Path to the setup directory
@@ -80,9 +97,17 @@ class SummaConfigManager(PathResolverMixin):
             get_default_path_callback: Callback function to get default paths
             get_simulation_times_callback: Callback function to get simulation times
         """
-        # Store dict config for PathResolverMixin compatibility
-        # Use private attribute since config_dict is a property in mixins
-        self._config_dict_data = config
+        # Store typed config when available, flat dict for PathResolverMixin compat
+        if isinstance(config, dict):
+            self._config_dict_data = config
+            self._typed_config = None
+        else:
+            self._typed_config = config
+            try:
+                from symfluence.core.config.transformers import flatten_nested_config
+                self._config_dict_data = flatten_nested_config(config)
+            except Exception:
+                self._config_dict_data = {}
         self.logger = logger
         self.project_dir = project_dir
         self.setup_dir = setup_dir
@@ -125,8 +150,8 @@ class SummaConfigManager(PathResolverMixin):
             return self._get_simulation_times_callback()
 
         # Fallback implementation
-        sim_start = str(self.config_dict.get('EXPERIMENT_TIME_START', ''))
-        sim_end = str(self.config_dict.get('EXPERIMENT_TIME_END', ''))
+        sim_start = str(self._get_cfg(lambda: self._typed_config.domain.time_start, 'EXPERIMENT_TIME_START', ''))
+        sim_end = str(self._get_cfg(lambda: self._typed_config.domain.time_end, 'EXPERIMENT_TIME_END', ''))
         return sim_start, sim_end
 
     def copy_base_settings(self):
@@ -166,8 +191,8 @@ class SummaConfigManager(PathResolverMixin):
 
             # Ensure TWS variables are in outputControl if doing TWS optimization
             # Check both primary and secondary targets for multi-objective calibration
-            target = self.config_dict.get('OPTIMIZATION_TARGET', '').lower()
-            target2 = self.config_dict.get('OPTIMIZATION_TARGET2', '').lower()
+            target = (self._get_cfg(lambda: self._typed_config.optimization.target, 'OPTIMIZATION_TARGET', '') or '').lower()
+            target2 = (self._get_cfg(lambda: self._typed_config.optimization.nsga2.secondary_target, 'OPTIMIZATION_TARGET2', '') or '').lower()
             tws_targets = ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']
             if target in tws_targets or target2 in tws_targets:
                 output_control_path = settings_path / 'outputControl.txt'
@@ -177,7 +202,7 @@ class SummaConfigManager(PathResolverMixin):
 
                     required_vars = ['scalarSWE', 'scalarCanopyWat', 'scalarTotalSoilWat', 'scalarAquiferStorage']
                     # Get from config if specified
-                    storage_str = self.config_dict.get('TWS_STORAGE_COMPONENTS', '')
+                    storage_str = self._get_cfg(lambda: self._typed_config.evaluation.tws.storage_components, 'TWS_STORAGE_COMPONENTS', '')
                     if storage_str:
                         required_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
 
@@ -202,7 +227,7 @@ class SummaConfigManager(PathResolverMixin):
                     self.logger.info(f"Updated outputControl.txt with TWS variables: {required_vars}")
 
             # Ensure coupling variables are in outputControl if a groundwater model is configured
-            gw_model = self.config_dict.get('GROUNDWATER_MODEL', '')
+            gw_model = self._get_cfg(lambda: self._typed_config.model.groundwater_model, 'GROUNDWATER_MODEL', '')
             if gw_model and str(gw_model).upper() not in ('', 'NONE'):
                 output_control_path = settings_path / 'outputControl.txt'
                 if output_control_path.exists():
@@ -253,7 +278,7 @@ class SummaConfigManager(PathResolverMixin):
 
             # Apply user-specified SUMMA_DECISION_OPTIONS overrides
             decisions_path = settings_path / 'modelDecisions.txt'
-            decision_options = self.config_dict.get('SUMMA_DECISION_OPTIONS', {})
+            decision_options = self._get_cfg(lambda: self._typed_config.model.summa.decision_options, 'SUMMA_DECISION_OPTIONS', {})
             if decision_options and decisions_path.exists():
                 import re
                 with open(decisions_path, 'r', encoding='utf-8') as f:
@@ -300,13 +325,13 @@ class SummaConfigManager(PathResolverMixin):
         self.logger.info("Creating SUMMA file manager")
 
         try:
-            experiment_id = self.config_dict.get('EXPERIMENT_ID')
+            experiment_id = self._get_cfg(lambda: self._typed_config.domain.experiment_id, 'EXPERIMENT_ID')
             if not experiment_id:
                 raise ValueError("EXPERIMENT_ID is missing from configuration")
 
             sim_start, sim_end = self._get_simulation_times()
 
-            filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER')
+            filemanager_name = self._get_cfg(lambda: self._typed_config.model.summa.filemanager, 'SETTINGS_SUMMA_FILEMANAGER')
             if not filemanager_name:
                 raise ValueError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
 
@@ -322,10 +347,10 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write(f"forcingPath          '{self._get_default_path('FORCING_SUMMA_PATH', 'forcing/SUMMA_input')}/'\n")
                 fm.write(f"outputPath           '{self.project_dir / 'simulations' / experiment_id / 'SUMMA'}/'\n")
 
-                fm.write(f"initConditionFile    '{self.config_dict.get('SETTINGS_SUMMA_COLDSTATE')}'\n")
-                fm.write(f"attributeFile        '{self.config_dict.get('SETTINGS_SUMMA_ATTRIBUTES')}'\n")
-                fm.write(f"trialParamFile       '{self.config_dict.get('SETTINGS_SUMMA_TRIALPARAMS')}'\n")
-                fm.write(f"forcingListFile      '{self.config_dict.get('SETTINGS_SUMMA_FORCING_LIST')}'\n")
+                fm.write(f"initConditionFile    '{self._get_cfg(lambda: self._typed_config.model.summa.coldstate, 'SETTINGS_SUMMA_COLDSTATE')}'\n")
+                fm.write(f"attributeFile        '{self._get_cfg(lambda: self._typed_config.model.summa.attributes, 'SETTINGS_SUMMA_ATTRIBUTES')}'\n")
+                fm.write(f"trialParamFile       '{self._get_cfg(lambda: self._typed_config.model.summa.trialparams, 'SETTINGS_SUMMA_TRIALPARAMS')}'\n")
+                fm.write(f"forcingListFile      '{self._get_cfg(lambda: self._typed_config.model.summa.forcing_list, 'SETTINGS_SUMMA_FORCING_LIST')}'\n")
                 fm.write("decisionsFile        'modelDecisions.txt'\n")
                 fm.write("outputControlFile    'outputControl.txt'\n")
                 fm.write("globalHruParamFile   'localParamInfo.txt'\n")
@@ -336,13 +361,13 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write("noahmpTableFile      'TBL_MPTABLE.TBL'\n")
 
                 # Add glacier-specific entries if enabled
-                glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
+                glacier_mode = self._get_cfg(lambda: self._typed_config.model.summa.glacier_mode, 'SETTINGS_SUMMA_GLACIER_MODE', False)
                 if not glacier_mode and 'glac' in filemanager_name.lower():
                     glacier_mode = True  # Auto-detect from filename
 
                 if glacier_mode:
-                    init_grid_file = self.config_dict.get('SETTINGS_SUMMA_INIT_GRID_FILE', 'coldState_glacSurfTopo.nc')
-                    attrib_grid_file = self.config_dict.get('SETTINGS_SUMMA_ATTRIB_GRID_FILE', 'attributes_glacBedTopo.nc')
+                    init_grid_file = self._get_cfg(lambda: self._typed_config.model.summa.init_grid_file, 'SETTINGS_SUMMA_INIT_GRID_FILE', 'coldState_glacSurfTopo.nc')
+                    attrib_grid_file = self._get_cfg(lambda: self._typed_config.model.summa.attrib_grid_file, 'SETTINGS_SUMMA_ATTRIB_GRID_FILE', 'attributes_glacBedTopo.nc')
                     fm.write(f"initGridFile         '{init_grid_file}'\n")
                     fm.write(f"attribGridFile       '{attrib_grid_file}'\n")
                     self.logger.info("Glacier mode enabled - added initGridFile and attribGridFile")
@@ -408,7 +433,7 @@ class SummaConfigManager(PathResolverMixin):
             },
         }
 
-        choice = self.config_dict.get('SETTINGS_SUMMA_SOILPROFILE', 'FA')
+        choice = self._get_cfg(lambda: self._typed_config.model.summa.soilprofile, 'SETTINGS_SUMMA_SOILPROFILE', 'FA')
         mLayerDepth  = soil_setups[choice]["mLayerDepth"]
         iLayerHeight = soil_setups[choice]["iLayerHeight"]
 
@@ -416,7 +441,7 @@ class SummaConfigManager(PathResolverMixin):
         ifcToto = len(iLayerHeight)
         midSoil = midToto
         nSoil   = midToto
-        MatricHead = self.config_dict.get('SUMMA_INIT_MATRIC_HEAD', -1.0)
+        MatricHead = self._get_cfg(lambda: self._typed_config.model.summa.init_matric_head, 'SUMMA_INIT_MATRIC_HEAD', -1.0)
 
         # States
         states = {
@@ -564,7 +589,7 @@ class SummaConfigManager(PathResolverMixin):
             gru_var[:] = gru_ids
 
             # Create variables for specified trial parameters
-            if self.config_dict.get('SETTINGS_SUMMA_TRIALPARAM_N') != 0:
+            if self._get_cfg(lambda: self._typed_config.model.summa.trialparam_n, 'SETTINGS_SUMMA_TRIALPARAM_N', 0) != 0:
                 for var_name, val in all_tp.items():
                     tp_var = tp.createVariable(var_name, 'f8', 'hru', fill_value=False)
                     tp_var[:] = val

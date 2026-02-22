@@ -80,7 +80,7 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
         self.logger.info(f"Found {len(products)} Sentinel-1 products")
 
         # Download products
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         downloaded = 0
 
         for product in products:
@@ -103,12 +103,12 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
         client_id = (
             os.environ.get('SENTINEL1_CLIENT_ID') or
             os.environ.get('CDSE_CLIENT_ID') or
-            self.config_dict.get('SENTINEL1_CLIENT_ID')
+            self._get_config_value(lambda: None, default=None, dict_key='SENTINEL1_CLIENT_ID')
         )
         client_secret = (
             os.environ.get('SENTINEL1_CLIENT_SECRET') or
             os.environ.get('CDSE_CLIENT_SECRET') or
-            self.config_dict.get('SENTINEL1_CLIENT_SECRET')
+            self._get_config_value(lambda: None, default=None, dict_key='SENTINEL1_CLIENT_SECRET')
         )
         return client_id, client_secret
 

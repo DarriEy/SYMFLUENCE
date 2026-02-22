@@ -37,11 +37,11 @@ class HecHmsParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, hechms_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse HEC-HMS parameters to calibrate from config
-        hechms_params_str = config.get('HECHMS_PARAMS_TO_CALIBRATE') or config.get('PARAMS_TO_CALIBRATE')
+        hechms_params_str = self._get_config_value(lambda: self.config.model.hechms.params_to_calibrate, default=None, dict_key='HECHMS_PARAMS_TO_CALIBRATE') or self._get_config_value(lambda: None, default=None, dict_key='PARAMS_TO_CALIBRATE')
 
         # Handle None, empty string, or 'default' as signal to use ALL available parameters
         if hechms_params_str is None or hechms_params_str == '' or hechms_params_str == 'default':
@@ -75,7 +75,7 @@ class HecHmsParameterManager(BaseParameterManager):
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
-        initial_params = self.config_dict.get('HECHMS_INITIAL_PARAMS', 'default')
+        initial_params = self._get_config_value(lambda: None, default='default', dict_key='HECHMS_INITIAL_PARAMS')
 
         if initial_params == 'default':
             self.logger.debug("Using standard HEC-HMS defaults for initial parameters")

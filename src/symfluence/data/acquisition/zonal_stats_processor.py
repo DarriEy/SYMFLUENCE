@@ -715,7 +715,8 @@ class DataPreProcessor(ConfigMixin):
             If DEM_PATH='/custom/path/dem.tif' (custom):
             Returns: /custom/path/dem.tif
         """
-        if self.config.get(f'{file_type}') == 'default':
+        file_type_val = self._get_config_value(lambda: None, default='default', dict_key=file_type)
+        if file_type_val == 'default':
             # Use resolve_data_subdir for data subdirectories
             parts = file_def_path.split('/', 1)
             if parts[0] in ('forcing', 'attributes', 'observations'):
@@ -724,4 +725,4 @@ class DataPreProcessor(ConfigMixin):
                 return base / parts[1] / file_name if len(parts) > 1 else base / file_name
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(f'{file_type}'))
+            return Path(file_type_val)

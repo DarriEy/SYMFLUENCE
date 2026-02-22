@@ -79,12 +79,12 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
         output_dir.mkdir(parents=True, exist_ok=True)
         processed_file = output_dir / f"{self.domain_name}_MODIS_LAI.nc"
 
-        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             self.logger.info(f"Using existing MODIS LAI file: {processed_file}")
             return processed_file
 
         # Check if AppEEARS mode is requested
-        use_appeears = self.config_dict.get('MODIS_LAI_USE_APPEEARS', False)
+        use_appeears = self._get_config_value(lambda: None, default=False, dict_key='MODIS_LAI_USE_APPEEARS')
 
         if use_appeears:
             self.logger.info("Using AppEEARS API (legacy mode)")
@@ -100,7 +100,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
         raw_dir = output_dir / "raw"
         raw_dir.mkdir(exist_ok=True)
 
-        product = self.config_dict.get('MODIS_LAI_PRODUCT', 'MCD15A2H')
+        product = self._get_config_value(lambda: None, default='MCD15A2H', dict_key='MODIS_LAI_PRODUCT')
         self.logger.info(f"Acquiring {product} via earthaccess")
 
         product_dir = raw_dir / product.lower()
@@ -138,7 +138,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
         self.logger.info(f"Processing {len(files)} MODIS LAI HDF files...")
 
         layers = self._get_layers()
-        qc_filter = self.config_dict.get('MODIS_LAI_QC', True)
+        qc_filter = self._get_config_value(lambda: None, default=True, dict_key='MODIS_LAI_QC')
 
         results = []
         for i, hdf_path in enumerate(sorted(files)):
@@ -242,7 +242,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
 
         ds = xr.Dataset(data_vars)
         ds.attrs['title'] = 'MODIS LAI/FPAR'
-        ds.attrs['source'] = f'NASA MODIS {self.config_dict.get("MODIS_LAI_PRODUCT", "MCD15A2H")} v061'
+        ds.attrs['source'] = f"NASA MODIS {self._get_config_value(lambda: None, default='MCD15A2H', dict_key='MODIS_LAI_PRODUCT')} v061"
         ds.attrs['created'] = datetime.now().isoformat()
         ds.attrs['domain'] = self.domain_name
         ds.attrs['method'] = 'earthaccess'
@@ -311,14 +311,14 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
 
     def _get_layers(self) -> List[str]:
         """Get layers to download."""
-        config_layers = self.config_dict.get('MODIS_LAI_LAYERS')
+        config_layers = self._get_config_value(lambda: None, default=None, dict_key='MODIS_LAI_LAYERS')
         if config_layers:
             if isinstance(config_layers, str):
                 return [config_layers]
             return list(config_layers)
 
         layers = ['Lai_500m', 'Fpar_500m']
-        if self.config_dict.get('MODIS_LAI_QC', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='MODIS_LAI_QC'):
             layers.append('FparLai_QC')
 
         return layers
@@ -334,7 +334,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
                 "EARTHDATA_PASSWORD environment variables or add to ~/.netrc"
             )
 
-        product = self.config_dict.get('MODIS_LAI_PRODUCT', 'MCD15A2H')
+        product = self._get_config_value(lambda: None, default='MCD15A2H', dict_key='MODIS_LAI_PRODUCT')
         product_id = self.PRODUCTS.get(product, f"{product}.061")
         layers = self._get_layers()
 

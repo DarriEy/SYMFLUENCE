@@ -120,24 +120,52 @@ class TWSEvaluator(ModelEvaluator):
             dict_key='OPTIMIZATION_TARGET'
         )
         if self.optimization_target not in ['stor_grace', 'stor_mb']:
-            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            eval_var = self._get_config_value(
+                lambda: self.config.evaluation.evaluation_variable,
+                default='',
+                dict_key='EVALUATION_VARIABLE'
+            )
             if eval_var in ['stor_grace', 'stor_mb']:
                 self.optimization_target = eval_var
             else:
                 self.optimization_target = 'stor_grace'
 
-        self.grace_column = self.config_dict.get('TWS_GRACE_COLUMN', 'grace_jpl_anomaly')
-        self.anomaly_baseline = self.config_dict.get('TWS_ANOMALY_BASELINE', 'overlap')
-        self.unit_conversion = self.config_dict.get('TWS_UNIT_CONVERSION', 1.0)
+        self.grace_column = self._get_config_value(
+            lambda: self.config.evaluation.tws.grace_column,
+            default='grace_jpl_anomaly',
+            dict_key='TWS_GRACE_COLUMN'
+        )
+        self.anomaly_baseline = self._get_config_value(
+            lambda: self.config.evaluation.tws.anomaly_baseline,
+            default='overlap',
+            dict_key='TWS_ANOMALY_BASELINE'
+        )
+        self.unit_conversion = self._get_config_value(
+            lambda: self.config.evaluation.tws.unit_conversion,
+            default=1.0,
+            dict_key='TWS_UNIT_CONVERSION'
+        )
 
         # Detrending option: removes linear trend from both series before comparison
-        self.detrend = self.config_dict.get('TWS_DETREND', False)
+        self.detrend = self._get_config_value(
+            lambda: self.config.evaluation.tws.detrend,
+            default=False,
+            dict_key='TWS_DETREND'
+        )
 
         # Scaling option: scale model variability to match observed
         # Useful when model has correct pattern but wrong amplitude
-        self.scale_to_obs = self.config_dict.get('TWS_SCALE_TO_OBS', False)
+        self.scale_to_obs = self._get_config_value(
+            lambda: self.config.evaluation.tws.scale_to_obs,
+            default=False,
+            dict_key='TWS_SCALE_TO_OBS'
+        )
 
-        storage_str = self.config_dict.get('TWS_STORAGE_COMPONENTS', '')
+        storage_str = self._get_config_value(
+            lambda: self.config.evaluation.tws.storage_components,
+            default='',
+            dict_key='TWS_STORAGE_COMPONENTS'
+        )
         if storage_str:
             self.storage_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
         else:
@@ -287,7 +315,11 @@ class TWSEvaluator(ModelEvaluator):
                     total_tws = ds['basin__StorageChange']
                     total_tws = np.where(total_tws < -999, np.nan, total_tws)
                     # integrate: mm/s * seconds -> mm per timestep, then cumulative sum over time
-                    dt = self.config_dict.get('FORCING_TIME_STEP_SIZE', 1)
+                    dt = self._get_config_value(
+                        lambda: self.config.forcing.time_step_size,
+                        default=1,
+                        dict_key='FORCING_TIME_STEP_SIZE'
+                    )
                     if hasattr(total_tws, 'sel') or hasattr(total_tws, 'dims'):
                         total_tws = (total_tws * dt).cumsum(dim=time_coord)
                     else:
@@ -378,7 +410,11 @@ class TWSEvaluator(ModelEvaluator):
         Returns:
             Path: Absolute path to GRACE observation file
         """
-        tws_obs_path = self.config_dict.get('TWS_OBS_PATH')
+        tws_obs_path = self._get_config_value(
+            lambda: self.config.evaluation.tws.obs_path,
+            default=None,
+            dict_key='TWS_OBS_PATH'
+        )
         if tws_obs_path:
             return Path(tws_obs_path)
         return first_existing_path(

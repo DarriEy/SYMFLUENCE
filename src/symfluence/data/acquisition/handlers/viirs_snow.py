@@ -77,7 +77,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
 
         # Check for existing processed file
         output_file = output_dir / f"{self.domain_name}_VIIRS_snow.nc"
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         if output_file.exists() and not force_download:
             self.logger.info(f"Using existing VIIRS snow file: {output_file}")
@@ -92,11 +92,11 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             )
 
         # Get product configuration
-        product = self.config_dict.get('VIIRS_SNOW_PRODUCT', 'VNP10A1F')
+        product = self._get_config_value(lambda: None, default='VNP10A1F', dict_key='VIIRS_SNOW_PRODUCT')
         product_name = self.PRODUCTS.get(product, product)
 
         # Check if user wants AppEEARS mode
-        use_appeears = self.config_dict.get('VIIRS_SNOW_USE_APPEEARS', False)
+        use_appeears = self._get_config_value(lambda: None, default=False, dict_key='VIIRS_SNOW_USE_APPEEARS')
 
         if use_appeears:
             # Legacy AppEEARS mode
@@ -261,7 +261,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             raise RuntimeError("Failed to authenticate with AppEEARS")
 
         # Get layers
-        layers = self.config_dict.get('VIIRS_SNOW_LAYERS', ['CGF_NDSI_Snow_Cover'])
+        layers = self._get_config_value(lambda: None, default=['CGF_NDSI_Snow_Cover'], dict_key='VIIRS_SNOW_LAYERS')
         if isinstance(layers, str):
             layers = [layers]
 

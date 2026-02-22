@@ -390,7 +390,7 @@ class DomainPlotter(BasePlotter):
             - Otherwise returns the new organized path
         """
         # Check if explicit path is set in config
-        catchment_path_config = self.config.get('CATCHMENT_PATH')
+        catchment_path_config = self._get_config_value(lambda: None, default=None, dict_key='CATCHMENT_PATH')
         if catchment_path_config and catchment_path_config != 'default':
             return Path(catchment_path_config) / file_name
 
@@ -415,10 +415,11 @@ class DomainPlotter(BasePlotter):
 
     def _get_file_path(self, file_type: str, file_def_path: str, file_name: str) -> Path:
         """Get file path from config or use default."""
-        if self.config.get(file_type) == 'default':
+        file_type_val = self._get_config_value(lambda: None, default='default', dict_key=file_type)
+        if file_type_val == 'default':
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(file_type))
+            return Path(file_type_val)
 
     def _plot_river_network(self, ax: Any, river_gdf: Any) -> None:
         """Plot river network with variable width based on stream order."""

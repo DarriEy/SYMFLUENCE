@@ -94,7 +94,7 @@ class TRoutePostProcessor(StandardModelPostprocessor):
             # TRoute uses feature_id for reach identification
             if 'feature_id' in data.dims:
                 # Try to get configured reach ID
-                sim_reach_id = self.config_dict.get('SIM_REACH_ID')
+                sim_reach_id = self._get_config_value(lambda: None, default=None, dict_key='SIM_REACH_ID')
 
                 if sim_reach_id is not None:
                     sim_reach_id = int(sim_reach_id)

@@ -19,7 +19,7 @@ class MODISSnowAcquirer(BaseAcquisitionHandler):
 
         # Configuration
         product = self._get_config_value(lambda: self.config.evaluation.modis_snow.product, default='MOD10A1.006', dict_key='MODIS_SNOW_PRODUCT')
-        thredds_base = self.config_dict.get('MODIS_THREDDS_BASE', "https://ds.nccs.nasa.gov/thredds/ncss/grid")
+        thredds_base = self._get_config_value(lambda: None, default="https://ds.nccs.nasa.gov/thredds/ncss/grid", dict_key='MODIS_THREDDS_BASE')
 
         # BBox
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
@@ -38,7 +38,7 @@ class MODISSnowAcquirer(BaseAcquisitionHandler):
         # Construct NCSS query
         # Note: This path is an example and depends on the specific THREDDS server structure
         # For NCCS, we might need a more specific path if mirrored
-        dataset_path = self.config_dict.get('MODIS_THREDDS_PATH', f"MODIS/{product}/aggregated.ncml")
+        dataset_path = self._get_config_value(lambda: None, default=f"MODIS/{product}/aggregated.ncml", dict_key='MODIS_THREDDS_PATH')
 
         params = {
             "var": "NDSI_Snow_Cover",  # Standard MOD10A1 variable

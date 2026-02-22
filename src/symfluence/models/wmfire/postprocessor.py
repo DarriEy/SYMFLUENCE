@@ -91,13 +91,19 @@ class WMFirePostProcessor:
     def _setup_paths(self) -> None:
         """Setup directory paths."""
         # Get project directory
-        if hasattr(self.config, 'system') and hasattr(self.config.system, 'data_dir'):
+        try:
             data_dir = Path(self.config.system.data_dir)
-        else:
-            data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', '.'))
+        except (AttributeError, TypeError):
+            data_dir = Path(getattr(self.config, 'get', lambda k, d=None: d)('SYMFLUENCE_DATA_DIR', '.') or '.')
 
-        domain_name = self.config.domain.name if hasattr(self.config, 'domain') else self.config.get('DOMAIN_NAME', 'domain')
-        experiment_id = self.config.domain.experiment_id if hasattr(self.config, 'domain') else self.config.get('EXPERIMENT_ID', 'default')
+        try:
+            domain_name = self.config.domain.name
+        except (AttributeError, TypeError):
+            domain_name = getattr(self.config, 'get', lambda k, d=None: d)('DOMAIN_NAME', 'domain') or 'domain'
+        try:
+            experiment_id = self.config.domain.experiment_id
+        except (AttributeError, TypeError):
+            experiment_id = getattr(self.config, 'get', lambda k, d=None: d)('EXPERIMENT_ID', 'default') or 'default'
 
         self.project_dir = data_dir / f"domain_{domain_name}"
         self.rhessys_input_dir = self.project_dir / "settings" / "RHESSys"

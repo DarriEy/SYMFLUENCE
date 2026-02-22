@@ -20,10 +20,12 @@ from symfluence.models.xinanjiang.parameters import (
 class TestParameterBounds:
     """Test parameter bound definitions."""
 
-    def test_all_params_have_bounds(self):
-        """All named parameters must have bounds."""
+    def test_all_calibratable_params_have_bounds(self):
+        """All calibratable parameters must have bounds (CS, L excluded — unused in lumped mode)."""
+        excluded = {'CS', 'L'}  # Routing params excluded per Zhao 1992 lumped formulation
         for name in PARAM_NAMES:
-            assert name in PARAM_BOUNDS, f"Missing bounds for {name}"
+            if name not in excluded:
+                assert name in PARAM_BOUNDS, f"Missing bounds for {name}"
 
     def test_all_params_have_defaults(self):
         """All named parameters must have defaults."""
@@ -31,9 +33,8 @@ class TestParameterBounds:
             assert name in DEFAULT_PARAMS, f"Missing default for {name}"
 
     def test_defaults_within_bounds(self):
-        """Default values must lie within bounds."""
-        for name in PARAM_NAMES:
-            lo, hi = PARAM_BOUNDS[name]
+        """Default values must lie within bounds (for calibratable params)."""
+        for name, (lo, hi) in PARAM_BOUNDS.items():
             val = DEFAULT_PARAMS[name]
             assert lo <= val <= hi, f"{name}={val} outside [{lo}, {hi}]"
 
@@ -43,9 +44,9 @@ class TestParameterBounds:
             assert lo < hi, f"{name}: lo={lo} >= hi={hi}"
 
     def test_param_count(self):
-        """Should have exactly 15 parameters."""
+        """Should have exactly 15 parameters (13 calibratable with bounds)."""
         assert len(PARAM_NAMES) == 15
-        assert len(PARAM_BOUNDS) == 15
+        assert len(PARAM_BOUNDS) == 13  # CS, L excluded from calibration
         assert len(DEFAULT_PARAMS) == 15
 
     def test_log_transform_params_valid(self):

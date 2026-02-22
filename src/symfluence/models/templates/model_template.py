@@ -273,7 +273,7 @@ class UnifiedModelRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[
             return None
 
         parallel_key = self.schema.execution.parallel_key
-        if parallel_key and not self.config_dict.get(parallel_key, False):
+        if parallel_key and not self._get_config_value(lambda: None, default=False, dict_key=parallel_key):
             return None
 
         return SlurmJobConfig(
@@ -417,7 +417,7 @@ class UnifiedModelRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[
 
         result = self.submit_slurm_job(
             script_path=script_path,
-            wait=self.config_dict.get('MONITOR_SLURM_JOB', True)
+            wait=self._get_config_value(lambda: self.config.model.summa.monitor_slurm_job, default=True, dict_key='MONITOR_SLURM_JOB')
         )
 
         if result.success:

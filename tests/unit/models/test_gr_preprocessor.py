@@ -5,20 +5,36 @@ Tests GR-specific preprocessing functionality, including mode detection.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
+from importlib.machinery import ModuleSpec
 from symfluence.core.config.models import SymfluenceConfig
 
-# Patch imports before importing the module under test to handle optional dependencies
+# Pre-import jax at collection time to avoid abseil timezone conflict that
+# causes SIGABRT when jaxlib is loaded lazily during test execution (macOS).
+# The GRPreProcessor constructor triggers model registry imports which
+# transitively load jax through the optimization workers.
+try:
+    import jax  # noqa: F401
+except Exception:
+    pass
+
+# Patch rpy2 imports before importing the module under test to handle optional
+# dependencies.  We give the rpy2 mock a valid __spec__ so that
+# ``importlib.util.find_spec("rpy2")`` succeeds inside the preprocessor module
+# (which sets HAS_RPY2 = find_spec("rpy2") is not None).
+# NOTE: Do NOT mock ``torch`` at sys.modules level -- scipy's
+# ``is_torch_array()`` uses ``issubclass(cls, torch.Tensor)`` which fails when
+# ``torch.Tensor`` is a Mock instead of a real class.
+_rpy2_mock = MagicMock()
+_rpy2_mock.__spec__ = ModuleSpec('rpy2', None)
+
 with patch.dict('sys.modules', {
-    'rpy2': Mock(),
-    'rpy2.robjects': Mock(),
-    'rpy2.robjects.packages': Mock(),
-    'rpy2.robjects.conversion': Mock(),
-    'torch': Mock(),
+    'rpy2': _rpy2_mock,
+    'rpy2.robjects': MagicMock(),
+    'rpy2.robjects.packages': MagicMock(),
+    'rpy2.robjects.conversion': MagicMock(),
 }):
-    # Mock HAS_RPY2 in the module
-    with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
-        from symfluence.models.gr.preprocessor import GRPreProcessor
+    from symfluence.models.gr.preprocessor import GRPreProcessor
 
 
 class TestGRPreProcessorModeDetection:
@@ -30,7 +46,14 @@ class TestGRPreProcessorModeDetection:
 
     @pytest.fixture
     def common_config_setup(self, tmp_path):
-        """Setup common config mocks."""
+        """Setup common config mocks.
+
+        The Mock(spec=SymfluenceConfig) passes isinstance checks in
+        coerce_config(), so the mock is used as-is.  We must explicitly set
+        every nested attribute that the constructor accesses -- any unset
+        attribute on an unspecced child Mock returns a new Mock, which then
+        fails when used in Path operations or string comparisons.
+        """
         config_dict = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
             'DOMAIN_NAME': 'test_domain',
@@ -42,7 +65,8 @@ class TestGRPreProcessorModeDetection:
 
         config = Mock(spec=SymfluenceConfig)
 
-        # Initialize nested mocks
+        # Initialize nested mocks with concrete values for all attributes
+        # accessed during GRPreProcessor.__init__
         config.system = Mock()
         config.system.data_dir = tmp_path
 
@@ -58,8 +82,14 @@ class TestGRPreProcessorModeDetection:
 
         config.model = Mock()
         config.model.gr = Mock()
+        config.model.routing_model = 'none'
 
         config.paths = Mock()
+        # _get_catchment_file_path() accesses config.paths.catchment_name
+        # (not catchment_shp_name).  Must be 'default' or None so the code
+        # constructs a name from domain_name + discretization instead of
+        # trying to use a Mock as a path component.
+        config.paths.catchment_name = 'default'
         config.paths.catchment_shp_name = 'default'
 
         # Properly mock to_dict to handle flatten parameter
@@ -133,7 +163,7 @@ class TestGRPreProcessorModeDetection:
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'delineate'
 
         config.domain.definition_method = 'delineate'
-        config.model.gr = None # Simulate missing GR config
+        config.model.gr = None  # Simulate missing GR config
         config.to_dict.return_value = config_dict
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):

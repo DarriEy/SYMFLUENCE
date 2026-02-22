@@ -47,8 +47,8 @@ class MODISSnowHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate or download MODIS snow data."""
-        data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
-        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_observations_dir / "snow"))
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='local').lower()
+        snow_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "snow", dict_key='MODIS_SNOW_DIR'))
 
         if not snow_dir.exists():
             snow_dir.mkdir(parents=True, exist_ok=True)
@@ -58,7 +58,7 @@ class MODISSnowHandler(BaseObservationHandler):
             from ...acquisition.registry import AcquisitionRegistry
 
             # Check if merged SCA is requested
-            use_merged = self.config_dict.get('MODIS_SCA_MERGE', True)
+            use_merged = self._get_config_value(lambda: None, default=True, dict_key='MODIS_SCA_MERGE')
 
             if use_merged:
                 # Use the new merged SCA acquirer
@@ -102,7 +102,7 @@ class MODISSnowHandler(BaseObservationHandler):
             return input_path
 
         # Standard filter: at least 100 valid pixels
-        min_pixels = self.config_dict.get('MODIS_MIN_PIXELS', 100)
+        min_pixels = self._get_config_value(lambda: None, default=100, dict_key='MODIS_MIN_PIXELS')
 
         # For now, just copy and filter the first matching file
         df = pd.read_csv(csv_files[0], parse_dates=['date']).set_index('date')
@@ -141,7 +141,7 @@ class MODISSnowHandler(BaseObservationHandler):
             snow_data = self._apply_quality_filter(snow_data)
 
             # Check if we should use catchment masking
-            use_catchment_mask = self.config_dict.get('MODIS_SCA_USE_CATCHMENT_MASK', False)
+            use_catchment_mask = self._get_config_value(lambda: None, default=False, dict_key='MODIS_SCA_USE_CATCHMENT_MASK')
 
             if use_catchment_mask and HAS_GEO:
                 df = self._extract_with_catchment_mask(snow_data, ds)
@@ -149,12 +149,12 @@ class MODISSnowHandler(BaseObservationHandler):
                 df = self._extract_spatial_average(snow_data)
 
             # Filter by minimum valid ratio
-            min_valid_ratio = self.config_dict.get('MODIS_SCA_MIN_VALID_RATIO', 0.1)
+            min_valid_ratio = self._get_config_value(lambda: None, default=0.1, dict_key='MODIS_SCA_MIN_VALID_RATIO')
             if 'valid_ratio' in df.columns:
                 df = df[df['valid_ratio'] >= min_valid_ratio]
 
             # Normalize SCA to fraction (0-1) if needed
-            normalize = self.config_dict.get('MODIS_SCA_NORMALIZE', True)
+            normalize = self._get_config_value(lambda: None, default=True, dict_key='MODIS_SCA_NORMALIZE')
             if normalize and df['sca'].max() > 1.0:
                 df['sca'] = df['sca'] / 100.0
 
@@ -252,8 +252,8 @@ class MODISSnowHandler(BaseObservationHandler):
 
     def _extract_with_catchment_mask(self, data: xr.DataArray, ds: xr.Dataset) -> pd.DataFrame:
         """Extract SCA using catchment shapefile as mask."""
-        catchment_path = self.config_dict.get('CATCHMENT_PATH')
-        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        catchment_path = self._get_config_value(lambda: self.config.domain.catchment_path, default=None)
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=None)
 
         if not catchment_path or not catchment_name:
             self.logger.warning("Catchment mask requested but CATCHMENT_PATH/CATCHMENT_SHP_NAME not set")
@@ -323,8 +323,8 @@ class MODISSCAHandler(MODISSnowHandler):
 
     def acquire(self) -> Path:
         """Acquire merged MODIS SCA data."""
-        data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
-        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_observations_dir / "snow"))
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='local').lower()
+        snow_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "snow", dict_key='MODIS_SNOW_DIR'))
 
         if not snow_dir.exists():
             snow_dir.mkdir(parents=True, exist_ok=True)

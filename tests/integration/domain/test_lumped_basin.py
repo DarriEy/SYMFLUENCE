@@ -74,7 +74,7 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
     # Domain settings - use a unique name for the test
     domain_name = "Bow_at_Banff_lumped"
     config_dict['DOMAIN_NAME'] = domain_name
-    config_dict['EXPERIMENT_ID'] = f'test_{tmp_path.name}'
+    config_dict['EXPERIMENT_ID'] = f'test_{tmp_path.name[:8]}'  # Keep short to avoid Fortran strLen=256 overflow in mizuRoute
     config_dict['POUR_POINT_COORDS'] = '51.1722/-115.5717'
 
     # Use semidistributed method to create watershed from DEM via TauDEM (raw data workflow)
@@ -213,6 +213,7 @@ def test_lumped_basin_workflow(config_path, model, symfluence_data_root, setup_i
     elif model == 'FUSE':
         config_dict['FUSE_SPATIAL_MODE'] = 'lumped'
         config_dict['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MAXWATR_1,MAXWATR_2,BASERTE'
+        config_dict['FUSE_RUN_INTERNAL_CALIBRATION'] = False
     elif model == 'GR':
         config_dict['GR_SPATIAL_MODE'] = 'lumped'
         config_dict['GR_SKIP_CALIBRATION'] = True

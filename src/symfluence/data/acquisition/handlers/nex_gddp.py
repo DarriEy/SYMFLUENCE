@@ -158,7 +158,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
             if "time" not in ds_m.dims or ds_m.sizes["time"] == 0: continue
             if "ensemble" in ds_m.dims: ds_m = ds_m.isel(ensemble=0, drop=True)
             if "airpres" not in ds_m:
-                p0, z_mean, H = 101325.0, float(self.config_dict.get('DOMAIN_MEAN_ELEV_M', 0.0)), 8400.0
+                p0, z_mean, H = 101325.0, float(self._get_config_value(lambda: None, default=0.0, dict_key='DOMAIN_MEAN_ELEV_M')), 8400.0
                 p_surf = p0 * np.exp(-z_mean / H)
                 ds_m["airpres"] = xr.full_like(ds_m["tas"], p_surf, dtype="float32").assign_attrs(long_name="synthetic surface air pressure", units="Pa")
             month_path = output_dir / f"NEXGDDP_all_{ms.year:04d}{ms.month:02d}.nc"

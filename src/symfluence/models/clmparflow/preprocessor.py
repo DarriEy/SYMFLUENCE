@@ -47,36 +47,35 @@ class CLMParFlowPreProcessor:
         self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
         self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')
 
-        project_dir = self.config_dict.get('PROJECT_DIR')
+        project_dir = getattr(config, 'get', lambda k, d=None: d)('PROJECT_DIR')
         if not project_dir or project_dir == '.':
-            data_dir = self.config_dict.get('SYMFLUENCE_DATA_DIR', '.')
+            try:
+                data_dir = str(config.system.data_dir)
+            except (AttributeError, TypeError):
+                data_dir = '.'
             project_dir = Path(data_dir) / f"domain_{self.domain_name}"
         self.project_dir = Path(project_dir)
 
     def _get_cfg(self, key, default=None):
-        val = self.config_dict.get(key)
-        if val is None or val == 'default':
-            try:
-                if key == 'DOMAIN_NAME':
-                    return self.config.domain.name
-                elif key == 'EXPERIMENT_ID':
-                    return self.config.domain.experiment_id
-            except (AttributeError, TypeError):
-                pass
-            return default
-        return val
+        try:
+            if key == 'DOMAIN_NAME':
+                return self.config.domain.name
+            elif key == 'EXPERIMENT_ID':
+                return self.config.domain.experiment_id
+        except (AttributeError, TypeError):
+            pass
+        return default
 
     def _get_pf_cfg(self, key, default=None):
-        """Get config value with CLMPARFLOW_ prefix, falling back to Pydantic config."""
-        val = self.config_dict.get(f'CLMPARFLOW_{key}', self.config_dict.get(key))
-        if val is not None:
-            return val
+        """Get config value with CLMPARFLOW_ prefix, typed config first."""
         try:
             pf_cfg = self.config.model.clmparflow
             if pf_cfg:
                 attr = key.lower()
                 if hasattr(pf_cfg, attr):
-                    return getattr(pf_cfg, attr)
+                    pydantic_val = getattr(pf_cfg, attr)
+                    if pydantic_val is not None:
+                        return pydantic_val
         except (AttributeError, TypeError):
             pass
         return default
@@ -88,7 +87,10 @@ class CLMParFlowPreProcessor:
             if nc_files:
                 return basin_avg
 
-        forcing_dir = self.config_dict.get('FORCING_PATH')
+        try:
+            forcing_dir = self.config.paths.forcing_path
+        except (AttributeError, TypeError):
+            forcing_dir = None
         if forcing_dir and forcing_dir != 'default':
             fp = Path(forcing_dir)
             if fp.exists():
@@ -101,7 +103,16 @@ class CLMParFlowPreProcessor:
         return None
 
     def _get_latitude(self) -> float:
-        lat = self.config_dict.get('CATCHMENT_LATITUDE')
+        try:
+            lat = self.config.paths.catchment_lat
+            if lat and lat != 'center_lat':
+                return float(lat)
+        except (AttributeError, TypeError, ValueError):
+            pass
+        try:
+            lat = self.config.domain.latitude
+        except (AttributeError, TypeError):
+            lat = None
         if lat is not None:
             return float(lat)
         try:
@@ -126,18 +137,14 @@ class CLMParFlowPreProcessor:
 
     def _get_time_info(self):
         import pandas as pd
-        start = self.config_dict.get('EXPERIMENT_TIME_START')
-        end = self.config_dict.get('EXPERIMENT_TIME_END')
-        if start is None:
-            try:
-                start = self.config.domain.time_start
-            except (AttributeError, TypeError):
-                start = '2000-01-01'
-        if end is None:
-            try:
-                end = self.config.domain.time_end
-            except (AttributeError, TypeError):
-                end = '2001-01-01'
+        try:
+            start = self.config.domain.time_start
+        except (AttributeError, TypeError):
+            start = '2000-01-01'
+        try:
+            end = self.config.domain.time_end
+        except (AttributeError, TypeError):
+            end = '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))
@@ -303,18 +310,14 @@ class CLMParFlowPreProcessor:
             self.logger.warning(f"Could not read ERA5 forcing: {e}")
             return None
 
-        start = self.config_dict.get('EXPERIMENT_TIME_START')
-        end = self.config_dict.get('EXPERIMENT_TIME_END')
-        if start is None:
-            try:
-                start = self.config.domain.time_start
-            except (AttributeError, TypeError):
-                start = '2000-01-01'
-        if end is None:
-            try:
-                end = self.config.domain.time_end
-            except (AttributeError, TypeError):
-                end = '2001-01-01'
+        try:
+            start = self.config.domain.time_start
+        except (AttributeError, TypeError):
+            start = '2000-01-01'
+        try:
+            end = self.config.domain.time_end
+        except (AttributeError, TypeError):
+            end = '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))
@@ -410,20 +413,16 @@ class CLMParFlowPreProcessor:
         """
         import pandas as pd
 
-        start = self.config_dict.get('EXPERIMENT_TIME_START')
-        if start is None:
-            try:
-                start = self.config.domain.time_start
-            except (AttributeError, TypeError):
-                start = '2000-01-01'
+        try:
+            start = self.config.domain.time_start
+        except (AttributeError, TypeError):
+            start = '2000-01-01'
         start_dt = pd.Timestamp(str(start))
 
-        end = self.config_dict.get('EXPERIMENT_TIME_END')
-        if end is None:
-            try:
-                end = self.config.domain.time_end
-            except (AttributeError, TypeError):
-                end = '2009-12-31'
+        try:
+            end = self.config.domain.time_end
+        except (AttributeError, TypeError):
+            end = '2009-12-31'
         end_dt = pd.Timestamp(str(end))
 
         metfile = str(self._get_pf_cfg('METFILE', 'forcing.1d'))

@@ -69,7 +69,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
 
     def _download_opendap(self, final_file: Path) -> Path:
         """Download CaSR/RDRS data via PAVICS THREDDS OPeNDAP."""
-        version = self.config_dict.get('RDRS_VERSION', 'v3.2')
+        version = self._get_config_value(lambda: None, default='v3.2', dict_key='RDRS_VERSION')
 
         if version == 'v2.1':
             opendap_url = PAVICS_OPENDAP_RDRS_V21
@@ -79,7 +79,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
             self.logger.info("Accessing CaSR v3.2 (successor to RDRS v3.1) via PAVICS THREDDS OPeNDAP")
 
         # Allow user override of OPeNDAP URL
-        opendap_url = self.config_dict.get('RDRS_OPENDAP_URL', opendap_url)
+        opendap_url = self._get_config_value(lambda: None, default=opendap_url, dict_key='RDRS_OPENDAP_URL')
 
         self.logger.info(f"Opening OPeNDAP dataset: {opendap_url}")
         ds = xr.open_dataset(opendap_url)
@@ -149,7 +149,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
     def _download_http(self, output_dir: Path, final_file: Path) -> Path:
         """Fallback HTTP download from ECCC GPSC-C daily NetCDF files."""
         # CaSR v3.2 daily files from GPSC-C (format: YYYYMMDD12.nc)
-        base_url = self.config_dict.get('RDRS_BASE_URL', GPSCC_CASR_V32_BASE_URL)
+        base_url = self._get_config_value(lambda: None, default=GPSCC_CASR_V32_BASE_URL, dict_key='RDRS_BASE_URL')
         self.logger.info(f"Downloading CaSR daily files from {base_url}")
 
         # Generate list of days (files are daily at 12 UTC)

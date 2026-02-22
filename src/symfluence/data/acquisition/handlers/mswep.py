@@ -68,9 +68,9 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
             )
 
         # Get configuration
-        resolution = self.config_dict.get('MSWEP_RESOLUTION', 'daily')
-        product = self.config_dict.get('MSWEP_PRODUCT', 'Past')
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        resolution = self._get_config_value(lambda: None, default='daily', dict_key='MSWEP_RESOLUTION')
+        product = self._get_config_value(lambda: None, default='Past', dict_key='MSWEP_PRODUCT')
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         # Build file list
         file_list = self._generate_file_list(resolution, product)
@@ -102,11 +102,11 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
         """Get MSWEP credentials from environment or config."""
         username = (
             os.environ.get('MSWEP_USERNAME') or
-            self.config_dict.get('MSWEP_USERNAME')
+            self._get_config_value(lambda: None, default=None, dict_key='MSWEP_USERNAME')
         )
         password = (
             os.environ.get('MSWEP_PASSWORD') or
-            self.config_dict.get('MSWEP_PASSWORD')
+            self._get_config_value(lambda: None, default=None, dict_key='MSWEP_PASSWORD')
         )
         return username, password
 

@@ -41,12 +41,9 @@ class VIIRSSnowHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire VIIRS snow data via cloud acquisition."""
-        viirs_dir = Path(self.config_dict.get(
-            'VIIRS_SNOW_DIR',
-            self.project_observations_dir / "snow" / "viirs"
-        ))
+        viirs_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "snow" / "viirs", dict_key='VIIRS_SNOW_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = viirs_dir.exists() and (
             any(viirs_dir.glob("*VNP10*.nc")) or any(viirs_dir.glob("*Snow*.nc"))
         )
@@ -115,7 +112,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
         df = df[~df.index.duplicated(keep='first')]
 
         # Interpolate to daily if needed (for 8-day composites)
-        if self.config_dict.get('VIIRS_SNOW_CONVERT_TO_DAILY', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='VIIRS_SNOW_CONVERT_TO_DAILY'):
             df = self._interpolate_to_daily(df)
 
         # Filter to experiment period
@@ -133,16 +130,13 @@ class VIIRSSnowHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
@@ -255,7 +249,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
 
     def _apply_qc_filter(self, da: xr.DataArray, qc_da: xr.DataArray) -> xr.DataArray:
         """Apply quality filter based on QC flags."""
-        min_quality = self.config_dict.get('VIIRS_SNOW_MIN_QUALITY', 1)
+        min_quality = self._get_config_value(lambda: None, default=1, dict_key='VIIRS_SNOW_MIN_QUALITY')
 
         # VIIRS QA: bits 0-1 indicate quality
         # 0 = best, 1 = good, 2 = ok, 3 = poor

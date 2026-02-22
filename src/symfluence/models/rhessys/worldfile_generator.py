@@ -129,7 +129,10 @@ class RHESSysWorldfileGenerator:
             slope_col = getattr(self.pp, 'catchment_slope_col', 'slope')
             elev = float(gdf[elev_col].mean()) if elev_col in gdf.columns else 1500.0
             slope_raw = float(gdf[slope_col].mean()) if slope_col in gdf.columns else 10.0
-            slope_units = str(self.pp.config_dict.get('CATCHMENT_SHP_SLOPE_UNITS', 'degrees')).lower()
+            try:
+                slope_units = str(self.pp.config.paths.catchment_shp_slope_units).lower()
+            except (AttributeError, TypeError):
+                slope_units = 'degrees'
             if slope_units in {'deg', 'degree', 'degrees'}:
                 slope = np.tan(np.radians(slope_raw))
             elif slope_units in {'rad', 'radian', 'radians'}:
@@ -165,9 +168,18 @@ class RHESSysWorldfileGenerator:
         # slope is already tan(beta) from above, so use it directly
         tan_slope = max(slope, 0.001)  # Minimum to avoid log issues
         # Optional lna controls (can be disabled via config)
-        lna_area_cap = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_AREA_CAP_M2', 1e5))
-        lna_min = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_MIN', 5.0))
-        lna_max = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_MAX', 15.0))
+        lna_area_cap = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_area_cap_m2 if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=1e5
+        ))
+        lna_min = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_min if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=5.0
+        ))
+        lna_max = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_max if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=15.0
+        ))
 
         # For very large basins, optionally cap the contributing area effect
         effective_area = min(area_m2, lna_area_cap) if lna_area_cap else area_m2
@@ -400,9 +412,18 @@ class RHESSysWorldfileGenerator:
         lines.append(f"      {num_patches}    num_zones")
 
         # Optional lna controls (can be disabled via config)
-        lna_area_cap = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_AREA_CAP_M2', 1e5))
-        lna_min = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_MIN', 5.0))
-        lna_max = self._parse_optional_float(self.pp.config_dict.get('RHESSYS_LNA_MAX', 15.0))
+        lna_area_cap = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_area_cap_m2 if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=1e5
+        ))
+        lna_min = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_min if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=5.0
+        ))
+        lna_max = self._parse_optional_float(self.pp._get_config_value(
+            lambda: self.pp.config.model.rhessys.lna_max if self.pp.config.model and self.pp.config.model.rhessys else None,
+            default=15.0
+        ))
 
         # Generate each zone/patch/stratum (one per HRU)
         for idx, (_, row) in enumerate(gdf.iterrows()):

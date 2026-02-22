@@ -66,8 +66,8 @@ class GRDCAcquirer(BaseAcquisitionHandler):
         username, password = self._get_credentials()
 
         # Get resolution
-        resolution = self.config_dict.get('GRDC_RESOLUTION', 'daily')
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        resolution = self._get_config_value(lambda: None, default='daily', dict_key='GRDC_RESOLUTION')
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         downloaded_files = []
 
@@ -106,7 +106,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
 
     def _get_station_ids(self) -> List[str]:
         """Get GRDC station IDs from configuration."""
-        station_ids = self.config_dict.get('GRDC_STATION_IDS')
+        station_ids = self._get_config_value(lambda: None, default=None, dict_key='GRDC_STATION_IDS')
 
         if not station_ids:
             return []
@@ -121,11 +121,11 @@ class GRDCAcquirer(BaseAcquisitionHandler):
         """Get GRDC credentials from environment or config."""
         username = (
             os.environ.get('GRDC_USERNAME') or
-            self.config_dict.get('GRDC_USERNAME')
+            self._get_config_value(lambda: None, default=None, dict_key='GRDC_USERNAME')
         )
         password = (
             os.environ.get('GRDC_PASSWORD') or
-            self.config_dict.get('GRDC_PASSWORD')
+            self._get_config_value(lambda: None, default=None, dict_key='GRDC_PASSWORD')
         )
         return username, password
 

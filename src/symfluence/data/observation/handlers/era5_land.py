@@ -75,12 +75,9 @@ class ERA5LandHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire ERA5-Land data via cloud acquisition."""
-        era5_dir = Path(self.config_dict.get(
-            'ERA5_LAND_DIR',
-            self.project_observations_dir / "era5_land"
-        ))
+        era5_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "era5_land", dict_key='ERA5_LAND_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = era5_dir.exists() and any(era5_dir.glob("*.nc"))
 
         if not has_files or force_download:
@@ -147,11 +144,11 @@ class ERA5LandHandler(BaseObservationHandler):
         df = df.sort_index()
 
         # Apply unit conversions if requested
-        if self.config_dict.get('ERA5_LAND_CONVERT_UNITS', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='ERA5_LAND_CONVERT_UNITS'):
             df = self._convert_units(df)
 
         # Temporal aggregation
-        aggregate = self.config_dict.get('ERA5_LAND_AGGREGATE', 'daily')
+        aggregate = self._get_config_value(lambda: None, default='daily', dict_key='ERA5_LAND_AGGREGATE')
         if aggregate == 'daily' and self._is_hourly(df):
             df = self._aggregate_to_daily(df)
         elif aggregate == 'monthly':
@@ -169,16 +166,13 @@ class ERA5LandHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
         if catchment_name == 'default' or not catchment_name:
             catchment_name = f"{self.domain_name}_HRUs_GRUs.shp"
 

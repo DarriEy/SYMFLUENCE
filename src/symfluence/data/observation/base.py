@@ -135,10 +135,13 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         self._config = coerce_config(config, warn=False)
         self.logger = logger
 
-        # Standard attributes use config_dict (from ConfigMixin) for compatibility
-        self.bbox = self._parse_bbox(self.config_dict.get('BOUNDING_BOX_COORDS'))
-        self.start_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
-        self.end_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
+        # Standard attributes via typed config access
+        self.bbox = self._parse_bbox(self._get_config_value(
+            lambda: self.config.domain.bounding_box_coords, default=None))
+        self.start_date = pd.to_datetime(self._get_config_value(
+            lambda: self.config.domain.time_start, default=None))
+        self.end_date = pd.to_datetime(self._get_config_value(
+            lambda: self.config.domain.time_end, default=None))
 
     # =========================================================================
     # Abstract Methods

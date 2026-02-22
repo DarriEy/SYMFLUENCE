@@ -35,8 +35,10 @@ class DRouteModelOptimizer(BaseModelOptimizer):
         optimization_settings_dir: Optional[Path] = None,
         reporting_manager: Optional[Any] = None
     ):
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = config.get('DOMAIN_NAME')
+        from symfluence.core.config.coercion import coerce_config
+        _cd = coerce_config(config, warn=False)
+        self.data_dir = Path(_cd.get('SYMFLUENCE_DATA_DIR', '.'))
+        self.domain_name = _cd.get('DOMAIN_NAME', 'unknown')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.droute_settings_dir = self.project_dir / 'settings' / 'dRoute'
 
@@ -68,7 +70,7 @@ class DRouteModelOptimizer(BaseModelOptimizer):
             return self._worker.run_model(
                 self.config_dict,
                 self.droute_settings_dir,
-                self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'dRoute',
+                self.project_dir / 'simulations' / self._get_config_value(lambda: self.config.domain.experiment_id, default='default') / 'dRoute',
                 save_output=True
             )
         return False
@@ -79,7 +81,7 @@ class DRouteModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Set up parallel directories for dRoute calibration."""
-        n_processors = int(self.config_dict.get('NUMBER_OF_PROCESSORS', 1))
+        n_processors = int(self._get_config_value(lambda: self.config.system.number_of_processors, default=1))
         for i in range(n_processors):
             proc_dir = self.project_dir / 'simulations' / 'calibration' / f'proc_{i}' / 'dRoute'
             proc_dir.mkdir(parents=True, exist_ok=True)

@@ -276,7 +276,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
                 return gpd.read_file(local_file)
 
         # Check for local RGI data in config-specified directory
-        local_rgi_dir = Path(self.config_dict.get('RGI_LOCAL_DIR', ''))
+        local_rgi_dir = Path(self._get_config_value(lambda: None, default='', dict_key='RGI_LOCAL_DIR'))
         if local_rgi_dir.exists():
             for pattern in [f"*{region_id:02d}*.shp", f"*{region_id:02d}*.gpkg"]:
                 for local_file in local_rgi_dir.glob(pattern):
@@ -332,7 +332,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         self.logger.info("Creating glacier rasters")
 
         # Determine resolution and bounds
-        resolution = self.config_dict.get('GLACIER_RASTER_RESOLUTION', self.DEFAULT_RESOLUTION)
+        resolution = self._get_config_value(lambda: None, default=self.DEFAULT_RESOLUTION, dict_key='GLACIER_RASTER_RESOLUTION')
 
         # Calculate raster dimensions
         width = int((self.bbox['lon_max'] - self.bbox['lon_min']) / resolution)

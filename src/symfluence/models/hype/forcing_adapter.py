@@ -117,7 +117,7 @@ class HYPEForcingAdapter(ForcingAdapter):
 
         # HYPE typically expects daily data
         # If configured to aggregate to daily, do so here
-        if self.config_dict.get('HYPE_AGGREGATE_TO_DAILY', False):
+        if self._get_config_value(lambda: None, default=False, dict_key='HYPE_AGGREGATE_TO_DAILY'):
             ds = self._aggregate_to_daily(ds)
 
         return ds

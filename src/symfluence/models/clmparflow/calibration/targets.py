@@ -76,13 +76,34 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
 
             extractor = CLMParFlowResultExtractor()
 
-            timestep_hours = float(self.config_dict.get('CLMPARFLOW_TIMESTEP_HOURS', 1.0))
-            dump_interval_hours = float(self.config_dict.get('CLMPARFLOW_DUMP_INTERVAL_HOURS', 24.0))
-            start_date = str(self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01'))
-            k_sat = float(self.config_dict.get('CLMPARFLOW_K_SAT', 5.0))
-            dx = float(self.config_dict.get('CLMPARFLOW_DX', 1000.0))
-            dy = float(self.config_dict.get('CLMPARFLOW_DY', 1000.0))
-            dz = float(self.config_dict.get('CLMPARFLOW_DZ', 2.0))
+            timestep_hours = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.timestep_hours if self.config.model and self.config.model.clmparflow else None,
+                default=1.0
+            ))
+            dump_interval_hours = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.dump_interval_hours if self.config.model and self.config.model.clmparflow else None,
+                default=24.0
+            ))
+            start_date = str(self._get_config_value(
+                lambda: self.config.domain.time_start,
+                default='2000-01-01'
+            ))
+            k_sat = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.k_sat if self.config.model and self.config.model.clmparflow else None,
+                default=5.0
+            ))
+            dx = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.dx if self.config.model and self.config.model.clmparflow else None,
+                default=1000.0
+            ))
+            dy = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.dy if self.config.model and self.config.model.clmparflow else None,
+                default=1000.0
+            ))
+            dz = float(self._get_config_value(
+                lambda: self.config.model.clmparflow.dz if self.config.model and self.config.model.clmparflow else None,
+                default=2.0
+            ))
 
             common_kwargs = dict(
                 timestep_hours=timestep_hours,
@@ -107,8 +128,14 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
                 return None
 
             # Scale from model domain area to actual catchment area
-            nx = int(self.config_dict.get('CLMPARFLOW_NX', 3))
-            ny = int(self.config_dict.get('CLMPARFLOW_NY', 1))
+            nx = int(self._get_config_value(
+                lambda: self.config.model.clmparflow.nx if self.config.model and self.config.model.clmparflow else None,
+                default=3
+            ))
+            ny = int(self._get_config_value(
+                lambda: self.config.model.clmparflow.ny if self.config.model and self.config.model.clmparflow else None,
+                default=1
+            ))
             domain_area_m2 = nx * dx * ny * dy
 
             try:

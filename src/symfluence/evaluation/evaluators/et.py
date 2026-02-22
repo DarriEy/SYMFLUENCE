@@ -166,7 +166,11 @@ class ETEvaluator(ModelEvaluator):
             dict_key='OPTIMIZATION_TARGET'
         )
         if self.optimization_target not in ['et', 'latent_heat']:
-            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            eval_var = self._get_config_value(
+                lambda: self.config.evaluation.evaluation_variable,
+                default='',
+                dict_key='EVALUATION_VARIABLE'
+            )
             if eval_var in ['et', 'latent_heat']:
                 self.optimization_target = eval_var
             else:
@@ -175,7 +179,11 @@ class ETEvaluator(ModelEvaluator):
         self.variable_name = self.optimization_target
 
         # Observation source configuration
-        self.obs_source = str(self.config_dict.get('ET_OBS_SOURCE', 'mod16')).lower()
+        self.obs_source = str(self._get_config_value(
+            lambda: self.config.evaluation.et.obs_source,
+            default='mod16',
+            dict_key='ET_OBS_SOURCE'
+        )).lower()
         if self.obs_source not in self.SUPPORTED_SOURCES:
             self.logger.warning(
                 f"Unknown ET_OBS_SOURCE '{self.obs_source}', defaulting to 'mod16'"
@@ -183,11 +191,23 @@ class ETEvaluator(ModelEvaluator):
             self.obs_source = 'mod16'
 
         # Temporal aggregation method
-        self.temporal_aggregation = self.config_dict.get('ET_TEMPORAL_AGGREGATION', 'daily_mean')
+        self.temporal_aggregation = self._get_config_value(
+            lambda: self.config.evaluation.et.temporal_aggregation,
+            default='daily_mean',
+            dict_key='ET_TEMPORAL_AGGREGATION'
+        )
 
         # Quality control settings
-        self.use_quality_control = self.config_dict.get('ET_USE_QUALITY_CONTROL', True)
-        self.max_quality_flag = self.config_dict.get('ET_MAX_QUALITY_FLAG', 2)
+        self.use_quality_control = self._get_config_value(
+            lambda: self.config.evaluation.et.use_quality_control,
+            default=True,
+            dict_key='ET_USE_QUALITY_CONTROL'
+        )
+        self.max_quality_flag = self._get_config_value(
+            lambda: self.config.evaluation.et.max_quality_flag,
+            default=2,
+            dict_key='ET_MAX_QUALITY_FLAG'
+        )
 
         self.logger.info(
             f"Initialized ETEvaluator for {self.optimization_target.upper()} "
@@ -492,7 +512,11 @@ class ETEvaluator(ModelEvaluator):
             Path: Absolute path to observation file (may not exist yet)
         """
         # Direct path override
-        et_obs_path = self.config_dict.get('ET_OBS_PATH')
+        et_obs_path = self._get_config_value(
+            lambda: self.config.evaluation.et.obs_path,
+            default=None,
+            dict_key='ET_OBS_PATH'
+        )
         if et_obs_path:
             return Path(et_obs_path)
         fluxnet_station = self._get_config_value(
@@ -929,7 +953,11 @@ class ETEvaluator(ModelEvaluator):
             # Extract MODLAND QC bits (bits 0-1)
             modland_qc = qc_flags.astype('Int64') & 0b11
 
-            max_qc = self.config_dict.get('ET_MODIS_MAX_QC', 0)
+            max_qc = self._get_config_value(
+                lambda: self.config.evaluation.et.modis_max_qc,
+                default=0,
+                dict_key='ET_MODIS_MAX_QC'
+            )
             quality_mask = modland_qc <= max_qc
 
             filtered_count = (~quality_mask).sum()
@@ -984,8 +1012,10 @@ class ETEvaluator(ModelEvaluator):
 
             uncertainty = pd.to_numeric(obs_df[unc_col], errors='coerce')
 
-            max_relative_unc = self.config_dict.get(
-                'ET_GLEAM_MAX_RELATIVE_UNCERTAINTY', 0.5
+            max_relative_unc = self._get_config_value(
+                lambda: self.config.evaluation.et.gleam_max_relative_uncertainty,
+                default=0.5,
+                dict_key='ET_GLEAM_MAX_RELATIVE_UNCERTAINTY'
             )
 
             # Calculate relative uncertainty (avoid division by zero)

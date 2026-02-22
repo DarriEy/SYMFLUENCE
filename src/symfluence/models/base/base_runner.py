@@ -131,7 +131,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             spatial_mode = get_spatial_mode_from_config(self.config_dict)
 
             # Check if routing is configured
-            routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+            routing_model = self._get_config_value(lambda: self.config.model.routing_model, default='none')
             has_routing = routing_model and routing_model.lower() not in ('none', 'default', '')
 
             # Validate against model capabilities
@@ -162,7 +162,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         Returns:
             True if routing model is configured, False otherwise
         """
-        routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+        routing_model = self._get_config_value(lambda: self.config.model.routing_model, default='none')
         return routing_model and routing_model.lower() not in ('none', 'default', '')
 
     def _get_model_name(self) -> str:
@@ -416,7 +416,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             log_path = self.output_dir / log_subdir
         else:
             # Fallback if output_dir not set
-            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default')
+            experiment_id = self.experiment_id
             log_path = self.project_dir / 'simulations' / experiment_id / self.model_name / log_subdir
 
         return self.ensure_dir(log_path)
@@ -460,7 +460,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             install_path = self._get_config_value(typed_accessor, default='default')
         else:
             # Fallback to config_dict for legacy keys
-            install_path = self.config_dict.get(config_key, 'default')
+            install_path = self._get_config_value(lambda: None, default='default', dict_key=config_key)
 
         if install_path == 'default' or install_path is None:
             if relative_to == 'data_dir':
@@ -583,7 +583,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         if typed_exe_accessor:
             exe_name = self._get_config_value(typed_exe_accessor, default=default_exe_name)
         elif exe_name_key:
-            exe_name = self.config_dict.get(exe_name_key, default_exe_name)
+            exe_name = self._get_config_value(lambda: None, default=default_exe_name, dict_key=exe_name_key)
         else:
             exe_name = default_exe_name
 

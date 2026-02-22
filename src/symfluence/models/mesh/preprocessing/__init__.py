@@ -4,7 +4,7 @@ MESH Preprocessing Module
 Components for MESH model preprocessing using meshflow.
 """
 
-from .config_defaults import MESHConfigDefaults
+from .config_defaults import MESHConfigDefaults, is_elevation_band_mode, should_force_single_gru
 from .config_generator import MESHConfigGenerator
 from .data_preprocessor import MESHDataPreprocessor
 from .drainage_database import MESHDrainageDatabase
@@ -18,6 +18,8 @@ from .gru_count_manager import GRUCountManager
 
 __all__ = [
     'MESHConfigDefaults',
+    'is_elevation_band_mode',
+    'should_force_single_gru',
     'MESHConfigGenerator',
     'MESHDataPreprocessor',
     'MESHDrainageDatabase',

@@ -78,7 +78,7 @@ class AridityIndexAcquirer(BaseAcquisitionHandler, RetryMixin):
         aridity_dir = self._attribute_dir("climate") / "aridity"
         aridity_dir.mkdir(parents=True, exist_ok=True)
 
-        variables = self.config_dict.get('ARIDITY_INDEX_VARIABLES', _DEFAULT_VARIABLES)
+        variables = self._get_config_value(lambda: None, default=_DEFAULT_VARIABLES, dict_key='ARIDITY_INDEX_VARIABLES')
         variables = [v.lower() for v in variables if v.lower() in _VARIABLES]
 
         if not variables:

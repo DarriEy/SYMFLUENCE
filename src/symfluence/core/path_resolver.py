@@ -303,7 +303,11 @@ class PathResolverMixin(ConfigurableMixin):
         """
         # Construct catchment name if not provided
         if catchment_name is None or catchment_name == 'default':
-            catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+            catchment_name = self._get_config_value(
+                lambda: self.config.paths.catchment_name,
+                default='default',
+                dict_key='CATCHMENT_SHP_NAME'
+            )
 
         if catchment_name is None or catchment_name == 'default':
             discretization = self.domain_discretization

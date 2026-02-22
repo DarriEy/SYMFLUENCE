@@ -69,8 +69,8 @@ class CanopyHeightHandler(BaseObservationHandler):
         canopy_dir = self.project_observations_dir / "vegetation" / "canopy_height"
         canopy_dir.mkdir(parents=True, exist_ok=True)
 
-        source = self.config_dict.get('CANOPY_HEIGHT_SOURCE', 'meta').lower()
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        source = self._get_config_value(lambda: None, default='meta', dict_key='CANOPY_HEIGHT_SOURCE').lower()
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         acquired_sources = []
 
@@ -288,16 +288,13 @@ class CanopyHeightHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():

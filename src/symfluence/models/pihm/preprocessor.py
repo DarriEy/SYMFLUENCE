@@ -49,9 +49,12 @@ class PIHMPreProcessor:
         self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
         self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')
 
-        project_dir = self.config_dict.get('PROJECT_DIR')
+        project_dir = getattr(config, 'get', lambda k, d=None: d)('PROJECT_DIR')
         if not project_dir or project_dir == '.':
-            data_dir = self.config_dict.get('SYMFLUENCE_DATA_DIR', '.')
+            try:
+                data_dir = str(config.system.data_dir)
+            except (AttributeError, TypeError):
+                data_dir = '.'
             project_dir = Path(data_dir) / f"domain_{self.domain_name}"
         self.project_dir = Path(project_dir)
 
@@ -60,42 +63,38 @@ class PIHMPreProcessor:
     # -------------------------------------------------------------------------
 
     def _get_cfg(self, key, default=None):
-        """Get config value with fallback to typed config."""
-        val = self.config_dict.get(key)
-        if val is None or val == 'default':
-            try:
-                if key == 'DOMAIN_NAME':
-                    return self.config.domain.name
-                elif key == 'EXPERIMENT_ID':
-                    return self.config.domain.experiment_id
-            except (AttributeError, TypeError):
-                pass
-            return default
-        return val
+        """Get config value with typed config first."""
+        try:
+            if key == 'DOMAIN_NAME':
+                return self.config.domain.name
+            elif key == 'EXPERIMENT_ID':
+                return self.config.domain.experiment_id
+        except (AttributeError, TypeError):
+            pass
+        return default
 
     def _get_pihm_cfg(self, key, default=None):
-        """Get PIHM-specific config value."""
-        val = self.config_dict.get(f'PIHM_{key}', self.config_dict.get(key))
-        if val is not None:
-            return val
+        """Get PIHM-specific config value with typed config first."""
         try:
             pihm_cfg = self.config.model.pihm
             if pihm_cfg:
                 attr = key.lower()
                 if hasattr(pihm_cfg, attr):
-                    return getattr(pihm_cfg, attr)
+                    pydantic_val = getattr(pihm_cfg, attr)
+                    if pydantic_val is not None:
+                        return pydantic_val
         except (AttributeError, TypeError):
             pass
         return default
 
     def _get_catchment_area_m2(self) -> float:
         """Get catchment area in m2."""
-        area_km2 = self.config_dict.get('CATCHMENT_AREA')
+        try:
+            area_km2 = self.config.domain.catchment_area
+        except (AttributeError, TypeError):
+            area_km2 = None
         if area_km2 is None:
-            try:
-                area_km2 = self.config.domain.catchment_area
-            except (AttributeError, TypeError):
-                pass
+            area_km2 = self._get_pihm_cfg('CATCHMENT_AREA')
         if area_km2 is None:
             self.logger.warning("CATCHMENT_AREA not set, using default 2210 km2")
             area_km2 = 2210.0
@@ -103,19 +102,18 @@ class PIHMPreProcessor:
 
     def _get_time_info(self):
         """Get simulation time range as pandas Timestamps."""
-        start = self.config_dict.get('EXPERIMENT_TIME_START')
-        end = self.config_dict.get('EXPERIMENT_TIME_END')
-
-        if start is None:
-            try:
-                start = self.config.domain.time_start
-            except (AttributeError, TypeError):
-                start = '2000-01-01'
-        if end is None:
-            try:
-                end = self.config.domain.time_end
-            except (AttributeError, TypeError):
-                end = '2001-01-01'
+        try:
+            start = self.config.domain.time_start
+        except (AttributeError, TypeError):
+            start = None
+        if not start:
+            start = '2000-01-01'
+        try:
+            end = self.config.domain.time_end
+        except (AttributeError, TypeError):
+            end = None
+        if not end:
+            end = '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))
@@ -816,10 +814,8 @@ class PIHMPreProcessor:
         Defines soil layer structure, radiation mode, and Noah constants.
         """
         # Get site coordinates
-        lat = float(self._get_pihm_cfg('LATITUDE',
-                    self.config_dict.get('LATITUDE', 51.17)))
-        lon = float(self._get_pihm_cfg('LONGITUDE',
-                    self.config_dict.get('LONGITUDE', -115.57)))
+        lat = float(self._get_pihm_cfg('LATITUDE', 51.17))
+        lon = float(self._get_pihm_cfg('LONGITUDE', -115.57))
 
         # Define soil layers that sum to soil_depth
         # Use 4 layers with increasing thickness

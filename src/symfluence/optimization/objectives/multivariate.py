@@ -92,7 +92,11 @@ class MultivariateObjective(BaseObjective):
               scores (KGE, NSE, correlation range ~0-1)
         """
         # Get weights from config (default: streamflow only if not specified)
-        weights = self.config_dict.get('OBJECTIVE_WEIGHTS', {'STREAMFLOW': 1.0})
+        weights = self._get_config_value(
+            lambda: self.config.optimization.objective_weights,
+            default={'STREAMFLOW': 1.0},
+            dict_key='OBJECTIVE_WEIGHTS'
+        )
 
         # Normalize weights to sum to 1.0. This ensures the objective value is
         # scale-independent: changing all weights by a constant factor doesn't
@@ -102,12 +106,17 @@ class MultivariateObjective(BaseObjective):
 
         # Primary metric per variable from config. These define which metric
         # is most important for each variable (e.g., KGE for streamflow, NSE for snow)
-        metrics = self.config_dict.get('OBJECTIVE_METRICS', {
+        default_metrics = {
             'STREAMFLOW': 'kge',
             'TWS': 'nse',
             'SCA': 'corr',
             'ET': 'corr'
-        })
+        }
+        metrics = self._get_config_value(
+            lambda: self.config.optimization.objective_metrics,
+            default=default_metrics,
+            dict_key='OBJECTIVE_METRICS'
+        )
 
         composite_score = 0.0
 

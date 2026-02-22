@@ -466,7 +466,11 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
                 return ignition_path
 
         # Check WMFire config for shared ignition
-        wmfire_ignition = self.config_dict.get('WMFIRE_IGNITION_SHAPEFILE')
+        wmfire_ignition = self._get_config_value(
+            lambda: self.config.model.wmfire.ignition_shapefile,
+            default=None,
+            dict_key='WMFIRE_IGNITION_SHAPEFILE'
+        )
         if wmfire_ignition:
             wmfire_path = Path(wmfire_ignition)
             if wmfire_path.exists():

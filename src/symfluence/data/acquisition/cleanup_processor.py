@@ -58,11 +58,11 @@ class DataCleanupProcessor(ConfigMixin):
         # Process soil type
         majority_value = soil_type['majority'].replace(0, np.nan).mode().iloc[0]
         soil_type['majority'] = soil_type['majority'].replace(0, majority_value).fillna(majority_value)
-        if self.config_dict.get('UNIFY_SOIL', False):
+        if self._get_config_value(lambda: None, default=False, dict_key='UNIFY_SOIL'):
             soil_type['majority'] = majority_value
 
         # Process landcover
-        min_land_fraction = self.config_dict.get('MINIMUM_LAND_FRACTION', 0.01)
+        min_land_fraction = self._get_config_value(lambda: None, default=0.01, dict_key='MINIMUM_LAND_FRACTION')
         for col in landcover_type.columns:
             if col.startswith('frac_'):
                 landcover_type[col] = landcover_type[col].apply(lambda x: 0 if x < min_land_fraction else x)
@@ -74,7 +74,7 @@ class DataCleanupProcessor(ConfigMixin):
                 for col in frac_columns:
                     landcover_type.at[index, col] /= row_sum
 
-        num_land_cover = self.config_dict.get('NUM_LAND_COVER', 20)
+        num_land_cover = self._get_config_value(lambda: None, default=20, dict_key='NUM_LAND_COVER')
         missing_columns = [f"frac_{i}" for i in range(1, num_land_cover+1) if f"frac_{i}" not in landcover_type.columns]
         for col in missing_columns:
             landcover_type[col] = 0

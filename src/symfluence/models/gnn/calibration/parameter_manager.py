@@ -32,14 +32,14 @@ class MLParameterManager(BaseParameterManager):
         super().__init__(config, logger, settings_dir)
 
     def _get_parameter_names(self) -> List[str]:
-        params_raw = self.config.get(self.params_key, '')
+        params_raw = self._get_config_value(lambda: None, default='', dict_key=self.params_key)
         params = [p.strip() for p in str(params_raw).split(',') if p.strip()]
         if not params:
             self.logger.warning(f"No parameters configured for {self.params_key}")
         return params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        bounds = self.config.get(self.bounds_key) or self.config_dict.get('PARAMETER_BOUNDS', {})
+        bounds = self._get_config_value(lambda: None, default=None, dict_key=self.bounds_key) or self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
         parsed_bounds: Dict[str, Dict[str, float]] = {}
 
         for param in self._get_parameter_names():
@@ -63,8 +63,9 @@ class MLParameterManager(BaseParameterManager):
 
         initial_params: Dict[str, Any] = {}
         for param in self._get_parameter_names():
-            if param in self.config:
-                initial_params[param] = self.config[param]
+            cfg_val = self._get_config_value(lambda: None, default=None, dict_key=param)
+            if cfg_val is not None:
+                initial_params[param] = cfg_val
                 continue
             bounds = self.param_bounds.get(param)
             if bounds:

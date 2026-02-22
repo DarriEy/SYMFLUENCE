@@ -321,20 +321,38 @@ class BaseWorker(ABC):
         self.config = config or {}
         self.logger = logger or logging.getLogger(self.__class__.__name__)
 
+    def _cfg(self, key: str, default: Any = None) -> Any:
+        """Get config value from the worker's config dict.
+
+        Workers receive flat config dicts from the optimization loop.
+
+        Args:
+            key: Flat config key (e.g., 'DOMAIN_NAME')
+            default: Default value if key not found
+
+        Returns:
+            Configuration value or default
+        """
+        if isinstance(self.config, dict):
+            return self.config.get(key, default)
+        if hasattr(self.config, 'get'):
+            return self.config.get(key, default)
+        return default
+
     @property
     def max_retries(self) -> int:
         """Maximum number of retry attempts."""
-        return self.config.get('WORKER_MAX_RETRIES', self.DEFAULT_MAX_RETRIES)
+        return self._cfg('WORKER_MAX_RETRIES', self.DEFAULT_MAX_RETRIES)
 
     @property
     def base_delay(self) -> float:
         """Base delay for exponential backoff."""
-        return self.config.get('WORKER_BASE_DELAY', self.DEFAULT_BASE_DELAY)
+        return self._cfg('WORKER_BASE_DELAY', self.DEFAULT_BASE_DELAY)
 
     @property
     def penalty_score(self) -> float:
         """Penalty score for failed evaluations."""
-        return self.config.get('PENALTY_SCORE', self.DEFAULT_PENALTY_SCORE)
+        return self._cfg('PENALTY_SCORE', self.DEFAULT_PENALTY_SCORE)
 
     # =========================================================================
     # Abstract methods - must be implemented by subclasses
@@ -568,14 +586,14 @@ class BaseWorker(ABC):
         Returns:
             Primary score for optimization (transformed for maximization)
         """
-        # Get configured metric name
+        # Get configured metric name (config is a task config dict, not self.config)
         metric_name = config.get(
             'OPTIMIZATION_METRIC',
             config.get('CALIBRATION_METRIC', 'KGE')
-        )
+        ) if isinstance(config, dict) else 'KGE'
 
         # Check for composite objective function
-        composite_config = config.get('COMPOSITE_METRIC')
+        composite_config = config.get('COMPOSITE_METRIC') if isinstance(config, dict) else None
         if (metric_name.upper() == 'COMPOSITE' or composite_config) and isinstance(composite_config, dict):
             return self._extract_composite_score(metrics, composite_config)
 

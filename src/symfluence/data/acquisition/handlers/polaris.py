@@ -92,11 +92,11 @@ class POLARISAcquirer(BaseAcquisitionHandler, RetryMixin):
         polaris_dir = self._attribute_dir("soilclass") / "polaris"
         polaris_dir.mkdir(parents=True, exist_ok=True)
 
-        variables = self.config_dict.get('POLARIS_VARIABLES', _DEFAULT_VARIABLES)
+        variables = self._get_config_value(lambda: None, default=_DEFAULT_VARIABLES, dict_key='POLARIS_VARIABLES')
         variables = [v for v in variables if v in _ALL_VARIABLES]
-        depths = self.config_dict.get('POLARIS_DEPTHS', _DEFAULT_DEPTHS)
+        depths = self._get_config_value(lambda: None, default=_DEFAULT_DEPTHS, dict_key='POLARIS_DEPTHS')
         depths = [d for d in depths if d in _ALL_DEPTHS]
-        statistic = self.config_dict.get('POLARIS_STATISTIC', 'mean')
+        statistic = self._get_config_value(lambda: None, default='mean', dict_key='POLARIS_STATISTIC')
 
         if statistic not in _ALL_STATISTICS:
             self.logger.warning(

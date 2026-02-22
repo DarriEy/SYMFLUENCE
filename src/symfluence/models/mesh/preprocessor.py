@@ -22,6 +22,7 @@ from .preprocessing import (
     MESHFlowManager,
     MESHForcingProcessor,
     MESHParameterFixer,
+    is_elevation_band_mode,
 )
 
 
@@ -66,9 +67,9 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if self.catchment_name == 'default':
                 self.catchment_name = f"{self.domain_name}_riverBasins_{self.config.domain.definition_method}.shp"
         else:
-            self.catchment_name = self.config_dict.get('RIVER_BASINS_NAME')
+            self.catchment_name = self._get_config_value(lambda: self.config.paths.river_basins_name)
             if self.catchment_name == 'default':
-                self.catchment_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                self.catchment_name = f"{self.domain_name}_riverBasins_{self.domain_definition_method}.shp"
 
         self.rivers_path = self.get_river_network_path().parent
         self.rivers_name = self.get_river_network_path().name
@@ -196,12 +197,12 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _get_spatial_mode(self) -> str:
         """Determine MESH spatial mode from configuration."""
-        spatial_mode = self.config_dict.get('MESH_SPATIAL_MODE', 'auto')
+        spatial_mode = self._get_config_value(lambda: self.config.model.mesh.spatial_mode, default='auto')
 
         if spatial_mode != 'auto':
             return spatial_mode
 
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        domain_method = self.domain_definition_method
 
         if domain_method in ['point', 'lumped']:
             return 'lumped'
@@ -250,8 +251,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # For elevation band discretization, GRU handling was done in _postprocess_meshflow_output
         # Skip fix_gru_count_mismatch to avoid overriding elevation band setup
-        sub_grid_method = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
-        if sub_grid_method.lower() != 'elevation':
+        if not is_elevation_band_mode(self.config_dict):
             self.parameter_fixer.fix_gru_count_mismatch()
 
         self.parameter_fixer.fix_hydrology_wf_r2()
@@ -275,15 +275,15 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             Dictionary containing all meshflow configuration parameters.
         """
 
-        def _get_config_value(key: str, default_value):
-            value = self.config_dict.get(key)
+        def _get_mesh_config_value(key: str, default_value):
+            value = self._get_config_value(lambda: None, dict_key=key)
             if value is None or value == 'default':
                 return default_value
             return value
 
         # Build forcing files path
         forcing_files_path = Path(
-            _get_config_value(
+            _get_mesh_config_value(
                 'MESH_FORCING_PATH',
                 self.project_forcing_dir / 'basin_averaged_data',
             )
@@ -291,7 +291,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         forcing_files_glob = str(forcing_files_path / '*.nc')
 
         # Landcover stats file
-        landcover_path = self._get_landcover_path(_get_config_value)
+        landcover_path = self._get_landcover_path(_get_mesh_config_value)
 
         # Detect GRU classes
         detected_gru_classes = self.data_preprocessor.detect_gru_classes(Path(landcover_path))
@@ -299,7 +299,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Get simulation dates with spinup
         time_window = self.get_simulation_time_window()
-        spinup_days = int(_get_config_value('MESH_SPINUP_DAYS', 730))
+        spinup_days = int(_get_mesh_config_value('MESH_SPINUP_DAYS', 730))
 
         if time_window:
             analysis_start, end_date = time_window
@@ -321,7 +321,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Filter landcover_classes to only include detected classes
         # This prevents meshflow NGRU dimension mismatch errors
-        all_landcover_classes = _get_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES)
+        all_landcover_classes = _get_mesh_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES)
         if detected_gru_classes:
             landcover_classes = {k: v for k, v in all_landcover_classes.items() if k in detected_gru_classes}
             self.logger.info(f"Filtered landcover_classes to detected classes: {list(landcover_classes.keys())}")
@@ -332,27 +332,27 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         default_settings = MESHConfigDefaults.get_default_settings(
             forcing_start_date, sim_start_date, sim_end_date, gru_mapping
         )
-        default_settings['class_params']['grus'] = _get_config_value('MESH_GRU_MAPPING', gru_mapping)
+        default_settings['class_params']['grus'] = _get_mesh_config_value('MESH_GRU_MAPPING', gru_mapping)
 
         config = {
             'riv': str(self.rivers_path / self.rivers_name),
             'cat': str(self.catchment_path / self.catchment_name),
             'landcover': str(landcover_path),
             'forcing_files': forcing_files_glob,
-            'forcing_vars': _get_config_value('MESH_FORCING_VARS', MESHConfigDefaults.FORCING_VARS),
-            'forcing_units': _get_config_value('MESH_FORCING_UNITS', MESHConfigDefaults.FORCING_UNITS),
-            'forcing_to_units': _get_config_value('MESH_FORCING_TO_UNITS', MESHConfigDefaults.FORCING_TO_UNITS),
-            'main_id': _get_config_value('MESH_MAIN_ID', 'GRU_ID'),
-            'ds_main_id': _get_config_value('MESH_DS_MAIN_ID', 'DSLINKNO'),
+            'forcing_vars': _get_mesh_config_value('MESH_FORCING_VARS', MESHConfigDefaults.FORCING_VARS),
+            'forcing_units': _get_mesh_config_value('MESH_FORCING_UNITS', MESHConfigDefaults.FORCING_UNITS),
+            'forcing_to_units': _get_mesh_config_value('MESH_FORCING_TO_UNITS', MESHConfigDefaults.FORCING_TO_UNITS),
+            'main_id': _get_mesh_config_value('MESH_MAIN_ID', 'GRU_ID'),
+            'ds_main_id': _get_mesh_config_value('MESH_DS_MAIN_ID', 'DSLINKNO'),
             'landcover_classes': landcover_classes,
-            'ddb_vars': _get_config_value('MESH_DDB_VARS', MESHConfigDefaults.DDB_VARS),
-            'ddb_units': _get_config_value('MESH_DDB_UNITS', MESHConfigDefaults.DDB_UNITS),
-            'ddb_to_units': _get_config_value('MESH_DDB_TO_UNITS', MESHConfigDefaults.DDB_UNITS),
-            'ddb_min_values': _get_config_value('MESH_DDB_MIN_VALUES', MESHConfigDefaults.DDB_MIN_VALUES),
-            'gru_dim': _get_config_value('MESH_GRU_DIM', 'NGRU'),
-            'hru_dim': _get_config_value('MESH_HRU_DIM', 'subbasin'),
-            'outlet_value': _get_config_value('MESH_OUTLET_VALUE', -9999),
-            'settings': _get_config_value('MESH_SETTINGS', default_settings),
+            'ddb_vars': _get_mesh_config_value('MESH_DDB_VARS', MESHConfigDefaults.DDB_VARS),
+            'ddb_units': _get_mesh_config_value('MESH_DDB_UNITS', MESHConfigDefaults.DDB_UNITS),
+            'ddb_to_units': _get_mesh_config_value('MESH_DDB_TO_UNITS', MESHConfigDefaults.DDB_UNITS),
+            'ddb_min_values': _get_mesh_config_value('MESH_DDB_MIN_VALUES', MESHConfigDefaults.DDB_MIN_VALUES),
+            'gru_dim': _get_mesh_config_value('MESH_GRU_DIM', 'NGRU'),
+            'hru_dim': _get_mesh_config_value('MESH_HRU_DIM', 'subbasin'),
+            'outlet_value': _get_mesh_config_value('MESH_OUTLET_VALUE', -9999),
+            'settings': _get_mesh_config_value('MESH_SETTINGS', default_settings),
         }
         return config
 
@@ -507,8 +507,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.drainage_database.ensure_completeness()
 
         # Check if using elevation band discretization
-        sub_grid_method = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
-        if sub_grid_method.lower() == 'elevation':
+        if is_elevation_band_mode(self.config_dict):
             self._apply_elevation_band_grus()
         else:
             # Fix GRU count mismatch for landcover-based GRUs
@@ -538,14 +537,14 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.logger.info("Applying elevation band GRU discretization")
 
         # Determine lapse rate settings
-        apply_lapse = self.config_dict.get('APPLY_LAPSE_RATE', True)
+        apply_lapse = self._get_config_value(lambda: self.config.forcing.apply_lapse_rate, default=True)
         if isinstance(apply_lapse, str):
             apply_lapse = apply_lapse.lower() in ('true', '1', 'yes')
-        lapse_rate = float(self.config_dict.get('LAPSE_RATE', 0.0065))
+        lapse_rate = float(self._get_config_value(lambda: self.config.forcing.lapse_rate, default=0.0065))
 
         # Find elevation band HRU shapefile
-        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        experiment_id = self.experiment_id
+        domain_method = self.domain_definition_method
 
         # Look for elevation band shapefile
         hru_shp_candidates = [

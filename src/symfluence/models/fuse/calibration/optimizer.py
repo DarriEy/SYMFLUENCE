@@ -51,25 +51,32 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         """
         # Initialize FUSE-specific paths before super().__init__
         # because parent calls _setup_parallel_dirs()
-        # Note: experiment_id is a read-only property from ConfigMixin, so we use a local var
-        exp_id = config.get('EXPERIMENT_ID')
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = config.get('DOMAIN_NAME')
+        # Note: These use raw dict access because super().__init__ hasn't run yet
+        # and _get_config_value() isn't available. After super().__init__(), use typed access.
+        exp_id = config.get('EXPERIMENT_ID') if isinstance(config, dict) else config.domain.experiment_id
+        data_dir_str = config.get('SYMFLUENCE_DATA_DIR') if isinstance(config, dict) else config.system.data_dir
+        domain_name_str = config.get('DOMAIN_NAME') if isinstance(config, dict) else config.domain.name
+        self.data_dir = Path(data_dir_str)
+        self.domain_name = domain_name_str
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         self.fuse_sim_dir = self.project_dir / 'simulations' / exp_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
         self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
         # Use 'or' to treat None as "not set" and fallback to exp_id
-        self.fuse_id = config.get('FUSE_FILE_ID') or exp_id
+        fuse_file_id = config.get('FUSE_FILE_ID') if isinstance(config, dict) else (config.model.fuse.file_id if config.model and config.model.fuse else None)
+        self.fuse_id = fuse_file_id or exp_id
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         self.logger.debug("FUSEModelOptimizer initialized")
 
-    def _get_fuse_executable_path_pre_init(self, config: Dict[str, Any]) -> Path:
+    def _get_fuse_executable_path_pre_init(self, config) -> Path:
         """Helper to get FUSE executable path before full initialization."""
-        fuse_install = config.get('FUSE_INSTALL_PATH', 'default')
+        if isinstance(config, dict):
+            fuse_install = config.get('FUSE_INSTALL_PATH', 'default')
+        else:
+            fuse_install = config.model.fuse.install_path if config.model and config.model.fuse else 'default'
         if fuse_install == 'default':
             return self.data_dir / 'installs' / 'fuse' / 'bin' / 'fuse.exe'
         return Path(fuse_install) / 'fuse.exe'
@@ -112,7 +119,11 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             param_file.parent.mkdir(parents=True, exist_ok=True)
 
             # Get parameters to calibrate from config
-            fuse_params_str = self.config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE', '')
+            fuse_params_str = self._get_config_value(
+                lambda: self.config.model.fuse.params_to_calibrate,
+                default='',
+                dict_key='SETTINGS_FUSE_PARAMS_TO_CALIBRATE'
+            )
             if not fuse_params_str or fuse_params_str == 'default':
                 fuse_params_str = 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE'
             fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
@@ -122,7 +133,11 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             bounds = get_fuse_bounds()
 
             # Override with config bounds if specified (preserve transform metadata)
-            config_bounds = self.config.get('FUSE_PARAM_BOUNDS', {})
+            config_bounds = self._get_config_value(
+                lambda: self.config.model.fuse.param_bounds,
+                default={},
+                dict_key='FUSE_PARAM_BOUNDS'
+            ) or {}
             for param, bound_list in config_bounds.items():
                 if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
                     existing = bounds.get(param, {})
@@ -228,7 +243,11 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 # Z_FORCING: elevation of forcing data
                 # This can be set from config or default to catchment elevation
                 # (same as Z_MID01 = no lapse correction) or use ERA5 orography
-                z_forcing = self.config.get('FUSE_FORCING_ELEVATION', None)
+                z_forcing = self._get_config_value(
+                    lambda: self.config.model.fuse.forcing_elevation if self.config.model and self.config.model.fuse else None,
+                    default=None,
+                    dict_key='FUSE_FORCING_ELEVATION'
+                )
                 if z_forcing is not None:
                     params['Z_FORCING'] = float(z_forcing)
                 elif 'Z_MID01' in params:

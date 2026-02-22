@@ -146,12 +146,12 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
 
     def download(self, output_dir: Path) -> Path:
         lc_dir = self._attribute_dir("landclass")
-        land_name = self.config_dict.get("LAND_CLASS_NAME", "default")
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default="default")
         if land_name == "default":
             land_name = f"domain_{self.domain_name}_land_classes.tif"
         out_path = lc_dir / land_name
 
-        src_p = self.config_dict.get("LANDCOVER_LOCAL_FILE")
+        src_p = self._get_config_value(lambda: None, default=None, dict_key='LANDCOVER_LOCAL_FILE')
         if src_p:
             url = f"/vsicurl/{src_p}" if str(src_p).startswith("http") else src_p
             with rasterio.open(url) as src:
@@ -297,7 +297,7 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
 
     def download(self, output_dir: Path) -> Path:
         lc_dir = self._attribute_dir("landclass")
-        land_name = self.config_dict.get("LAND_CLASS_NAME", "default")
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default="default")
         if land_name == "default":
             land_name = f"domain_{self.domain_name}_land_classes.tif"
         out_path = lc_dir / land_name

@@ -25,10 +25,14 @@ def et_evaluator(mock_config, tmp_path, mock_logger):
     }
 
     with patch.object(ETEvaluator, '_get_config_value', side_effect=[
-        '2010-01-01, 2015-12-31',
-        '2016-01-01, 2018-12-31',
-        'daily',
-        'et',  # optimization target
+        '2010-01-01, 2015-12-31',  # base: calibration_period
+        '2016-01-01, 2018-12-31',  # base: evaluation_period
+        'daily',                    # base: calibration_timestep
+        'et',                       # ET: optimization_target
+        'mod16',                    # ET: obs_source
+        'daily_mean',               # ET: temporal_aggregation
+        True,                       # ET: use_quality_control
+        2,                          # ET: max_quality_flag
     ]):
         evaluator = ETEvaluator(mock_config, tmp_path, mock_logger)
         evaluator.optimization_target = 'et'
@@ -41,10 +45,14 @@ class TestETEvaluatorInit:
     def test_basic_initialization_et(self, mock_config, tmp_path, mock_logger):
         """Test initialization with ET target."""
         with patch.object(ETEvaluator, '_get_config_value', side_effect=[
-            '2010-01-01, 2015-12-31',
-            '',
-            'daily',
-            'et',
+            '2010-01-01, 2015-12-31',  # base: calibration_period
+            '',                         # base: evaluation_period
+            'daily',                    # base: calibration_timestep
+            'et',                       # ET: optimization_target
+            'mod16',                    # ET: obs_source
+            'daily_mean',               # ET: temporal_aggregation
+            True,                       # ET: use_quality_control
+            2,                          # ET: max_quality_flag
         ]):
             evaluator = ETEvaluator(mock_config, tmp_path, mock_logger)
             evaluator.config_dict = {'OPTIMIZATION_TARGET': 'et'}
@@ -54,10 +62,14 @@ class TestETEvaluatorInit:
     def test_initialization_with_latent_heat(self, mock_config, tmp_path, mock_logger):
         """Test initialization with latent heat target."""
         with patch.object(ETEvaluator, '_get_config_value', side_effect=[
-            '2010-01-01, 2015-12-31',
-            '',
-            'daily',
-            'latent_heat',
+            '2010-01-01, 2015-12-31',  # base: calibration_period
+            '',                         # base: evaluation_period
+            'daily',                    # base: calibration_timestep
+            'latent_heat',              # ET: optimization_target
+            'mod16',                    # ET: obs_source
+            'daily_mean',               # ET: temporal_aggregation
+            True,                       # ET: use_quality_control
+            2,                          # ET: max_quality_flag
         ]):
             evaluator = ETEvaluator(mock_config, tmp_path, mock_logger)
             evaluator.config_dict = {'OPTIMIZATION_TARGET': 'latent_heat'}

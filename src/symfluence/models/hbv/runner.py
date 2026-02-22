@@ -764,7 +764,11 @@ class HBVRunner(  # type: ignore[misc]
         return result is not None
 
     def _setup_hbv_mizuroute_config(self):
-        """Update configuration for HBV-mizuRoute integration."""
+        """Update configuration for HBV-mizuRoute integration.
+
+        Uses config_dict write-backs for runtime cross-model integration
+        (MIZU_FROM_MODEL, SETTINGS_MIZU_CONTROL_FILE, HYDROLOGICAL_MODEL).
+        """
         self.config_dict['MIZU_FROM_MODEL'] = 'HBV'
 
         if not self.mizu_control_file:

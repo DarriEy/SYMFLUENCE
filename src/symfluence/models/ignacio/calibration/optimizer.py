@@ -36,8 +36,8 @@ class IGNACIOModelOptimizer(BaseModelOptimizer):
         optimization_settings_dir: Optional[Path] = None,
         reporting_manager: Optional[Any] = None
     ):
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.ignacio_input_dir = self.project_dir / 'IGNACIO_input'
 
@@ -69,7 +69,7 @@ class IGNACIOModelOptimizer(BaseModelOptimizer):
             return self._worker.run_model(
                 self.config_dict,
                 self.ignacio_input_dir,
-                self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'IGNACIO',
+                self.project_dir / 'simulations' / self._get_config_value(lambda: self.config.domain.experiment_id, default='default', dict_key='EXPERIMENT_ID') / 'IGNACIO',
             )
         return False
 
@@ -79,7 +79,7 @@ class IGNACIOModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Set up parallel directories for IGNACIO calibration."""
-        n_processors = int(self.config_dict.get('NUMBER_OF_PROCESSORS', 1))
+        n_processors = int(self._get_config_value(lambda: self.config.system.num_processes, default=1, dict_key='NUMBER_OF_PROCESSORS'))
         for i in range(n_processors):
             proc_dir = (
                 self.project_dir / 'simulations' / 'calibration'

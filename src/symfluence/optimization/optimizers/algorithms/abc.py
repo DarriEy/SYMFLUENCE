@@ -82,21 +82,34 @@ class ABCAlgorithm(OptimizationAlgorithm):
                 'min_generations': abc_cfg.min_generations,
             }
         except (AttributeError, TypeError):
-            # Fall back to dict config
+            # Fall back to defaults (ABCConfig Pydantic defaults)
             return {
-                'n_particles': self.config_dict.get('ABC_PARTICLES', 100),
-                'n_generations': self.config_dict.get('ABC_GENERATIONS', 20),
-                'initial_tolerance': self.config_dict.get('ABC_INITIAL_TOLERANCE', 0.5),
-                'final_tolerance': self.config_dict.get('ABC_FINAL_TOLERANCE', 0.05),
-                'tolerance_quantile': self.config_dict.get('ABC_TOLERANCE_QUANTILE', 0.75),
-                'tolerance_decay': self.config_dict.get('ABC_TOLERANCE_DECAY', 0.9),
-                'perturbation_scale': self.config_dict.get('ABC_PERTURBATION_SCALE', 2.0),
-                'kernel_type': self.config_dict.get('ABC_KERNEL_TYPE', 'component_wise'),
-                'use_olcm': self.config_dict.get('ABC_USE_OLCM', True),
-                'min_acceptance_rate': self.config_dict.get('ABC_MIN_ACCEPTANCE_RATE', 0.05),
-                'min_ess_ratio': self.config_dict.get('ABC_MIN_ESS_RATIO', 0.5),
-                'convergence_threshold': self.config_dict.get('ABC_CONVERGENCE_THRESHOLD', 0.001),
-                'min_generations': self.config_dict.get('ABC_MIN_GENERATIONS', 5),
+                'n_particles': self._get_config_value(
+                    lambda: self.config.optimization.abc.n_particles, default=100),
+                'n_generations': self._get_config_value(
+                    lambda: self.config.optimization.abc.n_generations, default=20),
+                'initial_tolerance': self._get_config_value(
+                    lambda: self.config.optimization.abc.initial_tolerance, default=0.5),
+                'final_tolerance': self._get_config_value(
+                    lambda: self.config.optimization.abc.final_tolerance, default=0.05),
+                'tolerance_quantile': self._get_config_value(
+                    lambda: self.config.optimization.abc.tolerance_quantile, default=0.75),
+                'tolerance_decay': self._get_config_value(
+                    lambda: self.config.optimization.abc.tolerance_decay, default=0.9),
+                'perturbation_scale': self._get_config_value(
+                    lambda: self.config.optimization.abc.perturbation_scale, default=2.0),
+                'kernel_type': self._get_config_value(
+                    lambda: self.config.optimization.abc.kernel_type, default='component_wise'),
+                'use_olcm': self._get_config_value(
+                    lambda: self.config.optimization.abc.use_olcm, default=True),
+                'min_acceptance_rate': self._get_config_value(
+                    lambda: self.config.optimization.abc.min_acceptance_rate, default=0.05),
+                'min_ess_ratio': self._get_config_value(
+                    lambda: self.config.optimization.abc.min_ess_ratio, default=0.5),
+                'convergence_threshold': self._get_config_value(
+                    lambda: self.config.optimization.abc.convergence_threshold, default=0.001),
+                'min_generations': self._get_config_value(
+                    lambda: self.config.optimization.abc.min_generations, default=5),
             }
 
     def optimize(

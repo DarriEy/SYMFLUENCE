@@ -419,7 +419,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating NEX-GDDP-CMIP6 grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         nex_files = list(merged_forcing_path.glob("*.nc"))
         if not nex_files:
@@ -507,8 +507,8 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
             {
                 "geometry": geometries,
                 "ID": ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
             },
             crs="EPSG:4326",
         )

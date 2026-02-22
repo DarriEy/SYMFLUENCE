@@ -84,7 +84,7 @@ class SacSmaWorker(InMemoryModelWorker):
             return False
 
         forcing_dir = self._get_forcing_dir(task)
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain')
         var_map = self._get_forcing_variable_map()
 
         nc_patterns = [
@@ -128,8 +128,8 @@ class SacSmaWorker(InMemoryModelWorker):
 
         from pathlib import Path
 
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain')
+        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.'))
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /

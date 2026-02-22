@@ -37,19 +37,11 @@ class WRFHydroParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, wrfhydro_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse WRF-Hydro parameters to calibrate from config
-        params_str = None
-        try:
-            if hasattr(config, 'model') and hasattr(config.model, 'wrfhydro'):
-                params_str = config.model.wrfhydro.params_to_calibrate
-        except (AttributeError, TypeError):
-            pass
-
-        if params_str is None:
-            params_str = config.get('WRFHYDRO_PARAMS_TO_CALIBRATE')
+        params_str = self._get_config_value(lambda: self.config.model.wrfhydro.params_to_calibrate, default=None, dict_key='WRFHYDRO_PARAMS_TO_CALIBRATE')
 
         if params_str is None:
             params_str = 'REFKDT,SLOPE,OVROUGHRTFAC,RETDEPRTFAC,LKSATFAC,BEXP,DKSAT,SMCMAX'
@@ -60,13 +52,13 @@ class WRFHydroParameterManager(BaseParameterManager):
         self.wrfhydro_params = [p.strip() for p in str(params_str).split(',') if p.strip()]
 
         # Paths
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.settings_dir = wrfhydro_settings_dir
 
         # Namelist file names
-        self.hydro_namelist_file = config.get('WRFHYDRO_HYDRO_NAMELIST', 'hydro.namelist')
-        self.hrldas_namelist_file = config.get('WRFHYDRO_NAMELIST_FILE', 'namelist.hrldas')
+        self.hydro_namelist_file = self._get_config_value(lambda: None, default='hydro.namelist', dict_key='WRFHYDRO_HYDRO_NAMELIST')
+        self.hrldas_namelist_file = self._get_config_value(lambda: None, default='namelist.hrldas', dict_key='WRFHYDRO_NAMELIST_FILE')
 
     def _get_parameter_names(self) -> List[str]:
         """Return WRF-Hydro parameter names from config."""
@@ -79,7 +71,7 @@ class WRFHydroParameterManager(BaseParameterManager):
         bounds = dict(PARAM_BOUNDS)
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('WRFHYDRO_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='WRFHYDRO_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
 

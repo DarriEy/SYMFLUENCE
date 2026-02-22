@@ -120,13 +120,13 @@ class DRouteWorker(BaseWorker):
                 self.logger.error("Config not set for dRoute worker")
                 return False
 
-            data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', '.'))
-            domain_name = self.config.get('DOMAIN_NAME', 'unknown')
-            experiment_id = self.config.get('EXPERIMENT_ID', 'default')
+            data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', '.'))
+            domain_name = self._cfg('DOMAIN_NAME', 'unknown')
+            experiment_id = self._cfg('EXPERIMENT_ID', 'default')
             project_dir = data_dir / f"domain_{domain_name}"
 
             # Determine source model
-            hydro_model = self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')
+            hydro_model = self._cfg('HYDROLOGICAL_MODEL', 'SUMMA')
             if ',' in str(hydro_model):
                 from_model = str(hydro_model).split(',')[0].strip().upper()
             else:

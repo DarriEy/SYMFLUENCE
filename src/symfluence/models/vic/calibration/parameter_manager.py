@@ -61,8 +61,8 @@ class VICParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, vic_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse VIC parameters to calibrate from config
         vic_params_str = None
@@ -73,7 +73,7 @@ class VICParameterManager(BaseParameterManager):
             pass
 
         if vic_params_str is None:
-            vic_params_str = config.get('VIC_PARAMS_TO_CALIBRATE')
+            vic_params_str = self._get_config_value(lambda: self.config.model.vic.params_to_calibrate, default=None, dict_key='VIC_PARAMS_TO_CALIBRATE')
 
         if vic_params_str is None:
             vic_params_str = 'infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,snow_rough,max_snow_albedo,min_rain_temp,max_snow_temp,elev_offset'
@@ -84,7 +84,7 @@ class VICParameterManager(BaseParameterManager):
         self.vic_params = [p.strip() for p in str(vic_params_str).split(',') if p.strip()]
 
         # Path to parameter file
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.params_dir = self.project_dir / 'settings' / 'VIC' / 'parameters'
 
@@ -149,7 +149,7 @@ class VICParameterManager(BaseParameterManager):
         }
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('VIC_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='VIC_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(vic_bounds, config_bounds)
 

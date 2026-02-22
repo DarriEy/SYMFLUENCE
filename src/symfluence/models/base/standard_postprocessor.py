@@ -123,7 +123,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
 
     def _format_pattern(self, pattern: str) -> str:
         """Format a file pattern with available substitutions."""
-        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '')
+        start_time = self.time_start or ''
         start_date = start_time.split()[0] if start_time else ''
 
         return pattern.format(
@@ -229,7 +229,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
 
         # Handle routing output reach selection
         if self.use_routing_output:
-            sim_reach_id = self.config_dict.get('SIM_REACH_ID')
+            sim_reach_id = self._get_config_value(lambda: self.config.evaluation.streamflow.sim_reach_id)
             if sim_reach_id:
                 # This will be handled specially in extract_streamflow for routing
                 pass
@@ -288,7 +288,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             # Check if it's a config key or direct column name
             if self.text_file_flow_column.startswith('config:'):
                 config_key = self.text_file_flow_column[7:]  # Remove 'config:' prefix
-                flow_column = str(self.config_dict.get(config_key))
+                flow_column = str(self._get_config_value(lambda: None, dict_key=config_key))
             else:
                 flow_column = self.text_file_flow_column
 
@@ -536,7 +536,7 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
             ds = xr.open_dataset(file_path, engine='netcdf4')
 
             # Get reach selection
-            sim_reach_id = self.config_dict.get('SIM_REACH_ID')
+            sim_reach_id = self._get_config_value(lambda: self.config.evaluation.sim_reach_id)
 
             if sim_reach_id is not None:
                 sim_reach_id = int(sim_reach_id)

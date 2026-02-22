@@ -99,6 +99,11 @@ class ModelConfig(BaseModel):
     routing_model: Optional[str] = Field(default=None, alias='ROUTING_MODEL')
     groundwater_model: Optional[str] = Field(default=None, alias='GROUNDWATER_MODEL')
     fire_model: Optional[str] = Field(default=None, alias='FIRE_MODEL')
+    # Coupling settings
+    coupling_mode: str = Field(default='sequential', alias='COUPLING_MODE')
+    conservation_mode: Optional[str] = Field(default=None, alias='CONSERVATION_MODE')
+    topology_file: Optional[str] = Field(default=None, alias='TOPOLOGY_FILE')
+    snow_module: str = Field(default='', alias='SNOW_MODULE')
 
     # Model-specific configurations (optional, validated only if model is selected)
     summa: Optional[SUMMAConfig] = Field(default=None)

@@ -165,7 +165,7 @@ class SpatialProcessor(ConfigMixin):
         Returns:
             Path object to the file
         """
-        path_val = self.config.get(file_type)
+        path_val = self._get_config_value(lambda: None, default=None, dict_key=file_type)
         if path_val == 'default' or path_val is None:
             return self.project_dir / file_def_path / file_name
         else:

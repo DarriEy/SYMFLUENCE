@@ -70,7 +70,7 @@ class GLWDAcquirer(BaseAcquisitionHandler, RetryMixin):
         out_extent = glwd_dir / f"domain_{self.domain_name}_glwd_wetland_extent.tif"
 
         # Check if both outputs exist
-        if out_type.exists() and out_extent.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if out_type.exists() and out_extent.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             self.logger.info(f"GLWD data already exists: {glwd_dir}")
             return glwd_dir
 
@@ -81,8 +81,8 @@ class GLWDAcquirer(BaseAcquisitionHandler, RetryMixin):
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Download and extract combined classes (GeoTIFF format)
-        fmt = self.config_dict.get('GLWD_FORMAT', 'tif')
-        product = self.config_dict.get('GLWD_PRODUCT', 'combined')
+        fmt = self._get_config_value(lambda: None, default='tif', dict_key='GLWD_FORMAT')
+        product = self._get_config_value(lambda: None, default='combined', dict_key='GLWD_PRODUCT')
         url_key = f"{product}_{fmt}"
 
         url = _DOWNLOAD_URLS.get(url_key, _DOWNLOAD_URLS['combined_tif'])

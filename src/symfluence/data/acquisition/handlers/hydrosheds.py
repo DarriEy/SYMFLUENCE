@@ -88,7 +88,7 @@ class HydroSHEDSAcquirer(BaseAcquisitionHandler, RetryMixin):
         Returns:
             Path to the directory containing downloaded geofabric files
         """
-        level = int(self.config_dict.get('HYDROSHEDS_LEVEL', 12))
+        level = int(self._get_config_value(lambda: None, default=12, dict_key='HYDROSHEDS_LEVEL'))
         if not 1 <= level <= 12:
             raise ValueError(
                 f"HYDROSHEDS_LEVEL must be 1-12, got {level}"
@@ -134,7 +134,7 @@ class HydroSHEDSAcquirer(BaseAcquisitionHandler, RetryMixin):
         Returns:
             Tuple of (lat, lon)
         """
-        pour_point_str = self.config_dict.get('POUR_POINT_COORDS')
+        pour_point_str = self._get_config_value(lambda: self.config.domain.pour_point_coords, default=None)
         if pour_point_str:
             parts = str(pour_point_str).replace('/', ',').split(',')
             return float(parts[0].strip()), float(parts[1].strip())

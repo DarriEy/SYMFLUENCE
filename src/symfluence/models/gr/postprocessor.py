@@ -52,7 +52,10 @@ class GRPostprocessor(BaseModelPostProcessor):
             )
 
         # GR-specific configuration
-        self.spatial_mode = self.config_dict.get('GR_SPATIAL_MODE', 'lumped')
+        self.spatial_mode = self._get_config_value(
+            lambda: self.config.model.gr.spatial_mode if self.config.model and self.config.model.gr else None,
+            default='lumped'
+        )
         self._output_path = self.sim_dir  # Alias for consistency with existing code
 
     def extract_streamflow(self) -> Optional[Path]:
@@ -115,14 +118,18 @@ class GRPostprocessor(BaseModelPostProcessor):
         """Extract streamflow from distributed GR4J run (after routing)"""
 
         # Check if routing was performed
-        needs_routing = self.config_dict.get('GR_ROUTING_INTEGRATION') == 'mizuRoute'
+        needs_routing = self._get_config_value(
+            lambda: self.config.model.gr.routing_integration if self.config.model and self.config.model.gr else None,
+            default=None
+        ) == 'mizuRoute'
 
         if needs_routing:
             # Get routed streamflow from mizuRoute output
-            mizuroute_output_dir = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'mizuRoute'
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
+            mizuroute_output_dir = self.project_dir / 'simulations' / exp_id / 'mizuRoute'
 
             # Find mizuRoute output file
-            output_files = list(mizuroute_output_dir.glob(f"{self.config_dict.get('EXPERIMENT_ID')}*.nc"))
+            output_files = list(mizuroute_output_dir.glob(f"{exp_id}*.nc"))
 
             if not output_files:
                 self.logger.error(f"No mizuRoute output files found in {mizuroute_output_dir}")
@@ -162,8 +169,9 @@ class GRPostprocessor(BaseModelPostProcessor):
 
         else:
             # No routing - sum all HRU outputs
-            gr_output = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'GR' / \
-                        f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
+            gr_output = self.project_dir / 'simulations' / exp_id / 'GR' / \
+                        f"{self.domain_name}_{exp_id}_runs_def.nc"
 
             if not gr_output.exists():
                 self.logger.error(f"GR output not found: {gr_output}")
@@ -173,7 +181,10 @@ class GRPostprocessor(BaseModelPostProcessor):
 
             # Sum across all GRUs
             # Handle 'default' config value - use model-specific default
-            routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_var_config = self._get_config_value(
+                lambda: self.config.model.mizuroute.routing_var if self.config.model and self.config.model.mizuroute else None,
+                default='q_routed'
+            )
             if routing_var_config in ('default', None, ''):
                 routing_var = 'q_routed'  # GR4J default for routing
             else:
@@ -202,4 +213,4 @@ class GRPostprocessor(BaseModelPostProcessor):
     @property
     def output_path(self):
         """Get output path for backwards compatibility"""
-        return self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'GR'
+        return self.project_dir / 'simulations' / self._get_config_value(lambda: self.config.domain.experiment_id) / 'GR'

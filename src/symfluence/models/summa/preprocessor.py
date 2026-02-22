@@ -139,7 +139,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Initialize configuration manager
         self.config_manager = SummaConfigManager(
-            config=self.config_dict,
+            config=self.config,
             logger=self.logger,
             project_dir=self.project_dir,
             setup_dir=self.setup_dir,

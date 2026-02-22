@@ -64,13 +64,16 @@ class XinanjiangRunner(  # type: ignore[misc]
             lambda: self.config.model.xinanjiang.snow_module
             if self.config.model and hasattr(self.config.model, 'xinanjiang') and self.config.model.xinanjiang
             else None,
-            str(self.config_dict.get('XINANJIANG_SNOW_MODULE', 'none'))
+            default='none',
+            dict_key='XINANJIANG_SNOW_MODULE'
         )
 
-        self.si = float(self.config_dict.get('XINANJIANG_SI', 100.0))
-        self.latitude = float(self.config_dict.get(
-            'XINANJIANG_LATITUDE',
-            self.config_dict.get('LATITUDE', 45.0),
+        self.si = float(self._get_config_value(
+            lambda: None, default=100.0, dict_key='XINANJIANG_SI'))
+        self.latitude = float(self._get_config_value(
+            lambda: None,
+            default=float(self._get_config_value(lambda: None, default=45.0, dict_key='LATITUDE')),
+            dict_key='XINANJIANG_LATITUDE'
         ))
 
     def _setup_model_specific_paths(self) -> None:

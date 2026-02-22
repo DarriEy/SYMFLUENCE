@@ -313,7 +313,7 @@ class CASRHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating CASR grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         try:
             # Find a CASR file to get grid information
@@ -383,8 +383,8 @@ class CASRHandler(BaseDatasetHandler):
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,
                 'ID': ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
             }, crs='EPSG:4326')
 
             # Calculate elevation
@@ -393,7 +393,7 @@ class CASRHandler(BaseDatasetHandler):
             gdf['elev_m'] = elevations
 
             # Remove invalid elevation cells if requested
-            if self.config_dict.get('REMOVE_INVALID_ELEVATION_CELLS', False):
+            if self._get_config_value(lambda: None, default=False, dict_key='REMOVE_INVALID_ELEVATION_CELLS'):
                 valid_count = len(gdf)
                 gdf = gdf[gdf['elev_m'] != -9999].copy()
                 removed_count = valid_count - len(gdf)

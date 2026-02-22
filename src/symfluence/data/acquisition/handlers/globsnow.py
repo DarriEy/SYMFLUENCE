@@ -95,8 +95,8 @@ class GlobSnowAcquirer(
         if self._skip_if_exists(out_path):
             return out_path
 
-        version = self.config_dict.get('GLOBSNOW_VERSION', 'v3.0')
-        temporal_agg = self.config_dict.get('GLOBSNOW_TEMPORAL_AGG', 'daily')
+        version = self._get_config_value(lambda: None, default='v3.0', dict_key='GLOBSNOW_VERSION')
+        temporal_agg = self._get_config_value(lambda: None, default='daily', dict_key='GLOBSNOW_TEMPORAL_AGG')
 
         # Northern Hemisphere check
         if self.bbox['lat_min'] < 0:

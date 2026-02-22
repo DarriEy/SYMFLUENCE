@@ -167,7 +167,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             ValueError: If configured variable not found in file
         """
         with xr.open_dataset(sim_file) as ds:
-            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_var = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed')
             if routing_var in ('default', None, ''):
                 routing_var = 'q_routed'
 
@@ -236,7 +236,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             import geopandas as gpd
             project_dir = self.project_dir
 
-            c_path = self.config_dict.get('CATCHMENT_PATH', 'default')
+            c_path = self._get_config_value(lambda: self.config.paths.catchment_path, default='default')
             if c_path == 'default' or not c_path:
                 catchment_path = project_dir / 'shapefiles' / 'catchment'
             else:
@@ -247,7 +247,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
                 default='elevation'
             )
 
-            c_name = self.config_dict.get('CATCHMENT_SHP_NAME', 'default')
+            c_name = self._get_config_value(lambda: self.config.paths.catchment_shp_name, default='default')
             if not c_name or c_name == 'default':
                 catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
             else:

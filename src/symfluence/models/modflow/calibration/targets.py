@@ -47,7 +47,7 @@ class CoupledGWStreamflowTarget(StreamflowEvaluator):
     ):
         super().__init__(config, project_dir, logger)
         self.model_name = 'COUPLED_GW'
-        self.land_model_name = config.get('LAND_SURFACE_MODEL', 'SUMMA').upper()
+        self.land_model_name = self._get_config_value(lambda: None, default='SUMMA', dict_key='LAND_SURFACE_MODEL').upper()
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Return output files from both land surface and MODFLOW sub-directories."""
@@ -125,7 +125,7 @@ class CoupledGWStreamflowTarget(StreamflowEvaluator):
 
         # Extract MODFLOW drain discharge (m3/d)
         # Use date-only (no time component) so dates align with SUMMA daily output
-        start_str = str(self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01'))
+        start_str = str(self._get_config_value(lambda: self.config.domain.experiment_time_start, default='2000-01-01', dict_key='EXPERIMENT_TIME_START'))
         start_date = pd.Timestamp(start_str).strftime('%Y-%m-%d')
         drain_discharge = extractor.extract_variable(
             modflow_dir,

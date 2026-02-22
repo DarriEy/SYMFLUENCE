@@ -138,20 +138,21 @@ class CLMParFlowParameterManager(BaseParameterManager):
     def __init__(self, config: Dict, logger: logging.Logger, clmparflow_settings_dir: Path):
         super().__init__(config, logger, clmparflow_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Forcing data lives in data/forcing/CLMPARFLOW_input/
-        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, default='.', dict_key='SYMFLUENCE_DATA_DIR'))
         project_dir = data_dir / f"domain_{self.domain_name}"
         self.forcing_input_dir = resolve_data_subdir(
             project_dir, 'forcing'
         ) / 'CLMPARFLOW_input'
 
         # Parse parameters to calibrate from config
-        pf_params_str = config.get(
-            'CLMPARFLOW_PARAMS_TO_CALIBRATE',
-            'K_SAT,POROSITY,VG_ALPHA,VG_N,S_RES,MANNINGS_N'
+        pf_params_str = self._get_config_value(
+            lambda: self.config.model.clmparflow.params_to_calibrate,
+            default='K_SAT,POROSITY,VG_ALPHA,VG_N,S_RES,MANNINGS_N',
+            dict_key='CLMPARFLOW_PARAMS_TO_CALIBRATE'
         )
         self.pf_params = [p.strip() for p in str(pf_params_str).split(',') if p.strip()]
 
@@ -171,11 +172,7 @@ class CLMParFlowParameterManager(BaseParameterManager):
         }
 
         # Allow config overrides (preserves transform metadata from registry)
-        config_bounds = None
-        if isinstance(self.config, dict):
-            config_bounds = self.config.get('CLMPARFLOW_PARAM_BOUNDS')
-        elif hasattr(self.config, 'get'):
-            config_bounds = self.config.get('CLMPARFLOW_PARAM_BOUNDS')
+        config_bounds = self._get_config_value(lambda: None, default=None, dict_key='CLMPARFLOW_PARAM_BOUNDS')
 
         if config_bounds and isinstance(config_bounds, dict):
             self.logger.info("Using config-specified CLMParFlow parameter bounds")
@@ -274,9 +271,9 @@ class CLMParFlowParameterManager(BaseParameterManager):
                 s17_params[s17_key] = v
 
         # Get latitude from config
-        lat = float(self.config.get('CATCHMENT_LATITUDE', 51.36))
+        lat = float(self._get_config_value(lambda: None, default=51.36, dict_key='CATCHMENT_LATITUDE'))
         try:
-            pp_coords = self.config.get('POUR_POINT_COORDS', '')
+            pp_coords = self._get_config_value(lambda: self.config.domain.pour_point_coords, default='', dict_key='POUR_POINT_COORDS')
             if '/' in str(pp_coords):
                 lat = float(str(pp_coords).split('/')[0])
         except (ValueError, AttributeError):

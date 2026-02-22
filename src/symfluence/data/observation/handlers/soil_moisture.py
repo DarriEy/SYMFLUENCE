@@ -343,7 +343,7 @@ class ESACCISMHandler(BaseObservationHandler):
     def acquire(self) -> Path:
         """Locate ESA CCI SM data."""
         # ESA CCI SM path - fallback to default location
-        esa_path = self.config_dict.get('ESA_CCI_SM_PATH')
+        esa_path = self._get_config_value(lambda: None, default=None, dict_key='ESA_CCI_SM_PATH')
         if esa_path:
             esa_dir = Path(esa_path)
         else:
@@ -458,7 +458,7 @@ class SMOSSMHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate or download SMOS SM data."""
-        smos_path = self.config_dict.get('SMOS_SM_PATH')
+        smos_path = self._get_config_value(lambda: None, default=None, dict_key='SMOS_SM_PATH')
         if smos_path:
             smos_dir = Path(smos_path)
         else:
@@ -603,7 +603,7 @@ class ASCATSMHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate or download ASCAT SM data."""
-        ascat_path = self.config_dict.get('ASCAT_SM_PATH')
+        ascat_path = self._get_config_value(lambda: None, default=None, dict_key='ASCAT_SM_PATH')
         if ascat_path:
             ascat_dir = Path(ascat_path)
         else:
@@ -651,7 +651,7 @@ class ASCATSMHandler(BaseObservationHandler):
             return input_path
 
         # Get porosity for saturation-to-volumetric conversion
-        porosity = float(self.config_dict.get('ASCAT_POROSITY', self.DEFAULT_POROSITY))
+        porosity = float(self._get_config_value(lambda: None, default=self.DEFAULT_POROSITY, dict_key='ASCAT_POROSITY'))
 
         # Get bbox for spatial subsetting
         north = south = west = east = None

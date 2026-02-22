@@ -500,9 +500,9 @@ class AcquisitionService(ConfigurableMixin):
             cache_root = self.data_dir / 'cache' / 'raw_forcing'
             cache = RawForcingCache(
                 cache_root=cache_root,
-                max_size_gb=self.config_dict.get('FORCING_CACHE_SIZE_GB', 3.0),
-                ttl_days=self.config_dict.get('FORCING_CACHE_TTL_DAYS', 30),
-                enable_checksum=self.config_dict.get('FORCING_CACHE_CHECKSUM', True)
+                max_size_gb=self._get_config_value(lambda: self.config.data.forcing_cache_size_gb, default=3.0, dict_key='FORCING_CACHE_SIZE_GB'),
+                ttl_days=self._get_config_value(lambda: self.config.data.forcing_cache_ttl_days, default=30, dict_key='FORCING_CACHE_TTL_DAYS'),
+                enable_checksum=self._get_config_value(lambda: self.config.data.forcing_cache_checksum, default=True, dict_key='FORCING_CACHE_CHECKSUM')
             )
 
             # Generate cache key
@@ -513,7 +513,7 @@ class AcquisitionService(ConfigurableMixin):
             # Check for dataset-specific variable configuration (e.g., HRRR_VARS, AORC_VARS)
             # Fall back to generic FORCING_VARIABLES if not found
             dataset_vars_key = f"{forcing_dataset.upper()}_VARS"
-            variables = self.config_dict.get(dataset_vars_key)
+            variables = self._get_config_value(lambda: None, default=None, dict_key=dataset_vars_key)
             if variables is None:
                 variables = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
 
@@ -693,7 +693,7 @@ class AcquisitionService(ConfigurableMixin):
             additional_obs.append('GRACE')
 
         # Check for MOD16 ET (based on ET_OBS_SOURCE or OPTIMIZATION_TARGET)
-        et_obs_source = str(self.config_dict.get('ET_OBS_SOURCE', '')).lower()
+        et_obs_source = str(self._get_config_value(lambda: self.config.evaluation.et_obs_source, default='', dict_key='ET_OBS_SOURCE')).lower()
         optimization_target = str(self._get_config_value(lambda: self.config.optimization.target, default='', dict_key='OPTIMIZATION_TARGET')).lower()
         if et_obs_source in ('mod16', 'modis', 'modis_et', 'mod16a2'):
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
@@ -709,7 +709,7 @@ class AcquisitionService(ConfigurableMixin):
                 additional_obs.append('FLUXNET_ET')
 
         # Check for multi-source ET (both FLUXNET and MOD16)
-        if self.config_dict.get('MULTI_SOURCE_ET', False):
+        if self._get_config_value(lambda: self.config.evaluation.multi_source_et, default=False, dict_key='MULTI_SOURCE_ET'):
             if 'FLUXNET_ET' not in additional_obs and 'FLUXNET' not in additional_obs:
                 additional_obs.append('FLUXNET_ET')
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
@@ -739,7 +739,7 @@ class AcquisitionService(ConfigurableMixin):
             em_earth_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data_em_earth'
             em_earth_dir.mkdir(parents=True, exist_ok=True)
 
-            em_region = self.config_dict.get('EM_EARTH_REGION', 'NorthAmerica')
+            em_region = self._get_config_value(lambda: self.config.forcing.em_earth.region, default='NorthAmerica', dict_key='EM_EARTH_REGION')
             em_earth_prcp_dir = self._get_config_value(lambda: self.config.forcing.em_earth.prcp_dir, default=f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/prcp/{em_region}", dict_key='EM_EARTH_PRCP_DIR')
             em_earth_tmean_dir = self._get_config_value(lambda: self.config.forcing.em_earth.tmean_dir, default=f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/tmean/{em_region}", dict_key='EM_EARTH_TMEAN_DIR')
 
@@ -829,7 +829,7 @@ class AcquisitionService(ConfigurableMixin):
 
     def _process_em_earth_month(self, year_month: str, prcp_dir: str, tmean_dir: str,
                                output_dir: Path, bbox: str) -> Optional[Path]:
-        em_region = self.config_dict.get('EM_EARTH_REGION', 'NorthAmerica')
+        em_region = self._get_config_value(lambda: self.config.forcing.em_earth.region, default='NorthAmerica', dict_key='EM_EARTH_REGION')
 
         prcp_pattern = f"EM_Earth_deterministic_hourly_{em_region}_{year_month}.nc"
         tmean_pattern = f"EM_Earth_deterministic_hourly_{em_region}_{year_month}.nc"

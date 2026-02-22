@@ -118,19 +118,11 @@ class CLMParameterManager(BaseParameterManager):
     ):
         super().__init__(config, logger, clm_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse parameters to calibrate
-        clm_params_str = None
-        try:
-            if hasattr(config, 'model') and hasattr(config.model, 'clm'):
-                clm_params_str = config.model.clm.params_to_calibrate
-        except (AttributeError, TypeError):
-            pass
-
-        if clm_params_str is None:
-            clm_params_str = config.get('CLM_PARAMS_TO_CALIBRATE')
+        clm_params_str = self._get_config_value(lambda: self.config.model.clm.params_to_calibrate, default=None, dict_key='CLM_PARAMS_TO_CALIBRATE')
 
         if clm_params_str is None:
             # Default: all 26 parameters
@@ -144,7 +136,7 @@ class CLMParameterManager(BaseParameterManager):
         ]
 
         # Setup paths
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.params_dir = self.project_dir / 'settings' / 'CLM' / 'parameters'
 
@@ -173,7 +165,7 @@ class CLMParameterManager(BaseParameterManager):
                 bounds[param_name]['transform'] = default['transform']
 
         # Config overrides
-        config_bounds = self.config.get('CLM_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='CLM_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
 

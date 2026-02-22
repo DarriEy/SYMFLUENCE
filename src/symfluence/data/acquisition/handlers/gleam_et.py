@@ -71,10 +71,10 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
         self.logger.info("Starting GLEAM ET acquisition")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
-        version = self.config_dict.get('GLEAM_VERSION', DEFAULT_VERSION)
-        variable = self.config_dict.get('GLEAM_VARIABLE', 'E')
-        temporal = self.config_dict.get('GLEAM_TEMPORAL', 'monthly')
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
+        version = self._get_config_value(lambda: None, default=DEFAULT_VERSION, dict_key='GLEAM_VERSION')
+        variable = self._get_config_value(lambda: None, default='E', dict_key='GLEAM_VARIABLE')
+        temporal = self._get_config_value(lambda: None, default='monthly', dict_key='GLEAM_TEMPORAL')
 
         # Get credentials
         username, password = self._get_gleam_credentials()
@@ -114,8 +114,8 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
         Get GLEAM SFTP credentials from config, env vars, or ~/.gleam file.
         """
         # 1. Config
-        username = self.config_dict.get('GLEAM_USERNAME')
-        password = self.config_dict.get('GLEAM_PASSWORD')
+        username = self._get_config_value(lambda: None, default=None, dict_key='GLEAM_USERNAME')
+        password = self._get_config_value(lambda: None, default=None, dict_key='GLEAM_PASSWORD')
         if username and password:
             return username, password
 

@@ -78,8 +78,7 @@ class DataConfig(BaseModel):
 
     # High-level acquisition flags
     additional_observations: Optional[List[str]] = Field(default=None, alias='ADDITIONAL_OBSERVATIONS')
-    # Note: supplement_forcing moved to ForcingConfig.supplement
-    # Note: force_download removed (unused)
+    force_download: bool = Field(default=False, alias='FORCE_DOWNLOAD')
 
     # Streamflow provider
     streamflow_data_provider: Optional[str] = Field(default=None, alias='STREAMFLOW_DATA_PROVIDER')

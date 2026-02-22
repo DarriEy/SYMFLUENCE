@@ -67,7 +67,11 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         # Fall back to DATA_DIR if SYMFLUENCE_DATA_DIR not found
         if data_dir is None:
             import tempfile
-            data_dir = self.config_dict.get('DATA_DIR', tempfile.gettempdir())  # nosec B108
+            data_dir = self._get_config_value(
+                lambda: self.config.system.data_dir,
+                default=tempfile.gettempdir(),  # nosec B108
+                dict_key='DATA_DIR'
+            )
         self.data_dir = Path(data_dir)
         # domain_name is provided by ConfigMixin via ProjectContextMixin
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -77,9 +81,21 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
             lambda: self.config.system.num_processes,
             default=1
         )
-        self.max_retries = self.config_dict.get('MAX_RETRIES', 3)
-        self.retry_delay = self.config_dict.get('RETRY_DELAY', 5)
-        self.min_gru_size = self.config_dict.get('MIN_GRU_SIZE', 0)
+        self.max_retries = self._get_config_value(
+            lambda: self.config.domain.delineation.max_retries,
+            default=3,
+            dict_key='MAX_RETRIES'
+        )
+        self.retry_delay = self._get_config_value(
+            lambda: self.config.domain.delineation.retry_delay,
+            default=5,
+            dict_key='RETRY_DELAY'
+        )
+        self.min_gru_size = self._get_config_value(
+            lambda: self.config.domain.min_gru_size,
+            default=0,
+            dict_key='MIN_GRU_SIZE'
+        )
 
         # TauDEM configuration
         self.taudem_dir = self._get_taudem_dir()
@@ -119,8 +135,16 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to DEM file
         """
-        dem_path = self.config_dict.get('DEM_PATH')
-        dem_name = self.config_dict.get('DEM_NAME')
+        dem_path = self._get_config_value(
+            lambda: self.config.paths.dem_path,
+            default=None,
+            dict_key='DEM_PATH'
+        )
+        dem_name = self._get_config_value(
+            lambda: self.config.paths.dem_name,
+            default=None,
+            dict_key='DEM_NAME'
+        )
 
         if dem_name is None or dem_name == "default":
             dem_name = f"domain_{self.domain_name}_elv.tif"
@@ -138,13 +162,21 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to pour point shapefile
         """
-        pour_point_path = self.config_dict.get('POUR_POINT_SHP_PATH')
+        pour_point_path = self._get_config_value(
+            lambda: self.config.paths.pour_point_path,
+            default='default',
+            dict_key='POUR_POINT_SHP_PATH'
+        )
         if pour_point_path is None or pour_point_path == 'default':
             pour_point_path = self.project_dir / "shapefiles" / "pour_point"
         else:
             pour_point_path = Path(pour_point_path)
 
-        pour_point_name = self.config_dict.get('POUR_POINT_SHP_NAME', "default")
+        pour_point_name = self._get_config_value(
+            lambda: self.config.paths.pour_point_name,
+            default='default',
+            dict_key='POUR_POINT_SHP_NAME'
+        )
         if pour_point_name is None or pour_point_name == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
         else:
@@ -173,7 +205,11 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
 
         Only removes files if CLEANUP_INTERMEDIATE_FILES is True.
         """
-        if self.config_dict.get('CLEANUP_INTERMEDIATE_FILES', True):
+        if self._get_config_value(
+            lambda: self.config.domain.delineation.cleanup_intermediate_files,
+            default=True,
+            dict_key='CLEANUP_INTERMEDIATE_FILES'
+        ):
             if hasattr(self, 'interim_dir') and self.interim_dir.exists():
                 shutil.rmtree(self.interim_dir.parent, ignore_errors=True)
                 self.logger.info(f"Cleaned up interim files: {self.interim_dir.parent}")

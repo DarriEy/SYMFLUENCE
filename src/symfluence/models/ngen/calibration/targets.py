@@ -25,7 +25,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
     def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
-        self.station_id = config.get('STATION_ID', None)
+        self.station_id = self._get_config_value(lambda: None, default=None, dict_key='STATION_ID')
         # Cache for nexus areas to avoid repeated file reads during calibration
         self._nexus_areas_cache: Optional[Dict[str, float]] = None
         # Get configurable timestep (default 3600s = 1 hour)
@@ -80,7 +80,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             files = list(sim_dir.glob('**/nex-*_output.csv'))
 
         # Filter by CALIBRATION_NEXUS_ID if configured
-        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
+        target_nexus = self._get_config_value(lambda: self.config.model.ngen.calibration_nexus_id, default=None)
         if target_nexus:
             # Normalize ID (ensure it has nex- prefix if file has it)
             # Assuming config might say "nex-57" or just "57"
@@ -160,7 +160,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         import xarray as xr
 
         # Get target nexus ID (outlet)
-        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
+        target_nexus = self._get_config_value(lambda: self.config.model.ngen.calibration_nexus_id, default=None)
 
         try:
             # Read t-route output (typically NetCDF with time and feature_id dimensions)
@@ -321,7 +321,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 nexus_id = nexus_file.stem.replace('_output', '')
 
                 # Check config to skip conversion - this is the recommended explicit approach
-                is_flow_already = self.config_dict.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
+                is_flow_already = self._get_config_value(lambda: self.config.model.ngen.csv_output_is_flow, default=False)
 
                 if is_flow_already:
                     # Explicit config: trust user setting, no conversion needed
@@ -415,7 +415,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         """Detailed catchment area calculation for NextGen."""
         import geopandas as gpd
 
-        cfg_area = (self.config.get("catchment", {}) or {}).get("area_km2")
+        cfg_area = self._get_config_value(lambda: None, default=None, dict_key='CATCHMENT_AREA_KM2')
         if cfg_area:
             return float(cfg_area)
 

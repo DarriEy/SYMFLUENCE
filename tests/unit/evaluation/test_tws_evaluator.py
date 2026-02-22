@@ -27,10 +27,16 @@ def tws_evaluator(mock_config, tmp_path, mock_logger):
     }
 
     with patch.object(TWSEvaluator, '_get_config_value', side_effect=[
-        '2010-01-01, 2015-12-31',
-        '2016-01-01, 2018-12-31',
-        'daily',
-        'stor_grace',
+        '2010-01-01, 2015-12-31',  # base: calibration_period
+        '2016-01-01, 2018-12-31',  # base: evaluation_period
+        'daily',                    # base: calibration_timestep
+        'stor_grace',               # TWS: optimization_target
+        'grace_jpl_anomaly',        # TWS: grace_column
+        'overlap',                  # TWS: anomaly_baseline
+        1.0,                        # TWS: unit_conversion
+        False,                      # TWS: detrend
+        False,                      # TWS: scale_to_obs
+        '',                         # TWS: storage_components (empty = use defaults)
     ]):
         evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
         return evaluator
@@ -42,10 +48,16 @@ class TestTWSEvaluatorInit:
     def test_basic_initialization(self, mock_config, tmp_path, mock_logger):
         """Test basic initialization."""
         with patch.object(TWSEvaluator, '_get_config_value', side_effect=[
-            '2010-01-01, 2015-12-31',
-            '',
-            'daily',
-            'stor_grace',
+            '2010-01-01, 2015-12-31',  # base: calibration_period
+            '',                         # base: evaluation_period
+            'daily',                    # base: calibration_timestep
+            'stor_grace',               # TWS: optimization_target
+            'grace_jpl_anomaly',        # TWS: grace_column
+            'overlap',                  # TWS: anomaly_baseline
+            1.0,                        # TWS: unit_conversion
+            False,                      # TWS: detrend
+            False,                      # TWS: scale_to_obs
+            '',                         # TWS: storage_components
         ]):
             evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
             evaluator.config_dict = {}
@@ -57,14 +69,18 @@ class TestTWSEvaluatorInit:
     def test_init_with_detrend(self, mock_config, tmp_path, mock_logger):
         """Test initialization with detrending enabled."""
         with patch.object(TWSEvaluator, '_get_config_value', side_effect=[
-            '2010-01-01, 2015-12-31',
-            '',
-            'daily',
-            'stor_grace',
+            '2010-01-01, 2015-12-31',  # base: calibration_period
+            '',                         # base: evaluation_period
+            'daily',                    # base: calibration_timestep
+            'stor_grace',               # TWS: optimization_target
+            'grace_jpl_anomaly',        # TWS: grace_column
+            'overlap',                  # TWS: anomaly_baseline
+            1.0,                        # TWS: unit_conversion
+            True,                       # TWS: detrend
+            False,                      # TWS: scale_to_obs
+            '',                         # TWS: storage_components
         ]):
             evaluator = TWSEvaluator(mock_config, tmp_path, mock_logger)
-            evaluator.config_dict = {'TWS_DETREND': True}
-            evaluator.detrend = True
 
             assert evaluator.detrend is True
 

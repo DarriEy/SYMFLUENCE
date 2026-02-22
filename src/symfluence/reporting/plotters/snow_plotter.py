@@ -41,14 +41,14 @@ class SnowPlotter(BasePlotter):
         try:
             # Load observation data
             # (Logic migrated from VisualizationReporter.plot_snow_simulations_vs_observations)
-            snow_obs_path = Path(self.config.get('snow_processed_path', '')) / self.config.get('snow_processed_name', '')
+            snow_obs_path = Path(self._get_config_value(lambda: None, default='', dict_key='snow_processed_path')) / self._get_config_value(lambda: None, default='', dict_key='snow_processed_name')
             if not snow_obs_path.exists():
                 self.logger.warning(f"Snow observation file not found: {snow_obs_path}")
                 return results
 
             snow_obs = pd.read_csv(snow_obs_path, parse_dates=['datetime'])
 
-            station_shp_path = Path(self.config.get('snow_station_shapefile_path', '')) / self.config.get('snow_station_shapefile_name', '')
+            station_shp_path = Path(self._get_config_value(lambda: None, default='', dict_key='snow_station_shapefile_path')) / self._get_config_value(lambda: None, default='', dict_key='snow_station_shapefile_name')
             if not station_shp_path.exists():
                 self.logger.warning(f"Snow station shapefile not found: {station_shp_path}")
                 return results

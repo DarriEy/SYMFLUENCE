@@ -186,7 +186,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== DATA CONFIGURATION ==========
     'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
     # Note: SUPPLEMENT_FORCING mapped to ('forcing', 'supplement') in Forcing section
-    # Note: FORCE_DOWNLOAD removed (unused field)
+    'FORCE_DOWNLOAD': ('data', 'force_download'),
     'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
     'USGS_SITE_CODE': ('data', 'usgs_site_code'),
     'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
@@ -248,6 +248,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DELINEATE_COASTAL_WATERSHEDS': ('domain', 'delineation', 'delineate_coastal_watersheds'),
     'DELINEATE_BY_POURPOINT': ('domain', 'delineation', 'delineate_by_pourpoint'),
     'MOVE_OUTLETS_MAX_DISTANCE': ('domain', 'delineation', 'move_outlets_max_distance'),
+    'POINT_BUFFER_DISTANCE': ('domain', 'delineation', 'point_buffer_distance'),
+    'MAX_RETRIES': ('domain', 'delineation', 'max_retries'),
+    'RETRY_DELAY': ('domain', 'delineation', 'retry_delay'),
+
+    # Domain > Catchment area
+    'CATCHMENT_AREA': ('domain', 'catchment_area'),
 
     # ========== FORCING CONFIGURATION ==========
     'FORCING_DATASET': ('forcing', 'dataset'),
@@ -287,6 +293,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'HYDROLOGICAL_MODEL': ('model', 'hydrological_model'),
     'ROUTING_MODEL': ('model', 'routing_model'),
     'GROUNDWATER_MODEL': ('model', 'groundwater_model'),
+    'COUPLING_MODE': ('model', 'coupling_mode'),
+    'CONSERVATION_MODE': ('model', 'conservation_mode'),
+    'TOPOLOGY_FILE': ('model', 'topology_file'),
+    'SNOW_MODULE': ('model', 'snow_module'),
 
     # Model > SUMMA
     'SUMMA_INSTALL_PATH': ('model', 'summa', 'install_path'),
@@ -323,6 +333,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SETTINGS_SUMMA_GLACIER_ATTRIBUTES': ('model', 'summa', 'glacier_attributes'),
     'SETTINGS_SUMMA_GLACIER_COLDSTATE': ('model', 'summa', 'glacier_coldstate'),
     'SUMMA_TIMEOUT': ('model', 'summa', 'timeout'),
+    'EXPERIMENT_BACKUP_SETTINGS': ('model', 'summa', 'backup_settings'),
+    'MONITOR_SLURM_JOB': ('model', 'summa', 'monitor_slurm_job'),
+    'SETTINGS_SUMMA_SOILPROFILE': ('model', 'summa', 'soilprofile'),
+    'SUMMA_INIT_MATRIC_HEAD': ('model', 'summa', 'init_matric_head'),
+    'SETTINGS_SUMMA_INIT_GRID_FILE': ('model', 'summa', 'init_grid_file'),
+    'SETTINGS_SUMMA_ATTRIB_GRID_FILE': ('model', 'summa', 'attrib_grid_file'),
 
     # Model > FUSE
     'FUSE_INSTALL_PATH': ('model', 'fuse', 'install_path'),
@@ -338,6 +354,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'FUSE_FILE_ID': ('model', 'fuse', 'file_id'),
     'FUSE_N_ELEVATION_BANDS': ('model', 'fuse', 'n_elevation_bands'),
     'FUSE_TIMEOUT': ('model', 'fuse', 'timeout'),
+    'FUSE_OUTPUT_TIMESTEP_SECONDS': ('model', 'fuse', 'output_timestep_seconds'),
+    'FUSE_SNOW_MODEL': ('model', 'fuse', 'snow_model'),
+    'FUSE_PARAM_BOUNDS': ('model', 'fuse', 'param_bounds'),
+    'PARAMETER_REGIONALIZATION': ('model', 'fuse', 'parameter_regionalization'),
+    'USE_TRANSFER_FUNCTIONS': ('model', 'fuse', 'use_transfer_functions'),
+    'TRANSFER_FUNCTION_COEFF_BOUNDS': ('model', 'fuse', 'transfer_function_coeff_bounds'),
 
     # Model > GR
     'GR_INSTALL_PATH': ('model', 'gr', 'install_path'),
@@ -347,6 +369,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SETTINGS_GR_PATH': ('model', 'gr', 'settings_path'),
     'SETTINGS_GR_CONTROL': ('model', 'gr', 'control'),
     'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
+    'GR_PARAM_BOUNDS': ('model', 'gr', 'param_bounds'),
+    'GR4J_PARAM_BOUNDS': ('model', 'gr', 'gr4j_param_bounds'),
+    'GR_INITIAL_PARAMS': ('model', 'gr', 'initial_params'),
+    'GR_DEFAULT_PARAMS': ('model', 'gr', 'default_params'),
 
     # Model > HBV
     'HBV_SPATIAL_MODE': ('model', 'hbv', 'spatial_mode'),
@@ -466,6 +492,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'NGEN_NOAH_PARAMS_TO_CALIBRATE': ('model', 'ngen', 'noah_params_to_calibrate'),
     'NGEN_PET_PARAMS_TO_CALIBRATE': ('model', 'ngen', 'pet_params_to_calibrate'),
     'NGEN_ACTIVE_CATCHMENT_ID': ('model', 'ngen', 'active_catchment_id'),
+    'ENABLE_SLOTH': ('model', 'ngen', 'enable_sloth'),
+    'ENABLE_PET': ('model', 'ngen', 'enable_pet'),
+    'ENABLE_NOAH': ('model', 'ngen', 'enable_noah'),
+    'ENABLE_CFE': ('model', 'ngen', 'enable_cfe'),
+    'NGEN_NOAH_ET_FALLBACK': ('model', 'ngen', 'noah_et_fallback'),
+    'NGEN_RUN_TROUTE': ('model', 'ngen', 'run_troute'),
 
     # Model > MESH
     'MESH_INSTALL_PATH': ('model', 'mesh', 'install_path'),
@@ -498,6 +530,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_APPLY_PARAMS_ALL_GRUS': ('model', 'mesh', 'apply_params_all_grus'),
     'MESH_USE_LANDCOVER_MULTIPLIERS': ('model', 'mesh', 'use_landcover_multipliers'),
     'MESH_ENABLE_FROZEN_SOIL': ('model', 'mesh', 'enable_frozen_soil'),
+    'MESH_DAILY_TOLERANCE_DAYS': ('model', 'mesh', 'daily_tolerance_days'),
 
     # Model > mizuRoute - STANDARD NAMING (preferred)
     'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
@@ -659,6 +692,16 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'GRADIENT_EPSILON': ('optimization', 'gradient_epsilon'),
     'GRADIENT_CLIP_VALUE': ('optimization', 'gradient_clip_value'),
 
+    # Optimization > Multivariate objective
+    'OBJECTIVE_WEIGHTS': ('optimization', 'objective_weights'),
+    'OBJECTIVE_METRICS': ('optimization', 'objective_metrics'),
+
+    # Optimization > Worker retry settings
+    'WORKER_MAX_RETRIES': ('optimization', 'worker_max_retries'),
+    'WORKER_BASE_DELAY': ('optimization', 'worker_base_delay'),
+    'WORKER_MAX_DELAY': ('optimization', 'worker_max_delay'),
+    'WORKER_JITTER': ('optimization', 'worker_jitter'),
+
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
     'PSO_COGNITIVE_PARAM': ('optimization', 'pso', 'cognitive_param'),
@@ -720,6 +763,26 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'ANALYSES': ('evaluation', 'analyses'),
     'SIM_REACH_ID': ('evaluation', 'sim_reach_id'),
     'HRU_GAUGE_MAPPING': ('evaluation', 'hru_gauge_mapping'),
+    'EVALUATION_VARIABLE': ('evaluation', 'evaluation_variable'),
+    'EVALUATION_SPINUP_YEARS': ('evaluation', 'spinup_years'),
+
+    # Evaluation > TWS
+    'TWS_GRACE_COLUMN': ('evaluation', 'tws', 'grace_column'),
+    'TWS_ANOMALY_BASELINE': ('evaluation', 'tws', 'anomaly_baseline'),
+    'TWS_UNIT_CONVERSION': ('evaluation', 'tws', 'unit_conversion'),
+    'TWS_DETREND': ('evaluation', 'tws', 'detrend'),
+    'TWS_SCALE_TO_OBS': ('evaluation', 'tws', 'scale_to_obs'),
+    'TWS_STORAGE_COMPONENTS': ('evaluation', 'tws', 'storage_components'),
+    'TWS_OBS_PATH': ('evaluation', 'tws', 'obs_path'),
+
+    # Evaluation > ET
+    'ET_OBS_SOURCE': ('evaluation', 'et', 'obs_source'),
+    'ET_TEMPORAL_AGGREGATION': ('evaluation', 'et', 'temporal_aggregation'),
+    'ET_USE_QUALITY_CONTROL': ('evaluation', 'et', 'use_quality_control'),
+    'ET_MAX_QUALITY_FLAG': ('evaluation', 'et', 'max_quality_flag'),
+    'ET_MODIS_MAX_QC': ('evaluation', 'et', 'modis_max_qc'),
+    'ET_GLEAM_MAX_RELATIVE_UNCERTAINTY': ('evaluation', 'et', 'gleam_max_relative_uncertainty'),
+    'ET_OBS_PATH': ('evaluation', 'et', 'obs_path'),
 
     # Evaluation > Streamflow
     # NOTE: STREAMFLOW_DATA_PROVIDER and DOWNLOAD_USGS_DATA are mapped to 'data' section

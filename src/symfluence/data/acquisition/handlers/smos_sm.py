@@ -107,7 +107,7 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
         out_file_tgz = self._output_dir / f"smos_cds_{year}_{month:02d}.tar.gz"
 
         # Check for existing file
-        force = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force = self._get_config_value(lambda: self.config.data.force_download, default=False)
         if out_file_zip.exists() and not force:
             return out_file_zip
         if out_file_tgz.exists() and not force:
@@ -115,17 +115,11 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
 
         # Build CDS request
         request = {
-            'variable': [self.config_dict.get(
-                'SMOS_SM_VARIABLE', 'surface_soil_moisture_volumetric'
-            )],
+            'variable': [self._get_config_value(lambda: None, default='surface_soil_moisture_volumetric', dict_key='SMOS_SM_VARIABLE')],
             'type_of_sensor': ['passive'],
-            'time_aggregation': [self.config_dict.get(
-                'SMOS_SM_TIME_AGGREGATION', 'daily'
-            )],
-            'type_of_record': [self.config_dict.get(
-                'SMOS_SM_RECORD_TYPE', 'cdr'
-            )],
-            'version': [self.config_dict.get('SMOS_SM_VERSION', 'v202505')],
+            'time_aggregation': [self._get_config_value(lambda: None, default='daily', dict_key='SMOS_SM_TIME_AGGREGATION')],
+            'type_of_record': [self._get_config_value(lambda: None, default='cdr', dict_key='SMOS_SM_RECORD_TYPE')],
+            'version': [self._get_config_value(lambda: None, default='v202505', dict_key='SMOS_SM_VERSION')],
             'year': [str(year)],
             'month': [f"{month:02d}"],
             'day': [f"{d:02d}" for d in range(1, days_in_month + 1)],

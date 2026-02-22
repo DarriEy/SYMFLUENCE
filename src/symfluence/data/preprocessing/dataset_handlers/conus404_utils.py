@@ -498,7 +498,7 @@ class CONUS404Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating CONUS404 grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         # 🔧 Only use CONUS404 processed files, not ANY .nc
         patterns = [
@@ -551,7 +551,7 @@ class CONUS404Handler(BaseDatasetHandler):
 
         # Parse bounding box if available to filter grid
         bbox = None
-        bbox_str = self.config.get('BOUNDING_BOX_COORDS')
+        bbox_str = self._get_config_value(lambda: self.config.domain.bounding_box_coords, default=None)
         if isinstance(bbox_str, str) and "/" in bbox_str:
             try:
                 # Format: lat_max/lon_min/lat_min/lon_max
@@ -685,8 +685,8 @@ class CONUS404Handler(BaseDatasetHandler):
             {
                 "geometry": geometries,
                 "ID": ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
             },
             crs="EPSG:4326",
         )

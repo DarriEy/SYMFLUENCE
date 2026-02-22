@@ -48,19 +48,42 @@ class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
 
         # Support both typed config and dict config
         if hasattr(config, 'to_dict'):
-            self.config_dict = config.to_dict(flatten=True)
+            self._config_dict_cache = config.to_dict(flatten=True)
         else:
-            self.config_dict = config
+            self._config_dict_cache = config
 
-        self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config_dict.get('DOMAIN_NAME')
+        # Use typed config paths with dict fallback
+        self.data_dir = Path(self._resolve(
+            lambda: self.config.system.data_dir, 'SYMFLUENCE_DATA_DIR'
+        ))
+        self.domain_name = self._resolve(
+            lambda: self.config.domain.name, 'DOMAIN_NAME'
+        )
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.experiment_id = self.config_dict.get('EXPERIMENT_ID')
+        self.experiment_id = self._resolve(
+            lambda: self.config.domain.experiment_id, 'EXPERIMENT_ID'
+        )
 
         # Model-specific settings to be initialized by child classes
         self.decision_options = self._initialize_decision_options()
         self.output_folder = self._initialize_output_folder()
         self.master_file = self._initialize_master_file()
+
+    def _resolve(self, typed_accessor, dict_key: str, default=None):
+        """Resolve a config value from typed config with dict fallback.
+
+        Args:
+            typed_accessor: Callable returning typed config value
+            dict_key: Flat dict key for fallback
+            default: Default value if both fail
+        """
+        try:
+            value = typed_accessor()
+            if value is not None:
+                return value
+        except (AttributeError, KeyError, TypeError):
+            pass
+        return self._config_dict_cache.get(dict_key, default)
 
     @abstractmethod
     def _initialize_decision_options(self) -> Dict[str, List[str]]:

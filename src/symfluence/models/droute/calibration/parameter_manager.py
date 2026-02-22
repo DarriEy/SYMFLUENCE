@@ -30,15 +30,15 @@ class DRouteParameterManager(BaseParameterManager):
     def __init__(self, config: Dict, logger: logging.Logger, settings_dir: Path):
         super().__init__(config, logger, settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
         self.project_dir = (
-            Path(config.get('SYMFLUENCE_DATA_DIR'))
+            Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
             / f"domain_{self.domain_name}"
         )
 
         # Parse parameters to calibrate from config
-        params_str = config.get(
-            'DROUTE_PARAMS_TO_CALIBRATE', 'velocity,diffusivity'
+        params_str = self._get_config_value(
+            lambda: self.config.model.droute.params_to_calibrate, default='velocity,diffusivity', dict_key='DROUTE_PARAMS_TO_CALIBRATE'
         )
         self.droute_params = [
             p.strip() for p in params_str.split(',') if p.strip()
@@ -67,7 +67,7 @@ class DRouteParameterManager(BaseParameterManager):
                 )
                 bounds[param] = {'min': 0.0, 'max': 1.0}
 
-        config_bounds = self.config_dict.get('DROUTE_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='DROUTE_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
 

@@ -58,7 +58,7 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
 
     # Domain settings from notebook 02b
     config["DOMAIN_NAME"] = "Bow_at_Banff_semi_distributed"
-    config["EXPERIMENT_ID"] = f"test_{tmp_path.name}"
+    config["EXPERIMENT_ID"] = f"test_{tmp_path.name[:8]}"  # Keep short to avoid Fortran strLen=256 overflow in mizuRoute
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
     # Semi-distributed basin settings
@@ -145,6 +145,7 @@ def test_semi_distributed_basin_workflow(config_path, model, symfluence_data_roo
     elif model == "FUSE":
         config["FUSE_SPATIAL_MODE"] = "semi_distributed"
         config["SETTINGS_FUSE_PARAMS_TO_CALIBRATE"] = "MAXWATR_1,MAXWATR_2,BASERTE"
+        config["FUSE_RUN_INTERNAL_CALIBRATION"] = False
     elif model == "NGEN":
         config["NGEN_MODULES_TO_CALIBRATE"] = "CFE"
         config["NGEN_CFE_PARAMS_TO_CALIBRATE"] = "smcmax,satdk,bb"

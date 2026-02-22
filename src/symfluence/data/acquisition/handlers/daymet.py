@@ -66,7 +66,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
         # Get configuration
         variables = self._get_variables()
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         # Check if bbox is in North America
         if self.bbox:
@@ -99,7 +99,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
     def _get_variables(self) -> List[str]:
         """Get variables to download."""
-        config_vars = self.config_dict.get('DAYMET_VARIABLES')
+        config_vars = self._get_config_value(lambda: None, default=None, dict_key='DAYMET_VARIABLES')
 
         if config_vars:
             if isinstance(config_vars, str):

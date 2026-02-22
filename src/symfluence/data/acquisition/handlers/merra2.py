@@ -313,8 +313,8 @@ class MERRA2Acquirer(
         session = self._get_authenticated_session()
 
         # Determine which collections and variables to download
-        collection_keys = self.config_dict.get('MERRA2_COLLECTIONS', list(_COLLECTIONS.keys()))
-        custom_vars = self.config_dict.get('MERRA2_VARIABLES', None)
+        collection_keys = self._get_config_value(lambda: None, default=list(_COLLECTIONS.keys()), dict_key='MERRA2_COLLECTIONS')
+        custom_vars = self._get_config_value(lambda: None, default=None, dict_key='MERRA2_VARIABLES')
 
         active_collections = {}
         for key in collection_keys:

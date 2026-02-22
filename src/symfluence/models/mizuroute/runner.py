@@ -55,7 +55,9 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
         Returns:
             Rounding frequency string (e.g., 'h', 'min', 's') or None if disabled.
         """
-        freq = self.config_dict.get('MIZUROUTE_TIME_ROUNDING_FREQ', 'h')
+        freq = self._get_config_value(
+            lambda: self.config.model.mizuroute.time_rounding_freq, default='h'
+        )
         if freq and freq.lower() == 'none':
             return None
         return freq
@@ -70,8 +72,10 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
         Returns the path to the runoff file if resolved, None otherwise.
         """
         # Determine which model's output to process
-        models_raw = self.config_dict.get('HYDROLOGICAL_MODEL', '')
-        mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '')
+        models_raw = self.hydrological_model or ''
+        mizu_from = self._get_config_value(
+            lambda: self.config.model.mizuroute.from_model, default=''
+        )
 
         # Combine models and filter out 'DEFAULT' or empty strings
         all_models = f"{models_raw},{mizu_from}".split(',')
@@ -85,51 +89,49 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
         # For FUSE, check if it has already converted its output
         if 'FUSE' in active_models:
             self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_fuse = self.config_dict.get('EXPERIMENT_OUTPUT_FUSE', 'default')
+            experiment_output_fuse = self._get_config_value(
+                lambda: self.config.model.fuse.experiment_output, default='default'
+            )
             if experiment_output_fuse == 'default' or not experiment_output_fuse:
-                # Try relative to current experiment first
-                experiment_id = self.config_dict.get('EXPERIMENT_ID')
-                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'FUSE'
+                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'FUSE'
             else:
                 experiment_output_dir = Path(experiment_output_fuse)
-            fuse_file_id = self.config_dict.get('FUSE_FILE_ID')
+            fuse_file_id = self._get_config_value(
+                lambda: self.config.model.fuse.file_id, default=None
+            )
             if not fuse_file_id:
-                fuse_file_id = self.config_dict.get('EXPERIMENT_ID', 'fuse')
+                fuse_file_id = self.experiment_id or 'fuse'
                 # Replicate FUSE preprocessor's 6-char truncation for Fortran compatibility
                 if len(fuse_file_id) > 6:
                     import hashlib
                     fuse_file_id = hashlib.md5(fuse_file_id.encode(), usedforsecurity=False).hexdigest()[:6]
-            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{fuse_file_id}_runs_def.nc"
+            runoff_filename = f"{self.domain_name}_{fuse_file_id}_runs_def.nc"
         elif 'GR' in active_models:
             self.logger.info("Fixing GR time precision for mizuRoute compatibility")
-            experiment_output_gr = self.config_dict.get('EXPERIMENT_OUTPUT_GR', 'default')
+            experiment_output_gr = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_GR')
             if experiment_output_gr == 'default' or not experiment_output_gr:
-                # Try relative to current experiment first
-                experiment_id = self.config_dict.get('EXPERIMENT_ID')
-                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'GR'
+                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'GR'
             else:
                 experiment_output_dir = Path(experiment_output_gr)
-            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+            runoff_filename = f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
         elif 'HYPE' in active_models:
             self.logger.info("Fixing HYPE time precision for mizuRoute compatibility")
-            experiment_output_hype = self.config_dict.get('EXPERIMENT_OUTPUT_HYPE', 'default')
+            experiment_output_hype = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_HYPE')
             if experiment_output_hype == 'default' or not experiment_output_hype:
-                # Try relative to current experiment first
-                experiment_id = self.config_dict.get('EXPERIMENT_ID')
-                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'HYPE'
+                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'HYPE'
             else:
                 experiment_output_dir = Path(experiment_output_hype)
-            runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
+            runoff_filename = f"{self.experiment_id}_timestep.nc"
         else:
             self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
-            experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA', 'default')
+            experiment_output_summa = self._get_config_value(
+                lambda: self.config.model.summa.experiment_output, default='default'
+            )
             if experiment_output_summa == 'default' or not experiment_output_summa:
-                # Try relative to current experiment first
-                experiment_id = self.config_dict.get('EXPERIMENT_ID')
-                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'SUMMA'
+                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'SUMMA'
             else:
                 experiment_output_dir = Path(experiment_output_summa)
-            runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
+            runoff_filename = f"{self.experiment_id}_timestep.nc"
 
         runoff_filepath = experiment_output_dir / runoff_filename
         self.logger.info(f"Resolved runoff filepath: {runoff_filepath} (Exists: {runoff_filepath.exists()})")
@@ -452,39 +454,25 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             runoff_path = self.fix_time_precision()
 
             # Set up paths and filenames
-            # Use standardized keys first, with fallback to legacy keys for backward compatibility
-            # Phase 2: MIZUROUTE_INSTALL_PATH is the new standard, INSTALL_PATH_MIZUROUTE is deprecated
-            install_path_key = 'MIZUROUTE_INSTALL_PATH'
-            exe_name_key = 'MIZUROUTE_EXE'
-
-            # Check if using legacy keys and log a warning
-            if self.config_dict.get('INSTALL_PATH_MIZUROUTE') and not self.config_dict.get('MIZUROUTE_INSTALL_PATH'):
-                self.logger.warning(
-                    "Using deprecated config key 'INSTALL_PATH_MIZUROUTE'. "
-                    "Please update to 'MIZUROUTE_INSTALL_PATH'. Support will be removed in v2.0."
-                )
-                install_path_key = 'INSTALL_PATH_MIZUROUTE'
-
-            if self.config_dict.get('EXE_NAME_MIZUROUTE') and not self.config_dict.get('MIZUROUTE_EXE'):
-                self.logger.warning(
-                    "Using deprecated config key 'EXE_NAME_MIZUROUTE'. "
-                    "Please update to 'MIZUROUTE_EXE'. Support will be removed in v2.0."
-                )
-                exe_name_key = 'EXE_NAME_MIZUROUTE'
-
+            # Legacy keys (INSTALL_PATH_MIZUROUTE, EXE_NAME_MIZUROUTE) are handled
+            # by DEPRECATED_KEYS in transformers.py and mapped to the standard keys.
             self.mizu_exe = self.get_model_executable(
-                install_path_key=install_path_key,
+                install_path_key='MIZUROUTE_INSTALL_PATH',
                 default_install_subpath='installs/mizuRoute/route/bin',
-                exe_name_key=exe_name_key,
+                exe_name_key='MIZUROUTE_EXE',
                 default_exe_name='mizuRoute.exe',
                 must_exist=True
             )
             settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
-            control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
+            control_file = self._get_config_value(
+                lambda: self.config.model.mizuroute.control_file, default='mizuroute.control'
+            )
 
             # Sane defaults for control file if not specified
             if not control_file or control_file == 'default':
-                mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
+                mizu_from = self._get_config_value(
+                    lambda: self.config.model.mizuroute.from_model, default=''
+                ).upper()
                 if mizu_from == 'GR':
                     control_file = 'mizuRoute_control_GR.txt'
                 elif mizu_from == 'FUSE':
@@ -501,14 +489,17 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 else:
                     self.logger.warning(f"Control file not found at {control_path}, skipping dimension sync")
 
-            experiment_id = self.config_dict.get('EXPERIMENT_ID')
-            mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")
+            mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{self.experiment_id}/mizuRoute/mizuRoute_logs/")
             mizu_log_name = "mizuRoute_log.txt"
 
-            mizu_out_path = self.get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/")
+            mizu_out_path = self.get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{self.experiment_id}/mizuRoute/")
 
             # Backup settings if required
-            if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+            backup = self._get_config_value(
+                lambda: self.config.model.summa.backup_settings, default='no',
+                dict_key='EXPERIMENT_BACKUP_SETTINGS'
+            )
+            if backup == 'yes':
                 self.backup_settings(settings_path, backup_subdir="run_settings")
 
             # Run mizuRoute

@@ -196,9 +196,10 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
         }
 
         # Open catalog and get dataset
-        cat_url = self.config.get(
-            "CONUS404_CATALOG_URL",
-            "https://raw.githubusercontent.com/hytest-org/hytest/main/dataset_catalog/hytest_intake_catalog.yml"
+        cat_url = self._get_config_value(
+            lambda: None,
+            default="https://raw.githubusercontent.com/hytest-org/hytest/main/dataset_catalog/hytest_intake_catalog.yml",
+            dict_key="CONUS404_CATALOG_URL"
         )
         cat = intake.open_catalog(cat_url)
         ds_full = cat["conus404-catalog"]["conus404-hourly-osn"].to_dask()
@@ -218,7 +219,7 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
             self.logger.info("No grid points in bbox, using nearest neighbor extraction")
 
             # Get target point - use pour point if available, otherwise bbox center
-            pour_point_str = self.config_dict.get('POUR_POINT_COORDS')
+            pour_point_str = self._get_config_value(lambda: self.config.domain.pour_point_coords, default=None)
             if pour_point_str:
                 parts = pour_point_str.split('/')
                 target_lat, target_lon = float(parts[0]), float(parts[1])

@@ -183,7 +183,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
                 return ignacio.compare_with_wmfire
 
         # Check config dict
-        return self.config_dict.get('IGNACIO_COMPARE_WMFIRE', False)
+        return self._get_config_value(lambda: self.config.model.ignacio.compare_with_wmfire, default=False)
 
     def _compare_with_wmfire(self, ignacio_perimeters: List[Path]) -> Optional[Dict[str, Any]]:
         """
@@ -267,12 +267,12 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
                     return Path(path)
 
         # Check config dict
-        obs_path = self.config_dict.get('IGNACIO_OBSERVED_PERIMETER')
+        obs_path = self._get_config_value(lambda: self.config.model.ignacio.observed_perimeter, default=None)
         if obs_path and Path(obs_path).exists():
             return Path(obs_path)
 
         # Check WMFire perimeter dir
-        wmfire_perim_dir = self.config_dict.get('WMFIRE_PERIMETER_DIR')
+        wmfire_perim_dir = self._get_config_value(lambda: self.config.model.wmfire.perimeter_dir, default=None)
         if wmfire_perim_dir and Path(wmfire_perim_dir).exists():
             shapefiles = list(Path(wmfire_perim_dir).glob('*.shp'))
             if shapefiles:

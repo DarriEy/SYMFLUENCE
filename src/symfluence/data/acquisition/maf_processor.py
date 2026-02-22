@@ -203,7 +203,7 @@ class DataAcquisitionProcessor(ConfigMixin):
                     "shape-file": str(self.project_dir / "shapefiles/river_basins" / subbasins_name),
                     "prefix": f"domain_{self.domain_name}_",
                     "cache": tool_cache,
-                    "account": self.config_dict.get('TOOL_ACCOUNT'),
+                    "account": self._get_config_value(lambda: None, default=None, dict_key='TOOL_ACCOUNT'),
                     "_flags": [
                         #"submit-job",
                         #"parsable"
@@ -223,7 +223,7 @@ class DataAcquisitionProcessor(ConfigMixin):
                         "lib-path": self._get_config_value(lambda: self.config.paths.gistool_lib_path, dict_key='GISTOOL_LIB_PATH'),
                         "cache": tool_cache,
                         "prefix": f"domain_{self.domain_name}_",
-                        "account": self.config_dict.get('TOOL_ACCOUNT'),
+                        "account": self._get_config_value(lambda: None, default=None, dict_key='TOOL_ACCOUNT'),
                         "fid": self._get_config_value(lambda: self.config.paths.river_basin_rm_gruid, dict_key='RIVER_BASIN_SHP_RM_GRUID'),
                         "_flags": ["include-na", "parsable"]#, "submit-job"]
                     },
@@ -238,7 +238,7 @@ class DataAcquisitionProcessor(ConfigMixin):
                         "lib-path": self._get_config_value(lambda: self.config.paths.gistool_lib_path, dict_key='GISTOOL_LIB_PATH'),
                         "cache": tool_cache,
                         "prefix": f"domain_{self.domain_name}_",
-                        "account": self.config_dict.get('TOOL_ACCOUNT'),
+                        "account": self._get_config_value(lambda: None, default=None, dict_key='TOOL_ACCOUNT'),
                         "fid": self._get_config_value(lambda: self.config.paths.river_basin_rm_gruid, dict_key='RIVER_BASIN_SHP_RM_GRUID'),
                         "_flags": ["include-na", "parsable"]#, "submit-job"]
                     },
@@ -253,7 +253,7 @@ class DataAcquisitionProcessor(ConfigMixin):
                         "lib-path": self._get_config_value(lambda: self.config.paths.gistool_lib_path, dict_key='GISTOOL_LIB_PATH'),
                         "cache": tool_cache,
                         "prefix": f"domain_{self.domain_name}_",
-                        "account": self.config_dict.get('TOOL_ACCOUNT'),
+                        "account": self._get_config_value(lambda: None, default=None, dict_key='TOOL_ACCOUNT'),
                         "fid": self._get_config_value(lambda: self.config.paths.river_basin_rm_gruid, dict_key='RIVER_BASIN_SHP_RM_GRUID'),
                         "_flags": ["include-na", "parsable"]#, "submit-job",]
                     }
@@ -323,7 +323,8 @@ class DataAcquisitionProcessor(ConfigMixin):
         Returns:
             Path: Constructed file path.
         """
-        if self.config.get(f'{file_type}') == 'default':
+        file_type_val = self._get_config_value(lambda: None, default='default', dict_key=file_type)
+        if file_type_val == 'default':
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(f'{file_type}'))
+            return Path(file_type_val)

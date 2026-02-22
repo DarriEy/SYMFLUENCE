@@ -54,12 +54,12 @@ class MESHParameterManager(BaseParameterManager):
         super().__init__(config, logger, mesh_settings_dir)
 
         # MESH-specific setup
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
         self.project_dir = self._resolve_project_dir()
 
         # Parse MESH parameters to calibrate from config
-        mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
+        mesh_params_str = self._get_config_value(lambda: self.config.model.mesh.params_to_calibrate, default=None, dict_key='MESH_PARAMS_TO_CALIBRATE')
         if mesh_params_str is None:
             # Default: 10 high-impact parameters for DDS convergence.
             # CLASS soil/surface: KSAT (infiltration), DRN (drainage),
@@ -83,7 +83,7 @@ class MESHParameterManager(BaseParameterManager):
         # Auto-remove routing parameters that are inert in noroute mode
         routing_params_in_set = [p for p in self.mesh_params if p in ('WF_R2', 'R2N')]
         if routing_params_in_set:
-            routing_mode = config.get('ROUTING_MODE', 'noroute')
+            routing_mode = self._get_config_value(lambda: None, default='noroute', dict_key='ROUTING_MODE')
             if routing_mode == 'noroute':
                 self.mesh_params = [p for p in self.mesh_params if p not in ('WF_R2', 'R2N')]
                 self.logger.info(
@@ -143,13 +143,12 @@ class MESHParameterManager(BaseParameterManager):
         # Multi-GRU parameter distribution settings
         # MESH_APPLY_PARAMS_ALL_GRUS: Apply calibrated params to all landcover classes (default: True)
         # MESH_USE_LANDCOVER_MULTIPLIERS: Apply landcover-specific multipliers (default: True)
-        self.apply_to_all_grus = config.get('MESH_APPLY_PARAMS_ALL_GRUS', True)
-        self.use_landcover_multipliers = config.get('MESH_USE_LANDCOVER_MULTIPLIERS', True)
+        self.apply_to_all_grus = self._get_config_value(lambda: None, default=True, dict_key='MESH_APPLY_PARAMS_ALL_GRUS')
+        self.use_landcover_multipliers = self._get_config_value(lambda: None, default=True, dict_key='MESH_USE_LANDCOVER_MULTIPLIERS')
 
         # Load custom multipliers from config or use defaults
-        self.landcover_multipliers = config.get(
-            'MESH_LANDCOVER_MULTIPLIERS',
-            self.DEFAULT_LANDCOVER_MULTIPLIERS
+        self.landcover_multipliers = self._get_config_value(
+            lambda: None, default=self.DEFAULT_LANDCOVER_MULTIPLIERS, dict_key='MESH_LANDCOVER_MULTIPLIERS'
         )
 
         # Detect all GRU blocks in CLASS.ini for multi-GRU parameter distribution
@@ -336,12 +335,10 @@ class MESHParameterManager(BaseParameterManager):
         SYMFLUENCE_DATA_DIR + DOMAIN_NAME to locate the true project dir.
         """
         domain_name = self.domain_name
-        if domain_name is None and 'domain' in self.config:
-            domain_name = self.config['domain'].get('name')
+        if domain_name is None:
+            domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
 
-        data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
-        if data_dir is None and 'system' in self.config:
-            data_dir = self.config['system'].get('data_dir')
+        data_dir = self._get_config_value(lambda: self.config.system.data_dir, default=None, dict_key='SYMFLUENCE_DATA_DIR')
 
         if domain_name and data_dir:
             project_dir = Path(data_dir) / f"domain_{domain_name}"
@@ -404,7 +401,7 @@ class MESHParameterManager(BaseParameterManager):
         bounds = get_mesh_bounds()
 
         # Override with config-specified bounds if available
-        config_bounds = self.config.get('MESH_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='MESH_PARAM_BOUNDS')
         if config_bounds:
             self.logger.debug(f"Using config-specified MESH bounds for: {list(config_bounds.keys())}")
             self._apply_config_bounds_override(bounds, config_bounds)

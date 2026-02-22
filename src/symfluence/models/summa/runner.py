@@ -57,9 +57,9 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             'SETTINGS_SUMMA_PATH',
             'settings/SUMMA/'
         )
-        self.file_manager = self.settings_path / self.config_dict.get(
-            'SETTINGS_SUMMA_FILEMANAGER',
-            'fileManager.txt'
+        self.file_manager = self.settings_path / self._get_config_value(
+            lambda: self.config.model.summa.filemanager,
+            default='fileManager.txt'
         )
 
         # Legacy alias for backward compatibility
@@ -105,15 +105,16 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def _get_slurm_config(self) -> Optional[SlurmJobConfig]:
         """Get SLURM configuration for parallel SUMMA."""
-        use_parallel = self.config_dict.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False)
+        use_parallel = self._get_config_value(
+            lambda: self.config.model.summa.use_parallel, default=False
+        )
 
         if not use_parallel:
             return None
 
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         log_path = self.get_config_path(
             'EXPERIMENT_LOG_SUMMA',
-            f"simulations/{experiment_id}/SUMMA/SUMMA_logs/"
+            f"simulations/{self.experiment_id}/SUMMA/SUMMA_logs/"
         )
 
         return SlurmJobConfig(
@@ -127,23 +128,24 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def _pre_execution(self) -> bool:
         """Set up for SUMMA execution."""
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-
         # Create output directories
         self.output_dir = self.get_config_path(
             'EXPERIMENT_OUTPUT_SUMMA',
-            f"simulations/{experiment_id}/SUMMA/"
+            f"simulations/{self.experiment_id}/SUMMA/"
         )
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         log_path = self.get_config_path(
             'EXPERIMENT_LOG_SUMMA',
-            f"simulations/{experiment_id}/SUMMA/SUMMA_logs/"
+            f"simulations/{self.experiment_id}/SUMMA/SUMMA_logs/"
         )
         log_path.mkdir(parents=True, exist_ok=True)
 
         # Backup settings if requested
-        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+        backup = self._get_config_value(
+            lambda: self.config.model.summa.backup_settings, default='no'
+        )
+        if backup == 'yes':
             self.backup_settings(self.settings_path)
 
         return True
@@ -164,8 +166,10 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             return run_result
 
         # Check if we need to convert lumped output for distributed routing
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        routing_delineation = self.config_dict.get('ROUTING_DELINEATION', 'lumped')
+        domain_method = self.domain_definition_method
+        routing_delineation = self._get_config_value(
+            lambda: self.config.domain.delineation.routing, default='lumped'
+        )
 
         if domain_method == 'lumped' and routing_delineation == 'river_network':
             self.logger.info("Converting lumped output for distributed routing")
@@ -235,7 +239,9 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             self.logger.warning("No state files to load for SUMMA")
             return
 
-        coldstate_name = self.config_dict.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+        coldstate_name = self._get_config_value(
+            lambda: self.config.model.summa.coldstate, default='coldState.nc'
+        )
         dst = self.settings_path / coldstate_name
 
         src = state.files[0]
@@ -256,15 +262,12 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         Delegates to appropriate execution method based on configuration.
         """
         # Check for point mode
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        if domain_method == 'point':
+        if self.domain_definition_method == 'point':
             return self.run_summa_point()
 
-        # Phase 3: Use typed config when available
-        if self.config:
-            use_parallel = self.config.model.summa.use_parallel if self.config.model.summa else False
-        else:
-            use_parallel = self.config_dict.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False)
+        use_parallel = self._get_config_value(
+            lambda: self.config.model.summa.use_parallel, default=False
+        )
 
         if use_parallel:
             return self.run_parallel_summa()
@@ -307,13 +310,18 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         script_path.chmod(0o755)
 
         # Backup settings if requested
-        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+        backup = self._get_config_value(
+            lambda: self.config.model.summa.backup_settings, default='no'
+        )
+        if backup == 'yes':
             self.backup_settings(self.settings_path)
 
         # Submit and optionally wait
         result = self.submit_slurm_job(
             script_path=script_path,
-            wait=self.config_dict.get('MONITOR_SLURM_JOB', True),
+            wait=self._get_config_value(
+                lambda: self.config.model.summa.monitor_slurm_job, default=True
+            ),
             max_wait_time=3600
         )
 
@@ -325,18 +333,22 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def _count_grus(self) -> int:
         """Count total GRUs from catchment shapefile."""
-        subbasins_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        subbasins_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default'
+        )
         if subbasins_name == 'default':
             subbasins_name = (
                 f"{self.domain_name}_HRUs_"
-                f"{self.config_dict.get('SUB_GRID_DISCRETIZATION')}.shp"
+                f"{self.sub_grid_discretization}.shp"
             )
 
         shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name
 
         try:
             gdf = gpd.read_file(shapefile)
-            gru_col = self.config_dict.get('CATCHMENT_SHP_GRUID', 'GRU_ID')
+            gru_col = self._get_config_value(
+                lambda: self.config.paths.catchment_gruid, default='GRU_ID'
+            )
             return len(gdf[gru_col].unique())
         except Exception as e:
             self.logger.error(f"Error counting GRUs: {e}")
@@ -352,7 +364,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         """
         self.logger.info("Merging parallel SUMMA outputs")
 
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
+        experiment_id = self.experiment_id
 
         try:
             # Process timestep and daily files
@@ -420,8 +432,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def _convert_lumped_for_routing(self) -> None:
         """Convert lumped SUMMA output for distributed routing."""
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        timestep_file = self.output_dir / f"{experiment_id}_timestep.nc"
+        timestep_file = self.output_dir / f"{self.experiment_id}_timestep.nc"
 
         if not timestep_file.exists():
             self.logger.warning(f"Timestep file not found: {timestep_file}")
@@ -458,8 +469,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             fm_list = [line.strip() for line in f if line.strip()]
 
         # Create output directory
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        output_path = self.project_dir / 'simulations' / experiment_id / 'SUMMA'
+        output_path = self.project_dir / 'simulations' / self.experiment_id / 'SUMMA'
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Process each site

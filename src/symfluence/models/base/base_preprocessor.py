@@ -124,7 +124,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             Complete file path
         """
         # Get directory path
-        dir_path = self.config_dict.get(path_key)
+        dir_path = self._get_config_value(lambda: None, dict_key=path_key)
         if dir_path == 'default' or dir_path is None:
             self.logger.warning(f"No {file_type} path specified, path resolution may fail")
             dir_path = self.project_dir
@@ -132,7 +132,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             dir_path = Path(dir_path)
 
         # Get file name
-        file_name = self.config_dict.get(name_key)
+        file_name = self._get_config_value(lambda: None, dict_key=name_key)
         if file_name == 'default' or file_name is None:
             file_name = default_name
 
@@ -183,7 +183,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             # Try to find base settings in config, then fall back to SYMFLUENCE_CODE_DIR
             try:
                 base_settings_key = f'SETTINGS_{self.model_name}_BASE_PATH'
-                source_dir = Path(self.config_dict.get(base_settings_key, 'default'))
+                source_dir = Path(self._get_config_value(lambda: None, default='default', dict_key=base_settings_key))
                 if source_dir == Path('default') or not source_dir.exists():
                     fallback_dir = self.get_base_settings_source_dir()
                     if fallback_dir.exists():
@@ -240,7 +240,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             Path to river network shapefile
         """
         river_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
+        river_name = self._get_config_value(lambda: self.config.paths.river_network_name)
 
         if river_name == 'default' or river_name is None:
             # Use the standardized method suffix for the filename
@@ -265,7 +265,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         Returns:
             Path to DEM file
         """
-        dem_name = self.config_dict.get('DEM_NAME')
+        dem_name = self._get_config_value(lambda: self.config.paths.dem_name)
         if dem_name == "default" or dem_name is None:
             dem_name = f"domain_{self.domain_name}_elv.tif"
         return self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")

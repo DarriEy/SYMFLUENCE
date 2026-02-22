@@ -88,8 +88,8 @@ class SYMFLUENCE:
 
         # Capture provenance metadata
         self.provenance = capture_provenance(
-            experiment_id=self.config.get('EXPERIMENT_ID', 'unknown'),
-            domain_name=self.config.get('DOMAIN_NAME', 'unknown'),
+            experiment_id=getattr(self.typed_config.domain, 'experiment_id', 'unknown') or 'unknown',
+            domain_name=getattr(self.typed_config.domain, 'name', 'unknown') or 'unknown',
             config_path=str(self.config_path) if self.config_path else None,
         )
 
