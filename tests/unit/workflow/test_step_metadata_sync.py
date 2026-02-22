@@ -18,6 +18,8 @@ except ImportError:
 
 
 def _build_orchestrator() -> WorkflowOrchestrator:
+    from symfluence.core.config.models import SymfluenceConfig
+
     managers = {
         "project": MagicMock(),
         "domain": MagicMock(),
@@ -26,14 +28,14 @@ def _build_orchestrator() -> WorkflowOrchestrator:
         "analysis": MagicMock(),
         "optimization": MagicMock(),
     }
-    config = {
-        "DOMAIN_NAME": "test_domain",
-        "EXPERIMENT_ID": "run_1",
-        "SYMFLUENCE_DATA_DIR": "/tmp/data",
-        "HYDROLOGICAL_MODEL": "SUMMA",
-        "DOMAIN_DEFINITION_METHOD": "lumped",
-        "SUB_GRID_DISCRETIZATION": "lumped",
-    }
+    config = SymfluenceConfig.from_minimal(
+        domain_name="test_domain",
+        model="SUMMA",
+        time_start="2010-01-01 00:00",
+        time_end="2010-12-31 23:00",
+        EXPERIMENT_ID="run_1",
+        SYMFLUENCE_DATA_DIR="/tmp/data",
+    )
     logger = MagicMock()
     return WorkflowOrchestrator(managers, config, logger)
 
