@@ -202,10 +202,10 @@ class TestNormalization:
         assert normalized.shape == (3,)
 
     def test_normalize_missing_parameter_uses_default(self, param_manager, caplog):
-        """Test that missing parameters default to 0.5 with warning."""
+        """Test that missing parameters default to 0.5 with diagnostic log."""
         params = {'param1': 5.0, 'param3': 300.0}  # param2 missing
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             normalized = param_manager.normalize_parameters(params)
 
         assert normalized[1] == 0.5  # Missing param should be 0.5
