@@ -14,6 +14,10 @@ import xarray as xr
 import geopandas as gpd
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.models.mesh.preprocessing.config_defaults import (
+    is_elevation_band_mode,
+    should_force_single_gru,
+)
 
 
 class MESHDrainageDatabase(ConfigMixin):
@@ -434,10 +438,10 @@ class MESHDrainageDatabase(ConfigMixin):
                         modified = True
                     ds['GRU'].attrs['grid_mapping'] = 'crs'
 
-                    # For lumped mode, force single GRU only when explicitly enabled
-                    # or when spatial mode implies lumped behavior.
-                    force_single_gru = self._should_force_single_gru()
-                    if force_single_gru and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
+                    # Collapse to single GRU when lumped mode is active.
+                    # Threshold > 2: NGRU=2 is already single-GRU format
+                    # (MESH reads NGRU-1 GRUs due to off-by-one).
+                    if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
                         self.logger.info(
                             f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
                             f"(NGRU=2 for MESH off-by-one workaround)"
@@ -466,10 +470,9 @@ class MESHDrainageDatabase(ConfigMixin):
                     ds['GRU'].attrs['grid_mapping'] = 'crs'
                     modified = True
 
-                    # For lumped mode, force single GRU only when explicitly enabled
-                    # or when spatial mode implies lumped behavior.
-                    force_single_gru = self._should_force_single_gru()
-                    if force_single_gru and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
+                    # Collapse to single GRU when lumped mode is active (same
+                    # check as the 'GRU' branch above — shared predicate).
+                    if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
                         self.logger.info(
                             f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
                             f"(NGRU=2 for MESH off-by-one workaround)"
@@ -607,9 +610,7 @@ class MESHDrainageDatabase(ConfigMixin):
                 # Trim zero-fraction GRUs before setting coordinates
                 # Meshflow may create extra GRU entries with zero fractions
                 # Skip for elevation band mode — the padding column is required for MESH off-by-one
-                _sub_grid_trim = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
-                _skip_trim = isinstance(_sub_grid_trim, str) and _sub_grid_trim.lower() == 'elevation'
-                if 'NGRU' in ds.dims and 'GRU' in ds and not _skip_trim:
+                if 'NGRU' in ds.dims and 'GRU' in ds and not is_elevation_band_mode(self.config_dict):
                     gru_vals = ds['GRU'].values
                     # Sum GRU fractions across subbasins for each GRU
                     if gru_vals.ndim == 2:
@@ -652,12 +653,10 @@ class MESHDrainageDatabase(ConfigMixin):
                     self.logger.info("Removed NGRU coordinate variable (MESH expects dimension only)")
                     modified = True
 
-                # FINAL CHECK: Enforce single GRU for lumped mode (after all other processing)
-                # MESH has an off-by-one issue: it reads NGRU-1 GRUs.
-                # For MESH to see 1 GRU, we need NGRU=2 with a padding column.
-                # Skip for elevation band mode to preserve multi-subbasin structure.
-                force_single_gru = self._should_force_single_gru()
-                if force_single_gru and 'NGRU' in ds.dims and 'GRU' in ds and ds.sizes['NGRU'] > 1:
+                # FINAL CHECK: Enforce single GRU for lumped mode (after all other processing).
+                # Threshold > 2: NGRU=2 is already the correct single-GRU format
+                # (MESH reads NGRU-1 GRUs due to off-by-one).
+                if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and 'GRU' in ds and ds.sizes['NGRU'] > 2:
                     self.logger.info(
                         f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
                         f"(set MESH_FORCE_SINGLE_GRU=false to use multiple GRUs)"
@@ -985,16 +984,15 @@ class MESHDrainageDatabase(ConfigMixin):
                 if 'NGRU' in ds_new.dims and 'NGRU' in ds_new.coords:
                     ds_new = ds_new.drop_vars('NGRU')
 
-                # Enforce single GRU only when explicitly enabled or in lumped mode.
-                force_single_gru = self._should_force_single_gru()
-
-                # Check GRU shape directly since dimension checks can be tricky
+                # Collapse to single GRU when lumped mode is active.
+                # Use GRU shape as fallback when dimension metadata is unreliable.
+                # Threshold > 2: NGRU=2 is already single-GRU format.
                 ngru_count = 1
                 if 'GRU' in ds_new:
                     gru_shape = ds_new['GRU'].shape
                     ngru_count = gru_shape[-1] if len(gru_shape) >= 2 else 1
 
-                if force_single_gru and ngru_count > 1:
+                if should_force_single_gru(self.config_dict) and ngru_count > 2:
                     n_size = ds_new.sizes[n_dim] if n_dim else 1
                     self.logger.info(
                         f"Enforcing lumped mode: collapsing {ngru_count} GRUs to 1 "
@@ -1066,37 +1064,11 @@ class MESHDrainageDatabase(ConfigMixin):
     def _should_force_single_gru(self) -> bool:
         """Determine whether to collapse GRUs to a single class.
 
-        Logic:
-        - If MESH_FORCE_SINGLE_GRU is explicitly set (and not "default"), honor it.
-        - Otherwise, auto-enable only for lumped/point spatial modes.
-        - Always disable for elevation-band discretization.
+        .. deprecated::
+            Use :func:`should_force_single_gru` from ``config_defaults``
+            instead.  This method is kept for backward compatibility only.
         """
-        raw = None
-        try:
-            raw = self.config_dict.get('MESH_FORCE_SINGLE_GRU', None)
-        except Exception:
-            raw = None
-
-        if raw is not None and raw != 'default':
-            force = self._as_bool(raw, default=False)
-        else:
-            spatial_mode = ''
-            domain_method = ''
-            try:
-                spatial_mode = str(self.config_dict.get('MESH_SPATIAL_MODE', 'auto')).lower()
-                domain_method = str(self.config_dict.get('DOMAIN_DEFINITION_METHOD', '')).lower()
-            except Exception:
-                pass
-            force = spatial_mode in ('lumped', 'point') or domain_method in ('lumped', 'point')
-
-        try:
-            sub_grid = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUS')
-            if isinstance(sub_grid, str) and sub_grid.lower() == 'elevation':
-                return False
-        except Exception:
-            pass
-
-        return force
+        return should_force_single_gru(self.config_dict)
 
     def convert_to_elevation_band_grus(self, hru_shapefile: Path) -> tuple:
         """Convert DDB to use elevation bands as GRUs instead of landcover classes.

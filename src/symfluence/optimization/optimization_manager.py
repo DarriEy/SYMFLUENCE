@@ -294,7 +294,8 @@ class OptimizationManager(BaseManager):
                 use_internal = self._get_config_value(
                     lambda: self.config.model.fuse.run_internal_calibration
                     if self.config.model and self.config.model.fuse else None,
-                    self.config_dict.get('FUSE_RUN_INTERNAL_CALIBRATION', True)
+                    default=True,
+                    dict_key='FUSE_RUN_INTERNAL_CALIBRATION'
                 )
                 if use_internal:
                     self.logger.info(

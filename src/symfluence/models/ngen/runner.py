@@ -55,7 +55,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
     def run_ngen(self, experiment_id: str = None):
         """Execute NextGen model simulation."""
-        use_ngiab = self.config_dict.get('USE_NGIAB', False)
+        use_ngiab = self._get_config_value(lambda: None, default=False, dict_key='USE_NGIAB')
         if use_ngiab:
             self.logger.info("Using NGIAB Docker for NextGen execution")
             return self._run_ngen_docker(experiment_id)
@@ -68,10 +68,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             error_type=ModelExecutionError
         ):
             if experiment_id is None:
-                if self.config:
-                    experiment_id = self.config.domain.experiment_id
-                else:
-                    experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+                experiment_id = self.experiment_id
 
             if '_ngen_output_dir' in self.config_dict:
                 output_dir = Path(self.config_dict['_ngen_output_dir'])
@@ -101,7 +98,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             # Retry logic for SIGSEGV (-11) crashes during initialization.
             # NGEN has a non-deterministic null-pointer bug in CsvPerFeatureForcingProvider::read_csv()
             # on macOS ARM64 that crashes before model simulation starts. Retrying recovers.
-            max_retries = self.config_dict.get('NGEN_SIGSEGV_RETRIES', 4)
+            max_retries = self._get_config_value(lambda: None, default=4, dict_key='NGEN_SIGSEGV_RETRIES')
             last_error = None
 
             for attempt in range(1 + max_retries):
@@ -113,7 +110,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     )
                     self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
 
-                    if self.config_dict.get('NGEN_RUN_TROUTE', True):
+                    if self._get_config_value(lambda: self.config.model.ngen.run_troute, default=True):
                         self.logger.debug("Starting t-route routing...")
                         troute_success = self._run_troute_routing(output_dir)
                         if not troute_success:
@@ -148,10 +145,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         Returns (catchment_file, fallback_catchment_file, nexus_file,
         realization_file, use_geojson).
         """
-        if self.config:
-            domain_name = self.config.domain.name
-        else:
-            domain_name = self.config_dict.get('DOMAIN_NAME')
+        domain_name = self.domain_name
 
         import platform
         use_geojson = getattr(self, "_use_geojson_catchments", False)
@@ -182,10 +176,10 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         """Build subprocess environment dict with venv and library paths."""
         env = os.environ.copy()
 
-        if self.config and self.config.model.ngen:
-            install_path = self.config.model.ngen.install_path
-        else:
-            install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
+        install_path = self._get_config_value(
+            lambda: self.config.model.ngen.install_path,
+            default='default'
+        )
 
         if install_path == 'default':
             ngen_base = self.data_dir.parent / 'installs' / 'ngen'
@@ -316,10 +310,10 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
             changed = False
             # Determine absolute ngen base directory
-            if self.config and self.config.model.ngen:
-                install_path = self.config.model.ngen.install_path
-            else:
-                install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
+            install_path = self._get_config_value(
+                lambda: self.config.model.ngen.install_path,
+                default='default'
+            )
 
             if install_path == 'default':
                 ngen_base = self.data_dir.parent / 'installs' / 'ngen'
@@ -557,10 +551,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         ):
             # Get experiment info
             if experiment_id is None:
-                if self.config:
-                    experiment_id = self.config.domain.experiment_id
-                else:
-                    experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+                experiment_id = self.experiment_id
 
             # Determine output directory
             if '_ngen_output_dir' in self.config_dict:
@@ -582,13 +573,10 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 isolated_settings_dir = None
 
             # Get domain name
-            if self.config:
-                domain_name = self.config.domain.name
-            else:
-                domain_name = self.config_dict.get('DOMAIN_NAME')
+            domain_name = self.domain_name
 
             # NGIAB Docker image
-            ngiab_image = self.config_dict.get('NGIAB_IMAGE', 'awiciroh/ciroh-ngen-image:latest')
+            ngiab_image = self._get_config_value(lambda: None, default='awiciroh/ciroh-ngen-image:latest', dict_key='NGIAB_IMAGE')
 
             # Check if Docker is available
             try:
@@ -726,7 +714,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
             # Copy and configure T-Route files for routing
             # Try NetCDF first (NHDNetwork - most reliable), then GeoPackage/GeoJSON (HYFeaturesNetwork)
-            domain_name = self.config_dict.get('DOMAIN_NAME', 'domain')
+            domain_name = self.domain_name
             troute_gpkg_src = base_setup_dir / f"{domain_name}_hydrofabric_troute.gpkg"
             troute_flowlines_src = base_setup_dir / "troute_flowlines.geojson"
             troute_topology_src = base_setup_dir / "troute_topology.nc"

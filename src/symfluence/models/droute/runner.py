@@ -522,13 +522,13 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
         """Get input directory for runoff data from source model."""
         from_model = self.droute_from_model.upper()
         if from_model == 'DEFAULT':
-            hydro_model = self.config_dict.get('HYDROLOGICAL_MODEL', 'SUMMA')
+            hydro_model = self._get_config_value(lambda: self.config.model.hydrological_model, default='SUMMA')
             if ',' in str(hydro_model):
                 from_model = str(hydro_model).split(',')[0].strip().upper()
             else:
                 from_model = str(hydro_model).strip().upper()
 
-        experiment_output = self.config_dict.get(f'EXPERIMENT_OUTPUT_{from_model}')
+        experiment_output = self._get_config_value(lambda: getattr(self.config.paths, f'experiment_output_{from_model.lower()}', None), default=None)
         if experiment_output and experiment_output != 'default':
             return Path(experiment_output)
 

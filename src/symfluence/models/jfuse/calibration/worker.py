@@ -73,6 +73,31 @@ try:
         # Return loss (1 - NSE, lower is better)
         return 1.0 - nse
 
+    def multi_gauge_kge_loss(Q_all, gauge_indices, gauge_obs, warmup, aggregation='median'):
+        """Multi-gauge KGE loss aggregated across gauges.
+
+        Args:
+            Q_all: Simulated discharge for all segments (time x segments)
+            gauge_indices: Indices mapping gauges to segments
+            gauge_obs: Observed discharge per gauge (time x gauges)
+            warmup: Number of warmup timesteps to skip
+            aggregation: 'median' or 'mean' for aggregating per-gauge losses
+        """
+        losses = []
+        for i, seg_idx in enumerate(gauge_indices):
+            sim_g = Q_all[warmup:, seg_idx]
+            obs_g = gauge_obs[warmup:, i] if gauge_obs.ndim > 1 else gauge_obs[warmup:]
+            valid = ~jnp.isnan(obs_g)
+            if jnp.sum(valid) < 10:
+                continue
+            losses.append(kge_loss(sim_g[valid], obs_g[valid]))
+        if not losses:
+            return jnp.array(2.0)
+        loss_arr = jnp.stack(losses)
+        if aggregation == 'median':
+            return jnp.median(loss_arr)
+        return jnp.mean(loss_arr)
+
     # Custom config optimized for gradient-based calibration (ADAM/LBFGS)
     PRMS_GRADIENT_CONFIG = ModelConfig(
         upper_arch=UpperLayerArch.TENSION2_FREE,
@@ -119,6 +144,7 @@ except ImportError:
     PARAM_BOUNDS = {}
     kge_loss = None
     nse_loss = None
+    multi_gauge_kge_loss = None
     CoupledModel = None
     create_network_from_topology = None
     load_network = None
@@ -234,7 +260,7 @@ class JFUSEWorker(InMemoryModelWorker):
         """
         # Try flat key first (works for dict configs and ensure_typed_config)
         flat_key = f'JFUSE_{bare_key.upper()}'
-        val = self.config.get(flat_key)
+        val = self._cfg(flat_key)
         if val is not None:
             return val
 
@@ -422,8 +448,8 @@ class JFUSEWorker(InMemoryModelWorker):
 
     def _initialize_distributed_model(self) -> None:
         """Initialize CoupledModel for distributed mode with routing."""
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', '.'))
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
+        data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', self._cfg('ROOT_PATH', '.')))
 
         # Load network from topology file
         network_file = self.network_file
@@ -506,7 +532,7 @@ class JFUSEWorker(InMemoryModelWorker):
         attributes_path = self._get_jfuse_config('attributes_path')
         # Also check flat config key
         if attributes_path is None:
-            attributes_path = self.config.get('JFUSE_ATTRIBUTES_PATH')
+            attributes_path = self._cfg('JFUSE_ATTRIBUTES_PATH')
         if attributes_path is None:
             self.logger.warning(
                 "Transfer functions enabled but JFUSE_ATTRIBUTES_PATH not set, "
@@ -519,7 +545,7 @@ class JFUSEWorker(InMemoryModelWorker):
         )
 
         # Parse calibrated params from config
-        jfuse_params_str = self.config.get('JFUSE_PARAMS_TO_CALIBRATE')
+        jfuse_params_str = self._cfg('JFUSE_PARAMS_TO_CALIBRATE')
         if jfuse_params_str and jfuse_params_str != 'default':
             calibrated_params = [p.strip() for p in str(jfuse_params_str).split(',') if p.strip()]
         else:
@@ -579,7 +605,7 @@ class JFUSEWorker(InMemoryModelWorker):
         self._prepare_forcing_tuple()
 
         # Load observations — try multi-gauge first for distributed mode
-        multi_gauge = self.config.get('MULTI_GAUGE_CALIBRATION', False)
+        multi_gauge = self._cfg('MULTI_GAUGE_CALIBRATION', False)
         if self._is_distributed and multi_gauge:
             if self._load_multi_gauge_observations():
                 self.logger.info(
@@ -646,8 +672,8 @@ class JFUSEWorker(InMemoryModelWorker):
         """
         import xarray as xr
 
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', '.'))
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', self._cfg('ROOT_PATH', '.')))
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
 
         # Look for FUSE input file
         forcing_source = self._get_jfuse_config('forcing_source', 'FUSE_input')
@@ -753,15 +779,15 @@ class JFUSEWorker(InMemoryModelWorker):
         Returns:
             True if sufficient gauges loaded
         """
-        gauge_mapping_file = self.config.get('GAUGE_SEGMENT_MAPPING')
-        obs_dir = self.config.get('MULTI_GAUGE_OBS_DIR')
-        min_gauges = int(self.config.get('MULTI_GAUGE_MIN_GAUGES', 5))
-        exclude_ids = self.config.get('MULTI_GAUGE_EXCLUDE_IDS', [])
+        gauge_mapping_file = self._cfg('GAUGE_SEGMENT_MAPPING')
+        obs_dir = self._cfg('MULTI_GAUGE_OBS_DIR')
+        min_gauges = int(self._cfg('MULTI_GAUGE_MIN_GAUGES', 5))
+        exclude_ids = self._cfg('MULTI_GAUGE_EXCLUDE_IDS', [])
 
         # Quality filters
-        max_distance = self.config.get('MULTI_GAUGE_MAX_DISTANCE')
-        min_obs_cv = self.config.get('MULTI_GAUGE_MIN_OBS_CV')
-        min_specific_q = self.config.get('MULTI_GAUGE_MIN_SPECIFIC_Q')
+        max_distance = self._cfg('MULTI_GAUGE_MAX_DISTANCE')
+        min_obs_cv = self._cfg('MULTI_GAUGE_MIN_OBS_CV')
+        min_specific_q = self._cfg('MULTI_GAUGE_MIN_SPECIFIC_Q')
         if max_distance is not None:
             max_distance = float(max_distance)
         if min_obs_cv is not None:
@@ -1163,7 +1189,7 @@ class JFUSEWorker(InMemoryModelWorker):
         has_multi_gauge = self._gauge_obs is not None and self._gauge_reach_indices is not None
         gauge_obs = self._gauge_obs
         gauge_indices = self._gauge_reach_indices
-        aggregation = self.config.get('MULTI_GAUGE_AGGREGATION', 'median')
+        aggregation = self._cfg('MULTI_GAUGE_AGGREGATION', 'median')
 
         if has_multi_gauge:
             obs = gauge_obs
@@ -1292,7 +1318,8 @@ class JFUSEWorker(InMemoryModelWorker):
                 _, Q_all, _ = self._coupled_model.simulate_full(
                     self._forcing_tuple, params_obj
                 )
-                aggregation = self.config.get('MULTI_GAUGE_AGGREGATION', 'median')
+                aggregation = self._get_config_value(
+                    lambda: None, default='median', dict_key='MULTI_GAUGE_AGGREGATION')
                 loss_val = float(multi_gauge_kge_loss(
                     Q_all, self._gauge_reach_indices, self._gauge_obs,
                     self.warmup_days, aggregation

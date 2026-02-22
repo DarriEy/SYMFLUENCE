@@ -253,20 +253,30 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
 }
 
 
-def get_spatial_mode_from_config(config_dict: Dict) -> SpatialMode:
+def get_spatial_mode_from_config(config_dict) -> SpatialMode:
     """
-    Determine spatial mode from configuration dictionary.
+    Determine spatial mode from configuration dictionary or typed config.
 
     Uses DOMAIN_DEFINITION_METHOD and ROUTING_DELINEATION to infer the spatial mode.
 
     Args:
-        config_dict: Configuration dictionary with domain settings
+        config_dict: Configuration dictionary or typed config with domain settings
 
     Returns:
         Inferred SpatialMode
     """
-    domain_method = config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-    routing_delineation = config_dict.get('ROUTING_DELINEATION', 'lumped')
+    if isinstance(config_dict, dict):
+        domain_method = config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        routing_delineation = config_dict.get('ROUTING_DELINEATION', 'lumped')
+    else:
+        try:
+            domain_method = config_dict.domain.definition_method or 'lumped'
+        except (AttributeError, TypeError):
+            domain_method = 'lumped'
+        try:
+            routing_delineation = config_dict.model.mizuroute.routing_delineation or 'lumped'
+        except (AttributeError, TypeError):
+            routing_delineation = 'lumped'
 
     # Map domain method to spatial mode
     if domain_method in ('point', 'lumped'):

@@ -130,13 +130,34 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
 
             extractor = ParFlowResultExtractor()
 
-            timestep_hours = float(self.config_dict.get('PARFLOW_TIMESTEP_HOURS', 1.0))
-            dump_interval_hours = float(self.config_dict.get('PARFLOW_DUMP_INTERVAL_HOURS', 24.0))
-            start_date = str(self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01'))
-            k_sat = float(self.config_dict.get('PARFLOW_K_SAT', 5.0))
-            dx = float(self.config_dict.get('PARFLOW_DX', 1000.0))
-            dy = float(self.config_dict.get('PARFLOW_DY', 1000.0))
-            dz = float(self.config_dict.get('PARFLOW_DZ', 2.0))
+            timestep_hours = float(self._get_config_value(
+                lambda: self.config.model.parflow.timestep_hours if self.config.model and self.config.model.parflow else None,
+                default=1.0
+            ))
+            dump_interval_hours = float(self._get_config_value(
+                lambda: self.config.model.parflow.dump_interval_hours if self.config.model and self.config.model.parflow else None,
+                default=24.0
+            ))
+            start_date = str(self._get_config_value(
+                lambda: self.config.domain.time_start,
+                default='2000-01-01'
+            ))
+            k_sat = float(self._get_config_value(
+                lambda: self.config.model.parflow.k_sat if self.config.model and self.config.model.parflow else None,
+                default=5.0
+            ))
+            dx = float(self._get_config_value(
+                lambda: self.config.model.parflow.dx if self.config.model and self.config.model.parflow else None,
+                default=1000.0
+            ))
+            dy = float(self._get_config_value(
+                lambda: self.config.model.parflow.dy if self.config.model and self.config.model.parflow else None,
+                default=1000.0
+            ))
+            dz = float(self._get_config_value(
+                lambda: self.config.model.parflow.dz if self.config.model and self.config.model.parflow else None,
+                default=2.0
+            ))
 
             common_kwargs = dict(
                 timestep_hours=timestep_hours,
@@ -163,8 +184,14 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
             # Scale from model domain area to actual catchment area.
             # ParFlow computes flow for the small model grid; the lumped
             # catchment is much larger, so we multiply by the area ratio.
-            nx = int(self.config_dict.get('PARFLOW_NX', 3))
-            ny = int(self.config_dict.get('PARFLOW_NY', 1))
+            nx = int(self._get_config_value(
+                lambda: self.config.model.parflow.nx if self.config.model and self.config.model.parflow else None,
+                default=3
+            ))
+            ny = int(self._get_config_value(
+                lambda: self.config.model.parflow.ny if self.config.model and self.config.model.parflow else None,
+                default=1
+            ))
             domain_area_m2 = nx * dx * ny * dy
 
             try:

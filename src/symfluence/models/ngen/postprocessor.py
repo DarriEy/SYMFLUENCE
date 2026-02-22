@@ -62,7 +62,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
         Returns:
             Path to ngen output directory within simulations folder
         """
-        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+        experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='run_1')
         return self.project_dir / 'simulations' / experiment_id / 'ngen'
 
     def extract_streamflow(self, experiment_id: str = None) -> Optional[Path]:
@@ -85,7 +85,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
         self.logger.info("Extracting streamflow from ngen outputs")
 
         if experiment_id is None:
-            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+            experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='run_1')
 
         # Get output directory
         output_dir = self.project_dir / 'simulations' / experiment_id / 'ngen'
@@ -98,7 +98,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
             return None
 
         # Filter by CALIBRATION_NEXUS_ID if configured
-        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
+        target_nexus = self._get_config_value(lambda: self.config.model.ngen.calibration_nexus_id, default=None)
         if target_nexus:
             # Normalize ID
             target_files = [

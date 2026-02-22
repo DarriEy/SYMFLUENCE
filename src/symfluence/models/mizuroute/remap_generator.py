@@ -222,21 +222,36 @@ class MizuRouteRemapGenerator:
             Requires geopandas and EASYMORE for spatial intersection operations.
         """
         self.pp.logger.info("Remapping SUMMA catchments to routing catchments")
-        if self.pp.domain_definition_method == 'lumped' and self.pp.config_dict.get('ROUTING_DELINEATION') == 'river_network':
+        routing_delineation = self.pp._get_config_value(
+            lambda: self.pp.config.domain.delineation.routing, default='lumped'
+        )
+        if self.pp.domain_definition_method == 'lumped' and routing_delineation == 'river_network':
             self.pp.logger.info("Area-weighted mapping for SUMMA catchments to routing catchments")
             self.create_area_weighted_remap_file()  # Changed from create_equal_weight_remap_file
             return
 
-        hm_catchment_path = Path(self.pp.config_dict.get('CATCHMENT_PATH'))
-        hm_catchment_name = self.pp.config_dict.get('CATCHMENT_SHP_NAME')
+        hm_catchment_path = Path(self.pp._get_config_value(
+            lambda: self.pp.config.paths.catchment_path, default='default'
+        ))
+        hm_catchment_name = self.pp._get_config_value(
+            lambda: self.pp.config.paths.catchment_name, default='default'
+        )
         if hm_catchment_name == 'default':
-            hm_catchment_name = f"{self.pp.domain_name}_HRUs_{self.pp.config_dict.get('SUB_GRID_DISCRETIZATION')}.shp"
+            hm_catchment_name = f"{self.pp.domain_name}_HRUs_{self.pp.sub_grid_discretization}.shp"
 
-        rm_catchment_path = Path(self.pp.config_dict.get('RIVER_BASINS_PATH'))
-        rm_catchment_name = self.pp.config_dict.get('RIVER_BASINS_NAME')
+        rm_catchment_path = Path(self.pp._get_config_value(
+            lambda: self.pp.config.paths.river_basins_path, default='default'
+        ))
+        rm_catchment_name = self.pp._get_config_value(
+            lambda: self.pp.config.paths.river_basins_name, default='default'
+        )
 
-        intersect_path = Path(self.pp.config_dict.get('INTERSECT_ROUTING_PATH'))
-        intersect_name = self.pp.config_dict.get('INTERSECT_ROUTING_NAME')
+        intersect_path = Path(self.pp._get_config_value(
+            lambda: self.pp.config.paths.intersect_routing_path, default='default'
+        ))
+        intersect_name = self.pp._get_config_value(
+            lambda: self.pp.config.paths.intersect_routing_name, default='default'
+        )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_routing_basins.shp'
 
@@ -285,8 +300,8 @@ class MizuRouteRemapGenerator:
     # =========================================================================
 
     def _process_remap_variables(self, intersected_shape):
-        int_rm_id = f"S_1_{self.pp.config_dict.get('RIVER_BASIN_SHP_RM_HRUID')}"
-        int_hm_id = f"S_2_{self.pp.config_dict.get('CATCHMENT_SHP_GRUID')}"
+        int_rm_id = f"S_1_{self.pp._get_config_value(lambda: None, dict_key='RIVER_BASIN_SHP_RM_HRUID')}"
+        int_hm_id = f"S_2_{self.pp._get_config_value(lambda: self.pp.config.paths.catchment_gruid, default='GRU_ID')}"
         int_weight = 'AP1N'
 
         intersected_shape = intersected_shape.sort_values(by=[int_rm_id, int_hm_id])
@@ -301,7 +316,7 @@ class MizuRouteRemapGenerator:
         self.nc_weight = [item for sublist in multi_nested_list for item in sublist[0]]
 
     def _create_remap_file(self, intersected_shape, remap_name):
-        num_hru = len(intersected_shape[f"S_1_{self.pp.config_dict.get('RIVER_BASIN_SHP_RM_HRUID')}"].unique())
+        num_hru = len(intersected_shape[f"S_1_{self.pp._get_config_value(lambda: None, dict_key='RIVER_BASIN_SHP_RM_HRUID')}"].unique())
         num_data = len(intersected_shape)
 
         with nc4.Dataset(self.pp.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:

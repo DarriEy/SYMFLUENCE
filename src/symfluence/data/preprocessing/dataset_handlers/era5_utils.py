@@ -168,7 +168,7 @@ class ERA5Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating ERA5 shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         try:
             # Find an .nc file in the forcing path
@@ -264,8 +264,8 @@ class ERA5Handler(BaseDatasetHandler):
                 gdf = gpd.GeoDataFrame({
                     'geometry': geometries,
                     'ID': ids,
-                    self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                    self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                    self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                    self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
                 }, crs='EPSG:4326')
 
                 self.logger.info(f"GeoDataFrame created with {len(gdf)} rows")

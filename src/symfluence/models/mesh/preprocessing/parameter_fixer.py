@@ -267,8 +267,9 @@ class MESHParameterFixer(ConfigMixin):
 
             if configured_wf_r2 is None:
                 try:
-                    if hasattr(self, 'config') and isinstance(self.config, dict):
-                         configured_wf_r2 = self.config.get('hydrology_params', {}).get('routing', [{}])[0].get('wf_r2')
+                    hydro_params = self._get_config_value(lambda: None, default={}, dict_key='hydrology_params')
+                    if isinstance(hydro_params, dict):
+                        configured_wf_r2 = hydro_params.get('routing', [{}])[0].get('wf_r2')
                 except Exception:
                     pass
 

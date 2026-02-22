@@ -115,7 +115,7 @@ class ShapefileHelper(ConfigMixin):
 
         _get_geopandas()
         name = resolve_default_name(
-            self.config,
+            self.config_dict,
             'RIVER_BASINS_NAME',
             '{domain}_riverBasins_{method}.shp'
         )
@@ -140,7 +140,7 @@ class ShapefileHelper(ConfigMixin):
             return self._cache[cache_key]
 
         name = resolve_default_name(
-            self.config,
+            self.config_dict,
             'RIVER_NETWORK_SHP_NAME',
             '{domain}_riverNetwork_delineate.shp'
         )
@@ -165,7 +165,7 @@ class ShapefileHelper(ConfigMixin):
             return self._cache[cache_key]
 
         name = resolve_default_name(
-            self.config,
+            self.config_dict,
             'POUR_POINT_SHP_NAME',
             '{domain}_pourPoint.shp'
         )
@@ -195,7 +195,7 @@ class ShapefileHelper(ConfigMixin):
             return self._cache[cache_key]
 
         name = resolve_default_name(
-            self.config,
+            self.config_dict,
             'CATCHMENT_SHP_NAME',
             f'{{domain}}_HRUs_{method}.shp'
         )
@@ -253,7 +253,7 @@ class ShapefileHelper(ConfigMixin):
         Returns:
             Resolved Path object
         """
-        config_path = self.config.get(path_key)
+        config_path = self._get_config_value(lambda: None, default=None, dict_key=path_key)
 
         if config_path is None or config_path == 'default':
             return self.project_dir / default_subpath / filename

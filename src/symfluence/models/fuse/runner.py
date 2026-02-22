@@ -47,6 +47,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
     """
 
     MODEL_NAME = "FUSE"
+    _fuse_file_id: Optional[str] = None
 
     def __init__(self, config, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
@@ -99,11 +100,16 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         FUSE Fortran uses a CHARACTER(LEN=6) buffer for FMODEL_ID,
         so the ID must be kept to 6 chars max to avoid truncation.
         """
-        fuse_id: str = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        if hasattr(self, '_fuse_file_id') and self._fuse_file_id is not None:
+            return self._fuse_file_id
+        fuse_id: str = self._get_config_value(
+            lambda: self.config.model.fuse.file_id,
+            default=self.experiment_id
+        )
         if len(fuse_id) > 6:
             import hashlib
             fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
-            self.config_dict['FUSE_FILE_ID'] = fuse_id
+        self._fuse_file_id = fuse_id
         return fuse_id
 
     def _setup_model_specific_paths(self) -> None:
@@ -196,10 +202,13 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                                        attrs={'long_name': 'gru identifier'})
 
             # Convert FUSE runoff from mm/day to m/s for mizuRoute
-            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-            routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+            routing_var = self.mizu_routing_var
+            routing_units = self.mizu_routing_units
             if routing_units == 'm/s' and routing_var in ds:
-                fuse_timestep = int(self.config_dict.get('FUSE_OUTPUT_TIMESTEP_SECONDS', 86400))
+                fuse_timestep = int(self._get_config_value(
+                    lambda: self.config.model.fuse.output_timestep_seconds,
+                    default=86400
+                ))
                 conversion_factor = 1.0 / (1000.0 * fuse_timestep)
                 ds[routing_var] = ds[routing_var] * conversion_factor
                 ds[routing_var].attrs['units'] = 'm/s'
@@ -210,14 +219,17 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         else:
             self.logger.warning(f"Mapping file not found at {mapping_file}, skipping coastal GRU filtering")
             # Still need to convert units from mm/day to m/s for mizuRoute
-            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-            routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+            routing_var = self.mizu_routing_var
+            routing_units = self.mizu_routing_units
             if routing_units == 'm/s':
                 ds = xr.open_dataset(target)
                 ds = ds.load()
                 ds.close()
                 if routing_var in ds:
-                    fuse_timestep = int(self.config_dict.get('FUSE_OUTPUT_TIMESTEP_SECONDS', 86400))
+                    fuse_timestep = int(self._get_config_value(
+                        lambda: self.config.model.fuse.output_timestep_seconds,
+                        default=86400
+                    ))
                     conversion_factor = 1.0 / (1000.0 * fuse_timestep)
                     ds[routing_var] = ds[routing_var] * conversion_factor
                     ds[routing_var].attrs['units'] = 'm/s'
@@ -283,18 +295,28 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         Returns:
             bool: True if mizuRoute routing should be executed, False otherwise.
         """
-        routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'default')
+        routing_integration = self._get_config_value(
+            lambda: self.config.model.fuse.routing_integration,
+            default='default'
+        )
 
         # When FUSE_ROUTING_INTEGRATION is 'default', infer from ROUTING_MODEL
         if routing_integration == 'default':
-            routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+            routing_model = self._get_config_value(
+                lambda: self.config.model.routing_model,
+                default='none'
+            )
             if routing_model and routing_model.lower() in ('mizuroute', 'mizu_route', 'mizu'):
                 routing_integration = 'mizuRoute'
 
         if routing_integration == 'mizuRoute':
             if self.spatial_mode in ['semi_distributed', 'distributed']:
                 return True
-            elif self.spatial_mode == 'lumped' and self.config_dict.get('ROUTING_DELINEATION') == 'river_network':
+            routing_delineation = self._get_config_value(
+                lambda: self.config.domain.delineation.routing if self.config.domain and self.config.domain.delineation else None,
+                default=None
+            )
+            if self.spatial_mode == 'lumped' and routing_delineation == 'river_network':
                 return True
 
         return False
@@ -535,7 +557,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         elif def_file.exists() and def_file.stat().st_size > 1024:
             source_file = def_file
 
-        if source_file and not best_file.exists():
+        # Copy if best_file is missing or too small (FUSE creates an empty shell
+        # before crashing, so the file may exist but contain no time steps)
+        best_needs_copy = not best_file.exists() or best_file.stat().st_size < 1024
+        if source_file and best_needs_copy:
             self.logger.info(f"Copying {source_file.name} to {best_file.name} for compatibility")
             shutil.copy2(source_file, best_file)
 
@@ -708,8 +733,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
     def _setup_fuse_mizuroute_config(self):
         """Update configuration for FUSE-mizuRoute integration"""
 
-        # Update input file name for mizuRoute
-        self.config_dict['EXPERIMENT_ID_TEMP'] = self.experiment_id  # Backup
+        # Backup experiment_id as instance attribute (was config_dict write-back)
+        self._experiment_id_backup = self.experiment_id
 
         # Set mizuRoute to look for FUSE output instead of SUMMA
 
@@ -728,7 +753,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                             return True
 
             # Also check optimization target from config
-            optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
+            optimization_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default='streamflow'
+            )
             if optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
                 return True
 
@@ -737,7 +765,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         except (FileNotFoundError, KeyError, ValueError) as e:
             self.logger.warning(f"Could not determine if snow optimization: {str(e)}")
             # Fall back to checking config
-            optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
+            optimization_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default='streamflow'
+            )
             return optimization_target in ['swe', 'sca', 'snow_depth', 'snow']
 
     def _copy_default_to_best_params(self):
@@ -1061,7 +1092,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             bool: True if successful, False otherwise.
         """
         try:
-            fuse_fm = self.config_dict.get('SETTINGS_FUSE_FILEMANAGER', 'fm_catch.txt')
+            fuse_fm = self._get_config_value(
+                lambda: self.config.model.fuse.filemanager,
+                default='fm_catch.txt'
+            )
             if fuse_fm == 'default':
                 fuse_fm = 'fm_catch.txt'
             fm_path = self.project_dir / 'settings' / 'FUSE' / fuse_fm
@@ -1080,7 +1114,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                     lines = f.readlines()
 
             # Get current settings
-            fuse_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+            fuse_id = self._get_fuse_file_id()
             output_path = str(self.output_path) + '/'
 
             # Find actual decisions file
@@ -1151,7 +1185,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         self.logger.debug("Executing FUSE model")
 
         # Construct command
-        fuse_fm = self.config_dict.get('SETTINGS_FUSE_FILEMANAGER')
+        fuse_fm = self._get_config_value(
+            lambda: self.config.model.fuse.filemanager,
+            default='fm_catch.txt'
+        )
         if fuse_fm == 'default':
             fuse_fm = 'fm_catch.txt'
 
@@ -1193,8 +1230,15 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                             f"FUSE NetCDF error (exit code 0): {'; '.join(nc_lines[:3])}"
                         )
                         return False
-                    if 'STOP' in log_content:
-                        stop_lines = [l.strip() for l in log_content.splitlines() if 'STOP' in l]
+                    # Check for Fortran STOP statements. Exclude SCE's normal
+                    # completion messages ("SEARCH WAS STOPPED AT", "KSTOP")
+                    # which contain STOP as a substring but are not errors.
+                    import re
+                    stop_lines = [
+                        l.strip() for l in log_content.splitlines()
+                        if re.search(r'\bSTOP\b', l) and 'STOPPED' not in l and 'KSTOP' not in l
+                    ]
+                    if stop_lines:
                         self.logger.error(
                             f"FUSE Fortran STOP (exit code 0): {'; '.join(stop_lines[:3])}"
                         )
@@ -1292,22 +1336,30 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
             # Check if FUSE internal calibration should run (independent of external optimization)
             run_internal_calibration = self._get_config_value(
-                lambda: self.config.model.fuse.run_internal_calibration if self.config.model and self.config.model.fuse else None,
-                self.config_dict.get('FUSE_RUN_INTERNAL_CALIBRATION', True)
+                lambda: self.config.model.fuse.run_internal_calibration,
+                default=True
             )
 
             if run_internal_calibration:
                 try:
                     # Run FUSE internal SCE-UA calibration as benchmark
+                    # Internal calibration failure is non-fatal for the overall workflow
                     self.logger.info("Running FUSE internal calibration (calib_sce) as benchmark")
-                    success = self._execute_fuse('calib_sce')
+                    calib_success = self._execute_fuse('calib_sce')
 
-                    # CRITICAL: Fix elevation band parameters in para_sce.nc too
-                    # FUSE calib_sce creates para_sce.nc with zeros for Z_FORCING, Z_MID, AF
-                    self._fix_elevation_band_params_in_para_sce()
+                    if calib_success:
+                        # CRITICAL: Fix elevation band parameters in para_sce.nc too
+                        # FUSE calib_sce creates para_sce.nc with zeros for Z_FORCING, Z_MID, AF
+                        self._fix_elevation_band_params_in_para_sce()
 
-                    # Run FUSE with best parameters from internal calibration
-                    success = self._execute_fuse('run_best')
+                        # Run FUSE with best parameters from internal calibration
+                        if not self._execute_fuse('run_best'):
+                            self.logger.warning(
+                                "FUSE run_best failed (non-fatal). "
+                                "External calibration will proceed using run_pre output."
+                            )
+                    else:
+                        self.logger.warning("FUSE calib_sce failed (non-fatal for workflow)")
                 except (subprocess.CalledProcessError, OSError, RuntimeError) as e:
                     self.logger.warning(f'FUSE internal calibration failed: {e}')
             else:

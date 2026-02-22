@@ -66,8 +66,9 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         # 2. Set up paths
         settings_path = self.project_dir / 'settings' / 'troute'
-        topology_file = settings_path / self.config_dict.get(
-            'SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc'
+        topology_file = settings_path / self._get_config_value(
+            lambda: self.config.model.troute.topology if self.config.model and self.config.model.troute else None,
+            default='troute_topology.nc'
         )
         troute_out_path = self.get_experiment_output_dir()
         troute_out_path.mkdir(parents=True, exist_ok=True)
@@ -101,8 +102,13 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         """
         self.logger.info("Preparing runoff file for t-route...")
 
-        source_model = self.config_dict.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
+        source_model = self._get_config_value(
+            lambda: self.config.model.troute.from_model if self.config.model and self.config.model.troute else None,
+            default='SUMMA'
+        ).upper()
+        experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id
+        )
         runoff_filepath = (
             self.project_dir
             / f"simulations/{experiment_id}/{source_model}/{experiment_id}_timestep.nc"
@@ -110,8 +116,9 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         self.verify_required_files(runoff_filepath, context="t-route runoff preparation")
 
-        original_var_config = self.config_dict.get(
-            'SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff'
+        original_var_config = self._get_config_value(
+            lambda: self.config.model.mizuroute.routing_var if self.config.model and self.config.model.mizuroute else None,
+            default='averageRoutedRunoff'
         )
         if original_var_config in ('default', None, ''):
             original_var = 'averageRoutedRunoff'
@@ -144,8 +151,9 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
     def _run_nwm_routing(self, settings_path: Path, troute_out_path: Path):
         """Execute routing via nwm_routing subprocess."""
-        config_file = self.config_dict.get(
-            'SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml'
+        config_file = self._get_config_value(
+            lambda: self.config.model.troute.config_file if self.config.model and self.config.model.troute else None,
+            default='troute_config.yml'
         )
         config_filepath = settings_path / config_file
         log_path = self.get_log_path()
@@ -186,7 +194,10 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
             - troute_output.nc: routed discharge (flow), velocity, depth per segment
         """
         start = time.time()
-        dt = float(self.config_dict.get('SETTINGS_TROUTE_DT_SECONDS', 3600))
+        dt = float(self._get_config_value(
+            lambda: self.config.model.troute.dt_seconds if self.config.model and self.config.model.troute else None,
+            default=3600
+        ))
 
         # --- Load topology ---
         topo = xr.open_dataset(topology_filepath)
@@ -262,8 +273,14 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
             bw = np.maximum(topo['channel_width'].values, 1.0)
         elif 'drainage_area_km2' in topo:
             da = np.maximum(topo['drainage_area_km2'].values, 0.01)
-            hg_a = float(self.config_dict.get('TROUTE_HG_WIDTH_COEFF', 2.71))
-            hg_b = float(self.config_dict.get('TROUTE_HG_WIDTH_EXP', 0.557))
+            hg_a = float(self._get_config_value(
+                lambda: self.config.model.troute.hg_width_coeff if self.config.model and self.config.model.troute else None,
+                default=2.71
+            ))
+            hg_b = float(self._get_config_value(
+                lambda: self.config.model.troute.hg_width_exp if self.config.model and self.config.model.troute else None,
+                default=0.557
+            ))
             bw = np.maximum(hg_a * da ** hg_b, 1.0)
             self.logger.info(f"Channel widths from hydraulic geometry: {bw.min():.1f}-{bw.max():.1f} m")
         else:
@@ -300,7 +317,10 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         # Courant violations. We cap auto sub-timesteps at 10 — higher values make
         # the pure-Python loop impractically slow (N_time * N_sub * N_seg).
         MAX_AUTO_SUBS = 10
-        qts_subdivisions = int(self.config_dict.get('TROUTE_QTS_SUBDIVISIONS', 0))
+        qts_subdivisions = int(self._get_config_value(
+            lambda: self.config.model.troute.qts_subdivisions if self.config.model and self.config.model.troute else None,
+            default=0
+        ))
         if qts_subdivisions <= 0:
             # Auto-detect from median flow conditions (not initial which may be extreme)
             q_ref_med = np.maximum(np.median(q_seg, axis=0), 1e-6)

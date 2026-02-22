@@ -79,7 +79,7 @@ class SUMMAOptimizerMixin:
                     return self._config.model.summa.filemanager or 'fileManager.txt'
             except (AttributeError, TypeError):
                 pass
-        return self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        return self._get_config_value_safe('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
 
     def _is_glacier_mode(self) -> bool:
         """Determine if glacier mode is enabled based on file manager name."""
@@ -326,8 +326,13 @@ class SUMMAOptimizerMixin:
                     return str(self._config.domain.time_start) if self._config.domain.time_start else default
                 elif key == 'EXPERIMENT_TIME_END':
                     return str(self._config.domain.time_end) if self._config.domain.time_end else default
+                elif key == 'SETTINGS_SUMMA_FILEMANAGER':
+                    return self._config.model.summa.filemanager or default
             except (AttributeError, TypeError):
                 pass
+        # Fallback to dict access
+        if hasattr(self, '_get_config_value'):
+            return self._get_config_value(lambda: None, default=default, dict_key=key)
         return self.config_dict.get(key, default)
 
     def _adjust_end_time_for_forcing_internal(self, end_time_str: str) -> str:

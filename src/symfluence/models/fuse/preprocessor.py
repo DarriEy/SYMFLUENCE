@@ -93,6 +93,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
     """
 
     MODEL_NAME = "FUSE"
+    _fuse_file_id: Optional[str] = None
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
@@ -154,20 +155,23 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.synthetic_data_generator = FuseSyntheticDataGenerator(logger=self.logger)
 
     def _get_fuse_file_id(self) -> str:
-
         """Get a short file ID for FUSE outputs and settings.
 
         FUSE Fortran uses a CHARACTER(LEN=6) buffer for FMODEL_ID,
         so the ID must be kept to 6 chars max to avoid truncation.
         """
-        fuse_id = self.config_dict.get('FUSE_FILE_ID')
+        if hasattr(self, '_fuse_file_id') and self._fuse_file_id is not None:
+            return self._fuse_file_id
+        fuse_id = self._get_config_value(
+            lambda: self.config.model.fuse.file_id,
+            default=None
+        )
         if not fuse_id:
-            experiment_id = self.config_dict.get('EXPERIMENT_ID', '')
-            fuse_id = experiment_id if experiment_id else 'fuse'
+            fuse_id = self.experiment_id if self.experiment_id else 'fuse'
         if len(fuse_id) > 6:
             import hashlib
             fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
-        self.config_dict['FUSE_FILE_ID'] = fuse_id
+        self._fuse_file_id = fuse_id
         return fuse_id
 
     def _get_timestep_config(self):
@@ -261,8 +265,14 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
 
             # Apply FUSE_DECISION_OPTIONS from config to update model decisions
-            decision_options = self.config_dict.get('FUSE_DECISION_OPTIONS', {})
-            snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
+            decision_options = self._get_config_value(
+                lambda: self.config.model.fuse.decision_options,
+                default={}
+            )
+            snow_model = self._get_config_value(
+                lambda: self.config.model.fuse.snow_model,
+                default=None
+            )
 
             if decision_file_path and decision_file_path.exists() and (decision_options or snow_model):
                 try:
@@ -322,8 +332,14 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         try:
             t0 = time.time()
             ts_config = self._get_timestep_config()
-            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE') or self._infer_spatial_mode_from_domain()
-            subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
+            spatial_mode = self._get_config_value(
+                lambda: self.config.model.fuse.spatial_mode,
+                default=None
+            ) or self._infer_spatial_mode_from_domain()
+            subcatchment_dim = self._get_config_value(
+                lambda: self.config.model.fuse.subcatchment_dim,
+                default='longitude'
+            )
 
             ds = self._load_forcing_dataset(ts_config)
             ds = self._organize_and_resample(ds, spatial_mode, subcatchment_dim, ts_config)
@@ -402,7 +418,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
         self.logger.info(f"PERF: Loading observations took {time.time() - t6:.2f}s")
 
-        pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
+        pet_method = self._get_config_value(
+            lambda: self.config.forcing.pet_method,
+            default='oudin'
+        ).lower()
         self.logger.debug(f"Using PET method: {pet_method}")
 
         t7 = time.time()
@@ -517,7 +536,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         unit_str = f"mm/{time_label.replace('-', ' ')}"
 
         # Determine target spatial dimension (latitude or longitude based on config)
-        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
+        subcatchment_dim = self._get_config_value(
+            lambda: self.config.model.fuse.subcatchment_dim,
+            default='longitude'
+        )
 
         # Alignment time index (already in fuse_forcing.time but we need it as datetime for reindexing)
         # FUSE uses numeric time, but we'll use datetime for internal alignment
@@ -788,15 +810,24 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         settings = {
             'SETNGS_PATH': str(self.project_dir / 'settings' / 'FUSE') + '/',
             'INPUT_PATH': str(self.project_forcing_dir / 'FUSE_input') + '/',
-            'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'FUSE') + '/',
-            'MAXN': str(self.config_dict.get('NUMBER_OF_ITERATIONS')),
+            'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.experiment_id / 'FUSE') + '/',
+            'MAXN': str(self._get_config_value(
+                lambda: self.config.optimization.number_of_iterations,
+                default=100
+            )),
             'FMODEL_ID': fuse_id,
             'M_DECISIONS': f"fuse_zDecisions_{fuse_id}.txt"
         }
 
         # Get and format dates from forcing data if available, else config
-        start_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
-        end_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
+        start_time = datetime.strptime(self._get_config_value(
+            lambda: self.config.domain.time_start,
+            default='2000-01-01 00:00'
+        ), '%Y-%m-%d %H:%M')
+        end_time = datetime.strptime(self._get_config_value(
+            lambda: self.config.domain.time_end,
+            default='2010-12-31 00:00'
+        ), '%Y-%m-%d %H:%M')
         forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
 
         if hasattr(self, 'actual_start_time') and hasattr(self, 'actual_end_time'):
@@ -822,8 +853,12 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             else:
                 self.logger.warning(f"Forcing file not found at {forcing_file}, using config dates.")
 
-        cal_start_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[0], '%Y-%m-%d')
-        cal_end_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[1].strip(), '%Y-%m-%d')
+        cal_period = self._get_config_value(
+            lambda: self.config.domain.calibration_period,
+            default='2000-01-01,2010-12-31'
+        )
+        cal_start_time = datetime.strptime(cal_period.split(',')[0], '%Y-%m-%d')
+        cal_end_time = datetime.strptime(cal_period.split(',')[1].strip(), '%Y-%m-%d')
 
         date_settings = {
             'date_start_sim': start_time.strftime('%Y-%m-%d'),
@@ -1082,7 +1117,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return self.forcing_processor._create_distributed_from_catchment(ds)
 
     def _get_base_file_path(self, file_type, file_def_path, file_name):  # type: ignore[override]
-        if self.config_dict.get(f'{file_type}') == 'default':
+        val = self._get_config_value(lambda: getattr(self.config.paths, file_type.lower(), None), default='default')
+        if val == 'default':
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config_dict.get(f'{file_type}'))
+            return Path(val)

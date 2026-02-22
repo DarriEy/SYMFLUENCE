@@ -145,7 +145,8 @@ class ConfigMixin:
             return _experiment_id
         return self._get_config_value(
             lambda: self.config.domain.experiment_id,
-            default='run_1'
+            default='run_1',
+            dict_key='EXPERIMENT_ID'
         )
 
     @experiment_id.setter
@@ -158,7 +159,8 @@ class ConfigMixin:
         """Domain definition method from config.domain.definition_method."""
         return self._get_config_value(
             lambda: self.config.domain.definition_method,
-            default='lumped'
+            default='lumped',
+            dict_key='DOMAIN_DEFINITION_METHOD'
         )
 
     @property

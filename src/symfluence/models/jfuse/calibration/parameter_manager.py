@@ -136,37 +136,15 @@ class JFUSEParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, jfuse_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Check for transfer function mode
-        self._use_transfer_functions = bool(config.get('JFUSE_USE_TRANSFER_FUNCTIONS', False))
+        self._use_transfer_functions = bool(self._get_config_value(lambda: None, default=False, dict_key='JFUSE_USE_TRANSFER_FUNCTIONS'))
         self._tf_config = None
 
         # Parse jFUSE parameters to calibrate from config
-        # Try multiple access patterns since config may be a SymfluenceConfig object
-        # or a raw dict depending on the caller
-        jfuse_params_str = None
-        if isinstance(config, dict):
-            jfuse_params_str = config.get('JFUSE_PARAMS_TO_CALIBRATE')
-        else:
-            # SymfluenceConfig: try flat key, then try nested attribute
-            jfuse_params_str = getattr(config, 'JFUSE_PARAMS_TO_CALIBRATE', None)
-            if jfuse_params_str is None:
-                # Try to_dict() which may have a mapped key
-                try:
-                    cfg_dict = config.to_dict() if hasattr(config, 'to_dict') else {}
-                    raw = cfg_dict.get('params_to_calibrate', None)
-                    if isinstance(raw, dict):
-                        # Pydantic mangles {type: value} — extract the string value
-                        for v in raw.values():
-                            if isinstance(v, str):
-                                jfuse_params_str = v
-                                break
-                    elif isinstance(raw, str):
-                        jfuse_params_str = raw
-                except Exception:
-                    pass
+        jfuse_params_str = self._get_config_value(lambda: self.config.model.jfuse.params_to_calibrate, default=None, dict_key='JFUSE_PARAMS_TO_CALIBRATE')
         # Handle None, empty string, or 'default' as signal to use default parameter list
         if jfuse_params_str is None or jfuse_params_str == '' or jfuse_params_str == 'default':
             # Default 14 parameters with non-zero gradients for prms_gradient config
@@ -184,7 +162,7 @@ class JFUSEParameterManager(BaseParameterManager):
         self.calibration_params = self.jfuse_params
 
         # Apply custom bounds from config if provided (tuple storage for TF mode)
-        custom_bounds = config.get('JFUSE_PARAM_BOUNDS', {})
+        custom_bounds = self._get_config_value(lambda: None, default={}, dict_key='JFUSE_PARAM_BOUNDS')
         if custom_bounds:
             for param_name, bnd in custom_bounds.items():
                 if isinstance(bnd, (list, tuple)) and len(bnd) == 2:
@@ -211,7 +189,7 @@ class JFUSEParameterManager(BaseParameterManager):
             JaxTransferFunctionConfig,
         )
 
-        attributes_path = config.get('JFUSE_ATTRIBUTES_PATH')
+        attributes_path = self._get_config_value(lambda: None, default=None, dict_key='JFUSE_ATTRIBUTES_PATH')
         if not attributes_path:
             self.logger.error(
                 "JFUSE_USE_TRANSFER_FUNCTIONS=true but JFUSE_ATTRIBUTES_PATH not set"
@@ -219,7 +197,7 @@ class JFUSEParameterManager(BaseParameterManager):
             self._use_transfer_functions = False
             return
 
-        b_bounds_cfg = config.get('JFUSE_TF_B_BOUNDS', (-5.0, 5.0))
+        b_bounds_cfg = self._get_config_value(lambda: None, default=(-5.0, 5.0), dict_key='JFUSE_TF_B_BOUNDS')
         if isinstance(b_bounds_cfg, list):
             b_bounds_cfg = tuple(b_bounds_cfg)
 
@@ -293,7 +271,7 @@ class JFUSEParameterManager(BaseParameterManager):
             if name in self.all_bounds
         }
         # Apply config overrides with transform preservation
-        config_bounds = self.config.get('JFUSE_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='JFUSE_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
         return bounds
@@ -307,7 +285,7 @@ class JFUSEParameterManager(BaseParameterManager):
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
-        initial_params = self.config_dict.get('JFUSE_INITIAL_PARAMS', 'default')
+        initial_params = self._get_config_value(lambda: None, default='default', dict_key='JFUSE_INITIAL_PARAMS')
 
         if initial_params == 'default':
             self.logger.debug("Using standard jFUSE defaults for initial parameters")

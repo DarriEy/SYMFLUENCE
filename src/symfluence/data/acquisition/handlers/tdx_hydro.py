@@ -72,7 +72,7 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         import geopandas as gpd
         from shapely.geometry import Point
 
-        source = self.config_dict.get('TDX_SOURCE', 'geoglows').lower()
+        source = self._get_config_value(lambda: None, default='geoglows', dict_key='TDX_SOURCE').lower()
         if source == 'nga':
             raise NotImplementedError(
                 "NGA TDX-Hydro archive download is not supported for automatic "
@@ -157,7 +157,7 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         Returns:
             Tuple of (lat, lon)
         """
-        pour_point_str = self.config_dict.get('POUR_POINT_COORDS')
+        pour_point_str = self._get_config_value(lambda: self.config.domain.pour_point_coords, default=None)
         if pour_point_str:
             parts = str(pour_point_str).replace('/', ',').split(',')
             return float(parts[0].strip()), float(parts[1].strip())

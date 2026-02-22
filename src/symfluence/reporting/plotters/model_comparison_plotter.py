@@ -596,7 +596,10 @@ class ModelComparisonPlotter(BasePlotter):
                     if 'QRUNOFF' in ds:
                         qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
                         area_m2 = float(
-                            self.config_dict.get('CATCHMENT_AREA', 2210.0)
+                            self._get_config_value(
+                                lambda: self.config.domain.catchment_area,
+                                default=2210.0
+                            )
                         ) * 1e6
                         streamflow = qrunoff * area_m2 / 1000.0  # m3/s
                         time_idx = pd.DatetimeIndex(ds.time.values)
@@ -795,7 +798,10 @@ class ModelComparisonPlotter(BasePlotter):
                     if 'QRUNOFF' in ds:
                         qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
                         area = basin_area_m2 or (
-                            float(self.config_dict.get('CATCHMENT_AREA', 2210.0))
+                            float(self._get_config_value(
+                                lambda: self.config.domain.catchment_area,
+                                default=2210.0
+                            ))
                             * 1e6
                         )
                         streamflow = qrunoff * area / 1000.0  # m3/s

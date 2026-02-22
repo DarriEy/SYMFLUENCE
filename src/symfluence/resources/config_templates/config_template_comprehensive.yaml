@@ -234,6 +234,48 @@ NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat,bexp
 #   Usage:      3
 NGEN_PET_PARAMS_TO_CALIBRATE: ""
 
+# ENABLE_SLOTH
+#   Type:        bool
+#   Default:     True
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Enable SLOTH module in NGEN
+ENABLE_SLOTH: true
+
+# ENABLE_PET
+#   Type:        bool
+#   Default:     True
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Enable PET module in NGEN
+ENABLE_PET: true
+
+# ENABLE_NOAH
+#   Type:        bool
+#   Default:     False
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Enable Noah-OWP module in NGEN
+ENABLE_NOAH: false
+
+# ENABLE_CFE
+#   Type:        bool
+#   Default:     True
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Enable CFE module in NGEN
+ENABLE_CFE: true
+
+# NGEN_NOAH_ET_FALLBACK
+#   Type:        str
+#   Default:     ETRAN
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Noah ET variable fallback when Noah module is enabled
+NGEN_NOAH_ET_FALLBACK: "ETRAN"
+
+# NGEN_RUN_TROUTE
+#   Type:        bool
+#   Default:     True
+#   Source:      NGENConfig (model_configs.py)
+#   Description: Whether to run t-route routing within NGEN
+NGEN_RUN_TROUTE: true
+
 
 # 12. MESH Model Configuration
 # ================================================================================
@@ -447,6 +489,13 @@ MESH_USE_LANDCOVER_MULTIPLIERS: true
 #   Source:      MESHConfig (model_configs.py)
 #   Usage:      Enable frozen soil physics in MESH
 MESH_ENABLE_FROZEN_SOIL: true
+
+# MESH_DAILY_TOLERANCE_DAYS
+#   Type:        int
+#   Default:     1
+#   Source:      MESHConfig (model_configs.py)
+#   Description: Tolerance in days for daily timestep alignment in MESH output
+MESH_DAILY_TOLERANCE_DAYS: 1
 
 
 # 13. Routing Model (mizuRoute)
@@ -1568,6 +1617,48 @@ ABC_CONVERGENCE_THRESHOLD: 0.001
 #   Usage:      Minimum generations before checking convergence
 ABC_MIN_GENERATIONS: 5
 
+# OBJECTIVE_WEIGHTS
+#   Type:        dict
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Variable-specific weights for multivariate objective (e.g., {'STREAMFLOW': 0.7, 'SWE': 0.3})
+OBJECTIVE_WEIGHTS: null
+
+# OBJECTIVE_METRICS
+#   Type:        dict
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Primary metric per variable for multivariate objective (e.g., {'STREAMFLOW': 'kge'})
+OBJECTIVE_METRICS: null
+
+# WORKER_MAX_RETRIES
+#   Type:        int
+#   Default:     3
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Maximum number of retry attempts for worker model evaluations
+WORKER_MAX_RETRIES: 3
+
+# WORKER_BASE_DELAY
+#   Type:        float
+#   Default:     0.5
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Base delay for exponential backoff between retries (seconds)
+WORKER_BASE_DELAY: 0.5
+
+# WORKER_MAX_DELAY
+#   Type:        float
+#   Default:     30.0
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Maximum delay between retries (seconds)
+WORKER_MAX_DELAY: 30.0
+
+# WORKER_JITTER
+#   Type:        float
+#   Default:     0.1
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Jitter factor for randomizing retry delays (0-1)
+WORKER_JITTER: 0.1
+
 
 # 16. Evaluation & Observation Data
 # ================================================================================
@@ -2092,6 +2183,126 @@ EVALUATION_DATA: []
 #   Usage:      2
 HRU_GAUGE_MAPPING: null
 
+# EVALUATION_VARIABLE
+#   Type:        str
+#   Default:     ''
+#   Source:      EvaluationConfig (evaluation.py)
+#   Description: Variable name for evaluation (e.g., streamflow, SWE)
+EVALUATION_VARIABLE: ""
+
+# EVALUATION_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      EvaluationConfig (evaluation.py)
+#   Description: Number of spinup years to exclude from evaluation
+EVALUATION_SPINUP_YEARS: 0
+
+# ========================================
+# TWS (Total Water Storage) Evaluation
+# ========================================
+
+# TWS_GRACE_COLUMN
+#   Type:        str
+#   Default:     grace_jpl_anomaly
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Column name for GRACE TWS data
+TWS_GRACE_COLUMN: "grace_jpl_anomaly"
+
+# TWS_ANOMALY_BASELINE
+#   Type:        str
+#   Default:     overlap
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Baseline period for TWS anomaly computation (overlap or date range)
+TWS_ANOMALY_BASELINE: "overlap"
+
+# TWS_UNIT_CONVERSION
+#   Type:        float
+#   Default:     1.0
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Unit conversion factor for TWS data
+TWS_UNIT_CONVERSION: 1.0
+
+# TWS_DETREND
+#   Type:        bool
+#   Default:     False
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Whether to detrend TWS time series
+TWS_DETREND: false
+
+# TWS_SCALE_TO_OBS
+#   Type:        bool
+#   Default:     False
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Whether to scale simulated TWS to match observation range
+TWS_SCALE_TO_OBS: false
+
+# TWS_STORAGE_COMPONENTS
+#   Type:        str
+#   Default:     ''
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Storage components to include in TWS calculation
+TWS_STORAGE_COMPONENTS: ""
+
+# TWS_OBS_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      TWSEvalConfig (evaluation.py)
+#   Description: Path to TWS observation data
+TWS_OBS_PATH: null
+
+# ========================================
+# ET (Evapotranspiration) Evaluation
+# ========================================
+
+# ET_OBS_SOURCE
+#   Type:        str
+#   Default:     mod16
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: ET observation data source (mod16, gleam, fluxnet)
+ET_OBS_SOURCE: "mod16"
+
+# ET_TEMPORAL_AGGREGATION
+#   Type:        str
+#   Default:     daily_mean
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Temporal aggregation method for ET data
+ET_TEMPORAL_AGGREGATION: "daily_mean"
+
+# ET_USE_QUALITY_CONTROL
+#   Type:        bool
+#   Default:     True
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Whether to apply quality control filtering to ET data
+ET_USE_QUALITY_CONTROL: true
+
+# ET_MAX_QUALITY_FLAG
+#   Type:        int
+#   Default:     2
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Maximum acceptable quality flag for ET data
+ET_MAX_QUALITY_FLAG: 2
+
+# ET_MODIS_MAX_QC
+#   Type:        int
+#   Default:     0
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Maximum acceptable MODIS QC value for ET data
+ET_MODIS_MAX_QC: 0
+
+# ET_GLEAM_MAX_RELATIVE_UNCERTAINTY
+#   Type:        float
+#   Default:     0.5
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Maximum relative uncertainty for GLEAM ET data
+ET_GLEAM_MAX_RELATIVE_UNCERTAINTY: 0.5
+
+# ET_OBS_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      ETEvalConfig (evaluation.py)
+#   Description: Path to ET observation data
+ET_OBS_PATH: null
+
 
 # 17. Paths & Data Locations
 # ================================================================================
@@ -2608,6 +2819,13 @@ EXPERIMENT_TIME_START: "2010-01-01 01:00"
 #   Usage:      8
 SPINUP_PERIOD: null
 
+# CATCHMENT_AREA
+#   Type:        float
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Description: Catchment area (km²) for unit conversions
+CATCHMENT_AREA: null
+
 
 # 3. Delineation & Discretization
 # ================================================================================
@@ -2772,6 +2990,27 @@ STREAM_THRESHOLD: 5000.0
 #   Source:      DelineationConfig (domain.py)
 #   Usage:      3
 USE_DROP_ANALYSIS: false
+
+# POINT_BUFFER_DISTANCE
+#   Type:        float
+#   Default:     None
+#   Source:      DelineationConfig (domain.py)
+#   Description: Buffer distance around point for delineation (meters)
+POINT_BUFFER_DISTANCE: null
+
+# MAX_RETRIES
+#   Type:        int
+#   Default:     3
+#   Source:      DelineationConfig (domain.py)
+#   Description: Maximum number of retries for delineation operations
+MAX_RETRIES: 3
+
+# RETRY_DELAY
+#   Type:        float
+#   Default:     5.0
+#   Source:      DelineationConfig (domain.py)
+#   Description: Delay between retries in seconds
+RETRY_DELAY: 5.0
 
 
 # 4. Geospatial Data Sources
@@ -3310,6 +3549,34 @@ FIRE_MODEL: null
 #   Description: Groundwater model selection (e.g., 'MODFLOW', 'ParFlow')
 GROUNDWATER_MODEL: null
 
+# COUPLING_MODE
+#   Type:        str
+#   Default:     sequential
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Model coupling mode (sequential, bidirectional)
+COUPLING_MODE: "sequential"
+
+# CONSERVATION_MODE
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Conservation checking mode for coupled models
+CONSERVATION_MODE: null
+
+# TOPOLOGY_FILE
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Path to topology file for model coupling
+TOPOLOGY_FILE: null
+
+# SNOW_MODULE
+#   Type:        str
+#   Default:     ''
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Snow module selection (e.g., 'snow17', '')
+SNOW_MODULE: ""
+
 
 # 7. SUMMA Model Configuration
 # ================================================================================
@@ -3552,6 +3819,48 @@ SUMMA_INSTALL_PATH: default
 #   Usage:      Model execution timeout in seconds
 SUMMA_TIMEOUT: 7200
 
+# EXPERIMENT_BACKUP_SETTINGS
+#   Type:        str
+#   Default:     no
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Whether to back up settings before model run (yes/no)
+EXPERIMENT_BACKUP_SETTINGS: "no"
+
+# MONITOR_SLURM_JOB
+#   Type:        bool
+#   Default:     True
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Whether to monitor SLURM job status during parallel runs
+MONITOR_SLURM_JOB: true
+
+# SETTINGS_SUMMA_SOILPROFILE
+#   Type:        str
+#   Default:     FA
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Soil profile type for SUMMA (FA = Free Atmosphere)
+SETTINGS_SUMMA_SOILPROFILE: "FA"
+
+# SUMMA_INIT_MATRIC_HEAD
+#   Type:        float
+#   Default:     -1.0
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Initial matric head for SUMMA cold state initialization
+SUMMA_INIT_MATRIC_HEAD: -1.0
+
+# SETTINGS_SUMMA_INIT_GRID_FILE
+#   Type:        str
+#   Default:     coldState_glacSurfTopo.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Glacier initial conditions grid file
+SETTINGS_SUMMA_INIT_GRID_FILE: "coldState_glacSurfTopo.nc"
+
+# SETTINGS_SUMMA_ATTRIB_GRID_FILE
+#   Type:        str
+#   Default:     attributes_glacBedTopo.nc
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: Glacier attributes grid file
+SETTINGS_SUMMA_ATTRIB_GRID_FILE: "attributes_glacBedTopo.nc"
+
 
 # 8. FUSE Model Configuration
 # ================================================================================
@@ -3654,6 +3963,48 @@ FUSE_TIMEOUT: 3600
 #   Usage:      Whether to run FUSE's internal calibration
 FUSE_RUN_INTERNAL_CALIBRATION: true
 
+# FUSE_OUTPUT_TIMESTEP_SECONDS
+#   Type:        int
+#   Default:     86400
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Output timestep in seconds (86400 = daily)
+FUSE_OUTPUT_TIMESTEP_SECONDS: 86400
+
+# FUSE_SNOW_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Snow model used with FUSE (e.g., 'snow17')
+FUSE_SNOW_MODEL: null
+
+# FUSE_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Custom parameter bounds for FUSE calibration
+FUSE_PARAM_BOUNDS: null
+
+# PARAMETER_REGIONALIZATION
+#   Type:        str
+#   Default:     lumped
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Parameter regionalization approach (lumped, distributed)
+PARAMETER_REGIONALIZATION: "lumped"
+
+# USE_TRANSFER_FUNCTIONS
+#   Type:        bool
+#   Default:     False
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Whether to use transfer functions for parameter regionalization
+USE_TRANSFER_FUNCTIONS: false
+
+# TRANSFER_FUNCTION_COEFF_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+#   Description: Bounds for transfer function coefficients
+TRANSFER_FUNCTION_COEFF_BOUNDS: null
+
 
 # 9. GR Model Configuration
 # ================================================================================
@@ -3728,6 +4079,34 @@ GR_ALLOW_DUMMY_OBSERVATIONS: false
 #   Source:      GRConfig (model_configs.py)
 #   Description: If True, use 1.0 km² default area when basin shapefile not found
 GR_ALLOW_DEFAULT_AREA: false
+
+# GR_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      GRConfig (model_configs.py)
+#   Description: Custom parameter bounds for GR calibration
+GR_PARAM_BOUNDS: null
+
+# GR4J_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      GRConfig (model_configs.py)
+#   Description: Custom parameter bounds specific to GR4J model
+GR4J_PARAM_BOUNDS: null
+
+# GR_INITIAL_PARAMS
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+#   Description: Initial parameter values for GR model
+GR_INITIAL_PARAMS: "default"
+
+# GR_DEFAULT_PARAMS
+#   Type:        list
+#   Default:     None
+#   Source:      GRConfig (model_configs.py)
+#   Description: Default parameter values for GR model as a list of floats
+GR_DEFAULT_PARAMS: null
 
 
 # 9.4. HBV Model Configuration

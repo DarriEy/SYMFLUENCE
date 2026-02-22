@@ -369,7 +369,7 @@ class ModelManager(BaseManager):
         # communicate via files). Use COUPLING_MODE=dcoupler to opt in to
         # graph-based execution for JAX-native or tightly-coupled workflows.
         coupling_mode = self._get_config_value(
-            lambda: self.config_dict.get('COUPLING_MODE'),
+            lambda: self.config.model.coupling_mode,
             default='sequential',
         )
         if coupling_mode == 'dcoupler' and len(workflow) > 1:

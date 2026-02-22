@@ -338,7 +338,7 @@ class AORCHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating AORC grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         # Choose a file to infer grid from
         aorc_files = list(merged_forcing_path.glob('*.nc'))
@@ -349,8 +349,8 @@ class AORCHandler(BaseDatasetHandler):
         self.logger.info(f"Using AORC file for grid: {aorc_file}")
 
         # Check if this is a point domain or very small bounding box
-        is_point_domain = self.config.get('DOMAIN_DEFINITION_METHOD', '').lower() == 'point'
-        bbox_coords = self.config.get('BOUNDING_BOX_COORDS', '')
+        is_point_domain = (self._get_config_value(lambda: self.config.domain.definition_method, default='') or '').lower() == 'point'
+        bbox_coords = self._get_config_value(lambda: self.config.domain.bounding_box_coords, default='') or ''
         is_small_bbox = False
         domain_center_lat = None
         domain_center_lon = None
@@ -371,7 +371,7 @@ class AORCHandler(BaseDatasetHandler):
 
         # If no bounding box center, try pour point coords
         if domain_center_lat is None:
-            pour_point = self.config.get('POUR_POINT_COORDS', '')
+            pour_point = self._get_config_value(lambda: self.config.domain.pour_point_coords, default='') or ''
             if pour_point:
                 try:
                     coords = [float(x) for x in str(pour_point).split('/')]
@@ -522,8 +522,8 @@ class AORCHandler(BaseDatasetHandler):
             {
                 'geometry': geometries,
                 'ID': ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
             },
             crs='EPSG:4326',
         )

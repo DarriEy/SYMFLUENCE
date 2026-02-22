@@ -45,12 +45,9 @@ class DaymetHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire Daymet data via cloud acquisition."""
-        daymet_dir = Path(self.config_dict.get(
-            'DAYMET_DIR',
-            self.project_observations_dir / "climate" / "daymet"
-        ))
+        daymet_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "climate" / "daymet", dict_key='DAYMET_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = daymet_dir.exists() and (
             any(daymet_dir.glob("*.nc")) or any(daymet_dir.glob("*.csv"))
         )
@@ -125,7 +122,7 @@ class DaymetHandler(BaseObservationHandler):
         df = df.sort_index()
 
         # Aggregate if requested
-        aggregate = self.config_dict.get('DAYMET_AGGREGATE')
+        aggregate = self._get_config_value(lambda: None, default=None, dict_key='DAYMET_AGGREGATE')
         if aggregate == 'monthly':
             # Sum for precip, mean for others
             agg_dict = {}
@@ -151,16 +148,13 @@ class DaymetHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():

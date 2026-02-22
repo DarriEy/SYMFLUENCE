@@ -59,10 +59,10 @@ class HBVWorker(InMemoryModelWorker):
         self._simulate_fn = None
         self._use_jax = HAS_JAX
 
-        # Timestep configuration (hours)
+        # Timestep configuration (hours) - maps to config.model.hbv.timestep_hours
         self.timestep_hours = 24  # Default to daily
         if config:
-            self.timestep_hours = int(config.get('HBV_TIMESTEP_HOURS', 24))
+            self.timestep_hours = int(self._cfg('HBV_TIMESTEP_HOURS', self._cfg('TIMESTEP_HOURS', 24)))
 
     # =========================================================================
     # InMemoryModelWorker Abstract Method Implementations
@@ -103,7 +103,7 @@ class HBVWorker(InMemoryModelWorker):
             return False
 
         forcing_dir = self._get_forcing_dir(task)
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        domain_name = self._get_domain_name()
         var_map = self._get_forcing_variable_map()
 
         # Build list of files to try, prioritizing timestep-specific files
@@ -165,8 +165,8 @@ class HBVWorker(InMemoryModelWorker):
         import pandas as pd
         from pathlib import Path
 
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+        domain_name = self._get_domain_name()
+        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.'))
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_patterns = [
@@ -271,7 +271,7 @@ class HBVWorker(InMemoryModelWorker):
                 time_index = time_index[:min_len]
 
             # Filter to calibration period if specified
-            cal_period = self.config.get('CALIBRATION_PERIOD', '')
+            cal_period = self._cfg('CALIBRATION_PERIOD', self._cfg('EXPERIMENT_CALIBRATION_PERIOD', ''))
             if cal_period and time_index is not None:
                 try:
                     dates = [d.strip() for d in cal_period.split(',')]
@@ -371,20 +371,21 @@ class HBVWorker(InMemoryModelWorker):
         # Inject smoothing config into parameters
         if self.config:
             # Check for boolean flag (handles "True", "true", True, 1)
-            smoothing_enabled = self.config.get('HBV_SMOOTHING', False)
+            smoothing_enabled = self._cfg('HBV_SMOOTHING', self._cfg('SMOOTHING', False))
             if isinstance(smoothing_enabled, str):
                 smoothing_enabled = smoothing_enabled.lower() in ('true', '1', 'yes', 'on')
 
             params['smoothing_enabled'] = bool(smoothing_enabled)
 
             # Check for custom smoothing factor
-            if 'HBV_SMOOTHING_FACTOR' in self.config:
+            smoothing_factor = self._cfg('HBV_SMOOTHING_FACTOR', self._cfg('SMOOTHING_FACTOR'))
+            if smoothing_factor is not None:
                 try:
-                    params['smoothing'] = float(self.config['HBV_SMOOTHING_FACTOR'])
+                    params['smoothing'] = float(smoothing_factor)
                 except (ValueError, TypeError) as e:
                     self.logger.debug(
                         f"Could not parse HBV_SMOOTHING_FACTOR "
-                        f"'{self.config['HBV_SMOOTHING_FACTOR']}': {e}"
+                        f"'{smoothing_factor}': {e}"
                     )
 
         precip = forcing['precip']

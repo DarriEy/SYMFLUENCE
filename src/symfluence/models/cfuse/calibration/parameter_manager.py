@@ -146,15 +146,11 @@ class CFUSEParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, cfuse_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse cFUSE parameters to calibrate from config
-        cfuse_params_str = None
-        if isinstance(config, dict):
-            cfuse_params_str = config.get('CFUSE_PARAMS_TO_CALIBRATE')
-        else:
-            cfuse_params_str = getattr(config, 'CFUSE_PARAMS_TO_CALIBRATE', None)
+        cfuse_params_str = self._get_config_value(lambda: self.config.model.cfuse.params_to_calibrate, default=None, dict_key='CFUSE_PARAMS_TO_CALIBRATE')
         # Handle None, empty string, or 'default' as signal to use default parameter list
         if cfuse_params_str is None or cfuse_params_str == '' or cfuse_params_str == 'default':
             # Default 13 parameters for best FUSE decision structure
@@ -172,7 +168,7 @@ class CFUSEParameterManager(BaseParameterManager):
         self.calibration_params = self.cfuse_params
 
         # Apply custom bounds from config if provided
-        custom_bounds = config.get('CFUSE_PARAM_BOUNDS', {})
+        custom_bounds = self._get_config_value(lambda: None, default={}, dict_key='CFUSE_PARAM_BOUNDS')
         if custom_bounds:
             for param_name, bnd in custom_bounds.items():
                 if isinstance(bnd, (list, tuple)) and len(bnd) == 2:
@@ -214,7 +210,7 @@ class CFUSEParameterManager(BaseParameterManager):
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
-        initial_params = self.config_dict.get('CFUSE_INITIAL_PARAMS', 'default')
+        initial_params = self._get_config_value(lambda: None, default='default', dict_key='CFUSE_INITIAL_PARAMS')
 
         if initial_params == 'default':
             self.logger.debug("Using standard cFUSE defaults for initial parameters")

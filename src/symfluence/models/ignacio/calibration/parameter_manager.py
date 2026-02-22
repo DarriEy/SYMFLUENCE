@@ -31,16 +31,15 @@ class IGNACIOParameterManager(BaseParameterManager):
     def __init__(self, config: Dict, logger: logging.Logger, settings_dir: Path):
         super().__init__(config, logger, settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
         self.project_dir = (
-            Path(config.get('SYMFLUENCE_DATA_DIR'))
+            Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
             / f"domain_{self.domain_name}"
         )
 
         # Parse parameters to calibrate from config
-        params_str = config.get(
-            'IGNACIO_PARAMS_TO_CALIBRATE',
-            'ffmc,dmc,dc,fmc,curing,initial_radius'
+        params_str = self._get_config_value(
+            lambda: None, default='ffmc,dmc,dc,fmc,curing,initial_radius', dict_key='IGNACIO_PARAMS_TO_CALIBRATE'
         )
         self.ignacio_params = [
             p.strip() for p in params_str.split(',') if p.strip()
@@ -69,7 +68,7 @@ class IGNACIOParameterManager(BaseParameterManager):
                 )
                 bounds[param] = {'min': 0.0, 'max': 1.0}
 
-        config_bounds = self.config_dict.get('IGNACIO_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='IGNACIO_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
 

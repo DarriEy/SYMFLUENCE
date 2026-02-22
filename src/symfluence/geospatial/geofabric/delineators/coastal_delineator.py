@@ -245,7 +245,11 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 return None, None
 
             # Define buffer distance (0.01 degrees, approximately 1km at the equator)
-            buffer_dist = self.config_dict.get('POINT_BUFFER_DISTANCE')
+            buffer_dist = self._get_config_value(
+                lambda: self.config.domain.delineation.point_buffer_distance,
+                default=None,
+                dict_key='POINT_BUFFER_DISTANCE'
+            )
 
             # Create a square buffer around the point
             min_lon = lon - buffer_dist

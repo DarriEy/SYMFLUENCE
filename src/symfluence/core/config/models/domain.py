@@ -35,6 +35,9 @@ class DelineationConfig(BaseModel):
     delineate_coastal_watersheds: bool = Field(default=False, alias='DELINEATE_COASTAL_WATERSHEDS')
     delineate_by_pourpoint: bool = Field(default=True, alias='DELINEATE_BY_POURPOINT')
     move_outlets_max_distance: float = Field(default=200.0, alias='MOVE_OUTLETS_MAX_DISTANCE')
+    point_buffer_distance: Optional[float] = Field(default=None, alias='POINT_BUFFER_DISTANCE')
+    max_retries: int = Field(default=3, alias='MAX_RETRIES')
+    retry_delay: float = Field(default=5.0, alias='RETRY_DELAY')
 
     @field_validator('multi_scale_thresholds', mode='before')
     @classmethod
@@ -119,6 +122,9 @@ class DomainConfig(BaseModel):
     radiation_class_number: int = Field(default=1, alias='RADIATION_CLASS_NUMBER')
     aspect_class_number: int = Field(default=1, alias='ASPECT_CLASS_NUMBER')
     aspect_path: str = Field(default='default', alias='ASPECT_PATH')
+
+    # Catchment area (km2) - used for unit conversions (e.g., CLM QRUNOFF mm/s -> m3/s)
+    catchment_area: Optional[float] = Field(default=None, alias='CATCHMENT_AREA')
 
     # Data access
     data_access: str = Field(default='cloud', alias='DATA_ACCESS')

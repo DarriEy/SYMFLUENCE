@@ -90,7 +90,7 @@ class NWSHydrofabricAcquirer(BaseAcquisitionHandler, RetryMixin):
             Path to the directory containing downloaded geofabric files
         """
 
-        version = self.config_dict.get('NWS_HYDROFABRIC_VERSION', 'v2.2')
+        version = self._get_config_value(lambda: None, default='v2.2', dict_key='NWS_HYDROFABRIC_VERSION')
 
         geofabric_dir = self._attribute_dir("geofabric") / "nws_hydrofabric"
         geofabric_dir.mkdir(parents=True, exist_ok=True)
@@ -137,7 +137,7 @@ class NWSHydrofabricAcquirer(BaseAcquisitionHandler, RetryMixin):
         Returns:
             Tuple of (lat, lon)
         """
-        pour_point_str = self.config_dict.get('POUR_POINT_COORDS')
+        pour_point_str = self._get_config_value(lambda: self.config.domain.pour_point_coords, default=None)
         if pour_point_str:
             parts = str(pour_point_str).replace('/', ',').split(',')
             return float(parts[0].strip()), float(parts[1].strip())

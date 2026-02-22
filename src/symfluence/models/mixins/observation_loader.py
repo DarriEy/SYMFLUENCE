@@ -142,12 +142,18 @@ class ObservationLoaderMixin:
                 self.logger.debug(f"Model-ready observations file has no streamflow group: {model_ready_obs}")
 
         # Strategy 1: Explicit path in config
-        obs_path = self.config_dict.get('OBSERVATIONS_PATH')
+        obs_path = self._get_config_value(
+            lambda: None, default=None, dict_key='OBSERVATIONS_PATH')
         if obs_path and obs_path != 'default':
             candidates.append(Path(obs_path))
 
         # Strategy 2: Nested config
-        obs_nested = self.config_dict.get('observations', {}).get('streamflow', {}).get('path')
+        obs_nested = self._get_config_value(
+            lambda: None, default=None, dict_key='observations')
+        if isinstance(obs_nested, dict):
+            obs_nested = obs_nested.get('streamflow', {}).get('path')
+        else:
+            obs_nested = None
         if obs_nested:
             candidates.append(Path(obs_nested))
 
@@ -367,9 +373,12 @@ class ObservationLoaderMixin:
 
         try:
             # Try river basins first (pre-calculated area field)
-            basin_name = self.config_dict.get('RIVER_BASINS_NAME')
+            basin_name = self._get_config_value(
+                lambda: self.config.paths.river_basins_name, default=None)
             if basin_name == 'default' or basin_name is None:
-                basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                definition_method = self._get_config_value(
+                    lambda: self.config.domain.definition_method, default='lumped')
+                basin_name = f"{self.domain_name}_riverBasins_{definition_method}.shp"
 
             basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
 
@@ -401,9 +410,11 @@ class ObservationLoaderMixin:
             return catchment_path if catchment_path.exists() else None
 
         # Fallback for classes without PathResolverMixin
-        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        catchment_name = self._get_config_value(
+            lambda: None, default=None, dict_key='CATCHMENT_SHP_NAME')
         if catchment_name == 'default' or catchment_name is None:
-            discretization = self.config_dict.get('SUB_GRID_DISCRETIZATION')
+            discretization = self._get_config_value(
+                lambda: self.config.domain.discretization, default='catchment')
             catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         # Check old path first
@@ -412,8 +423,10 @@ class ObservationLoaderMixin:
             return old_path
 
         # Check new organized path
-        definition_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+        definition_method = self._get_config_value(
+            lambda: self.config.domain.definition_method, default='lumped')
+        experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id, default='run_1')
         new_path = self.project_dir / 'shapefiles' / 'catchment' / definition_method / experiment_id / catchment_name
         return new_path if new_path.exists() else None
 

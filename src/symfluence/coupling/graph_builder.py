@@ -8,7 +8,7 @@ conversions.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 
 from dcoupler.core.graph import CouplingGraph
@@ -17,6 +17,21 @@ from dcoupler.core.connection import SpatialRemapper
 from symfluence.coupling.bmi_registry import BMIRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cfg(config, typed_accessor, default=None):
+    """Get config value from typed config or fall back to dict access.
+
+    Supports both typed SymfluenceConfig and plain dict configs.
+    """
+    if not isinstance(config, dict):
+        try:
+            value = typed_accessor()
+            if value is not None:
+                return value
+        except (AttributeError, KeyError, TypeError):
+            pass
+    return default
 
 # Unit conversion factors for common coupling interfaces
 UNIT_CONVERSIONS = {
@@ -55,8 +70,10 @@ class CouplingGraphBuilder:
     def __init__(self, registry: Optional[BMIRegistry] = None):
         self._registry = registry or BMIRegistry()
 
-    def build(self, config_dict: dict) -> CouplingGraph:
+    def build(self, config: Union[dict, object]) -> CouplingGraph:
         """Build a CouplingGraph from SYMFLUENCE config.
+
+        Accepts either a typed SymfluenceConfig or a plain dict.
 
         Config keys used:
             HYDROLOGICAL_MODEL: Primary land surface model (SUMMA, MESH, CLM, XAJ, SACSMA)
@@ -66,16 +83,45 @@ class CouplingGraphBuilder:
             COUPLING_MODE: 'sequential' (default), 'per_timestep', 'dcoupler'
             CONSERVATION_MODE: Optional 'check' or 'enforce'
 
+        Args:
+            config: Typed SymfluenceConfig or plain dict with config keys.
+
         Returns:
             Configured CouplingGraph with all components and connections.
         """
-        conservation_mode = config_dict.get("CONSERVATION_MODE")
+        # Build a dict view for component constructors that still expect dict
+        config_dict = config if isinstance(config, dict) else (
+            config.to_dict() if hasattr(config, 'to_dict') else {}
+        )
+
+        conservation_mode = _get_cfg(
+            config, lambda: config.model.conservation_mode, default=None
+        ) or config_dict.get("CONSERVATION_MODE")
         graph = CouplingGraph(conservation_mode=conservation_mode)
 
-        model_name = config_dict.get("HYDROLOGICAL_MODEL", "").upper()
-        routing_name = config_dict.get("ROUTING_MODEL", "").upper()
-        gw_name = config_dict.get("GROUNDWATER_MODEL", "").upper()
-        snow_module = config_dict.get("SNOW_MODULE", "").upper()
+        model_name = _get_cfg(
+            config, lambda: config.model.hydrological_model,
+            default=config_dict.get("HYDROLOGICAL_MODEL", "")
+        )
+        model_name = (model_name if isinstance(model_name, str) else str(model_name or "")).upper()
+
+        routing_name = _get_cfg(
+            config, lambda: config.model.routing_model,
+            default=config_dict.get("ROUTING_MODEL", "")
+        )
+        routing_name = (routing_name or "").upper()
+
+        gw_name = _get_cfg(
+            config, lambda: config.model.groundwater_model,
+            default=config_dict.get("GROUNDWATER_MODEL", "")
+        )
+        gw_name = (gw_name or "").upper()
+
+        snow_module = _get_cfg(
+            config, lambda: config.model.snow_module,
+            default=config_dict.get("SNOW_MODULE", "")
+        )
+        snow_module = (snow_module or "").upper()
 
         if not model_name:
             raise ValueError("HYDROLOGICAL_MODEL must be specified in config")
@@ -127,7 +173,7 @@ class CouplingGraphBuilder:
             route = route_cls(name="routing", config=config_dict)
             graph.add_component(route)
 
-            remapper = self._build_remapper(config_dict)
+            remapper = self._build_remapper(config)
             unit_conv = self._get_unit_conversion(model_name, routing_name)
             # Need spatial remap for hru->reach mismatch
             if remapper is None:
@@ -176,12 +222,15 @@ class CouplingGraphBuilder:
             )
         return conv
 
-    def _build_remapper(self, config_dict: dict) -> Optional[SpatialRemapper]:
+    def _build_remapper(self, config: Union[dict, object]) -> Optional[SpatialRemapper]:
         """Build spatial remapper from config if mapping data is available.
 
         Looks for HRU-to-reach mapping in the topology file.
         """
-        topology_file = config_dict.get("TOPOLOGY_FILE")
+        if isinstance(config, dict):
+            topology_file = config.get("TOPOLOGY_FILE")
+        else:
+            topology_file = _get_cfg(config, lambda: config.model.topology_file, default=None)
         if topology_file is None:
             return None
 

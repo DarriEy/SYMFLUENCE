@@ -4,7 +4,90 @@ MESH Configuration Defaults
 Default variable mappings, units, and parameter values for MESH model.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict, Union
+
+
+# ---------------------------------------------------------------------------
+# Shared spatial-mode predicates
+# ---------------------------------------------------------------------------
+# These centralise the scattered force_single_gru / elevation-band guards
+# that were previously duplicated across drainage_database, preprocessor,
+# and gru_count_manager.  Import them anywhere MESH preprocessing needs to
+# ask "should I collapse GRUs?" or "is this elevation-band mode?".
+
+
+def _cfg_get(config: Union[Dict[str, Any], Any], key: str, default: Any = None) -> Any:
+    """Get a config value from either a flat dict or a typed config object."""
+    if isinstance(config, dict):
+        return config.get(key, default)
+    # Typed config: try known nested paths
+    _TYPED_PATHS = {
+        'SUB_GRID_DISCRETIZATION': lambda c: c.model.mesh.sub_grid_discretization,
+        'MESH_FORCE_SINGLE_GRU': lambda c: c.model.mesh.force_single_gru,
+        'MESH_SPATIAL_MODE': lambda c: c.model.mesh.spatial_mode,
+        'DOMAIN_DEFINITION_METHOD': lambda c: c.domain.definition_method,
+    }
+    accessor = _TYPED_PATHS.get(key)
+    if accessor:
+        try:
+            val = accessor(config)
+            if val is not None:
+                return val
+        except (AttributeError, KeyError, TypeError):
+            pass
+    # Fall back to config_dict if available
+    cd = getattr(config, '_config_dict', None) or getattr(config, 'config_dict', None)
+    if cd and isinstance(cd, dict):
+        return cd.get(key, default)
+    return default
+
+
+def is_elevation_band_mode(config_dict: Union[Dict[str, Any], Any]) -> bool:
+    """Check if elevation band discretization is enabled.
+
+    When True, GRU collapse and zero-fraction trimming must be skipped
+    to preserve the multi-subbasin elevation band structure.
+    """
+    sub_grid = _cfg_get(config_dict, 'SUB_GRID_DISCRETIZATION', 'GRUS')
+    return isinstance(sub_grid, str) and sub_grid.lower() == 'elevation'
+
+
+def should_force_single_gru(config_dict: Union[Dict[str, Any], Any]) -> bool:
+    """Determine whether to collapse GRUs to a single class.
+
+    Decision logic (evaluated in order):
+    1. Always *False* for elevation-band discretization.
+    2. If ``MESH_FORCE_SINGLE_GRU`` is explicitly set (and ≠ "default"),
+       honour the boolean value.
+    3. Otherwise auto-enable for lumped / point spatial modes.
+    """
+    if is_elevation_band_mode(config_dict):
+        return False
+
+    raw = _cfg_get(config_dict, 'MESH_FORCE_SINGLE_GRU', None)
+    if raw is not None and raw != 'default':
+        return _as_bool_value(raw)
+
+    spatial_mode = str(_cfg_get(config_dict, 'MESH_SPATIAL_MODE', 'auto')).lower()
+    domain_method = str(_cfg_get(config_dict, 'DOMAIN_DEFINITION_METHOD', '')).lower()
+    return spatial_mode in ('lumped', 'point') or domain_method in ('lumped', 'point')
+
+
+def _as_bool_value(value: Any, default: bool = False) -> bool:
+    """Parse a truthy / falsey config value."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        val = value.strip().lower()
+        if val in ('true', '1', 'yes', 'y', 'on'):
+            return True
+        if val in ('false', '0', 'no', 'n', 'off'):
+            return False
+    return default
 
 
 class MESHConfigDefaults:

@@ -75,7 +75,7 @@ class RootZoneStorageAcquirer(BaseAcquisitionHandler, RetryMixin):
         rz_dir = self._attribute_dir("soilclass") / "root_zone"
         rz_dir.mkdir(parents=True, exist_ok=True)
 
-        variables = self.config_dict.get('ROOT_ZONE_VARIABLES', _DEFAULT_VARIABLES)
+        variables = self._get_config_value(lambda: None, default=_DEFAULT_VARIABLES, dict_key='ROOT_ZONE_VARIABLES')
         variables = [v for v in variables if v in _ZENODO_FILES]
 
         if not variables:

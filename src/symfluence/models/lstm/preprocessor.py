@@ -82,7 +82,10 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # ML-specific setup
         self.device = device if device is not None else torch.device('cpu')
-        self.lookback = self.config_dict.get('LSTM_LOOKBACK', self.config_dict.get('FLASH_LOOKBACK', 30))
+        self.lookback = self._get_config_value(
+            lambda: self.config.model.lstm.lookback,
+            default=self._get_config_value(lambda: self.config.model.flash.lookback, default=30)
+        )
 
         # Use inherited domain_definition_method from mixin
         self.spatial_mode = 'distributed' if self.domain_definition_method == 'delineate' else 'lumped'
@@ -155,7 +158,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         # Load streamflow data
         streamflow_path = (
             self.project_observations_dir / 'streamflow' / 'preprocessed' /
-            f"{self.config_dict.get('DOMAIN_NAME')}_streamflow_processed.csv"
+            f"{self.domain_name}_streamflow_processed.csv"
         )
 
         if not streamflow_path.exists():
@@ -171,7 +174,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # Load snow data
         snow_path = self.project_observations_dir / 'snow' / 'preprocessed'
-        snow_files = glob.glob(str(snow_path / f"{self.config_dict.get('DOMAIN_NAME')}_filtered_snow_observations.csv"))
+        snow_files = glob.glob(str(snow_path / f"{self.domain_name}_filtered_snow_observations.csv"))
 
         if snow_files:
             snow_df = pd.concat([pd.read_csv(file, parse_dates=['datetime'], dayfirst=True) for file in snow_files])

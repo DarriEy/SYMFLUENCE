@@ -204,9 +204,9 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
         """
         import geopandas as gpd
 
-        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
+        basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name)
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            basin_name = f"{self.domain_name}_riverBasins_{self.domain_definition_method}.shp"
 
         basin_path = self._get_file_path(
             path_key='RIVER_BASINS_PATH',

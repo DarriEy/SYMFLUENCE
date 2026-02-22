@@ -82,11 +82,11 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
 
         processed_file = ndvi_dir / f"{self.domain_name}_MODIS_NDVI.nc"
 
-        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             self.logger.info(f"Using existing MODIS NDVI file: {processed_file}")
             return processed_file
 
-        use_appeears = self.config_dict.get('MODIS_NDVI_USE_APPEEARS', False)
+        use_appeears = self._get_config_value(lambda: None, default=False, dict_key='MODIS_NDVI_USE_APPEEARS')
 
         if use_appeears:
             self.logger.info("Using AppEEARS API (legacy mode)")
@@ -102,7 +102,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
         raw_dir = output_dir / "raw"
         raw_dir.mkdir(exist_ok=True)
 
-        product = self.config_dict.get('MODIS_NDVI_PRODUCT', 'MOD13A2')
+        product = self._get_config_value(lambda: None, default='MOD13A2', dict_key='MODIS_NDVI_PRODUCT')
         self.logger.info(f"Acquiring {product} via earthaccess")
 
         product_dir = raw_dir / product.lower()
@@ -135,7 +135,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
         self.logger.info(f"Processing {len(files)} MODIS NDVI HDF files...")
 
         layers = self._get_layers()
-        qc_filter = self.config_dict.get('MODIS_NDVI_QC', True)
+        qc_filter = self._get_config_value(lambda: None, default=True, dict_key='MODIS_NDVI_QC')
 
         results = []
         for i, hdf_path in enumerate(sorted(files)):
@@ -228,7 +228,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
 
         ds = xr.Dataset(data_vars)
         ds.attrs['title'] = 'MODIS Vegetation Indices (NDVI/EVI)'
-        product = self.config_dict.get('MODIS_NDVI_PRODUCT', 'MOD13A2')
+        product = self._get_config_value(lambda: None, default='MOD13A2', dict_key='MODIS_NDVI_PRODUCT')
         ds.attrs['source'] = f'NASA MODIS {product} v061'
         ds.attrs['created'] = datetime.now().isoformat()
         ds.attrs['domain'] = self.domain_name
@@ -287,7 +287,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
 
     def _get_layers(self) -> List[str]:
         """Get layers to download."""
-        config_layers = self.config_dict.get('MODIS_NDVI_LAYERS')
+        config_layers = self._get_config_value(lambda: None, default=None, dict_key='MODIS_NDVI_LAYERS')
         if config_layers:
             if isinstance(config_layers, str):
                 return [config_layers]
@@ -305,7 +305,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
                 "EARTHDATA_PASSWORD environment variables or add to ~/.netrc"
             )
 
-        product = self.config_dict.get('MODIS_NDVI_PRODUCT', 'MOD13A2')
+        product = self._get_config_value(lambda: None, default='MOD13A2', dict_key='MODIS_NDVI_PRODUCT')
         product_id = self.PRODUCTS.get(product, f"{product}.061")
         layers = self._get_layers()
 

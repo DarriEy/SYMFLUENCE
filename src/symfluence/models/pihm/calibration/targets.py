@@ -80,7 +80,11 @@ class PIHMStreamflowTarget(StreamflowEvaluator):
             from symfluence.models.pihm.extractor import PIHMResultExtractor
 
             extractor = PIHMResultExtractor()
-            start_date = str(self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01'))
+            start_date = str(self._get_config_value(
+                lambda: self.config.domain.time_start,
+                default='2000-01-01',
+                dict_key='EXPERIMENT_TIME_START'
+            ))
 
             streamflow = extractor.extract_variable(
                 output_dir, 'river_flux', start_date=start_date,

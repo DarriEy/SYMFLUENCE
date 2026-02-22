@@ -50,11 +50,11 @@ class MODISETHandler(BaseObservationHandler):
         Returns path to raw data directory/file.
         """
         # Check if data already exists
-        et_dir = Path(self.config_dict.get('MOD16_ET_DIR', self.project_observations_dir / "et" / "modis"))
+        et_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "et" / "modis", dict_key='MOD16_ET_DIR'))
 
         # Check for existing processed file
         processed_file = et_dir / "preprocessed" / f"{self.domain_name}_modis_et_processed.csv"
-        if processed_file.exists() and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False):
             self.logger.info(f"Using existing processed MOD16 ET: {processed_file}")
             return processed_file.parent
 
@@ -62,7 +62,7 @@ class MODISETHandler(BaseObservationHandler):
         raw_nc = et_dir / f"{self.domain_name}_MOD16_ET.nc"
         raw_csv = et_dir / f"{self.domain_name}_MOD16_ET_timeseries.csv"
 
-        if (raw_nc.exists() or raw_csv.exists()) and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
+        if (raw_nc.exists() or raw_csv.exists()) and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False):
             self.logger.info(f"Using existing raw MOD16 data in: {et_dir}")
             return et_dir
 
@@ -107,7 +107,7 @@ class MODISETHandler(BaseObservationHandler):
         output_file = output_dir / f"{self.domain_name}_modis_et_processed.csv"
 
         # Check for existing processed file
-        if output_file.exists() and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False):
             self.logger.info(f"Using existing processed file: {output_file}")
             return output_file
 
@@ -288,13 +288,13 @@ class MODISETHandler(BaseObservationHandler):
 
     def _interpolate_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:
         """Interpolate 8-day composite to daily values."""
-        if not self.config_dict.get('MOD16_CONVERT_TO_DAILY', True):
+        if not self._get_config_value(lambda: None, default=True, dict_key='MOD16_CONVERT_TO_DAILY'):
             return df
 
         if df.empty or 'et_mm_day' not in df.columns:
             return df
 
-        method = self.config_dict.get('MOD16_INTERPOLATION_METHOD', 'linear')
+        method = self._get_config_value(lambda: None, default='linear', dict_key='MOD16_INTERPOLATION_METHOD')
 
         try:
             # Resample to daily frequency

@@ -229,7 +229,7 @@ class DaymetHandler(BaseDatasetHandler):
     def _get_elevation(self, ds: xr.Dataset) -> float:
         """Extract elevation from config or dataset, or use a default."""
         # Try config
-        elev = self.config.get('CATCHMENT_MEAN_ELEVATION')
+        elev = self._get_config_value(lambda: None, default=None, dict_key='CATCHMENT_MEAN_ELEVATION')
         if elev is not None:
             return float(elev)
 
@@ -358,7 +358,7 @@ class DaymetHandler(BaseDatasetHandler):
         """Create Daymet grid shapefile from lat/lon coordinates."""
         self.logger.info("Creating Daymet grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET', 'DAYMET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='DAYMET')}.shp"
 
         nc_files = sorted(merged_forcing_path.glob("*.nc"))
         if not nc_files:
@@ -427,8 +427,8 @@ class DaymetHandler(BaseDatasetHandler):
                     lats.append(clat)
                     lons.append(clon)
 
-        lat_col = self.config.get('FORCING_SHAPE_LAT_NAME', 'lat')
-        lon_col = self.config.get('FORCING_SHAPE_LON_NAME', 'lon')
+        lat_col = self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat')
+        lon_col = self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon')
 
         gdf = gpd.GeoDataFrame(
             {'geometry': geometries, 'ID': ids, lat_col: lats, lon_col: lons},

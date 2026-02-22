@@ -185,7 +185,7 @@ class CERRAHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating CERRA grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         try:
             # Find a processed CERRA file
@@ -233,7 +233,7 @@ class CERRAHandler(BaseDatasetHandler):
             # Read the HRU shapefile to get its extent
             # shapefile_path is .../shapefiles/forcing, so parent is .../shapefiles
             hru_shapefile_dir = shapefile_path.parent / 'catchment'
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain')
             hru_shapefile = hru_shapefile_dir / f"{domain_name}_HRUs_GRUs.shp"
 
             self.logger.info(f"Looking for HRU shapefile at: {hru_shapefile}")
@@ -422,8 +422,8 @@ class CERRAHandler(BaseDatasetHandler):
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,
                 'ID': ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): center_lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): center_lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): center_lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): center_lons,
             }, crs='EPSG:4326')
 
             # Calculate elevation

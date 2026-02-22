@@ -72,6 +72,7 @@ class TestCalculatePeriodMetrics:
 
     def test_calculates_metrics_for_calibration_period(self, mock_config, tmp_path, mock_logger):
         """Test metrics calculation for calibration period."""
+        mock_config.evaluation.spinup_years = None
         with patch.object(ModelEvaluator, '_get_config_value', side_effect=[
             '2010-01-01, 2010-12-31',
             '2011-01-01, 2011-12-31',
@@ -79,20 +80,21 @@ class TestCalculatePeriodMetrics:
         ]):
             evaluator = ConcreteEvaluator(mock_config, tmp_path, mock_logger)
 
-            # Create test data
-            time_idx = pd.date_range('2010-01-01', periods=365, freq='D')
-            obs_data = pd.Series(np.random.uniform(10, 100, 365), index=time_idx)
-            sim_data = pd.Series(np.random.uniform(10, 100, 365), index=time_idx)
+        # Create test data (outside patch so real _get_config_value is used)
+        time_idx = pd.date_range('2010-01-01', periods=365, freq='D')
+        obs_data = pd.Series(np.random.uniform(10, 100, 365), index=time_idx)
+        sim_data = pd.Series(np.random.uniform(10, 100, 365), index=time_idx)
 
-            period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-12-31'))
-            metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
+        period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-12-31'))
+        metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
 
-            assert 'Test_KGE' in metrics
-            assert 'Test_NSE' in metrics
-            assert 'Test_RMSE' in metrics
+        assert 'Test_KGE' in metrics
+        assert 'Test_NSE' in metrics
+        assert 'Test_RMSE' in metrics
 
     def test_rounds_both_indices_consistently(self, mock_config, tmp_path, mock_logger):
         """Test that both obs and sim indices are rounded consistently (bug fix)."""
+        mock_config.evaluation.spinup_years = None
         with patch.object(ModelEvaluator, '_get_config_value', side_effect=[
             '2010-01-01, 2010-01-31',
             '',
@@ -100,21 +102,22 @@ class TestCalculatePeriodMetrics:
         ]):
             evaluator = ConcreteEvaluator(mock_config, tmp_path, mock_logger)
 
-            # Create data with aligned timestamps (after rounding)
-            # Using the same timestamps ensures they align properly after rounding
-            time_idx = pd.date_range('2010-01-01', periods=10, freq='D')
+        # Create data with aligned timestamps (after rounding)
+        # Using the same timestamps ensures they align properly after rounding
+        time_idx = pd.date_range('2010-01-01', periods=10, freq='D')
 
-            obs_data = pd.Series(np.random.rand(10), index=time_idx)
-            sim_data = pd.Series(np.random.rand(10), index=time_idx)
+        obs_data = pd.Series(np.random.rand(10), index=time_idx)
+        sim_data = pd.Series(np.random.rand(10), index=time_idx)
 
-            period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-01-31'))
-            metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
+        period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-01-31'))
+        metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
 
-            # Should find common indices
-            assert 'Test_KGE' in metrics
+        # Should find common indices
+        assert 'Test_KGE' in metrics
 
     def test_handles_same_timezone_data(self, mock_config, tmp_path, mock_logger):
         """Test handling of timezone-naive data."""
+        mock_config.evaluation.spinup_years = None
         with patch.object(ModelEvaluator, '_get_config_value', side_effect=[
             '2010-01-01, 2010-01-10',
             '',
@@ -122,17 +125,17 @@ class TestCalculatePeriodMetrics:
         ]):
             evaluator = ConcreteEvaluator(mock_config, tmp_path, mock_logger)
 
-            # Create timezone-naive data for both series
-            time_idx = pd.date_range('2010-01-01', periods=10, freq='D')
+        # Create timezone-naive data for both series
+        time_idx = pd.date_range('2010-01-01', periods=10, freq='D')
 
-            obs_data = pd.Series(np.random.rand(10), index=time_idx)
-            sim_data = pd.Series(np.random.rand(10), index=time_idx)
+        obs_data = pd.Series(np.random.rand(10), index=time_idx)
+        sim_data = pd.Series(np.random.rand(10), index=time_idx)
 
-            period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-01-10'))
-            metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
+        period = (pd.Timestamp('2010-01-01'), pd.Timestamp('2010-01-10'))
+        metrics = evaluator._calculate_period_metrics(obs_data, sim_data, period, 'Test')
 
-            # Should calculate metrics successfully
-            assert 'Test_KGE' in metrics
+        # Should calculate metrics successfully
+        assert 'Test_KGE' in metrics
 
     def test_returns_empty_dict_for_no_overlap(self, mock_config, tmp_path, mock_logger):
         """Test returns empty dict when no common time indices."""
@@ -313,27 +316,29 @@ class TestAlignSeries:
 
     def test_aligns_series_with_spinup(self, mock_config, tmp_path, mock_logger):
         """Test series alignment with spinup years removed."""
-        # Configure mock to return spinup years
-        config_dict = {
+        mock_config.evaluation.spinup_years = None
+        with patch.object(ModelEvaluator, '_get_config_value', side_effect=[
+            '',  # calibration_period
+            '',  # evaluation_period
+            '',  # calibration_timestep
+        ]):
+            evaluator = ConcreteEvaluator(mock_config, tmp_path, mock_logger)
+
+        # Set config_dict override for align_series to use (outside patch)
+        evaluator.config_dict = {
             'EVALUATION_SPINUP_YEARS': 1,
             'CALIBRATION_PERIOD': '2010-01-01, 2012-12-31',
         }
-        mock_config.to_dict.side_effect = lambda flatten=True: config_dict
 
-        with patch.object(ModelEvaluator, '_get_config_value', return_value=''):
-            evaluator = ConcreteEvaluator(mock_config, tmp_path, mock_logger)
-            # Set config_dict override for align_series to use
-            evaluator.config_dict = config_dict
+        # 3 years of data
+        time_idx = pd.date_range('2010-01-01', periods=365 * 3, freq='D')
+        sim = pd.Series(np.random.rand(365 * 3), index=time_idx)
+        obs = pd.Series(np.random.rand(365 * 3), index=time_idx)
 
-            # 3 years of data
-            time_idx = pd.date_range('2010-01-01', periods=365 * 3, freq='D')
-            sim = pd.Series(np.random.rand(365 * 3), index=time_idx)
-            obs = pd.Series(np.random.rand(365 * 3), index=time_idx)
+        sim_aligned, obs_aligned = evaluator.align_series(sim, obs)
 
-            sim_aligned, obs_aligned = evaluator.align_series(sim, obs)
-
-            # First year should be removed
-            assert sim_aligned.index[0] >= pd.Timestamp('2011-01-01')
+        # First year should be removed
+        assert sim_aligned.index[0] >= pd.Timestamp('2011-01-01')
 
     def test_handles_empty_series(self, mock_config, tmp_path, mock_logger):
         """Test handling empty series."""

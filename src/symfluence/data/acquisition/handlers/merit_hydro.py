@@ -109,7 +109,7 @@ class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         merit_dir = self._attribute_dir("elevation") / "merit_hydro"
         merit_dir.mkdir(parents=True, exist_ok=True)
 
-        variables = self.config_dict.get('MERIT_HYDRO_VARIABLES', _DEFAULT_VARIABLES)
+        variables = self._get_config_value(lambda: None, default=_DEFAULT_VARIABLES, dict_key='MERIT_HYDRO_VARIABLES')
         variables = [v for v in variables if v in _ALL_VARIABLES]
         if not variables:
             raise ValueError(

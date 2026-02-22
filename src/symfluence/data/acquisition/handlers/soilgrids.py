@@ -235,7 +235,7 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
         zip_path = cache_dir / f"soilgrids_{resource_id}.zip"
 
         # Download with retry logic using mixin
-        if not zip_path.exists() or zip_path.stat().st_size == 0 or self.config_dict.get("FORCE_DOWNLOAD", False):
+        if not zip_path.exists() or zip_path.stat().st_size == 0 or self._get_config_value(lambda: self.config.data.force_download, default=False):
             tmp_path = zip_path.with_suffix(".zip.part")
 
             def do_download():

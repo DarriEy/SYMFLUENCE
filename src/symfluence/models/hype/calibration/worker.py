@@ -115,8 +115,14 @@ class HYPEWorker(BaseWorker):
             )
 
             # Get experiment dates from config
-            experiment_start = preprocessor.config_dict.get('EXPERIMENT_TIME_START')
-            experiment_end = preprocessor.config_dict.get('EXPERIMENT_TIME_END')
+            experiment_start = preprocessor._get_config_value(
+                lambda: preprocessor.config.domain.time_start,
+                default=None, dict_key='EXPERIMENT_TIME_START'
+            ) if hasattr(preprocessor, '_get_config_value') else preprocessor.config_dict.get('EXPERIMENT_TIME_START')
+            experiment_end = preprocessor._get_config_value(
+                lambda: preprocessor.config.domain.time_end,
+                default=None, dict_key='EXPERIMENT_TIME_END'
+            ) if hasattr(preprocessor, '_get_config_value') else preprocessor.config_dict.get('EXPERIMENT_TIME_END')
 
             # Write info and file directory files
             preprocessor.config_manager.write_info_filedir(

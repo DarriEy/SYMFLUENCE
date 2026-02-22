@@ -67,8 +67,8 @@ class RHESSysParameterManager(BaseParameterManager):
         super().__init__(config, logger, rhessys_settings_dir)
 
         # RHESSys-specific setup
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse RHESSys parameters to calibrate from config
         # Try typed config first, then legacy dict access
@@ -81,7 +81,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
         # Fallback to dict-style access
         if rhessys_params_str is None:
-            rhessys_params_str = config.get('RHESSYS_PARAMS_TO_CALIBRATE')
+            rhessys_params_str = self._get_config_value(lambda: self.config.model.rhessys.params_to_calibrate, default=None, dict_key='RHESSYS_PARAMS_TO_CALIBRATE')
 
         if rhessys_params_str is None:
             # Final fallback - includes Ksat_0_v which is critical for lateral vs vertical flow
@@ -101,7 +101,7 @@ class RHESSysParameterManager(BaseParameterManager):
         self.rhessys_params = [p.strip() for p in str(rhessys_params_str).split(',') if p.strip()]
 
         # Path to definition files
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.defs_dir = self.project_dir / 'settings' / 'RHESSys' / 'defs'
 
@@ -128,7 +128,7 @@ class RHESSysParameterManager(BaseParameterManager):
         bounds = get_rhessys_bounds()
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('RHESSYS_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='RHESSYS_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(bounds, config_bounds)
 

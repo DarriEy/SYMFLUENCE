@@ -300,8 +300,8 @@ surface_water_partitioning_scheme=Schaake
                 break
 
         # Get config-level PET settings
-        ngen_config = self.config_dict.get('NGEN', {})
-        pet_config = ngen_config.get('PET', {})
+        ngen_config = self._get_config_value(lambda: self.config.model.ngen, default=None)
+        pet_config = (getattr(ngen_config, 'pet', None) or {}) if ngen_config and not isinstance(ngen_config, dict) else (ngen_config or {}).get('PET', {})
 
         # Use config elevation if specified, otherwise catchment attribute, otherwise default
         elevation = pet_config.get('elevation_m', catchment_elevation if catchment_elevation else 100.0)
@@ -566,7 +566,7 @@ shortwave_radiation_provided=1
 
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
 
-        forcing_provider = self.config_dict.get('NGEN_FORCING_PROVIDER')
+        forcing_provider = self._get_config_value(lambda: self.config.model.ngen.forcing_provider, default=None)
         if not forcing_provider:
             # CsvPerFeature: works but has SIGSEGV bug on macOS ARM64 (~19% crash rate,
             # mitigated by retry logic in runner.py).

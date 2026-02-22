@@ -60,19 +60,16 @@ class MODISLAIHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire MODIS LAI data via cloud acquisition."""
-        lai_dir = Path(self.config_dict.get(
-            'MODIS_LAI_DIR',
-            self.project_observations_dir / "vegetation" / "modis_lai"
-        ))
+        lai_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "vegetation" / "modis_lai", dict_key='MODIS_LAI_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         # Check for existing processed file first
         processed_file = (
             self.project_observations_dir / "vegetation" / "preprocessed"
             / f"{self.domain_name}_modis_lai_processed.csv"
         )
-        if processed_file.exists() and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False):
             self.logger.info(f"Using existing processed MODIS LAI: {processed_file}")
             return processed_file.parent
 
@@ -128,7 +125,7 @@ class MODISLAIHandler(BaseObservationHandler):
         output_file = output_dir / f"{self.domain_name}_modis_lai_processed.csv"
 
         # Check for existing processed file
-        if output_file.exists() and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False):
             self.logger.info(f"Using existing processed file: {output_file}")
             return output_file
 
@@ -179,7 +176,7 @@ class MODISLAIHandler(BaseObservationHandler):
         df = df[~df.index.duplicated(keep='first')]
 
         # Interpolate to daily if requested
-        if self.config_dict.get('MODIS_LAI_CONVERT_TO_DAILY', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='MODIS_LAI_CONVERT_TO_DAILY'):
             df = self._interpolate_to_daily(df)
 
         # Filter to experiment period
@@ -284,16 +281,13 @@ class MODISLAIHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
@@ -496,7 +490,7 @@ class MODISLAIHandler(BaseObservationHandler):
         df_daily = df.reindex(daily_index)
 
         # Interpolation method
-        method = self.config_dict.get('MODIS_LAI_INTERPOLATION', 'linear')
+        method = self._get_config_value(lambda: None, default='linear', dict_key='MODIS_LAI_INTERPOLATION')
 
         if method == 'spline':
             # Smooth spline interpolation (better for phenology)

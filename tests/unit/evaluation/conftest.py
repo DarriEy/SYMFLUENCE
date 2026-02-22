@@ -35,10 +35,32 @@ def mock_config():
 
     # Evaluation configuration
     config.evaluation.fluxnet.station = 'US-Ton'
+    config.evaluation.evaluation_variable = None
     config.evaluation.smap.surface_depth_m = 0.05
     config.evaluation.smap.rootzone_depth_m = 1.0
     config.evaluation.ismn.target_depth_m = 0.1
     config.evaluation.ismn.temporal_aggregation = 'daily_mean'
+
+    # ET evaluator optional fields (must be None for dict fallback in tests)
+    config.evaluation.et.obs_source = None
+    config.evaluation.et.obs_path = None
+    config.evaluation.et.temporal_aggregation = None
+    config.evaluation.et.use_quality_control = None
+    config.evaluation.et.max_quality_flag = None
+    config.evaluation.et.modis_max_qc = None
+    config.evaluation.et.gleam_max_relative_uncertainty = None
+
+    # TWS evaluator optional fields
+    config.evaluation.tws.grace_column = None
+    config.evaluation.tws.anomaly_baseline = None
+    config.evaluation.tws.unit_conversion = None
+    config.evaluation.tws.detrend = None
+    config.evaluation.tws.scale_to_obs = None
+    config.evaluation.tws.storage_components = None
+    config.evaluation.tws.obs_path = None
+
+    # Make .get() return default for unknown keys (matches SymfluenceConfig behavior)
+    config.get = MagicMock(side_effect=lambda key, default=None: default)
 
     # Mock to_dict() to return a proper dict (supports flatten parameter)
     config_dict_values = {

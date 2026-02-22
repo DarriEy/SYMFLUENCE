@@ -152,7 +152,7 @@ class RemappingWeightGenerator(ConfigMixin):
             esmr.source_shp = str(source_shapefile)
             esmr.source_shp_lat = self._get_config_value(lambda: self.config.forcing.shape_lat_name, dict_key='FORCING_SHAPE_LAT_NAME')
             esmr.source_shp_lon = self._get_config_value(lambda: self.config.forcing.shape_lon_name, dict_key='FORCING_SHAPE_LON_NAME')
-            esmr.source_shp_ID = self.config_dict.get('FORCING_SHAPE_ID_NAME', 'ID')
+            esmr.source_shp_ID = self._get_config_value(lambda: self.config.forcing.shape_id_name, default='ID')
 
             # Target shapefile config
             esmr.target_shp = str(target_for_easymore)

@@ -678,7 +678,11 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         return result is not None
 
     def _setup_gr_mizuroute_config(self):
-        """Update configuration for GR-mizuRoute integration"""
+        """Update configuration for GR-mizuRoute integration.
+
+        Uses config_dict write-backs for runtime cross-model integration
+        (MIZU_FROM_MODEL, SETTINGS_MIZU_CONTROL_FILE, HYDROLOGICAL_MODEL).
+        """
         # Set mizuRoute to look for GR output instead of SUMMA
         self.config_dict['MIZU_FROM_MODEL'] = 'GR'
 
@@ -720,7 +724,10 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             # Initialize R environment
             importr('base')
             skip_calibration = self._skip_calibration
-            default_params = self.config_dict.get('GR_DEFAULT_PARAMS', [350, 0, 100, 1.7])
+            default_params = self._get_config_value(
+                lambda: self.config.model.gr.default_params,
+                default=[350, 0, 100, 1.7]
+            )
             if len(default_params) != 4:
                 raise ValueError("GR_DEFAULT_PARAMS must contain 4 values for X1, X2, X3, X4")
 

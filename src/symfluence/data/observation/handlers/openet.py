@@ -32,12 +32,9 @@ class OpenETHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire OpenET data via cloud acquisition."""
-        openet_dir = Path(self.config_dict.get(
-            'OPENET_DIR',
-            self.project_observations_dir / "et" / "openet"
-        ))
+        openet_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "et" / "openet", dict_key='OPENET_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = openet_dir.exists() and any(openet_dir.glob("openet_*.csv"))
 
         if not has_files or force_download:
@@ -102,7 +99,7 @@ class OpenETHandler(BaseObservationHandler):
         df = df[~df.index.duplicated(keep='first')]
 
         # Aggregate if requested
-        aggregate = self.config_dict.get('OPENET_AGGREGATE')
+        aggregate = self._get_config_value(lambda: None, default=None, dict_key='OPENET_AGGREGATE')
         if aggregate == 'monthly':
             df = df.resample('MS').sum()  # Sum for monthly totals
 

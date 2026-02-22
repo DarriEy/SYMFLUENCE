@@ -52,7 +52,7 @@ class XinanjiangWorker(InMemoryModelWorker):
             'precip': 'pr',
             'pet': 'pet',
         }
-        if self.config and self.config.get('XINANJIANG_SNOW_MODULE') == 'snow17':
+        if self.config and self._cfg('XINANJIANG_SNOW_MODULE') == 'snow17':
             var_map['temp'] = 'tas'
         return var_map
 
@@ -60,31 +60,28 @@ class XinanjiangWorker(InMemoryModelWorker):
     def use_jax(self) -> bool:
         """Whether to use JAX backend for simulation."""
         if self.config:
-            return str(self.config.get('XINANJIANG_BACKEND', 'numpy')).lower() == 'jax'
+            return str(self._cfg('XINANJIANG_BACKEND', 'numpy')).lower() == 'jax'
         return False
 
     @property
     def snow_module(self) -> str:
         """Get snow module setting from config."""
         if self.config:
-            return str(self.config.get('XINANJIANG_SNOW_MODULE', 'none'))
+            return str(self._cfg('XINANJIANG_SNOW_MODULE', 'none'))
         return 'none'
 
     @property
     def latitude(self) -> float:
         """Get latitude from config."""
         if self.config:
-            return float(self.config.get(
-                'XINANJIANG_LATITUDE',
-                self.config.get('LATITUDE', 45.0),
-            ))
+            return float(self._cfg('XINANJIANG_LATITUDE', float(self._cfg('LATITUDE', 45.0))))
         return 45.0
 
     @property
     def si(self) -> float:
         """Get SI from config."""
         if self.config:
-            return float(self.config.get('XINANJIANG_SI', 100.0))
+            return float(self._cfg('XINANJIANG_SI', 100.0))
         return 100.0
 
     def _load_forcing(self, task=None) -> bool:
@@ -99,7 +96,7 @@ class XinanjiangWorker(InMemoryModelWorker):
             return False
 
         forcing_dir = self._get_forcing_dir(task)
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain')
         var_map = self._get_forcing_variable_map()
 
         nc_patterns = [
@@ -149,8 +146,8 @@ class XinanjiangWorker(InMemoryModelWorker):
 
         from pathlib import Path
 
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain')
+        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.'))
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /

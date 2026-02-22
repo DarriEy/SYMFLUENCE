@@ -57,10 +57,8 @@ class SoilProcessor(BaseAttributeProcessor):
         results = {}
 
         # Define paths to SOILGRIDS data (configurable via SOILGRIDS_DIR)
-        soilgrids_dir = Path(self.config_dict.get(
-            'SOILGRIDS_DIR',
-            str(self.data_dir / 'geospatial' / 'soilgrids' / 'raw')
-        ))
+        soilgrids_dir = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'soilgrids' / 'raw'), dict_key='SOILGRIDS_DIR')
+        )
 
         # Define soil components and depths to process
         components = ['clay', 'sand', 'silt']
@@ -358,10 +356,8 @@ class SoilProcessor(BaseAttributeProcessor):
         results = {}
 
         # Define path to Pelletier data (configurable via PELLETIER_DIR)
-        pelletier_dir = Path(self.config_dict.get(
-            'PELLETIER_DIR',
-            str(self.data_dir / 'geospatial' / 'pelletier' / 'raw')
-        ))
+        pelletier_dir = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'pelletier' / 'raw'), dict_key='PELLETIER_DIR')
+        )
 
         # Define files to process
         pelletier_files = {

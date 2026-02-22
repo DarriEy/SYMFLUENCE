@@ -90,12 +90,12 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
 
         processed_file = et_dir / f"{self.domain_name}_FLUXCOM_ET.nc"
 
-        if processed_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             self.logger.info(f"Using existing FLUXCOM file: {processed_file}")
             return processed_file
 
         # Option 1: Check for existing local files
-        local_pattern = self.config_dict.get('FLUXCOM_FILE_PATTERN', "*.nc")
+        local_pattern = self._get_config_value(lambda: None, default="*.nc", dict_key='FLUXCOM_FILE_PATTERN')
         existing_files = list(et_dir.glob(local_pattern))
 
         if existing_files:
@@ -103,7 +103,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             return self._process_local_files(existing_files, processed_file)
 
         # Option 2: Download from URL
-        download_url = self.config_dict.get('FLUXCOM_DOWNLOAD_URL')
+        download_url = self._get_config_value(lambda: None, default=None, dict_key='FLUXCOM_DOWNLOAD_URL')
         if download_url:
             self.logger.info("Downloading FLUXCOM data from URL")
             downloaded_file = self._download_from_url(download_url, et_dir)
@@ -129,7 +129,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
 
         out_file = output_dir / filename
 
-        if out_file.exists() and not self.config_dict.get('FORCE_DOWNLOAD', False):
+        if out_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
             return out_file
 
         self.logger.info(f"Downloading: {filename}")
@@ -205,7 +205,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                     obj_hash = item.get("hash", "")
                     out_file = output_dir / f"ET_{year}_monthly_halfdeg.nc"
 
-                    if out_file.exists() and not self.config_dict.get("FORCE_DOWNLOAD", False):
+                    if out_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False):
                         self.logger.info(f"  {year}: already exists, skipping")
                         downloaded.append(out_file)
                         break
@@ -247,7 +247,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
         """Process local FLUXCOM files."""
         self.logger.info(f"Processing {len(files)} FLUXCOM files...")
 
-        variable = self.config_dict.get('FLUXCOM_VARIABLE', 'ET')
+        variable = self._get_config_value(lambda: None, default='ET', dict_key='FLUXCOM_VARIABLE')
 
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])

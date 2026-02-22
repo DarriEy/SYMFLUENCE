@@ -66,7 +66,7 @@ class SNOTELHandler(BaseObservationHandler):
         self.logger.info(f"Downloading SNOTEL data for station {station_id}")
 
         # Determine state (Paradise is 679:WA:SNTL)
-        state = self.config_dict.get('SNOTEL_STATE', 'WA')
+        state = self._get_config_value(lambda: None, default='WA', dict_key='SNOTEL_STATE')
 
         # Construct URL based on the reference notebook logic
         url_base = 'https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customSingleStationReport/daily/'

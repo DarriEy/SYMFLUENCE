@@ -31,12 +31,9 @@ class GRDCHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire GRDC data via cloud acquisition."""
-        grdc_dir = Path(self.config_dict.get(
-            'GRDC_DATA_DIR',
-            self.project_observations_dir / "streamflow" / "grdc"
-        ))
+        grdc_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "streamflow" / "grdc", dict_key='GRDC_DATA_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = grdc_dir.exists() and any(grdc_dir.glob("grdc_*.csv"))
 
         if not has_files or force_download:
@@ -105,7 +102,7 @@ class GRDCHandler(BaseObservationHandler):
             df = df[['discharge_cms']]
 
         # Resample if requested
-        resample = self.config_dict.get('GRDC_RESAMPLE')
+        resample = self._get_config_value(lambda: None, default=None, dict_key='GRDC_RESAMPLE')
         if resample == 'monthly':
             df = df.resample('MS').mean()
 

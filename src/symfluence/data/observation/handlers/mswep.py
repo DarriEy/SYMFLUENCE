@@ -34,12 +34,9 @@ class MSWEPHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Acquire MSWEP data via cloud acquisition."""
-        mswep_dir = Path(self.config_dict.get(
-            'MSWEP_DIR',
-            self.project_observations_dir / "precipitation" / "mswep"
-        ))
+        mswep_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "precipitation" / "mswep", dict_key='MSWEP_DIR'))
 
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = mswep_dir.exists() and any(mswep_dir.glob("*.nc"))
 
         if not has_files or force_download:
@@ -106,7 +103,7 @@ class MSWEPHandler(BaseObservationHandler):
         df = df[~df.index.duplicated(keep='first')]
 
         # Aggregate if needed
-        aggregate = self.config_dict.get('MSWEP_AGGREGATE', 'daily')
+        aggregate = self._get_config_value(lambda: None, default='daily', dict_key='MSWEP_AGGREGATE')
         if aggregate == 'daily':
             df = df.resample('D').sum()
         elif aggregate == 'monthly':
@@ -127,16 +124,13 @@ class MSWEPHandler(BaseObservationHandler):
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
         """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get(
-            'CATCHMENT_SHP_NAME',
-            f"{self.domain_name}_catchment.shp"
-        )
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():

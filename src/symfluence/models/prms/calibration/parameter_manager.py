@@ -42,8 +42,8 @@ class PRMSParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, prms_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse PRMS parameters to calibrate from config
         prms_params_str = None
@@ -54,7 +54,7 @@ class PRMSParameterManager(BaseParameterManager):
             pass
 
         if prms_params_str is None:
-            prms_params_str = config.get('PRMS_PARAMS_TO_CALIBRATE')
+            prms_params_str = self._get_config_value(lambda: self.config.model.prms.params_to_calibrate, default=None, dict_key='PRMS_PARAMS_TO_CALIBRATE')
 
         if prms_params_str is None:
             prms_params_str = (
@@ -69,12 +69,12 @@ class PRMSParameterManager(BaseParameterManager):
         self.prms_params = [p.strip() for p in str(prms_params_str).split(',') if p.strip()]
 
         # Paths
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.settings_dir = prms_settings_dir
 
         # Parameter file name
-        self.param_file = config.get('PRMS_PARAMETER_FILE', 'params.dat')
+        self.param_file = self._get_config_value(lambda: None, default='params.dat', dict_key='PRMS_PARAMETER_FILE')
 
     def _get_parameter_names(self) -> List[str]:
         """Return PRMS parameter names from config."""
@@ -91,7 +91,7 @@ class PRMSParameterManager(BaseParameterManager):
         prms_bounds = dict(PARAM_BOUNDS)
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('PRMS_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PRMS_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(prms_bounds, config_bounds)
 

@@ -61,7 +61,7 @@ class BedrockDepthAcquirer(BaseAcquisitionHandler, RetryMixin):
         bedrock_dir = self._attribute_dir("soilclass") / "bedrock"
         bedrock_dir.mkdir(parents=True, exist_ok=True)
 
-        convert_units = self.config_dict.get('BDTICM_CONVERT_UNITS', True)
+        convert_units = self._get_config_value(lambda: None, default=True, dict_key='BDTICM_CONVERT_UNITS')
         out_path = bedrock_dir / f"domain_{self.domain_name}_bedrock_depth.tif"
 
         if self._skip_if_exists(out_path):
@@ -185,7 +185,7 @@ class BedrockDepthAcquirer(BaseAcquisitionHandler, RetryMixin):
                     valid = data[np.isfinite(data)]
 
                 if len(valid) > 0:
-                    unit = 'm' if self.config_dict.get('BDTICM_CONVERT_UNITS', True) else 'cm'
+                    unit = 'm' if self._get_config_value(lambda: None, default=True, dict_key='BDTICM_CONVERT_UNITS') else 'cm'
                     self.logger.info(
                         f"  Bedrock depth stats: "
                         f"min={valid.min():.1f} {unit}, "

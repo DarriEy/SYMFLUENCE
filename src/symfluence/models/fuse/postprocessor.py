@@ -35,10 +35,16 @@ class FUSEPostprocessor(StandardModelPostprocessor):
         FUSE Fortran uses CHARACTER(LEN=6) for FMODEL_ID, so output files
         use a short file ID (FUSE_FILE_ID) rather than the full experiment_id.
         """
-        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '')
+        start_time = self._get_config_value(
+            lambda: self.config.domain.time_start,
+            default=''
+        )
         start_date = start_time.split()[0] if start_time else ''
 
-        fuse_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        fuse_id = self._get_config_value(
+            lambda: self.config.model.fuse.file_id,
+            default=self.experiment_id
+        )
         if len(fuse_id) > 6:
             import hashlib
             fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]

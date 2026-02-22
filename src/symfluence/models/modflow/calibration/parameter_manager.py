@@ -119,7 +119,10 @@ class CoupledGWParameterManager(BaseParameterManager):
                 }
 
         # Config-level overrides (highest priority)
-        config_bounds = self.config_dict.get('PARAMETER_BOUNDS', {})
+        config_bounds = self._get_config_value(
+            lambda: self.config.optimization.parameter_bounds,
+            default={}
+        )
         if config_bounds:
             for param_name, limit_list in config_bounds.items():
                 if isinstance(limit_list, (list, tuple)) and len(limit_list) >= 2:
@@ -178,14 +181,26 @@ class CoupledGWParameterManager(BaseParameterManager):
                 self._write_npf(d, params['K'])
 
             if 'SY' in params:
-                ss = float(self.config_dict.get('MODFLOW_SS', 1e-5))
+                ss = float(self._get_config_value(
+                    lambda: self.config.model.modflow.ss if self.config.model and self.config.model.modflow else None,
+                    default=1e-5
+                ))
                 self._write_sto(d, params['SY'], ss)
 
             if 'DRAIN_CONDUCTANCE' in params:
-                drain_elev = self.config_dict.get('MODFLOW_DRAIN_ELEVATION')
+                drain_elev = self._get_config_value(
+                    lambda: self.config.model.modflow.drain_elevation if self.config.model and self.config.model.modflow else None,
+                    default=None
+                )
                 if drain_elev is None:
-                    top = float(self.config_dict.get('MODFLOW_TOP', 1500.0))
-                    bot = float(self.config_dict.get('MODFLOW_BOT', 1400.0))
+                    top = float(self._get_config_value(
+                        lambda: self.config.model.modflow.top if self.config.model and self.config.model.modflow else None,
+                        default=1500.0
+                    ))
+                    bot = float(self._get_config_value(
+                        lambda: self.config.model.modflow.bot if self.config.model and self.config.model.modflow else None,
+                        default=1400.0
+                    ))
                     drain_elev = (top + bot) / 2.0
                 else:
                     drain_elev = float(drain_elev)
@@ -256,11 +271,18 @@ class CoupledGWParameterManager(BaseParameterManager):
         params = self._land_pm.get_initial_parameters() or {}
 
         modflow_defaults = {
-            'K': float(self.config_dict.get('MODFLOW_K', 5.0)),
-            'SY': float(self.config_dict.get('MODFLOW_SY', 0.05)),
-            'DRAIN_CONDUCTANCE': float(
-                self.config_dict.get('MODFLOW_DRAIN_CONDUCTANCE', 1e4)
-            ),
+            'K': float(self._get_config_value(
+                lambda: self.config.model.modflow.k if self.config.model and self.config.model.modflow else None,
+                default=5.0
+            )),
+            'SY': float(self._get_config_value(
+                lambda: self.config.model.modflow.sy if self.config.model and self.config.model.modflow else None,
+                default=0.05
+            )),
+            'DRAIN_CONDUCTANCE': float(self._get_config_value(
+                lambda: self.config.model.modflow.drain_conductance if self.config.model and self.config.model.modflow else None,
+                default=1e4
+            )),
         }
         for p in self.modflow_params:
             if p in modflow_defaults:

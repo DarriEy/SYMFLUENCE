@@ -97,7 +97,9 @@ class GroundwaterEvaluator(ModelEvaluator):
             dict_key='OPTIMIZATION_TARGET'
         )
         if self.optimization_target not in ['gw_depth', 'gw_grace']:
-            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            eval_var = self._get_config_value(
+                lambda: None, default='', dict_key='EVALUATION_VARIABLE'
+            )
             if 'gw_' in eval_var:
                 self.optimization_target = eval_var
 

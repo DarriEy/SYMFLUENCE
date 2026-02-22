@@ -36,8 +36,8 @@ class MHMParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, mhm_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse mHM parameters to calibrate from config
         mhm_params_str = None
@@ -48,7 +48,7 @@ class MHMParameterManager(BaseParameterManager):
             pass
 
         if mhm_params_str is None:
-            mhm_params_str = config.get('MHM_PARAMS_TO_CALIBRATE')
+            mhm_params_str = self._get_config_value(lambda: self.config.model.mhm.params_to_calibrate, default=None, dict_key='MHM_PARAMS_TO_CALIBRATE')
 
         if mhm_params_str is None:
             mhm_params_str = (
@@ -64,7 +64,7 @@ class MHMParameterManager(BaseParameterManager):
         self.mhm_params = self._split_param_names(str(mhm_params_str))
 
         # Path to namelist files
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.settings_dir = mhm_settings_dir
 
@@ -129,7 +129,7 @@ class MHMParameterManager(BaseParameterManager):
         mhm_bounds = dict(PARAM_BOUNDS)
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('MHM_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='MHM_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(mhm_bounds, config_bounds)
 

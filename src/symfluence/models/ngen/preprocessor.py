@@ -64,11 +64,11 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
 
-        # NGen-specific configuration (Phase 3: typed config)
-        if self.config:
-            self.hru_id_col = self.config.paths.catchment_hruid
-        else:
-            self.hru_id_col = config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+        # NGen-specific configuration (typed config)
+        self.hru_id_col = self._get_config_value(
+            lambda: self.config.paths.catchment_hruid,
+            default='HRU_ID'
+        )
 
         self._ngen_lib_paths = self._resolve_ngen_lib_paths()
         # Ensure we check for existence using the correctly resolved paths
@@ -81,34 +81,26 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 self.logger.warning(f"NGEN module library missing for {name}: {path}")
 
         # Determine which modules to include based on config and available libraries
-        # Allow user to override which modules are enabled via config
-        # Check both nested NGEN section and top-level config for ENABLE_* keys
-        ngen_config = self.config_dict.get('NGEN', {})
+        # Use typed NGEN config fields for module enable flags, falling back to library availability
+        self._include_sloth = self._get_config_value(
+            lambda: self.config.model.ngen.enable_sloth,
+            default=self._available_modules.get('SLOTH', True)
+        )
 
-        def get_module_enabled(module_name: str, default: bool) -> bool:
-            """Get module enabled status, checking nested NGEN section first, then top-level."""
-            config_key = f'ENABLE_{module_name}'
-            # First check nested NGEN section
-            if config_key in ngen_config:
-                return ngen_config[config_key]
-            # Then check top-level config (for backwards compatibility)
-            if config_key in self.config_dict:
-                return self.config_dict[config_key]
-            # Fall back to library availability check
-            return self._available_modules.get(module_name, default)
+        self._include_pet = self._get_config_value(
+            lambda: self.config.model.ngen.enable_pet,
+            default=self._available_modules.get('PET', True)
+        )
 
-        # SLOTH provides ice fraction and soil moisture variables for CFE
-        self._include_sloth = get_module_enabled('SLOTH', True)
+        self._include_noah = self._get_config_value(
+            lambda: self.config.model.ngen.enable_noah,
+            default=self._available_modules.get('NOAH', False)
+        )
 
-        # PET provides evapotranspiration (but has known issues - can be disabled)
-        # Note: PET requires wind speed variables (UGRD, VGRD) in forcing
-        self._include_pet = get_module_enabled('PET', True)
-
-        # NOAH-OWP provides alternative ET physics (more robust than PET)
-        self._include_noah = get_module_enabled('NOAH', False)
-
-        # CFE is the core runoff generation module
-        self._include_cfe = get_module_enabled('CFE', True)
+        self._include_cfe = self._get_config_value(
+            lambda: self.config.model.ngen.enable_cfe,
+            default=self._available_modules.get('CFE', True)
+        )
 
         # QINSUR-based coupling: NOAH and PET serve complementary roles.
         # NOAH handles snow physics, canopy interception, and surface energy balance,
@@ -123,7 +115,10 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             )
         elif self._include_noah and not self._include_pet:
             # Get the ET fallback configuration
-            self._noah_et_fallback = self.config_dict.get('NGEN_NOAH_ET_FALLBACK', 'EVAPOTRANS')
+            self._noah_et_fallback = self._get_config_value(
+                lambda: self.config.model.ngen.noah_et_fallback,
+                default='EVAPOTRANS'
+            )
             valid_fallbacks = ['EVAPOTRANS', 'ETRAN', 'ECAN', 'QSEVA']
             if self._noah_et_fallback not in valid_fallbacks:
                 self.logger.warning(
@@ -148,10 +143,10 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _resolve_ngen_lib_paths(self) -> Dict[str, Path]:
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
-        if self.config and self.config.model.ngen:
-            install_path = self.config.model.ngen.install_path
-        else:
-            install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
+        install_path = self._get_config_value(
+            lambda: self.config.model.ngen.install_path,
+            default='default'
+        )
 
         if install_path == 'default':
             ngen_base = self.data_dir.parent / 'installs' / 'ngen'
@@ -290,8 +285,14 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return self._create_simple_nexus()
 
         river_gdf = gpd.read_file(river_network_file)
-        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
-        downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
+        seg_id_col = self._get_config_value(
+            lambda: self.config.paths.river_network_segid,
+            default='LINKNO'
+        )
+        downstream_col = self._get_config_value(
+            lambda: self.config.paths.river_network_downsegid,
+            default='DSLINKNO'
+        )
 
         nexus_features = []
         for idx, row in river_gdf.iterrows():
@@ -551,8 +552,8 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             start_time, end_time = twm.get_simulation_times(forcing_path=self.forcing_basin_path)
         except (ValueError, KeyError, TypeError) as e:
             self.logger.debug(f"Could not get simulation times from TimeWindowManager, using config: {e}")
-            start_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
-            end_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
+            start_time = pd.to_datetime(self.time_start)
+            end_time = pd.to_datetime(self.time_end)
 
         time_values = pd.to_datetime(forcing_data.time.values)
         inferred_step_seconds = None
@@ -596,7 +597,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     forcing_data_resampled = forcing_data_resampled.drop_vars('pptrate_depth')
 
             forcing_data = forcing_data_resampled
-            self.config_dict['FORCING_TIME_STEP_SIZE'] = 3600
+            self._forcing_time_step_size_override = 3600
             self.logger.info("Used mass-conserving resampling: sum for precipitation, mean for other variables")
 
         # NGEN requires forcing data beyond the configured end_time to complete the simulation
@@ -605,7 +606,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if inferred_step_seconds and inferred_step_seconds != 3600:
             forcing_timestep_seconds = 3600
         else:
-            forcing_timestep_seconds = self.config_dict.get('FORCING_TIME_STEP_SIZE', 3600)
+            forcing_timestep_seconds = getattr(self, '_forcing_time_step_size_override', None) or self.forcing_time_step_size
         buffer_timesteps = 4  # Add extra buffer to be safe
         extended_end_time = end_time + pd.Timedelta(seconds=forcing_timestep_seconds * buffer_timesteps)
         self.logger.info(f"Extending forcing data from {end_time} to {extended_end_time} (NGEN requires {buffer_timesteps} timestep buffer)")
@@ -843,7 +844,11 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
 
         # Generate t-route config if routing is enabled
-        if self.config_dict.get('NGEN_RUN_TROUTE', True):
+        run_troute = self._get_config_value(
+            lambda: self.config.model.ngen.run_troute,
+            default=True
+        )
+        if run_troute:
             self._generate_troute_config(nexus_file)
 
     def _generate_troute_config(self, nexus_file: Path):
@@ -869,9 +874,9 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self.logger.info("Lumped domain detected (single nexus). T-route will pass through single outlet.")
 
         # Get time parameters
-        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01 00:00')
-        end_time = self.config_dict.get('EXPERIMENT_TIME_END', '2000-12-31 23:00')
-        time_step_seconds = self.config_dict.get('FORCING_TIME_STEP_SIZE', 3600)
+        start_time = self.time_start or '2000-01-01 00:00'
+        end_time = self.time_end or '2000-12-31 23:00'
+        time_step_seconds = getattr(self, '_forcing_time_step_size_override', None) or self.forcing_time_step_size
 
         # Calculate number of timesteps
         start_dt = pd.to_datetime(start_time)
@@ -880,8 +885,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         nts = int(total_seconds / time_step_seconds)
 
         # Determine output directory for NGEN (where nex-*.csv files will be)
-        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
-        ngen_output_dir = self.project_dir / 'simulations' / experiment_id / 'NGEN'
+        ngen_output_dir = self.project_dir / 'simulations' / self.experiment_id / 'NGEN'
         troute_output_dir = ngen_output_dir / 'troute_output'
 
         # Check if we have a river network for distributed routing
@@ -985,10 +989,18 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self.logger.warning(f"Failed to read river network: {e}")
             return None
 
-        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
-        downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
-        length_col = self.config_dict.get('RIVER_NETWORK_SHP_LENGTH', 'Length')
-        slope_col = self.config_dict.get('RIVER_NETWORK_SHP_SLOPE', 'Slope')
+        seg_id_col = self._get_config_value(
+            lambda: self.config.paths.river_network_segid, default='LINKNO'
+        )
+        downstream_col = self._get_config_value(
+            lambda: self.config.paths.river_network_downsegid, default='DSLINKNO'
+        )
+        length_col = self._get_config_value(
+            lambda: self.config.paths.river_network_length, default='Length'
+        )
+        slope_col = self._get_config_value(
+            lambda: self.config.paths.river_network_slope, default='Slope'
+        )
 
         # Get drainage area column (try common names)
         drainage_area_col = None
@@ -1047,14 +1059,14 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         drainage_areas_km2 = np.maximum(drainage_areas_km2, 1.0)
 
         # Bankfull width estimation: W = a * A^b
-        width_coef = self.config_dict.get('TROUTE_WIDTH_COEF', 3.0)
-        width_exp = self.config_dict.get('TROUTE_WIDTH_EXP', 0.5)
+        width_coef = self._get_config_value(lambda: None, default=3.0, dict_key='TROUTE_WIDTH_COEF')
+        width_exp = self._get_config_value(lambda: None, default=0.5, dict_key='TROUTE_WIDTH_EXP')
         bankfull_widths = width_coef * np.power(drainage_areas_km2, width_exp)
         bankfull_widths = np.clip(bankfull_widths, 2.0, 500.0)
 
         # Bankfull depth estimation: D = c * A^d
-        depth_coef = self.config_dict.get('TROUTE_DEPTH_COEF', 0.3)
-        depth_exp = self.config_dict.get('TROUTE_DEPTH_EXP', 0.4)
+        depth_coef = self._get_config_value(lambda: None, default=0.3, dict_key='TROUTE_DEPTH_COEF')
+        depth_exp = self._get_config_value(lambda: None, default=0.4, dict_key='TROUTE_DEPTH_EXP')
         bankfull_depths = depth_coef * np.power(drainage_areas_km2, depth_exp)
         bankfull_depths = np.clip(bankfull_depths, 0.3, 20.0)
 
@@ -1149,15 +1161,19 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def get_river_network_path(self) -> Path:
         """Get path to river network shapefile."""
-        river_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH', 'default')
+        river_path = self._get_config_value(
+            lambda: self.config.paths.river_network_path, default='default'
+        )
         if river_path == 'default':
             river_path = self.project_dir / 'shapefiles' / 'river_network'
         else:
             river_path = Path(river_path)
 
-        river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME', 'default')
+        river_name = self._get_config_value(
+            lambda: self.config.paths.river_network_name, default='default'
+        )
         if river_name == 'default':
-            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+            domain_method = self.domain_definition_method
             river_name = f"{self.domain_name}_riverNetwork_{domain_method}.shp"
 
         return river_path / river_name

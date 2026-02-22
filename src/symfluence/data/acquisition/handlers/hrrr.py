@@ -251,9 +251,9 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
             },
         )
         vars_map = {"TMP": "2m_above_ground", "SPFH": "2m_above_ground", "PRES": "surface", "UGRD": "10m_above_ground", "VGRD": "10m_above_ground", "DSWRF": "surface", "DLWRF": "surface"}
-        req_vars = self.config_dict.get('HRRR_VARS')
+        req_vars = self._get_config_value(lambda: None, default=None, dict_key='HRRR_VARS')
         if req_vars: vars_map = {k: v for k, v in vars_map.items() if k in req_vars}
-        hrrr_bbox = self._parse_bbox(self.config_dict.get('HRRR_BOUNDING_BOX_COORDS'))
+        hrrr_bbox = self._parse_bbox(self._get_config_value(lambda: None, default=None, dict_key='HRRR_BOUNDING_BOX_COORDS'))
         bbox = hrrr_bbox if hrrr_bbox else self.bbox
         all_datasets, xy_slice = [], None
         curr = self.start_date.date()
@@ -312,7 +312,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
         if not all_datasets: raise ValueError("No HRRR data downloaded")
         self.logger.info(f"HRRR download complete: {len(all_datasets)} hours acquired")
         ds_final = xr.concat(all_datasets, dim="time").sortby("time")
-        step = int(self.config_dict.get('HRRR_TIME_STEP_HOURS', 1))
+        step = int(self._get_config_value(lambda: None, default=1, dict_key='HRRR_TIME_STEP_HOURS'))
         if step > 1: ds_final = ds_final.isel(time=slice(0, None, step))
         if "latitude" not in ds_final.coords and "projection_x_coordinate" in ds_final.coords:
             from pyproj import Transformer

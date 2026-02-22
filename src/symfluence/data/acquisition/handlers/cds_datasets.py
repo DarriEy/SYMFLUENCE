@@ -127,7 +127,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                 raise RuntimeError("No data downloaded")
 
             # Check if aggregation is disabled
-            if not self.config_dict.get('AGGREGATE_FORCING_FILES', False):
+            if not self._get_config_value(lambda: None, default=False, dict_key='AGGREGATE_FORCING_FILES'):
                 logging.info("Skipping aggregation of forcing files as per configuration")
 
                 final_files = []
@@ -1053,7 +1053,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         Returns:
             str: 'west_domain' (default) or 'east_domain' or other configured value
         """
-        return self.config_dict.get('CARRA_DOMAIN', "west_domain")
+        return self._get_config_value(lambda: None, default="west_domain", dict_key='CARRA_DOMAIN')
 
     def _get_temporal_resolution(self) -> int:
         return 3  # 3-hourly (CARRA native resolution)

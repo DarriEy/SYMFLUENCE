@@ -202,14 +202,14 @@ class CFUSEWorker(InMemoryModelWorker):
             self.logger.warning("PyTorch not installed. Gradient computation unavailable.")
 
         # Model configuration
-        self.model_structure = self.config.get('CFUSE_MODEL_STRUCTURE', 'prms')
-        self.enable_snow = self.config.get('CFUSE_ENABLE_SNOW', True)
-        self.spatial_mode = self.config.get('CFUSE_SPATIAL_MODE', 'lumped')
-        self.timestep_days = float(self.config.get('CFUSE_TIMESTEP_DAYS', 1.0))
+        self.model_structure = self._cfg('CFUSE_MODEL_STRUCTURE', 'prms')
+        self.enable_snow = self._cfg('CFUSE_ENABLE_SNOW', True)
+        self.spatial_mode = self._cfg('CFUSE_SPATIAL_MODE', 'lumped')
+        self.timestep_days = float(self._cfg('CFUSE_TIMESTEP_DAYS', 1.0))
 
         # Gradient configuration
-        self.use_native_gradients = self.config.get('CFUSE_USE_NATIVE_GRADIENTS', True)
-        self.device_name = self.config.get('CFUSE_DEVICE', 'cpu')
+        self.use_native_gradients = self._cfg('CFUSE_USE_NATIVE_GRADIENTS', True)
+        self.device_name = self._cfg('CFUSE_DEVICE', 'cpu')
 
         # Set up PyTorch device
         if HAS_TORCH:
@@ -220,13 +220,13 @@ class CFUSEWorker(InMemoryModelWorker):
         else:
             self.device = None
 
-        # Model config dict for C++ core
-        decision_options = self.config.get('CFUSE_DECISION_OPTIONS')
-        self.config_dict = _get_model_config(self.model_structure, decision_options)
+        # Model config dict for C++ core (named _cfuse_config_dict to avoid shadowing ConfigMixin)
+        decision_options = self._cfg('CFUSE_DECISION_OPTIONS', None)
+        self._cfuse_config_dict = _get_model_config(self.model_structure, decision_options)
         if decision_options:
-            self.logger.info(f"Built cFUSE config from FUSE decisions: {self.config_dict}")
+            self.logger.info(f"Built cFUSE config from FUSE decisions: {self._cfuse_config_dict}")
         if self.enable_snow:
-            self.config_dict['enable_snow'] = True
+            self._cfuse_config_dict['enable_snow'] = True
 
         # cFUSE-specific attributes
         self._n_hrus = 1
@@ -236,7 +236,7 @@ class CFUSEWorker(InMemoryModelWorker):
         # Get number of states from core
         if HAS_CFUSE_CORE:
             try:
-                self._n_states = cfuse_core.get_num_active_states(self.config_dict)
+                self._n_states = cfuse_core.get_num_active_states(self._cfuse_config_dict)
             except Exception as e:
                 self.logger.debug(f"Could not get state count: {e}")
 
@@ -262,7 +262,7 @@ class CFUSEWorker(InMemoryModelWorker):
 
     def _get_warmup_days_config(self) -> int:
         """Get warmup days from config."""
-        return int(self.config.get('CFUSE_WARMUP_DAYS', 365))
+        return int(self._cfg('CFUSE_WARMUP_DAYS', 365))
 
     def _run_simulation(
         self,
@@ -305,7 +305,7 @@ class CFUSEWorker(InMemoryModelWorker):
             initial_states.astype(np.float32),
             forcing_np.astype(np.float32),
             params_array.astype(np.float32),
-            self.config_dict,
+            self._cfuse_config_dict,
             float(self.timestep_days)
         )
 
@@ -396,11 +396,11 @@ class CFUSEWorker(InMemoryModelWorker):
         implementations. Override with CFUSE_INITIAL_S1/S2 config keys.
         """
         states = np.zeros((self._n_hrus, self._n_states), dtype=np.float32)
-        states[:, 0] = self.config.get('CFUSE_INITIAL_S1', 0.0)
+        states[:, 0] = self._cfg('CFUSE_INITIAL_S1', 50.0)
         if self._n_states > 1:
-            states[:, 1] = self.config.get('CFUSE_INITIAL_S1_FREE', 0.0)
+            states[:, 1] = self._cfg('CFUSE_INITIAL_S1_FREE', 0.0)
         if self._n_states > 2:
-            states[:, 2] = self.config.get('CFUSE_INITIAL_S2', 0.0)
+            states[:, 2] = self._cfg('CFUSE_INITIAL_S2', 200.0)
         return states
 
     # =========================================================================
@@ -536,7 +536,7 @@ class CFUSEWorker(InMemoryModelWorker):
                 params_tensor,
                 initial_states,
                 forcing,
-                self.config_dict,
+                self._cfuse_config_dict,
                 self.timestep_days
             )
 
@@ -660,7 +660,7 @@ class CFUSEWorker(InMemoryModelWorker):
                 initial_states.astype(np.float32),
                 forcing_np.astype(np.float32),
                 params_array.astype(np.float32),
-                self.config_dict,
+                self._cfuse_config_dict,
                 float(self.timestep_days)
             )
 

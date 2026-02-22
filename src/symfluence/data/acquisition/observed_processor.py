@@ -292,7 +292,8 @@ class ObservedDataProcessor(ConfigMixin):
         self.streamflow_raw_name = self._get_config_value(lambda: self.config.evaluation.streamflow.raw_name, dict_key='STREAMFLOW_RAW_NAME')
 
     def _get_file_path(self, file_type, file_def_path, file_name):
-        if self.config.get(f'{file_type}') == 'default':
+        file_type_val = self._get_config_value(lambda: None, default='default', dict_key=file_type)
+        if file_type_val == 'default':
             # Use resolve_data_subdir for data subdirectories
             parts = file_def_path.split('/', 1)
             if parts[0] in ('observations', 'forcing', 'attributes'):
@@ -301,7 +302,7 @@ class ObservedDataProcessor(ConfigMixin):
                 return base / remainder / file_name if remainder else base / file_name
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(f'{file_type}'))
+            return Path(file_type_val)
 
     def get_resample_freq(self):
         if self.forcing_time_step_size == UnitConversion.SECONDS_PER_HOUR:
@@ -315,7 +316,7 @@ class ObservedDataProcessor(ConfigMixin):
 
     def process_streamflow_data(self):
         try:
-            if self.config_dict.get('PROCESS_CARAVANS', False):
+            if self._get_config_value(lambda: None, default=False, dict_key='PROCESS_CARAVANS'):
                 self._process_caravans_data()
             elif self.data_provider == 'USGS':
                 self.logger.info("USGS streamflow data handled by formalized observation handler")
@@ -588,7 +589,7 @@ class ObservedDataProcessor(ConfigMixin):
         using the basin area from the shapefile.
         """
         # Check if CARAVANS processing is enabled
-        if not self.config_dict.get('PROCESS_CARAVANS', False):
+        if not self._get_config_value(lambda: None, default=False, dict_key='PROCESS_CARAVANS'):
             self.logger.info("CARAVANS data processing is disabled in configuration")
             return
 
@@ -693,7 +694,7 @@ class ObservedDataProcessor(ConfigMixin):
                     if subbasins_name == 'default':
                         subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins.shp"
 
-                    shapefile_path_str = self.config_dict.get('RIVER_BASIN_SHP_PATH')
+                    shapefile_path_str = self._get_config_value(lambda: None, default=None, dict_key='RIVER_BASIN_SHP_PATH')
                     if shapefile_path_str:
                         shapefile_path = Path(shapefile_path_str)
                     else:

@@ -31,7 +31,7 @@ class EMEarthAcquirer(BaseAcquisitionHandler):
         base_folder = "nc/deterministic_raw_daily" if emearth_type == "deterministic" else "nc/probabilistic_daily"
         precip_var = self._get_config_value(lambda: self.config.forcing.em_earth.prcp_var, default="prcp", dict_key='EM_PRCP')
         vars = [precip_var, "tmean", "trange", "tdew"]
-        region = str(self.config_dict.get('EM_EARTH_REGION_FOLDER', "global"))
+        region = str(self._get_config_value(lambda: None, default="global", dict_key='EM_EARTH_REGION_FOLDER'))
         use_region = region.lower() not in ("global", "")
         start_year, end_year = max(self.start_date.year, 1950), min(self.end_date.year, 2019)
         all_datasets = {}

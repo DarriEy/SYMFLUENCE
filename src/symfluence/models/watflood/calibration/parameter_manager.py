@@ -26,18 +26,13 @@ class WATFLOODParameterManager(BaseParameterManager):
     ):
         super().__init__(config, logger, settings_dir)
 
-        if isinstance(config, dict):
-            self.config_dict = config
-        else:
-            self.config_dict = config if isinstance(config, dict) else {}
-
         params_str = (
-            self.config_dict.get('WATFLOOD_PARAMS_TO_CALIBRATE', '') or
+            self._get_config_value(lambda: None, default='', dict_key='WATFLOOD_PARAMS_TO_CALIBRATE') or
             'R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNING_N'
         )
         self.watflood_params = [p.strip() for p in params_str.split(',') if p.strip()]
 
-        self.par_file = self.config_dict.get('WATFLOOD_PAR_FILE', 'bow.par')
+        self.par_file = self._get_config_value(lambda: None, default='bow.par', dict_key='WATFLOOD_PAR_FILE')
 
     def _get_parameter_names(self) -> List[str]:
         """Get ordered list of parameter names to calibrate."""

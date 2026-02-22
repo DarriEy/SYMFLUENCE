@@ -83,10 +83,10 @@ class OpenETAcquirer(BaseAcquisitionHandler):
                 )
 
         # Get configuration
-        model = self.config_dict.get('OPENET_MODEL', 'ensemble')
-        resolution = self.config_dict.get('OPENET_RESOLUTION', 'monthly')
-        units = self.config_dict.get('OPENET_UNITS', 'mm')
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        model = self._get_config_value(lambda: None, default='ensemble', dict_key='OPENET_MODEL')
+        resolution = self._get_config_value(lambda: None, default='monthly', dict_key='OPENET_RESOLUTION')
+        units = self._get_config_value(lambda: None, default='mm', dict_key='OPENET_UNITS')
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         # Build output filename
         start_str = self.start_date.strftime('%Y%m%d')
@@ -112,7 +112,7 @@ class OpenETAcquirer(BaseAcquisitionHandler):
         """Get OpenET API key from environment or config."""
         return (
             os.environ.get('OPENET_API_KEY') or
-            self.config_dict.get('OPENET_API_KEY')
+            self._get_config_value(lambda: None, default=None, dict_key='OPENET_API_KEY')
         )
 
     def _request_timeseries(

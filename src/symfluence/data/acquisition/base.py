@@ -59,10 +59,13 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         self.logger = logger
         self.reporting_manager = reporting_manager
 
-        # Standard attributes use config_dict (from ConfigMixin) for compatibility
-        self.bbox = self._parse_bbox(self.config_dict.get('BOUNDING_BOX_COORDS'))
-        self.start_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
-        self.end_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
+        # Standard attributes via typed config access
+        self.bbox = self._parse_bbox(self._get_config_value(
+            lambda: self.config.domain.bounding_box_coords, default=None))
+        self.start_date = pd.to_datetime(self._get_config_value(
+            lambda: self.config.domain.time_start, default=None))
+        self.end_date = pd.to_datetime(self._get_config_value(
+            lambda: self.config.domain.time_end, default=None))
 
     @property
     def domain_dir(self) -> Path:
@@ -124,7 +127,7 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
             True if file exists and should be skipped, False otherwise
         """
         if force is None:
-            force = self.config_dict.get('FORCE_DOWNLOAD', False)
+            force = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         if path.exists() and not force:
             self.logger.info(f"Using existing file: {path}")

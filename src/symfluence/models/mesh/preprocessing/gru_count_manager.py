@@ -11,6 +11,7 @@ import logging
 from symfluence.core.mixins import ConfigMixin
 
 from .class_file_manager import CLASSFileManager
+from .config_defaults import should_force_single_gru
 from .ddb_file_manager import DDBFileManager
 
 
@@ -52,16 +53,10 @@ class GRUCountManager(ConfigMixin):
         1. CLASS has NGRU-1 parameter blocks
         2. The first NGRU-1 GRU fractions sum to 1.0
 
-        If MESH_FORCE_SINGLE_GRU is enabled, collapses to a single GRU.
-        This method is idempotent.
+        If lumped/point mode or MESH_FORCE_SINGLE_GRU is enabled, collapses
+        to a single GRU.  This method is idempotent.
         """
-        force_single_gru = self._get_config_value(
-            lambda: self.config.model.mesh.force_single_gru,
-            default=False,
-            dict_key='MESH_FORCE_SINGLE_GRU'
-        )
-
-        if force_single_gru:
+        if should_force_single_gru(self.config_dict):
             self._collapse_to_single_gru()
             return
 

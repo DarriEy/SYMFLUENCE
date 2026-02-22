@@ -70,7 +70,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Check for existing data
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         existing_files = list(output_dir.glob("*LST*.nc")) + list(output_dir.glob("*LST*.tif"))
         if existing_files and not force_download:
             self.logger.info(f"MODIS LST data already exists: {len(existing_files)} files")
@@ -85,7 +85,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             )
 
         # Get configuration
-        product = self.config_dict.get('MODIS_LST_PRODUCT', 'MOD11A1')
+        product = self._get_config_value(lambda: None, default='MOD11A1', dict_key='MODIS_LST_PRODUCT')
         product_id = self.PRODUCTS.get(product, f"{product}.061")
         layers = self._get_layers()
 
@@ -107,7 +107,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
 
     def _get_layers(self) -> List[str]:
         """Get layers to download."""
-        config_layers = self.config_dict.get('MODIS_LST_LAYERS')
+        config_layers = self._get_config_value(lambda: None, default=None, dict_key='MODIS_LST_LAYERS')
         if config_layers:
             if isinstance(config_layers, str):
                 return [config_layers]
@@ -115,7 +115,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
 
         # Default layers
         layers = ['LST_Day_1km', 'LST_Night_1km']
-        if self.config_dict.get('MODIS_LST_QC', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='MODIS_LST_QC'):
             layers.extend(['QC_Day', 'QC_Night'])
 
         return layers

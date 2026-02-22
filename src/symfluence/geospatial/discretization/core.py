@@ -115,8 +115,16 @@ class DomainDiscretizer(PathResolverMixin):
         """
         self.logger.debug("Sorting catchment shape")
 
-        self.catchment_path = self.config_dict.get("CATCHMENT_PATH")
-        self.catchment_name = self.config_dict.get("CATCHMENT_SHP_NAME")
+        self.catchment_path = self._get_config_value(
+            lambda: self.config.paths.catchment_path,
+            default='default',
+            dict_key='CATCHMENT_PATH'
+        )
+        self.catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name,
+            default='default',
+            dict_key='CATCHMENT_SHP_NAME'
+        )
         if self.catchment_name == "default":
             discretization_method = self.domain_discretization
             # Handle comma-separated attributes for output filename
@@ -127,8 +135,16 @@ class DomainDiscretizer(PathResolverMixin):
             self.catchment_name = (
                 f"{self.domain_name}_HRUs_{method_suffix}.shp"
             )
-        self.gruId = self.config_dict.get("CATCHMENT_SHP_GRUID")
-        self.hruId = self.config_dict.get("CATCHMENT_SHP_HRUID")
+        self.gruId = self._get_config_value(
+            lambda: self.config.paths.catchment_gruid,
+            default='GRU_ID',
+            dict_key='CATCHMENT_SHP_GRUID'
+        )
+        self.hruId = self._get_config_value(
+            lambda: self.config.paths.catchment_hruid,
+            default='HRU_ID',
+            dict_key='CATCHMENT_SHP_HRUID'
+        )
 
         if self.catchment_path == "default":
             # Use backward-compatible path resolution
@@ -217,7 +233,11 @@ class DomainDiscretizer(PathResolverMixin):
         """
         with self.time_limit("Domain Discretization"):
             # Check if a custom catchment shapefile is provided
-            catchment_name = self.config_dict.get("CATCHMENT_SHP_NAME")
+            catchment_name = self._get_config_value(
+                lambda: self.config.paths.catchment_name,
+                default='default',
+                dict_key='CATCHMENT_SHP_NAME'
+            )
             if catchment_name != "default":
                 self.logger.debug(f"Using provided catchment shapefile: {catchment_name}")
 

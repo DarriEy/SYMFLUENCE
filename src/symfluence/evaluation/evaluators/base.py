@@ -431,7 +431,11 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 sim_period = sim_data_rounded[sim_period_mask].copy()
 
                 # Apply spinup removal if configured
-                spinup_years = self.config_dict.get('EVALUATION_SPINUP_YEARS', 0)
+                spinup_years = self._get_config_value(
+                    lambda: self.config.evaluation.spinup_years,
+                    default=0,
+                    dict_key='EVALUATION_SPINUP_YEARS'
+                )
                 try:
                     spinup_years = int(float(spinup_years))
                 except (TypeError, ValueError):
@@ -665,8 +669,11 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
     def align_series(self, sim: pd.Series, obs: pd.Series) -> Tuple[pd.Series, pd.Series]:
         """Align simulation and observation series after dropping spinup years."""
-        # EVALUATION_SPINUP_YEARS not yet in typed config - use config_dict fallback
-        spinup_years = self.config_dict.get('EVALUATION_SPINUP_YEARS', 0)
+        spinup_years = self._get_config_value(
+            lambda: self.config.evaluation.spinup_years,
+            default=0,
+            dict_key='EVALUATION_SPINUP_YEARS'
+        )
         try:
             spinup_years = int(float(spinup_years))
         except (TypeError, ValueError):

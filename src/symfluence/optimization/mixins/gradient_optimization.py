@@ -39,12 +39,18 @@ class GradientOptimizationMixin(ConfigMixin):
     @property
     def gradient_epsilon(self) -> float:
         """Epsilon for finite difference gradient computation."""
-        return self.config_dict.get('GRADIENT_EPSILON', 1e-4)
+        return self._get_config_value(
+            lambda: self.config.optimization.gradient_epsilon,
+            default=1e-4
+        )
 
     @property
     def gradient_clip_value(self) -> float:
         """Maximum gradient magnitude for clipping."""
-        return self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
+        return self._get_config_value(
+            lambda: self.config.optimization.gradient_clip_value,
+            default=1.0
+        )
 
     # =========================================================================
     # Gradient computation

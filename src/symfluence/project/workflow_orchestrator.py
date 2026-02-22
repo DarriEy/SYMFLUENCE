@@ -509,16 +509,16 @@ class WorkflowOrchestrator(ConfigMixin):
         valid = True
 
         # Check configuration validity (support both old and new config keys)
-        required_config = [
-            'DOMAIN_NAME',
-            'EXPERIMENT_ID',
-            'HYDROLOGICAL_MODEL',
-            'DOMAIN_DEFINITION_METHOD',
-            'SUB_GRID_DISCRETIZATION'
+        required_checks = [
+            ('DOMAIN_NAME', lambda: self.config.domain.name),
+            ('EXPERIMENT_ID', lambda: self.config.domain.experiment_id),
+            ('HYDROLOGICAL_MODEL', lambda: self.config.model.hydrological_model),
+            ('DOMAIN_DEFINITION_METHOD', lambda: self.config.domain.definition_method),
+            ('SUB_GRID_DISCRETIZATION', lambda: self.config.domain.discretization),
         ]
 
-        for key in required_config:
-            if not self.config.get(key):
+        for key, accessor in required_checks:
+            if not self._get_config_value(accessor, dict_key=key):
                 self.logger.error(f"Required configuration missing: {key}")
                 valid = False
 

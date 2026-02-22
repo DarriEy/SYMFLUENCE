@@ -94,8 +94,8 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
 
         # Get configuration
         variables = self._get_variables()
-        frequency = self.config_dict.get('ERA5_LAND_FREQUENCY', 'daily')
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        frequency = self._get_config_value(lambda: None, default='daily', dict_key='ERA5_LAND_FREQUENCY')
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         # Build output filename
         start_str = self.start_date.strftime('%Y%m%d')
@@ -136,7 +136,7 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
 
     def _get_variables(self) -> List[str]:
         """Get list of variables to download."""
-        config_vars = self.config_dict.get('ERA5_LAND_VARIABLES')
+        config_vars = self._get_config_value(lambda: None, default=None, dict_key='ERA5_LAND_VARIABLES')
 
         if config_vars:
             if isinstance(config_vars, str):
@@ -169,7 +169,7 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
             'year': years,
             'month': months,
             'day': days,
-            'format': self.config_dict.get('ERA5_LAND_FORMAT', 'netcdf'),
+            'format': self._get_config_value(lambda: None, default='netcdf', dict_key='ERA5_LAND_FORMAT'),
         }
 
         # Add time for hourly data

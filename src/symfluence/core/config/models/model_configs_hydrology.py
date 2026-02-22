@@ -1,6 +1,6 @@
 """Hydrological model configuration classes."""
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,12 @@ class SUMMAConfig(BaseModel):
     glacier_coldstate: str = Field(default='coldState_glac.nc', alias='SETTINGS_SUMMA_GLACIER_COLDSTATE')
     # Execution settings
     timeout: int = Field(default=7200, alias='SUMMA_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+    backup_settings: str = Field(default='no', alias='EXPERIMENT_BACKUP_SETTINGS')
+    monitor_slurm_job: bool = Field(default=True, alias='MONITOR_SLURM_JOB')
+    soilprofile: str = Field(default='FA', alias='SETTINGS_SUMMA_SOILPROFILE')
+    init_matric_head: float = Field(default=-1.0, alias='SUMMA_INIT_MATRIC_HEAD')
+    init_grid_file: str = Field(default='coldState_glacSurfTopo.nc', alias='SETTINGS_SUMMA_INIT_GRID_FILE')
+    attrib_grid_file: str = Field(default='attributes_glacBedTopo.nc', alias='SETTINGS_SUMMA_ATTRIB_GRID_FILE')
 
 
 class FUSEConfig(BaseModel):
@@ -78,6 +84,12 @@ class FUSEConfig(BaseModel):
     n_elevation_bands: int = Field(default=1, alias='FUSE_N_ELEVATION_BANDS', ge=1)
     timeout: int = Field(default=3600, alias='FUSE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
     run_internal_calibration: bool = Field(default=True, alias='FUSE_RUN_INTERNAL_CALIBRATION')
+    output_timestep_seconds: int = Field(default=86400, alias='FUSE_OUTPUT_TIMESTEP_SECONDS')
+    snow_model: Optional[str] = Field(default=None, alias='FUSE_SNOW_MODEL')
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='FUSE_PARAM_BOUNDS')
+    parameter_regionalization: str = Field(default='lumped', alias='PARAMETER_REGIONALIZATION')
+    use_transfer_functions: bool = Field(default=False, alias='USE_TRANSFER_FUNCTIONS')
+    transfer_function_coeff_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='TRANSFER_FUNCTION_COEFF_BOUNDS')
 
 
 class GRConfig(BaseModel):
@@ -105,6 +117,10 @@ class GRConfig(BaseModel):
         alias='GR_ALLOW_DEFAULT_AREA',
         description='If True, use 1.0 km² default area when basin shapefile not found'
     )
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='GR_PARAM_BOUNDS')
+    gr4j_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='GR4J_PARAM_BOUNDS')
+    initial_params: str = Field(default='default', alias='GR_INITIAL_PARAMS')
+    default_params: Optional[List[float]] = Field(default=None, alias='GR_DEFAULT_PARAMS')
 
 
 class HBVConfig(BaseModel):
@@ -255,6 +271,13 @@ class NGENConfig(BaseModel):
         alias='NGEN_PET_PARAMS_TO_CALIBRATE'
     )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
+    # Module enable flags
+    enable_sloth: bool = Field(default=True, alias='ENABLE_SLOTH')
+    enable_pet: bool = Field(default=True, alias='ENABLE_PET')
+    enable_noah: bool = Field(default=False, alias='ENABLE_NOAH')
+    enable_cfe: bool = Field(default=True, alias='ENABLE_CFE')
+    noah_et_fallback: str = Field(default='ETRAN', alias='NGEN_NOAH_ET_FALLBACK')
+    run_troute: bool = Field(default=True, alias='NGEN_RUN_TROUTE')
 
 
 class MESHConfig(BaseModel):
@@ -296,6 +319,7 @@ class MESHConfig(BaseModel):
     apply_params_all_grus: bool = Field(default=True, alias='MESH_APPLY_PARAMS_ALL_GRUS')
     use_landcover_multipliers: bool = Field(default=True, alias='MESH_USE_LANDCOVER_MULTIPLIERS')
     enable_frozen_soil: bool = Field(default=True, alias='MESH_ENABLE_FROZEN_SOIL')
+    daily_tolerance_days: int = Field(default=1, alias='MESH_DAILY_TOLERANCE_DAYS')
 
 
 

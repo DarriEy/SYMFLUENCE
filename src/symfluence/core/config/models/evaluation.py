@@ -173,6 +173,32 @@ class GlacierConfig(BaseModel):
     source: str = Field(default='RGI', alias='GLACIER_SOURCE')
 
 
+class TWSEvalConfig(BaseModel):
+    """TWS (Total Water Storage) evaluator settings"""
+    model_config = FROZEN_CONFIG
+
+    grace_column: str = Field(default='grace_jpl_anomaly', alias='TWS_GRACE_COLUMN')
+    anomaly_baseline: str = Field(default='overlap', alias='TWS_ANOMALY_BASELINE')
+    unit_conversion: float = Field(default=1.0, alias='TWS_UNIT_CONVERSION')
+    detrend: bool = Field(default=False, alias='TWS_DETREND')
+    scale_to_obs: bool = Field(default=False, alias='TWS_SCALE_TO_OBS')
+    storage_components: str = Field(default='', alias='TWS_STORAGE_COMPONENTS')
+    obs_path: Optional[str] = Field(default=None, alias='TWS_OBS_PATH')
+
+
+class ETEvalConfig(BaseModel):
+    """ET (Evapotranspiration) evaluator settings"""
+    model_config = FROZEN_CONFIG
+
+    obs_source: str = Field(default='mod16', alias='ET_OBS_SOURCE')
+    temporal_aggregation: str = Field(default='daily_mean', alias='ET_TEMPORAL_AGGREGATION')
+    use_quality_control: bool = Field(default=True, alias='ET_USE_QUALITY_CONTROL')
+    max_quality_flag: int = Field(default=2, alias='ET_MAX_QUALITY_FLAG')
+    modis_max_qc: int = Field(default=0, alias='ET_MODIS_MAX_QC')
+    gleam_max_relative_uncertainty: float = Field(default=0.5, alias='ET_GLEAM_MAX_RELATIVE_UNCERTAINTY')
+    obs_path: Optional[str] = Field(default=None, alias='ET_OBS_PATH')
+
+
 class EvaluationConfig(BaseModel):
     """Evaluation data and analysis configuration"""
     model_config = FROZEN_CONFIG
@@ -180,6 +206,8 @@ class EvaluationConfig(BaseModel):
     evaluation_data: Optional[List[str]] = Field(default=None, alias='EVALUATION_DATA')
     analyses: Optional[List[str]] = Field(default=None, alias='ANALYSES')
     sim_reach_id: Optional[int] = Field(default=None, alias='SIM_REACH_ID')
+    evaluation_variable: str = Field(default='', alias='EVALUATION_VARIABLE')
+    spinup_years: int = Field(default=0, alias='EVALUATION_SPINUP_YEARS')
 
     # Observation data sources
     streamflow: Optional[StreamflowConfig] = Field(default_factory=StreamflowConfig)
@@ -196,6 +224,9 @@ class EvaluationConfig(BaseModel):
     lamah_ice: Optional[LAMAHICEConfig] = Field(default_factory=LAMAHICEConfig)
     glacier: Optional[GlacierConfig] = Field(default_factory=GlacierConfig)
     hru_gauge_mapping: Optional[Dict[str, Any]] = Field(default_factory=dict, alias='HRU_GAUGE_MAPPING')
+    # Evaluator-specific settings
+    tws: Optional[TWSEvalConfig] = Field(default_factory=TWSEvalConfig)
+    et: Optional[ETEvalConfig] = Field(default_factory=ETEvalConfig)
 
     @field_validator('evaluation_data', 'analyses', mode='before')
     @classmethod

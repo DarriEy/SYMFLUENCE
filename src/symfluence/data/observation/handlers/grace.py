@@ -38,10 +38,10 @@ class GRACEHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate GRACE data or download if possible."""
-        grace_dir = Path(self.config_dict.get('GRACE_DATA_DIR', self.project_observations_dir / "grace"))
+        grace_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "grace", dict_key='GRACE_DATA_DIR'))
 
         # Check if we need to download
-        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
+        force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
         has_files = grace_dir.exists() and any(grace_dir.iterdir())
 
         if not has_files or force_download:
@@ -67,15 +67,15 @@ class GRACEHandler(BaseObservationHandler):
         self.logger.info(f"Processing GRACE TWS for domain: {self.domain_name}")
 
         # Load basin shapefile - resolve 'default' to standard location
-        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
         if catchment_path_cfg == 'default' or not catchment_path_cfg:
             catchment_path = self.project_dir / "shapefiles" / "catchment"
         else:
             catchment_path = Path(catchment_path_cfg)
 
-        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME', f"{self.domain_name}_catchment.shp")
+        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
         if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUs')}.shp"
+            catchment_name = f"{self.domain_name}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, default='GRUs')}.shp"
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():

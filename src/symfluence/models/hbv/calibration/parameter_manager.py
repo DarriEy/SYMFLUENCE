@@ -38,11 +38,11 @@ class HBVParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, hbv_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse HBV parameters to calibrate from config
-        hbv_params_str = config.get('HBV_PARAMS_TO_CALIBRATE') or config.get('PARAMS_TO_CALIBRATE')
+        hbv_params_str = self._get_config_value(lambda: self.config.model.hbv.params_to_calibrate, default=None, dict_key='HBV_PARAMS_TO_CALIBRATE') or self._get_config_value(lambda: None, default=None, dict_key='PARAMS_TO_CALIBRATE')
 
         # Handle None, empty string, or 'default' as signal to use ALL available parameters
         if hbv_params_str is None or hbv_params_str == '' or hbv_params_str == 'default':
@@ -81,7 +81,7 @@ class HBVParameterManager(BaseParameterManager):
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
         # Check for explicit initial params in config
-        initial_params = self.config_dict.get('HBV_INITIAL_PARAMS', 'default')
+        initial_params = self._get_config_value(lambda: None, default='default', dict_key='HBV_INITIAL_PARAMS')
 
         if initial_params == 'default':
             # Use HBV defaults from model module

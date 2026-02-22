@@ -145,7 +145,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
         distances = river_gdf.geometry.distance(point_geom)
         nearest_idx = int(distances.idxmin())
 
-        gru_id_col = self.config_dict.get('RIVER_BASIN_SHP_RM_GRUID', 'GRU_ID')
+        gru_id_col = self._get_config_value(lambda: None, default='GRU_ID', dict_key='RIVER_BASIN_SHP_RM_GRUID')
         if gru_id_col not in river_gdf.columns:
             return []
 

@@ -129,7 +129,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
             )
 
         # Get configuration
-        metric = self.config_dict.get('GEDI_METRIC', 'rh98')
+        metric = self._get_config_value(lambda: None, default='rh98', dict_key='GEDI_METRIC')
         product_id = self.GEDI_PRODUCTS.get('L2A', 'GEDI02_A.002')
         layers = self._get_layers(metric)
 
@@ -160,7 +160,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
     def _get_layers(self, metric: str) -> List[str]:
         """Get layers to download based on metric."""
         layers = [metric]
-        if self.config_dict.get('GEDI_QUALITY_FILTER', True):
+        if self._get_config_value(lambda: None, default=True, dict_key='GEDI_QUALITY_FILTER'):
             layers.append('quality_flag')
         return layers
 
@@ -670,8 +670,8 @@ class GLADTreeHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         self.logger.info(f"Downloading GLAD/UMD tree height for bbox: {self.bbox}")
 
-        version = self.config_dict.get('GLAD_VERSION', self.DEFAULT_VERSION)
-        variable = self.config_dict.get('GLAD_VARIABLE', 'treecover2000')
+        version = self._get_config_value(lambda: None, default=self.DEFAULT_VERSION, dict_key='GLAD_VERSION')
+        variable = self._get_config_value(lambda: None, default='treecover2000', dict_key='GLAD_VARIABLE')
 
         # GLAD uses 10-degree tiles
         lat_min = self._snap_to_grid(self.bbox['lat_min'], 10, 'floor')

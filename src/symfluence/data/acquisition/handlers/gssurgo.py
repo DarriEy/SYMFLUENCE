@@ -107,10 +107,10 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
         if self._skip_if_exists(out_path):
             return out_path
 
-        properties = self.config_dict.get('GSSURGO_PROPERTIES', _DEFAULT_PROPERTIES)
+        properties = self._get_config_value(lambda: None, default=_DEFAULT_PROPERTIES, dict_key='GSSURGO_PROPERTIES')
         properties = [p for p in properties if p in _ALL_PROPERTIES]
-        max_depth = int(self.config_dict.get('GSSURGO_MAX_DEPTH_CM', 200))
-        top_depth = int(self.config_dict.get('GSSURGO_TOP_DEPTH_CM', 0))
+        max_depth = int(self._get_config_value(lambda: None, default=200, dict_key='GSSURGO_MAX_DEPTH_CM'))
+        top_depth = int(self._get_config_value(lambda: None, default=0, dict_key='GSSURGO_TOP_DEPTH_CM'))
 
         if not properties:
             raise ValueError(

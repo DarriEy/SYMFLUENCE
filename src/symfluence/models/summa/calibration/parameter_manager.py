@@ -68,14 +68,14 @@ class SUMMAParameterManager(BaseParameterManager):
         self._profiler_ctx = ProfilerContext("summa_parameter_manager")
 
         # Parse parameter lists from config
-        local_params_raw = config.get('PARAMS_TO_CALIBRATE') or ''
-        basin_params_raw = config.get('BASIN_PARAMS_TO_CALIBRATE') or ''
+        local_params_raw = self._get_config_value(lambda: self.config.model.summa.params_to_calibrate, default='', dict_key='PARAMS_TO_CALIBRATE') or ''
+        basin_params_raw = self._get_config_value(lambda: None, default='', dict_key='BASIN_PARAMS_TO_CALIBRATE') or ''
         self.local_params = [p.strip() for p in str(local_params_raw).split(',') if p.strip()]
         self.basin_params = [p.strip() for p in str(basin_params_raw).split(',') if p.strip()]
 
         # Identify depth parameters
         self.depth_params = []
-        if config.get('CALIBRATE_DEPTH', False):
+        if self._get_config_value(lambda: None, default=False, dict_key='CALIBRATE_DEPTH'):
             self.depth_params = ['total_mult', 'shape_factor']
 
         # Handle special multiplier parameter
@@ -85,8 +85,8 @@ class SUMMAParameterManager(BaseParameterManager):
 
         # Parse mizuRoute parameters
         self.mizuroute_params = []
-        if config.get('CALIBRATE_MIZUROUTE', False):
-            mizuroute_params_str = config.get('MIZUROUTE_PARAMS_TO_CALIBRATE')
+        if self._get_config_value(lambda: None, default=False, dict_key='CALIBRATE_MIZUROUTE'):
+            mizuroute_params_str = self._get_config_value(lambda: None, default=None, dict_key='MIZUROUTE_PARAMS_TO_CALIBRATE')
             if mizuroute_params_str is None:
                 mizuroute_params_str = 'velo,diff'
             self.mizuroute_params = [p.strip() for p in str(mizuroute_params_str).split(',') if p.strip()]
@@ -97,7 +97,7 @@ class SUMMAParameterManager(BaseParameterManager):
             self.original_depths = self._load_original_depths()
 
         # Get attribute file path
-        self.attr_file_path = self.settings_dir / config.get('SETTINGS_SUMMA_ATTRIBUTES', 'attributes.nc')
+        self.attr_file_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.attributes, default='attributes.nc', dict_key='SETTINGS_SUMMA_ATTRIBUTES')
 
     # ========================================================================
     # PARAMETER CONSTRAINTS (Override Base Implementation)
@@ -347,7 +347,7 @@ class SUMMAParameterManager(BaseParameterManager):
                     self.logger.warning(f"Unknown mizuRoute parameter: {param}")
 
         # Config-level overrides (highest priority)
-        config_bounds = self.config_dict.get('PARAMETER_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
         if config_bounds:
             self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
             for param_name, limit_list in config_bounds.items():

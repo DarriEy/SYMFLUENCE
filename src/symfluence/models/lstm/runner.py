@@ -441,7 +441,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         hru_idx_to_reach = [hru_to_seg_idx[hru_id] for hru_id in self.hru_ids]
 
         # Router config
-        routing_method = self.config_dict.get('DROUTE_METHOD', 'mc').lower()
+        routing_method = self._get_config_value(lambda: None, default='mc', dict_key='DROUTE_METHOD').lower()
         router_classes = {
             'mc': droute.MuskingumCungeRouter,
             'lag': droute.LagRouter,

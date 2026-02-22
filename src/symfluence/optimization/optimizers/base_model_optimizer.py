@@ -1005,7 +1005,7 @@ class BaseModelOptimizer(
         callbacks, kwargs = self._build_algorithm_callbacks()
 
         # Seed optimization with best previous result (warm-start) or def file defaults
-        skip_warm_start = self.config.get('SKIP_WARM_START', False)
+        skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
         try:
             if skip_warm_start:
                 self.logger.info(

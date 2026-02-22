@@ -26,13 +26,19 @@ class GRParameterManager(BaseParameterManager):
         super().__init__(config, logger, gr_settings_dir)
 
         # GR-specific setup
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(
+            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+        )
+        self.experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID'
+        )
 
         # Parse GR parameters to calibrate from config
-        gr_params_str = config.get('GR_PARAMS_TO_CALIBRATE')
-        if gr_params_str is None:
-            gr_params_str = 'X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff'
+        gr_params_str = self._get_config_value(
+            lambda: self.config.model.gr.params_to_calibrate,
+            default='X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff',
+            dict_key='GR_PARAMS_TO_CALIBRATE'
+        )
 
         self.gr_params = [p.strip() for p in str(gr_params_str).split(',') if p.strip()]
 
@@ -47,7 +53,13 @@ class GRParameterManager(BaseParameterManager):
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
         """Return GR parameter bounds from central registry, with config overrides."""
         bounds = get_gr_bounds()
-        config_bounds = self.config_dict.get('GR4J_PARAM_BOUNDS') or self.config_dict.get('GR_PARAM_BOUNDS')
+        config_bounds = self._get_config_value(
+            lambda: self.config.model.gr.gr4j_param_bounds,
+            default=None
+        ) or self._get_config_value(
+            lambda: self.config.model.gr.param_bounds,
+            default=None
+        )
         if config_bounds:
             self.logger.info("Using config-specified GR parameter bounds")
             self._apply_config_bounds_override(bounds, config_bounds)
@@ -64,7 +76,10 @@ class GRParameterManager(BaseParameterManager):
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
         # Check for explicit initial params in config
-        initial_params = self.config_dict.get('GR_INITIAL_PARAMS', 'default')
+        initial_params = self._get_config_value(
+            lambda: self.config.model.gr.initial_params,
+            default='default'
+        )
 
         if initial_params == 'midpoint':
             self.logger.info("Using midpoint of parameter bounds as initial guess")

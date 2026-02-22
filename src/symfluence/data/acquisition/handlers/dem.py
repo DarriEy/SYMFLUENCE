@@ -558,8 +558,8 @@ class ETOPO2022Acquirer(BaseAcquisitionHandler):
         if self._skip_if_exists(out_path):
             return out_path
 
-        resolution = self.config_dict.get('ETOPO_RESOLUTION', '60s')
-        variant = self.config_dict.get('ETOPO_VARIANT', 'surface')
+        resolution = self._get_config_value(lambda: None, default='60s', dict_key='ETOPO_RESOLUTION')
+        variant = self._get_config_value(lambda: None, default='surface', dict_key='ETOPO_VARIANT')
 
         self.logger.info(
             f"Downloading ETOPO 2022 ({resolution}, {variant}) for bbox: {self.bbox}"

@@ -84,7 +84,9 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         self.logger.info(f"Initialized GNN runner with device: {self.device}")
 
         # Check spatial mode
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        domain_method = self._get_config_value(
+            lambda: self.config.domain.definition_method, default='lumped'
+        )
         if domain_method == 'lumped':
             self.logger.warning(
                 "⚠️  GNN model requested in 'lumped' mode. GNN is designed for spatially distributed modeling "
@@ -151,10 +153,16 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             adj_matrix = self.preprocessor.load_graph_structure()
 
             # 2. Preprocess
-            use_snow = self.config_dict.get('GNN_USE_SNOW', False)
+            use_snow = self._get_config_value(
+                lambda: self.config.model.gnn.use_snow if self.config.model and self.config.model.gnn else None,
+                default=False
+            )
             snow_df_input = snow_df if use_snow else pd.DataFrame()
 
-            load_existing_model = self.config_dict.get('GNN_LOAD', False)
+            load_existing_model = self._get_config_value(
+                lambda: self.config.model.gnn.load if self.config.model and self.config.model.gnn else None,
+                default=False
+            )
             model_save_path = self.project_dir / 'models' / 'gnn_model.pt'
 
             if load_existing_model:
@@ -181,8 +189,14 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
                 self._create_model_instance(
                     input_size=X_tensor.shape[-1],
-                    hidden_size=self.config_dict.get('GNN_HIDDEN_SIZE', 64),
-                    gnn_output_size=self.config_dict.get('GNN_OUTPUT_SIZE', 32),
+                    hidden_size=self._get_config_value(
+                        lambda: self.config.model.gnn.hidden_size if self.config.model and self.config.model.gnn else None,
+                        default=64
+                    ),
+                    gnn_output_size=self._get_config_value(
+                        lambda: self.config.model.gnn.output_size if self.config.model and self.config.model.gnn else None,
+                        default=32
+                    ),
                     adjacency_matrix=adj_matrix
                 )
                 self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -210,17 +224,32 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
                 self._create_model_instance(
                     input_size=X_tensor.shape[-1],
-                    hidden_size=self.config_dict.get('GNN_HIDDEN_SIZE', 64),
-                    gnn_output_size=self.config_dict.get('GNN_OUTPUT_SIZE', 32),
+                    hidden_size=self._get_config_value(
+                        lambda: self.config.model.gnn.hidden_size if self.config.model and self.config.model.gnn else None,
+                        default=64
+                    ),
+                    gnn_output_size=self._get_config_value(
+                        lambda: self.config.model.gnn.output_size if self.config.model and self.config.model.gnn else None,
+                        default=32
+                    ),
                     adjacency_matrix=adj_matrix
                 )
 
                 self._train_model(
                     X_tensor,
                     y_tensor,
-                    epochs=self.config_dict.get('GNN_EPOCHS', 100),
-                    batch_size=self.config_dict.get('GNN_BATCH_SIZE', 16), # Smaller batch due to graph size
-                    learning_rate=self.config_dict.get('GNN_LEARNING_RATE', 0.005)
+                    epochs=self._get_config_value(
+                        lambda: self.config.model.gnn.epochs if self.config.model and self.config.model.gnn else None,
+                        default=100
+                    ),
+                    batch_size=self._get_config_value(
+                        lambda: self.config.model.gnn.batch_size if self.config.model and self.config.model.gnn else None,
+                        default=16
+                    ),  # Smaller batch due to graph size
+                    learning_rate=self._get_config_value(
+                        lambda: self.config.model.gnn.learning_rate if self.config.model and self.config.model.gnn else None,
+                        default=0.005
+                    )
                 )
 
                 self.project_dir.joinpath('models').mkdir(exist_ok=True)
@@ -245,7 +274,10 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             hidden_size=hidden_size,
             gnn_output_size=gnn_output_size,
             adjacency_matrix=adjacency_matrix,
-            dropout_rate=float(self.config_dict.get('GNN_DROPOUT', 0.2))
+            dropout_rate=float(self._get_config_value(
+                lambda: self.config.model.gnn.dropout if self.config.model and self.config.model.gnn else None,
+                default=0.2
+            ))
         ).to(self.device)
 
     def _train_model(self, X: torch.Tensor, y: torch.Tensor, epochs: int, batch_size: int, learning_rate: float):
@@ -410,7 +442,10 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                 )
 
             # Phase 4.3: Periodic checkpoint saving every 50 epochs
-            checkpoint_interval = self.config_dict.get('GNN_CHECKPOINT_INTERVAL', 50)
+            checkpoint_interval = self._get_config_value(
+                lambda: self.config.model.gnn.checkpoint_interval if self.config.model and self.config.model.gnn else None,
+                default=50
+            )
             if checkpoint_interval > 0 and (epoch + 1) % checkpoint_interval == 0:
                 checkpoint_path = self.sim_dir / f'gnn_checkpoint_epoch_{epoch+1}.pt'
                 try:

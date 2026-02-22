@@ -32,8 +32,8 @@ class CRHMParameterManager(BaseParameterManager):
         """
         super().__init__(config, logger, crhm_settings_dir)
 
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Parse CRHM parameters to calibrate from config
         crhm_params_str = None
@@ -44,7 +44,7 @@ class CRHMParameterManager(BaseParameterManager):
             pass
 
         if crhm_params_str is None:
-            crhm_params_str = config.get('CRHM_PARAMS_TO_CALIBRATE')
+            crhm_params_str = self._get_config_value(lambda: self.config.model.crhm.params_to_calibrate, default=None, dict_key='CRHM_PARAMS_TO_CALIBRATE')
 
         if crhm_params_str is None:
             crhm_params_str = 'Ht,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,gw_K,gw_max,Kstorage,Lag,lapse_rate'
@@ -55,7 +55,7 @@ class CRHMParameterManager(BaseParameterManager):
         self.crhm_params = [p.strip() for p in str(crhm_params_str).split(',') if p.strip()]
 
         # Path to project file
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.settings_dir = self.project_dir / 'settings' / 'CRHM'
 
@@ -85,7 +85,7 @@ class CRHMParameterManager(BaseParameterManager):
         crhm_bounds = dict(PARAM_BOUNDS)
 
         # Check for config overrides (preserves transform metadata from registry)
-        config_bounds = self.config.get('CRHM_PARAM_BOUNDS', {})
+        config_bounds = self._get_config_value(lambda: None, default={}, dict_key='CRHM_PARAM_BOUNDS')
         if config_bounds:
             self._apply_config_bounds_override(crhm_bounds, config_bounds)
 

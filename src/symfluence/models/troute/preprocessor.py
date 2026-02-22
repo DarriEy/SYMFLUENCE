@@ -72,10 +72,12 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
 
         # Define paths using SYMFLUENCE conventions
         river_network_path = self.project_dir / 'shapefiles/river_network'
-        river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{self.config_dict.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+        river_network_name = f"{self.domain_name}_riverNetwork_{self.domain_definition_method}.shp"
         river_basin_path = self.project_dir / 'shapefiles/river_basins'
-        river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        river_basin_name = f"{self.domain_name}_riverBasins_{self.domain_definition_method}.shp"
+        topology_name = self._get_config_value(
+            lambda: self.config.model.troute.topology_file, default='troute_topology.nc'
+        )
         topology_filepath = self.setup_dir / topology_name
 
         # Load shapefiles
@@ -94,12 +96,19 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
             ncid.createDimension('gages', None) # Unlimited dimension for gages
 
             # Map SYMFLUENCE shapefile columns to t-route's required variable names
-            self._create_and_fill_nc_var(ncid, 'comid', 'i4', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')], 'Unique segment ID')
-            self._create_and_fill_nc_var(ncid, 'to_node', 'i4', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')], 'Downstream segment ID')
-            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_LENGTH')], 'Segment length', 'meters')
-            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SLOPE')], 'Segment slope', 'm/m')
-            self._create_and_fill_nc_var(ncid, 'link_id_hru', 'i4', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')], 'Segment ID for HRU discharge')
-            self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')], 'HRU area', 'm^2')
+            seg_id_col = self._get_config_value(lambda: self.config.paths.river_network_segid, default='LINKNO')
+            downseg_id_col = self._get_config_value(lambda: self.config.paths.river_network_downsegid, default='DSLINKNO')
+            length_col = self._get_config_value(lambda: self.config.paths.river_network_length, default='Length')
+            slope_col = self._get_config_value(lambda: self.config.paths.river_network_slope, default='Slope')
+            hru_to_seg_col = self._get_config_value(lambda: self.config.paths.river_basin_hru_to_seg, default='gru_to_seg')
+            area_col = self._get_config_value(lambda: self.config.paths.river_basin_area, default='GRU_area')
+
+            self._create_and_fill_nc_var(ncid, 'comid', 'i4', 'link', shp_river[seg_id_col], 'Unique segment ID')
+            self._create_and_fill_nc_var(ncid, 'to_node', 'i4', 'link', shp_river[downseg_id_col], 'Downstream segment ID')
+            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'link', shp_river[length_col], 'Segment length', 'meters')
+            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'link', shp_river[slope_col], 'Segment slope', 'm/m')
+            self._create_and_fill_nc_var(ncid, 'link_id_hru', 'i4', 'nhru', shp_basin[hru_to_seg_col], 'Segment ID for HRU discharge')
+            self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[area_col], 'HRU area', 'm^2')
 
             # Add required placeholder variables with sensible defaults
             centroids = self.calculate_feature_centroids(shp_river)
@@ -110,7 +119,9 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
             self._create_and_fill_nc_var(ncid, 'lon', 'f8', 'link', shp_river['lon'], 'Longitude of segment midpoint', 'degrees_east')
             self._create_and_fill_nc_var(ncid, 'alt', 'f8', 'link', [0.0] * len(shp_river), 'Mean elevation of segment', 'meters')
             self._create_and_fill_nc_var(ncid, 'from_node', 'i4', 'link', [0] * len(shp_river), 'Upstream node ID')
-            mannings_n = float(self.config_dict.get('TROUTE_MANNINGS_N', 0.035))
+            mannings_n = float(self._get_config_value(
+                lambda: self.config.model.troute.mannings_n, default=0.035
+            ))
             self._create_and_fill_nc_var(ncid, 'n', 'f8', 'link', [mannings_n] * len(shp_river), 'Mannings roughness coefficient')
 
             # Add drainage area from river network shapefile (DSContArea is in m²)
@@ -120,8 +131,12 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
                 self.logger.info(f"Drainage area: {da_km2.min():.1f}-{da_km2.max():.1f} km²")
 
                 # Compute channel width from hydraulic geometry: W = a * A^b
-                hg_a = float(self.config_dict.get('TROUTE_HG_WIDTH_COEFF', 2.71))
-                hg_b = float(self.config_dict.get('TROUTE_HG_WIDTH_EXP', 0.557))
+                hg_a = float(self._get_config_value(
+                    lambda: self.config.model.troute.hg_width_coeff, default=2.71
+                ))
+                hg_b = float(self._get_config_value(
+                    lambda: self.config.model.troute.hg_width_exp, default=0.557
+                ))
                 da_clamped = np.maximum(da_km2, 0.01)
                 channel_width = np.maximum(hg_a * da_clamped ** hg_b, 1.0)
                 self._create_and_fill_nc_var(ncid, 'channel_width', 'f8', 'link', channel_width, 'Channel width from hydraulic geometry', 'meters')
@@ -140,16 +155,21 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
         self.logger.info("Creating t-route YAML configuration file...")
 
         # Determine paths and parameters from config
-        source_model = self.config_dict.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        input_dir = self.project_dir / f"simulations/{experiment_id}" / source_model
-        output_dir = self.project_dir / f"simulations/{experiment_id}" / 'troute'
-        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        source_model = self._get_config_value(
+            lambda: self.config.model.troute.from_model, default='SUMMA'
+        ).upper()
+        input_dir = self.project_dir / f"simulations/{self.experiment_id}" / source_model
+        output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'troute'
+        topology_name = self._get_config_value(
+            lambda: self.config.model.troute.topology_file, default='troute_topology.nc'
+        )
 
         # Calculate nts (Number of Timesteps)
-        start_dt = datetime.fromisoformat(self.config_dict.get('EXPERIMENT_TIME_START'))
-        end_dt = datetime.fromisoformat(self.config_dict.get('EXPERIMENT_TIME_END'))
-        time_step_seconds = int(self.config_dict.get('SETTINGS_TROUTE_DT_SECONDS', 3600))
+        start_dt = datetime.fromisoformat(self.time_start)
+        end_dt = datetime.fromisoformat(self.time_end)
+        time_step_seconds = int(self._get_config_value(
+            lambda: self.config.model.troute.dt_seconds, default=3600
+        ))
         total_seconds = (end_dt - start_dt).total_seconds() + time_step_seconds
         nts = int(total_seconds / time_step_seconds)
 
@@ -158,18 +178,20 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: 
             'log_parameters': {'showtiming': True, 'log_level': 'DEBUG'},
             'network_topology_parameters': {'supernetwork_parameters': {'geo_file_path': str(self.setup_dir / topology_name)}},
             'compute_parameters': {
-                'restart_parameters': {'start_datetime': self.config_dict.get('EXPERIMENT_TIME_START')},
+                'restart_parameters': {'start_datetime': self.time_start},
                 'forcing_parameters': {
                     'nts': nts,
                     'qlat_input_folder': str(input_dir),
-                    'qlat_file_pattern_filter': f"{experiment_id}_timestep.nc"
+                    'qlat_file_pattern_filter': f"{self.experiment_id}_timestep.nc"
                 }
             },
             'output_parameters': {'stream_output': {'stream_output_directory': str(output_dir)}}
         }
 
         # Write dictionary to YAML file
-        yaml_filename = self.config_dict.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
+        yaml_filename = self._get_config_value(
+            lambda: self.config.model.troute.config_file, default='troute_config.yml'
+        )
         yaml_filepath = self.setup_dir / yaml_filename
         with open(yaml_filepath, 'w', encoding='utf-8') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, indent=2)

@@ -49,10 +49,11 @@ class NgenModelOptimizer(BaseModelOptimizer):
             reporting_manager: ReportingManager instance
         """
         # Initialize NGEN-specific paths BEFORE super().__init__() so they're available in _setup_parallel_dirs
-        # Compute paths using config directly (same logic as BaseModelOptimizer)
-        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-        domain_name = config.get('DOMAIN_NAME', 'default')
-        experiment_id = config.get('EXPERIMENT_ID', 'optimization')
+        # Set config early so _get_config_value works before super().__init__()
+        self.config = config
+        data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, default='.', dict_key='SYMFLUENCE_DATA_DIR'))
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='default', dict_key='DOMAIN_NAME')
+        experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='optimization', dict_key='EXPERIMENT_ID')
 
         project_dir = data_dir / f"domain_{domain_name}"
         self.ngen_sim_dir = project_dir / 'simulations' / experiment_id / 'NGEN'
@@ -77,7 +78,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to NGEN realization file (similar to file manager)."""
-        ngen_realization = self.config_dict.get('SETTINGS_NGEN_REALIZATION', 'realization_config.json')
+        ngen_realization = self._get_config_value(lambda: self.config.model.ngen.realization, default='realization_config.json', dict_key='SETTINGS_NGEN_REALIZATION')
         if ngen_realization == 'default':
             ngen_realization = 'realization_config.json'
         return self.ngen_setup_dir / ngen_realization

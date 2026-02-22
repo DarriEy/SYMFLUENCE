@@ -184,8 +184,8 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             netrc parsing may fail if .netrc doesn't exist or has permission issues.
             Silently returns None on any exception (non-fatal fallback).
         """
-        user = self.config_dict.get('ISMN_USERNAME') or os.environ.get("ISMN_USERNAME")
-        password = self.config_dict.get('ISMN_PASSWORD') or os.environ.get("ISMN_PASSWORD")
+        user = self._get_config_value(lambda: None, default=None, dict_key='ISMN_USERNAME') or os.environ.get("ISMN_USERNAME")
+        password = self._get_config_value(lambda: None, default=None, dict_key='ISMN_PASSWORD') or os.environ.get("ISMN_PASSWORD")
         if user and password:
             return (user, password)
 

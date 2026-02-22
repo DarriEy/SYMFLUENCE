@@ -154,7 +154,7 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
                 return shp
 
         # Download from Borealis Data
-        version = self.config_dict.get('GLHYMPS_VERSION', '2.0')
+        version = self._get_config_value(lambda: None, default='2.0', dict_key='GLHYMPS_VERSION')
         url = _GLHYMPS_URLS.get(version, _GLHYMPS_URLS['2.0'])
 
         zip_path = cache_dir / "GLHYMPS.zip"

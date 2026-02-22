@@ -65,7 +65,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             decider = RoutingDecider()
             settings_dir = self.project_dir / "settings" / "SUMMA"
             self._routing_needed = decider.needs_routing(
-                self.config_dict,
+                self._config_dict_cache,
                 'SUMMA',
                 settings_dir
             )
@@ -107,7 +107,10 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
     def _initialize_decision_options(self) -> Dict[str, List[str]]:
         """Initialize SUMMA decision options from configuration."""
-        return self.config_dict.get('SUMMA_DECISION_OPTIONS', {})
+        return self._resolve(
+            lambda: self.config.model.summa.decision_options,
+            'SUMMA_DECISION_OPTIONS', {}
+        )
 
     def _initialize_output_folder(self) -> Path:
         """Initialize the output folder for SUMMA analysis results."""
@@ -166,7 +169,10 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             Dict: Dictionary containing KGE, NSE, MAE, and RMSE.
         """
         # Load observations
-        obs_file_path = self.config_dict.get('OBSERVATIONS_PATH')
+        obs_file_path = self._resolve(
+            lambda: self.config.paths.observations_path,
+            'OBSERVATIONS_PATH', 'default'
+        )
         if obs_file_path == 'default' or not obs_file_path:
             obs_file_path = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
         else:
@@ -177,12 +183,18 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             raise FileNotFoundError(f"Missing observation file: {obs_file_path}")
 
         # Load simulation results (mizuRoute output)
-        sim_reach_ID = self.config_dict.get('SIM_REACH_ID')
-        sim_path_config = self.config_dict.get('SIMULATIONS_PATH')
+        sim_reach_ID = self._resolve(
+            lambda: self.config.evaluation.sim_reach_id,
+            'SIM_REACH_ID', None
+        )
+        sim_path_config = self._resolve(
+            lambda: self.config.paths.simulations_path,
+            'SIMULATIONS_PATH', 'default'
+        )
 
         if sim_path_config == 'default' or not sim_path_config:
             # Construct default mizuRoute output path
-            start_year = self.config_dict.get('EXPERIMENT_TIME_START', '1990').split('-')[0]
+            start_year = (self.time_start or '1990').split('-')[0]
             sim_file_path = (
                 self.project_dir / 'simulations' / self.experiment_id /
                 'mizuRoute' / f"{self.experiment_id}.h.{start_year}-01-01-03600.nc"

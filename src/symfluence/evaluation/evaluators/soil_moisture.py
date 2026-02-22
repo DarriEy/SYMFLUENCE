@@ -169,7 +169,9 @@ class SoilMoistureEvaluator(ModelEvaluator):
 
         # Check if target is a valid soil moisture target, otherwise look at EVALUATION_VARIABLE
         if self.optimization_target not in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn']:
-            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            eval_var = self._get_config_value(
+                lambda: None, default='', dict_key='EVALUATION_VARIABLE'
+            )
             if any(x in eval_var for x in ['sm_', 'soil']):
                 self.optimization_target = eval_var
 

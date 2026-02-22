@@ -158,7 +158,10 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # If spinup_days not provided, calculate from SPINUP_PERIOD
         if self.spinup_days is None:
-            spinup_period = self.config_dict.get('SPINUP_PERIOD')
+            spinup_period = self._get_config_value(
+                lambda: self.config.domain.spinup_period,
+                default=None
+            )
             if spinup_period:
                 try:
                     start_date, end_date = [pd.to_datetime(s.strip()) for s in spinup_period.split(',')]
@@ -202,10 +205,18 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # mapping geofabric fields to model names
         self.geofabric_mapping = {
-            'basinID': {'in_varname': self.config_dict.get('RIVER_BASIN_SHP_RM_GRUID')},
-            'nextDownID': {'in_varname': self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')},
-            'area': {'in_varname': self.config_dict.get('RIVER_BASIN_SHP_AREA'), 'in_units': 'm^2', 'out_units': 'm^2'},
-            'rivlen': {'in_varname': self.config_dict.get('RIVER_NETWORK_SHP_LENGTH'), 'in_units': 'm', 'out_units': 'm'}
+            'basinID': {'in_varname': self._get_config_value(
+                lambda: self.config.paths.river_basin_shp_rm_gruid, dict_key='RIVER_BASIN_SHP_RM_GRUID'
+            )},
+            'nextDownID': {'in_varname': self._get_config_value(
+                lambda: self.config.paths.river_network_shp_downsegid, dict_key='RIVER_NETWORK_SHP_DOWNSEGID'
+            )},
+            'area': {'in_varname': self._get_config_value(
+                lambda: self.config.paths.river_basin_shp_area, dict_key='RIVER_BASIN_SHP_AREA'
+            ), 'in_units': 'm^2', 'out_units': 'm^2'},
+            'rivlen': {'in_varname': self._get_config_value(
+                lambda: self.config.paths.river_network_shp_length, dict_key='RIVER_NETWORK_SHP_LENGTH'
+            ), 'in_units': 'm', 'out_units': 'm'}
         }
 
         # domain subbasins and rivers - handle different delineation methods
@@ -318,7 +329,6 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         data. Since we store forcing files separately in data/forcing/HYPE_input/,
         we create symlinks so HYPE finds them in settings/HYPE/.
         """
-        from pathlib import Path
 
         forcing_files = ['Pobs.txt', 'Tobs.txt', 'TMAXobs.txt', 'TMINobs.txt', 'Qobs.txt']
         for fname in forcing_files:
@@ -370,7 +380,10 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             gistool_output=self.gistool_output,
             subbasins_shapefile=basin_path,
             rivers_shapefile=river_path,
-            frac_threshold=self.config_dict.get('HYPE_FRAC_THRESHOLD', 0.05),
+            frac_threshold=self._get_config_value(
+                lambda: self.config.model.hype.frac_threshold if self.config.model and self.config.model.hype else None,
+                default=0.05
+            ),
             intersect_base_path=self.intersect_path
         )
 
@@ -381,8 +394,12 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
 
         # Get experiment dates from config
-        experiment_start = self.config_dict.get('EXPERIMENT_TIME_START')
-        experiment_end = self.config_dict.get('EXPERIMENT_TIME_END')
+        experiment_start = self._get_config_value(
+            lambda: self.config.domain.time_start, default=None
+        )
+        experiment_end = self._get_config_value(
+            lambda: self.config.domain.time_end, default=None
+        )
 
         # Write info and file directory files using manager
         self.config_manager.write_info_filedir(

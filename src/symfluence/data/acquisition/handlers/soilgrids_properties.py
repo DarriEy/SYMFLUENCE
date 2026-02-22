@@ -118,12 +118,12 @@ class SoilGridsPropertiesAcquirer(BaseAcquisitionHandler, RetryMixin):
         sg_dir = self._attribute_dir("soilclass") / "soilgrids"
         sg_dir.mkdir(parents=True, exist_ok=True)
 
-        properties = self.config_dict.get('SOILGRIDS_PROPERTIES', _DEFAULT_PROPERTIES)
+        properties = self._get_config_value(lambda: None, default=_DEFAULT_PROPERTIES, dict_key='SOILGRIDS_PROPERTIES')
         properties = [p for p in properties if p in _PROPERTY_MAPS]
-        depths = self.config_dict.get('SOILGRIDS_DEPTHS', _DEFAULT_DEPTHS)
+        depths = self._get_config_value(lambda: None, default=_DEFAULT_DEPTHS, dict_key='SOILGRIDS_DEPTHS')
         depths = [d for d in depths if d in _ALL_DEPTHS]
-        quantile = self.config_dict.get('SOILGRIDS_QUANTILE', 'mean')
-        convert_units = self.config_dict.get('SOILGRIDS_CONVERT_UNITS', True)
+        quantile = self._get_config_value(lambda: None, default='mean', dict_key='SOILGRIDS_QUANTILE')
+        convert_units = self._get_config_value(lambda: None, default=True, dict_key='SOILGRIDS_CONVERT_UNITS')
 
         if not properties:
             raise ValueError(

@@ -64,7 +64,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         self.logger.info("Trying NSIDC THREDDS NCSS...")
 
         # NSIDC THREDDS NCSS endpoint
-        thredds_base = self.config_dict.get('SMAP_THREDDS_BASE', "https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid")
+        thredds_base = self._get_config_value(lambda: None, default="https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid", dict_key='SMAP_THREDDS_BASE')
         product = self._get_config_value(lambda: self.config.evaluation.smap.product, default='SMAP_L4_SM_gph_v4', dict_key='SMAP_PRODUCT')
         if isinstance(product, str) and product.upper() == 'SPL4SMGP':
             product = 'SMAP_L4_SM_gph_v4'
@@ -97,7 +97,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         # For NCSS Grid, we often need the exact file path or an aggregation.
         # This implementation assumes an aggregated NCML exists or the user provides a direct OPeNDAP/NCSS URL.
         # If 'SMAP_THREDDS_URL' is provided, use it directly.
-        override_url = self.config_dict.get('SMAP_THREDDS_URL')
+        override_url = self._get_config_value(lambda: None, default=None, dict_key='SMAP_THREDDS_URL')
         if override_url:
             candidate_urls = [override_url]
         else:
@@ -299,10 +299,10 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
     def _download_via_cmr(self, output_dir: Path) -> Path:
         """Fallback: download SMAP granules via CMR HTTPS links."""
-        cmr_short_name = self.config_dict.get('SMAP_CMR_SHORT_NAME', self._get_config_value(lambda: self.config.evaluation.smap.product, default='SPL4SMGP', dict_key='SMAP_PRODUCT'))
+        cmr_short_name = self._get_config_value(lambda: None, default=self._get_config_value(lambda: self.config.evaluation.smap.product, default='SPL4SMGP', dict_key='SMAP_PRODUCT'), dict_key='SMAP_CMR_SHORT_NAME')
         if isinstance(cmr_short_name, str) and cmr_short_name.upper().startswith('SMAP_L4_SM_GPH'):
             cmr_short_name = 'SPL4SMGP'
-        cmr_version = str(self.config_dict.get('SMAP_CMR_VERSION', '008')).zfill(3)
+        cmr_version = str(self._get_config_value(lambda: None, default='008', dict_key='SMAP_CMR_VERSION')).zfill(3)
         max_granules = self._get_config_value(lambda: self.config.evaluation.smap.max_granules, dict_key='SMAP_MAX_GRANULES')
         use_opendap = bool(self._get_config_value(lambda: self.config.evaluation.smap.use_opendap, default=False, dict_key='SMAP_USE_OPENDAP'))
 

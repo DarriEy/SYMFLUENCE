@@ -23,9 +23,7 @@ class GLDASHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate GLDAS data or download if needed."""
-        gldas_dir = Path(self.config_dict.get(
-            'GLDAS_DATA_DIR',
-            self.project_observations_dir / "tws" / "gldas"))
+        gldas_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "tws" / "gldas", dict_key='GLDAS_DATA_DIR'))
 
         force_download = self._get_config_value(
             lambda: self.config.data.force_download, default=False)

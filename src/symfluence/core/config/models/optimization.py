@@ -6,7 +6,7 @@ PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config,
 EmulationConfig, and the parent OptimizationConfig.
 """
 
-from typing import List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
@@ -286,6 +286,47 @@ class OptimizationConfig(BaseModel):
         if isinstance(v, str):
             return v.upper()
         return v
+
+    # Multivariate objective settings
+    objective_weights: Optional[Dict[str, float]] = Field(
+        default=None,
+        alias='OBJECTIVE_WEIGHTS',
+        description="Variable-specific weights for multivariate objective. "
+                    "Example: {'STREAMFLOW': 0.7, 'SWE': 0.2, 'ET': 0.1}"
+    )
+    objective_metrics: Optional[Dict[str, str]] = Field(
+        default=None,
+        alias='OBJECTIVE_METRICS',
+        description="Primary metric per variable for multivariate objective. "
+                    "Example: {'STREAMFLOW': 'kge', 'SWE': 'nse'}"
+    )
+
+    # Worker retry settings
+    worker_max_retries: int = Field(
+        default=3,
+        alias='WORKER_MAX_RETRIES',
+        ge=0,
+        description="Maximum number of retry attempts for worker model evaluations"
+    )
+    worker_base_delay: float = Field(
+        default=0.5,
+        alias='WORKER_BASE_DELAY',
+        gt=0,
+        description="Base delay for exponential backoff between retries (seconds)"
+    )
+    worker_max_delay: float = Field(
+        default=30.0,
+        alias='WORKER_MAX_DELAY',
+        gt=0,
+        description="Maximum delay between retries (seconds)"
+    )
+    worker_jitter: float = Field(
+        default=0.1,
+        alias='WORKER_JITTER',
+        ge=0,
+        le=1.0,
+        description="Jitter factor for randomizing retry delays (0-1)"
+    )
 
     # Error logging and debugging options
     params_keep_trials: bool = Field(

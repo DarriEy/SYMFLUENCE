@@ -38,20 +38,15 @@ class GSFLOWParameterManager(BaseParameterManager):
     ):
         super().__init__(config, logger, settings_dir)
 
-        if isinstance(config, dict):
-            self.config_dict = config
-        else:
-            self.config_dict = config if isinstance(config, dict) else {}
-
         # Get calibration parameter list
         params_str = (
-            self.config_dict.get('GSFLOW_PARAMS_TO_CALIBRATE', '') or
+            self._get_config_value(lambda: None, default='', dict_key='GSFLOW_PARAMS_TO_CALIBRATE') or
             'soil_moist_max,ssr2gw_rate,K,SY,slowcoef_lin,carea_max,smidx_coef,jh_coef,tmax_allsnow,rain_adj,snow_adj'
         )
         self.gsflow_params = [p.strip() for p in params_str.split(',') if p.strip()]
 
         # File references
-        self.param_file = self.config_dict.get('GSFLOW_PARAMETER_FILE', 'params.dat')
+        self.param_file = self._get_config_value(lambda: None, default='params.dat', dict_key='GSFLOW_PARAMETER_FILE')
 
     def _get_parameter_names(self) -> List[str]:
         """Get ordered list of parameter names to calibrate."""

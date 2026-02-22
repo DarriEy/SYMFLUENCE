@@ -409,7 +409,7 @@ class HRRRHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating HRRR grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         hrrr_files = list(merged_forcing_path.glob("*.nc"))
         if not hrrr_files:
@@ -441,7 +441,7 @@ class HRRRHandler(BaseDatasetHandler):
                     f"Available coords: {list(ds.coords)}; variables: {list(ds.data_vars)}"
                 )
 
-        bbox_str = self.config_dict.get('HRRR_BOUNDING_BOX_COORDS') or self.config.get('BOUNDING_BOX_COORDS')
+        bbox_str = self._get_config_value(lambda: None, default=None, dict_key='HRRR_BOUNDING_BOX_COORDS') or self._get_config_value(lambda: self.config.domain.bounding_box_coords, default=None)
         if isinstance(bbox_str, str) and "/" in bbox_str:
             lat_max, lon_min, lat_min, lon_max = [float(v) for v in bbox_str.split("/")]
             lat_min, lat_max = sorted([lat_min, lat_max])
@@ -468,7 +468,7 @@ class HRRRHandler(BaseDatasetHandler):
                 if np.any(lat_mask) and np.any(lon_mask):
                     i_min, i_max = np.where(lon_mask)[0].min(), np.where(lon_mask)[0].max()
                     j_min, j_max = np.where(lat_mask)[0].min(), np.where(lat_mask)[0].max()
-                    buffer_cells = int(self.config_dict.get('HRRR_BUFFER_CELLS', 1))
+                    buffer_cells = int(self._get_config_value(lambda: None, default=1, dict_key='HRRR_BUFFER_CELLS'))
                     i_min = max(i_min - buffer_cells, 0)
                     i_max = min(i_max + buffer_cells, len(lon) - 1)
                     j_min = max(j_min - buffer_cells, 0)
@@ -505,7 +505,7 @@ class HRRRHandler(BaseDatasetHandler):
                 mask = (lat >= lat_min) & (lat <= lat_max) & (lon >= lon_min) & (lon <= lon_max)
                 if np.any(mask):
                     rows, cols = np.where(mask)
-                    buffer_cells = int(self.config_dict.get('HRRR_BUFFER_CELLS', 1))
+                    buffer_cells = int(self._get_config_value(lambda: None, default=1, dict_key='HRRR_BUFFER_CELLS'))
                     i_min = max(int(rows.min()) - buffer_cells, 0)
                     i_max = min(int(rows.max()) + buffer_cells, ny - 1)
                     j_min = max(int(cols.min()) - buffer_cells, 0)
@@ -543,8 +543,8 @@ class HRRRHandler(BaseDatasetHandler):
             {
                 "geometry": geometries,
                 "ID": ids,
-                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
-                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
+                self._get_config_value(lambda: self.config.forcing.shape_lat_name, default='lat'): lats,
+                self._get_config_value(lambda: self.config.forcing.shape_lon_name, default='lon'): lons,
             },
             crs="EPSG:4326",
         )

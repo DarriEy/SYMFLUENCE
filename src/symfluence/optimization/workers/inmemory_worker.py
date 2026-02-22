@@ -172,7 +172,7 @@ class InMemoryModelWorker(BaseWorker):
     def _get_warmup_days_config(self) -> int:
         """Get warmup days from config. Override for model-specific key."""
         model_key = f"{self._get_model_name().upper()}_WARMUP_DAYS"
-        return self.config.get(model_key, self.config.get('WARMUP_DAYS', 365))
+        return self._cfg(model_key, self._cfg('WARMUP_DAYS', 365))
 
     def _initialize_model(self) -> bool:
         """Initialize model-specific components. Override if needed.
@@ -256,8 +256,8 @@ class InMemoryModelWorker(BaseWorker):
                 return forcing_dir
 
         # Fall back to config-based path
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', self._cfg('ROOT_PATH', '.')))
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
         domain_dir = data_dir / f"domain_{domain_name}"
         return resolve_data_subdir(domain_dir, 'forcing') / self._get_forcing_subdir()
 
@@ -274,7 +274,7 @@ class InMemoryModelWorker(BaseWorker):
             return True
 
         forcing_dir = self._get_forcing_dir(task)
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
         model_name = self._get_model_name().lower()
         var_map = self._get_forcing_variable_map()
 
@@ -354,8 +354,8 @@ class InMemoryModelWorker(BaseWorker):
         if self._observations is not None:
             return True
 
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
+        data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', self._cfg('ROOT_PATH', '.')))
         project_dir = data_dir / f"domain_{domain_name}"
 
         # Try observations from forcing directory first
@@ -429,8 +429,8 @@ class InMemoryModelWorker(BaseWorker):
         # Try shapefile
         try:
             import geopandas as gpd
-            data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+            data_dir = Path(self._cfg('SYMFLUENCE_DATA_DIR', self._cfg('ROOT_PATH', '.')))
+            domain_name = self._cfg('DOMAIN_NAME', 'domain')
             catchment_dir = data_dir / f"domain_{domain_name}" / 'shapefiles' / 'catchment'
 
             for pattern in ['*_HRUs_*.shp', '*_catchment*.shp', '*.shp']:
@@ -447,9 +447,9 @@ class InMemoryModelWorker(BaseWorker):
             self.logger.debug(f"Could not read catchment area from shapefile: {e}")
 
         # Try config
-        area_km2 = self.config.get('CATCHMENT_AREA_KM2')
+        area_km2 = self._cfg('CATCHMENT_AREA_KM2')
         if area_km2 is None:
-            domain_config = self.config.get('DOMAIN', {})
+            domain_config = self._cfg('DOMAIN', {})
             if isinstance(domain_config, dict):
                 area_km2 = domain_config.get('catchment_area_km2')
 
@@ -520,7 +520,7 @@ class InMemoryModelWorker(BaseWorker):
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+            domain_name = self._cfg('DOMAIN_NAME', 'domain')
             model_name = self._get_model_name().lower()
 
             # Use provided or stored time index
@@ -620,7 +620,7 @@ class InMemoryModelWorker(BaseWorker):
                 time_index = time_index[:min_len]
 
             # Filter to calibration period if specified
-            cal_period = self.config.get('CALIBRATION_PERIOD', '')
+            cal_period = self._cfg('CALIBRATION_PERIOD', '')
             if cal_period and time_index is not None:
                 try:
                     dates = [d.strip() for d in cal_period.split(',')]
