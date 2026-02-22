@@ -314,7 +314,11 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
                 ds = ds.assign_coords(time=rounded_values)
                 ds.time.attrs.clear()
-                ds.time.attrs['units'] = f"{time_unit} since {ref_time_str}"
+                # Normalize unit name and reference time for CF/mizuRoute compliance
+                _unit_names = {'s': 'seconds', 'h': 'hours', 'D': 'days'}
+                full_unit_name = _unit_names.get(time_unit, time_unit)
+                normalized_ref = reference.strftime('%Y-%m-%d %H:%M:%S')
+                ds.time.attrs['units'] = f"{full_unit_name} since {normalized_ref}"
                 ds.time.attrs['calendar'] = 'standard'
                 ds.time.attrs['long_name'] = 'time'
 

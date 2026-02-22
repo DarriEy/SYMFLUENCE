@@ -4,6 +4,7 @@ Unit tests for WorkflowOrchestrator.
 
 import pytest
 from unittest.mock import MagicMock, patch
+from symfluence.core.config.models import SymfluenceConfig
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator, WorkflowStep
 
 
@@ -21,14 +22,13 @@ class TestWorkflowOrchestrator:
 
     @pytest.fixture
     def config(self):
-        return {
-            'DOMAIN_NAME': 'test_domain',
-            'EXPERIMENT_ID': 'run_1',
-            'SYMFLUENCE_DATA_DIR': '/tmp/data',
-            'HYDROLOGICAL_MODEL': 'SUMMA',
-            'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'SUB_GRID_DISCRETIZATION': 'lumped'
-        }
+        return SymfluenceConfig.from_minimal(
+            domain_name='test_domain',
+            model='SUMMA',
+            time_start='2010-01-01 00:00',
+            time_end='2010-12-31 23:00',
+            SYMFLUENCE_DATA_DIR='/tmp/data',
+        )
 
     @pytest.fixture
     def logger(self):

@@ -143,28 +143,24 @@ class TestModelCalibration:
 
     def test_multiple_models(self, base_optimization_config, test_logger):
         """Test calibration with multiple models specified."""
-        config = create_config_with_overrides(
-            base_optimization_config,
-            HYDROLOGICAL_MODEL='SUMMA,FUSE',  # Multiple models
-        )
+        # Build config with FUSE internal calibration disabled.
+        # Must use nested model section because the flat-to-nested transformer
+        # only resolves FUSE-specific keys when FUSE is the sole model.
+        base_dict = base_optimization_config.to_dict(flatten=True)
+        base_dict['HYDROLOGICAL_MODEL'] = 'SUMMA,FUSE'
+        nested = base_optimization_config.model_dump()
+        nested['model']['fuse'] = {'run_internal_calibration': False}
+        from symfluence.core.config.transformers import transform_flat_to_nested
+        merged = transform_flat_to_nested(base_dict)
+        merged['model']['fuse'] = {'run_internal_calibration': False}
+        config = SymfluenceConfig(**merged)
 
         manager = OptimizationManager(config, test_logger)
 
         with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
             mock_calibrate.return_value = Path("results.csv")
 
-            # Disable FUSE internal calibration so external DDS is used for both models.
-            # Pydantic models default run_internal_calibration=True and are frozen,
-            # so we mock _get_config_value to return False for that specific check.
-            original_get = manager._get_config_value
-            def _get_config_value_override(accessor, default=None, **kwargs):
-                # When checking FUSE_RUN_INTERNAL_CALIBRATION, return False
-                if kwargs.get('dict_key') == 'FUSE_RUN_INTERNAL_CALIBRATION':
-                    return False
-                return original_get(accessor, default, **kwargs)
-
-            with patch.object(manager, '_get_config_value', side_effect=_get_config_value_override):
-                manager.calibrate_model()
+            manager.calibrate_model()
 
             # Should call registry-based calibration for each model
             assert mock_calibrate.call_count == 2

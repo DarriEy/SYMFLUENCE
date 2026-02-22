@@ -13,6 +13,7 @@ from functools import cached_property
 
 # Config
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
+from symfluence.core.exceptions import ReportingError, symfluence_error_handler
 from symfluence.core.mixins import ConfigMixin
 from symfluence.reporting.core.decorators import skip_if_not_visualizing, skip_if_not_diagnostic
 from symfluence.core.constants import ConfigKeys
@@ -314,7 +315,7 @@ class ReportingManager(ConfigMixin):
         self.logger = logger
         self.visualize = visualize
         self.diagnostic = diagnostic
-        self.project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
+        self.project_dir = Path(config.system.data_dir) / f"domain_{config.domain.name}"
 
     # =========================================================================
     # Component Properties (Lazy Initialization via cached_property)
@@ -653,12 +654,16 @@ class ReportingManager(ConfigMixin):
 
         self.logger.info(f"Creating {model_name} visualizations using registered plotter...")
 
-        try:
+        with symfluence_error_handler(
+            f"{model_name} plotter",
+            self.logger,
+            reraise=False,
+            error_type=ReportingError
+        ):
             plotter = plotter_cls(self.config, self.logger, self.plot_config)
             return plotter.plot(**kwargs)
-        except Exception as e:
-            self.logger.error(f"Error in {model_name} plotter: {str(e)}")
-            return None
+
+        return None
 
     def _import_model_plotters(self) -> None:
         """
@@ -717,7 +722,12 @@ class ReportingManager(ConfigMixin):
         """
         self.logger.info("Creating timeseries visualizations from results file...")
 
-        try:
+        with symfluence_error_handler(
+            "creating timeseries visualizations",
+            self.logger,
+            reraise=False,
+            error_type=ReportingError
+        ):
             # Use new DataProcessor to read results
             df = self.data_processor.read_results_file()
 
@@ -726,9 +736,6 @@ class ReportingManager(ConfigMixin):
 
             self.analysis_plotter.plot_timeseries_results(df, exp_id, domain_name)
             self.analysis_plotter.plot_diagnostics(df, exp_id, domain_name)
-
-        except Exception as e:
-            self.logger.error(f"Error creating timeseries visualizations: {str(e)}")
 
     @skip_if_not_visualizing(default=[])
     def visualize_benchmarks(self, benchmark_results: Dict[str, Any]) -> List[str]:
@@ -892,14 +899,18 @@ class ReportingManager(ConfigMixin):
 
         self.logger.info(f"Generating model comparison overview for {experiment_id}...")
 
-        try:
+        with symfluence_error_handler(
+            "generating model comparison overview",
+            self.logger,
+            reraise=False,
+            error_type=ReportingError
+        ):
             return self.model_comparison_plotter.plot_model_comparison_overview(
                 experiment_id=experiment_id,
                 context=context
             )
-        except Exception as e:
-            self.logger.error(f"Error generating model comparison overview: {str(e)}")
-            return None
+
+        return None
 
     @skip_if_not_visualizing(default={})
     def visualize_calibration_results(
@@ -963,7 +974,12 @@ class ReportingManager(ConfigMixin):
         self.logger.info(f"Generating post-calibration visualizations for {experiment_id} (target: {calibration_target})")
 
         # 1. Generate optimization progress plot (if history exists)
-        try:
+        with symfluence_error_handler(
+            "generating optimization progress plot",
+            self.logger,
+            reraise=False,
+            error_type=ReportingError
+        ):
             opt_dir = self.project_dir / "optimization"
             history_files = list(opt_dir.glob("*history*.json")) + list(opt_dir.glob("*history*.csv"))
 
@@ -995,11 +1011,14 @@ class ReportingManager(ConfigMixin):
                     )
                     if progress_plot:
                         plot_paths['optimization_progress'] = progress_plot
-        except Exception as e:
-            self.logger.warning(f"Could not generate optimization progress plot: {e}")
 
         # 2. Generate appropriate model comparison based on calibration target
-        try:
+        with symfluence_error_handler(
+            "generating calibration comparison plots",
+            self.logger,
+            reraise=False,
+            error_type=ReportingError
+        ):
             if calibration_target in ('streamflow', 'q', 'discharge', 'runoff'):
                 # Streamflow calibration -> Camille's model comparison overview
                 comparison_plot = self.generate_model_comparison_overview(
@@ -1010,14 +1029,17 @@ class ReportingManager(ConfigMixin):
                     plot_paths['model_comparison'] = comparison_plot
 
                 # Also generate default vs calibrated comparison
-                try:
+                with symfluence_error_handler(
+                    "generating default vs calibrated comparison",
+                    self.logger,
+                    reraise=False,
+                    error_type=ReportingError
+                ):
                     default_vs_calibrated_plot = self.model_comparison_plotter.plot_default_vs_calibrated_comparison(
                         experiment_id=experiment_id
                     )
                     if default_vs_calibrated_plot:
                         plot_paths['default_vs_calibrated'] = default_vs_calibrated_plot
-                except Exception as e:
-                    self.logger.warning(f"Could not generate default vs calibrated comparison: {e}")
 
             elif calibration_target in ('swe', 'snow', 'snow_water_equivalent'):
                 # SWE calibration -> SUMMA outputs with SWE observations
@@ -1055,9 +1077,6 @@ class ReportingManager(ConfigMixin):
 
                 summa_plots = self.visualize_summa_outputs(experiment_id)
                 plot_paths.update(summa_plots)
-
-        except Exception as e:
-            self.logger.error(f"Error generating calibration comparison plots: {e}")
 
         self.logger.info(f"Generated {len(plot_paths)} calibration visualization(s)")
         return plot_paths

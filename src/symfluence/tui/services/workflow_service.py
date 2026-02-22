@@ -75,7 +75,7 @@ class WorkflowService:
         if not self._sf:
             return ""
         try:
-            return self._sf.config.get("DOMAIN_NAME", "")
+            return self._sf.config.domain.name
         except Exception:
             return ""
 
@@ -84,7 +84,7 @@ class WorkflowService:
         if not self._sf:
             return ""
         try:
-            return self._sf.config.get("EXPERIMENT_ID", "")
+            return self._sf.config.domain.experiment_id
         except Exception:
             return ""
 

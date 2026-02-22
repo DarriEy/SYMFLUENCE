@@ -71,27 +71,22 @@ os.environ.setdefault(
     str(Path(tempfile.gettempdir()) / "symfluence_matplotlib"),
 )
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def cleanup_matplotlib():
     """
-    Cleanup matplotlib figures after each test to prevent memory leaks.
+    Cleanup matplotlib figures after each test module to prevent memory leaks.
 
-    This fixture runs automatically after every test and closes all open
-    matplotlib figures, preventing memory accumulation during test runs.
-    Without this, matplotlib figures accumulate and can cause OOM kills.
+    This fixture runs automatically after every test *module* (not every test)
+    and closes all open matplotlib figures.  Module scope reduces overhead
+    while still preventing unbounded figure accumulation across the session.
+    A final cleanup also runs in pytest_sessionfinish.
     """
     yield
-    # Close all matplotlib figures after each test
     try:
         import matplotlib.pyplot as plt
-        # Close all figures
         plt.close('all')
-        # Clear the figure manager's internal state
         from matplotlib import _pylab_helpers
         _pylab_helpers.Gcf.destroy_all()
-        # Force garbage collection to release memory immediately
-        import gc
-        gc.collect()
     except (ImportError, AttributeError):
         pass  # matplotlib not installed or API changed
 
@@ -188,9 +183,25 @@ def pytest_addoption(parser):
         default=False,
         help="Clear cached data before running tests (forces re-download)",
     )
+    parser.addoption(
+        "--quick",
+        action="store_true",
+        default=False,
+        help="Run only fast unit tests (skip slow, integration, requires_data, e2e)",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
+    if config.getoption("--quick"):
+        # --quick: skip everything that isn't a fast unit test
+        skip_reason = pytest.mark.skip(reason="Skipped in --quick mode")
+        skip_markers = {"slow", "integration", "e2e", "requires_data",
+                        "requires_cloud", "requires_acquisition", "full",
+                        "full_examples", "ci_full"}
+        for item in items:
+            if skip_markers & set(item.keywords):
+                item.add_marker(skip_reason)
+
     if not config.getoption("--run-full"):
         skip_full = pytest.mark.skip(reason="Skipped full tests (use --run-full to enable)")
         for item in items:

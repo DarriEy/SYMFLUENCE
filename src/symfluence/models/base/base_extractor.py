@@ -115,8 +115,3 @@ class ModelResultExtractor(ABC):
             Aggregation method: 'mean', 'sum', 'weighted', or None
         """
         return None
-
-
-class ConfigValidationError(Exception):
-    """Raised when model configuration validation fails."""
-    pass

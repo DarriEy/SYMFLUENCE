@@ -9,7 +9,7 @@ NetCDF group with its own spatial dimension.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING, Union
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,9 @@ import pandas as pd
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
 from symfluence.core.mixins.project import resolve_data_subdir
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +43,34 @@ class ObservationsNetCDFBuilder:
         Root of the SYMFLUENCE domain directory.
     domain_name : str
         Name of the hydrological domain.
+    config : SymfluenceConfig or dict, optional
+        Typed config or legacy flat dict.
     config_dict : dict, optional
-        Configuration dictionary (used for multi-gauge dir, etc.).
+        Deprecated. Use ``config`` instead.
     """
 
     def __init__(
         self,
         project_dir: Path,
         domain_name: str,
+        config: Optional[Union['SymfluenceConfig', dict]] = None,
         config_dict: Optional[dict] = None,
     ) -> None:
         self.project_dir = project_dir
         self.domain_name = domain_name
-        self.config_dict = config_dict or {}
+        self._config = config if config is not None else config_dict
 
         self.obs_dir = resolve_data_subdir(project_dir, 'observations')
         self.target_dir = project_dir / 'data' / 'model_ready' / 'observations'
+
+    def _cfg(self, key: str, default=None):
+        """Get config value from typed config or legacy dict."""
+        cfg = self._config
+        if cfg is None:
+            return default
+        if isinstance(cfg, dict):
+            return cfg.get(key, default)
+        return cfg.get(key, default)
 
     # ------------------------------------------------------------------
     # Public API
@@ -123,7 +138,7 @@ class ObservationsNetCDFBuilder:
         single_csv = preprocessed / f'{self.domain_name}_streamflow_processed.csv'
 
         # Multi-gauge path
-        multi_dir_cfg = self.config_dict.get('MULTI_GAUGE_OBS_DIR')
+        multi_dir_cfg = self._cfg('MULTI_GAUGE_OBS_DIR')
         multi_dir = Path(multi_dir_cfg) if multi_dir_cfg else None
 
         all_series: Dict[str, pd.Series] = {}
@@ -341,7 +356,7 @@ class ObservationsNetCDFBuilder:
     def _get_handler_source_meta(self, group_name: str) -> Optional[SourceMetadata]:
         """Build minimal SourceMetadata from config context."""
         source_map = {
-            'streamflow': self.config_dict.get('STREAMFLOW_DATA_PROVIDER', 'unknown'),
+            'streamflow': self._cfg('STREAMFLOW_DATA_PROVIDER', 'unknown'),
             'snow': 'MODIS/CanSWE',
             'et': 'MODIS MOD16/GLEAM',
             'soil_moisture': 'SMAP/ISMN',

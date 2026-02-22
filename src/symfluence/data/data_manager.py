@@ -67,7 +67,12 @@ class DataManager(BaseManager):
 
         # Generate attribute acquisition diagnostics
         if self.reporting_manager:
-            try:
+            with symfluence_error_handler(
+                "generating attribute diagnostics",
+                self.logger,
+                reraise=False,
+                error_type=DataAcquisitionError
+            ):
                 domain_name = self._get_config_value(
                     lambda: self.config.domain.name,
                     'domain'
@@ -92,8 +97,6 @@ class DataManager(BaseManager):
                     soil_path=soil_path,
                     land_path=land_path
                 )
-            except Exception as e:
-                self.logger.debug(f"Could not generate attribute diagnostics: {e}")
 
     def acquire_forcings(self):
         """
@@ -107,7 +110,12 @@ class DataManager(BaseManager):
 
         # Generate raw forcing diagnostics
         if self.reporting_manager:
-            try:
+            with symfluence_error_handler(
+                "generating raw forcing diagnostics",
+                self.logger,
+                reraise=False,
+                error_type=DataAcquisitionError
+            ):
                 # Check for merged or raw forcing files
                 merged_dir = self.project_forcing_dir / 'merged_data'
                 raw_dir = self.project_forcing_dir / 'raw_data'
@@ -122,8 +130,6 @@ class DataManager(BaseManager):
                             forcing_nc=forcing_files[0],
                             domain_shp=domain_files[0] if domain_files else None
                         )
-            except Exception as e:
-                self.logger.debug(f"Could not generate raw forcing diagnostics: {e}")
 
     def acquire_observations(self):
         """
@@ -285,7 +291,12 @@ class DataManager(BaseManager):
 
             # Generate diagnostic plots for streamflow observations
             if self.reporting_manager:
-                try:
+                with symfluence_error_handler(
+                    "generating observation diagnostics",
+                    self.logger,
+                    reraise=False,
+                    error_type=DataAcquisitionError
+                ):
                     obs_dir = self.project_observations_dir / "streamflow" / "preprocessed"
                     if obs_dir.exists():
                         obs_files = list(obs_dir.glob("*.csv"))
@@ -295,8 +306,6 @@ class DataManager(BaseManager):
                                 obs_df=obs_df,
                                 obs_type='streamflow'
                             )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate observation diagnostics: {e}")
 
             self.logger.info("Observed data processing completed successfully")
 
@@ -331,22 +340,33 @@ class DataManager(BaseManager):
 
             # Visualize preprocessed forcing if available
             if self.reporting_manager:
-                try:
+                with symfluence_error_handler(
+                    "visualizing preprocessed forcing",
+                    self.logger,
+                    reraise=False,
+                    error_type=DataAcquisitionError
+                ):
                     # Check for basin averaged files
                     basin_files = list(basin_averaged_data.glob("*.nc"))
                     if basin_files:
                         self.reporting_manager.visualize_spatial_coverage(basin_files[0], 'forcing_processed', 'preprocessing')
-                except Exception as e:
-                    self.logger.warning(f"Failed to visualize preprocessed forcing: {e}")
 
                 # Visualize raw vs remapped forcing comparison
-                try:
+                with symfluence_error_handler(
+                    "visualizing forcing comparison",
+                    self.logger,
+                    reraise=False,
+                    error_type=DataAcquisitionError
+                ):
                     self._visualize_forcing_comparison(basin_averaged_data)
-                except Exception as e:
-                    self.logger.warning(f"Failed to visualize forcing comparison: {e}")
 
                 # Generate forcing remapping diagnostics
-                try:
+                with symfluence_error_handler(
+                    "generating forcing remapping diagnostics",
+                    self.logger,
+                    reraise=False,
+                    error_type=DataAcquisitionError
+                ):
                     raw_forcing_dir = self.project_forcing_dir / 'merged_data'
                     if not raw_forcing_dir.exists():
                         raw_forcing_dir = self.project_forcing_dir / 'raw_data'
@@ -359,8 +379,6 @@ class DataManager(BaseManager):
                             remapped_nc=basin_files[0],
                             hru_shp=hru_shp
                         )
-                except Exception as e:
-                    self.logger.debug(f"Could not generate forcing remapping diagnostics: {e}")
 
             # Integrate EM-Earth data if supplementation is enabled
             supplement_forcing = self._get_config_value(
@@ -389,15 +407,34 @@ class DataManager(BaseManager):
         builder = ModelReadyStoreBuilder(
             project_dir=self.project_dir,
             domain_name=domain_name,
-            config_dict=self.config_dict,
+            config=self.config,
         )
         builder.build_all()
 
     def validate_data_directories(self) -> bool:
-        """Validate that required data directories exist."""
-        return self.acquisition_service.validate_data_directories() if hasattr(self.acquisition_service, 'validate_data_directories') else self._validate_directories_fallback()
+        """Validate that required data directories exist.
 
-    def _validate_directories_fallback(self) -> bool:
+        .. deprecated::
+            Use :meth:`validate_readiness` instead.
+        """
+        import warnings
+        warnings.warn(
+            "validate_data_directories() is deprecated, use validate_readiness()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        readiness = self.validate_readiness()
+        return readiness.get('data_directories', False)
+
+    def validate_readiness(self) -> Dict[str, bool]:
+        """
+        Validate that this manager is ready for execution.
+
+        Checks whether required data directories exist.
+
+        Returns:
+            Dict mapping check names to pass/fail booleans.
+        """
         required_dirs = [
             self.project_attributes_dir,
             self.project_forcing_dir,
@@ -409,7 +446,7 @@ class DataManager(BaseManager):
             if not dir_path.exists():
                 self.logger.warning(f"Required directory does not exist: {dir_path}")
                 all_exist = False
-        return all_exist
+        return {'data_directories': all_exist}
 
     def _visualize_forcing_comparison(self, basin_averaged_data: Path) -> None:
         """

@@ -98,7 +98,7 @@ class SYMFLUENCE:
 
         # Initialize workflow orchestrator
         self.workflow_orchestrator = WorkflowOrchestrator(
-            self.managers, self.config, self.logger, self.logging_manager,
+            self.managers, self.typed_config, self.logger, self.logging_manager,
             provenance=self.provenance,
         )
 

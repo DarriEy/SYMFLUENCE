@@ -42,7 +42,7 @@ HUBEAU_HEADERS = {
 }
 
 
-class HubEauAPIError(Exception):
+class HubEauAPIError(DataAcquisitionError):
     """Hub'Eau API access error."""
     pass
 

@@ -40,7 +40,7 @@ def mock_logger():
     return MagicMock()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_plot_config():
     """Create a mock plot configuration."""
     from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
@@ -51,7 +51,7 @@ def mock_plot_config():
 # Time Series Data Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_dates():
     """Create sample date range for testing."""
     return pd.date_range('2020-01-01', periods=365, freq='D')
@@ -112,7 +112,7 @@ def results_df_no_discharge():
 # Optimization History Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_optimization_history():
     """Create sample optimization history."""
     return [
@@ -128,7 +128,7 @@ def sample_optimization_history():
 # Sensitivity Analysis Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_sensitivity_data():
     """Create sample sensitivity analysis data."""
     return pd.Series({
@@ -139,7 +139,7 @@ def sample_sensitivity_data():
     }, name='sensitivity')
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_sensitivity_comparison():
     """Create sample sensitivity comparison data (multiple methods)."""
     return pd.DataFrame({
@@ -153,7 +153,7 @@ def sample_sensitivity_comparison():
 # Model Output Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_model_outputs():
     """Create sample model outputs list."""
     return [
@@ -162,7 +162,7 @@ def sample_model_outputs():
     ]
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_obs_files():
     """Create sample observation files list."""
     return [
@@ -206,7 +206,7 @@ def patch_plotter_methods():
 # Benchmark Results Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_benchmark_results():
     """Create sample benchmark results."""
     return {

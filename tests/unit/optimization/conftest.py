@@ -290,7 +290,7 @@ def mock_simulation_results():
 # Parameter space fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_parameter_bounds():
     """Mock parameter bounds for calibration."""
     return {
@@ -301,7 +301,7 @@ def mock_parameter_bounds():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_initial_parameters():
     """Mock initial parameter values."""
     return {
@@ -407,7 +407,7 @@ def mock_ngen_worker(mock_evaluate_function):
 # Algorithm-specific fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def algorithm_configs():
     """Dictionary of all algorithm configurations for parametrized tests."""
     return {
@@ -418,7 +418,7 @@ def algorithm_configs():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def model_configs():
     """Dictionary of all model configurations for parametrized tests."""
     return {
@@ -426,14 +426,3 @@ def model_configs():
         'FUSE': {'name': 'FUSE', 'params': ['theta_sat', 'k_soil'], 'structure': '902'},
         'NGEN': {'name': 'NGEN', 'params': ['theta_sat', 'k_soil']},
     }
-
-
-# ============================================================================
-# Cleanup
-# ============================================================================
-
-@pytest.fixture(autouse=True)
-def cleanup_after_test():
-    """Cleanup any temporary files after each test."""
-    yield
-    # Cleanup happens here if needed

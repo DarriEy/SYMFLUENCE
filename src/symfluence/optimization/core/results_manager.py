@@ -23,8 +23,8 @@ class ResultsManager(ConfigMixin):
         self.logger = logger
         self.output_dir = output_dir
         self.reporting_manager = reporting_manager
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+        self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
     def save_results(self, best_params: Dict, best_score: float, history: List[Dict],
                     final_result: Optional[Dict] = None) -> bool:

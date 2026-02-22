@@ -15,6 +15,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core import ConfigurableMixin
+from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 # Custom Exceptions
 # =============================================================================
 
-class ObservationError(Exception):
+class ObservationError(DataAcquisitionError):
     """Base exception for observation handling errors."""
     pass
 
