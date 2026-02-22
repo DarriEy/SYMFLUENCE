@@ -31,6 +31,7 @@ import logging
 import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.optimization.registry import OptimizerRegistry
 
 # Reuse ParFlow's .pfidb utilities and parameter constants
@@ -140,6 +141,13 @@ class CLMParFlowParameterManager(BaseParameterManager):
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
 
+        # Forcing data lives in data/forcing/CLMPARFLOW_input/
+        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        project_dir = data_dir / f"domain_{self.domain_name}"
+        self.forcing_input_dir = resolve_data_subdir(
+            project_dir, 'forcing'
+        ) / 'CLMPARFLOW_input'
+
         # Parse parameters to calibrate from config
         pf_params_str = config.get(
             'CLMPARFLOW_PARAMS_TO_CALIBRATE',
@@ -241,7 +249,10 @@ class CLMParFlowParameterManager(BaseParameterManager):
         from symfluence.models.snow17.bmi import Snow17BMI
         from symfluence.models.clmparflow.preprocessor import CLMParFlowPreProcessor
 
-        cache_path = self.settings_dir / 'hourly_forcing_cache.npz'
+        cache_path = self.forcing_input_dir / 'hourly_forcing_cache.npz'
+        if not cache_path.exists():
+            # Fallback to settings_dir for backward compatibility
+            cache_path = self.settings_dir / 'hourly_forcing_cache.npz'
         if not cache_path.exists():
             self.logger.warning("No hourly forcing cache; skipping Snow-17 update")
             return

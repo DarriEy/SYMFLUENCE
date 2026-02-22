@@ -16,6 +16,7 @@ from typing import Optional
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class CLMParFlowRunner(BaseModelRunner):
 
 
     MODEL_NAME = "CLMPARFLOW"
+    _logged_setup = False
+
     def __init__(self, config, logger, reporting_manager=None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
@@ -106,8 +109,6 @@ class CLMParFlowRunner(BaseModelRunner):
         Raises:
             ModelExecutionError: If execution fails.
         """
-        logger.info(f"Running CLMParFlow for domain: {self.config.domain.name}")
-
         with symfluence_error_handler(
             "CLMParFlow model execution",
             logger,
@@ -124,10 +125,13 @@ class CLMParFlowRunner(BaseModelRunner):
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
             pf_exe = self._get_parflow_executable()
-            logger.info(f"Using CLMParFlow executable: {pf_exe}")
-
             runname = self._get_runname()
-            logger.info(f"CLMParFlow run name: {runname}")
+
+            if not CLMParFlowRunner._logged_setup:
+                logger.info(f"Running CLMParFlow for domain: {self.config.domain.name}")
+                logger.info(f"Using CLMParFlow executable: {pf_exe}")
+                logger.info(f"CLMParFlow run name: {runname}")
+                CLMParFlowRunner._logged_setup = True
 
             self._setup_sim_directory(self.output_dir)
 
@@ -137,7 +141,7 @@ class CLMParFlowRunner(BaseModelRunner):
             else:
                 cmd = [str(pf_exe), runname]
 
-            logger.info(f"Executing CLMParFlow from: {self.output_dir}")
+            logger.debug(f"Executing CLMParFlow from: {self.output_dir}")
 
             env = os.environ.copy()
 
@@ -181,13 +185,13 @@ class CLMParFlowRunner(BaseModelRunner):
                     f"CLMParFlow execution failed with return code {result.returncode}"
                 )
 
-            logger.info("CLMParFlow execution completed successfully")
+            logger.debug("CLMParFlow execution completed successfully")
             self._verify_output(runname)
 
             return self.output_dir
 
     def _setup_sim_directory(self, sim_dir: Path) -> None:
-        """Copy all CLMParFlow input files to simulation directory."""
+        """Copy CLMParFlow settings and forcing files to simulation directory."""
         if not self.settings_dir.exists():
             raise ModelExecutionError(
                 f"CLMParFlow settings directory not found: {self.settings_dir}. "
@@ -197,10 +201,21 @@ class CLMParFlowRunner(BaseModelRunner):
         for old_pfb in sim_dir.glob('*.pfb'):
             old_pfb.unlink()
 
+        # Copy settings (pfidb, drv_*.dat, runname.txt, etc.)
         for src in self.settings_dir.iterdir():
             if src.is_file() and src.suffix != '.npy':
                 shutil.copy2(src, sim_dir / src.name)
                 logger.debug(f"Copied {src.name} to simulation directory")
+
+        # Copy forcing files (forcing.1d, etc.) from data/forcing/CLMPARFLOW_input/
+        forcing_input_dir = resolve_data_subdir(
+            self.project_dir, 'forcing'
+        ) / 'CLMPARFLOW_input'
+        if forcing_input_dir.exists():
+            for src in forcing_input_dir.iterdir():
+                if src.is_file() and src.suffix != '.npy':
+                    shutil.copy2(src, sim_dir / src.name)
+                    logger.debug(f"Copied forcing {src.name} to simulation directory")
 
     def _verify_output(self, runname: str) -> None:
         """Verify CLMParFlow produced valid output files."""
@@ -220,7 +235,7 @@ class CLMParFlowRunner(BaseModelRunner):
         # Check for CLM output files (optional — CLM may not write .C.pfb in all configs)
         clm_files = list(self.output_dir.glob(f"{runname}.out.clm_output.*.C.pfb"))
 
-        logger.info(
+        logger.debug(
             f"Verified CLMParFlow output: {len(press_files)} pressure, "
             f"{len(satur_files)} saturation, {len(clm_files)} CLM output file(s)"
         )

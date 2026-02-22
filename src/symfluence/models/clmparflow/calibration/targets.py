@@ -119,7 +119,7 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
             if catchment_area_m2 > domain_area_m2:
                 area_scale = catchment_area_m2 / domain_area_m2
                 streamflow = streamflow * area_scale
-                self.logger.info(
+                self.logger.debug(
                     f"CLMParFlow area scaling: {area_scale:.1f}x "
                     f"(catchment={catchment_area_m2/1e6:.1f} km2, "
                     f"domain={domain_area_m2/1e6:.1f} km2)"
