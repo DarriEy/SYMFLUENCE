@@ -72,23 +72,32 @@ class SWATWorker(BaseWorker):
         try:
             self.logger.debug(f"Applying SWAT parameters to {settings_dir}")
 
-            # Copy fresh files from original TxtInOut
+            # Copy fresh files from settings + forcing into worker dir
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            txtinout_name = config.get('SWAT_TXTINOUT_DIR', 'TxtInOut')
-            original_txtinout = data_dir / f'domain_{domain_name}' / 'SWAT_input' / txtinout_name
+            project_dir = data_dir / f'domain_{domain_name}'
+            swat_settings = project_dir / 'settings' / 'SWAT'
+            swat_forcing = project_dir / 'data' / 'forcing' / 'SWAT_input'
+            # Legacy fallback
+            if not swat_settings.exists():
+                swat_forcing_legacy = project_dir / 'forcing' / 'SWAT_input'
+                if swat_forcing_legacy.exists():
+                    swat_forcing = swat_forcing_legacy
 
-            if original_txtinout.exists() and original_txtinout.resolve() != settings_dir.resolve():
+            has_source = swat_settings.exists() or swat_forcing.exists()
+            if has_source and (not settings_dir.exists() or settings_dir.resolve() != swat_settings.resolve()):
                 settings_dir.mkdir(parents=True, exist_ok=True)
-                for f in original_txtinout.iterdir():
-                    if f.is_file():
-                        shutil.copy2(f, settings_dir / f.name)
-                self.logger.debug(f"Copied SWAT files from {original_txtinout} to {settings_dir}")
+                for src_dir in (swat_settings, swat_forcing):
+                    if src_dir.exists():
+                        for f in src_dir.iterdir():
+                            if f.is_file():
+                                shutil.copy2(f, settings_dir / f.name)
+                self.logger.debug(f"Assembled SWAT TxtInOut in {settings_dir}")
             elif not settings_dir.exists():
                 self.logger.error(
-                    f"SWAT TxtInOut not found: {settings_dir} "
-                    f"(original also missing: {original_txtinout})"
+                    f"SWAT settings not found: {swat_settings} "
+                    f"and forcing not found: {swat_forcing}"
                 )
                 return False
 
@@ -267,15 +276,27 @@ class SWATWorker(BaseWorker):
             # Use sim_dir as working directory if provided
             work_dir = Path(kwargs.get('sim_dir', settings_dir))
 
-            # Copy TxtInOut files from settings_dir to work_dir if they differ.
-            # apply_parameters() modifies files in settings_dir (TxtInOut) each
+            # Copy files from settings_dir to work_dir if they differ.
+            # apply_parameters() modifies files in settings_dir each
             # iteration, so we must ALWAYS overwrite to propagate parameter changes.
             if work_dir.resolve() != settings_dir.resolve() and settings_dir.exists():
-                import shutil
                 work_dir.mkdir(parents=True, exist_ok=True)
                 for f in settings_dir.iterdir():
                     if f.is_file():
                         shutil.copy2(f, work_dir / f.name)
+                # Also copy forcing files if not already present in settings_dir
+                domain_name = config.get('DOMAIN_NAME', '')
+                data_dir_path = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                project_dir = data_dir_path / f'domain_{domain_name}'
+                swat_forcing = project_dir / 'data' / 'forcing' / 'SWAT_input'
+                if not swat_forcing.exists():
+                    swat_forcing = project_dir / 'forcing' / 'SWAT_input'
+                if swat_forcing.exists():
+                    for f in swat_forcing.iterdir():
+                        if f.is_file():
+                            dest = work_dir / f.name
+                            if not dest.exists():
+                                shutil.copy2(f, dest)
 
             # Clean up stale output
             self._cleanup_stale_output(work_dir)
@@ -297,8 +318,21 @@ class SWATWorker(BaseWorker):
             # Build command - SWAT runs from TxtInOut
             cmd = [str(swat_exe)]
 
-            # Set environment
+            # Fsync the working directory so all copied files are flushed
+            # before the Fortran executable reads them (prevents SIGBUS on arm64)
+            fd = os.open(str(work_dir), os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+            # Set single-threaded environment for Fortran runtime
             env = os.environ.copy()
+            env.update({
+                'OMP_NUM_THREADS': '1',
+                'MKL_NUM_THREADS': '1',
+                'OPENBLAS_NUM_THREADS': '1',
+            })
 
             # Run with timeout
             timeout = config.get('SWAT_TIMEOUT', 300)
@@ -506,6 +540,8 @@ class SWATWorker(BaseWorker):
                 return None
 
             return np.array(flow_values)
+
+            return arr
 
         except Exception as e:
             self.logger.error(f"Error parsing output.rch: {e}")

@@ -76,7 +76,7 @@ class VICParameterManager(BaseParameterManager):
             vic_params_str = config.get('VIC_PARAMS_TO_CALIBRATE')
 
         if vic_params_str is None:
-            vic_params_str = 'infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,min_rain_temp,max_snow_temp,elev_offset'
+            vic_params_str = 'infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,snow_rough,max_snow_albedo,min_rain_temp,max_snow_temp,elev_offset'
             logger.warning(
                 f"VIC_PARAMS_TO_CALIBRATE missing; using fallback: {vic_params_str}"
             )
@@ -86,7 +86,7 @@ class VICParameterManager(BaseParameterManager):
         # Path to parameter file
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.params_dir = self.project_dir / 'VIC_input' / 'parameters'
+        self.params_dir = self.project_dir / 'settings' / 'VIC' / 'parameters'
 
         # Get parameter file name
         params_file = 'vic_params.nc'

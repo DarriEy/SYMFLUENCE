@@ -219,7 +219,7 @@ class BaseParameterManager(ConfigMixin, ABC):
         for i, param_name in enumerate(self.all_param_names):
             # Handle missing parameters
             if param_name not in params or param_name not in self.param_bounds:
-                self.logger.warning(f"Parameter {param_name} missing, using 0.5")
+                self.logger.debug(f"Parameter {param_name} missing, using 0.5")
                 normalized[i] = 0.5
                 continue
 

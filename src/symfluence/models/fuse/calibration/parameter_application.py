@@ -16,6 +16,40 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def parse_fuse_constraints_defaults(constraints_path: Path) -> Dict[str, float]:
+    """
+    Parse default parameter values from a FUSE constraints file.
+
+    The constraints file has Fortran fixed-width format:
+        T/F  stoch  default  lower  upper  ...  name  child1  child2
+
+    Returns:
+        Dictionary mapping parameter name -> default value
+    """
+    defaults = {}
+    try:
+        with open(constraints_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                # Skip header, empty lines, comments, and description lines
+                if not line or line.startswith('(') or line.startswith('!') or line.startswith('*'):
+                    continue
+                parts = line.split()
+                if len(parts) < 14 or parts[0] not in ('T', 'F'):
+                    continue
+                # Format: fit stoch default lower upper offset scale ...  name child1 child2
+                try:
+                    default_val = float(parts[2])
+                    param_name = parts[13]
+                    if not param_name.startswith('NO_'):
+                        defaults[param_name] = default_val
+                except (ValueError, IndexError):
+                    continue
+    except (OSError, IOError):
+        pass
+    return defaults
+
+
 def update_para_def_nc(
     para_def_path: Path,
     params: Dict[str, float],
@@ -23,6 +57,9 @@ def update_para_def_nc(
 ) -> Set[str]:
     """
     Update FUSE para_def.nc file with new parameter values.
+
+    If the 'par' dimension has 0 records (FUSE silent failure), this method
+    will initialize a single record with the provided parameter values.
 
     Args:
         para_def_path: Path to para_def.nc file
@@ -45,8 +82,28 @@ def update_para_def_nc(
 
             par_size = ds.dimensions['par'].size
             if par_size == 0:
-                log.error(f"Empty 'par' dimension in {para_def_path}")
-                return params_updated
+                # FUSE created the file with UNLIMITED par but wrote 0 records.
+                # Initialize a single record so parameters can be written.
+                if not ds.dimensions['par'].isunlimited():
+                    log.error(f"Empty fixed 'par' dimension in {para_def_path} - cannot resize")
+                    return params_updated
+
+                log.warning(f"Empty 'par' dimension in {para_def_path} - initializing 1 record")
+
+                # Write a default value (0.0) for all variables to create the record
+                for vname in ds.variables:
+                    if vname == 'par':
+                        continue
+                    var = ds.variables[vname]
+                    if 'par' in var.dimensions:
+                        var[0] = 0.0
+
+                # Set the par coordinate
+                if 'par' in ds.variables:
+                    ds.variables['par'][0] = 0
+
+                ds.sync()
+                par_size = 1
 
             for param_name, value in params.items():
                 if param_name in ds.variables:
@@ -68,11 +125,102 @@ def update_para_def_nc(
     except (KeyError, ValueError) as e:
         log.error(f"Data error updating {para_def_path}: {e}")
 
-    # Verify write succeeded
+    # Recompute derived parameters (MAXTENS, MAXFREE, etc.) from base params.
+    # FUSE's run_pre mode reads ALL values from para_def.nc — if derived
+    # parameters are stale or zero, the model produces garbage output.
     if params_updated:
+        compute_derived_parameters(para_def_path, log)
         _verify_para_def_write(para_def_path, params, params_updated, log)
 
     return params_updated
+
+
+def compute_derived_parameters(
+    para_def_path: Path,
+    log: Optional[logging.Logger] = None
+) -> None:
+    """
+    Recompute FUSE derived parameters from base calibration parameters.
+
+    FUSE's run_pre mode reads ALL parameters from para_def.nc including
+    derived quantities like MAXTENS_1, MAXFREE_1, etc. These must be
+    consistent with base parameters (MAXWATR_1, FRACTEN, etc.) or the
+    model produces garbage output.
+
+    This function also sets reasonable numerix defaults for parameters
+    that control the numerical solver (SOLUTION, ERRITERFUNC, etc.).
+
+    Must be called after updating base calibration parameters.
+
+    Args:
+        para_def_path: Path to para_def.nc file
+        log: Logger instance
+    """
+    import netCDF4 as nc
+
+    log = log or logger
+
+    try:
+        with nc.Dataset(para_def_path, 'r+') as ds:
+            if 'par' not in ds.dimensions or ds.dimensions['par'].size == 0:
+                return
+
+            def _get(name: str, default: float = 0.0) -> float:
+                if name in ds.variables:
+                    return float(ds.variables[name][0])
+                return default
+
+            def _set(name: str, value: float) -> None:
+                if name in ds.variables:
+                    ds.variables[name][0] = value
+
+            # --- Derived storage parameters ---
+            # Upper layer: tension + free = total
+            maxwatr_1 = _get('MAXWATR_1')
+            fracten = _get('FRACTEN', 0.5)
+            maxtens_1 = maxwatr_1 * fracten
+            maxfree_1 = maxwatr_1 * (1.0 - fracten)
+            _set('MAXTENS_1', maxtens_1)
+            _set('MAXFREE_1', maxfree_1)
+            # Sub-zone splits (equal split for general case)
+            _set('MAXTENS_1A', maxtens_1 * 0.5)
+            _set('MAXTENS_1B', maxtens_1 * 0.5)
+
+            # Lower layer
+            maxwatr_2 = _get('MAXWATR_2')
+            maxtens_2 = maxwatr_2 * fracten
+            maxfree_2 = maxwatr_2 * (1.0 - fracten)
+            _set('MAXTENS_2', maxtens_2)
+            _set('MAXFREE_2', maxfree_2)
+            _set('MAXFREE_2A', maxfree_2 * 0.5)
+            _set('MAXFREE_2B', maxfree_2 * 0.5)
+
+            # Routing fraction consistency
+            rtfrac1 = _get('RTFRAC1', 0.5)
+            _set('RTFRAC2', 1.0 - rtfrac1)
+
+            # --- Rainfall error safety ---
+            # RFERR_MLT is a multiplicative rainfall factor. If 0, all precip
+            # is zeroed out producing no streamflow. Must be ~1.0.
+            rferr_mlt = _get('RFERR_MLT', 1.0)
+            if rferr_mlt == 0.0:
+                _set('RFERR_MLT', 1.0)
+                log.warning("RFERR_MLT was 0.0 (would zero all precipitation), reset to 1.0")
+
+            # --- Numerix defaults (critical for stable runs) ---
+            _enforce_numerix_defaults(ds, log)
+
+            ds.sync()
+
+            log.debug(
+                f"Derived params: MAXTENS_1={maxtens_1:.1f}, MAXFREE_1={maxfree_1:.1f}, "
+                f"MAXTENS_2={maxtens_2:.1f}, MAXFREE_2={maxfree_2:.1f}"
+            )
+
+    except (OSError, IOError) as e:
+        log.error(f"Error computing derived parameters: {e}")
+    except (KeyError, ValueError) as e:
+        log.error(f"Data error computing derived parameters: {e}")
 
 
 def _verify_para_def_write(

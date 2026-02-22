@@ -98,29 +98,49 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             log_file = output_dir / "ngen_log.txt"
             env = self._setup_ngen_environment()
 
-            try:
-                self.execute_subprocess(
-                    ngen_cmd, log_file,
-                    cwd=self.ngen_exe.parent, env=env,
-                    success_message="NextGen model run completed successfully",
-                )
-                self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
+            # Retry logic for SIGSEGV (-11) crashes during initialization.
+            # NGEN has a non-deterministic null-pointer bug in CsvPerFeatureForcingProvider::read_csv()
+            # on macOS ARM64 that crashes before model simulation starts. Retrying recovers.
+            max_retries = self.config_dict.get('NGEN_SIGSEGV_RETRIES', 4)
+            last_error = None
 
-                if self.config_dict.get('NGEN_RUN_TROUTE', True):
-                    self.logger.debug("Starting t-route routing...")
-                    troute_success = self._run_troute_routing(output_dir)
-                    if not troute_success:
-                        self.logger.debug("T-Route routing not available. Using NGEN nexus outputs directly.")
-                else:
-                    self.logger.debug("T-Route routing disabled in config")
+            for attempt in range(1 + max_retries):
+                try:
+                    self.execute_subprocess(
+                        ngen_cmd, log_file,
+                        cwd=self.ngen_exe.parent, env=env,
+                        success_message="NextGen model run completed successfully",
+                    )
+                    self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
 
-                return True
+                    if self.config_dict.get('NGEN_RUN_TROUTE', True):
+                        self.logger.debug("Starting t-route routing...")
+                        troute_success = self._run_troute_routing(output_dir)
+                        if not troute_success:
+                            self.logger.debug("T-Route routing not available. Using NGEN nexus outputs directly.")
+                    else:
+                        self.logger.debug("T-Route routing disabled in config")
 
-            except subprocess.CalledProcessError as e:
-                return self._handle_gpkg_fallback(
-                    e, ngen_cmd, log_file, env, output_dir,
-                    use_geojson, fallback_catchment_file,
-                )
+                    return True
+
+                except subprocess.CalledProcessError as e:
+                    last_error = e
+                    # SIGSEGV (-11) during init: retry with exponential backoff
+                    if e.returncode == -11 and attempt < max_retries:
+                        import time
+                        delay = 0.5 * (2 ** attempt)  # 0.5s, 1s, 2s, 4s
+                        self.logger.warning(
+                            f"NGEN crashed with SIGSEGV (attempt {attempt + 1}/{1 + max_retries}). "
+                            f"Retrying in {delay:.1f}s..."
+                        )
+                        time.sleep(delay)
+                        continue
+                    break
+
+            return self._handle_gpkg_fallback(
+                last_error, ngen_cmd, log_file, env, output_dir,
+                use_geojson, fallback_catchment_file,
+            )
 
     def _resolve_ngen_paths(self, output_dir):
         """Resolve catchment, nexus, and realization paths; clean stale outputs.
@@ -679,7 +699,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.debug("Patched NOAH config files with container parameter paths")
 
             # Copy forcing files - forcing is at project_dir/forcing, not settings/forcing
-            forcing_src = self.project_dir / 'forcing' / 'NGEN_input' / 'csv'
+            forcing_src = self.project_forcing_dir / 'NGEN_input' / 'csv'
             if forcing_src.exists():
                 for f in forcing_src.glob('*.csv'):
                     shutil.copy(f, ngiab_forcings_dir / f.name)

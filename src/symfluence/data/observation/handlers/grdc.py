@@ -33,7 +33,7 @@ class GRDCHandler(BaseObservationHandler):
         """Acquire GRDC data via cloud acquisition."""
         grdc_dir = Path(self.config_dict.get(
             'GRDC_DATA_DIR',
-            self.project_dir / "observations" / "streamflow" / "grdc"
+            self.project_observations_dir / "streamflow" / "grdc"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -113,7 +113,7 @@ class GRDCHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        output_dir = self.project_observations_dir / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_grdc_streamflow_processed.csv"
 
@@ -203,7 +203,7 @@ class GRDCHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed GRDC streamflow data."""
         processed_path = (
-            self.project_dir / "observations" / "streamflow" / "preprocessed"
+            self.project_observations_dir / "streamflow" / "preprocessed"
             / f"{self.domain_name}_grdc_streamflow_processed.csv"
         )
 

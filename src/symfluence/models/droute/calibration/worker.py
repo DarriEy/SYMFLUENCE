@@ -22,6 +22,7 @@ from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.mixins.project import resolve_data_subdir
 
 # Try to import dRoute
 try:
@@ -203,7 +204,7 @@ class DRouteWorker(BaseWorker):
                     return False
 
             # Load observations
-            obs_file = project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
+            obs_file = resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
             if obs_file.exists():
                 obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
                 obs_cms = obs_df.iloc[:, 0]

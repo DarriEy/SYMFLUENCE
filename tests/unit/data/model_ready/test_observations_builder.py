@@ -142,12 +142,12 @@ class TestObservationsNetCDFBuilder:
             })
             df.to_csv(multi_dir / f'ID_{gid}.csv', index=False)
 
+        # Create observations dir before builder so resolve_data_subdir finds it
+        (tmp_path / 'observations').mkdir()
         builder = ObservationsNetCDFBuilder(
             project_dir=tmp_path, domain_name='test',
             config_dict={'MULTI_GAUGE_OBS_DIR': str(multi_dir)},
         )
-        # Also need observations dir to exist for the build guard
-        (tmp_path / 'observations').mkdir()
         result = builder.build()
         assert result is not None
 

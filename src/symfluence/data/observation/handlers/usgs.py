@@ -39,7 +39,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         )
         if not station_id:
             self.logger.debug("STATION_ID not found, skipping USGS streamflow acquisition")
-            return self.project_dir / "observations" / "streamflow" / "raw_data"
+            return self.project_observations_dir / "streamflow" / "raw_data"
 
         download_enabled = self._get_config_value(
             lambda: self.config.data.download_usgs_data, default=False
@@ -50,7 +50,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         if station_id_str.isdigit() and len(station_id_str) < 8:
             station_id_str = station_id_str.zfill(8)
 
-        raw_dir = self.project_dir / "observations" / "streamflow" / "raw_data"
+        raw_dir = self.project_observations_dir / "streamflow" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"usgs_{station_id_str}_raw.rdb"
 
@@ -194,7 +194,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         resampled = resampled.interpolate(method='time', limit_direction='both', limit=30)
 
         # 5. Save processed data
-        output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        output_dir = self.project_observations_dir / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
 
@@ -223,7 +223,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
         if not download_enabled:
             self.logger.info("USGS groundwater download disabled")
-            return self.project_dir / "observations" / "groundwater" / "raw_data"
+            return self.project_observations_dir / "groundwater" / "raw_data"
 
         station_id = (
             self._get_config_value(lambda: self.config.evaluation.usgs_gw.station) or
@@ -234,7 +234,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
         station_numeric = str(station_id).split('-')[-1] if '-' in str(station_id) else str(station_id)
 
-        raw_dir = self.project_dir / "observations" / "groundwater" / "raw_data"
+        raw_dir = self.project_observations_dir / "groundwater" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"usgs_gw_{station_numeric}_raw.json"
 
@@ -354,7 +354,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
         df.set_index('datetime', inplace=True)
         df.sort_index(inplace=True)
 
-        output_dir = self.project_dir / "observations" / "groundwater"
+        output_dir = self.project_observations_dir / "groundwater"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_groundwater_processed.csv"
 

@@ -60,7 +60,7 @@ class MESHForcingProcessor:
 
         self.logger.info(f"Loading {len(forcing_files)} forcing files")
 
-        ds = xr.open_mfdataset(forcing_files, combine='by_coords', parallel=False)
+        ds = xr.open_mfdataset(forcing_files, combine='by_coords', parallel=False, data_vars='minimal', coords='minimal', compat='override')
 
         forcing_vars = self.config.get('forcing_vars', {})
         var_rename = {v: k for k, v in forcing_vars.items()}

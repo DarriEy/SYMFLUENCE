@@ -787,7 +787,7 @@ class ETEvaluator(ModelEvaluator):
         try:
             from symfluence.data.acquisition.handlers.fluxnet import FLUXNETETAcquirer
 
-            output_dir = self.project_dir / "observations" / "et" / "preprocessed"
+            output_dir = self.project_observations_dir / "et" / "preprocessed"
             output_dir.mkdir(parents=True, exist_ok=True)
 
             acquirer = FLUXNETETAcquirer(self.config, self.logger)

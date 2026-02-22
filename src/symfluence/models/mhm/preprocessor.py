@@ -20,6 +20,7 @@ import netCDF4 as nc4
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
+from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 
 
 logger = logging.getLogger(__name__)
@@ -57,14 +58,14 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         super().__init__(config, logger)
 
-        # Setup mHM-specific directories
-        self.mhm_input_dir = self.project_dir / "MHM_input"
-        self.settings_dir = self.mhm_input_dir / "settings"
-        self.forcing_dir = self.mhm_input_dir / "forcing"
-        self.morph_dir = self.mhm_input_dir / "morph"
-        self.lcover_dir = self.mhm_input_dir / "lcover"
-        self.gauge_dir = self.mhm_input_dir / "gauge"
-        self.output_mhm_dir = self.mhm_input_dir / "output"
+        # Use standard base-class paths:
+        #   self.setup_dir   -> {project_dir}/settings/MHM   (namelists, morph, lcover, gauge)
+        #   self.forcing_dir -> {project_dir}/data/forcing/MHM_input  (forcing NetCDFs)
+        self.settings_dir = self.setup_dir
+        self.morph_dir = self.setup_dir / "morph"
+        self.lcover_dir = self.setup_dir / "lcover"
+        self.gauge_dir = self.setup_dir / "gauge"
+        self.output_mhm_dir = self.setup_dir / "output"
 
         # Resolve spatial mode
         configured_mode = self._get_config_value(
@@ -128,7 +129,6 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _create_directory_structure(self) -> None:
         """Create mHM input directory structure."""
         dirs = [
-            self.mhm_input_dir,
             self.settings_dir,
             self.forcing_dir,
             self.morph_dir,
@@ -138,7 +138,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created mHM input directories at {self.mhm_input_dir}")
+        logger.info(f"Created mHM input directories at {self.setup_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from configuration."""
@@ -162,15 +162,13 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if catchment_path.exists():
                 gdf = gpd.read_file(catchment_path)
 
-                # Get centroid
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
+                # Get centroid using proper CRS-aware calculation
+                lon, lat = calculate_catchment_centroid(gdf, logger=logger)
 
                 # Project to UTM for accurate area
                 utm_zone = int((lon + 180) / 6) + 1
-                hemisphere = 'north' if lat >= 0 else 'south'
-                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
+                utm_epsg = 32600 + utm_zone if lat >= 0 else 32700 + utm_zone
+                gdf_proj = gdf.to_crs(f"EPSG:{utm_epsg}")
                 area_m2 = gdf_proj.geometry.area.sum()
 
                 # Get elevation if available
@@ -219,7 +217,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         forcing_files = list(self.forcing_basin_path.glob("*.nc"))
 
         if not forcing_files:
-            merged_path = self.project_dir / 'forcing' / 'merged_path'
+            merged_path = self.project_forcing_dir / 'merged_path'
             if merged_path.exists():
                 forcing_files = list(merged_path.glob("*.nc"))
 
@@ -229,10 +227,10 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading forcing from {len(forcing_files)} files")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
         except ValueError:
             try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
             except Exception:
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)

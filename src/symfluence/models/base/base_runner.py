@@ -82,6 +82,9 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         if self.code_dir:
             self.code_dir = Path(self.code_dir)
 
+        # Workers set quiet=True to suppress per-iteration INFO messages
+        self.quiet = False
+
         # Allow subclasses to perform custom setup before output dir creation
         self._setup_model_specific_paths()
 
@@ -189,7 +192,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         Example:
             def _setup_model_specific_paths(self):
                 self.setup_dir = self.project_dir / "settings" / self.model_name
-                self.forcing_path = self.project_dir / 'forcing' / f'{self.model_name}_input'
+                self.forcing_path = self.project_forcing_dir / f'{self.model_name}_input'
         """
         pass
 
@@ -315,7 +318,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         # --- Default template ---
         cmd = self._build_run_command()
         if cmd is not None:
-            self.logger.info(f"Running {self.model_name} for domain: {self.domain_name}")
+            _log = self.logger.debug if self.quiet else self.logger.info
+            _log(f"Running {self.model_name} for domain: {self.domain_name}")
 
             with symfluence_error_handler(
                 f"{self.model_name} model execution",
@@ -337,7 +341,9 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                 # Build environment
                 env = self._get_run_environment()
 
-                # Execute
+                # Execute — use DEBUG log level during calibration (quiet mode)
+                import logging as _logging
+                _log_level = _logging.DEBUG if self.quiet else _logging.INFO
                 result = self.execute_subprocess(
                     cmd,
                     log_file,
@@ -346,6 +352,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                     timeout=self._get_run_timeout(),
                     check=False,
                     success_message=f"{self.model_name} simulation completed successfully",
+                    success_log_level=_log_level,
                 )
 
                 if not result.success:

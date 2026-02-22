@@ -34,10 +34,10 @@ RECHARGE_VARIABLES = {
     'MESH': 'DRAINAGE',
 }
 
-# Map land surface model names to their total routed runoff variables
-# (used for fast-flow extraction: total_runoff - drainage = fast flow)
-TOTAL_RUNOFF_VARIABLES = {
-    'SUMMA': 'averageRoutedRunoff',
+# Map land surface model names to their surface runoff variables
+# (fast-flow component that bypasses the groundwater model)
+SURFACE_RUNOFF_VARIABLES = {
+    'SUMMA': 'scalarSurfaceRunoff',
     'CLM': 'QOVER',
     'MESH': 'RUNOFF',
 }
@@ -287,7 +287,7 @@ class CoupledGWWorker(BaseWorker):
             d.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Run land surface model
-        self.logger.info(f"Running {self.land_model_name} (land surface)...")
+        self.logger.debug(f"Running {self.land_model_name} (land surface)...")
         # Filter kwargs to avoid duplicate keyword arguments when delegating
         land_kwargs = {
             k: v for k, v in kwargs.items()
@@ -307,7 +307,7 @@ class CoupledGWWorker(BaseWorker):
         # Pass land_output as coupling_source_dir so the runner reads
         # recharge from THIS iteration's SUMMA output (not the project-
         # level default), writes gwf.rch, and executes mf6.
-        self.logger.info("Running MODFLOW 6 (groundwater)...")
+        self.logger.debug("Running MODFLOW 6 (groundwater)...")
         try:
             runner = MODFLOWRunner(config, self.logger)
             runner.settings_dir = modflow_settings
@@ -321,7 +321,7 @@ class CoupledGWWorker(BaseWorker):
             self.logger.error(f"MODFLOW execution failed: {e}")
             return False
 
-        self.logger.info(
+        self.logger.debug(
             f"Coupled {self.land_model_name}-MODFLOW run completed successfully"
         )
         return True

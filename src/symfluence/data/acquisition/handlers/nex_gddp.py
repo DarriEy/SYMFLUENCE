@@ -100,7 +100,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
                             except Exception as e:
                                 self.logger.warning(f"NCSS failed for {var} {year}: {e}")
                     if all_nc_files_for_ens:
-                        ds_ens = xr.open_mfdataset(all_nc_files_for_ens, engine="netcdf4", combine="by_coords", parallel=False).chunk({"time": -1})
+                        ds_ens = xr.open_mfdataset(all_nc_files_for_ens, engine="netcdf4", combine="by_coords", parallel=False, data_vars='minimal', coords='minimal', compat='override').chunk({"time": -1})
                         ds_ens = ds_ens.expand_dims(ensemble=[len(ensemble_datasets)]).assign_coords(model=("ensemble", [model_name]), scenario=("ensemble", [scenario_name]), member=("ensemble", [member]))
                         ensemble_datasets.append(ds_ens)
         if not ensemble_datasets:

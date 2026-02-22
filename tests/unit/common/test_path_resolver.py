@@ -86,7 +86,7 @@ class TestResolveFilePath:
             config, tmp_path, 'DEM_PATH', 'DEM_NAME',
             'attributes/elevation', 'dem.tif'
         )
-        assert result == tmp_path / 'attributes/elevation/dem.tif'
+        assert result == tmp_path / 'data' / 'attributes/elevation/dem.tif'
 
     def test_resolve_with_custom_path(self, tmp_path):
         """Test file path resolution with custom directory."""
@@ -105,7 +105,7 @@ class TestResolveFilePath:
             config, tmp_path, 'DEM_PATH', 'DEM_NAME',
             'attributes/elevation', 'dem.tif'
         )
-        assert result == tmp_path / 'attributes/elevation/custom_dem.tif'
+        assert result == tmp_path / 'data' / 'attributes/elevation/custom_dem.tif'
 
     def test_resolve_with_both_custom(self, tmp_path):
         """Test file path resolution with custom directory and filename."""
@@ -124,7 +124,7 @@ class TestResolveFilePath:
             config, tmp_path, 'DEM_PATH', 'DEM_NAME',
             'attributes/elevation', 'dem.tif'
         )
-        assert result == tmp_path / 'attributes/elevation/dem.tif'
+        assert result == tmp_path / 'data' / 'attributes/elevation/dem.tif'
 
     def test_must_exist_for_file(self, tmp_path):
         """Test must_exist validation for file paths."""

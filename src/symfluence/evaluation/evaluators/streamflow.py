@@ -697,7 +697,7 @@ class StreamflowEvaluator(ModelEvaluator):
                             catchment_area_m2, 'SUMMA attributes.nc'
                         )
                         if validated:
-                            self.logger.info(
+                            self.logger.debug(
                                 f"Using catchment area from SUMMA attributes: {validated:.0f} m²"
                             )
                             return validated

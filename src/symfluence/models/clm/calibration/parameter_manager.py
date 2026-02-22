@@ -146,7 +146,7 @@ class CLMParameterManager(BaseParameterManager):
         # Setup paths
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.params_dir = self.project_dir / 'CLM_input' / 'parameters'
+        self.params_dir = self.project_dir / 'settings' / 'CLM' / 'parameters'
 
         # Get file names
         self.params_nc_name = 'clm5_params.nc'

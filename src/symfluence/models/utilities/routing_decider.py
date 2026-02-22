@@ -128,6 +128,20 @@ class RoutingDecider:
             diagnostics['checks']['domain_method'] = domain_method
             return False, diagnostics
 
+        # Check model-specific spatial mode BEFORE ROUTING_MODEL.
+        # ROUTING_MODEL may be a global template setting, but if the model
+        # explicitly declares itself lumped, routing is not meaningful.
+        if model in self.SPATIAL_MODE_KEYS:
+            spatial_key = self.SPATIAL_MODE_KEYS[model]
+            model_spatial = config.get(spatial_key, '').lower()
+            if model_spatial == 'lumped':
+                routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
+                if routing_delineation == 'lumped':
+                    diagnostics['reason'] = 'model_spatial_mode_lumped'
+                    diagnostics['checks']['model_spatial_mode'] = model_spatial
+                    diagnostics['checks']['routing_delineation'] = routing_delineation
+                    return False, diagnostics
+
         # Check for lumped mode with models that have internal routing (HBV)
         # HBV has internal routing via SUZ/SLZ reservoirs, so lumped HBV doesn't need mizuRoute
         if model == 'HBV' and domain_method == 'lumped':
@@ -159,20 +173,30 @@ class RoutingDecider:
                 return True, diagnostics
 
         # 3. Spatial configuration check (The primary driver)
-        # Note: domain_method already extracted above for point check
+        # Use model-specific spatial mode key when available (e.g., FUSE_SPATIAL_MODE)
+        # to override the generic DOMAIN_DEFINITION_METHOD.
+        spatial_mode = domain_method
+        if model in self.SPATIAL_MODE_KEYS:
+            spatial_key = self.SPATIAL_MODE_KEYS[model]
+            model_spatial = config.get(spatial_key, '').lower()
+            if model_spatial:
+                spatial_mode = model_spatial
+                diagnostics['checks']['model_spatial_mode'] = model_spatial
+
         routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
 
         diagnostics['checks']['domain_method'] = domain_method
+        diagnostics['checks']['spatial_mode'] = spatial_mode
         diagnostics['checks']['routing_delineation'] = routing_delineation
 
         # If it's a lumped domain AND lumped routing, mizuRoute is NOT needed
         # (point mode already handled above)
-        if domain_method == 'lumped' and routing_delineation == 'lumped':
+        if spatial_mode == 'lumped' and routing_delineation == 'lumped':
             diagnostics['reason'] = 'lumped_domain_with_lumped_routing'
             return False, diagnostics
 
         # 4. Distributed/Network routing triggers
-        if domain_method in ['semi_distributed', 'distributed', 'hru', 'gru']:
+        if spatial_mode in ['semi_distributed', 'semidistributed', 'distributed', 'hru', 'gru']:
             diagnostics['reason'] = f'distributed_domain_method_{domain_method}'
             return True, diagnostics
 

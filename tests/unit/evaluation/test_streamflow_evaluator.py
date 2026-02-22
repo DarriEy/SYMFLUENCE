@@ -289,7 +289,7 @@ class TestObservedDataPath:
 
         result = streamflow_evaluator.get_observed_data_path()
 
-        expected = tmp_path / 'observations' / 'streamflow' / 'preprocessed' / 'test_basin_streamflow_processed.csv'
+        expected = tmp_path / 'data' / 'observations' / 'streamflow' / 'preprocessed' / 'test_basin_streamflow_processed.csv'
         assert result == expected
 
     def test_override_path_from_config(self, streamflow_evaluator, tmp_path):

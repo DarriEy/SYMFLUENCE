@@ -458,7 +458,7 @@ class TestCreateScaffold:
         # Check subdirectories
         assert (domain_dir / 'shapefiles' / 'pour_point').exists()
         assert (domain_dir / 'shapefiles' / 'catchment').exists()
-        assert (domain_dir / 'forcing' / 'raw_data').exists()
+        assert (domain_dir / 'data' / 'forcing' / 'raw_data').exists()
         assert (domain_dir / 'settings').exists()
 
     def test_create_scaffold_fuse_model(self, init_manager, tmp_path):

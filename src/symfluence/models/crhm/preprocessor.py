@@ -46,8 +46,10 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         super().__init__(config, logger)
 
         # Setup CRHM-specific directories
-        self.crhm_input_dir = self.project_dir / "CRHM_input"
-        self.settings_dir = self.crhm_input_dir / "settings"
+        # Forcing (.obs) goes in data/forcing/CRHM_input
+        # Settings (.prj) goes in settings/CRHM
+        self.crhm_forcing_dir = self.project_forcing_dir / "CRHM_input"
+        self.settings_dir = self.project_dir / "settings" / "CRHM"
 
         # Get CRHM-specific settings
         self.spatial_mode = self._get_config_value(
@@ -87,13 +89,9 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _create_directory_structure(self) -> None:
         """Create CRHM input directory structure."""
-        dirs = [
-            self.crhm_input_dir,
-            self.settings_dir,
-        ]
-        for d in dirs:
-            d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created CRHM input directories at {self.crhm_input_dir}")
+        self.crhm_forcing_dir.mkdir(parents=True, exist_ok=True)
+        self.settings_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created CRHM input directories at {self.crhm_forcing_dir} and {self.settings_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from configuration."""
@@ -172,7 +170,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             lambda: self.config.model.crhm.observation_file,
             default='forcing.obs'
         )
-        obs_path = self.settings_dir / obs_file
+        obs_path = self.crhm_forcing_dir / obs_file
 
         start_date, end_date = self._get_simulation_dates()
 
@@ -192,7 +190,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         if not forcing_files:
             # Try merged_path
-            merged_path = self.project_dir / 'forcing' / 'merged_path'
+            merged_path = self.project_forcing_dir / 'merged_path'
             if merged_path.exists():
                 forcing_files = list(merged_path.glob("*.nc"))
 
@@ -202,10 +200,10 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading forcing from {len(forcing_files)} files")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
         except ValueError:
             try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
             except Exception:
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)

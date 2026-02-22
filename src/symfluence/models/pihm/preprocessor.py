@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.models.registry import ModelRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class PIHMPreProcessor:
 
     def _find_forcing_files(self, start_dt, end_dt):
         """Find ERA5 basin-averaged forcing NetCDF files covering the time range."""
-        forcing_dir = self.project_dir / "forcing" / "basin_averaged_data"
+        forcing_dir = resolve_data_subdir(self.project_dir, 'forcing') / "basin_averaged_data"
         if not forcing_dir.exists():
             self.logger.warning(
                 f"Forcing directory not found: {forcing_dir}. "

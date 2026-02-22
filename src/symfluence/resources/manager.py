@@ -62,7 +62,7 @@ def get_base_settings_dir(model_name: str) -> Path:
         raise FileNotFoundError(
             f"Base settings for model '{model_name}' not found. "
             f"Expected at: symfluence.resources.base_settings.{model_name}\n"
-            f"Available models: FUSE, SUMMA, NOAH, mizuRoute, troute"
+            f"Available models: CLM, FUSE, MESH, NOAH, SUMMA, mizuRoute, troute"
         ) from e
 
 

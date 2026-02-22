@@ -302,7 +302,7 @@ class DomainManager(ConfigurableMixin):
             try:
                 import geopandas as gpd
                 basin_gdf = gpd.read_file(artifacts.river_basins_path)
-                dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"{self.domain_name}_elv.tif"
+                dem_path = self.project_attributes_dir / 'elevation' / 'dem' / f"{self.domain_name}_elv.tif"
                 self.reporting_manager.diagnostic_domain_definition(
                     basin_gdf=basin_gdf,
                     dem_path=dem_path if dem_path.exists() else None

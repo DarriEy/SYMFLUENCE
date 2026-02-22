@@ -18,6 +18,7 @@ import numpy as np
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -60,30 +61,36 @@ class MESHParameterManager(BaseParameterManager):
         # Parse MESH parameters to calibrate from config
         mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
         if mesh_params_str is None:
-            # Default to parameters that control runoff generation.
-            # CLASS params: KSAT (infiltration), DRN (drainage), SDEP (soil depth),
-            #               XSLP (slope), XDRAINH (horiz. drainage), MANN_CLASS (roughness)
-            # Hydrology params: FLZ/PWR (baseflow recession), ZSNL/ZPLS (ponding),
-            #                   RCHARG (groundwater recharge)
-            # Note: FRZTH excluded by default because parameter_fixer sets
-            # FROZENSOILINFILFLAG=0 in run_options, making the frozen soil
-            # infiltration threshold inert.  Add FRZTH to
-            # MESH_PARAMS_TO_CALIBRATE only if FROZENSOILINFILFLAG is enabled.
-            mesh_params_str = 'KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,ZSNL,ZPLS,RCHARG,WF_R2,R2N'
+            # Default: 10 high-impact parameters for DDS convergence.
+            # CLASS soil/surface: KSAT (infiltration), DRN (drainage),
+            #   SDEP (soil depth), XSLP (slope), XDRAINH (horiz. drainage),
+            #   MANN_CLASS (roughness)
+            # CLASS vegetation (ET partitioning): RSMIN (stomatal resistance),
+            #   LAMX (max LAI — canopy interception & transpiration)
+            # Hydrology: FLZ/PWR (baseflow recession)
+            #
+            # Excluded from default:
+            #   ZSNL/ZPLS — ponding depth params, minimal streamflow impact
+            #   RCHARG — groundwater recharge; can cause water balance issues
+            #             without paired DRAINFRAC
+            #   WF_R2/R2N — routing params, inert in noroute mode (auto-removed
+            #               below even if user adds them explicitly)
+            #   FRZTH — inert when FROZENSOILINFILFLAG=0 (the default)
+            mesh_params_str = 'KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,RSMIN,LAMX'
 
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
-        # Warn about routing parameters that are inert in noroute mode
+        # Auto-remove routing parameters that are inert in noroute mode
         routing_params_in_set = [p for p in self.mesh_params if p in ('WF_R2', 'R2N')]
         if routing_params_in_set:
             routing_mode = config.get('ROUTING_MODE', 'noroute')
             if routing_mode == 'noroute':
+                self.mesh_params = [p for p in self.mesh_params if p not in ('WF_R2', 'R2N')]
                 self.logger.info(
-                    f"Routing parameters {routing_params_in_set} are in the "
-                    f"calibration set but ROUTING_MODE='noroute' — these "
-                    f"parameters have no effect on simulated discharge in "
-                    f"noroute mode. Consider removing them from "
-                    f"MESH_PARAMS_TO_CALIBRATE to reduce search dimensions."
+                    f"Removed routing parameters {routing_params_in_set} from "
+                    f"calibration set — ROUTING_MODE='noroute' makes them "
+                    f"inert (zero gradient). Calibrating {len(self.mesh_params)} "
+                    f"parameters: {self.mesh_params}"
                 )
 
         # Paths to parameter files
@@ -357,9 +364,9 @@ class MESHParameterManager(BaseParameterManager):
         # Look for landcover stats in various locations
         project_dir = self.project_dir or self.mesh_settings_dir.parent.parent
         possible_paths = [
-            project_dir / 'forcing' / 'MESH_input' / 'temp_modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
-            project_dir / 'attributes' / 'gistool-outputs' / 'modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
-            project_dir / 'attributes' / 'gistool-outputs' / 'landcover_stats_multi_gru.csv',
+            resolve_data_subdir(project_dir, 'forcing') / 'MESH_input' / 'temp_modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
+            resolve_data_subdir(project_dir, 'attributes') / 'gistool-outputs' / 'modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv',
+            resolve_data_subdir(project_dir, 'attributes') / 'gistool-outputs' / 'landcover_stats_multi_gru.csv',
         ]
 
         for lc_path in possible_paths:
@@ -586,7 +593,7 @@ class MESHParameterManager(BaseParameterManager):
         # mesh_settings_dir is typically {project_dir}/settings/MESH/
         # so project_dir is two levels up
         project_dir = self.mesh_settings_dir.parent.parent
-        fallback = project_dir / 'forcing' / 'MESH_input' / filename
+        fallback = resolve_data_subdir(project_dir, 'forcing') / 'MESH_input' / filename
         if fallback.exists():
             self.logger.debug(
                 f"File {filename} not in {self.mesh_settings_dir}, "

@@ -242,7 +242,7 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
     def _prepare_observations(self) -> None:
         """Copy observation data for validation."""
-        obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         obs_file = obs_dir / f"{self.domain_name}_streamflow_processed.csv"
 
         if obs_file.exists():

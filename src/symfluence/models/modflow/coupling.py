@@ -88,9 +88,9 @@ class SUMMAToMODFLOWCoupler:
         if len(matching_files) == 1:
             ds = xr.open_dataset(matching_files[0])
         else:
-            ds = xr.open_mfdataset(matching_files, combine='by_coords')
+            ds = xr.open_mfdataset(matching_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
 
-        self.logger.info(
+        self.logger.debug(
             f"Reading {variable} from {len(matching_files)} file(s)"
         )
         return ds, matching_files
@@ -133,12 +133,12 @@ class SUMMAToMODFLOWCoupler:
             dt = (series.index[1] - series.index[0]).total_seconds()
             if dt < 86400:
                 series = series.resample('D').mean()
-                self.logger.info("Resampled sub-daily SUMMA output to daily")
+                self.logger.debug("Resampled sub-daily SUMMA output to daily")
 
         # Replace NaN and ensure non-negative after resampling
         series = series.fillna(0.0).clip(lower=0.0)
 
-        self.logger.info(
+        self.logger.debug(
             f"Extracted recharge: {len(series)} timesteps, "
             f"mean={series.mean():.6f} m/d, total={series.sum():.3f} m"
         )
@@ -186,7 +186,7 @@ class SUMMAToMODFLOWCoupler:
 
         rch_path.write_text("\n".join(lines))
 
-        self.logger.info(
+        self.logger.debug(
             f"Wrote MODFLOW per-period recharge: {len(recharge_series)} periods to {rch_path}"
         )
 
@@ -277,7 +277,7 @@ class SUMMAToMODFLOWCoupler:
         fast = (total_series - drain_series).clip(lower=0.0).fillna(0.0)
         fast.name = 'fast_runoff_m_s'
 
-        self.logger.info(
+        self.logger.debug(
             f"Fast runoff: mean={fast.mean():.6e} m/s, "
             f"total routed: {total_series.mean():.6e}, "
             f"drainage: {drain_series.mean():.6e}"
@@ -326,7 +326,7 @@ class SUMMAToMODFLOWCoupler:
         total = surface_aligned + baseflow_aligned
         total.name = 'total_streamflow_m3s'
 
-        self.logger.info(
+        self.logger.debug(
             f"Combined flows: surface={surface_aligned.mean():.4f} m3/s, "
             f"baseflow={baseflow_aligned.mean():.4f} m3/s, "
             f"total={total.mean():.4f} m3/s"

@@ -27,6 +27,7 @@ from symfluence.models.fuse.calibration.model_execution import (
     detect_fuse_run_mode,
     resolve_fuse_paths,
     prepare_input_files,
+    validate_fuse_inputs,
     execute_fuse,
     handle_fuse_output,
     log_execution_directory,
@@ -67,6 +68,7 @@ class FUSEWorker(BaseWorker):
         logger: Optional[logging.Logger] = None
     ):
         super().__init__(config, logger)
+        self._consecutive_output_failures = 0
 
     # Shared utilities
     _routing_decider = RoutingDecider()
@@ -90,9 +92,9 @@ class FUSEWorker(BaseWorker):
         """
         Apply parameters to FUSE constraints file AND para_def.nc.
 
-        In run_def mode, FUSE reads parameters directly from para_def.nc.
-        We update BOTH the constraints file (for consistency and run_pre mode)
-        AND the para_def.nc file (for run_def mode used during calibration).
+        In run_pre mode (the default for calibration), FUSE reads parameters
+        from para_def.nc. We update BOTH the constraints file (for consistency)
+        AND the para_def.nc file (which run_pre reads directly).
         """
         try:
             config = kwargs.get('config', self.config)
@@ -216,9 +218,17 @@ class FUSEWorker(BaseWorker):
                 Path(fuse_output_dir).mkdir(parents=True, exist_ok=True)
 
             # Prepare input files (symlinks, copies)
-            fuse_run_id, actual_decisions_file = prepare_input_files(
-                config, execution_cwd, self.logger
-            )
+            result = prepare_input_files(config, execution_cwd, self.logger)
+            if result is None:
+                return False
+            fuse_run_id, actual_decisions_file = result
+
+            # Pre-flight validation: catch broken symlinks/missing files
+            # BEFORE running FUSE (prevents silent Fortran crashes)
+            if not validate_fuse_inputs(
+                execution_cwd, fuse_run_id, config, self.logger
+            ):
+                return False
 
             # Update file manager
             if not update_fuse_file_manager(
@@ -377,7 +387,19 @@ class FUSEWorker(BaseWorker):
                 )
 
             if simulated is None:
+                self._consecutive_output_failures += 1
+                if self._consecutive_output_failures >= 5:
+                    self.logger.error(
+                        f"FUSE has failed to produce readable output for "
+                        f"{self._consecutive_output_failures} consecutive iterations. "
+                        f"This usually means FUSE is crashing silently on every parameter set. "
+                        f"Check: (1) FUSE executable is compatible with your system, "
+                        f"(2) input files are valid, (3) run FUSE manually to see Fortran errors."
+                    )
                 return {'kge': self.penalty_score}
+
+            # Reset consecutive failure counter on success
+            self._consecutive_output_failures = 0
 
             # Align and filter
             obs_values, sim_values = align_and_filter(observed, simulated, config, self.logger)

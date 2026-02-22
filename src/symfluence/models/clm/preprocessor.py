@@ -37,11 +37,11 @@ class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def __init__(self, config, logger):
         super().__init__(config, logger)
 
-        # CLM-specific directories
-        self.clm_input_dir = self.project_dir / "CLM_input"
-        self.settings_dir = self.clm_input_dir / "settings"
-        self.forcing_dir = self.clm_input_dir / "forcing"
-        self.params_dir = self.clm_input_dir / "parameters"
+        # Use standard SYMFLUENCE directory layout (inherited from base):
+        #   self.setup_dir   -> {project_dir}/settings/CLM
+        #   self.forcing_dir -> {project_dir}/data/forcing/CLM_input
+        self.settings_dir = self.setup_dir
+        self.params_dir = self.setup_dir / "parameters"
 
         # Lazy-init sub-modules
         self._domain_generator = None
@@ -118,7 +118,7 @@ class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """Create CLM input directory structure."""
         for d in [self.settings_dir, self.forcing_dir, self.params_dir]:
             d.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Created CLM directory structure at {self.clm_input_dir}")
+        logger.debug(f"Created CLM directory structure: settings={self.settings_dir}, forcing={self.forcing_dir}")
 
     # ------------------------------------------------------------------ #
     #  Forcing (thin wrappers around existing CLMForcingProcessor)
@@ -129,9 +129,9 @@ class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         from .forcing_processor import CLMForcingProcessor
 
         lat, lon, _ = self.domain_generator.get_catchment_centroid()
-        forcing_data_dir = self.project_dir / 'forcing' / 'basin_averaged_data'
+        forcing_data_dir = self.project_forcing_dir / 'basin_averaged_data'
         if not forcing_data_dir.exists():
-            forcing_data_dir = self.project_dir / 'forcing'
+            forcing_data_dir = self.project_forcing_dir
 
         start_date = self._get_config_value(
             lambda: self.config.domain.time_start,

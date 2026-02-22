@@ -72,19 +72,19 @@ class DataManager(BaseManager):
                     lambda: self.config.domain.name,
                     'domain'
                 )
-                dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"{domain_name}_elv.tif"
-                soil_path = self.project_dir / 'attributes' / 'soilclass' / f"{domain_name}_soilclass.tif"
-                land_path = self.project_dir / 'attributes' / 'landclass' / f"{domain_name}_landclass.tif"
+                dem_path = self.project_attributes_dir / 'elevation' / 'dem' / f"{domain_name}_elv.tif"
+                soil_path = self.project_attributes_dir / 'soilclass' / f"{domain_name}_soilclass.tif"
+                land_path = self.project_attributes_dir / 'landclass' / f"{domain_name}_landclass.tif"
 
                 # Try alternative paths if standard ones don't exist
                 if not dem_path.exists():
-                    dem_files = list((self.project_dir / 'attributes' / 'elevation').rglob("*.tif"))
+                    dem_files = list((self.project_attributes_dir / 'elevation').rglob("*.tif"))
                     dem_path = dem_files[0] if dem_files else None
                 if not soil_path.exists():
-                    soil_files = list((self.project_dir / 'attributes' / 'soilclass').rglob("*.tif"))
+                    soil_files = list((self.project_attributes_dir / 'soilclass').rglob("*.tif"))
                     soil_path = soil_files[0] if soil_files else None
                 if not land_path.exists():
-                    land_files = list((self.project_dir / 'attributes' / 'landclass').rglob("*.tif"))
+                    land_files = list((self.project_attributes_dir / 'landclass').rglob("*.tif"))
                     land_path = land_files[0] if land_files else None
 
                 self.reporting_manager.diagnostic_attributes(
@@ -109,8 +109,8 @@ class DataManager(BaseManager):
         if self.reporting_manager:
             try:
                 # Check for merged or raw forcing files
-                merged_dir = self.project_dir / 'forcing' / 'merged_data'
-                raw_dir = self.project_dir / 'forcing' / 'raw_data'
+                merged_dir = self.project_forcing_dir / 'merged_data'
+                raw_dir = self.project_forcing_dir / 'raw_data'
                 forcing_dir = merged_dir if merged_dir.exists() else raw_dir
 
                 if forcing_dir.exists():
@@ -286,7 +286,7 @@ class DataManager(BaseManager):
             # Generate diagnostic plots for streamflow observations
             if self.reporting_manager:
                 try:
-                    obs_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+                    obs_dir = self.project_observations_dir / "streamflow" / "preprocessed"
                     if obs_dir.exists():
                         obs_files = list(obs_dir.glob("*.csv"))
                         if obs_files:
@@ -308,7 +308,7 @@ class DataManager(BaseManager):
             DataAcquisitionError: If preprocessing fails
         """
         # Create required directories
-        basin_averaged_data = self.project_dir / 'forcing' / 'basin_averaged_data'
+        basin_averaged_data = self.project_forcing_dir / 'basin_averaged_data'
         catchment_intersection_dir = self.project_dir / 'shapefiles' / 'catchment_intersection'
 
         basin_averaged_data.mkdir(parents=True, exist_ok=True)
@@ -347,9 +347,9 @@ class DataManager(BaseManager):
 
                 # Generate forcing remapping diagnostics
                 try:
-                    raw_forcing_dir = self.project_dir / 'forcing' / 'merged_data'
+                    raw_forcing_dir = self.project_forcing_dir / 'merged_data'
                     if not raw_forcing_dir.exists():
-                        raw_forcing_dir = self.project_dir / 'forcing' / 'raw_data'
+                        raw_forcing_dir = self.project_forcing_dir / 'raw_data'
                     raw_files = list(raw_forcing_dir.glob("*.nc")) if raw_forcing_dir.exists() else []
                     basin_files = list(basin_averaged_data.glob("*.nc"))
                     if raw_files and basin_files:
@@ -399,9 +399,9 @@ class DataManager(BaseManager):
 
     def _validate_directories_fallback(self) -> bool:
         required_dirs = [
-            self.project_dir / 'attributes',
-            self.project_dir / 'forcing',
-            self.project_dir / 'observations',
+            self.project_attributes_dir,
+            self.project_forcing_dir,
+            self.project_observations_dir,
             self.project_dir / 'shapefiles'
         ]
         all_exist = True
@@ -429,9 +429,9 @@ class DataManager(BaseManager):
         remapped_forcing_file = remapped_files[0]
 
         # Find raw forcing file (check merged_data first, then raw_data)
-        raw_forcing_dir = self.project_dir / 'forcing' / 'merged_data'
+        raw_forcing_dir = self.project_forcing_dir / 'merged_data'
         if not raw_forcing_dir.exists() or not list(raw_forcing_dir.glob("*.nc")):
-            raw_forcing_dir = self.project_dir / 'forcing' / 'raw_data'
+            raw_forcing_dir = self.project_forcing_dir / 'raw_data'
 
         raw_files = list(raw_forcing_dir.glob("*.nc")) if raw_forcing_dir.exists() else []
         if not raw_files:
@@ -539,23 +539,23 @@ class DataManager(BaseManager):
         """Get status of data acquisition and preprocessing."""
         status = {
             'project_dir': str(self.project_dir),
-            'attributes_acquired': (self.project_dir / 'attributes' / 'elevation' / 'dem').exists(),
-            'forcings_acquired': (self.project_dir / 'forcing' / 'raw_data').exists(),
-            'forcings_preprocessed': (self.project_dir / 'forcing' / 'basin_averaged_data').exists(),
-            'observed_data_processed': (self.project_dir / 'observations' / 'streamflow' / 'preprocessed').exists(),
+            'attributes_acquired': (self.project_attributes_dir / 'elevation' / 'dem').exists(),
+            'forcings_acquired': (self.project_forcing_dir / 'raw_data').exists(),
+            'forcings_preprocessed': (self.project_forcing_dir / 'basin_averaged_data').exists(),
+            'observed_data_processed': (self.project_observations_dir / 'streamflow' / 'preprocessed').exists(),
         }
 
-        status['dem_exists'] = (self.project_dir / 'attributes' / 'elevation' / 'dem').exists()
-        status['soilclass_exists'] = (self.project_dir / 'attributes' / 'soilclass').exists()
-        status['landclass_exists'] = (self.project_dir / 'attributes' / 'landclass').exists()
+        status['dem_exists'] = (self.project_attributes_dir / 'elevation' / 'dem').exists()
+        status['soilclass_exists'] = (self.project_attributes_dir / 'soilclass').exists()
+        status['landclass_exists'] = (self.project_attributes_dir / 'landclass').exists()
 
         supplement_forcing = self._get_config_value(
             lambda: self.config.forcing.supplement,
             False
         )
         if supplement_forcing:
-            status['em_earth_acquired'] = (self.project_dir / 'forcing' / 'raw_data_em_earth').exists()
-            status['em_earth_integrated'] = (self.project_dir / 'forcing' / 'em_earth_remapped').exists()
+            status['em_earth_acquired'] = (self.project_forcing_dir / 'raw_data_em_earth').exists()
+            status['em_earth_integrated'] = (self.project_forcing_dir / 'em_earth_remapped').exists()
         else:
             status['em_earth_acquired'] = False
             status['em_earth_integrated'] = False

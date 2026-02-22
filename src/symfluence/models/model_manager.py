@@ -278,7 +278,7 @@ class ModelManager(BaseManager):
         for model in workflow:
             try:
                 # Create model input directory
-                model_input_dir = self.project_dir / "forcing" / f"{model}_input"
+                model_input_dir = self.project_forcing_dir / f"{model}_input"
                 model_input_dir.mkdir(parents=True, exist_ok=True)
 
                 # Select preprocessor for this model from registry
@@ -645,7 +645,7 @@ class ModelManager(BaseManager):
 
             if obs_col is None:
                 # Try to load observations from standard location
-                obs_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+                obs_dir = self.project_observations_dir / "streamflow" / "preprocessed"
                 domain_name = self.config.domain.name
                 obs_files = list(obs_dir.glob(f"{domain_name}*_streamflow*.csv")) if obs_dir.exists() else []
 

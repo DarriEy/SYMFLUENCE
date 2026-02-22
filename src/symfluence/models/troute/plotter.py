@@ -252,8 +252,8 @@ class TRoutePlotter(BasePlotter):
         # Check auto-generated results first
         search_dirs = [
             self.project_dir / 'results',
-            self.project_dir / 'observations' / 'streamflow',
-            self.project_dir / 'observations',
+            self.project_observations_dir / 'streamflow',
+            self.project_observations_dir,
         ]
         for search_dir in search_dirs:
             if not search_dir.exists():

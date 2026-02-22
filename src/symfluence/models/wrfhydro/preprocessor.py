@@ -9,6 +9,7 @@ Handles preparation of WRF-Hydro model inputs including:
 - Forcing files (LDASIN NetCDF)
 """
 import logging
+from pathlib import Path
 from typing import Tuple
 from datetime import datetime
 
@@ -48,12 +49,12 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         super().__init__(config, logger)
 
-        # Setup WRF-Hydro-specific directories
-        self.wrfhydro_input_dir = self.project_dir / "WRFHydro_input"
-        self.settings_dir = self.wrfhydro_input_dir / "settings"
-        self.forcing_dir = self.wrfhydro_input_dir / "forcing"
-        self.routing_dir = self.wrfhydro_input_dir / "routing"
-        self.restart_dir = self.wrfhydro_input_dir / "restart"
+        # WRF-Hydro-specific subdirectories under the standard layout
+        # setup_dir  = project_dir/settings/WRFHYDRO   (inherited)
+        # forcing_dir = project_forcing_dir/WRFHYDRO_input (inherited)
+        self.settings_dir = self.setup_dir
+        self.routing_dir = self.setup_dir / "routing"
+        self.restart_dir = self.setup_dir / "restart"
 
         # Resolve spatial mode
         configured_mode = self._get_config_value(
@@ -98,6 +99,9 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             # Generate hydro namelist
             self._generate_hydro_namelist()
 
+            # Copy TBL lookup tables from WRF-Hydro install
+            self._copy_tbl_files()
+
             logger.info("WRF-Hydro preprocessing completed successfully")
             return True
 
@@ -109,10 +113,10 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _create_directory_structure(self) -> None:
         """Create WRF-Hydro input directory structure."""
-        for d in [self.wrfhydro_input_dir, self.settings_dir,
-                  self.forcing_dir, self.routing_dir, self.restart_dir]:
+        for d in [self.settings_dir, self.forcing_dir,
+                  self.routing_dir, self.restart_dir]:
             d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created WRF-Hydro directory structure in {self.wrfhydro_input_dir}")
+        logger.info(f"Created WRF-Hydro directory structure (settings={self.settings_dir}, forcing={self.forcing_dir})")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from config."""
@@ -585,7 +589,7 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
  HRLDAS_SETUP_FILE = '{self.settings_dir}/wrfinput_d01.nc'
  INDIR = '{self.forcing_dir}'
- OUTDIR = '{self.project_dir / "WRFHydro_output"}'
+ OUTDIR = '{self.project_dir / "simulations"}'
 
  START_YEAR  = {start_date.year}
  START_MONTH = {start_date.month:02d}
@@ -724,3 +728,69 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         out_path = self.settings_dir / hydro_namelist_file
         out_path.write_text(content)
         logger.info(f"Generated hydro namelist: {out_path}")
+
+    def _copy_tbl_files(self) -> None:
+        """
+        Copy .TBL lookup tables from the WRF-Hydro install to settings_dir.
+
+        WRF-Hydro requires MPTABLE.TBL, SOILPARM.TBL, VEGPARM.TBL,
+        GENPARM.TBL, etc. in the run directory.  The runner symlinks them
+        from settings_dir at runtime, so they must be staged here.
+
+        Search order for TBL source directory:
+        1. {install}/Run or {install}/run (standard WRF build layout)
+        2. {exe_parent} (bin/ directory)
+        3. Recursive search under {install}/src for parameter_tables
+        """
+        import shutil
+
+        install_path = self._get_config_value(
+            lambda: self.config.model.wrfhydro.install_path,
+            default=None,
+            dict_key='WRFHYDRO_INSTALL_PATH'
+        )
+        if not install_path or install_path == 'default':
+            install_path = self.data_dir / 'installs' / 'wrfhydro'
+        else:
+            install_path = Path(install_path)
+
+        tbl_source_dir = None
+
+        # 1. Standard WRF build layout
+        for subdir in ['Run', 'run']:
+            candidate = install_path / subdir
+            if candidate.exists() and list(candidate.glob('*.TBL')):
+                tbl_source_dir = candidate
+                break
+
+        # 2. Alongside the executable
+        if tbl_source_dir is None:
+            bin_dir = install_path / 'bin'
+            if bin_dir.exists() and list(bin_dir.glob('*.TBL')):
+                tbl_source_dir = bin_dir
+
+        # 3. Recursive search — find MPTABLE.TBL, prefer CONUS, then latest version
+        if tbl_source_dir is None:
+            mptable_hits = sorted(install_path.rglob('MPTABLE.TBL'))
+            # Prefer CONUS variant, then highest version directory
+            conus_hits = [p for p in mptable_hits if 'CONUS' in str(p)]
+            if conus_hits:
+                tbl_source_dir = conus_hits[-1].parent
+            elif mptable_hits:
+                tbl_source_dir = mptable_hits[-1].parent
+
+        if tbl_source_dir is None:
+            logger.warning(
+                f"No .TBL files found under {install_path}. "
+                "WRF-Hydro will fail without MPTABLE.TBL and other lookup tables."
+            )
+            return
+
+        copied = 0
+        for tbl_file in tbl_source_dir.glob('*.TBL'):
+            dest = self.settings_dir / tbl_file.name
+            if not dest.exists():
+                shutil.copy2(tbl_file, dest)
+                copied += 1
+
+        logger.info(f"Copied {copied} TBL files from {tbl_source_dir} to {self.settings_dir}")

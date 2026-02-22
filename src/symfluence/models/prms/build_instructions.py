@@ -93,6 +93,28 @@ fi
 # PRMS repo clones directly into install dir; top-level has Makefile, mmf/, prms/
 echo "Building PRMS with make..."
 
+# Fix Fortran-C ABI mismatch: modern gfortran (>=8) passes hidden string
+# lengths as size_t/long (8 bytes on 64-bit), but PRMS defines ftnlen as int
+# (4 bytes). This causes declvar() to misread variable names, crashing with
+# "ERROR - declvar - key '' already exists".
+if [ -f "mmf/defs.h" ]; then
+    echo "Patching mmf/defs.h: ftnlen int -> long for modern gfortran ABI..."
+    sed -i.bak 's/#define ftnlen int/#define ftnlen long/' mmf/defs.h
+    # Also fix hardcoded int types in prototypes that should use ftnlen
+    if [ -f "mmf/protos.h" ]; then
+        echo "Patching mmf/protos.h: hardcoded int -> long in Fortran interface prototypes..."
+        python3 -c "
+import re
+with open('mmf/protos.h') as f: txt = f.read()
+# Replace trailing ', int);' with ', long);' in extern function prototypes
+# These are Fortran hidden string length args that must match ftnlen
+txt = re.sub(r'(extern long \w+_\s*\([^)]*),\s*int\)', r'\1, long)', txt)
+with open('mmf/protos.h', 'w') as f: f.write(txt)
+print('protos.h patched')
+"
+    fi
+fi
+
 # Legacy PRMS Fortran code has type mismatches in getparam() calls;
 # modern gfortran (>=10) treats these as errors by default.
 # Patch makelist to add -fallow-argument-mismatch and configure NetCDF paths.

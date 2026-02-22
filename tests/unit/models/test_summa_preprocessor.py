@@ -24,8 +24,8 @@ class TestSummaPreProcessorInitialization:
         """Test SUMMA-specific path initialization."""
         preprocessor = SummaPreProcessor(summa_config, mock_logger)
 
-        # Check SUMMA-specific paths
-        assert preprocessor.forcing_summa_path == preprocessor.project_dir / 'forcing' / 'SUMMA_input'
+        # Check SUMMA-specific paths (forcing now under data/)
+        assert preprocessor.forcing_summa_path == preprocessor.project_dir / 'data' / 'forcing' / 'SUMMA_input'
         assert preprocessor.dem_path.exists() or preprocessor.dem_path.name.endswith('.tif')
 
     def test_summa_configuration_attributes(self, summa_config, mock_logger, setup_test_directories):

@@ -123,7 +123,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Initialize base class
         super().__init__(config, logger)
         self.calibration_params = params
-        self.gistool_output = f"{str(self.project_dir / 'attributes' / 'gistool-outputs')}/"
+        self.gistool_output = f"{str(self.project_attributes_dir / 'gistool-outputs')}/"
         # HYPE needs the remapped forcing data and geospatial statistics
         self.forcing_input_dir = self.forcing_basin_path
         self.hype_setup_dir = self.project_dir / 'settings' / 'HYPE'
@@ -172,11 +172,11 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         self.spinup_days = int(self.spinup_days)
 
-        # inputs
+        # Config/geo files go to settings dir, forcing files to forcing dir
         self.output_path = self.hype_setup_dir
-        # Store original forcing data directory for calibration workers
-        # During calibration, output_path may change but forcing data stays in original location
-        self.forcing_data_dir = self.hype_setup_dir
+        # Forcing data directory: data/forcing/HYPE_input (from base class self.forcing_dir)
+        self.forcing_data_dir = self.forcing_dir
+        self.forcing_data_dir.mkdir(parents=True, exist_ok=True)
 
         # Basin-averaged forcing data is already in CFIF format (from model-agnostic preprocessing)
         # Initialize variable handler to get correct input names
@@ -225,12 +225,12 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _init_managers(self, forcing_dataset: str) -> None:
         """Initialize the manager classes for the generalized pipeline."""
-        # Forcing processor
+        # Forcing processor — writes Pobs.txt, Tobs.txt etc. to forcing dir
         self.forcing_processor = HYPEForcingProcessor(
             config=self.config_dict,
             logger=self.logger,
             forcing_input_dir=self.forcing_input_dir,
-            output_path=self.output_path,
+            output_path=self.forcing_data_dir,
             cache_path=self.cache_path,
             timeshift=self.timeshift,
             forcing_units=self.forcing_units
@@ -274,6 +274,69 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _prepare_forcing(self) -> None:
         """HYPE-specific forcing data preparation (template hook)."""
         self.forcing_processor.process_forcing()
+        self._create_qobs_file()
+
+    def _create_qobs_file(self) -> None:
+        """Create a dummy Qobs.txt for HYPE.
+
+        HYPE requires Qobs.txt to exist even for simulation-only runs.
+        Creates a file with -9999 (missing) values matching the Pobs.txt
+        time period and subbasin IDs.
+        """
+        pobs_path = self.forcing_data_dir / 'Pobs.txt'
+        if not pobs_path.exists():
+            self.logger.warning("Cannot create Qobs.txt: Pobs.txt not found")
+            return
+
+        try:
+            # Read Pobs.txt header to get subbasin IDs
+            pobs_header = pd.read_csv(pobs_path, sep='\t', nrows=0)
+            subbasin_ids = [c for c in pobs_header.columns if c != 'time']
+
+            # Read the time column only
+            pobs_time = pd.read_csv(pobs_path, sep='\t', usecols=['time'])
+
+            # Create Qobs with -9999 (missing) values
+            qobs_df = pd.DataFrame(
+                -9999.0,
+                index=pobs_time['time'],
+                columns=subbasin_ids
+            )
+            qobs_df.index.name = 'time'
+
+            qobs_path = self.forcing_data_dir / 'Qobs.txt'
+            qobs_df.to_csv(qobs_path, sep='\t', index=True, float_format='%.3f')
+            self.logger.debug(f"Created Qobs.txt in {self.forcing_data_dir}")
+        except Exception as e:
+            self.logger.warning(f"Could not create Qobs.txt: {e}")
+
+    def _link_forcing_to_settings(self) -> None:
+        """Create symlinks in settings dir pointing to forcing files.
+
+        HYPE v5.35 reads ALL input files from the modeldir (the directory
+        passed as command-line argument), ignoring filedir.txt for forcing
+        data. Since we store forcing files separately in data/forcing/HYPE_input/,
+        we create symlinks so HYPE finds them in settings/HYPE/.
+        """
+        from pathlib import Path
+
+        forcing_files = ['Pobs.txt', 'Tobs.txt', 'TMAXobs.txt', 'TMINobs.txt', 'Qobs.txt']
+        for fname in forcing_files:
+            src = self.forcing_data_dir / fname
+            dst = self.hype_setup_dir / fname
+            if not src.exists():
+                continue
+            # Remove existing file/symlink at destination
+            if dst.exists() or dst.is_symlink():
+                dst.unlink()
+            try:
+                dst.symlink_to(src.resolve())
+                self.logger.debug(f"Linked {fname} -> {src}")
+            except OSError as e:
+                # Fall back to copy if symlinks aren't supported
+                import shutil
+                shutil.copy2(src, dst)
+                self.logger.debug(f"Copied {fname} to {self.hype_setup_dir} (symlink failed: {e})")
 
     def _create_model_configs(self) -> None:
         """HYPE-specific configuration file creation (template hook)."""
@@ -322,8 +385,6 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         experiment_end = self.config_dict.get('EXPERIMENT_TIME_END')
 
         # Write info and file directory files using manager
-        # Pass forcing_data_dir so filedir.txt points to correct location
-        # (important for calibration workers using isolated directories)
         self.config_manager.write_info_filedir(
             spinup_days=self.spinup_days,
             results_dir=self.hype_results_dir_str,
@@ -331,3 +392,8 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             experiment_end=experiment_end,
             forcing_data_dir=self.forcing_data_dir
         )
+
+        # HYPE v5.35 reads ALL input files from the modeldir (command-line arg),
+        # not from filedir.txt. Create symlinks in settings/HYPE/ pointing to
+        # forcing files in data/forcing/HYPE_input/ so HYPE can find them.
+        self._link_forcing_to_settings()

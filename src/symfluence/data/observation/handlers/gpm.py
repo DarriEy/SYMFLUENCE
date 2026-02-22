@@ -58,7 +58,7 @@ class GPMIMERGHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(gpm_path, str) and gpm_path.lower() == 'default':
-            gpm_dir = self.project_dir / "observations" / "precipitation" / "gpm_imerg"
+            gpm_dir = self.project_observations_dir / "precipitation" / "gpm_imerg"
         else:
             gpm_dir = Path(gpm_path)
 
@@ -192,7 +192,7 @@ class GPMIMERGHandler(BaseObservationHandler):
         df_combined.to_csv(output_file, index=False)
 
         # Also save to legacy location
-        legacy_dir = self.project_dir / "observations" / "precipitation" / "gpm_imerg" / "processed"
+        legacy_dir = self.project_observations_dir / "precipitation" / "gpm_imerg" / "processed"
         legacy_dir.mkdir(parents=True, exist_ok=True)
         legacy_file = legacy_dir / f"{self.domain_name}_gpm_imerg_processed.csv"
         df_combined.to_csv(legacy_file, index=False)

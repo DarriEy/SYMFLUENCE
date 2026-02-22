@@ -78,7 +78,7 @@ class XinanjiangRunner(  # type: ignore[misc]
             self.xinanjiang_setup_dir = self.settings_dir
         else:
             self.xinanjiang_setup_dir = self.project_dir / "settings" / "XINANJIANG"
-        self.xinanjiang_forcing_dir = self.project_dir / 'forcing' / 'XINANJIANG_input'
+        self.xinanjiang_forcing_dir = self.project_forcing_dir / 'XINANJIANG_input'
 
     def _get_output_dir(self) -> Path:
         return self.get_experiment_output_dir()
@@ -284,7 +284,7 @@ class XinanjiangRunner(  # type: ignore[misc]
             sim_time = pd.to_datetime(ds.time.values)
             ds.close()
 
-            obs_file = (self.project_dir / 'observations' / 'streamflow' /
+            obs_file = (self.project_observations_dir / 'streamflow' /
                         'preprocessed' / f"{self.domain_name}_streamflow_processed.csv")
             if not obs_file.exists():
                 return

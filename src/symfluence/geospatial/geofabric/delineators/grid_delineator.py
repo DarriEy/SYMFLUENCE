@@ -787,12 +787,12 @@ class GridDelineator(BaseGeofabricDelineator):
         # Get forcing directory from config
         forcing_dir = self._get_config_value(
             lambda: self.config.paths.forcing_path,
-            default=str(self.project_dir / "forcing"),
+            default=str(self.project_forcing_dir),
             dict_key='FORCING_PATH'
         )
 
         if forcing_dir == 'default':
-            forcing_dir = self.project_dir / "forcing"
+            forcing_dir = self.project_forcing_dir
         else:
             forcing_dir = Path(forcing_dir)
 

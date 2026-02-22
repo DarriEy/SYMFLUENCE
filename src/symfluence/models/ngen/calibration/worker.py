@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel as PydanticBaseModel
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,75 @@ class NgenWorker(BaseWorker):
         """
         super().__init__(config, logger)
 
+    def _check_cfe_parameter_feasibility(self, params: Dict[str, float]) -> bool:
+        """
+        Check if CFE parameter combinations are numerically feasible.
+
+        Certain parameter combinations cause segfaults (SIGSEGV, exit code -11)
+        in CFE's Fortran solver. This pre-flight check rejects known crash-prone
+        combinations, avoiding wasted model execution time.
+
+        Args:
+            params: Parameter values (MODULE.param format, e.g., 'CFE.satdk')
+
+        Returns:
+            True if parameters are feasible, False if they would likely crash
+        """
+        # Extract CFE parameters (strip module prefix)
+        cfe = {}
+        for k, v in params.items():
+            if k.startswith('CFE.'):
+                cfe[k[4:]] = v
+
+        if not cfe:
+            return True  # No CFE params to check
+
+        satdk = cfe.get('satdk')
+        bb = cfe.get('bb')
+        slop = cfe.get('slop')
+        k_nash = cfe.get('K_nash', cfe.get('Kn'))
+        k_lf = cfe.get('K_lf', cfe.get('Klf'))
+        cgw = cfe.get('Cgw')
+        max_gw = cfe.get('max_gw_storage')
+
+        # Check 1: Low satdk + high bb → Brooks-Corey water retention singularity
+        if satdk is not None and bb is not None:
+            if satdk < 5e-7 and bb > 6.0:
+                self.logger.warning(
+                    f"Infeasible CFE params: satdk={satdk:.2e} + bb={bb:.1f} "
+                    f"(Brooks-Corey singularity risk). Skipping trial."
+                )
+                return False
+
+        # Check 2: Low satdk + high slope → infiltration instability
+        if satdk is not None and slop is not None:
+            if satdk < 5e-7 and slop > 0.3:
+                self.logger.warning(
+                    f"Infeasible CFE params: satdk={satdk:.2e} + slop={slop:.2f} "
+                    f"(infiltration instability). Skipping trial."
+                )
+                return False
+
+        # Check 3: Routing coefficients sum too high → CFL violation
+        if k_nash is not None and k_lf is not None:
+            if k_nash + k_lf > 0.9:
+                self.logger.warning(
+                    f"Infeasible CFE params: K_nash={k_nash:.3f} + K_lf={k_lf:.3f} "
+                    f"= {k_nash + k_lf:.3f} > 0.9 (routing instability). Skipping trial."
+                )
+                return False
+
+        # Check 4: High groundwater storage + high Cgw → mass balance violation
+        if max_gw is not None and cgw is not None:
+            if max_gw > 1.5 and cgw > 0.005:
+                self.logger.warning(
+                    f"Infeasible CFE params: max_gw_storage={max_gw:.2f} + Cgw={cgw:.4f} "
+                    f"(groundwater mass balance risk). Skipping trial."
+                )
+                return False
+
+        return True
+
     def apply_parameters(
         self,
         params: Dict[str, float],
@@ -60,6 +130,10 @@ class NgenWorker(BaseWorker):
             True if successful
         """
         try:
+            # Pre-flight feasibility check: reject parameter combinations
+            # known to cause CFE segfaults before writing configs
+            if not self._check_cfe_parameter_feasibility(params):
+                return False
             # Import NgenParameterManager
             from .parameter_manager import NgenParameterManager
 
@@ -328,7 +402,7 @@ class NgenWorker(BaseWorker):
             # Load observations
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
-            obs_file = (project_dir / 'observations' / 'streamflow' / 'preprocessed' /
+            obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
                        f'{domain_name}_streamflow_processed.csv')
 
             if not obs_file.exists():

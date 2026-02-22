@@ -32,7 +32,7 @@ class SMHIStreamflowHandler(BaseObservationHandler):
             self.logger.error("Missing STATION_ID in configuration for SMHI streamflow")
             raise ValueError("STATION_ID required for SMHI streamflow acquisition")
 
-        raw_dir = self.project_dir / "observations" / "streamflow" / "raw_data"
+        raw_dir = self.project_observations_dir / "streamflow" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"smhi_{station_id}_raw.csv"
 
@@ -117,7 +117,7 @@ class SMHIStreamflowHandler(BaseObservationHandler):
         resampled = resampled.interpolate(method='time', limit_direction='both', limit=30)
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        output_dir = self.project_observations_dir / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
 

@@ -26,11 +26,12 @@ class RHESSysRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up RHESSys-specific paths."""
-        self.rhessys_input_dir = self.project_dir / "RHESSys_input"
-        self.worldfiles_dir = self.rhessys_input_dir / "worldfiles"
-        self.tecfiles_dir = self.rhessys_input_dir / "tecfiles"
-        self.climate_dir = self.rhessys_input_dir / "clim"
-        self.defs_dir = self.rhessys_input_dir / "defs"
+        self.setup_dir = self.project_dir / "settings" / self.MODEL_NAME
+        self.worldfiles_dir = self.setup_dir / "worldfiles"
+        self.tecfiles_dir = self.setup_dir / "tecfiles"
+        self.defs_dir = self.setup_dir / "defs"
+        self.routing_dir = self.setup_dir / "routing"
+        self.fire_dir = self.setup_dir / "fire"
 
         self.rhessys_exe = self.get_model_executable(
             install_path_key='RHESSYS_INSTALL_PATH',
@@ -56,6 +57,27 @@ class RHESSysRunner(BaseModelRunner):
         except AttributeError:
             pass
         return False
+
+    def _binary_supports_subsurfacegw(self) -> bool:
+        """Check if the RHESSys binary was built with SYMFLUENCE patches."""
+        try:
+            import subprocess
+            # Run with a deliberately invalid worldfile — the binary will fail,
+            # but if it chokes on '-subsurfacegw' specifically, it's unpatched.
+            result = subprocess.run(
+                [str(self.rhessys_exe), '-subsurfacegw', '-w', '/dev/null'],
+                capture_output=True, text=True, timeout=5,
+            )
+            stderr = result.stderr + result.stdout
+            if 'invalid' in stderr.lower() and 'subsurfacegw' in stderr.lower():
+                self.logger.warning(
+                    "RHESSys binary does not support -subsurfacegw "
+                    "(rebuild with: symfluence binary install rhessys --patched)"
+                )
+                return False
+            return True
+        except Exception:
+            return False
 
     def _get_wmfire_resolution(self) -> int:
         """Get WMFire grid resolution from config or use default."""
@@ -118,9 +140,8 @@ class RHESSysRunner(BaseModelRunner):
 
         # Fire spread if WMFire is enabled
         if self.wmfire_enabled:
-            fire_dir = self.rhessys_input_dir / "fire"
-            patch_grid = fire_dir / "patch_grid.txt"
-            dem_grid = fire_dir / "dem_grid.txt"
+            patch_grid = self.fire_dir / "patch_grid.txt"
+            dem_grid = self.fire_dir / "dem_grid.txt"
             if patch_grid.exists() and dem_grid.exists():
                 resolution = self._get_wmfire_resolution()
                 cmd.extend(["-firespread", str(resolution),
@@ -133,8 +154,7 @@ class RHESSysRunner(BaseModelRunner):
                 )
 
         # Routing
-        routing_file = (self.rhessys_input_dir / "routing"
-                        / f"{self.config.domain.name}.routing")
+        routing_file = self.routing_dir / f"{self.config.domain.name}.routing"
         if routing_file.exists():
             cmd.extend(["-r", str(routing_file)])
 
@@ -148,7 +168,15 @@ class RHESSysRunner(BaseModelRunner):
 
         # Groundwater store and subsurface-to-GW recharge pathway
         cmd.extend(["-gw", "1.0", "1.0"])
-        cmd.extend(["-subsurfacegw"])
+
+        # -subsurfacegw requires SYMFLUENCE-patched build (SYMFLUENCE_PATCHED=1).
+        # Without the patch, RHESSys rejects the unknown flag and exits rc=1.
+        use_subsurface_gw = self._get_config_value(
+            lambda: self.config.model.rhessys.use_subsurface_gw,
+            default=True,
+        )
+        if use_subsurface_gw and self._binary_supports_subsurfacegw():
+            cmd.extend(["-subsurfacegw"])
 
         return cmd
 

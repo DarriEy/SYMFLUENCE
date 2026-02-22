@@ -34,7 +34,7 @@ def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: st
 
 
 def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
-    raw_dir = project_dir / "forcing" / "raw_data"
+    raw_dir = project_dir / "data" / "forcing" / "raw_data"
     if not raw_dir.exists():
         return
     candidates = sorted(raw_dir.glob(keep_glob))
@@ -165,7 +165,17 @@ def test_semi_distributed_basin_workflow(config_path, model, symfluence_data_roo
     assert project_dir.exists(), "Project directory should be created"
 
     # Step 2: Copy raw data from source domain to project directory
-    lumped_domain = bow_domain.name.replace("domain_", "")
+    # Detect the actual domain name used in filenames (may differ from directory name)
+    dem_dir = bow_domain / "attributes" / "elevation" / "dem"
+    if dem_dir.exists():
+        dem_files = list(dem_dir.glob("*_elv.tif"))
+        if dem_files:
+            # Extract domain name from "domain_{name}_elv.tif"
+            lumped_domain = dem_files[0].stem.replace("domain_", "").replace("_elv", "")
+        else:
+            lumped_domain = bow_domain.name.replace("domain_", "")
+    else:
+        lumped_domain = bow_domain.name.replace("domain_", "")
     reusable_data = {
         "Elevation": bow_domain / "attributes" / "elevation",
         "Land Cover": bow_domain / "attributes" / "landclass",
@@ -176,7 +186,7 @@ def test_semi_distributed_basin_workflow(config_path, model, symfluence_data_roo
     for _, src_path in reusable_data.items():
         if src_path.exists():
             rel_path = src_path.relative_to(bow_domain)
-            dst_path = project_dir / rel_path
+            dst_path = project_dir / "data" / rel_path
             _copy_with_name_adaptation(
                 src_path, dst_path, lumped_domain, config["DOMAIN_NAME"]
             )
@@ -184,7 +194,7 @@ def test_semi_distributed_basin_workflow(config_path, model, symfluence_data_roo
     _prune_raw_forcing(project_dir, "domain_*_ERA5_merged_200401.nc")
 
     # Clear processed forcing outputs so HRU counts stay consistent
-    forcing_dir = project_dir / "forcing"
+    forcing_dir = project_dir / "data" / "forcing"
     if forcing_dir.exists():
         for subdir in ["basin_averaged_data", "merged_path", "SUMMA_input", "GR_input", "NGEN_input"]:
             shutil.rmtree(forcing_dir / subdir, ignore_errors=True)

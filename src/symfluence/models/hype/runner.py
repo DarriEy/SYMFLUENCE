@@ -43,9 +43,7 @@ class HYPERunner(BaseModelRunner):  # type: ignore[misc]
         ]
 
     def _get_expected_outputs(self) -> List[str]:
-        """Expected HYPE output files."""
-        return [
-            'timeCOUT.txt',
-            'timeEVAP.txt',
-            'timeSNOW.txt',
-        ]
+        """HYPE output location is controlled by resultdir in info.txt,
+        not by the runner's output_dir. Skip file verification here;
+        the postprocessor and calibration worker check outputs directly."""
+        return []

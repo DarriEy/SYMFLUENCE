@@ -66,16 +66,10 @@ class SWATParameterManager(BaseParameterManager):
 
         self.swat_params = [p.strip() for p in str(swat_params_str).split(',') if p.strip()]
 
-        # Path to TxtInOut directory
+        # Path to SWAT settings directory (standard layout)
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        txtinout_name = 'TxtInOut'
-        try:
-            if hasattr(config, 'model') and hasattr(config.model, 'swat'):
-                txtinout_name = config.model.swat.txtinout_dir or txtinout_name
-        except (AttributeError, TypeError):
-            pass
-        self.txtinout_dir = self.project_dir / 'SWAT_input' / txtinout_name
+        self.txtinout_dir = self.project_dir / 'settings' / 'SWAT'
 
         # Store original parameter values for relative changes
         self._original_values: Dict[str, Dict[Path, Dict[str, float]]] = {}

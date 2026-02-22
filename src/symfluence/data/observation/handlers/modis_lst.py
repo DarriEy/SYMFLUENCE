@@ -51,7 +51,7 @@ class MODISLSTHandler(BaseObservationHandler):
         """Acquire MODIS LST data via cloud acquisition."""
         lst_dir = Path(self.config_dict.get(
             'MODIS_LST_DIR',
-            self.project_dir / "observations" / "temperature" / "modis_lst"
+            self.project_observations_dir / "temperature" / "modis_lst"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -151,7 +151,7 @@ class MODISLSTHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "temperature" / "preprocessed"
+        output_dir = self.project_observations_dir / "temperature" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_modis_lst_processed.csv"
 
@@ -429,7 +429,7 @@ class MODISLSTHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed MODIS LST data."""
         processed_path = (
-            self.project_dir / "observations" / "temperature" / "preprocessed"
+            self.project_observations_dir / "temperature" / "preprocessed"
             / f"{self.domain_name}_modis_lst_processed.csv"
         )
 

@@ -48,7 +48,7 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
             raise FileNotFoundError(f"LamaH-ICE file not found: {raw_file}")
 
         # Copy or link to project directory for processing consistency
-        dest_dir = self.project_dir / "observations" / "streamflow" / "raw_data"
+        dest_dir = self.project_observations_dir / "streamflow" / "raw_data"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_file = dest_dir / f"lamah_ice_{station_id}_raw.csv"
 
@@ -91,7 +91,7 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         resampled = resampled.interpolate(method='time', limit_direction='both', limit=30)
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        output_dir = self.project_observations_dir / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
 

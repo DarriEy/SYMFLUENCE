@@ -48,7 +48,7 @@ class MODISSnowHandler(BaseObservationHandler):
     def acquire(self) -> Path:
         """Locate or download MODIS snow data."""
         data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
-        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_dir / "observations" / "snow"))
+        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_observations_dir / "snow"))
 
         if not snow_dir.exists():
             snow_dir.mkdir(parents=True, exist_ok=True)
@@ -296,7 +296,7 @@ class MODISSnowHandler(BaseObservationHandler):
 
     def _save_processed(self, df: pd.DataFrame) -> Path:
         """Save processed dataframe to standard location."""
-        output_dir = self.project_dir / "observations" / "snow" / "preprocessed"
+        output_dir = self.project_observations_dir / "snow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_modis_snow_processed.csv"
 
@@ -324,7 +324,7 @@ class MODISSCAHandler(MODISSnowHandler):
     def acquire(self) -> Path:
         """Acquire merged MODIS SCA data."""
         data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
-        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_dir / "observations" / "snow"))
+        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_observations_dir / "snow"))
 
         if not snow_dir.exists():
             snow_dir.mkdir(parents=True, exist_ok=True)

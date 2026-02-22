@@ -310,12 +310,12 @@ class InitializationService(BaseService):
             domain_dir / "shapefiles" / "catchment",
             domain_dir / "shapefiles" / "river_network",
             domain_dir / "shapefiles" / "river_basins",
-            domain_dir / "attributes",
-            domain_dir / "forcing" / "raw_data",
-            domain_dir / "forcing" / "processed",
+            domain_dir / "data" / "attributes",
+            domain_dir / "data" / "forcing" / "raw_data",
+            domain_dir / "data" / "forcing" / "processed",
             domain_dir / "settings",
             domain_dir / "simulations" / config.get("EXPERIMENT_ID", "run_1"),
-            domain_dir / "observations" / "streamflow",
+            domain_dir / "data" / "observations" / "streamflow",
             domain_dir / "data" / "model_ready" / "forcings",
             domain_dir / "data" / "model_ready" / "observations",
             domain_dir / "data" / "model_ready" / "attributes",
@@ -456,11 +456,8 @@ class InitializationService(BaseService):
 
     def _detect_code_dir(self) -> str:
         """Detect SYMFLUENCE code directory."""
-        # Start from this file and go up to repo root
-        current = Path(__file__).resolve()
-        # Go up: initialization.py -> services -> cli -> symfluence -> src -> SYMFLUENCE
-        repo_root = current.parent.parent.parent.parent.parent.parent
-        return str(repo_root)
+        from symfluence.core.config.factories import _resolve_default_code_dir
+        return _resolve_default_code_dir()
 
     def _validate_config(self, config: Dict[str, Any]) -> None:
         """

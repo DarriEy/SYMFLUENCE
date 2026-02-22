@@ -77,7 +77,7 @@ class ERA5LandHandler(BaseObservationHandler):
         """Acquire ERA5-Land data via cloud acquisition."""
         era5_dir = Path(self.config_dict.get(
             'ERA5_LAND_DIR',
-            self.project_dir / "observations" / "era5_land"
+            self.project_observations_dir / "era5_land"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -158,7 +158,7 @@ class ERA5LandHandler(BaseObservationHandler):
             df = df.resample('MS').mean()
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "era5_land" / "preprocessed"
+        output_dir = self.project_observations_dir / "era5_land" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_era5_land_processed.csv"
 
@@ -376,7 +376,7 @@ class ERA5LandHandler(BaseObservationHandler):
             Time series of the variable or None if not found
         """
         processed_path = (
-            self.project_dir / "observations" / "era5_land" / "preprocessed"
+            self.project_observations_dir / "era5_land" / "preprocessed"
             / f"{self.domain_name}_era5_land_processed.csv"
         )
 

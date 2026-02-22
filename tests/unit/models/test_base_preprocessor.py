@@ -49,10 +49,10 @@ def logger():
 @pytest.fixture
 def preprocessor(config, logger, tmp_path):
     """Create a concrete preprocessor instance."""
-    # Create necessary directory structure
+    # Create necessary directory structure (using data/ prefix for forcing)
     project_dir = tmp_path / 'domain_test_domain'
     (project_dir / 'settings' / 'TEST').mkdir(parents=True, exist_ok=True)
-    (project_dir / 'forcing' / 'TEST_input').mkdir(parents=True, exist_ok=True)
+    (project_dir / 'data' / 'forcing' / 'TEST_input').mkdir(parents=True, exist_ok=True)
 
     return ConcretePreProcessor(config, logger)
 
@@ -79,12 +79,12 @@ class TestBaseModelPreProcessorInitialization:
 
     def test_forcing_dir_creation(self, preprocessor, tmp_path):
         """Test that forcing_dir is set correctly."""
-        expected_forcing_dir = tmp_path / 'domain_test_domain' / 'forcing' / 'TEST_input'
+        expected_forcing_dir = tmp_path / 'domain_test_domain' / 'data' / 'forcing' / 'TEST_input'
         assert preprocessor.forcing_dir == expected_forcing_dir
 
     def test_forcing_basin_path(self, preprocessor, tmp_path):
         """Test that forcing_basin_path is set correctly."""
-        expected_path = tmp_path / 'domain_test_domain' / 'forcing' / 'basin_averaged_data'
+        expected_path = tmp_path / 'domain_test_domain' / 'data' / 'forcing' / 'basin_averaged_data'
         assert preprocessor.forcing_basin_path == expected_path
 
 

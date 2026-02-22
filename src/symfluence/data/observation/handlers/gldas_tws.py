@@ -25,7 +25,7 @@ class GLDASHandler(BaseObservationHandler):
         """Locate GLDAS data or download if needed."""
         gldas_dir = Path(self.config_dict.get(
             'GLDAS_DATA_DIR',
-            self.project_dir / "observations" / "tws" / "gldas"))
+            self.project_observations_dir / "tws" / "gldas"))
 
         force_download = self._get_config_value(
             lambda: self.config.data.force_download, default=False)
@@ -81,7 +81,7 @@ class GLDASHandler(BaseObservationHandler):
                 df['tws_anomaly_cm'] -= baseline.mean()
 
         # Save
-        output_dir = self.project_dir / "observations" / "tws" / "preprocessed"
+        output_dir = self.project_observations_dir / "tws" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_gldas_tws_processed.csv"
         df.to_csv(output_file)

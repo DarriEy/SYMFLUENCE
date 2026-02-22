@@ -175,19 +175,26 @@ class CoupledGWModelOptimizer(BaseModelOptimizer):
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         self.parallel_dirs = self.setup_parallel_processing(
-            base_dir, 'COUPLED_GW', self.experiment_id,
+            base_dir, self.land_model_name, self.experiment_id,
         )
 
-        # Add model-specific directory aliases
+        # setup_parallel_processing created dirs for the land model:
+        #   sim_dir     = process_0/simulations/run_1/SUMMA
+        #   settings_dir = process_0/settings/SUMMA
+        # Save those as land aliases, then lift sim_dir/settings_dir to the
+        # experiment level so the worker (which creates SUMMA/ and MODFLOW/
+        # subdirs) gets the right base paths.
         for proc_id, dirs in self.parallel_dirs.items():
-            dirs['land_dir'] = dirs['sim_dir'] / self.land_model_name
-            dirs['modflow_dir'] = dirs['sim_dir'] / 'MODFLOW'
-            dirs['land_settings_dir'] = dirs['settings_dir'] / self.land_model_name
-            dirs['modflow_settings_dir'] = dirs['settings_dir'] / 'MODFLOW'
+            dirs['land_dir'] = dirs['sim_dir']
+            dirs['land_settings_dir'] = dirs['settings_dir']
 
-            dirs['land_dir'].mkdir(parents=True, exist_ok=True)
+            dirs['sim_dir'] = dirs['sim_dir'].parent
+            dirs['settings_dir'] = dirs['root'] / 'settings'
+
+            dirs['modflow_dir'] = dirs['sim_dir'] / 'MODFLOW'
+            dirs['modflow_settings_dir'] = dirs['root'] / 'settings' / 'MODFLOW'
+
             dirs['modflow_dir'].mkdir(parents=True, exist_ok=True)
-            dirs['land_settings_dir'].mkdir(parents=True, exist_ok=True)
             dirs['modflow_settings_dir'].mkdir(parents=True, exist_ok=True)
 
         # Copy land surface model settings

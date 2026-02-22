@@ -41,7 +41,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
         """
         # Try cFUSE-specific path first
         cfuse_obs_path = (
-            self.project_dir / "forcing" / "CFUSE_input" /
+            self.project_forcing_dir / "CFUSE_input" /
             f"{self.domain_name}_observations.csv"
         )
 

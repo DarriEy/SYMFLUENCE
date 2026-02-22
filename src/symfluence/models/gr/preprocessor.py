@@ -120,7 +120,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         super().__init__(config, logger)
 
         # GR-specific paths
-        self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
+        self.forcing_gr_path = self.project_forcing_dir / 'GR_input'
 
         # GR-specific catchment configuration (use backward-compatible path resolution)
         catchment_file = self._get_catchment_file_path()
@@ -278,7 +278,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Unit conversions already handled by VariableHandler.process_forcing_data()
 
         # Load streamflow observations
-        obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+        obs_path = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
 
         # Read observations
         if obs_path.exists():
@@ -406,7 +406,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Unit conversions already handled by VariableHandler.process_forcing_data()
 
         # Load streamflow observations (at outlet)
-        obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+        obs_path = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
 
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)

@@ -29,7 +29,7 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.gsflow_setup_dir = self.project_dir / 'GSFLOW_input' / 'settings'
+        self.gsflow_setup_dir = self.project_dir / 'settings' / 'GSFLOW'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
         self.logger.debug("GSFLOWModelOptimizer initialized")

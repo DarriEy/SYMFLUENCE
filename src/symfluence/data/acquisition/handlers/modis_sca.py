@@ -12,6 +12,7 @@ References:
 - MYD10A1: https://nsidc.org/data/myd10a1
 - earthaccess: https://github.com/nsidc/earthaccess
 """
+import warnings
 import requests
 import numpy as np
 import pandas as pd
@@ -192,7 +193,9 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                 date = datetime(year, 1, 1) + timedelta(days=doy - 1)
 
                 # Open HDF and extract NDSI snow cover
-                ds = xr.open_dataset(hdf_path, engine='netcdf4')
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', message='variable .* has multiple fill values')
+                    ds = xr.open_dataset(hdf_path, engine='netcdf4')
 
                 # Find the snow cover variable
                 sca_var = None
@@ -556,137 +559,115 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
         return dates
 
     def _merge_products(self, product_files: Dict[str, Path], output_file: Path):
-        """Merge Terra and Aqua products into combined daily SCA."""
+        """Merge Terra and Aqua products into combined daily SCA.
+
+        Uses chunked xarray operations to avoid loading full datasets into memory.
+        """
         self.logger.info("Merging MOD10A1 and MYD10A1 products")
 
         merge_strategy = self._get_config_value(lambda: self.config.evaluation.modis_snow.merge_strategy, default='max', dict_key='MODIS_SCA_MERGE_STRATEGY').lower()
         cloud_filter = self._get_config_value(lambda: self.config.evaluation.modis_snow.cloud_filter, default=True, dict_key='MODIS_SCA_CLOUD_FILTER')
 
+        # Open datasets lazily with chunking to avoid OOM
         datasets = {}
+        sca_vars = {}
         for product, path in product_files.items():
             try:
-                ds = xr.open_dataset(path)
-                # Identify the snow cover variable
+                ds = xr.open_dataset(path, chunks={'time': 90})
                 sca_var = None
                 for var in ds.data_vars:
                     if 'snow' in var.lower() or 'ndsi' in var.lower():
                         sca_var = var
                         break
                 if sca_var:
-                    datasets[product] = ds[sca_var]
+                    datasets[product] = ds
+                    sca_vars[product] = sca_var
             except Exception as e:
                 self.logger.warning(f"Failed to open {path}: {e}")
 
         if not datasets:
             raise RuntimeError("No valid datasets to merge")
 
-        # Get common time range
-        all_times = set()
-        for da in datasets.values():
-            if 'time' in da.dims:
-                time_dates = self._convert_time_to_dates(da.time.values)
-                all_times.update(time_dates)
-
-        if not all_times:
-            # No time dimension - just use first dataset
-            first_da = list(datasets.values())[0]
-            ds_out = xr.Dataset({'NDSI_Snow_Cover': first_da})
+        # Check for time dimension
+        has_time = any('time' in ds.dims for ds in datasets.values())
+        if not has_time:
+            first_ds = list(datasets.values())[0]
+            first_var = sca_vars[list(sca_vars.keys())[0]]
+            ds_out = xr.Dataset({'NDSI_Snow_Cover': first_ds[first_var]})
             ds_out.to_netcdf(output_file)
+            for ds in datasets.values():
+                ds.close()
             return
 
-        all_times = sorted(all_times)
+        # Build mask of invalid/cloud values
+        invalid_vals = set(self.MISSING_VALUES)
+        if cloud_filter:
+            invalid_vals.add(self.CLOUD_VALUE)
 
-        # Prepare merged array
-        merged_data = []
+        # Align datasets to common time index and mask invalid values
+        aligned_das = []
+        for product in datasets:
+            da = datasets[product][sca_vars[product]].astype(np.float32)
+            # Mask invalid values to NaN
+            for mv in invalid_vals:
+                da = da.where(da != mv)
+            # Normalize time to daily (drop sub-day precision)
+            da['time'] = pd.to_datetime(
+                [pd.Timestamp(t).normalize() for t in da.time.values]
+            )
+            aligned_das.append(da)
 
-        for date in all_times:
-            day_data = []
-            for product, da in datasets.items():
-                if 'time' not in da.dims:
-                    continue
-                # Select this date
-                time_dates = self._convert_time_to_dates(da.time.values)
-                day_mask = [d == date for d in time_dates]
-                if not any(day_mask):
-                    continue
-                day_slice = da.isel(time=day_mask)
-                if day_slice.size > 0:
-                    day_data.append(day_slice.values)
+        # Concatenate along a new 'source' dimension
+        combined = xr.concat(aligned_das, dim='source')
 
-            if not day_data:
-                continue
-
-            # Stack and merge
-            stacked = np.stack([d.squeeze() if d.ndim > 2 else d for d in day_data], axis=0)
-
-            # Apply cloud filtering
-            if cloud_filter:
-                # Mask cloud values
-                stacked = np.where(stacked == self.CLOUD_VALUE, np.nan, stacked)
-
-            # Mask other invalid values
-            for mv in self.MISSING_VALUES:
-                stacked = np.where(stacked == mv, np.nan, stacked.astype(float))
-
-            # Apply merge strategy
+        # Apply merge strategy along the source dimension
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='All-NaN slice encountered')
             if merge_strategy == 'max':
-                merged = np.nanmax(stacked, axis=0)
+                merged = combined.max(dim='source')
             elif merge_strategy == 'mean':
-                merged = np.nanmean(stacked, axis=0)
+                merged = combined.mean(dim='source')
             elif merge_strategy == 'terra_priority':
-                # Use Terra if available, else Aqua
-                merged = stacked[0] if len(stacked) > 0 else stacked[-1]
+                merged = combined.isel(source=0).combine_first(
+                    combined.isel(source=-1) if combined.sizes['source'] > 1 else combined.isel(source=0)
+                )
             elif merge_strategy == 'aqua_priority':
-                merged = stacked[-1] if len(stacked) > 1 else stacked[0]
+                if combined.sizes['source'] > 1:
+                    merged = combined.isel(source=-1).combine_first(combined.isel(source=0))
+                else:
+                    merged = combined.isel(source=0)
             else:
-                merged = np.nanmax(stacked, axis=0)
+                merged = combined.max(dim='source')
 
-            merged_data.append((date, merged))
+        # Handle duplicate dates (keep first)
+        _, unique_idx = np.unique(merged.time.values, return_index=True)
+        merged = merged.isel(time=np.sort(unique_idx))
 
-        if not merged_data:
-            raise RuntimeError("No data after merging")
-
-        # Create output dataset
-        times = [datetime.combine(d, datetime.min.time()) for d, _ in merged_data]
-        data_stack = np.stack([d for _, d in merged_data], axis=0)
-
-        # Get spatial coordinates from first dataset
-        first_da = list(datasets.values())[0]
+        # Get spatial dim names
+        first_da = aligned_das[0]
         lat_dim = 'lat' if 'lat' in first_da.dims else 'y'
         lon_dim = 'lon' if 'lon' in first_da.dims else 'x'
 
-        coords = {'time': times}
-        if lat_dim in first_da.coords:
-            coords[lat_dim] = first_da.coords[lat_dim].values
-        if lon_dim in first_da.coords:
-            coords[lon_dim] = first_da.coords[lon_dim].values
+        merged.name = 'NDSI_Snow_Cover'
+        merged.attrs = {
+            'long_name': 'NDSI Snow Cover (Merged Terra+Aqua)',
+            'units': 'percent',
+            'valid_range': [0, 100],
+            'merge_strategy': merge_strategy,
+            'source_products': list(product_files.keys()),
+        }
 
-        dims = ['time', lat_dim, lon_dim] if data_stack.ndim == 3 else ['time']
-
-        da_merged = xr.DataArray(
-            data_stack,
-            dims=dims,
-            coords=coords,
-            name='NDSI_Snow_Cover',
-            attrs={
-                'long_name': 'NDSI Snow Cover (Merged Terra+Aqua)',
-                'units': 'percent',
-                'valid_range': [0, 100],
-                'merge_strategy': merge_strategy,
-                'source_products': list(product_files.keys())
-            }
-        )
-
-        ds_out = xr.Dataset({'NDSI_Snow_Cover': da_merged})
+        ds_out = xr.Dataset({'NDSI_Snow_Cover': merged})
         ds_out.attrs['title'] = 'Merged MODIS Snow Cover Area'
-        ds_out.attrs['source'] = 'MOD10A1 + MYD10A1 via AppEEARS'
+        ds_out.attrs['source'] = 'MOD10A1 + MYD10A1'
         ds_out.attrs['created'] = datetime.now().isoformat()
 
+        self.logger.info("Writing merged dataset to disk...")
         ds_out.to_netcdf(output_file)
 
         # Cleanup
-        for da in datasets.values():
-            da.close()
+        for ds in datasets.values():
+            ds.close()
 
         self.logger.info(f"Merged SCA product saved: {output_file}")
 

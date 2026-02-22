@@ -19,6 +19,7 @@ import xarray as xr
 import geopandas as gpd
 
 from symfluence.data.utils.variable_utils import VariableHandler
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +47,10 @@ class RHESSysClimateGenerator:
         self.domain_name = domain_name
         self.logger = logger or logging.getLogger(__name__)
 
-        # Setup paths
-        self.rhessys_input_dir = self.project_dir / "RHESSys_input"
-        self.climate_dir = self.rhessys_input_dir / "clim"
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.forcing_raw_path = self.project_dir / 'forcing' / 'raw_data'
+        # Setup paths — climate files are forcing data
+        self.climate_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'RHESSys_input' / 'clim'
+        self.forcing_basin_path = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        self.forcing_raw_path = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
 
         # Get forcing dataset info
         forcing_ds = config.get('FORCING_DATASET', 'ERA5')
@@ -194,8 +194,8 @@ class RHESSysClimateGenerator:
         # Search multiple potential locations
         search_paths = [
             self.forcing_basin_path,
-            self.project_dir / 'forcing' / 'merged_path',
-            self.project_dir / 'forcing' / 'SUMMA_input',
+            resolve_data_subdir(self.project_dir, 'forcing') / 'merged_path',
+            resolve_data_subdir(self.project_dir, 'forcing') / 'SUMMA_input',
             self.forcing_raw_path,
         ]
 
@@ -214,11 +214,11 @@ class RHESSysClimateGenerator:
         self.logger.info(f"Loading forcing from {len(forcing_files)} files")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
         except ValueError as e:
             self.logger.warning(f"Failed with combine='by_coords': {e}. Retrying...")
             try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
             except (FileNotFoundError, OSError, ValueError, KeyError):
                 self.logger.warning("Failed to concat. Attempting merge...")
                 datasets = [xr.open_dataset(f) for f in forcing_files]
@@ -491,7 +491,7 @@ class RHESSysClimateGenerator:
         if elev is None:
             try:
                 import re
-                world_file = self.climate_dir.parent / 'worldfiles' / f"{base_name.replace('_base', '')}.world"
+                world_file = self.project_dir / 'settings' / 'RHESSys' / 'worldfiles' / f"{base_name.replace('_base', '')}.world"
                 if world_file.exists():
                     with open(world_file, 'r', encoding='utf-8') as f:
                         for line in f:

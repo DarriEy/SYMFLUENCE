@@ -44,10 +44,10 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         super().__init__(config, logger)
 
-        # Setup PRMS-specific directories
-        self.prms_input_dir = self.project_dir / "PRMS_input"
-        self.settings_dir = self.prms_input_dir / "settings"
-        self.forcing_dir = self.prms_input_dir / "forcing"
+        # Use standard SYMFLUENCE directory layout (inherited from base):
+        #   self.setup_dir   -> {project_dir}/settings/PRMS
+        #   self.forcing_dir -> {project_dir}/data/forcing/PRMS_input
+        self.settings_dir = self.setup_dir
 
         # Resolve spatial mode
         configured_mode = self._get_config_value(
@@ -97,9 +97,9 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _create_directory_structure(self) -> None:
         """Create PRMS input directory structure."""
-        for d in [self.prms_input_dir, self.settings_dir, self.forcing_dir]:
+        for d in [self.settings_dir, self.forcing_dir]:
             d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created PRMS directory structure in {self.prms_input_dir}")
+        logger.info(f"Created PRMS directory structure: settings={self.settings_dir}, forcing={self.forcing_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from config."""
@@ -138,7 +138,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Try to load forcing data
         forcing_data = self._load_forcing_data(start_date, end_date)
 
-        out_path = self.settings_dir / data_file_name
+        out_path = self.forcing_dir / data_file_name
 
         if forcing_data is not None:
             self._write_data_file(out_path, forcing_data, start_date, end_date)
@@ -172,7 +172,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading ERA5 forcing from {forcing_path} ({len(forcing_files)} files)")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
         except Exception:
             datasets = [xr.open_dataset(f) for f in forcing_files]
             ds = xr.concat(datasets, dim='time')
@@ -499,7 +499,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             # File paths
             write_ctrl("param_file", 1, 4, str(self.settings_dir / param_file_name))
-            write_ctrl("data_file", 1, 4, str(self.settings_dir / data_file_name))
+            write_ctrl("data_file", 1, 4, str(self.forcing_dir / data_file_name))
 
             # Module selections (required by PRMS 5)
             write_ctrl("precip_module", 1, 4, "precip_1sta")
@@ -511,13 +511,15 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             write_ctrl("transp_module", 1, 4, "transp_tindex")
             write_ctrl("soilzone_module", 1, 4, "soilzone")
 
-            # Output
+            # Disable subbasin and print_debug to avoid variable conflicts
+            write_ctrl("subbasin_flag", 1, 1, 0)
+            write_ctrl("print_debug", 1, 1, -1)
+
+            # Output — use relative filenames so PRMS writes to run cwd
             write_ctrl("statsON_OFF", 1, 1, 1)
             write_ctrl("nstatVars", 1, 1, 4)
-            write_ctrl("stat_var_file", 1, 4,
-                        str(self.settings_dir / 'statvar.dat'))
-            write_ctrl("csv_output_file", 1, 4,
-                        str(self.settings_dir / 'prms_output.csv'))
+            write_ctrl("stat_var_file", 1, 4, "statvar.dat")
+            write_ctrl("csv_output_file", 1, 4, "prms_output.csv")
 
             # Output variables
             write_ctrl("statVar_names", 4, 4,

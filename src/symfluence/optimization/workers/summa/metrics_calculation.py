@@ -14,6 +14,8 @@ from typing import Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from symfluence.evaluation.metrics import (
     nse as calc_nse,
     kge as calc_kge,
@@ -529,7 +531,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         try:
             domain_name = config.get('DOMAIN_NAME')
             project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
-            obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
+            obs_path = resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
 
             logger.debug(f"Looking for observations at: {obs_path}")
             if not obs_path.exists():

@@ -209,17 +209,26 @@ if [ -n "${ESMFMKFILE:-}" ] && [ -f "$ESMFMKFILE" ]; then
     _esmf_minor=$(grep '^ESMF_VERSION_MINOR' "$ESMFMKFILE" 2>/dev/null | head -1 | tr -dc '0-9')
     if [ -n "$_esmf_major" ]; then
         echo "ESMF version from esmf.mk: ${_esmf_major}.${_esmf_minor:-0}"
-        # Need major >= 9  OR  (major == 8 AND minor >= 4)
+        # Need major >= 9  OR  (major == 8 AND minor >= 8)
         _esmf_ok=false
         if [ "$_esmf_major" -ge 9 ] 2>/dev/null; then
             _esmf_ok=true
-        elif [ "$_esmf_major" -eq 8 ] && [ "${_esmf_minor:-0}" -ge 4 ] 2>/dev/null; then
+        elif [ "$_esmf_major" -eq 8 ] && [ "${_esmf_minor:-0}" -ge 8 ] 2>/dev/null; then
             _esmf_ok=true
         fi
         if [ "$_esmf_ok" = "false" ]; then
-            echo "WARNING: ESMF ${_esmf_major}.${_esmf_minor:-0} is too old (need >= 8.4.1)"
+            echo "WARNING: ESMF ${_esmf_major}.${_esmf_minor:-0} is too old (need >= 8.8.0)"
             echo "  Ignoring $ESMFMKFILE — will build ESMF from source"
             unset ESMFMKFILE
+        fi
+        # Verify PIO support (required for CLM mesh I/O via ESMF_MeshCreateFromFile)
+        if [ -n "${ESMFMKFILE:-}" ]; then
+            _esmf_has_pio=$(grep -c 'ESMF_PIO' "$ESMFMKFILE" 2>/dev/null || echo 0)
+            if [ "$_esmf_has_pio" -eq 0 ]; then
+                echo "WARNING: ESMF ${_esmf_major}.${_esmf_minor:-0} lacks PIO support (required for CLM mesh I/O)"
+                echo "  Ignoring $ESMFMKFILE — will rebuild ESMF with PIO enabled"
+                unset ESMFMKFILE
+            fi
         fi
     fi
 fi
@@ -232,12 +241,25 @@ if [ -z "${ESMFMKFILE:-}" ]; then
     # Skip rebuild if a previous build left esmf.mk
     _existing_mk=$(find "$_ESMF_INSTALL" -name "esmf.mk" -type f 2>/dev/null | head -1)
     if [ -n "$_existing_mk" ] && [ -f "$_existing_mk" ]; then
-        export ESMFMKFILE="$_existing_mk"
-        echo "Found previously built ESMF: $ESMFMKFILE"
-    else
+        # Validate version of cached build — remove stale installs
+        _cached_major=$(grep '^ESMF_VERSION_MAJOR' "$_existing_mk" 2>/dev/null | head -1 | tr -dc '0-9')
+        _cached_minor=$(grep '^ESMF_VERSION_MINOR' "$_existing_mk" 2>/dev/null | head -1 | tr -dc '0-9')
+        _has_pio=$(grep -c 'ESMF_PIO' "$_existing_mk" 2>/dev/null || echo 0)
+        if [ "${_cached_major:-0}" -lt 8 ] || { [ "${_cached_major:-0}" -eq 8 ] && [ "${_cached_minor:-0}" -lt 8 ]; }; then
+            echo "Stale ESMF ${_cached_major}.${_cached_minor} in $_ESMF_INSTALL — removing for upgrade..."
+            rm -rf "$_ESMF_INSTALL" "$_ESMF_SRC"
+        elif [ "$_has_pio" -eq 0 ]; then
+            echo "ESMF ${_cached_major}.${_cached_minor} lacks PIO support (required for CLM mesh I/O) — rebuilding..."
+            rm -rf "$_ESMF_INSTALL" "$_ESMF_SRC"
+        else
+            export ESMFMKFILE="$_existing_mk"
+            echo "Found previously built ESMF: $ESMFMKFILE"
+        fi
+    fi
+    if [ -z "${ESMFMKFILE:-}" ]; then
         mkdir -p "$(dirname "$_ESMF_SRC")"
         if [ ! -d "$_ESMF_SRC" ]; then
-            git clone --depth 1 --branch v8.6.1 \
+            git clone --depth 1 --branch v8.8.1 \
                 https://github.com/esmf-org/esmf.git "$_ESMF_SRC"
         fi
         (
@@ -251,8 +273,17 @@ if [ -z "${ESMFMKFILE:-}" ]; then
                 export ESMF_COMPILER=gfortran
             fi
             export ESMF_INSTALL_PREFIX="$_ESMF_INSTALL"
+            # PIO is required for ESMF_MeshCreateFromFile (CLM DATM mesh I/O)
+            export ESMF_PIO=internal
+            if command -v nc-config >/dev/null 2>&1; then
+                export ESMF_NETCDF=nc-config
+            elif [ -n "${NETCDF_C:-}" ]; then
+                export ESMF_NETCDF=split
+                export ESMF_NETCDF_INCLUDE="${NETCDF_C}/include"
+                export ESMF_NETCDF_LIBPATH="${NETCDF_C}/lib"
+            fi
             NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-            echo "Building ESMF ($ESMF_COMPILER / $ESMF_COMM) with $NCORES cores..."
+            echo "Building ESMF ($ESMF_COMPILER / $ESMF_COMM) with PIO+NetCDF, $NCORES cores..."
             make -j"$NCORES"
             make install
         )
@@ -527,7 +558,7 @@ if [ -n "$CLM_PARAMS" ]; then
     cp "$CLM_PARAMS" "${INSTALL_DIR}/share/clm5_params.nc"
     echo "Copied default parameter file to share/clm5_params.nc"
 else
-    echo "WARNING: Default clm5_params.nc not found in source tree"
+    echo "NOTE: clm5_params.nc is bundled with symfluence — OK"
 fi
 
 echo "=== CLM Build Complete ==="

@@ -14,6 +14,7 @@ from datetime import datetime
 import json
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import ProjectContextMixin
 from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 
 class Benchmarker(ConfigMixin):
@@ -186,11 +187,10 @@ class Benchmarker(ConfigMixin):
             self.logger.error(f"Error saving benchmark results: {str(e)}")
             raise
 
-class BenchmarkPreprocessor(ConfigMixin):
+class BenchmarkPreprocessor(ProjectContextMixin):
     def __init__(self, config: dict, logger):
         self.config = config
         self.logger = logger
-        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
 
     def preprocess_benchmark_data(self, start_date: str, end_date: str) -> pd.DataFrame:
         """
@@ -259,9 +259,9 @@ class BenchmarkPreprocessor(ConfigMixin):
 
     def _load_forcing_data(self) -> pd.DataFrame:
         """Load and process forcing data, returning hourly dataframe."""
-        forcing_path = self.project_dir / "forcing" / "basin_averaged_data"
+        forcing_path = self.project_forcing_dir / "basin_averaged_data"
         # Use open_mfdataset to load all netCDF files at once efficiently
-        combined_ds = xr.open_mfdataset(list(forcing_path.glob("*.nc")), combine='nested', concat_dim='time', data_vars='all').sortby('time')
+        combined_ds = xr.open_mfdataset(list(forcing_path.glob("*.nc")), combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override').sortby('time')
         # Average across HRUs
         averaged_ds = combined_ds.mean(dim='hru')
 

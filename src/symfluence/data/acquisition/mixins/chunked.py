@@ -250,7 +250,10 @@ class ChunkedDownloadMixin:
             chunk_files,
             combine=combine,
             concat_dim=concat_dim if combine == 'nested' else None,
-            parallel=False
+            parallel=False,
+            data_vars='minimal',
+            coords='minimal',
+            compat='override'
         ) as ds_merged:
             # Apply time slice if specified
             if time_slice is not None:

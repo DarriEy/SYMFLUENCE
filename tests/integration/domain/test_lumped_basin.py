@@ -26,7 +26,7 @@ def _copy_source_data(src_domain: Path, dst_domain: Path, src_domain_name: str, 
     # Copy attributes (DEM, landclass, soilclass)
     src_attrs = src_domain / "attributes"
     if src_attrs.exists():
-        dst_attrs = dst_domain / "attributes"
+        dst_attrs = dst_domain / "data" / "attributes"
         if dst_attrs.exists():
             shutil.rmtree(dst_attrs)
         shutil.copytree(src_attrs, dst_attrs)
@@ -39,7 +39,7 @@ def _copy_source_data(src_domain: Path, dst_domain: Path, src_domain_name: str, 
     # Copy forcing data
     src_forcing = src_domain / "forcing" / "raw_data"
     if src_forcing.exists():
-        dst_forcing = dst_domain / "forcing" / "raw_data"
+        dst_forcing = dst_domain / "data" / "forcing" / "raw_data"
         dst_forcing.mkdir(parents=True, exist_ok=True)
         for f in src_forcing.glob("*.nc"):
             new_name = f.name.replace(src_domain_name, dst_domain_name) if src_domain_name in f.name else f.name
@@ -48,7 +48,7 @@ def _copy_source_data(src_domain: Path, dst_domain: Path, src_domain_name: str, 
     # Copy observations
     src_obs = src_domain / "observations"
     if src_obs.exists():
-        dst_obs = dst_domain / "observations"
+        dst_obs = dst_domain / "data" / "observations"
         if dst_obs.exists():
             shutil.rmtree(dst_obs)
         shutil.copytree(src_obs, dst_obs)
@@ -133,7 +133,7 @@ def setup_installs_symlink(tmp_path, symfluence_data_root):
 
 
 def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
-    raw_dir = project_dir / "forcing" / "raw_data"
+    raw_dir = project_dir / "data" / "forcing" / "raw_data"
     if not raw_dir.exists():
         return
 
@@ -152,7 +152,7 @@ def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
         if path != keep:
             path.unlink()
 
-    basin_avg_dir = project_dir / "forcing" / "basin_averaged_data"
+    basin_avg_dir = project_dir / "data" / "forcing" / "basin_averaged_data"
     if basin_avg_dir.exists():
         for path in basin_avg_dir.glob("*.nc"):
             path.unlink()

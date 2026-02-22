@@ -200,7 +200,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         else:
             self.cfuse_setup_dir = self.project_dir / "settings" / "CFUSE"
 
-        self.cfuse_forcing_dir = self.project_dir / 'forcing' / 'CFUSE_input'
+        self.cfuse_forcing_dir = self.project_forcing_dir / 'CFUSE_input'
 
     def _get_output_dir(self) -> Path:
         """cFUSE output directory."""
@@ -571,7 +571,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                 sim_time = pd.to_datetime(df['datetime'])
 
             # Load observations
-            obs_file = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+            obs_file = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
             if not obs_file.exists():
                 self.logger.warning("Observations not found for metrics")
                 return

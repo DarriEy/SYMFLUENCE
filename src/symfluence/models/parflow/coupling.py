@@ -65,7 +65,7 @@ class SUMMAToParFlowCoupler:
 
         self.logger.info(f"Reading {variable} from {len(nc_files)} SUMMA output file(s)")
 
-        ds = xr.open_mfdataset(nc_files, combine='by_coords')
+        ds = xr.open_mfdataset(nc_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
 
         if variable not in ds:
             available = list(ds.data_vars)
@@ -172,7 +172,7 @@ class SUMMAToParFlowCoupler:
                 f"No SUMMA output files found in {summa_output_dir}"
             )
 
-        ds = xr.open_mfdataset(nc_files, combine='by_coords')
+        ds = xr.open_mfdataset(nc_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
 
         if variable not in ds:
             ds.close()

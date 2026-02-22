@@ -58,7 +58,7 @@ class SSEBopHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(ssebop_path, str) and ssebop_path.lower() == 'default':
-            ssebop_dir = self.project_dir / "observations" / "et" / "ssebop"
+            ssebop_dir = self.project_observations_dir / "et" / "ssebop"
         else:
             ssebop_dir = Path(ssebop_path)
 
@@ -332,7 +332,7 @@ class SSEBopHandler(BaseObservationHandler):
         df.to_csv(output_file, index=False)
 
         # Also save to product-specific location
-        product_dir = self.project_dir / "observations" / "et" / "ssebop" / "processed"
+        product_dir = self.project_observations_dir / "et" / "ssebop" / "processed"
         product_dir.mkdir(parents=True, exist_ok=True)
         product_file = product_dir / f"{self.domain_name}_ssebop_et_processed.csv"
         df.to_csv(product_file, index=False)

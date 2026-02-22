@@ -17,6 +17,7 @@ from .weight_generator import _create_easymore_instance, _run_easmore_with_suppr
 from .file_validator import FileValidator
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 class RemappingWeightApplier(ConfigMixin):
@@ -106,7 +107,7 @@ class RemappingWeightApplier(ConfigMixin):
 
             # Create unique temp directory
             unique_id = str(uuid.uuid4())[:8]
-            temp_dir = self.project_dir / 'forcing' / f'temp_apply_{unique_id}'
+            temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / f'temp_apply_{unique_id}'
             temp_dir.mkdir(parents=True, exist_ok=True)
 
             try:

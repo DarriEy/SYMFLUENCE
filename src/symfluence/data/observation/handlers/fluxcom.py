@@ -28,13 +28,13 @@ class FLUXCOMETHandler(BaseObservationHandler):
             et_dir.mkdir(parents=True, exist_ok=True)
             return et_dir
 
-        et_dir = self.project_dir / "observations" / "et" / "fluxcom"
+        et_dir = self.project_observations_dir / "et" / "fluxcom"
         et_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             from symfluence.data.acquisition.handlers.observation_acquirers import FLUXCOMETAcquirer
             acquirer = FLUXCOMETAcquirer(self.config, self.logger)
-            acquirer.download(self.project_dir / "observations")
+            acquirer.download(self.project_observations_dir)
         except Exception as exc:
             self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}")
 
@@ -67,7 +67,7 @@ class FLUXCOMETHandler(BaseObservationHandler):
 
         df = pd.concat(results).sort_values('time').set_index('time')
 
-        output_dir = self.project_dir / "observations" / "et" / "preprocessed"
+        output_dir = self.project_observations_dir / "et" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_fluxcom_et_processed.csv"
         df.to_csv(output_file)

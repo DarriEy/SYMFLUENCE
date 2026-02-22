@@ -66,7 +66,7 @@ class CanopyHeightHandler(BaseObservationHandler):
         Returns:
             Path to directory containing acquired data
         """
-        canopy_dir = self.project_dir / "observations" / "vegetation" / "canopy_height"
+        canopy_dir = self.project_observations_dir / "vegetation" / "canopy_height"
         canopy_dir.mkdir(parents=True, exist_ok=True)
 
         source = self.config_dict.get('CANOPY_HEIGHT_SOURCE', 'meta').lower()
@@ -103,7 +103,7 @@ class CanopyHeightHandler(BaseObservationHandler):
 
         # Also check attributes location (where acquisition handlers write)
         attr_file = (
-            self.project_dir / "attributes" / "vegetation" / "canopy_height" / "gedi"
+            self.project_attributes_dir / "vegetation" / "canopy_height" / "gedi"
             / f"{self.domain_name}_gedi_canopy_height.tif"
         )
 
@@ -144,7 +144,7 @@ class CanopyHeightHandler(BaseObservationHandler):
 
         # Also check attributes location (where acquisition handlers write)
         attr_file = (
-            self.project_dir / "attributes" / "vegetation" / "canopy_height" / "meta_wri"
+            self.project_attributes_dir / "vegetation" / "canopy_height" / "meta_wri"
             / f"{self.domain_name}_meta_canopy_height.tif"
         )
 
@@ -185,7 +185,7 @@ class CanopyHeightHandler(BaseObservationHandler):
 
         # Also check attributes location (where acquisition handlers write)
         attr_file = (
-            self.project_dir / "attributes" / "vegetation" / "canopy_height" / "glad"
+            self.project_attributes_dir / "vegetation" / "canopy_height" / "glad"
             / f"{self.domain_name}_glad_tree_height.tif"
         )
 
@@ -274,7 +274,7 @@ class CanopyHeightHandler(BaseObservationHandler):
         df = pd.DataFrame(summary_data)
 
         # Save summary statistics
-        output_dir = self.project_dir / "observations" / "vegetation" / "preprocessed"
+        output_dir = self.project_observations_dir / "vegetation" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_canopy_height_stats.csv"
 
@@ -406,7 +406,7 @@ class CanopyHeightHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed canopy height statistics."""
         processed_path = (
-            self.project_dir / "observations" / "vegetation" / "preprocessed"
+            self.project_observations_dir / "vegetation" / "preprocessed"
             / f"{self.domain_name}_canopy_height_stats.csv"
         )
 

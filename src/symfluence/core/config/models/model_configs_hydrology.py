@@ -229,7 +229,7 @@ class HYPEConfig(BaseModel):
     settings_path: str = Field(default='default', alias='SETTINGS_HYPE_PATH')
     info_file: str = Field(default='info.txt', alias='SETTINGS_HYPE_INFO')
     params_to_calibrate: str = Field(
-        default='ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp',
+        default='ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp,wcwp,wcfc,wcep,srrcs',
         alias='HYPE_PARAMS_TO_CALIBRATE'
     )
     spinup_days: int = Field(default=365, alias='HYPE_SPINUP_DAYS')
@@ -370,7 +370,7 @@ class VICConfig(BaseModel):
 
     # Calibration
     params_to_calibrate: Optional[str] = Field(
-        default=None,
+        default='infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,snow_rough,max_snow_albedo,min_rain_temp,max_snow_temp,elev_offset',
         alias='VIC_PARAMS_TO_CALIBRATE'
     )
 

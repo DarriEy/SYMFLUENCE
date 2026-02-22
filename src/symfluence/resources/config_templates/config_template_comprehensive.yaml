@@ -172,7 +172,7 @@ SETTINGS_HYPE_INFO: "info.txt"
 #   Default:     None
 #   Source:      HYPEConfig (model_configs.py)
 #   Usage:      5
-HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp
+HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp,wcwp,wcfc,wcep,srrcs
 
 # HYPE_SPINUP_DAYS
 #   Type:        int
@@ -403,8 +403,8 @@ SETTINGS_MESH_INPUT: default
 #   Type:        str
 #   Default:     None
 #   Source:      MESHConfig (model_configs.py)
-#   Usage:      5 — Include KSAT,DRN,SDEP (runoff) + FLZ,PWR (baseflow) + FRZTH,XDRAINH,MANN_CLASS. DTMINUSR should NOT be calibrated.
-MESH_PARAMS_TO_CALIBRATE: KSAT,DRN,SDEP,XSLP,FLZ,PWR,ZSNL,ZPLS,RCHARG,FRZTH,XDRAINH,MANN_CLASS
+#   Usage:      5 — 10 high-impact params: KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS (runoff) + FLZ,PWR (baseflow) + RSMIN,LAMX (ET). Routing params (WF_R2,R2N) auto-removed in noroute mode.
+MESH_PARAMS_TO_CALIBRATE: KSAT,DRN,SDEP,XSLP,XDRAINH,MANN_CLASS,FLZ,PWR,RSMIN,LAMX
 
 # MESH_SPINUP_DAYS
 #   Type:        int
@@ -4303,7 +4303,7 @@ VIC_OUTPUT_PREFIX: "vic_output"
 
 # VIC_PARAMS_TO_CALIBRATE
 #   Type:        str
-#   Default:     null
+#   Default:     infilt,Ds,Dsmax,Ws,c,depth1,depth2,depth3,expt,expt_increase,Ksat,Ksat_decay,Wcr_FRACT,Wpwp_ratio,snow_rough,max_snow_albedo,min_rain_temp,max_snow_temp,elev_offset
 #   Source:      VICConfig (model_configs.py)
 VIC_PARAMS_TO_CALIBRATE: null
 
@@ -5146,6 +5146,136 @@ PIHM_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MACROPORE_K,MANNINGS_N,S
 #   Source:      PIHMConfig (model_configs.py)
 PIHM_TIMEOUT: 3600
 
+
+# 9.9b. HydroGeoSphere (HGS) Model Configuration
+# ================================================================================
+# Aquanty HydroGeoSphere — fully-integrated subsurface and surface flow model
+
+# HGS_INSTALL_PATH — Path to HGS installation directory
+#   Type:        str
+#   Default:     default
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_INSTALL_PATH: default
+
+# HGS_EXE — HGS executable name
+#   Type:        str
+#   Default:     hgs
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_EXE: hgs
+
+# HGS_GROK_EXE — Grok preprocessor executable name
+#   Type:        str
+#   Default:     grok
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_GROK_EXE: grok
+
+# SETTINGS_HGS_PATH — Path to HGS settings directory
+#   Type:        str
+#   Default:     default
+#   Source:      HGSConfig (model_configs_integrated.py)
+SETTINGS_HGS_PATH: default
+
+# HGS_SPATIAL_MODE — Spatial mode (lumped or distributed)
+#   Type:        str
+#   Default:     lumped
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_SPATIAL_MODE: lumped
+
+# HGS_K_SAT — Saturated hydraulic conductivity (m/s)
+#   Type:        float
+#   Default:     1e-5
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_K_SAT: 1.0e-5
+
+# HGS_POROSITY — Soil porosity (0-1)
+#   Type:        float
+#   Default:     0.4
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_POROSITY: 0.4
+
+# HGS_VG_ALPHA — van Genuchten alpha parameter
+#   Type:        float
+#   Default:     1.0
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_VG_ALPHA: 1.0
+
+# HGS_VG_N — van Genuchten n parameter (must be > 1)
+#   Type:        float
+#   Default:     2.0
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_VG_N: 2.0
+
+# HGS_VG_SRES — Residual saturation (0-1)
+#   Type:        float
+#   Default:     0.05
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_VG_SRES: 0.05
+
+# HGS_SS — Specific storage (1/m)
+#   Type:        float
+#   Default:     1e-4
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_SS: 1.0e-4
+
+# HGS_MANNINGS_N — Manning's roughness coefficient
+#   Type:        float
+#   Default:     0.03
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_MANNINGS_N: 0.03
+
+# HGS_SOIL_DEPTH — Soil depth (m)
+#   Type:        float
+#   Default:     10.0
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_SOIL_DEPTH: 10.0
+
+# HGS_DOMAIN_WIDTH — Domain width (m)
+#   Type:        float
+#   Default:     1000.0
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_DOMAIN_WIDTH: 1000.0
+
+# HGS_COUPLING_SOURCE — Source model for coupling
+#   Type:        str
+#   Default:     SUMMA
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_COUPLING_SOURCE: SUMMA
+
+# HGS_RECHARGE_VARIABLE — Recharge variable name from source model
+#   Type:        str
+#   Default:     scalarSoilDrainage
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_RECHARGE_VARIABLE: scalarSoilDrainage
+
+# HGS_SOLVER_MAX_ITERATIONS — Maximum solver iterations
+#   Type:        int
+#   Default:     25
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_SOLVER_MAX_ITERATIONS: 25
+
+# HGS_TIMESTEP_SECONDS — Model timestep in seconds
+#   Type:        int
+#   Default:     3600
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_TIMESTEP_SECONDS: 3600
+
+# EXPERIMENT_OUTPUT_HGS — Output directory for HGS results
+#   Type:        str
+#   Default:     default
+#   Source:      HGSConfig (model_configs_integrated.py)
+EXPERIMENT_OUTPUT_HGS: default
+
+# HGS_PARAMS_TO_CALIBRATE — Comma-separated list of parameters to calibrate
+#   Type:        str
+#   Default:     K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_PARAMS_TO_CALIBRATE: K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N
+
+# HGS_TIMEOUT — Execution timeout in seconds
+#   Type:        int
+#   Default:     7200
+#   Source:      HGSConfig (model_configs_integrated.py)
+HGS_TIMEOUT: 7200
 
 
 # 9.10. RHESSys Model Configuration

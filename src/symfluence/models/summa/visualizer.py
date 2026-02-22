@@ -9,6 +9,7 @@ from typing import Dict, Any, List
 import logging
 
 from symfluence.models.registry import ModelRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 @ModelRegistry.register_visualizer('SUMMA')
 def visualize_summa(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
@@ -21,7 +22,7 @@ def visualize_summa(reporting_manager: Any, config: Dict[str, Any], project_dir:
     domain_name = config.get('DOMAIN_NAME')
 
     reporting_manager.visualize_summa_outputs(experiment_id)
-    obs_files = [('Observed', str(project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"))]
+    obs_files = [('Observed', str(resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"))]
 
     # Check if MizuRoute was part of the workflow
     if 'MIZUROUTE' in workflow and config.get('MIZU_FROM_MODEL') == 'SUMMA':

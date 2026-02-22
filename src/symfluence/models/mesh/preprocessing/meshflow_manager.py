@@ -135,11 +135,13 @@ def _patch_meshflow_network_bug():
 try:
     from meshflow.core import MESHWorkflow
     MESHFLOW_AVAILABLE = True
+    _meshflow_import_error = None
     # Apply runtime patch for meshflow bug
     _patch_meshflow_network_bug()
 except Exception as e:
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
+    _meshflow_import_error = str(e)
     # Use debug level since this is an optional dependency most users don't need
     logging.getLogger(__name__).debug(f"meshflow import failed; MESH preprocessing disabled: {e}")
 
@@ -188,9 +190,13 @@ class MESHFlowManager:
         """
         if not MESHFLOW_AVAILABLE:
             from symfluence.core.exceptions import ModelExecutionError
+            detail = f" ({_meshflow_import_error})" if _meshflow_import_error else ""
             raise ModelExecutionError(
-                "meshflow is not available. Install with: "
-                "pip install git+https://github.com/CH-Earth/meshflow.git@main"
+                f"meshflow is not available{detail}. Install with:\n"
+                "  pip install git+https://github.com/kasra-keshavarz/hydrant.git\n"
+                "  pip install git+https://github.com/CH-Earth/meshflow.git@main\n"
+                "Note: hydrant must be installed BEFORE meshflow to avoid pulling "
+                "the wrong 'hydrant' package from PyPI."
             )
 
         self._check_required_files()

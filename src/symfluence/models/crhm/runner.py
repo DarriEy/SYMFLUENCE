@@ -21,8 +21,8 @@ class CRHMRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up CRHM-specific paths."""
-        self.crhm_input_dir = self.project_dir / "CRHM_input"
-        self.settings_dir = self.crhm_input_dir / "settings"
+        self.crhm_forcing_dir = self.project_forcing_dir / "CRHM_input"
+        self.settings_dir = self.project_dir / "settings" / "CRHM"
 
         self.crhm_exe = self.get_model_executable(
             install_path_key='CRHM_INSTALL_PATH',
@@ -49,7 +49,7 @@ class CRHMRunner(BaseModelRunner):
             default='model.prj',
         )
         project_file = self.settings_dir / project_file_name
-        obs_dir = str(project_file.parent) + os.sep
+        obs_dir = str(self.crhm_forcing_dir) + os.sep
         output_file = self.output_dir / "crhm_output.txt"
 
         return [

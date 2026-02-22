@@ -11,6 +11,8 @@ from typing import Dict, Any
 
 from .base import BaseAttributeProcessor
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 
 class HydrologyProcessor(BaseAttributeProcessor):
     """Processor for hydrological attributes."""
@@ -25,9 +27,11 @@ class HydrologyProcessor(BaseAttributeProcessor):
         results: Dict[str, Any] = {}
 
         # Look for required data
-        precip_path = self.project_dir / "forcing" / f"{self.domain_name}_precipitation.csv"
-        pet_path = self.project_dir / "forcing" / f"{self.domain_name}_pet.csv"
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        forcing_dir = resolve_data_subdir(self.project_dir, 'forcing')
+        observations_dir = resolve_data_subdir(self.project_dir, 'observations')
+        precip_path = forcing_dir / f"{self.domain_name}_precipitation.csv"
+        pet_path = forcing_dir / f"{self.domain_name}_pet.csv"
+        streamflow_path = observations_dir / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
 
         if not streamflow_path.exists():
             self.logger.warning("Cannot calculate water balance: missing streamflow data")
@@ -149,7 +153,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        streamflow_path = resolve_data_subdir(self.project_dir, 'observations') / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
 
         if not streamflow_path.exists():
             return results
@@ -209,7 +213,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
             self.logger.warning("baseflow library not available")
             return results
 
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        streamflow_path = resolve_data_subdir(self.project_dir, 'observations') / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
 
         if not streamflow_path.exists():
             return results

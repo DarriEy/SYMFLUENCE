@@ -56,17 +56,17 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run RHESSys for final evaluation."""
-        rhessys_input_dir = self.project_dir / 'RHESSys_input'
+        rhessys_settings_dir = self.project_dir / 'settings' / 'RHESSys'
         return self.worker.run_model(
             self.config,
-            rhessys_input_dir,
+            rhessys_settings_dir,
             output_dir
         )
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to RHESSys world header file."""
         domain_name = self._get_config_value(lambda: self.config.domain.name, default='')
-        return self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{domain_name}.world.hdr'
+        return self.project_dir / 'settings' / 'RHESSys' / 'worldfiles' / f'{domain_name}.world.hdr'
 
     def _setup_parallel_dirs(self) -> None:
         """Setup RHESSys-specific parallel directories."""
@@ -82,7 +82,7 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
         )
 
         # Copy RHESSys definition files to each parallel directory
-        source_defs = self.project_dir / 'RHESSys_input' / 'defs'
+        source_defs = self.project_dir / 'settings' / 'RHESSys' / 'defs'
         if not source_defs.exists():
             raise FileNotFoundError(
                 f"RHESSys definition files not found at {source_defs}. "
@@ -120,15 +120,15 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
         """
         Apply best parameters for final evaluation.
 
-        RHESSys-specific override: uses RHESSys_input directory for defs.
+        RHESSys-specific override: uses settings/RHESSys directory for defs.
         """
         try:
-            # RHESSys defs are in RHESSys_input/defs
+            # RHESSys defs are in settings/RHESSys/defs
             # The worker's apply_parameters method expects settings_dir TO CONTAIN a 'defs' subdirectory.
-            rhessys_input_dir = self.project_dir / 'RHESSys_input'
+            rhessys_settings_dir = self.project_dir / 'settings' / 'RHESSys'
             return self.worker.apply_parameters(
                 best_params,
-                rhessys_input_dir,  # This directory has the defs/ subdirectory
+                rhessys_settings_dir,  # This directory has the defs/ subdirectory
                 config=self.config
             )
         except Exception as e:

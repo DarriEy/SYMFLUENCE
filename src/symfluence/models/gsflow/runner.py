@@ -19,7 +19,10 @@ class GSFLOWRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up GSFLOW-specific paths."""
-        self.setup_dir = self.project_dir / 'GSFLOW_input' / 'settings'
+        self.setup_dir = self.get_config_path(
+            'SETTINGS_GSFLOW_PATH',
+            'settings/GSFLOW/'
+        )
 
         self.gsflow_exe = self.get_model_executable(
             install_path_key='GSFLOW_INSTALL_PATH',
@@ -32,10 +35,6 @@ class GSFLOWRunner(BaseModelRunner):
             ),
             must_exist=True,
         )
-
-    def _get_output_dir(self) -> Path:
-        """GSFLOW output directory."""
-        return self.project_dir / 'GSFLOW_output'
 
     def _build_run_command(self) -> Optional[List[str]]:
         """Build GSFLOW execution command."""

@@ -132,8 +132,10 @@ class PETCalculatorMixin:
               (sunset_angle * np.sin(lat_rad) * np.sin(solar_decl) +
                np.cos(lat_rad) * np.cos(solar_decl) * np.sin(sunset_angle)))
 
-        # Oudin's formula: PET = Ra * (T + 5) / 100 when T + 5 > 0
-        pet = xr.where(temp_C + 5.0 > 0.0, Ra * (temp_C + 5.0) / 100.0, 0.0)
+        # Oudin's formula: PET = Ra / (lambda * rho) * (T + 5) / 100 when T + 5 > 0
+        # lambda = 2.45 MJ/kg (latent heat of vaporization)
+        # rho = 1000 kg/m³ (density of water) — cancels with mm↔m conversion
+        pet = xr.where(temp_C + 5.0 > 0.0, Ra / (100.0 * 2.45) * (temp_C + 5.0), 0.0)
 
         # Add metadata
         pet.attrs = {

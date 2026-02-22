@@ -127,13 +127,19 @@ class ObservationLoaderMixin:
         """
         candidates = []
 
-        # Strategy 0: Model-ready observations store
+        # Strategy 0: Model-ready observations store (grouped NetCDF)
         model_ready_obs = (
             self.project_dir / 'data' / 'model_ready' / 'observations'
             / f'{self.domain_name}_observations.nc'
         )
         if model_ready_obs.exists():
-            candidates.append(model_ready_obs)
+            try:
+                # Data lives in the 'streamflow' group, not the root
+                with xr.open_dataset(model_ready_obs, group='streamflow') as _ds:
+                    if _ds.data_vars:
+                        candidates.append(model_ready_obs)
+            except Exception:
+                self.logger.debug(f"Model-ready observations file has no streamflow group: {model_ready_obs}")
 
         # Strategy 1: Explicit path in config
         obs_path = self.config_dict.get('OBSERVATIONS_PATH')
@@ -146,7 +152,7 @@ class ObservationLoaderMixin:
             candidates.append(Path(obs_nested))
 
         # Strategy 3-5: Standard locations
-        obs_dir = self.project_dir / 'observations' / 'streamflow'
+        obs_dir = self.project_observations_dir / 'streamflow'
         preprocessed_dir = obs_dir / 'preprocessed'
 
         if preprocessed_dir.exists():
@@ -168,7 +174,21 @@ class ObservationLoaderMixin:
         return None
 
     def _read_observation_file(self, file_path: Path) -> pd.DataFrame:
-        """Read CSV file with flexible parsing."""
+        """Read observation file with format detection (CSV or NetCDF).
+
+        For grouped NetCDF files (model_ready store), reads the
+        'streamflow' group and reshapes to a flat DataFrame.
+        """
+        if file_path.suffix.lower() in ('.nc', '.nc4', '.netcdf'):
+            # Try streamflow group first (model_ready observations store)
+            for group in ('streamflow', None):
+                try:
+                    with xr.open_dataset(file_path, group=group) as ds:
+                        if ds.data_vars:
+                            return ds.to_dataframe().reset_index()
+                except Exception:
+                    continue
+            raise ValueError(f"No readable data in NetCDF file: {file_path}")
         return pd.read_csv(file_path)
 
     def _extract_streamflow_series(self, df: pd.DataFrame) -> pd.Series:

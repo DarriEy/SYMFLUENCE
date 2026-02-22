@@ -65,7 +65,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
 
         # Find statvar file (check both output dir and settings dir)
         output_file = None
-        search_dirs = [output_dir, self.project_dir / "PRMS_input" / "settings"]
+        search_dirs = [output_dir, self.project_dir / "settings" / "PRMS"]
         for search_dir in search_dirs:
             for pattern in ['statvar.dat', 'statvar*.csv', 'statvar*.nc']:
                 matches = list(search_dir.glob(pattern))
@@ -109,52 +109,73 @@ class PRMSPostProcessor(StandardModelPostprocessor):
             return None
 
     def _parse_statvar_file(self, statvar_path: Path):
-        """Parse PRMS statvar.dat file and extract seg_outflow."""
+        """Parse PRMS statvar.dat file and extract streamflow.
+
+        PRMS statvar format:
+            Line 1: number of output variables (integer)
+            Lines 2..N+1: variable_name count (e.g. ``basin_cfs 1``)
+            Lines N+2..: step year month day hour min sec val1 val2 ...
+        """
         import pandas as pd
 
         try:
-            # PRMS statvar files are space-delimited with a header section
-            # Format: date columns followed by variable values
             lines = statvar_path.read_text().strip().split('\n')
+            if not lines:
+                return None
 
-            # Find the data start (after header)
-            data_start = 0
-            header_vars = []
-            for i, line in enumerate(lines):
-                if line.strip().startswith('####'):
-                    data_start = i + 1
+            # Parse header: first line is variable count
+            try:
+                num_vars = int(lines[0].strip())
+            except ValueError:
+                num_vars = 0
+
+            # Read variable names from header
+            var_names = []
+            if num_vars > 0:
+                for i in range(1, min(num_vars + 1, len(lines))):
+                    parts = lines[i].strip().split()
+                    if parts:
+                        var_names.append(parts[0])
+                data_start = num_vars + 1
+            else:
+                data_start = 0
+
+            # Find the streamflow variable column index
+            flow_var = None
+            flow_col_offset = 0
+            for var in ['basin_cfs', 'seg_outflow', 'streamflow']:
+                if var in var_names:
+                    flow_var = var
+                    flow_col_offset = var_names.index(var)
                     break
-                # Collect variable names from header
-                parts = line.strip().split()
-                if parts and not parts[0].isdigit():
-                    header_vars.append(parts[0])
+            if flow_var is None and var_names:
+                flow_var = var_names[0]
+                flow_col_offset = 0
 
-            if data_start == 0:
-                # No header marker, try reading as CSV
-                df = pd.read_csv(statvar_path, sep=r'\s+', comment='#')
-                if 'seg_outflow' in df.columns:
-                    if 'date' in df.columns:
-                        df['date'] = pd.to_datetime(df['date'])
-                        df = df.set_index('date')
-                    return df['seg_outflow']
+            # Data columns: step year month day hour min sec var1 var2 ...
+            # So first variable is at index 7
+            flow_col = 7 + flow_col_offset
 
-            # Parse data lines
             dates = []
             values = []
             for line in lines[data_start:]:
                 parts = line.strip().split()
-                if len(parts) >= 7:  # year month day hour min sec + values
+                if len(parts) > flow_col:
                     try:
-                        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-                        date = pd.Timestamp(year=year, month=month, day=day)
-                        dates.append(date)
-                        # seg_outflow is typically the first variable after date
-                        values.append(float(parts[6]))
+                        year = int(parts[1])
+                        month = int(parts[2])
+                        day = int(parts[3])
+                        val = float(parts[flow_col])
+                        dates.append(pd.Timestamp(year=year, month=month, day=day))
+                        # basin_cfs is in cubic feet per second; convert to cms
+                        if flow_var == 'basin_cfs':
+                            val *= 0.0283168
+                        values.append(val)
                     except (ValueError, IndexError):
                         continue
 
             if dates:
-                return pd.Series(values, index=dates, name='seg_outflow')
+                return pd.Series(values, index=dates, name='PRMS_discharge_cms')
 
             return None
 

@@ -34,7 +34,7 @@ class OpenETHandler(BaseObservationHandler):
         """Acquire OpenET data via cloud acquisition."""
         openet_dir = Path(self.config_dict.get(
             'OPENET_DIR',
-            self.project_dir / "observations" / "et" / "openet"
+            self.project_observations_dir / "et" / "openet"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -110,7 +110,7 @@ class OpenETHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "et" / "preprocessed"
+        output_dir = self.project_observations_dir / "et" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_openet_et_processed.csv"
 
@@ -169,7 +169,7 @@ class OpenETHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed OpenET data."""
         processed_path = (
-            self.project_dir / "observations" / "et" / "preprocessed"
+            self.project_observations_dir / "et" / "preprocessed"
             / f"{self.domain_name}_openet_et_processed.csv"
         )
 

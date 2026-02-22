@@ -4,6 +4,7 @@ FUSE (Framework for Understanding Structural Errors) model postprocessor.
 Simplified implementation using StandardModelPostprocessor.
 """
 
+from pathlib import Path
 from typing import Dict, Any
 
 import numpy as np
@@ -27,6 +28,58 @@ class FUSEPostprocessor(StandardModelPostprocessor):
     streamflow_variable = "q_routed"
     streamflow_unit = "mm_per_day"  # Will be converted to cms
     netcdf_selections = {"latitude": 0, "longitude": 0}  # param_set determined dynamically
+
+    def _format_pattern(self, pattern: str) -> str:
+        """Format file pattern using FUSE_FILE_ID instead of experiment_id.
+
+        FUSE Fortran uses CHARACTER(LEN=6) for FMODEL_ID, so output files
+        use a short file ID (FUSE_FILE_ID) rather than the full experiment_id.
+        """
+        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '')
+        start_date = start_time.split()[0] if start_time else ''
+
+        fuse_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        if len(fuse_id) > 6:
+            import hashlib
+            fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
+
+        return pattern.format(
+            domain=self.domain_name,
+            experiment=fuse_id,
+            start_date=start_date,
+            model=self.model_name.lower()
+        )
+
+    def _get_output_file(self) -> Path:
+        """Get FUSE output file, falling back from runs_best to runs_def."""
+        best_file = super()._get_output_file()
+        if best_file.exists():
+            return best_file
+
+        # Fallback: try runs_def.nc
+        def_pattern = self.output_file_pattern.replace('runs_best', 'runs_def')
+        def_file = self._get_output_dir() / self._format_pattern(def_pattern)
+        if def_file.exists():
+            self.logger.info(f"Using runs_def fallback: {def_file.name}")
+            return def_file
+
+        return best_file  # Return original path for error reporting
+
+    def _extract_from_netcdf(self, file_path):
+        """Extract streamflow with fallback from q_routed to q_instnt."""
+        selections = self._get_netcdf_selections()
+
+        # Try primary variable (q_routed), fall back to q_instnt
+        for variable in ['q_routed', 'q_instnt']:
+            try:
+                result = self.read_netcdf_streamflow(file_path, variable, **selections)
+                if result is not None:
+                    return result
+            except (KeyError, ValueError):
+                continue
+
+        self.logger.error(f"No streamflow variable (q_routed/q_instnt) found in {file_path}")
+        return None
 
     def _get_netcdf_selections(self) -> Dict[str, Any]:
         """

@@ -285,7 +285,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         forcing_files_path = Path(
             _get_config_value(
                 'MESH_FORCING_PATH',
-                self.project_dir / 'forcing' / 'basin_averaged_data',
+                self.project_forcing_dir / 'basin_averaged_data',
             )
         )
         forcing_files_glob = str(forcing_files_path / '*.nc')
@@ -383,7 +383,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         landcover_dir = Path(
             _get_config_value(
                 'MESH_LANDCOVER_STATS_DIR',
-                self.project_dir / 'attributes' / 'gistool-outputs',
+                self.project_attributes_dir / 'gistool-outputs',
             )
         )
         landcover_path = landcover_dir / landcover_file
@@ -439,9 +439,14 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         if not MESHFlowManager.is_available():
             from symfluence.core.exceptions import ModelExecutionError
+            from .preprocessing.meshflow_manager import _meshflow_import_error
+            detail = f" ({_meshflow_import_error})" if _meshflow_import_error else ""
             raise ModelExecutionError(
-                "meshflow is not available. Install with: "
-                "pip install git+https://github.com/CH-Earth/meshflow.git@main"
+                f"meshflow is not available{detail}. Install with:\n"
+                "  pip install git+https://github.com/kasra-keshavarz/hydrant.git\n"
+                "  pip install git+https://github.com/CH-Earth/meshflow.git@main\n"
+                "Note: hydrant must be installed BEFORE meshflow to avoid pulling "
+                "the wrong 'hydrant' package from PyPI."
             )
 
         assert self._meshflow_config is not None, "meshflow config must be set before running"

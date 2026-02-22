@@ -58,7 +58,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
     def _apply_best_parameters_for_final(self, best_params):
         """Apply best parameters for final evaluation, pointing to forcing directory."""
-        forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+        forcing_dir = self.project_forcing_dir / 'MESH_input'
         return self.worker.apply_parameters(
             best_params,
             self.optimization_settings_dir,
@@ -98,7 +98,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
             # MESH writes output to forcing/MESH_input/results/
             # Copy results to final_evaluation directory and also use that path
-            forcing_results = self.project_dir / 'forcing' / 'MESH_input' / 'results'
+            forcing_results = self.project_forcing_dir / 'MESH_input' / 'results'
             if forcing_results.exists():
                 for f in forcing_results.iterdir():
                     if f.is_file():
@@ -165,7 +165,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
         Must pass proc_forcing_dir so MESH runs from forcing/MESH_input
         (where parameters were applied), not settings/MESH.
         """
-        forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+        forcing_dir = self.project_forcing_dir / 'MESH_input'
         return self.worker.run_model(
             self.config,
             self.project_dir / 'settings' / 'MESH',
@@ -191,9 +191,11 @@ class MESHModelOptimizer(BaseModelOptimizer):
           - forcing/MESH_input/  (MESH-specific)
           - output/
         """
-        # Avoid double "run_" prefix if experiment_id already starts with it
-        exp_dir = self.experiment_id if self.experiment_id.startswith('run_') else f'run_{self.experiment_id}'
-        base_dir = self.project_dir / 'simulations' / exp_dir
+        # Use algorithm name for base_dir, consistent with other models
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm, default='optimization'
+        ).lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         # Create process directories using base class method
         self.parallel_dirs = self.setup_parallel_processing(
@@ -209,7 +211,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
         # MESH-SPECIFIC: Copy forcing directory to each process
         # MESH reads from forcing/MESH_input, but worker might look in settings/MESH
-        source_forcing = self.project_dir / 'forcing' / 'MESH_input'
+        source_forcing = self.project_forcing_dir / 'MESH_input'
         if source_forcing.exists():
             for proc_id, dirs in self.parallel_dirs.items():
                 # Create forcing directory structure: process_N/forcing/MESH_input/

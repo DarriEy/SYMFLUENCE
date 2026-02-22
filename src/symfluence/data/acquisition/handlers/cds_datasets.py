@@ -153,7 +153,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # open_mfdataset creates a dask-backed dataset, good for memory
             # Use synchronous scheduler to avoid thread/process issues on macOS
             with dask.config.set(scheduler='synchronous'):
-                with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
+                with xr.open_mfdataset(chunk_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override') as ds_final:
                     # Save final dataset
                     final_f = self._save_final_dataset(ds_final, output_dir)
 

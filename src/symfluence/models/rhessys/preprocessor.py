@@ -65,20 +65,23 @@ class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger: Logger instance for status messages and debugging.
 
         Note:
-            Creates input directories for worldfiles, tecfiles, climate data,
-            routing tables, and definition files under {project_dir}/RHESSys_input/.
+            Creates input directories under {project_dir}/settings/RHESSys/
+            (worldfiles, tecfiles, routing, defs, fire) and climate data under
+            {project_dir}/data/forcing/RHESSys_input/clim/.
         """
         super().__init__(config, logger)
         # Check for WMFire support (handles both wmfire and legacy vmfire config names)
         self.wmfire_enabled = self._check_wmfire_enabled()
 
-        # Setup RHESSys-specific directories
-        self.rhessys_input_dir = self.project_dir / "RHESSys_input"
-        self.worldfiles_dir = self.rhessys_input_dir / "worldfiles"
-        self.tecfiles_dir = self.rhessys_input_dir / "tecfiles"
-        self.climate_dir = self.rhessys_input_dir / "clim"
-        self.routing_dir = self.rhessys_input_dir / "routing"
-        self.defs_dir = self.rhessys_input_dir / "defs"
+        # Setup RHESSys-specific directories using base class paths
+        # self.setup_dir = project_dir / "settings" / "RHESSys" (inherited)
+        # self.forcing_dir = project_forcing_dir / "RHESSys_input" (inherited)
+        self.worldfiles_dir = self.setup_dir / "worldfiles"
+        self.tecfiles_dir = self.setup_dir / "tecfiles"
+        self.climate_dir = self.forcing_dir / "clim"
+        self.routing_dir = self.setup_dir / "routing"
+        self.defs_dir = self.setup_dir / "defs"
+        self.fire_dir = self.setup_dir / "fire"
 
         # Note: experiment_id and forcing_dataset are inherited as properties from ShapefileAccessMixin
 
@@ -242,17 +245,15 @@ class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _create_directory_structure(self):
         """Create RHESSys input directory structure."""
-        dirs = [
-            self.rhessys_input_dir,
+        self.create_directories(additional_dirs=[
             self.worldfiles_dir,
             self.tecfiles_dir,
             self.climate_dir,
             self.routing_dir,
             self.defs_dir,
-        ]
-        for d in dirs:
-            d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created RHESSys input directories at {self.rhessys_input_dir}")
+            self.fire_dir,
+        ])
+        logger.info(f"Created RHESSys directories: settings at {self.setup_dir}, forcing at {self.forcing_dir}")
 
     # ------------------------------------------------------------------ #
     # Helper methods (used by sub-modules via self.pp)

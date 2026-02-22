@@ -82,7 +82,7 @@ class SUMMAProcessComponent(ProcessComponent):
             if not output_files:
                 raise FileNotFoundError(f"No SUMMA output files in {output_dir}")
 
-            ds = xr.open_mfdataset(output_files)
+            ds = xr.open_mfdataset(output_files, data_vars='minimal', coords='minimal', compat='override')
             runoff = torch.tensor(
                 ds["scalarTotalRunoff"].values.astype(np.float32),
                 dtype=torch.float32,
@@ -160,7 +160,7 @@ class MizuRouteProcessComponent(ProcessComponent):
             if not output_files:
                 raise FileNotFoundError(f"No mizuRoute output in {output_dir}")
 
-            ds = xr.open_mfdataset(output_files)
+            ds = xr.open_mfdataset(output_files, data_vars='minimal', coords='minimal', compat='override')
             discharge = torch.tensor(
                 ds["IRFroutedRunoff"].values.astype(np.float32),
                 dtype=torch.float32,

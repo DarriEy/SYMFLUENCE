@@ -233,14 +233,14 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
         """
         Retrieve basin area (m²) from the RHESSys worldfile used for this run.
 
-        Tries canonical location: <data_dir>/domain_<name>/RHESSys_input/worldfiles/<name>.world
+        Tries canonical location: <data_dir>/domain_<name>/settings/RHESSys/worldfiles/<name>.world
         Falls back to sim_dir parents if needed.
         """
         domain_name = self.config.domain.name
         data_dir = Path(self.config.system.data_dir)
         candidates = [
-            data_dir / f"domain_{domain_name}" / "RHESSys_input" / "worldfiles" / f"{domain_name}.world",
-            sim_file.parents[2] / "RHESSys_input" / "worldfiles" / f"{domain_name}.world",
+            data_dir / f"domain_{domain_name}" / "settings" / "RHESSys" / "worldfiles" / f"{domain_name}.world",
+            sim_file.parents[2] / "settings" / "RHESSys" / "worldfiles" / f"{domain_name}.world",
         ]
 
         for wf_path in candidates:

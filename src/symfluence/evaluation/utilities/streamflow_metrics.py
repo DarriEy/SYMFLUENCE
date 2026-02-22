@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import UnitConversion, ModelDefaults
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import kge, nse, rmse, mae, kge_prime
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ class StreamflowMetrics:
         try:
             obs_file = config.get('OBSERVATIONS_PATH', 'default')
             if obs_file == 'default' or not obs_file:
-                obs_file = project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
+                obs_file = resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
             else:
                 obs_file = Path(obs_file)
 

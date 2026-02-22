@@ -20,18 +20,13 @@ from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
-# Map land surface models to their total routed runoff variable names.
-# Used to compute fast flow = total_runoff - soil_drainage (recharge).
-TOTAL_RUNOFF_VARIABLES = {
-    'SUMMA': 'averageRoutedRunoff',
+# Map land surface models to their surface runoff variable names.
+# In coupled mode (noXplict / no internal aquifer), surface runoff is
+# the fast-flow component that bypasses the groundwater model.
+SURFACE_RUNOFF_VARIABLES = {
+    'SUMMA': 'scalarSurfaceRunoff',
     'CLM': 'QOVER',
     'MESH': 'RUNOFF',
-}
-
-DRAINAGE_VARIABLES = {
-    'SUMMA': 'scalarSoilDrainage',
-    'CLM': 'QCHARGE',
-    'MESH': 'DRAINAGE',
 }
 
 
@@ -115,18 +110,17 @@ class CoupledGWStreamflowTarget(StreamflowEvaluator):
         coupler = SUMMAToMODFLOWCoupler(self.config_dict, self.logger)
         extractor = MODFLOWResultExtractor()
 
-        # Extract fast runoff = total routed runoff minus soil drainage.
-        # scalarSurfaceRunoff only captures Hortonian overland flow (near-zero
-        # in most catchments).  The correct fast-flow component subtracts the
-        # recharge that feeds MODFLOW from the total SUMMA-routed runoff.
-        total_var = TOTAL_RUNOFF_VARIABLES.get(
-            self.land_model_name, 'averageRoutedRunoff',
+        # Extract surface runoff directly.  In coupled mode SUMMA runs with
+        # groundwatr=noXplict (no internal aquifer), so averageRoutedRunoff ≈
+        # scalarSoilDrainage and subtracting them gives ≈ 0.  The correct
+        # fast-flow component is scalarSurfaceRunoff (infiltration excess +
+        # saturation excess), which goes directly to the stream while soil
+        # drainage feeds MODFLOW as recharge.
+        surface_var = SURFACE_RUNOFF_VARIABLES.get(
+            self.land_model_name, 'scalarSurfaceRunoff',
         )
-        drainage_var = DRAINAGE_VARIABLES.get(
-            self.land_model_name, 'scalarSoilDrainage',
-        )
-        surface_runoff = coupler.extract_fast_runoff(
-            land_dir, total_var=total_var, drainage_var=drainage_var,
+        surface_runoff = coupler.extract_surface_runoff(
+            land_dir, variable=surface_var,
         )
 
         # Extract MODFLOW drain discharge (m3/d)

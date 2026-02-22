@@ -37,7 +37,7 @@ class CLMModelOptimizer(BaseModelOptimizer):
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        self.clm_setup_dir = self.project_dir / 'CLM_input' / 'settings'
+        self.clm_setup_dir = self.project_dir / 'settings' / 'CLM'
 
         super().__init__(
             config, logger, optimization_settings_dir,
@@ -80,7 +80,7 @@ class CLMModelOptimizer(BaseModelOptimizer):
             return False
 
         # Use a separate settings dir for final evaluation to avoid
-        # SameFileError when source CLM_input/settings == settings_dir.
+        # SameFileError when source settings/CLM == settings_dir.
         import shutil
         final_settings = output_dir / 'settings' / 'CLM'
         final_settings.mkdir(parents=True, exist_ok=True)

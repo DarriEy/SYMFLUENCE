@@ -16,6 +16,7 @@ from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 @OptimizerRegistry.register_worker('CRHM')
@@ -70,7 +71,7 @@ class CRHMWorker(BaseWorker):
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_settings_dir = data_dir / f'domain_{domain_name}' / 'CRHM_input' / 'settings'
+            original_settings_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'CRHM'
 
             if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
@@ -220,8 +221,12 @@ class CRHMWorker(BaseWorker):
             # Build command: crhm [options] <project_file>
             # The project file is a positional argument.  -f is output format,
             # not the project file flag.  Use --obs_file_directory so CRHM
-            # can locate observation files referenced by relative name.
-            obs_dir = str(settings_dir) + os.sep
+            # can locate forcing (.obs) files, which live in
+            # data/forcing/CRHM_input (separate from settings/CRHM).
+            domain_name = config.get('DOMAIN_NAME', '')
+            project_dir = data_dir / f'domain_{domain_name}'
+            forcing_dir = resolve_data_subdir(project_dir, 'forcing') / 'CRHM_input'
+            obs_dir = str(forcing_dir) + os.sep
             cmd = [str(crhm_exe), '--obs_file_directory', obs_dir, str(prj_file)]
 
             # Set environment
@@ -287,7 +292,7 @@ class CRHMWorker(BaseWorker):
 
     def _cleanup_stale_output(self, output_dir: Path) -> None:
         """Remove stale CRHM output files."""
-        for pattern in ['*.csv', '*.log']:
+        for pattern in ['*.csv', '*.txt', '*.log']:
             for file_path in output_dir.glob(pattern):
                 try:
                     file_path.unlink()

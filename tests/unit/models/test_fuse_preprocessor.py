@@ -28,8 +28,8 @@ class TestFUSEPreProcessorInitialization:
         """Test FUSE-specific path initialization."""
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
-        # Check FUSE-specific paths
-        assert preprocessor.forcing_fuse_path == preprocessor.project_dir / 'forcing' / 'FUSE_input'
+        # Check FUSE-specific paths (forcing now under data/)
+        assert preprocessor.forcing_fuse_path == preprocessor.project_dir / 'data' / 'forcing' / 'FUSE_input'
         assert preprocessor.catchment_path is not None
 
     def test_uses_base_class_paths(self, fuse_config, mock_logger, setup_test_directories):

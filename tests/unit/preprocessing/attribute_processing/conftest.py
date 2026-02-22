@@ -19,13 +19,13 @@ def temp_project_dir(tmp_path):
     """Create a temporary project directory structure."""
     project_dir = tmp_path / "test_domain"
 
-    # Create subdirectories
+    # Create subdirectories (under data/ for new layout)
     (project_dir / "shapefiles" / "catchment").mkdir(parents=True)
-    (project_dir / "attributes" / "elevation" / "slope").mkdir(parents=True)
-    (project_dir / "attributes" / "elevation" / "aspect").mkdir(parents=True)
-    (project_dir / "attributes" / "dem").mkdir(parents=True)
-    (project_dir / "forcing").mkdir(parents=True)
-    (project_dir / "observations" / "streamflow" / "preprocessed").mkdir(parents=True)
+    (project_dir / "data" / "attributes" / "elevation" / "slope").mkdir(parents=True)
+    (project_dir / "data" / "attributes" / "elevation" / "aspect").mkdir(parents=True)
+    (project_dir / "data" / "attributes" / "dem").mkdir(parents=True)
+    (project_dir / "data" / "forcing").mkdir(parents=True)
+    (project_dir / "data" / "observations" / "streamflow" / "preprocessed").mkdir(parents=True)
     (project_dir / "cache" / "glhymps").mkdir(parents=True)
     (project_dir / "cache" / "landcover").mkdir(parents=True)
 
@@ -119,7 +119,7 @@ def mock_dem_file(temp_project_dir):
     except ImportError:
         pytest.skip("rasterio not available")
 
-    dem_dir = temp_project_dir / "attributes" / "dem"
+    dem_dir = temp_project_dir / "data" / "attributes" / "dem"
     dem_file = dem_dir / "test_dem.tif"
 
     # Create a simple 10x10 DEM with some elevation gradient
@@ -149,7 +149,7 @@ def mock_dem_file(temp_project_dir):
 @pytest.fixture
 def mock_streamflow_data(temp_project_dir):
     """Create synthetic streamflow data CSV."""
-    obs_dir = temp_project_dir / "observations" / "streamflow" / "preprocessed"
+    obs_dir = temp_project_dir / "data" / "observations" / "streamflow" / "preprocessed"
     csv_file = obs_dir / "test_domain_streamflow_processed.csv"
 
     # Create 1 year of daily data with realistic patterns
@@ -174,7 +174,7 @@ def mock_streamflow_data(temp_project_dir):
 @pytest.fixture
 def mock_temperature_data(temp_project_dir):
     """Create synthetic temperature data CSV."""
-    forcing_dir = temp_project_dir / "forcing"
+    forcing_dir = temp_project_dir / "data" / "forcing"
     csv_file = forcing_dir / "test_domain_temperature.csv"
 
     dates = pd.date_range("2020-01-01", "2020-12-31", freq="D")
@@ -196,7 +196,7 @@ def mock_temperature_data(temp_project_dir):
 @pytest.fixture
 def mock_precipitation_data(temp_project_dir):
     """Create synthetic precipitation data CSV."""
-    forcing_dir = temp_project_dir / "forcing"
+    forcing_dir = temp_project_dir / "data" / "forcing"
     csv_file = forcing_dir / "test_domain_precipitation.csv"
 
     dates = pd.date_range("2020-01-01", "2020-12-31", freq="D")

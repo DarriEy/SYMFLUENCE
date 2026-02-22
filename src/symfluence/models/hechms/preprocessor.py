@@ -99,31 +99,31 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             return False
 
     def _load_forcing_data(self) -> Optional[Dict[str, Any]]:
-        """Load forcing data from ERA5 or other sources."""
-        # Use ForcingDataProcessor pattern from base class
-        forcing_path = self.project_dir / 'forcing' / 'basin_averaged_data'
+        """Load forcing data using shared ForcingDataProcessor.
 
-        # Try to find forcing files
-        possible_files = [
-            forcing_path / f"{self.domain_name}_ERA5_forcing_data.nc",
-            forcing_path / f"{self.domain_name}_forcing_data.nc",
-        ]
+        Tries model-ready store first, falls back to basin_averaged_data.
+        Handles multi-file (monthly chunked) and single-file forcing data.
+        """
+        from symfluence.models.utilities import ForcingDataProcessor
 
-        forcing_file = None
-        for f in possible_files:
+        fdp = ForcingDataProcessor(self.config, self.logger)
 
-            if f.exists():
-                forcing_file = f
-                break
+        ds = None
+        if hasattr(self, 'forcing_basin_path') and self.forcing_basin_path.exists():
+            ds = fdp.load_forcing_data(self.forcing_basin_path)
+            if ds is not None:
+                ds = self.subset_to_simulation_time(ds, "Forcing")
 
-        if forcing_file is None:
-            self.logger.error(f"No forcing data found in {forcing_path}")
+        if ds is None:
+            self.logger.error(
+                f"No forcing data found. "
+                f"Checked: {getattr(self, 'forcing_basin_path', 'N/A')}"
+            )
             return None
 
-        self.logger.info(f"Loading forcing from {forcing_file}")
+        self.logger.info(f"Loaded forcing dataset with {len(ds.time)} timesteps")
 
         try:
-            ds = xr.open_dataset(forcing_file)
 
             # Extract precipitation
             precip = self._extract_variable(ds, ['pptrate', 'pr', 'precipitation', 'PREC', 'tp'])
@@ -141,14 +141,24 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             precip_values = precip.values.flatten()
             temp_values = temp.values.flatten()
 
-            # Precipitation: detect if in kg/m2/s and convert to mm/day
+            # Get time coordinate and detect timestep
+            time_index = pd.to_datetime(ds.time.values)
+            timestep_seconds = 3600.0  # default hourly
+            if len(time_index) > 1:
+                timestep_seconds = (time_index[1] - time_index[0]).total_seconds()
+
+            # Precipitation: convert rate (kg/m2/s) to depth per timestep (mm/timestep)
+            precip_units = precip.attrs.get('units', '')
             if np.nanmean(precip_values[precip_values > 0]) < 0.01:
-                precip_values = precip_values * UnitConversion.KG_M2_S_TO_MM_DAY
-                self.logger.info("Converted precipitation from kg/m2/s to mm/day")
+                precip_values = precip_values * timestep_seconds
+                self.logger.info(
+                    f"Converted precipitation from {precip_units or 'kg/m2/s'} "
+                    f"to mm/timestep (×{timestep_seconds})"
+                )
 
             # Temperature: convert from K to C if needed
             if np.nanmean(temp_values) > 100:
-                temp_values = temp_values - UnitConversion.KELVIN_OFFSET
+                temp_values = temp_values - 273.15
                 self.logger.info("Converted temperature from K to deg C")
 
             # Extract PET if available
@@ -157,35 +167,29 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             if pet is not None:
                 pet_values = pet.values.flatten()
                 if np.nanmean(pet_values[pet_values > 0]) < 0.01:
-                    pet_values = pet_values * UnitConversion.KG_M2_S_TO_MM_DAY
-
-            # Get time coordinate
-            time_index = pd.to_datetime(ds.time.values)
+                    pet_values = pet_values * timestep_seconds
 
             # Resample to daily if sub-daily
-            if len(time_index) > 1:
-                dt = time_index[1] - time_index[0]
-                if dt < pd.Timedelta(days=1):
-                    self.logger.info(f"Resampling from {dt} to daily")
-                    df = pd.DataFrame({
-                        'precip': precip_values[:len(time_index)],
-                        'temp': temp_values[:len(time_index)],
-                    }, index=time_index)
-                    if pet_values is not None:
-                        df['pet'] = pet_values[:len(time_index)]
+            if timestep_seconds < 86400:
+                self.logger.info(f"Resampling from {timestep_seconds}s to daily")
+                df = pd.DataFrame({
+                    'precip': precip_values[:len(time_index)],
+                    'temp': temp_values[:len(time_index)],
+                }, index=time_index)
+                if pet_values is not None:
+                    df['pet'] = pet_values[:len(time_index)]
 
-                    # Resample: sum for precip, mean for temp/pet
-                    daily = pd.DataFrame()
-                    daily['precip'] = df['precip'].resample('D').sum()
-                    daily['temp'] = df['temp'].resample('D').mean()
-                    if 'pet' in df.columns:
-                        daily['pet'] = df['pet'].resample('D').sum()
+                daily = pd.DataFrame()
+                daily['precip'] = df['precip'].resample('D').sum()
+                daily['temp'] = df['temp'].resample('D').mean()
+                if 'pet' in df.columns:
+                    daily['pet'] = df['pet'].resample('D').sum()
 
-                    daily = daily.dropna()
-                    precip_values = daily['precip'].values
-                    temp_values = daily['temp'].values
-                    pet_values = daily['pet'].values if 'pet' in daily.columns else pet_values
-                    time_index = daily.index
+                daily = daily.dropna()
+                precip_values = daily['precip'].values
+                temp_values = daily['temp'].values
+                pet_values = daily['pet'].values if 'pet' in daily.columns else pet_values
+                time_index = daily.index
 
             ds.close()
 

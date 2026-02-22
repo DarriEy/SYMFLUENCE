@@ -70,8 +70,8 @@ class HYPEWorker(BaseWorker):
             preprocessor.output_path = settings_dir
             preprocessor.hype_setup_dir = settings_dir
             # IMPORTANT: forcing_data_dir must point to where forcing files are located
-            # Forcing files are copied to worker's settings dir by copy_base_settings
-            preprocessor.forcing_data_dir = settings_dir
+            # Forcing files live in data/forcing/HYPE_input/ and don't change during calibration
+            # Keep the original forcing_data_dir from the preprocessor (already set correctly)
 
             # CRITICAL: Also update the manager output paths so par.txt and config
             # files are written to the worker's isolated directory, not the shared default
@@ -203,6 +203,7 @@ class HYPEWorker(BaseWorker):
             runner.setup_dir = settings_dir
             runner.output_dir = output_dir
             runner.output_path = output_dir
+            runner.quiet = True
 
             self.logger.debug(f"HYPE Runner paths overridden: setup_dir={runner.setup_dir}, output_dir={runner.output_dir}")
 
@@ -214,10 +215,10 @@ class HYPEWorker(BaseWorker):
                     self.logger.error(f"Required HYPE input file missing before run: {fpath}")
 
             # Run HYPE
-            result_path = runner.run_hype()
+            result_path = runner.run()
 
             if result_path is None:
-                self.logger.error("HYPE run_hype returned None - model may have failed or outputs not found")
+                self.logger.error("HYPE run returned None - model may have failed or outputs not found")
                 self.logger.error(f"Expected outputs in: {runner.output_dir}")
                 # Debug: Check if any output files were created
                 if output_dir.exists():
@@ -317,14 +318,22 @@ class HYPEWorker(BaseWorker):
                 domain_name = None
                 data_dir = Path('.')
 
-            obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
-                       'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
+            # Use resolve_data_subdir for backward-compatible path resolution
+            # (prefers data/observations/ over legacy observations/)
+            from symfluence.core.mixins.project import resolve_data_subdir
+            project_dir = data_dir / f'domain_{domain_name}'
+            obs_root = resolve_data_subdir(project_dir, 'observations') / 'streamflow'
+            obs_file = obs_root / 'preprocessed' / f'{domain_name}_streamflow_processed.csv'
 
             if not obs_file.exists():
-                self.logger.error(f"Observations file not found at {obs_file} (domain_name={domain_name})")
+                # Try processed/ fallback
+                obs_file = obs_root / 'processed' / f'{domain_name}_streamflow_processed.csv'
+
+            if not obs_file.exists():
+                self.logger.error(f"Observations file not found at {obs_root} (domain_name={domain_name})")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True, dayfirst=True)
+            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=['datetime'])
 
             # Ensure the index is a proper DatetimeIndex (parse_dates may fail silently)
             if not isinstance(obs_df.index, pd.DatetimeIndex):

@@ -66,7 +66,7 @@ class IMSSnowHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(ims_path, str) and ims_path.lower() == 'default':
-            ims_dir = self.project_dir / "observations" / "snow" / "ims"
+            ims_dir = self.project_observations_dir / "snow" / "ims"
         else:
             ims_dir = Path(ims_path)
 

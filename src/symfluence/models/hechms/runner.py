@@ -91,7 +91,7 @@ class HecHmsRunner(  # type: ignore[misc]
         else:
             self.hechms_setup_dir = self.project_dir / "settings" / "HECHMS"
 
-        self.hechms_forcing_dir = self.project_dir / 'forcing' / 'HECHMS_input'
+        self.hechms_forcing_dir = self.project_forcing_dir / 'HECHMS_input'
 
     def _get_output_dir(self) -> Path:
         """HEC-HMS output directory."""

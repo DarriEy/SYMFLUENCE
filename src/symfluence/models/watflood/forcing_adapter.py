@@ -68,7 +68,7 @@ class WATFLOODForcingAdapter:
                 self.logger.error(f"No CFIF files found in {cfif_dir}")
                 return False
 
-            ds = xr.open_mfdataset(nc_files, combine='by_coords')
+            ds = xr.open_mfdataset(nc_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
 
             # Extract and convert variables
             precip = None

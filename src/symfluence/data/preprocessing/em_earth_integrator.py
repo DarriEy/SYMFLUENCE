@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 from symfluence.core.constants import PhysicalConstants, UnitConversion
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 # Logic moved from DataManager
 def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin_shapefile: Path, config: Dict[str, Any]) -> bool:
@@ -204,7 +205,7 @@ class EMEarthIntegrator(ConfigMixin):
 
         try:
             # Check if EM-Earth data exists
-            em_earth_dir = self.project_dir / 'forcing' / 'raw_data_em_earth'
+            em_earth_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data_em_earth'
             if not em_earth_dir.exists():
                 self.logger.warning("EM-Earth data directory not found, skipping integration")
                 return
@@ -247,11 +248,11 @@ class EMEarthIntegrator(ConfigMixin):
                 raise FileNotFoundError(f"Basin shapefile not found: {basin_shapefile}")
 
             # Create output directory for remapped EM-Earth data
-            remapped_dir = self.project_dir / 'forcing' / 'em_earth_remapped'
+            remapped_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'em_earth_remapped'
             remapped_dir.mkdir(parents=True, exist_ok=True)
 
             # Find EM-Earth files
-            em_earth_dir = self.project_dir / 'forcing' / 'raw_data_em_earth'
+            em_earth_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data_em_earth'
             em_earth_files = sorted(em_earth_dir.glob("watershed_subset_*.nc"))
 
             if not em_earth_files:
@@ -365,11 +366,11 @@ class EMEarthIntegrator(ConfigMixin):
 
         try:
 
-            basin_data_dir = self.project_dir / 'forcing' / 'basin_averaged_data'
+            basin_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
             if not basin_data_dir.exists():
                 raise FileNotFoundError(f"Basin-averaged data directory not found: {basin_data_dir}")
 
-            remapped_dir = self.project_dir / 'forcing' / 'em_earth_remapped'
+            remapped_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'em_earth_remapped'
             if not remapped_dir.exists():
                 raise FileNotFoundError(f"Remapped EM-Earth directory not found: {remapped_dir}")
 

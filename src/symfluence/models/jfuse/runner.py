@@ -240,7 +240,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         else:
             self.jfuse_setup_dir = self.project_dir / "settings" / "JFUSE"
 
-        self.jfuse_forcing_dir = self.project_dir / 'forcing' / 'JFUSE_input'
+        self.jfuse_forcing_dir = self.project_forcing_dir / 'JFUSE_input'
 
     def _get_output_dir(self) -> Path:
         """jFUSE output directory."""
@@ -661,7 +661,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                 sim_time = pd.to_datetime(df['datetime'])
 
             # Load observations
-            obs_file = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+            obs_file = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
             if not obs_file.exists():
                 self.logger.warning("Observations not found for metrics")
                 return

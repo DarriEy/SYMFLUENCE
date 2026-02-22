@@ -56,13 +56,13 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         super().__init__(config, logger)
 
-        # Setup SWAT-specific directories
-        self.swat_input_dir = self.project_dir / "SWAT_input"
-        txtinout_name = self._get_config_value(
-            lambda: self.config.model.swat.txtinout_dir,
-            default='TxtInOut'
-        )
-        self.txtinout_dir = self.swat_input_dir / txtinout_name
+        # Standard paths (from base class):
+        #   self.setup_dir   = project_dir / settings / SWAT
+        #   self.forcing_dir = project_dir / data / forcing / SWAT_input
+        # Settings files (file.cio, .bsn, .sub, etc.) go to setup_dir.
+        # Forcing files (.pcp, .tmp) go to forcing_dir.
+        # The runner assembles both into a TxtInOut for execution.
+        self.txtinout_dir = self.setup_dir
 
         # Lazy-init backing fields for sub-module generators
         self._forcing_generator = None
@@ -159,9 +159,11 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     # ------------------------------------------------------------------
 
     def _create_directory_structure(self) -> None:
-        """Create SWAT TxtInOut directory structure."""
-        self.txtinout_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created SWAT TxtInOut directory at {self.txtinout_dir}")
+        """Create SWAT directory structure (settings + forcing)."""
+        self.setup_dir.mkdir(parents=True, exist_ok=True)
+        self.forcing_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created SWAT settings directory at {self.setup_dir}")
+        logger.info(f"Created SWAT forcing directory at {self.forcing_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from configuration."""
@@ -224,7 +226,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         forcing_files = list(self.forcing_basin_path.glob("*.nc"))
 
         if not forcing_files:
-            merged_path = self.project_dir / 'forcing' / 'merged_path'
+            merged_path = self.project_forcing_dir / 'merged_path'
             if merged_path.exists():
                 forcing_files = list(merged_path.glob("*.nc"))
 
@@ -234,10 +236,10 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading forcing from {len(forcing_files)} files")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
         except ValueError:
             try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
             except Exception:
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)

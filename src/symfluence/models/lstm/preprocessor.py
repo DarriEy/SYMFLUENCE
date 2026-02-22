@@ -124,7 +124,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         self.logger.info("Loading data for LSTM model")
 
         # Load forcing data
-        forcing_path = self.project_dir / 'forcing' / 'basin_averaged_data'
+        forcing_path = self.project_forcing_dir / 'basin_averaged_data'
         self.logger.info(f"Looking for forcing files in: {forcing_path}")
 
         # Check if directory exists
@@ -154,13 +154,13 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # Load streamflow data
         streamflow_path = (
-            self.project_dir / 'observations' / 'streamflow' / 'preprocessed' /
+            self.project_observations_dir / 'streamflow' / 'preprocessed' /
             f"{self.config_dict.get('DOMAIN_NAME')}_streamflow_processed.csv"
         )
 
         if not streamflow_path.exists():
             # Fallback for legacy naming
-            legacy_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / "Bow_at_Banff_lumped_streamflow_processed.csv"
+            legacy_path = self.project_observations_dir / 'streamflow' / 'preprocessed' / "Bow_at_Banff_lumped_streamflow_processed.csv"
             if legacy_path.exists():
                 streamflow_path = legacy_path
                 self.logger.info(f"Using legacy streamflow path: {streamflow_path.name}")
@@ -170,7 +170,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         streamflow_df.index = pd.to_datetime(streamflow_df.index)
 
         # Load snow data
-        snow_path = self.project_dir / 'observations' / 'snow' / 'preprocessed'
+        snow_path = self.project_observations_dir / 'snow' / 'preprocessed'
         snow_files = glob.glob(str(snow_path / f"{self.config_dict.get('DOMAIN_NAME')}_filtered_snow_observations.csv"))
 
         if snow_files:

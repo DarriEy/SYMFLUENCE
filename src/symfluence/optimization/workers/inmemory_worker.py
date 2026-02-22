@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import kge, nse
 
 # Optional dependencies
@@ -250,14 +251,15 @@ class InMemoryModelWorker(BaseWorker):
         if task and task.settings_dir:
             # Look relative to settings dir
             parent = task.settings_dir.parent.parent if task.settings_dir.parent else task.settings_dir
-            forcing_dir = parent / 'forcing' / self._get_forcing_subdir()
+            forcing_dir = resolve_data_subdir(parent, 'forcing') / self._get_forcing_subdir()
             if forcing_dir.exists():
                 return forcing_dir
 
         # Fall back to config-based path
         data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
         domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        return data_dir / f"domain_{domain_name}" / 'forcing' / self._get_forcing_subdir()
+        domain_dir = data_dir / f"domain_{domain_name}"
+        return resolve_data_subdir(domain_dir, 'forcing') / self._get_forcing_subdir()
 
     def _load_forcing(self, task: Optional[WorkerTask] = None) -> bool:
         """Load forcing data from NetCDF or CSV.
@@ -360,7 +362,7 @@ class InMemoryModelWorker(BaseWorker):
         forcing_dir = self._get_forcing_dir(task)
         obs_patterns = [
             forcing_dir / f"{domain_name}_observations.csv",
-            project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv",
+            resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv",
         ]
 
         for obs_file in obs_patterns:

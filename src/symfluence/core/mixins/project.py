@@ -10,6 +10,20 @@ from typing import Union
 from .config import ConfigMixin
 
 
+def resolve_data_subdir(project_dir: Path, subdir: str) -> Path:
+    """Resolve data subdirectory with backward compatibility.
+
+    Prefers data/{subdir}, falls back to {subdir} if it exists.
+    """
+    new_path = project_dir / 'data' / subdir
+    old_path = project_dir / subdir
+    if new_path.exists():
+        return new_path
+    if old_path.exists():
+        return old_path
+    return new_path
+
+
 class ProjectContextMixin(ConfigMixin):
     """
     Mixin providing standard project context attributes.
@@ -97,18 +111,18 @@ class ProjectContextMixin(ConfigMixin):
 
     @property
     def project_attributes_dir(self) -> Path:
-        """Directory for catchment attributes: {project_dir}/attributes"""
-        return self.project_dir / 'attributes'
+        """Directory for catchment attributes: {project_dir}/data/attributes (or legacy {project_dir}/attributes)"""
+        return resolve_data_subdir(self.project_dir, 'attributes')
 
     @property
     def project_forcing_dir(self) -> Path:
-        """Directory for forcing data: {project_dir}/forcing"""
-        return self.project_dir / 'forcing'
+        """Directory for forcing data: {project_dir}/data/forcing (or legacy {project_dir}/forcing)"""
+        return resolve_data_subdir(self.project_dir, 'forcing')
 
     @property
     def project_observations_dir(self) -> Path:
-        """Directory for observation data: {project_dir}/observations"""
-        return self.project_dir / 'observations'
+        """Directory for observation data: {project_dir}/data/observations (or legacy {project_dir}/observations)"""
+        return resolve_data_subdir(self.project_dir, 'observations')
 
     @property
     def project_simulations_dir(self) -> Path:

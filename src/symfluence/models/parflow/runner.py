@@ -113,7 +113,7 @@ class ParFlowRunner(BaseModelRunner):
         Raises:
             ModelExecutionError: If execution fails.
         """
-        logger.info(f"Running ParFlow for domain: {self.config.domain.name}")
+        logger.debug(f"Running ParFlow for domain: {self.config.domain.name}")
 
         with symfluence_error_handler(
             "ParFlow model execution",
@@ -133,11 +133,11 @@ class ParFlowRunner(BaseModelRunner):
 
             # Get executable
             pf_exe = self._get_parflow_executable()
-            logger.info(f"Using ParFlow executable: {pf_exe}")
+            logger.debug(f"Using ParFlow executable: {pf_exe}")
 
             # Get run name
             runname = self._get_runname()
-            logger.info(f"ParFlow run name: {runname}")
+            logger.debug(f"ParFlow run name: {runname}")
 
             # Copy input files to simulation directory
             self._setup_sim_directory(self.output_dir)
@@ -149,7 +149,7 @@ class ParFlowRunner(BaseModelRunner):
             else:
                 cmd = [str(pf_exe), runname]
 
-            logger.info(f"Executing ParFlow from: {self.output_dir}")
+            logger.debug(f"Executing ParFlow from: {self.output_dir}")
 
             env = os.environ.copy()
 
@@ -195,7 +195,7 @@ class ParFlowRunner(BaseModelRunner):
                     f"ParFlow execution failed with return code {result.returncode}"
                 )
 
-            logger.info("ParFlow execution completed successfully")
+            logger.debug("ParFlow execution completed successfully")
             self._verify_output(runname)
 
             return self.output_dir
@@ -236,7 +236,7 @@ class ParFlowRunner(BaseModelRunner):
             if f.stat().st_size == 0:
                 raise RuntimeError(f"ParFlow pressure output file is empty: {f}")
 
-        logger.info(
+        logger.debug(
             f"Verified ParFlow output: {len(press_files)} pressure file(s), "
             f"{len(satur_files)} saturation file(s)"
         )

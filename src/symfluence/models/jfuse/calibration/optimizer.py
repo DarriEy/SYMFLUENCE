@@ -61,7 +61,7 @@ class JFUSEModelOptimizer(BaseModelOptimizer):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         self.jfuse_setup_dir = self.project_dir / 'settings' / 'JFUSE'
-        self.jfuse_forcing_dir = self.project_dir / 'forcing' / 'JFUSE_input'
+        self.jfuse_forcing_dir = self.project_forcing_dir / 'JFUSE_input'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 

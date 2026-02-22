@@ -28,6 +28,7 @@ from tqdm import tqdm
 from .shapefile_manager import ShapefileManager
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 # Suppress verbose easymore logging
 logging.getLogger('easymore').setLevel(logging.WARNING)
@@ -123,7 +124,7 @@ class RemappingWeightGenerator(ConfigMixin):
 
         self.logger.info("Creating remapping weights (this is done only once)...")
 
-        temp_dir = self.project_dir / 'forcing' / 'temp_easymore_weights'
+        temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'temp_easymore_weights'
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -381,7 +382,7 @@ class RemappingWeightApplier(ConfigMixin):
 
             # Create unique temp directory
             unique_id = str(uuid.uuid4())[:8]
-            temp_dir = self.project_dir / 'forcing' / f'temp_apply_{unique_id}'
+            temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / f'temp_apply_{unique_id}'
             temp_dir.mkdir(parents=True, exist_ok=True)
 
             try:

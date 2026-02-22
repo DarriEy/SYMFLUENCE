@@ -50,7 +50,7 @@ class MODISETHandler(BaseObservationHandler):
         Returns path to raw data directory/file.
         """
         # Check if data already exists
-        et_dir = Path(self.config_dict.get('MOD16_ET_DIR', self.project_dir / "observations" / "et" / "modis"))
+        et_dir = Path(self.config_dict.get('MOD16_ET_DIR', self.project_observations_dir / "et" / "modis"))
 
         # Check for existing processed file
         processed_file = et_dir / "preprocessed" / f"{self.domain_name}_modis_et_processed.csv"
@@ -102,7 +102,7 @@ class MODISETHandler(BaseObservationHandler):
         """
         self.logger.info(f"Processing MODIS ET for domain: {self.domain_name}")
 
-        output_dir = self.project_dir / "observations" / "et" / "preprocessed"
+        output_dir = self.project_observations_dir / "et" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_modis_et_processed.csv"
 
@@ -335,13 +335,13 @@ class MODISETHandler(BaseObservationHandler):
         Returns DataFrame with columns: date (index), et_mm_day
         """
         processed_path = (
-            self.project_dir / "observations" / "et" / "preprocessed"
+            self.project_observations_dir / "et" / "preprocessed"
             / f"{self.domain_name}_modis_et_processed.csv"
         )
 
         if not processed_path.exists():
             # Try to process data
-            raw_dir = self.project_dir / "observations" / "et" / "modis"
+            raw_dir = self.project_observations_dir / "et" / "modis"
             if raw_dir.exists():
                 processed_path = self.process(raw_dir)
             else:

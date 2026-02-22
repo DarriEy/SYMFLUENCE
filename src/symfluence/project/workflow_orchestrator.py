@@ -12,6 +12,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.provenance import record_step
 from symfluence.data.observation.paths import observation_output_candidates_by_family
 
@@ -231,7 +232,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 name="acquire_attributes",
                 cli_name="acquire_attributes",
                 func=self.managers['data'].acquire_attributes,
-                check_func=lambda: (self.project_dir / "attributes" / "soilclass" /
+                check_func=lambda: (resolve_data_subdir(self.project_dir, 'attributes') / "soilclass" /
                         f"domain_{self.domain_name}_soil_classes.tif").exists(),
                 description="Acquiring geospatial attributes and data"
             ),
@@ -264,14 +265,14 @@ class WorkflowOrchestrator(ConfigMixin):
                 name="acquire_forcings",
                 cli_name="acquire_forcings",
                 func=self.managers['data'].acquire_forcings,
-                check_func=lambda: (self.project_dir / "forcing" / "raw_data").exists(),
+                check_func=lambda: (resolve_data_subdir(self.project_dir, 'forcing') / "raw_data").exists(),
                 description="Acquiring meteorological forcing data"
             ),
             WorkflowStep(
                 name="run_model_agnostic_preprocessing",
                 cli_name="model_agnostic_preprocessing",
                 func=self.managers['data'].run_model_agnostic_preprocessing,
-                check_func=lambda: (self.project_dir / "forcing" / "basin_averaged_data").exists(),
+                check_func=lambda: (resolve_data_subdir(self.project_dir, 'forcing') / "basin_averaged_data").exists(),
                 description="Running model-agnostic data preprocessing"
             ),
             WorkflowStep(

@@ -17,6 +17,8 @@ from scipy.stats import circmean
 
 from .base import BaseAttributeProcessor
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 
 class ElevationProcessor(BaseAttributeProcessor):
     """Processor for elevation, slope, and aspect attributes."""
@@ -26,9 +28,10 @@ class ElevationProcessor(BaseAttributeProcessor):
         super().__init__(config, logger)
 
         # Create or access directories
-        self.dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
-        self.slope_dir = self.project_dir / 'attributes' / 'elevation' / 'slope'
-        self.aspect_dir = self.project_dir / 'attributes' / 'elevation' / 'aspect'
+        attributes_dir = resolve_data_subdir(self.project_dir, 'attributes')
+        self.dem_dir = attributes_dir / 'elevation' / 'dem'
+        self.slope_dir = attributes_dir / 'elevation' / 'slope'
+        self.aspect_dir = attributes_dir / 'elevation' / 'aspect'
 
         # Create directories if they don't exist
         self.slope_dir.mkdir(parents=True, exist_ok=True)

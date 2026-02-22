@@ -48,11 +48,12 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         super().__init__(config, logger)
 
-        # Setup VIC-specific directories
-        self.vic_input_dir = self.project_dir / "VIC_input"
-        self.settings_dir = self.vic_input_dir / "settings"
-        self.forcing_dir = self.vic_input_dir / "forcing"
-        self.params_dir = self.vic_input_dir / "parameters"
+        # VIC directories — use the standard project layout from base class:
+        #   settings  → settings/VIC/          (self.setup_dir)
+        #   forcing   → data/forcing/VIC_input/ (self.forcing_dir)
+        #   parameters → settings/VIC/parameters/
+        self.settings_dir = self.setup_dir
+        self.params_dir = self.setup_dir / "parameters"
 
         # Get VIC-specific settings from config
         # Resolve spatial mode: explicit config > inferred from domain method
@@ -113,14 +114,13 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _create_directory_structure(self) -> None:
         """Create VIC input directory structure."""
         dirs = [
-            self.vic_input_dir,
             self.settings_dir,
             self.forcing_dir,
             self.params_dir,
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created VIC input directories at {self.vic_input_dir}")
+        logger.info(f"Created VIC directories: settings={self.settings_dir}, forcing={self.forcing_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
         """Get simulation start and end dates from configuration."""
@@ -192,7 +192,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         try:
             import rasterio
-            dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dem_dir = self.project_attributes_dir / 'elevation' / 'dem'
             dem_files = list(dem_dir.glob('*.tif'))
             if not dem_files:
                 logger.warning("No DEM raster found, using single elevation band")
@@ -744,7 +744,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         if not forcing_files:
             # Try merged_path
-            merged_path = self.project_dir / 'forcing' / 'merged_path'
+            merged_path = self.project_forcing_dir / 'merged_path'
             if merged_path.exists():
                 forcing_files = list(merged_path.glob("*.nc"))
 
@@ -754,10 +754,10 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading forcing from {len(forcing_files)} files")
 
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
         except ValueError:
             try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
+                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
             except Exception:
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)
@@ -1045,11 +1045,11 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
         full_energy = self._get_config_value(
             lambda: self.config.model.vic.full_energy,
-            default=False
+            default=True
         )
         frozen_soil = self._get_config_value(
             lambda: self.config.model.vic.frozen_soil,
-            default=False
+            default=True
         )
         output_prefix = self._get_config_value(
             lambda: self.config.model.vic.output_prefix,

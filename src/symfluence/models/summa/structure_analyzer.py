@@ -168,7 +168,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         # Load observations
         obs_file_path = self.config_dict.get('OBSERVATIONS_PATH')
         if obs_file_path == 'default' or not obs_file_path:
-            obs_file_path = self.project_dir / 'observations'/ 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+            obs_file_path = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
         else:
             obs_file_path = Path(obs_file_path)
 
