@@ -9,6 +9,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,7 +120,7 @@ def _resolve_input_path(
     data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
     domain_name = config.get('DOMAIN_NAME', '')
     project_dir = data_dir / f"domain_{domain_name}"
-    fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
+    fuse_input_dir = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
 
     if fuse_input_dir.exists():
         input_path_str = str(fuse_input_dir)
@@ -150,7 +152,7 @@ def _resolve_simulation_dates(
     data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
     domain_name = config.get('DOMAIN_NAME', '')
     project_dir = data_dir / f"domain_{domain_name}"
-    forcing_file = project_dir / 'forcing' / 'FUSE_input' / f"{domain_name}_input.nc"
+    forcing_file = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input' / f"{domain_name}_input.nc"
 
     if forcing_file.exists():
         try:

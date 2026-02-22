@@ -85,6 +85,19 @@ if [ -n "${NETCDF_FORTRAN}" ]; then
     else
         export NETCDF_LIB="${NETCDF_FORTRAN}/lib"
     fi
+
+    # On Homebrew (and some HPC), netcdf-fortran and netcdf-c live in separate
+    # prefixes. nf-config --flibs emits -lnetcdf but only adds -L for the
+    # Fortran lib dir, so the linker can't find libnetcdf (the C library).
+    # Detect and export the NetCDF-C lib path for the Makefile LIBNCL override.
+    NETCDF_C_PREFIX="$(nc-config --prefix 2>/dev/null || echo "")"
+    NETCDF_C_LIBDIR=""
+    if [ -n "$NETCDF_C_PREFIX" ] && [ "$NETCDF_C_PREFIX" != "$NETCDF_FORTRAN" ]; then
+        if [ -d "$NETCDF_C_PREFIX/lib" ]; then
+            NETCDF_C_LIBDIR="$NETCDF_C_PREFIX/lib"
+            echo "NetCDF-C lib path (separate from Fortran): ${NETCDF_C_LIBDIR}"
+        fi
+    fi
 fi
 
 # Patch the getenvc.c file to fix K&R C style function declarations
@@ -163,6 +176,14 @@ fi
 # Clean any previous builds
 make veryclean 2>/dev/null || make clean 2>/dev/null || true
 
+# If NetCDF-C is in a separate prefix from NetCDF-Fortran, patch the Makefile
+# link line so the linker can find -lnetcdf. The Makefile sets LIBNCL from
+# nf-config --flibs which only has -L for the Fortran prefix.
+if [ -n "${NETCDF_C_LIBDIR}" ]; then
+    echo "Patching Makefile to add NetCDF-C library path..."
+    sed -i.bak "s|LIBNCL=\$(shell nf-config --flibs)|LIBNCL=-L${NETCDF_C_LIBDIR} \$(shell nf-config --flibs)|" Makefile
+fi
+
 # Try building with NetCDF support
 if [ -n "${NETCDF_FORTRAN}" ]; then
     echo "Building MESH with NetCDF support..."
@@ -196,24 +217,13 @@ if [ -n "${NETCDF_FORTRAN}" ]; then
             BUILT_BINARY="sa_mesh"
             echo "Serial build with NetCDF successful"
         else
-            echo "NetCDF build failed (exit code: $BUILD_STATUS), trying basic build..."
-            make veryclean 2>/dev/null || make clean 2>/dev/null || true
-
-            set +e
-            make gfortran 2>&1 | tee build.log
-            BUILD_STATUS=${PIPESTATUS[0]}
-            set -e
-
-            if [ $BUILD_STATUS -eq 0 ] && [ -f "sa_mesh" ]; then
-                BUILT_BINARY="sa_mesh"
-                echo "Basic build successful"
-            else
-                echo "MESH compilation failed (exit code: $BUILD_STATUS)"
-                echo ""
-                echo "Last 100 lines of build log:"
-                tail -100 build.log
-                exit 1
-            fi
+            echo "ERROR: NetCDF build failed (exit code: $BUILD_STATUS)"
+            echo "NetCDF Fortran is available at ${NETCDF_FORTRAN} but compilation failed."
+            echo "A non-NetCDF build would be unusable (MESH requires NetCDF for drainage databases)."
+            echo ""
+            echo "Last 100 lines of build log:"
+            tail -100 build.log
+            exit 1
         fi
     fi
 else

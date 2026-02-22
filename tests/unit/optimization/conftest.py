@@ -174,6 +174,7 @@ _MODEL_OVERRIDES = {
     'FUSE': {
         'HYDROLOGICAL_MODEL': 'FUSE',
         'FUSE_STRUCTURE': '902',
+        'FUSE_RUN_INTERNAL_CALIBRATION': False,
     },
     'NGEN': {
         'HYDROLOGICAL_MODEL': 'NGEN',
@@ -227,12 +228,12 @@ def temp_project_dir(tmp_path, base_optimization_config):
     domain_name = base_optimization_config['DOMAIN_NAME']
     project_dir = tmp_path / f"domain_{domain_name}"
 
-    # Create directory structure
+    # Create directory structure (data/ prefix for forcing, observations)
     (project_dir / "optimization").mkdir(parents=True)
     (project_dir / "simulations").mkdir(parents=True)
     (project_dir / "settings" / "SUMMA").mkdir(parents=True)
-    (project_dir / "observations" / "streamflow" / "preprocessed").mkdir(parents=True)
-    (project_dir / "forcing" / "SUMMA_input").mkdir(parents=True)
+    (project_dir / "data" / "observations" / "streamflow" / "preprocessed").mkdir(parents=True)
+    (project_dir / "data" / "forcing" / "SUMMA_input").mkdir(parents=True)
 
     return project_dir
 
@@ -245,7 +246,7 @@ def temp_project_dir(tmp_path, base_optimization_config):
 def mock_observations(temp_project_dir, base_optimization_config):
     """Create mock streamflow observations."""
     domain_name = base_optimization_config['DOMAIN_NAME']
-    obs_path = temp_project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
+    obs_path = temp_project_dir / "data" / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
 
     # Create synthetic streamflow data
     start_date = pd.to_datetime('2020-01-01')

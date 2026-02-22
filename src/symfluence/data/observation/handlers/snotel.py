@@ -39,7 +39,7 @@ class SNOTELHandler(BaseObservationHandler):
             self.logger.error("Missing SNOTEL_STATION in configuration")
             raise ValueError("SNOTEL_STATION required for SNOTEL acquisition")
 
-        raw_dir = self.project_dir / "observations" / "snow" / "raw_data"
+        raw_dir = self.project_observations_dir / "snow" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"snotel_{station_id}_raw.csv"
 
@@ -137,14 +137,14 @@ class SNOTELHandler(BaseObservationHandler):
         df['swe'] = df[swe_col] # Keep in inches as per project convention for raw processed
 
         # Save to preprocessed
-        output_dir = self.project_dir / "observations" / "snow" / "swe" / "preprocessed"
+        output_dir = self.project_observations_dir / "snow" / "swe" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_swe_processed.csv"
 
         df[['swe']].to_csv(output_file)
 
         # Also save as generic SNOW for easier evaluator lookup
-        snow_dir = self.project_dir / "observations" / "snow" / "preprocessed"
+        snow_dir = self.project_observations_dir / "snow" / "preprocessed"
         snow_dir.mkdir(parents=True, exist_ok=True)
         df[['swe']].to_csv(snow_dir / f"{self.domain_name}_snow_processed.csv")
 

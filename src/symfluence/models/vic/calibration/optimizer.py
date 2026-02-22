@@ -37,7 +37,7 @@ class VICModelOptimizer(BaseModelOptimizer):
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        self.vic_setup_dir = self.project_dir / 'VIC_input' / 'settings'
+        self.vic_setup_dir = self.project_dir / 'settings' / 'VIC'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 

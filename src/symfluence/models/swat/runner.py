@@ -2,12 +2,18 @@
 SWAT Model Runner.
 
 Executes the SWAT model using prepared TxtInOut input files.
-SWAT runs from within its TxtInOut directory and produces output.rch
+SWAT runs from within its output directory and produces output.rch
 as its primary output file.
+
+At run time the runner assembles a working directory by copying
+settings from ``settings/SWAT/`` and forcing from
+``data/forcing/SWAT_input/`` into the simulation output directory.
 """
 
+import os
+import shutil
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
@@ -21,11 +27,9 @@ class SWATRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up SWAT-specific paths."""
-        txtinout_name = self._get_config_value(
-            lambda: self.config.model.swat.txtinout_dir,
-            default='TxtInOut',
-        )
-        self.txtinout_dir = self.project_dir / "SWAT_input" / txtinout_name
+        # Standard layout: settings in settings/SWAT/, forcing in data/forcing/SWAT_input/
+        self.swat_settings_dir = self.project_dir / 'settings' / 'SWAT'
+        self.swat_forcing_dir = self.project_forcing_dir / 'SWAT_input'
 
         self.swat_exe = self.get_model_executable(
             install_path_key='SWAT_INSTALL_PATH',
@@ -40,23 +44,74 @@ class SWATRunner(BaseModelRunner):
             must_exist=True,
         )
 
-    def _get_output_dir(self) -> Path:
-        """SWAT writes output into TxtInOut directory."""
-        return self.txtinout_dir
+    def _prepare_run(self) -> None:
+        """Assemble TxtInOut in the output directory from settings + forcing."""
+        self._assemble_txtinout(self.output_dir)
+
+    def _assemble_txtinout(self, target_dir: Path) -> None:
+        """Copy settings and forcing files into a single working directory.
+
+        After copying, removes stale output files from any prior run and
+        forces an fsync so the Fortran executable sees complete files.
+
+        Args:
+            target_dir: Directory to assemble TxtInOut into.
+        """
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Remove stale output from prior runs so SWAT starts clean
+        for pattern in ('output.*', '*.out'):
+            for stale in target_dir.glob(pattern):
+                stale.unlink(missing_ok=True)
+
+        # Copy settings files (file.cio, .bsn, .sub, .hru, etc.)
+        if self.swat_settings_dir.exists():
+            for f in self.swat_settings_dir.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, target_dir / f.name)
+
+        # Copy forcing files (.pcp, .tmp)
+        if self.swat_forcing_dir.exists():
+            for f in self.swat_forcing_dir.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, target_dir / f.name)
+
+        # Fsync the directory so all copied files are flushed to disk
+        # before the Fortran executable reads them (prevents SIGBUS on arm64)
+        fd = os.open(str(target_dir), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+        # Verify the critical control file exists
+        cio = target_dir / 'file.cio'
+        if not cio.exists():
+            raise FileNotFoundError(
+                f"file.cio not found in {target_dir} after assembly"
+            )
+
+    def _get_run_environment(self) -> Optional[Dict[str, str]]:
+        """Set single-threaded environment for Fortran runtime."""
+        return {
+            'OMP_NUM_THREADS': '1',
+            'MKL_NUM_THREADS': '1',
+            'OPENBLAS_NUM_THREADS': '1',
+        }
 
     def _build_run_command(self) -> Optional[List[str]]:
         """Build SWAT execution command.
 
-        SWAT reads file.cio from its working directory (TxtInOut).
+        SWAT reads file.cio from its working directory.
         """
         return [str(self.swat_exe)]
 
     def _get_run_cwd(self) -> Optional[Path]:
-        """Run from TxtInOut directory."""
-        return self.txtinout_dir
+        """Run from the output directory (assembled TxtInOut)."""
+        return self.output_dir
 
     def _get_expected_outputs(self) -> List[str]:
-        """Expect output.rch in TxtInOut."""
+        """Expect output.rch in output directory."""
         return ['output.rch']
 
     def _get_run_timeout(self) -> int:

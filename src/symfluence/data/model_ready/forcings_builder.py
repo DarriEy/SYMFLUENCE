@@ -14,6 +14,7 @@ from typing import Optional
 
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class ForcingsStoreBuilder:
         self.forcing_dataset = forcing_dataset
         self.strategy = strategy
 
-        self.source_dir = project_dir / 'forcing' / 'basin_averaged_data'
+        self.source_dir = resolve_data_subdir(project_dir, 'forcing') / 'basin_averaged_data'
         self.target_dir = project_dir / 'data' / 'model_ready' / 'forcings'
 
     # ------------------------------------------------------------------

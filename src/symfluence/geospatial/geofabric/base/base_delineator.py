@@ -21,6 +21,7 @@ from typing import Dict, Any
 
 
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 class BaseGeofabricDelineator(ABC, PathResolverMixin):
@@ -125,7 +126,8 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
             dem_name = f"domain_{self.domain_name}_elv.tif"
 
         if dem_path is None or dem_path == 'default':
-            return self.project_dir / 'attributes' / 'elevation' / 'dem' / dem_name
+            attr_dir = resolve_data_subdir(self.project_dir, 'attributes')
+            return attr_dir / 'elevation' / 'dem' / dem_name
 
         return Path(dem_path) / dem_name
 

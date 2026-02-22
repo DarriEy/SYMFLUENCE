@@ -446,10 +446,10 @@ class SWATSubbasinGenerator:
         gw_path = self.pp.txtinout_dir / '000010001.gw'
         gw_lines = [
             " Groundwater parameters -- SYMFLUENCE generated",
-            # Line  2: SHALLST
-            f"  {0.5:14.4f}    | SHALLST : Initial shallow aquifer storage [mm]",
+            # Line  2: SHALLST (must exceed GWQMN for immediate baseflow)
+            f"  {1000.0:14.4f}    | SHALLST : Initial shallow aquifer storage [mm]",
             # Line  3: DEEPST
-            f"  {1000.0:14.4f}    | DEEPST : Initial deep aquifer storage [mm]",
+            f"  {2000.0:14.4f}    | DEEPST : Initial deep aquifer storage [mm]",
             # Line  4: GW_DELAY (= delay)
             f"  {DEFAULT_PARAMS['GW_DELAY']:14.4f}    | GW_DELAY : Groundwater delay time [days]",
             # Line  5: ALPHA_BF
@@ -572,25 +572,30 @@ class SWATSubbasinGenerator:
         """
         sol_path = self.pp.txtinout_dir / '000010001.sol'
 
-        # Single soil layer values (mountain catchment defaults)
-        sol_z = 500.0       # Depth to bottom of layer [mm]
-        sol_bd = 1.45       # Moist bulk density [Mg/m3]
-        sol_awc = 0.18      # Available water capacity [mm/mm]
-        sol_k = 12.0        # Saturated hydraulic conductivity [mm/hr]
-        sol_cbn = 1.5       # Organic carbon content [%]
-        clay_pct = 15.0     # Clay content [%]
-        silt_pct = 35.0     # Silt content [%]
-        sand_pct = 50.0     # Sand content [%]
-        rock_pct = 10.0     # Rock fragment content [%]
-        sol_alb = 0.10      # Moist soil albedo
-        usle_k = 0.28       # USLE soil erodibility factor
-        sol_ec = 0.0        # Electrical conductivity [dS/m]
-        ph = 6.5            # Soil pH
-        caco3 = 0.0         # CaCO3 content [%]
+        # Two-layer soil profile (mountain catchment defaults)
+        # Layer 1: Topsoil (organic-rich, moderate conductivity)
+        # Layer 2: Subsoil (denser, lower conductivity)
+        sol_zmx = 1000.0    # Max rooting depth [mm]
 
-        def sol_data_row(label, value):
+        # Per-layer values: [layer1, layer2]
+        sol_z =    [300.0,  1000.0]   # Depth to bottom of layer [mm]
+        sol_bd =   [1.35,   1.55]     # Moist bulk density [Mg/m3]
+        sol_awc =  [0.20,   0.14]     # Available water capacity [mm/mm]
+        sol_k =    [18.0,   5.0]      # Saturated hydraulic conductivity [mm/hr]
+        sol_cbn =  [2.5,    0.5]      # Organic carbon content [%]
+        clay_pct = [12.0,   22.0]     # Clay content [%]
+        silt_pct = [35.0,   33.0]     # Silt content [%]
+        sand_pct = [53.0,   45.0]     # Sand content [%]
+        rock_pct = [8.0,    15.0]     # Rock fragment content [%]
+        sol_alb =  [0.10,   0.10]     # Moist soil albedo
+        usle_k =   [0.28,   0.28]     # USLE soil erodibility factor
+        sol_ec =   [0.0,    0.0]      # Electrical conductivity [dS/m]
+        ph =       [6.0,    6.8]      # Soil pH
+        caco3 =    [0.0,    0.0]      # CaCO3 content [%]
+
+        def sol_data_row(label, values):
             """Format a .sol data row: 27-char label + 12.2 float per layer."""
-            return f"{label:27s}{value:12.2f}"
+            return f"{label:27s}" + ''.join(f"{v:12.2f}" for v in values)
 
         sol_lines = [
             # Line 1: title (a80)
@@ -600,7 +605,7 @@ class SWATSubbasinGenerator:
             # Line 3: HYDGRP -- format (24x,a1) -- 24 skip chars then 1 char
             f"{'':24s}{'B':1s}",
             # Line 4: SOL_ZMX -- format (28x,f12.2) -- 28 skip chars then f12.2
-            f"{'':28s}{sol_z:12.2f}",
+            f"{'':28s}{sol_zmx:12.2f}",
             # Line 5: ANION_EXCL -- format (51x,f5.3) -- 51 skip chars then f5.3
             f"{'':51s}{0.500:5.3f}",
             # Line 6: title (skip line)

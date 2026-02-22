@@ -62,8 +62,8 @@ class MESHPostProcessor(StandardModelPostprocessor):
     def _setup_model_specific_paths(self) -> None:
         """Set up MESH-specific paths."""
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
+        self.forcing_basin_path = self.project_forcing_dir / 'basin_averaged_data'
+        self.forcing_mesh_path = self.project_forcing_dir / 'MESH_input'
         # Catchment paths (use backward-compatible path resolution)
         catchment_file = self._get_catchment_file_path()
         self.catchment_path = catchment_file.parent
@@ -76,32 +76,83 @@ class MESHPostProcessor(StandardModelPostprocessor):
         Returns:
             Path to MESH output directory (forcing/MESH_input)
         """
-        return self.project_dir / 'forcing' / 'MESH_input'
+        return self.project_forcing_dir / 'MESH_input'
 
     def extract_streamflow(self) -> Optional[Path]:
         """
         Extract streamflow from MESH outputs.
 
-        Overrides base method to handle MESH's alternate file location
-        (MESH_output_streamflow_ts.csv as fallback).
+        Handles multiple MESH output formats:
+        - MESH_output_streamflow.csv (routed mode with QOSIM columns)
+        - results/Basin_average_water_balance.csv (lumped/noroute mode with RFF)
+        - MESH_output_streamflow_ts.csv (alternative timestep output)
 
         Returns:
             Optional[Path]: Path to processed streamflow file, or None if extraction fails
         """
         self.logger.info("Extracting streamflow from MESH outputs")
 
-        # MESH outputs to the forcing directory where it runs
-        mesh_output_file = self._get_output_dir() / self.output_file_pattern
+        output_dir = self._get_output_dir()
 
-        if not mesh_output_file.exists():
-            # Try alternative timestep output
-            mesh_output_file = self._get_output_dir() / 'MESH_output_streamflow_ts.csv'
-            if not mesh_output_file.exists():
-                self.logger.error(f"MESH streamflow output not found at {mesh_output_file}")
-                return None
+        # Try output files in priority order
+        candidates = [
+            output_dir / self.output_file_pattern,
+            output_dir / 'results' / 'Basin_average_water_balance.csv',
+            output_dir / 'MESH_output_streamflow_ts.csv',
+        ]
+
+        mesh_output_file = None
+        for candidate in candidates:
+            if candidate.exists():
+                mesh_output_file = candidate
+                break
+
+        if mesh_output_file is None:
+            self.logger.warning(
+                f"MESH streamflow output not found at {output_dir}")
+            return None
 
         try:
-            # Use StandardModelPostprocessor text extraction
+            # Basin_average_water_balance needs the extractor (RFF + unit conversion)
+            if 'Basin_average_water_balance' in mesh_output_file.name:
+                from .extractor import MESHResultExtractor
+                extractor = MESHResultExtractor('MESH')
+
+                # Parse start date from run options
+                run_opts = output_dir / 'MESH_input_run_options.ini'
+                start_date = None
+                if run_opts.exists():
+                    import re
+                    from datetime import datetime, timedelta
+                    with open(run_opts, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    match = re.search(r'(\d{4})\s+(\d{1,3})\s+\d+\s+\d+\s*$', content, re.MULTILINE)
+                    if match:
+                        start_date = datetime(int(match.group(1)), 1, 1) + timedelta(days=int(match.group(2)) - 1)
+                if start_date is None:
+                    from datetime import datetime
+                    start_date = datetime(2001, 1, 1)
+
+                streamflow = extractor.extract_variable(
+                    mesh_output_file, 'runoff',
+                    start_date=start_date, aggregate='daily'
+                )
+
+                # Convert mm/day to m³/s using basin area
+                import xarray as xr
+                ddb_path = output_dir / 'MESH_drainage_database.nc'
+                if ddb_path.exists():
+                    with xr.open_dataset(ddb_path) as ds:
+                        area_m2 = float(ds['GridArea'].values.sum()) if 'GridArea' in ds else float(ds['DA'].values.sum())
+                    streamflow = streamflow * (area_m2 * 0.001 / 86400)
+                    self.logger.info(f"Converted runoff to discharge using area={area_m2/1e6:.1f} km²")
+
+                return self.save_streamflow_to_results(
+                    streamflow,
+                    model_column_name='MESH_discharge_cms'
+                )
+
+            # Standard streamflow CSV — use text extraction
             streamflow = self._extract_from_text(mesh_output_file)
 
             if streamflow is None:

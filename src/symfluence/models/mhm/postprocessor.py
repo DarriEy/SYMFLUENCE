@@ -66,9 +66,9 @@ class MHMPostProcessor(StandardModelPostprocessor):
         output_file = None
         # Search in output directory and settings output directory
         search_dirs = [output_dir]
-        mhm_input_dir = self.project_dir / 'MHM_input'
-        for subdir in ['output', 'settings/output', 'settings']:
-            candidate = mhm_input_dir / subdir
+        mhm_settings_dir = self.project_dir / 'settings' / 'MHM'
+        for subdir in ['output', '']:
+            candidate = mhm_settings_dir / subdir if subdir else mhm_settings_dir
             if candidate.exists():
                 search_dirs.append(candidate)
 

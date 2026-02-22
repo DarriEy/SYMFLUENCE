@@ -390,6 +390,7 @@ class ModelComparisonPlotter(BasePlotter):
                         sorted(mizu_files),
                         combine='by_coords',
                         data_vars='minimal',
+                        coords='minimal',
                         compat='override',
                         join='override'
                     )
@@ -589,7 +590,8 @@ class ModelComparisonPlotter(BasePlotter):
                 try:
                     import xarray as xr
                     ds = xr.open_mfdataset(
-                        [str(f) for f in clm_files], combine='by_coords'
+                        [str(f) for f in clm_files], combine='by_coords',
+                        data_vars='minimal', coords='minimal', compat='override'
                     )
                     if 'QRUNOFF' in ds:
                         qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
@@ -787,7 +789,8 @@ class ModelComparisonPlotter(BasePlotter):
                 self.logger.info(f"Found {len(clm_files)} CLM history file(s)")
                 try:
                     ds = xr.open_mfdataset(
-                        [str(f) for f in clm_files], combine='by_coords'
+                        [str(f) for f in clm_files], combine='by_coords',
+                        data_vars='minimal', coords='minimal', compat='override'
                     )
                     if 'QRUNOFF' in ds:
                         qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
@@ -832,7 +835,7 @@ class ModelComparisonPlotter(BasePlotter):
             lambda: self.config.domain.name,
             dict_key=ConfigKeys.DOMAIN_NAME
         )
-        obs_path = (self.project_dir / "observations" / "streamflow" /
+        obs_path = (self.project_observations_dir / "streamflow" /
                    "preprocessed" / f"{domain_name}_streamflow_processed.csv")
 
         if not obs_path.exists():

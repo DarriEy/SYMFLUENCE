@@ -13,6 +13,8 @@ from typing import Dict, Any, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from symfluence.core.constants import UnitConversion
 from symfluence.evaluation.utilities import StreamflowMetrics
 
@@ -41,7 +43,7 @@ def load_observations(
     obs_file_path = config.get('OBSERVATIONS_PATH', 'default')
     if obs_file_path == 'default':
         obs_file_path = (
-            project_dir / 'observations' / 'streamflow' / 'preprocessed' /
+            resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
             f"{domain_name}_streamflow_processed.csv"
         )
     else:
@@ -51,7 +53,7 @@ def load_observations(
         log.error(f"Observation file not found: {obs_file_path}")
         return None
 
-    df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True, dayfirst=True)
+    df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
 
     if not isinstance(df_obs.index, pd.DatetimeIndex):
         try:
@@ -185,7 +187,16 @@ def read_routed_streamflow(
 
     log = log or logger
 
-    with xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True) as ds:
+    try:
+        ds = xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True)
+    except Exception as e:
+        log.error(
+            f"Cannot open routed output file {sim_file_path.name}: {e}. "
+            f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes"
+        )
+        return None
+
+    with ds:
         sim_reach_id = config.get('SIM_REACH_ID')
         seg_idx = 0
 
@@ -244,7 +255,17 @@ def read_fuse_streamflow(
     log = log or logger
     domain_name = config.get('DOMAIN_NAME')
 
-    with xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True) as ds:
+    try:
+        ds = xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True)
+    except Exception as e:
+        log.error(
+            f"Cannot open FUSE output file {sim_file_path.name}: {e}. "
+            f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes. "
+            f"FUSE may have crashed silently (Fortran STOP returns exit code 0)."
+        )
+        return None
+
+    with ds:
         spatial_mode = config.get('FUSE_SPATIAL_MODE', 'lumped')
         subcatchment_dim = config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
 

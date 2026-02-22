@@ -272,7 +272,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                             s1 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}/{level}", s3=fs)
                             s2 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}", s3=fs)
                             ds = self.execute_with_retry(
-                                lambda s1=s1, s2=s2: xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False, decode_timedelta=False),
+                                lambda s1=s1, s2=s2: xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False, decode_timedelta=False, data_vars='minimal', coords='minimal', compat='override'),
                                 max_retries=3,
                                 base_delay=5,
                                 backoff_factor=2.0,

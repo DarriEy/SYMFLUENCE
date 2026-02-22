@@ -315,7 +315,7 @@ class ForcingResampler(PathResolverMixin):
             dem_name = f"domain_{self._get_config_value(lambda: self.config.domain.name)}_elv.tif"
 
         self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
+        self.forcing_basin_path = self.project_forcing_dir / 'basin_averaged_data'
         # Use backward-compatible catchment path resolution
         self.catchment_name = self._get_config_value(lambda: self.config.paths.catchment_shp_name)
         if self.catchment_name == 'default' or self.catchment_name is None:
@@ -420,8 +420,8 @@ class ForcingResampler(PathResolverMixin):
         start_year = int(self._get_config_value(lambda: self.config.domain.time_start).split('-')[0])
         end_year = int(self._get_config_value(lambda: self.config.domain.time_end).split('-')[0])
 
-        raw_forcing_path = self.project_dir / 'forcing/raw_data/'
-        merged_forcing_path = self.project_dir / 'forcing' / 'merged_path'
+        raw_forcing_path = self.project_forcing_dir / 'raw_data'
+        merged_forcing_path = self.project_forcing_dir / 'merged_path'
 
         self.dataset_handler.merge_forcings(
             raw_forcing_path=raw_forcing_path,

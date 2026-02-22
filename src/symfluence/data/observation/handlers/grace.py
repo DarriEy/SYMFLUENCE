@@ -38,7 +38,7 @@ class GRACEHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate GRACE data or download if possible."""
-        grace_dir = Path(self.config_dict.get('GRACE_DATA_DIR', self.project_dir / "observations" / "grace"))
+        grace_dir = Path(self.config_dict.get('GRACE_DATA_DIR', self.project_observations_dir / "grace"))
 
         # Check if we need to download
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -113,7 +113,7 @@ class GRACEHandler(BaseObservationHandler):
 
         # Save to CSV
         df = pd.DataFrame(results)
-        output_dir = self.project_dir / "observations" / "grace" / "preprocessed"
+        output_dir = self.project_observations_dir / "grace" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_grace_tws_processed.csv"
         df.to_csv(output_file)

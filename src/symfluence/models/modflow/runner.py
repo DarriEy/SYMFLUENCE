@@ -79,7 +79,7 @@ class MODFLOWRunner(BaseModelRunner):
         Raises:
             ModelExecutionError: If execution fails.
         """
-        logger.info(f"Running MODFLOW 6 for domain: {self.config.domain.name}")
+        logger.debug(f"Running MODFLOW 6 for domain: {self.config.domain.name}")
 
         # Prepare coupled recharge from upstream land surface model
         self._prepare_coupled_recharge(source_dir_override=coupling_source_dir)
@@ -102,14 +102,14 @@ class MODFLOWRunner(BaseModelRunner):
 
             # Get executable
             mf6_exe = self._get_mf6_executable()
-            logger.info(f"Using MODFLOW 6 executable: {mf6_exe}")
+            logger.debug(f"Using MODFLOW 6 executable: {mf6_exe}")
 
             # Copy input files to simulation directory
             self._setup_sim_directory(self.output_dir)
 
             # Execute: MODFLOW 6 reads mfsim.nam from cwd
             cmd = [str(mf6_exe)]
-            logger.info(f"Executing MODFLOW 6 from: {self.output_dir}")
+            logger.debug(f"Executing MODFLOW 6 from: {self.output_dir}")
 
             env = os.environ.copy()
             timeout = self._get_timeout()
@@ -150,7 +150,7 @@ class MODFLOWRunner(BaseModelRunner):
                     f"MODFLOW 6 execution failed with return code {result.returncode}"
                 )
 
-            logger.info("MODFLOW 6 execution completed successfully")
+            logger.debug("MODFLOW 6 execution completed successfully")
             self._verify_output()
 
             return self.output_dir
@@ -181,10 +181,10 @@ class MODFLOWRunner(BaseModelRunner):
             source_output_dir = Path(source_dir_override)
             coupling_source = coupling_source or 'SUMMA'
             coupling_source = str(coupling_source).upper()
-            logger.info(f"Preparing coupled recharge from {coupling_source}")
+            logger.debug(f"Preparing coupled recharge from {coupling_source}")
         elif coupling_source and str(coupling_source).lower() not in ('none', 'default', ''):
             coupling_source = str(coupling_source).upper()
-            logger.info(f"Preparing coupled recharge from {coupling_source}")
+            logger.debug(f"Preparing coupled recharge from {coupling_source}")
             experiment_id = self.config.domain.experiment_id
             source_output_dir = (
                 self.project_dir / "simulations" / experiment_id / coupling_source
@@ -222,7 +222,7 @@ class MODFLOWRunner(BaseModelRunner):
         self.settings_dir.mkdir(parents=True, exist_ok=True)
         coupler.write_modflow_recharge_rch(recharge_series, rch_path)
 
-        logger.info(f"Wrote coupled recharge ({len(recharge_series)} periods) to {rch_path}")
+        logger.debug(f"Wrote coupled recharge ({len(recharge_series)} periods) to {rch_path}")
 
     def _setup_sim_directory(self, sim_dir: Path) -> None:
         """Copy all MODFLOW input files to simulation directory."""
@@ -265,7 +265,7 @@ class MODFLOWRunner(BaseModelRunner):
             if f.stat().st_size == 0:
                 raise RuntimeError(f"MODFLOW head output file is empty: {f}")
 
-        logger.info(
+        logger.debug(
             f"Verified MODFLOW output: {len(hds_files)} head file(s), "
             f"{len(bud_files)} budget file(s)"
         )

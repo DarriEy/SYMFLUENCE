@@ -21,6 +21,7 @@ from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
 from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 @OptimizerRegistry.register_worker('SACSMA')
@@ -123,7 +124,7 @@ class SacSmaWorker(InMemoryModelWorker):
         data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
         project_dir = data_dir / f"domain_{domain_name}"
 
-        obs_file = (project_dir / 'observations' / 'streamflow' / 'preprocessed' /
+        obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
                     f"{domain_name}_streamflow_processed.csv")
 
         if obs_file.exists():

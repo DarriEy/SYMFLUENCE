@@ -19,8 +19,8 @@ class PRMSRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up PRMS-specific paths."""
-        self.prms_input_dir = self.project_dir / "PRMS_input"
-        self.settings_dir = self.prms_input_dir / "settings"
+        self.setup_dir = self.project_dir / "settings" / self.model_name
+        self.settings_dir = self.setup_dir
 
         self.prms_exe = self.get_model_executable(
             install_path_key='PRMS_INSTALL_PATH',

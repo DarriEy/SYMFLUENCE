@@ -26,7 +26,7 @@ class CNESGRGSHandler(BaseObservationHandler):
         """Locate CNES/GRGS data or download if needed."""
         data_dir = Path(self.config_dict.get(
             'CNES_GRGS_DATA_DIR',
-            self.project_dir / "observations" / "tws" / "cnes_grgs"))
+            self.project_observations_dir / "tws" / "cnes_grgs"))
 
         force_download = self._get_config_value(
             lambda: self.config.data.force_download, default=False)
@@ -79,7 +79,7 @@ class CNESGRGSHandler(BaseObservationHandler):
                                  f"baseline (offset: {offset:.2f} cm)")
 
         # Save
-        output_dir = self.project_dir / "observations" / "tws" / "preprocessed"
+        output_dir = self.project_observations_dir / "tws" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_cnes_grgs_tws_processed.csv"
         df.to_csv(output_file)

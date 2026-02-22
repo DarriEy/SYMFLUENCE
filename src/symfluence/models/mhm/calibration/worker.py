@@ -70,11 +70,11 @@ class MHMWorker(BaseWorker):
         try:
             self.logger.debug(f"Applying mHM parameters to {settings_dir}")
 
-            # Always copy fresh namelists from the original MHM_input location
+            # Always copy fresh namelists from the original settings location
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_settings_dir = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'settings'
+            original_settings_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'MHM'
 
             if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
@@ -293,10 +293,10 @@ class MHMWorker(BaseWorker):
                         break
 
             if not output_files:
-                # mHM namelist may point to original MHM_input/output directory
+                # mHM namelist may point to settings/MHM/output directory
                 domain_name = config.get('DOMAIN_NAME', '')
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                mhm_input_output = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'output'
+                mhm_input_output = data_dir / f'domain_{domain_name}' / 'settings' / 'MHM' / 'output'
                 if mhm_input_output.exists():
                     output_files = list(mhm_input_output.glob('discharge*.nc'))
 
@@ -365,10 +365,10 @@ class MHMWorker(BaseWorker):
                         break
 
             if not output_files:
-                # mHM namelist may point to original MHM_input/output directory
+                # mHM namelist may point to settings/MHM/output directory
                 domain_name = config.get('DOMAIN_NAME', '')
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                mhm_input_output = data_dir / f'domain_{domain_name}' / 'MHM_input' / 'output'
+                mhm_input_output = data_dir / f'domain_{domain_name}' / 'settings' / 'MHM' / 'output'
                 if mhm_input_output.exists():
                     output_files = list(mhm_input_output.glob('discharge*.nc'))
 

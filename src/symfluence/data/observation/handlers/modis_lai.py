@@ -62,14 +62,14 @@ class MODISLAIHandler(BaseObservationHandler):
         """Acquire MODIS LAI data via cloud acquisition."""
         lai_dir = Path(self.config_dict.get(
             'MODIS_LAI_DIR',
-            self.project_dir / "observations" / "vegetation" / "modis_lai"
+            self.project_observations_dir / "vegetation" / "modis_lai"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
 
         # Check for existing processed file first
         processed_file = (
-            self.project_dir / "observations" / "vegetation" / "preprocessed"
+            self.project_observations_dir / "vegetation" / "preprocessed"
             / f"{self.domain_name}_modis_lai_processed.csv"
         )
         if processed_file.exists() and not self.config_dict.get('FORCE_RUN_ALL_STEPS', False):
@@ -123,7 +123,7 @@ class MODISLAIHandler(BaseObservationHandler):
         """
         self.logger.info(f"Processing MODIS LAI/FPAR for domain: {self.domain_name}")
 
-        output_dir = self.project_dir / "observations" / "vegetation" / "preprocessed"
+        output_dir = self.project_observations_dir / "vegetation" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_modis_lai_processed.csv"
 
@@ -513,7 +513,7 @@ class MODISLAIHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed MODIS LAI data."""
         processed_path = (
-            self.project_dir / "observations" / "vegetation" / "preprocessed"
+            self.project_observations_dir / "vegetation" / "preprocessed"
             / f"{self.domain_name}_modis_lai_processed.csv"
         )
 

@@ -47,7 +47,7 @@ class DaymetHandler(BaseObservationHandler):
         """Acquire Daymet data via cloud acquisition."""
         daymet_dir = Path(self.config_dict.get(
             'DAYMET_DIR',
-            self.project_dir / "observations" / "climate" / "daymet"
+            self.project_observations_dir / "climate" / "daymet"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -140,7 +140,7 @@ class DaymetHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "climate" / "preprocessed"
+        output_dir = self.project_observations_dir / "climate" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_daymet_climate_processed.csv"
 
@@ -307,7 +307,7 @@ class DaymetHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed Daymet climate data."""
         processed_path = (
-            self.project_dir / "observations" / "climate" / "preprocessed"
+            self.project_observations_dir / "climate" / "preprocessed"
             / f"{self.domain_name}_daymet_climate_processed.csv"
         )
 

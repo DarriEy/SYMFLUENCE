@@ -644,7 +644,7 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
 
     def _prepare_observations(self) -> None:
         """Prepare observation data for validation/calibration."""
-        obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         obs_file = obs_dir / f"{self.domain_name}_streamflow_processed.csv"
 
         if obs_file.exists():

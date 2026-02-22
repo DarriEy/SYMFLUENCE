@@ -145,7 +145,7 @@ class TestModelCalibration:
         """Test calibration with multiple models specified."""
         config = create_config_with_overrides(
             base_optimization_config,
-            HYDROLOGICAL_MODEL='SUMMA,FUSE'  # Multiple models
+            HYDROLOGICAL_MODEL='SUMMA,FUSE',  # Multiple models
         )
 
         manager = OptimizationManager(config, test_logger)
@@ -153,7 +153,18 @@ class TestModelCalibration:
         with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
             mock_calibrate.return_value = Path("results.csv")
 
-            manager.calibrate_model()
+            # Disable FUSE internal calibration so external DDS is used for both models.
+            # Pydantic models default run_internal_calibration=True and are frozen,
+            # so we mock _get_config_value to return False for that specific check.
+            original_get = manager._get_config_value
+            def _get_config_value_override(accessor, default=None, **kwargs):
+                # When default is the dict lookup for FUSE_RUN_INTERNAL_CALIBRATION, return False
+                if default is True and not kwargs.get('dict_key'):
+                    return False
+                return original_get(accessor, default, **kwargs)
+
+            with patch.object(manager, '_get_config_value', side_effect=_get_config_value_override):
+                manager.calibrate_model()
 
             # Should call registry-based calibration for each model
             assert mock_calibrate.call_count == 2

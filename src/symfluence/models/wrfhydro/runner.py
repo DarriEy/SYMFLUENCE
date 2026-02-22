@@ -4,6 +4,7 @@ WRF-Hydro Model Runner.
 Executes the WRF-Hydro model using prepared input files.
 """
 
+import re
 import shutil
 from pathlib import Path
 from typing import Optional, List
@@ -20,9 +21,8 @@ class WRFHydroRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up WRF-Hydro-specific paths."""
-        self.wrfhydro_input_dir = self.project_dir / "WRFHydro_input"
-        self.settings_dir = self.wrfhydro_input_dir / "settings"
-        self.routing_dir = self.wrfhydro_input_dir / "routing"
+        self.settings_dir = self.project_dir / "settings" / "WRFHYDRO"
+        self.routing_dir = self.settings_dir / "routing"
 
         self.wrfhydro_exe = self.get_model_executable(
             install_path_key='WRFHYDRO_INSTALL_PATH',
@@ -74,16 +74,36 @@ class WRFHydroRunner(BaseModelRunner):
                         dest.symlink_to(src_file.resolve())
                     break
 
-        # Symlink .TBL lookup tables from WRF-Hydro install
-        wrfhydro_install = self.wrfhydro_exe.parent.parent
-        tbl_dirs = [wrfhydro_install / 'Run', wrfhydro_install / 'run',
-                    self.wrfhydro_exe.parent]
-        for tbl_dir in tbl_dirs:
-            if tbl_dir.exists():
-                for tbl_file in tbl_dir.glob('*.TBL'):
-                    dest = run_dir / tbl_file.name
-                    if not (dest.exists() or dest.is_symlink()):
-                        dest.symlink_to(tbl_file.resolve())
+        # Symlink .TBL lookup tables — prefer settings_dir (staged by preprocessor)
+        tbl_found = False
+        for tbl_file in self.settings_dir.glob('*.TBL'):
+            dest = run_dir / tbl_file.name
+            if not (dest.exists() or dest.is_symlink()):
+                dest.symlink_to(tbl_file.resolve())
+            tbl_found = True
+
+        # Fallback: try install directory if preprocessor didn't stage them
+        if not tbl_found:
+            wrfhydro_install = self.wrfhydro_exe.parent.parent
+            tbl_dirs = [wrfhydro_install / 'Run', wrfhydro_install / 'run',
+                        self.wrfhydro_exe.parent]
+            for tbl_dir in tbl_dirs:
+                if tbl_dir.exists():
+                    for tbl_file in tbl_dir.glob('*.TBL'):
+                        dest = run_dir / tbl_file.name
+                        if not (dest.exists() or dest.is_symlink()):
+                            dest.symlink_to(tbl_file.resolve())
+
+        # Patch OUTDIR in namelist.hrldas to point to this run directory
+        hrldas_copy = run_dir / namelist_name
+        if hrldas_copy.exists():
+            content = hrldas_copy.read_text(encoding='utf-8')
+            content = re.sub(
+                r"(OUTDIR\s*=\s*)'[^']*'",
+                rf"\g<1>'{run_dir}'",
+                content
+            )
+            hrldas_copy.write_text(content, encoding='utf-8')
 
     def _get_run_cwd(self) -> Optional[Path]:
         """Run from output directory."""

@@ -57,7 +57,7 @@ class CHIRPSHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(chirps_path, str) and chirps_path.lower() == 'default':
-            chirps_dir = self.project_dir / "observations" / "precipitation" / "chirps"
+            chirps_dir = self.project_observations_dir / "precipitation" / "chirps"
         else:
             chirps_dir = Path(chirps_path)
 
@@ -195,7 +195,7 @@ class CHIRPSHandler(BaseObservationHandler):
         df_combined.to_csv(output_file, index=False)
 
         # Also save to product-specific location
-        product_dir = self.project_dir / "observations" / "precipitation" / "chirps" / "processed"
+        product_dir = self.project_observations_dir / "precipitation" / "chirps" / "processed"
         product_dir.mkdir(parents=True, exist_ok=True)
         product_file = product_dir / f"{self.domain_name}_chirps_processed.csv"
         df_combined.to_csv(product_file, index=False)

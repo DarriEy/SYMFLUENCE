@@ -19,9 +19,14 @@ class MHMRunner(BaseModelRunner):
     MODEL_NAME = "MHM"
 
     def _setup_model_specific_paths(self) -> None:
-        """Set up mHM-specific paths."""
-        self.mhm_input_dir = self.project_dir / "MHM_input"
-        self.settings_dir = self.mhm_input_dir / "settings"
+        """Set up mHM-specific paths.
+
+        Uses standard paths:
+            self.setup_dir   -> {project_dir}/settings/MHM
+            self.forcing_path -> {project_dir}/data/forcing/MHM_input
+        """
+        self.setup_dir = self.project_dir / "settings" / self.model_name
+        self.forcing_path = self.project_forcing_dir / f"{self.model_name}_input"
 
         self.mhm_exe = self.get_model_executable(
             install_path_key='MHM_INSTALL_PATH',
@@ -45,7 +50,7 @@ class MHMRunner(BaseModelRunner):
 
     def _get_run_cwd(self) -> Optional[Path]:
         """Run from settings directory where namelists reside."""
-        return self.settings_dir
+        return self.setup_dir
 
     def _get_run_timeout(self) -> int:
         """mHM timeout from config."""

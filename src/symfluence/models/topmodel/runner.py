@@ -91,7 +91,7 @@ class TopmodelRunner(  # type: ignore[misc]
         else:
             self.topmodel_setup_dir = self.project_dir / "settings" / "TOPMODEL"
 
-        self.topmodel_forcing_dir = self.project_dir / 'forcing' / 'TOPMODEL_input'
+        self.topmodel_forcing_dir = self.project_forcing_dir / 'TOPMODEL_input'
 
     def _get_output_dir(self) -> Path:
         """TOPMODEL output directory."""

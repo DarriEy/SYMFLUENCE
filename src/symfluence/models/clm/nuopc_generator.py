@@ -8,13 +8,44 @@ and user_nl_clm.
 """
 import logging
 import shutil
+import urllib.request
 from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
 
-# CESM inputdata root (downloaded during build)
+# CESM inputdata root (downloaded on demand)
 CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
+
+# Base URL for CESM inputdata SVN server
+_CESM_INPUTDATA_URL = (
+    'https://svn-ccsm-inputdata.cgd.ucar.edu/trunk/inputdata'
+)
+
+# Required CESM inputdata files (relative to CESM_INPUTDATA root)
+_REQUIRED_INPUTDATA = [
+    'lnd/clm2/snicardata/snicar_optics_5bnd_c013122.nc',
+    'lnd/clm2/snicardata/snicar_drdt_bst_fit_60_c070416.nc',
+    'lnd/clm2/urbandata/CLM50_tbuildmax_Oleson_2016_0.9x1.25_simyr1849-2106_c160923.nc',
+    'lnd/clm2/urbandata/CLM50_tbuildmax_Oleson_2016_0.9x1_ESMFmesh_cdf5_100621.nc',
+    'atm/cam/chem/trop_mozart/emis/megan21_emis_factors_78pft_c20161108.nc',
+]
+
+
+def _ensure_cesm_inputdata() -> None:
+    """Download required CESM inputdata files if missing."""
+    for rel_path in _REQUIRED_INPUTDATA:
+        local = CESM_INPUTDATA / rel_path
+        if local.exists() and local.stat().st_size > 0:
+            continue
+        local.parent.mkdir(parents=True, exist_ok=True)
+        url = f'{_CESM_INPUTDATA_URL}/{rel_path}'
+        logger.info(f"Downloading CESM inputdata: {rel_path}")
+        try:
+            urllib.request.urlretrieve(url, local)
+            logger.info(f"  Saved: {local} ({local.stat().st_size / 1e6:.1f} MB)")
+        except Exception as exc:
+            logger.warning(f"  Failed to download {rel_path}: {exc}")
 
 
 class CLMNuopcGenerator:
@@ -32,6 +63,7 @@ class CLMNuopcGenerator:
 
     def generate_nuopc_runtime(self) -> None:
         """Generate all NUOPC runtime configuration files."""
+        _ensure_cesm_inputdata()
         logger.info("Generating NUOPC runtime configuration files")
 
         lat, lon, area_km2 = self.pp.domain_generator.get_catchment_centroid()

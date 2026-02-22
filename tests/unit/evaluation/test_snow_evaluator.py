@@ -197,7 +197,7 @@ class TestObservedDataPath:
 
         result = snow_evaluator.get_observed_data_path()
 
-        expected = tmp_path / 'observations' / 'snow' / 'swe' / 'processed' / 'test_basin_swe_processed.csv'
+        expected = tmp_path / 'data' / 'observations' / 'snow' / 'swe' / 'processed' / 'test_basin_swe_processed.csv'
         assert result == expected
 
     def test_sca_path(self, snow_evaluator, tmp_path):
@@ -208,7 +208,7 @@ class TestObservedDataPath:
 
         result = snow_evaluator.get_observed_data_path()
 
-        expected = tmp_path / 'observations' / 'snow' / 'sca' / 'processed' / 'test_basin_sca_processed.csv'
+        expected = tmp_path / 'data' / 'observations' / 'snow' / 'sca' / 'processed' / 'test_basin_sca_processed.csv'
         assert result == expected
 
 

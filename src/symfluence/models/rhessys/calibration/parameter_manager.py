@@ -103,7 +103,7 @@ class RHESSysParameterManager(BaseParameterManager):
         # Path to definition files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.defs_dir = self.project_dir / 'RHESSys_input' / 'defs'
+        self.defs_dir = self.project_dir / 'settings' / 'RHESSys' / 'defs'
 
     # ========================================================================
     # IMPLEMENT ABSTRACT METHODS
@@ -184,7 +184,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
         # Worldfile params: read from the worldfile instead of def files
         if def_file_name == 'worldfile':
-            world_file = self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{self.domain_name}.world'
+            world_file = self.project_dir / 'settings' / 'RHESSys' / 'worldfiles' / f'{self.domain_name}.world'
             if world_file.exists():
                 try:
                     with open(world_file, 'r', encoding='utf-8') as f:

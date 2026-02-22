@@ -37,8 +37,9 @@ class SWATModelOptimizer(BaseModelOptimizer):
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        txtinout_name = config.get('SWAT_TXTINOUT_DIR', 'TxtInOut')
-        self.swat_txtinout_dir = self.project_dir / 'SWAT_input' / txtinout_name
+        # Standard layout: settings in settings/SWAT/, forcing in data/forcing/SWAT_input/
+        self.swat_settings_dir = self.project_dir / 'settings' / 'SWAT'
+        self.swat_forcing_dir = self.project_dir / 'data' / 'forcing' / 'SWAT_input'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
@@ -49,8 +50,8 @@ class SWATModelOptimizer(BaseModelOptimizer):
         return 'SWAT'
 
     def _get_final_file_manager_path(self) -> Path:
-        """Get path to SWAT TxtInOut directory (used as settings path)."""
-        return self.swat_txtinout_dir
+        """Get path to SWAT settings directory."""
+        return self.swat_settings_dir
 
     def _create_parameter_manager(self):
         """Create SWAT parameter manager."""
@@ -58,7 +59,7 @@ class SWATModelOptimizer(BaseModelOptimizer):
         return SWATParameterManager(
             self.config,
             self.logger,
-            self.swat_txtinout_dir
+            self.swat_settings_dir
         )
 
     def _check_routing_needed(self) -> bool:
@@ -76,8 +77,6 @@ class SWATModelOptimizer(BaseModelOptimizer):
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run SWAT for final evaluation using best parameters."""
-        import shutil
-
         best_result = self.get_best_result()
         best_params = best_result.get('params')
 
@@ -86,23 +85,14 @@ class SWATModelOptimizer(BaseModelOptimizer):
             return False
 
         self.worker.apply_parameters(
-            best_params, self.swat_txtinout_dir, config=self.config
+            best_params, self.swat_settings_dir, config=self.config
         )
 
         success = self.worker.run_model(
             self.config,
-            self.swat_txtinout_dir,
+            self.swat_settings_dir,
             output_dir
         )
-
-        if success:
-            # SWAT writes output in TxtInOut — copy to final_evaluation dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-            for pattern in ['output.*']:
-                for f in self.swat_txtinout_dir.glob(pattern):
-                    if f.is_file() and f.stat().st_size > 0:
-                        shutil.copy2(f, output_dir / f.name)
-            self.logger.info(f"Copied SWAT outputs to {output_dir}")
 
         return success
 

@@ -19,8 +19,7 @@ class VICRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up VIC-specific paths."""
-        self.vic_input_dir = self.project_dir / "VIC_input"
-        self.settings_dir = self.vic_input_dir / "settings"
+        self.settings_dir = self.project_dir / "settings" / "VIC"
 
         # Determine executable name from driver config
         driver = self._get_config_value(

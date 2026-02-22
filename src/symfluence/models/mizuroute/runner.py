@@ -92,7 +92,13 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'FUSE'
             else:
                 experiment_output_dir = Path(experiment_output_fuse)
-            fuse_file_id = self.config_dict.get('FUSE_FILE_ID', self.config_dict.get('EXPERIMENT_ID'))
+            fuse_file_id = self.config_dict.get('FUSE_FILE_ID')
+            if not fuse_file_id:
+                fuse_file_id = self.config_dict.get('EXPERIMENT_ID', 'fuse')
+                # Replicate FUSE preprocessor's 6-char truncation for Fortran compatibility
+                if len(fuse_file_id) > 6:
+                    import hashlib
+                    fuse_file_id = hashlib.md5(fuse_file_id.encode(), usedforsecurity=False).hexdigest()[:6]
             runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{fuse_file_id}_runs_def.nc"
         elif 'GR' in active_models:
             self.logger.info("Fixing GR time precision for mizuRoute compatibility")

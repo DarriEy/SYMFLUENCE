@@ -15,6 +15,7 @@ from typing import Optional, Tuple
 from .shapefile_processor import ShapefileProcessor
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.hdf5_safety import prepare_for_netcdf_operation, clear_xarray_cache
 
 
@@ -172,7 +173,7 @@ class RemappingWeightGenerator(ConfigMixin):
 
         self.logger.debug("Creating remapping weights...")
 
-        temp_dir = self.project_dir / 'forcing' / 'temp_easymore_weights'
+        temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'temp_easymore_weights'
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:

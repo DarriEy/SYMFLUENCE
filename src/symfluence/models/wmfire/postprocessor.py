@@ -100,7 +100,7 @@ class WMFirePostProcessor:
         experiment_id = self.config.domain.experiment_id if hasattr(self.config, 'domain') else self.config.get('EXPERIMENT_ID', 'default')
 
         self.project_dir = data_dir / f"domain_{domain_name}"
-        self.rhessys_input_dir = self.project_dir / "RHESSys_input"
+        self.rhessys_input_dir = self.project_dir / "settings" / "RHESSys"
         self.simulation_dir = self.project_dir / "simulations" / experiment_id / "RHESSys"
         self.output_dir = self.project_dir / "simulations" / experiment_id / "fire_perimeters"
 

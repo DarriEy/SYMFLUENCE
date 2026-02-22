@@ -106,17 +106,20 @@ class ParameterBoundsRegistry:
         'PERCEXP': ParameterInfo(1.0, 20.0, '-', 'Percolation exponent', 'soil'),
 
         # NGEN CFE soil parameters
+        # NOTE: Bounds tightened to reduce segfault rate during calibration.
+        # Extreme parameter combinations (low satdk + high bb, high routing
+        # coefficients) cause numerical instability in CFE's Fortran solver.
         'maxsmc': ParameterInfo(0.3, 0.6, 'fraction', 'Maximum soil moisture content', 'soil'),
         'wltsmc': ParameterInfo(0.02, 0.15, 'fraction', 'Wilting point soil moisture', 'soil'),
-        'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil', 'log'),
+        'satdk': ParameterInfo(1e-6, 1e-5, 'm/s', 'Saturated hydraulic conductivity', 'soil', 'log'),
         'satpsi': ParameterInfo(0.05, 0.5, 'm', 'Saturated soil potential', 'soil'),
-        'bb': ParameterInfo(2.0, 8.0, '-', 'Pore size distribution index', 'soil'),
+        'bb': ParameterInfo(3.0, 6.0, '-', 'Pore size distribution index', 'soil'),
         # Note: smcmax defined in NOAH section below with bounds (0.3, 0.6)
         'alpha_fc': ParameterInfo(0.3, 0.8, '-', 'Field capacity coefficient', 'soil'),
         'expon': ParameterInfo(1.0, 6.0, '-', 'Exponent parameter', 'soil'),
         'mult': ParameterInfo(500.0, 2000.0, 'mm', 'Multiplier parameter', 'soil'),
-        'slop': ParameterInfo(0.01, 0.5, '-', 'TOPMODEL slope parameter', 'soil'),
-        'soil_depth': ParameterInfo(1.0, 10.0, 'm', 'CFE soil depth for mountainous catchments', 'soil'),
+        'slop': ParameterInfo(0.01, 0.3, '-', 'TOPMODEL slope parameter', 'soil'),
+        'soil_depth': ParameterInfo(1.0, 5.0, 'm', 'CFE soil depth', 'soil'),
 
         # NGEN NOAH-OWP soil parameters
         'slope': ParameterInfo(0.1, 1.0, '-', 'NOAH slope parameter', 'soil'),
@@ -147,7 +150,7 @@ class ParameterBoundsRegistry:
 
         # NGEN CFE groundwater parameters
         'Cgw': ParameterInfo(1e-5, 0.01, 'm/h', 'Groundwater coefficient', 'baseflow', 'log'),
-        'max_gw_storage': ParameterInfo(0.05, 2.0, 'm', 'Maximum groundwater storage (expanded for mountain catchments)', 'baseflow'),
+        'max_gw_storage': ParameterInfo(0.05, 1.0, 'm', 'Maximum groundwater storage', 'baseflow'),
     }
 
     # ========================================================================
@@ -158,10 +161,10 @@ class ParameterBoundsRegistry:
         'TIMEDELAY': ParameterInfo(0.0, 10.0, 'days', 'Time delay in routing', 'routing'),
 
         # NGEN CFE routing parameters
-        'K_lf': ParameterInfo(0.01, 0.8, '1/h', 'Lateral flow coefficient (expanded upper bound)', 'routing'),
-        'K_nash': ParameterInfo(0.01, 0.8, '1/h', 'Nash cascade coefficient (expanded upper bound)', 'routing'),
-        'Klf': ParameterInfo(0.01, 0.8, '1/h', 'Lateral flow coefficient (alias)', 'routing'),
-        'Kn': ParameterInfo(0.01, 0.8, '1/h', 'Nash cascade coefficient (alias)', 'routing'),
+        'K_lf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient', 'routing'),
+        'K_nash': ParameterInfo(0.01, 0.5, '1/h', 'Nash cascade coefficient', 'routing'),
+        'Klf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient (alias)', 'routing'),
+        'Kn': ParameterInfo(0.01, 0.5, '1/h', 'Nash cascade coefficient (alias)', 'routing'),
 
         # mizuRoute parameters (SUMMA)
         'velo': ParameterInfo(0.1, 5.0, 'm/s', 'Flow velocity', 'routing'),

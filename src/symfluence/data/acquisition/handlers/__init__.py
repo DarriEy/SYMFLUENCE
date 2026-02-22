@@ -52,6 +52,7 @@ _handler_modules = [
     'ssebop',
     'viirs_snow',
     'ims_snow',
+    'sentinel2_snow',
     'cmc_snow',
     'gleam_et',
     'canopy_height',

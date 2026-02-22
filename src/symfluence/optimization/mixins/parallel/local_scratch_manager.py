@@ -25,6 +25,7 @@ import socket
 import hashlib
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 class LocalScratchManager(ConfigMixin):
@@ -265,8 +266,8 @@ class LocalScratchManager(ConfigMixin):
             self.scratch_project_dir,
             self.scratch_project_dir / "settings" / "SUMMA",
             self.scratch_project_dir / "settings" / "mizuRoute",
-            self.scratch_project_dir / "forcing" / "SUMMA_input",
-            self.scratch_project_dir / "observations" / "streamflow" / "preprocessed",
+            resolve_data_subdir(self.scratch_project_dir, 'forcing') / "SUMMA_input",
+            resolve_data_subdir(self.scratch_project_dir, 'observations') / "streamflow" / "preprocessed",
             self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "SUMMA",
             self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "mizuRoute",
             self.scratch_project_dir / "optimization",
@@ -291,8 +292,8 @@ class LocalScratchManager(ConfigMixin):
         """Copy forcing data to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying forcing data to scratch on {self.node_name}...")
 
-        source_forcing = self.original_project_dir / "forcing" / "SUMMA_input"
-        dest_forcing = self.scratch_project_dir / "forcing" / "SUMMA_input"
+        source_forcing = resolve_data_subdir(self.original_project_dir, 'forcing') / "SUMMA_input"
+        dest_forcing = resolve_data_subdir(self.scratch_project_dir, 'forcing') / "SUMMA_input"
 
         # Copy forcing data
         self._rsync_directory(source_forcing, dest_forcing)
@@ -301,8 +302,8 @@ class LocalScratchManager(ConfigMixin):
         """Copy observation data to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying observation data to scratch on {self.node_name}...")
 
-        source_obs = self.original_project_dir / "observations" / "streamflow" / "preprocessed"
-        dest_obs = self.scratch_project_dir / "observations" / "streamflow" / "preprocessed"
+        source_obs = resolve_data_subdir(self.original_project_dir, 'observations') / "streamflow" / "preprocessed"
+        dest_obs = resolve_data_subdir(self.scratch_project_dir, 'observations') / "streamflow" / "preprocessed"
 
         # Only copy if source exists
         if source_obs.exists():
@@ -416,7 +417,7 @@ class LocalScratchManager(ConfigMixin):
             lines = f.readlines()
 
         # Prepare paths
-        forcing_path = str(self.scratch_project_dir / "forcing" / "SUMMA_input") + "/"
+        forcing_path = str(resolve_data_subdir(self.scratch_project_dir, 'forcing') / "SUMMA_input") + "/"
 
         # Update lines
         updated_lines = []
@@ -464,8 +465,8 @@ class LocalScratchManager(ConfigMixin):
                 'project_dir': self.scratch_project_dir or fallback_project_dir,
                 'settings_dir': (self.scratch_project_dir or fallback_project_dir) / "settings" / "SUMMA",
                 'mizuroute_settings_dir': (self.scratch_project_dir or fallback_project_dir) / "settings" / "mizuRoute",
-                'forcing_dir': (self.scratch_project_dir or fallback_project_dir) / "forcing" / "SUMMA_input",
-                'observations_dir': (self.scratch_project_dir or fallback_project_dir) / "observations" / "streamflow" / "preprocessed",
+                'forcing_dir': resolve_data_subdir(self.scratch_project_dir or fallback_project_dir, 'forcing') / "SUMMA_input",
+                'observations_dir': resolve_data_subdir(self.scratch_project_dir or fallback_project_dir, 'observations') / "streamflow" / "preprocessed",
             }
         else:
             return {
@@ -473,8 +474,8 @@ class LocalScratchManager(ConfigMixin):
                 'project_dir': self.original_project_dir,
                 'settings_dir': self.original_project_dir / "settings" / "SUMMA",
                 'mizuroute_settings_dir': self.original_project_dir / "settings" / "mizuRoute",
-                'forcing_dir': self.original_project_dir / "forcing" / "SUMMA_input",
-                'observations_dir': self.original_project_dir / "observations" / "streamflow" / "preprocessed",
+                'forcing_dir': resolve_data_subdir(self.original_project_dir, 'forcing') / "SUMMA_input",
+                'observations_dir': resolve_data_subdir(self.original_project_dir, 'observations') / "streamflow" / "preprocessed",
             }
 
     def stage_results_back(self) -> None:

@@ -564,7 +564,7 @@ class GeospatialStatistics(ConfigurableMixin):
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
             if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
                 legacy_csv_dir.mkdir(parents=True, exist_ok=True)
                 legacy_csv_path = legacy_csv_dir / "modified_domain_stats_elv.csv"
                 # Select only the relevant column for HYPE
@@ -871,7 +871,7 @@ class GeospatialStatistics(ConfigurableMixin):
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
             if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
                 legacy_csv_dir.mkdir(parents=True, exist_ok=True)
                 legacy_csv_path = legacy_csv_dir / "modified_domain_stats_soil_classes.csv"
                 result_df.to_csv(legacy_csv_path)
@@ -995,7 +995,7 @@ class GeospatialStatistics(ConfigurableMixin):
 
         # Legacy compatibility: also save as CSV in gistool-outputs for HYPE/MESH
         if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-            legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+            legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
             legacy_csv_dir.mkdir(parents=True, exist_ok=True)
             legacy_csv_path = legacy_csv_dir / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv"
             # Export simple CSV version of the result_df

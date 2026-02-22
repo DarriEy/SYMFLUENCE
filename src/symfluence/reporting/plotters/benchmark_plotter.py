@@ -109,7 +109,7 @@ class BenchmarkPlotter(BasePlotter):
         """Align flows with observations and clean up score index."""
         # Load observed data (logic moved from BenchmarkVizualiser)
         domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
-        obs_path = (self.project_dir / "observations" / "streamflow" / "preprocessed" /
+        obs_path = (self.project_observations_dir / "streamflow" / "preprocessed" /
                    f"{domain_name}_streamflow_processed.csv")
 
         if obs_path.exists():

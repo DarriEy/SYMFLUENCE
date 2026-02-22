@@ -24,6 +24,7 @@ from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
 from symfluence.models.hbv.time_utils import warmup_timesteps
+from symfluence.core.mixins.project import resolve_data_subdir
 
 # Lazy JAX import
 if HAS_JAX:
@@ -169,7 +170,7 @@ class HBVWorker(InMemoryModelWorker):
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_patterns = [
-            project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv",
+            resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv",
         ]
 
         for obs_file in obs_patterns:

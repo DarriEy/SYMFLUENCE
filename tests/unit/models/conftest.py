@@ -119,7 +119,7 @@ def setup_test_directories(temp_dir, base_config):
 def mock_forcing_data(setup_test_directories, base_config):
     """Create mock forcing data files."""
     domain_dir = setup_test_directories['domain_dir']
-    forcing_dir = domain_dir / 'forcing' / 'merged_data'
+    forcing_dir = domain_dir / 'data' / 'forcing' / 'merged_data'
     forcing_dir.mkdir(parents=True, exist_ok=True)
 
     # Create mock NetCDF file path (we won't actually create the file)

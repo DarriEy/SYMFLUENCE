@@ -57,7 +57,7 @@ class CRHMParameterManager(BaseParameterManager):
         # Path to project file
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.settings_dir = self.project_dir / 'CRHM_input' / 'settings'
+        self.settings_dir = self.project_dir / 'settings' / 'CRHM'
 
         # Get project file name
         prj_file = 'model.prj'

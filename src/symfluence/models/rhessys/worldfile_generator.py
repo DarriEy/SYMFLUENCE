@@ -329,7 +329,7 @@ class RHESSysWorldfileGenerator:
             )
 
         # Load additional attributes if available
-        attrs_file = self.pp.project_dir / 'attributes' / f'{self.pp.domain_name}_attributes.csv'
+        attrs_file = self.pp.project_attributes_dir / f'{self.pp.domain_name}_attributes.csv'
         hru_attrs = {}
         if attrs_file.exists():
             try:

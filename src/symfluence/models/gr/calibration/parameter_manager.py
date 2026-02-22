@@ -66,6 +66,10 @@ class GRParameterManager(BaseParameterManager):
         # Check for explicit initial params in config
         initial_params = self.config_dict.get('GR_INITIAL_PARAMS', 'default')
 
+        if initial_params == 'midpoint':
+            self.logger.info("Using midpoint of parameter bounds as initial guess")
+            return self._get_default_initial_values()
+
         if initial_params == 'default':
             # Try to load from previous internal calibration if it exists
             params = self._load_params_from_rdata()

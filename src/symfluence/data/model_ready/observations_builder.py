@@ -16,6 +16,7 @@ import pandas as pd
 
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class ObservationsNetCDFBuilder:
         self.domain_name = domain_name
         self.config_dict = config_dict or {}
 
-        self.obs_dir = project_dir / 'observations'
+        self.obs_dir = resolve_data_subdir(project_dir, 'observations')
         self.target_dir = project_dir / 'data' / 'model_ready' / 'observations'
 
     # ------------------------------------------------------------------

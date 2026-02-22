@@ -161,7 +161,7 @@ class HBVRunner(  # type: ignore[misc]
         else:
             self.hbv_setup_dir = self.project_dir / "settings" / "HBV"
 
-        self.hbv_forcing_dir = self.project_dir / 'forcing' / 'HBV_input'
+        self.hbv_forcing_dir = self.project_forcing_dir / 'HBV_input'
 
     def _get_output_dir(self) -> Path:
         """HBV output directory."""
@@ -797,7 +797,7 @@ class HBVRunner(  # type: ignore[misc]
                 sim_time = pd.to_datetime(df['datetime'])
 
             # Load observations (in m³/s)
-            obs_file = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
+            obs_file = self.project_observations_dir / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
             if not obs_file.exists():
                 self.logger.warning("Observations not found for metrics")
                 return

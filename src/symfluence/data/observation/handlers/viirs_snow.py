@@ -43,7 +43,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
         """Acquire VIIRS snow data via cloud acquisition."""
         viirs_dir = Path(self.config_dict.get(
             'VIIRS_SNOW_DIR',
-            self.project_dir / "observations" / "snow" / "viirs"
+            self.project_observations_dir / "snow" / "viirs"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -122,7 +122,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "snow" / "preprocessed"
+        output_dir = self.project_observations_dir / "snow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_viirs_snow_processed.csv"
 
@@ -347,7 +347,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed VIIRS snow cover data."""
         processed_path = (
-            self.project_dir / "observations" / "snow" / "preprocessed"
+            self.project_observations_dir / "snow" / "preprocessed"
             / f"{self.domain_name}_viirs_snow_processed.csv"
         )
 

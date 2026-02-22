@@ -16,6 +16,7 @@ import xarray as xr
 
 from symfluence.core.config.coercion import coerce_config
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 class MESHConfigGenerator(ConfigMixin):
@@ -51,6 +52,11 @@ class MESHConfigGenerator(ConfigMixin):
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
         self.domain_name = config.get('DOMAIN_NAME', 'domain')
+
+    @property
+    def project_observations_dir(self) -> Path:
+        """Directory for observation data, consistent with ProjectMixin convention."""
+        return resolve_data_subdir(self.project_dir, 'observations')
 
     def create_streamflow_input(self) -> None:
         """Create MESH_input_streamflow.txt with gauge locations and observed data."""
@@ -133,9 +139,9 @@ class MESHConfigGenerator(ConfigMixin):
 
     def _load_observed_streamflow(self) -> Optional[np.ndarray]:
         """Load observed streamflow data if available."""
-        obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         if not obs_dir.exists():
-            obs_dir = self.project_dir / 'observations' / 'streamflow' / 'raw_data'
+            obs_dir = self.project_observations_dir / 'streamflow' / 'raw_data'
 
         if not obs_dir.exists():
             return None

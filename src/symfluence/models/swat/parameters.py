@@ -26,21 +26,21 @@ from typing import Dict, Tuple
 
 PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'CN2': {'min': -0.25, 'max': 0.25},           # relative change to curve number
-    'ALPHA_BF': {'min': 0.0, 'max': 1.0},          # baseflow alpha factor [days]
-    'GW_DELAY': {'min': 0.0, 'max': 500.0},        # groundwater delay time [days]
-    'GWQMN': {'min': 0.0, 'max': 5000.0},          # threshold depth for return flow [mm H2O]
+    'ALPHA_BF': {'min': 0.0, 'max': 1.0},          # baseflow alpha factor [1/days]
+    'GW_DELAY': {'min': 0.0, 'max': 150.0},        # groundwater delay time [days]
+    'GWQMN': {'min': 0.0, 'max': 300.0},           # threshold depth for return flow [mm H2O]
     'GW_REVAP': {'min': 0.02, 'max': 0.2},         # groundwater "revap" coefficient
     'ESCO': {'min': 0.0, 'max': 1.0},              # soil evaporation compensation factor
     'SOL_AWC': {'min': -0.25, 'max': 0.25},        # relative change to available water capacity
     'SOL_K': {'min': -0.25, 'max': 0.25},          # relative change to sat. hyd. conductivity
     'SURLAG': {'min': 0.05, 'max': 24.0},          # surface runoff lag coefficient [days]
-    'SFTMP': {'min': -5.0, 'max': 5.0},            # snowfall temperature [deg C]
-    'SMTMP': {'min': -5.0, 'max': 5.0},            # snowmelt base temperature [deg C]
-    'SMFMX': {'min': 0.0, 'max': 10.0},            # max melt rate for snow [mm/deg C/day]
-    'SMFMN': {'min': 0.0, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
+    'SFTMP': {'min': -2.0, 'max': 2.0},            # snowfall temperature [deg C]
+    'SMTMP': {'min': -1.0, 'max': 2.0},            # snowmelt base temperature [deg C]
+    'SMFMX': {'min': 0.5, 'max': 10.0},            # max melt rate for snow [mm/deg C/day]
+    'SMFMN': {'min': 0.1, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
     'TIMP': {'min': 0.01, 'max': 1.0},             # snow pack temperature lag factor
-    'CH_K2': {'min': 0.0, 'max': 150.0},             # channel hydraulic conductivity [mm/hr]
-    'RCHRG_DP': {'min': 0.0, 'max': 1.0},            # deep aquifer percolation fraction
+    'CH_K2': {'min': 0.0, 'max': 50.0},            # channel hydraulic conductivity [mm/hr]
+    'RCHRG_DP': {'min': 0.0, 'max': 0.5},          # deep aquifer percolation fraction
     'EPCO': {'min': 0.01, 'max': 1.0},               # plant uptake compensation factor
 }
 
@@ -49,7 +49,7 @@ DEFAULT_PARAMS: Dict[str, float] = {
     'CN2': 0.0,          # No relative change
     'ALPHA_BF': 0.048,   # Typical baseflow recession constant
     'GW_DELAY': 31.0,    # Typical groundwater delay [days]
-    'GWQMN': 1000.0,     # Threshold depth for return flow [mm]
+    'GWQMN': 25.0,       # Threshold depth for return flow [mm]
     'GW_REVAP': 0.02,    # Groundwater revap coefficient
     'ESCO': 0.95,        # Soil evaporation compensation factor
     'SOL_AWC': 0.0,      # No relative change

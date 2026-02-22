@@ -12,6 +12,7 @@ import logging
 
 from symfluence.reporting.core.shapefile_helper import ShapefileHelper
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.constants import ConfigKeys
 
 
@@ -379,7 +380,7 @@ class DataProcessor(ConfigMixin):
             # Read observations
             obs_file_path = self._get_config_value(lambda: self.config.paths.observations_path, dict_key=ConfigKeys.OBSERVATIONS_PATH)
             if obs_file_path == 'default' or obs_file_path is None:
-                obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_streamflow_processed.csv"
+                obs_file_path = resolve_data_subdir(self.project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_streamflow_processed.csv"
             else:
                 obs_file_path = Path(obs_file_path)
 

@@ -171,17 +171,11 @@ class WRFHydroParameterManager(BaseParameterManager):
                     content = pattern.sub(r'\g<1>' + formatted, content)
                     self.logger.debug(f"Updated {param_name} = {formatted}")
                 else:
-                    # Parameter not in file - insert before first '/'
-                    insert_line = f" {param_name} = {formatted}\n"
-                    slash_pattern = re.compile(r'^(\s*/\s*)$', re.MULTILINE)
-                    slash_match = slash_pattern.search(content)
-                    if slash_match:
-                        content = content[:slash_match.start()] + insert_line + content[slash_match.start():]
-                        self.logger.debug(f"Inserted {param_name} = {formatted}")
-                    else:
-                        self.logger.warning(
-                            f"Could not find insertion point for {param_name} in {namelist_path}"
-                        )
+                    # Don't insert unknown params — Fortran namelists crash
+                    # on variable names the compiled binary doesn't expect.
+                    self.logger.debug(
+                        f"Skipping {param_name}: not present in {namelist_path.name}"
+                    )
 
             namelist_path.write_text(content, encoding='utf-8')
             return True

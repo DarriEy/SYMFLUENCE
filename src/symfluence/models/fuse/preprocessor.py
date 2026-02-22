@@ -118,7 +118,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         super().__init__(config, logger)
 
         # FUSE-specific paths
-        self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
+        self.forcing_fuse_path = self.project_forcing_dir / 'FUSE_input'
 
         # Setup catchment path using base class helper
         self.catchment_path = self.get_catchment_path()
@@ -359,7 +359,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             ds = xr.open_dataset(forcing_files[0])
         else:
             ds = xr.open_mfdataset(
-                forcing_files, data_vars='all', combine='nested', concat_dim='time'
+                forcing_files, data_vars='minimal', combine='nested', concat_dim='time', coords='minimal', compat='override'
             ).sortby('time')
         self.logger.info(f"PERF: Opening dataset took {time.time() - t1:.2f}s")
 
@@ -606,16 +606,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         if obs_ds is not None:
             var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
-            # Generate synthetic hydrograph for each subcatchment
-            synthetic_q_vals = self._generate_distributed_synthetic_hydrograph(ds, n_subcatchments, len(time_index))
-            # Wrap in DataArray for process_var
-            # (Note: _generate_distributed_synthetic_hydrograph returns numpy array)
-            synthetic_q = xr.DataArray(
-                synthetic_q_vals,
-                coords={'time': ds.time}, # Use ds.time as reference
-                dims=['time', 'hru'] if len(synthetic_q_vals.shape) > 1 else ['time']
+            raise FileNotFoundError(
+                "Streamflow observations are required for FUSE forcing but could not be loaded. "
+                "Check that observation files exist and are non-empty in "
+                f"{self.project_observations_dir / 'streamflow' / 'preprocessed'}"
             )
-            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, 'Synthetic discharge for optimization')
 
         # Process and add to dataset
         encoding = {}
@@ -781,16 +776,19 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """
         self.logger.info("Creating FUSE file manager file")
 
-        # Define source and destination paths
+        # Define source and destination paths — re-copy from resources if missing
         template_path = self.setup_dir / 'fm_catch.txt'
+        if not template_path.exists():
+            self.logger.warning(f"Template {template_path} missing, re-copying from resources")
+            self.setup_dir.mkdir(parents=True, exist_ok=True)
+            self.copy_base_settings()
 
         # Define the paths to replace
         fuse_id = self._get_fuse_file_id()
         settings = {
             'SETNGS_PATH': str(self.project_dir / 'settings' / 'FUSE') + '/',
-            'INPUT_PATH': str(self.project_dir / 'forcing' / 'FUSE_input') + '/',
+            'INPUT_PATH': str(self.project_forcing_dir / 'FUSE_input') + '/',
             'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'FUSE') + '/',
-            'METRIC': self.config_dict.get('OPTIMIZATION_METRIC'),
             'MAXN': str(self.config_dict.get('NUMBER_OF_ITERATIONS')),
             'FMODEL_ID': fuse_id,
             'M_DECISIONS': f"fuse_zDecisions_{fuse_id}.txt"
@@ -1053,9 +1051,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         if obs_ds_a is not None:
             var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
-            synthetic_q_vals = self.generate_synthetic_hydrograph(ds_a, area_km2=100.0)
-            synthetic_q = xr.DataArray(synthetic_q_vals, coords={'time': ds_a.time}, dims=['time'])
-            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, 'Synthetic discharge for optimization')
+            raise FileNotFoundError(
+                "Streamflow observations are required for FUSE forcing but could not be loaded. "
+                "Check that observation files exist and are non-empty in "
+                f"{self.project_observations_dir / 'streamflow' / 'preprocessed'}"
+            )
 
         # Add variables with broadcasting
         for var_name, (da, _, units, long_name) in var_map.items():

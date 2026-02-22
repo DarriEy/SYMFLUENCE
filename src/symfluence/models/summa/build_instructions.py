@@ -11,6 +11,8 @@ SUMMA (Structure for Unifying Multiple Modeling Alternatives) is a
 land surface model that uses SUNDIALS for solving differential equations.
 """
 
+import sys
+
 from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import get_common_build_environment
 
@@ -27,6 +29,7 @@ def get_summa_build_instructions():
         Dictionary with complete build configuration for SUMMA.
     """
     common_env = get_common_build_environment()
+    _libext = 'dylib' if sys.platform == 'darwin' else 'so'
 
     return {
         'description': 'Structure for Unifying Multiple Modeling Alternatives (with SUNDIALS)',
@@ -248,7 +251,7 @@ _add_rpath() {
         SUMMA_RPATH_DIRS="${SUMMA_RPATH_DIRS:+${SUMMA_RPATH_DIRS};}${d}"
     fi
 }
-# SUMMA's own lib directory (libsumma.so lives here after install)
+# SUMMA's own lib directory (libsumma lives here after install)
 _add_rpath "$SUMMA_INSTALL_LIB"
 # SUNDIALS
 _add_rpath "$SUNDIALS_DIR/lib"
@@ -314,30 +317,37 @@ cmake -S build -B cmake_build \
 # Build all targets (repo scripts use 'all', not just 'summa_sundials')
 cmake --build cmake_build --target all -j ${NCORES:-4}
 
-# Stage libsumma.so into lib/ so the binary can find it via RPATH.
+# Stage libsumma into lib/ so the binary can find it via RPATH.
+# On macOS CMake produces .dylib; on Linux .so.
+case "$(uname -s)" in
+    Darwin) _libext="dylib" ;;
+    *)      _libext="so" ;;
+esac
+_libname="libsumma.$_libext"
+
 # CMake may place it in cmake_build/lib/, cmake_build/, or lib/.
 for libcandidate in \
-    cmake_build/lib/libsumma.so \
-    cmake_build/libsumma.so \
-    lib/libsumma.so; do
+    "cmake_build/lib/$_libname" \
+    "cmake_build/$_libname" \
+    "lib/$_libname"; do
     if [ -f "$libcandidate" ]; then
-        if [ "$libcandidate" != "lib/libsumma.so" ]; then
-            cp -f "$libcandidate" lib/libsumma.so
-            echo "Staged: $libcandidate -> lib/libsumma.so"
+        if [ "$libcandidate" != "lib/$_libname" ]; then
+            cp -f "$libcandidate" "lib/$_libname"
+            echo "Staged: $libcandidate -> lib/$_libname"
         else
-            echo "libsumma.so already at lib/libsumma.so"
+            echo "$_libname already at lib/$_libname"
         fi
         break
     fi
 done
-if [ ! -f "lib/libsumma.so" ]; then
-    echo "WARNING: libsumma.so not found in build output, searching..."
-    _found_lib=$(find cmake_build -name 'libsumma.so*' -type f 2>/dev/null | head -1)
+if [ ! -f "lib/$_libname" ]; then
+    echo "WARNING: $_libname not found in build output, searching..."
+    _found_lib=$(find cmake_build -name "libsumma.$_libext*" -type f 2>/dev/null | head -1)
     if [ -n "$_found_lib" ]; then
-        cp -f "$_found_lib" lib/libsumma.so
-        echo "Staged: $_found_lib -> lib/libsumma.so"
+        cp -f "$_found_lib" "lib/$_libname"
+        echo "Staged: $_found_lib -> lib/$_libname"
     else
-        echo "ERROR: libsumma.so not found anywhere in build tree"
+        echo "ERROR: $_libname not found anywhere in build tree"
     fi
 fi
 
@@ -373,7 +383,7 @@ done
         'verify_install': {
             'file_paths': [
                 'bin/summa_sundials.exe',
-                'lib/libsumma.so',
+                f'lib/libsumma.{_libext}',
             ],
             'check_type': 'exists'
         },

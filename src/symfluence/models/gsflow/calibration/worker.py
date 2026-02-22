@@ -34,18 +34,19 @@ class GSFLOWWorker(BaseWorker):
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_settings_dir = data_dir / f'domain_{domain_name}' / 'GSFLOW_input' / 'settings'
+            original_setup_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'GSFLOW'
 
             # Copy entire settings tree (including modflow/ subdir) to sim dir
-            if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
+            if original_setup_dir.exists() and original_setup_dir.resolve() != settings_dir.resolve():
                 if settings_dir.exists():
                     shutil.rmtree(settings_dir)
-                shutil.copytree(original_settings_dir, settings_dir)
+                shutil.copytree(original_setup_dir, settings_dir)
 
-            # Ensure output directories exist inside the sim settings dir
-            # (control file uses relative paths, so output/ must be under settings_dir)
-            for sub in ('output/modflow', 'output/prms'):
-                (settings_dir / sub).mkdir(parents=True, exist_ok=True)
+            # Copy forcing data.dat into settings_dir so control file can find it locally
+            forcing_dir = data_dir / f'domain_{domain_name}' / 'data' / 'forcing' / 'GSFLOW_input'
+            data_file = forcing_dir / 'data.dat'
+            if data_file.exists():
+                shutil.copy2(data_file, settings_dir / 'data.dat')
 
             # Update PRMS params
             param_file_name = config.get('GSFLOW_PARAMETER_FILE', 'params.dat')
@@ -101,7 +102,7 @@ class GSFLOWWorker(BaseWorker):
                     lines[const_indices[3]] = f"  CONSTANT  {params['SY']:.6e}"
 
             upw_file.write_text('\n'.join(lines), encoding='utf-8')
-            self.logger.info(f"Updated MODFLOW UPW: {params}")
+            self.logger.debug(f"Updated MODFLOW UPW: {params}")
             return True
         except Exception as e:
             self.logger.error(f"Error updating UPW: {e}")
@@ -162,6 +163,17 @@ class GSFLOWWorker(BaseWorker):
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
             sim_dir.mkdir(parents=True, exist_ok=True)
 
+            # Create output subdirectories
+            for sub in ('modflow', 'prms'):
+                (sim_dir / sub).mkdir(parents=True, exist_ok=True)
+
+            # Localize control/NAM file paths for this trial:
+            # data_file → local data.dat (copied in apply_parameters)
+            # output paths → absolute paths into sim_dir
+            control_file = config.get('GSFLOW_CONTROL_FILE', 'control.dat')
+            self._localize_control_paths(settings_dir, sim_dir, control_file)
+            self._localize_nam_paths(settings_dir, sim_dir)
+
             install_path = config.get('GSFLOW_INSTALL_PATH', 'default')
             exe_name = config.get('GSFLOW_EXE', 'gsflow')
             if install_path == 'default':
@@ -174,7 +186,6 @@ class GSFLOWWorker(BaseWorker):
                 self.logger.error(f"GSFLOW executable not found: {gsflow_exe}")
                 return False
 
-            control_file = config.get('GSFLOW_CONTROL_FILE', 'control.dat')
             control_path = settings_dir / control_file
             if not control_path.exists():
                 self.logger.error(f"GSFLOW control file not found: {control_path}")
@@ -202,11 +213,11 @@ class GSFLOWWorker(BaseWorker):
                 self.logger.error(self._last_error)
                 return False
 
-            # Check for output (relative paths: statvar.dat in settings_dir)
+            # Check for output in sim_dir (control file paths point here)
             output_files = (
-                list(settings_dir.glob('statvar*')) +
                 list(sim_dir.glob('statvar*')) +
-                list(settings_dir.glob('output/*.csv'))
+                list(sim_dir.glob('*.csv')) +
+                list(sim_dir.glob('gsflow.*'))
             )
             if not output_files:
                 self._last_error = "No GSFLOW output files produced"
@@ -217,6 +228,71 @@ class GSFLOWWorker(BaseWorker):
             self._last_error = str(e)
             self.logger.error(f"Error running GSFLOW: {e}")
             return False
+
+    def _localize_control_paths(self, settings_dir: Path, sim_dir: Path,
+                                 control_file: str) -> None:
+        """Rewrite control file paths for a calibration trial.
+
+        Sets data_file to local data.dat (copied by apply_parameters)
+        and output paths to absolute paths in sim_dir.
+        """
+        control_path = settings_dir / control_file
+        if not control_path.exists():
+            return
+
+        path_updates = {
+            'data_file': 'data.dat',
+            'gsflow_output_file': str(sim_dir / 'gsflow.out'),
+            'model_output_file': str(sim_dir / 'prms' / 'gsflow_prms.out'),
+            'csv_output_file': str(sim_dir / 'gsflow.csv'),
+            'stat_var_file': str(sim_dir / 'statvar.dat'),
+        }
+
+        content = control_path.read_text(encoding='utf-8')
+        for key, new_value in path_updates.items():
+            content = self._replace_control_value(content, key, new_value)
+        control_path.write_text(content, encoding='utf-8')
+
+    def _localize_nam_paths(self, settings_dir: Path, sim_dir: Path) -> None:
+        """Rewrite NAM file output paths for a calibration trial."""
+        nam_file = settings_dir / 'modflow' / 'modflow.nam'
+        if not nam_file.exists():
+            return
+
+        lines = nam_file.read_text(encoding='utf-8').split('\n')
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('LIST'):
+                parts = stripped.split(None, 2)
+                new_lines.append(
+                    f"LIST  {parts[1]}  {sim_dir}/modflow/gsflow_mf.list")
+            elif stripped.startswith('DATA(BINARY)'):
+                parts = stripped.split(None, 2)
+                new_lines.append(
+                    f"DATA(BINARY)  {parts[1]}  {sim_dir}/modflow/heads.out")
+            else:
+                new_lines.append(line)
+        nam_file.write_text('\n'.join(new_lines), encoding='utf-8')
+
+    @staticmethod
+    def _replace_control_value(content: str, key: str, new_value: str) -> str:
+        """Replace a single value in GSFLOW ####-delimited control file."""
+        marker = f'####\n{key}\n'
+        idx = content.find(marker)
+        if idx < 0:
+            return content
+
+        # Skip past key line
+        after_key = idx + len(marker)
+        # Skip nvals line
+        nvals_end = content.index('\n', after_key) + 1
+        # Skip dtype line
+        dtype_end = content.index('\n', nvals_end) + 1
+        # Find end of value line
+        value_end = content.index('\n', dtype_end)
+
+        return content[:dtype_end] + new_value + content[value_end:]
 
     def calculate_metrics(self, output_dir: Path, config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Calculate metrics from GSFLOW output."""

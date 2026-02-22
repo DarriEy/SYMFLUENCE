@@ -109,7 +109,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
     def _setup_model_specific_paths(self) -> None:
         """Set up FUSE-specific paths."""
         self.setup_dir = self.project_dir / "settings" / "FUSE"
-        self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
+        self.forcing_fuse_path = self.project_forcing_dir / 'FUSE_input'
 
         # FUSE executable path (installation dir + exe name)
         self.fuse_exe = self.get_model_executable(
@@ -310,6 +310,16 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         Returns:
             bool: True if FUSE execution completed successfully, False otherwise.
         """
+        # Pre-flight: verify forcing data exists before running FUSE
+        forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
+        if not forcing_file.exists():
+            self.logger.error(
+                f"FUSE forcing file not found: {forcing_file}. "
+                f"The FUSE preprocessing step may not have completed. "
+                f"Re-run preprocessing to generate forcing data."
+            )
+            return False
+
         if self.spatial_mode == 'lumped':
             # Original lumped workflow
             return self._run_lumped_fuse()
@@ -363,24 +373,44 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             return False
 
     def _execute_fuse_distributed(self) -> bool:
-        """Execute FUSE with the complete distributed forcing file"""
+        """Execute FUSE with the complete distributed forcing file.
+
+        Prefers run_pre mode to avoid the NC_UNLIMITED NETCDF3 conflict
+        that breaks run_def in many FUSE builds.
+        """
 
         try:
+            fuse_id = self._get_fuse_file_id()
+            para_def_path = self.output_path / f"{self.domain_name}_{fuse_id}_para_def.nc"
+
             # Use the main file manager (points to distributed forcing file)
             control_file = self.setup_dir / 'fm_catch.txt'
 
-            # Run FUSE once for the entire distributed domain
-            command = [
-                str(self.fuse_exe),
-                str(control_file),
-                self.domain_name,  # Use original domain name
-                "run_def"  # Run with default parameters
-            ]
+            # Determine run mode: prefer run_pre to avoid NC_UNLIMITED conflict
+            if para_def_path.exists():
+                mode = 'run_pre'
+                command = [
+                    str(self.fuse_exe),
+                    str(control_file),
+                    self.domain_name,
+                    mode,
+                    str(para_def_path.name),
+                    '1'
+                ]
+            else:
+                # Fall back to run_def (creates para_def.nc as side effect)
+                mode = 'run_def'
+                command = [
+                    str(self.fuse_exe),
+                    str(control_file),
+                    self.domain_name,
+                    mode
+                ]
 
             # Create log file
             log_file = self.output_path / 'fuse_distributed_run.log'
 
-            self.logger.debug(f"Executing distributed FUSE: {' '.join(command)}")
+            self.logger.debug(f"Executing distributed FUSE ({mode}): {' '.join(command)}")
 
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
@@ -398,10 +428,18 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 # Fortran STOP returns exit code 0, so scan log for failures
                 if log_file.exists():
                     try:
-                        with open(log_file, 'r', encoding='utf-8', errors='replace') as lf:
-                            log_content = lf.read()
+                        log_content = log_file.read_text(encoding='utf-8', errors='replace')
+                        if 'NetCDF:' in log_content:
+                            nc_lines = [l.strip() for l in log_content.splitlines() if 'NetCDF:' in l]
+                            self.logger.error(
+                                f"FUSE NetCDF error (exit code 0): {'; '.join(nc_lines[:3])}"
+                            )
+                            # If run_def failed with NC error, retry with run_pre
+                            if mode == 'run_def' and para_def_path.exists():
+                                self.logger.info("Retrying distributed FUSE with run_pre mode")
+                                return self._execute_fuse_distributed()
+                            return False
                         if 'STOP' in log_content:
-                            # Extract lines containing STOP for context
                             stop_lines = [
                                 line.strip() for line in log_content.splitlines()
                                 if 'STOP' in line
@@ -413,7 +451,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                             return False
                     except OSError:
                         pass  # If we can't read the log, proceed with output validation
-                self.logger.debug("Distributed FUSE execution completed successfully")
+                self.logger.debug(f"Distributed FUSE execution completed successfully ({mode})")
                 return True
             else:
                 self.logger.error(f"FUSE failed with return code {result.returncode}")
@@ -480,16 +518,28 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         return self.subcatchment_processor.execute_fuse_subcatchment(subcat_id, forcing_file, settings_dir)
 
     def _ensure_best_output_file(self):
-        """Ensure the expected 'best' output file exists by copying from 'def' output if needed"""
+        """Ensure the expected 'best' output file exists by copying from run output if needed.
+
+        Checks for _runs_pre.nc (preferred, from run_pre mode) and _runs_def.nc
+        (fallback, from run_def mode) as source files.
+        """
         fuse_id = self._get_fuse_file_id()
+        pre_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_pre.nc"
         def_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_def.nc"
         best_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_best.nc"
 
-        if def_file.exists() and not best_file.exists():
-            self.logger.info(f"Copying {def_file.name} to {best_file.name} for compatibility")
-            shutil.copy2(def_file, best_file)
+        # Prefer run_pre output (valid when run_def is broken)
+        source_file = None
+        if pre_file.exists() and pre_file.stat().st_size > 1024:
+            source_file = pre_file
+        elif def_file.exists() and def_file.stat().st_size > 1024:
+            source_file = def_file
 
-        return best_file if best_file.exists() else def_file
+        if source_file and not best_file.exists():
+            self.logger.info(f"Copying {source_file.name} to {best_file.name} for compatibility")
+            shutil.copy2(source_file, best_file)
+
+        return best_file if best_file.exists() else (source_file or def_file)
 
     def _extract_subcatchment_forcing(self, subcat_id: int, index: int) -> Path:
         """Extract forcing data for a specific subcatchment. Delegates to SubcatchmentProcessor."""
@@ -811,6 +861,9 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         parameters (N_BANDS, Z_FORCING, Z_MID01, AF01), which causes snow
         aggregation to fail - snowmelt never becomes effective precipitation.
 
+        Also handles the case where FUSE creates para_def.nc with par=UNLIMITED
+        and 0 records (silent failure), by initializing default parameter values.
+
         This method reads the elevation bands file and updates para_def.nc with
         the correct values so that calib_sce and run_best will work properly.
 
@@ -840,19 +893,45 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 z_forcing = float(np.sum(mean_elevs * area_fracs))
 
             # Update para_def.nc with correct elevation band parameters
-            # FUSE creates para_def.nc with 2 param sets (bounds), but set 1 often has NaN values
-            # We keep only the first valid parameter set to avoid FUSE failing on NaN values
             with xr.open_dataset(para_def_path) as ds:
                 ds_attrs = dict(ds.attrs)
-                # Only keep the first parameter set (index 0) which has valid values
+                par_size = ds.sizes.get('par', 0)
                 ds_dict = {}
-                for var in ds.data_vars:
-                    vals = ds[var].values
-                    if vals.ndim > 0 and len(vals) > 0:
-                        # Keep only first value, as array for consistency
-                        ds_dict[var] = np.array([vals[0]])
-                    else:
-                        ds_dict[var] = vals
+
+                if par_size == 0:
+                    # FUSE created the file structure but wrote 0 records
+                    # (silent failure). Initialize all variables with defaults
+                    # from the constraints file, falling back to bounds midpoints.
+                    self.logger.warning(
+                        f"para_def.nc has empty par dimension (0 records). "
+                        f"Initializing with default values for {len(ds.data_vars)} variables."
+                    )
+                    from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
+                    from symfluence.models.fuse.calibration.parameter_application import parse_fuse_constraints_defaults
+                    bounds = get_fuse_bounds()
+
+                    # Read defaults from FUSE constraints file (authoritative source)
+                    constraints_path = self.forcing_fuse_path.parent.parent / 'settings' / 'FUSE' / 'fuse_zConstraints_snow.txt'
+                    constraint_defaults = parse_fuse_constraints_defaults(constraints_path)
+                    if constraint_defaults:
+                        self.logger.info(f"Loaded {len(constraint_defaults)} defaults from constraints file")
+
+                    for var in ds.data_vars:
+                        if var in constraint_defaults:
+                            default_val = constraint_defaults[var]
+                        elif var in bounds:
+                            default_val = (bounds[var]['min'] + bounds[var]['max']) / 2.0
+                        else:
+                            default_val = 0.0
+                        ds_dict[var] = np.array([default_val])
+                else:
+                    # Normal case: keep only first parameter set
+                    for var in ds.data_vars:
+                        vals = ds[var].values
+                        if vals.ndim > 0 and len(vals) > 0:
+                            ds_dict[var] = np.array([vals[0]])
+                        else:
+                            ds_dict[var] = np.array([0.0])
 
             # Update the elevation band parameters
             ds_dict['N_BANDS'] = np.array([float(n_bands)])
@@ -864,6 +943,24 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 ds_dict[z_mid_name] = np.array([float(mean_elevs[i])])
                 ds_dict[af_name] = np.array([float(area_fracs[i])])
 
+            # Compute derived storage parameters from base calibration params.
+            # FUSE's run_pre mode reads ALL values — if derived params are 0,
+            # the model has zero storage capacity and produces garbage output.
+            maxwatr_1 = float(ds_dict.get('MAXWATR_1', np.array([0.0]))[0])
+            fracten = float(ds_dict.get('FRACTEN', np.array([0.5]))[0])
+            maxwatr_2 = float(ds_dict.get('MAXWATR_2', np.array([0.0]))[0])
+            rtfrac1 = float(ds_dict.get('RTFRAC1', np.array([0.5]))[0])
+
+            ds_dict['MAXTENS_1'] = np.array([maxwatr_1 * fracten])
+            ds_dict['MAXFREE_1'] = np.array([maxwatr_1 * (1.0 - fracten)])
+            ds_dict['MAXTENS_1A'] = np.array([maxwatr_1 * fracten * 0.5])
+            ds_dict['MAXTENS_1B'] = np.array([maxwatr_1 * fracten * 0.5])
+            ds_dict['MAXTENS_2'] = np.array([maxwatr_2 * fracten])
+            ds_dict['MAXFREE_2'] = np.array([maxwatr_2 * (1.0 - fracten)])
+            ds_dict['MAXFREE_2A'] = np.array([maxwatr_2 * (1.0 - fracten) * 0.5])
+            ds_dict['MAXFREE_2B'] = np.array([maxwatr_2 * (1.0 - fracten) * 0.5])
+            ds_dict['RTFRAC2'] = np.array([1.0 - rtfrac1])
+
             # Write back to NetCDF with single parameter set
             new_ds = xr.Dataset(
                 {var: (['par'], vals) for var, vals in ds_dict.items()},
@@ -872,8 +969,14 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             )
             new_ds.to_netcdf(para_def_path, mode='w')
 
-            self.logger.info(f"Fixed elevation band params in para_def.nc (reduced to 1 param set): "
-                           f"N_BANDS={n_bands}, Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
+            # Apply numerix defaults via the calibration module
+            from symfluence.models.fuse.calibration.parameter_application import compute_derived_parameters
+            compute_derived_parameters(para_def_path, self.logger)
+
+            self.logger.info(
+                f"Fixed para_def.nc: N_BANDS={n_bands}, Z_FORCING={z_forcing:.1f}, "
+                f"MAXTENS_1={maxwatr_1 * fracten:.1f}, MAXFREE_1={maxwatr_1 * (1.0 - fracten):.1f}"
+            )
             return True
 
         except (FileNotFoundError, OSError, KeyError, ValueError) as e:
@@ -1021,7 +1124,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             self.logger.error(f"Failed to update file manager: {e}")
             return False
 
-    def _execute_fuse(self, mode: str, para_file: Optional[Path] = None) -> bool:
+    def _execute_fuse(self, mode: str, para_file: Optional[Path] = None,
+                      param_index: int = 1) -> bool:
         """
         Execute the FUSE model with specified run mode.
 
@@ -1036,6 +1140,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 - 'run_best': Run with calibrated parameters
                 - 'run_pre': Run with provided parameter file
             para_file: Path to parameter file for 'run_pre' mode (optional).
+            param_index: 1-based parameter set index for 'run_pre' mode.
 
         Returns:
             bool: True if execution was successful, False otherwise.
@@ -1058,9 +1163,11 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             self.domain_name,
             mode
         ]
-            # ADD THIS: Add parameter file for run_pre mode
+        # For run_pre mode, append parameter file name and index
+        # FUSE expects: fuse.exe fm_catch.txt basin_id run_pre para_file.nc <index>
         if mode == 'run_pre' and para_file:
-            command.append(str(para_file))
+            command.append(str(para_file.name))
+            command.append(str(param_index))
 
         # Create log file path - use mode-specific log files to avoid overwriting
         log_file = self.get_log_path() / f'fuse_{mode}.log'
@@ -1074,6 +1181,27 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 success_message="FUSE execution completed"
             )
             self.logger.info(f"FUSE return code: {result.return_code}")
+
+            # Check log for silent failures (FUSE returns exit 0 on Fortran STOP
+            # and NetCDF errors on macOS)
+            if result.success and log_file.exists():
+                try:
+                    log_content = log_file.read_text(encoding='utf-8', errors='replace')
+                    if 'NetCDF:' in log_content:
+                        nc_lines = [l.strip() for l in log_content.splitlines() if 'NetCDF:' in l]
+                        self.logger.error(
+                            f"FUSE NetCDF error (exit code 0): {'; '.join(nc_lines[:3])}"
+                        )
+                        return False
+                    if 'STOP' in log_content:
+                        stop_lines = [l.strip() for l in log_content.splitlines() if 'STOP' in l]
+                        self.logger.error(
+                            f"FUSE Fortran STOP (exit code 0): {'; '.join(stop_lines[:3])}"
+                        )
+                        return False
+                except OSError:
+                    pass
+
             return result.success
 
         except subprocess.CalledProcessError as e:
@@ -1118,7 +1246,13 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
 
     def _run_lumped_fuse(self) -> bool:
-        """Run FUSE in lumped mode using the original workflow"""
+        """Run FUSE in lumped mode using the original workflow.
+
+        Prefers run_pre mode because run_def is broken in many FUSE builds
+        (NC_UNLIMITED conflict in NETCDF3_CLASSIC). If para_def.nc doesn't
+        exist yet, uses run_def once to generate it (FUSE creates para_def.nc
+        as a side effect even when run_def crashes), then retries with run_pre.
+        """
         self.logger.info("Running lumped FUSE workflow")
 
         try:
@@ -1127,15 +1261,34 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 self.logger.info("Snow optimization detected - copying default to best parameters")
                 self._copy_default_to_best_params()
 
-            # Known limitation: elevation params in constraints cause FUSE crashes
-            # due to how FUSE handles single-band elevation aggregation internally.
-            # Workaround: skip elevation param constraints for lumped mode.
+            fuse_id = self._get_fuse_file_id()
+            para_def_path = self.output_path / f"{self.domain_name}_{fuse_id}_para_def.nc"
 
-            # Run FUSE with default parameters
-            success = self._execute_fuse('run_def')
+            # Use run_pre when possible (run_def is broken in many FUSE builds
+            # due to NC_UNLIMITED conflict in NETCDF3_CLASSIC format)
+            if para_def_path.exists():
+                self.logger.debug(f"Using run_pre mode with existing para_def: {para_def_path.name}")
+                success = self._execute_fuse('run_pre', para_file=para_def_path)
+            else:
+                # No para_def.nc yet — run_def creates it as a side effect
+                # (even if run_def itself crashes on runs_def.nc)
+                self.logger.debug("No para_def.nc found, running run_def to generate it")
+                self._execute_fuse('run_def')
 
-            # Also fix para_def.nc for any downstream uses
-            self._fix_elevation_band_params_in_para_def()
+                if para_def_path.exists():
+                    self._fix_elevation_band_params_in_para_def()
+                    self.logger.debug("Retrying with run_pre using generated para_def.nc")
+                    success = self._execute_fuse('run_pre', para_file=para_def_path)
+                else:
+                    self.logger.error(
+                        "FUSE run_def did not create para_def.nc. "
+                        "Cannot proceed with run_pre mode."
+                    )
+                    success = False
+
+            # Fix elevation params for downstream uses
+            if para_def_path.exists():
+                self._fix_elevation_band_params_in_para_def()
 
             # Check if FUSE internal calibration should run (independent of external optimization)
             run_internal_calibration = self._get_config_value(

@@ -155,7 +155,23 @@ class NgenParameterManager(BaseParameterManager):
                 dict_key=config_key
             )
             if isinstance(module_bounds, dict):
+                # Snapshot registry bounds before override for comparison
+                registry_snapshot = {
+                    k: dict(v) for k, v in base_bounds.items()
+                    if k in module_bounds
+                }
                 self._apply_config_bounds_override(base_bounds, module_bounds)
+                # Warn when config widens bounds beyond registry defaults
+                for param, orig in registry_snapshot.items():
+                    if param in base_bounds:
+                        new = base_bounds[param]
+                        if new['min'] < orig['min'] or new['max'] > orig['max']:
+                            self.logger.warning(
+                                f"Config {config_key} widens {param} bounds: "
+                                f"registry [{orig['min']:.2g}, {orig['max']:.2g}] -> "
+                                f"config [{new['min']:.2g}, {new['max']:.2g}]. "
+                                f"Wide bounds may increase crash rate."
+                            )
 
         for module, params in self.params_to_calibrate.items():
             for param in params:

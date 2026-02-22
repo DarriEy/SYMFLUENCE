@@ -32,7 +32,8 @@ class SubprocessExecutionMixin:
         check: bool = True,
         capture_output: bool = False,
         success_message: Optional[str] = None,
-        error_context: Optional[Dict[str, Any]] = None
+        error_context: Optional[Dict[str, Any]] = None,
+        success_log_level: int = logging.INFO
     ) -> ExecutionResult:
         """Execute a subprocess with standardized logging and error handling.
 
@@ -50,6 +51,7 @@ class SubprocessExecutionMixin:
             capture_output: Return stdout/stderr in result metadata
             success_message: Custom message to log on success
             error_context: Additional context to include in error logs
+            success_log_level: Log level for success message (default INFO)
 
         Returns:
             ExecutionResult with success status, return code, and metadata
@@ -108,17 +110,17 @@ class SubprocessExecutionMixin:
             # Log outcome
             if result.returncode == 0:
                 msg = success_message or f"Process completed successfully in {duration:.1f}s"
-                self.logger.info(msg)
+                self.logger.log(success_log_level, msg)
             else:
-                self.logger.warning(f"Process exited with code {result.returncode}")
+                self.logger.debug(f"Process exited with code {result.returncode}")
                 exec_result.error_message = f"Exit code: {result.returncode}"
 
                 # Log error context
                 if error_context:
                     for key, value in error_context.items():
-                        self.logger.error(f"  {key}: {value}")
+                        self.logger.debug(f"  {key}: {value}")
 
-                self.logger.error(f"See log file: {log_file}")
+                self.logger.debug(f"See log file: {log_file}")
 
                 if check:
                     raise subprocess.CalledProcessError(

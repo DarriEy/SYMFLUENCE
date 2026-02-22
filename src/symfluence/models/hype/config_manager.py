@@ -142,7 +142,11 @@ class HYPEConfigManager(ConfigMixin):
             f.write(f'{forcing_path}\n')
 
         # 2. Determine simulation period from Pobs.txt or config
-        pobs_path = self.output_path / 'Pobs.txt'
+        # Pobs.txt may be in forcing_data_dir (separate from config output_path)
+        forcing_dir = Path(forcing_data_dir) if forcing_data_dir else self.output_path
+        pobs_path = forcing_dir / 'Pobs.txt'
+        if not pobs_path.exists():
+            pobs_path = self.output_path / 'Pobs.txt'
         forcing_start: pd.Timestamp | None = None
         forcing_end: pd.Timestamp | None = None
 
@@ -257,7 +261,6 @@ modeloption snowdensity\t0
 modeloption snowfalldist\t2
 modeloption snowheat\t0
 modeloption snowmeltmodel\t0
-modeloption\tsnowevapmodel\t1
 modeloption snowevaporation\t1
 modeloption lakeriverice\t0
 modeloption deepground\t0

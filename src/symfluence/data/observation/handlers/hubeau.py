@@ -118,7 +118,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
         station_id = self._get_station_id()
         if not station_id:
             self.logger.debug("Hub'Eau station ID not found, skipping acquisition")
-            return self.project_dir / "observations" / "streamflow" / "raw_data"
+            return self.project_observations_dir / "streamflow" / "raw_data"
 
         download_enabled = self._get_config_value(
             lambda: self.config.data.download_hubeau_data, default=True
@@ -126,7 +126,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
             lambda: self.config.evaluation.hubeau.download, default=True
         )
 
-        raw_dir = self.project_dir / "observations" / "streamflow" / "raw_data"
+        raw_dir = self.project_observations_dir / "streamflow" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"hubeau_{station_id}_raw.json"
 
@@ -335,7 +335,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
         )
 
         # Save with metadata
-        output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        output_dir = self.project_observations_dir / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
 
@@ -429,13 +429,13 @@ class HubEauWaterLevelHandler(BaseObservationHandler):
 
         if not station_id:
             self.logger.debug("Hub'Eau station ID not found for water level")
-            return self.project_dir / "observations" / "waterlevel" / "raw_data"
+            return self.project_observations_dir / "waterlevel" / "raw_data"
 
         download_enabled = self._get_config_value(
             lambda: self.config.evaluation.hubeau.download, default=True
         )
 
-        raw_dir = self.project_dir / "observations" / "waterlevel" / "raw_data"
+        raw_dir = self.project_observations_dir / "waterlevel" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"hubeau_wl_{station_id}_raw.json"
 
@@ -540,7 +540,7 @@ class HubEauWaterLevelHandler(BaseObservationHandler):
         resampled = df['water_level_m'].resample('h').mean()
         resampled = resampled.interpolate(method='time', limit_direction='both', limit=24)
 
-        output_dir = self.project_dir / "observations" / "waterlevel" / "preprocessed"
+        output_dir = self.project_observations_dir / "waterlevel" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_waterlevel_processed.csv"
 

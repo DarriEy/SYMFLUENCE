@@ -76,7 +76,7 @@ class CLMWorker(BaseWorker):
             )
             data_dir = Path(data_dir_raw)
             original_params_dir = (
-                data_dir / f'domain_{domain_name}' / 'CLM_input' / 'parameters'
+                data_dir / f'domain_{domain_name}' / 'settings' / 'CLM' / 'parameters'
             )
             self.logger.debug(f"CLM original_params_dir={original_params_dir}, exists={original_params_dir.exists()}")
 
@@ -105,9 +105,9 @@ class CLMWorker(BaseWorker):
                 )
                 return False
 
-            # Also copy namelists from CLM_input/settings to settings_dir
+            # Also copy namelists from settings/CLM to settings_dir
             original_settings_dir = (
-                data_dir / f'domain_{domain_name}' / 'CLM_input' / 'settings'
+                data_dir / f'domain_{domain_name}' / 'settings' / 'CLM'
             )
             if original_settings_dir.exists():
                 settings_dir.mkdir(parents=True, exist_ok=True)
@@ -530,7 +530,7 @@ class CLMWorker(BaseWorker):
             finalization_grace = 60   # seconds after all h0 files written
             cpu_idle_limit = 120      # seconds of 0% CPU before kill
             no_progress_limit = 600   # seconds with 0 h0 files → assume crash
-            expected_h0 = 7           # years 2003-2009 inclusive
+            expected_h0 = 9           # 8-year run with hist_mfilt=365 + leap year overflow
             elapsed = 0
             all_done_time = None
             idle_since = None

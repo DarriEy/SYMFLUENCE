@@ -45,7 +45,7 @@ class PRMSWorker(BaseWorker):
         """
         Apply parameters to PRMS parameter file.
 
-        Copies fresh parameter files from the original PRMS_input location,
+        Copies fresh parameter files from the original settings/PRMS location,
         then updates values using the parameter manager.
 
         Args:
@@ -64,7 +64,7 @@ class PRMSWorker(BaseWorker):
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_settings_dir = data_dir / f'domain_{domain_name}' / 'PRMS_input' / 'settings'
+            original_settings_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'PRMS'
 
             if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
@@ -92,6 +92,7 @@ class PRMSWorker(BaseWorker):
                 self.logger.error(f"PRMS parameter file not found in {settings_dir}")
                 return False
 
+            params = self._enforce_constraints(params)
             return self._update_parameter_file(param_file, params)
 
         except Exception as e:
@@ -182,14 +183,30 @@ class PRMSWorker(BaseWorker):
             result += '\n'
         return result
 
+    @staticmethod
+    def _enforce_constraints(params: Dict[str, float]) -> Dict[str, float]:
+        """Enforce PRMS cross-parameter constraints.
+
+        PRMS crashes (rc=255) when:
+        - soil_rechr_max > soil_moist_max (recharge zone exceeds total storage)
+        - tmax_allsnow >= tmax_allrain (snow threshold above rain threshold)
+        """
+        p = dict(params)
+        if 'soil_rechr_max' in p and 'soil_moist_max' in p:
+            if p['soil_rechr_max'] > p['soil_moist_max']:
+                p['soil_rechr_max'] = p['soil_moist_max'] * 0.9
+        if 'tmax_allsnow' in p and 'tmax_allrain' in p:
+            if p['tmax_allsnow'] >= p['tmax_allrain']:
+                p['tmax_allsnow'] = p['tmax_allrain'] - 2.0
+        return p
+
     def _update_control_dat_paths(self, settings_dir: Path, config: Dict[str, Any]) -> None:
         """
-        Rewrite absolute paths in control.dat to point to the worker's settings directory.
+        Rewrite param_file path in control.dat to point to the worker's directory.
 
-        PRMS control.dat stores absolute paths for param_file, data_file,
-        stat_var_file, and csv_output_file. When files are copied to a worker
-        directory, these paths must be updated so PRMS reads/writes in the
-        worker directory rather than the original location.
+        Only param_file needs rewriting — data_file points to the shared
+        forcing directory (unchanged between iterations) and output paths
+        (stat_var_file, csv_output_file) use relative filenames.
 
         Args:
             settings_dir: Worker's PRMS settings directory
@@ -203,19 +220,16 @@ class PRMSWorker(BaseWorker):
         try:
             content = control_path.read_bytes().decode('utf-8', errors='replace')
             blocks = content.split('####\n')
-            path_keys = {'param_file', 'data_file', 'stat_var_file', 'csv_output_file'}
 
             updated_blocks = []
             for block in blocks:
                 lines = block.strip().split('\n')
-                if lines and lines[0].strip() in path_keys:
-                    key = lines[0].strip()
-                    # Format: key / count / type_code / path_value
+                if lines and lines[0].strip() == 'param_file':
                     if len(lines) >= 4:
                         old_path = Path(lines[-1].strip())
                         new_path = settings_dir / old_path.name
                         lines[-1] = str(new_path)
-                        self.logger.debug(f"Updated control.dat {key}: {old_path.name} -> {new_path}")
+                        self.logger.debug(f"Updated control.dat param_file: {old_path.name} -> {new_path}")
                     updated_block = '\n'.join(lines) + '\n'
                 else:
                     updated_block = block
@@ -282,7 +296,7 @@ class PRMSWorker(BaseWorker):
                      open(stderr_file, 'w', encoding='utf-8') as stderr_f:
                     result = subprocess.run(
                         cmd,
-                        cwd=str(settings_dir),
+                        cwd=str(prms_output_dir),
                         env=env,
                         stdin=subprocess.DEVNULL,
                         stdout=stdout_f,
@@ -298,14 +312,14 @@ class PRMSWorker(BaseWorker):
                 self.logger.error(self._last_error)
                 return False
 
-            # Verify output - check multiple locations
-            output_files = list(settings_dir.glob('statvar*'))
+            # Verify output - check output dir first, then settings fallback
+            output_files = list(prms_output_dir.glob('statvar*'))
             if not output_files:
-                output_files = list(prms_output_dir.glob('statvar*'))
+                output_files = list(settings_dir.glob('statvar*'))
             if not output_files:
                 output_files = (
-                    list(settings_dir.glob('*.csv')) +
-                    list(prms_output_dir.glob('*.csv'))
+                    list(prms_output_dir.glob('*.csv')) +
+                    list(settings_dir.glob('*.csv'))
                 )
 
             if not output_files:
@@ -366,7 +380,7 @@ class PRMSWorker(BaseWorker):
             if not output_files:
                 domain_name = config.get('DOMAIN_NAME', '')
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                prms_settings = data_dir / f'domain_{domain_name}' / 'PRMS_input' / 'settings'
+                prms_settings = data_dir / f'domain_{domain_name}' / 'settings' / 'PRMS'
                 if prms_settings.exists():
                     output_files = list(prms_settings.glob('statvar*'))
 

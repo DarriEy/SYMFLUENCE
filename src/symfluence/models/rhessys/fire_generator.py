@@ -46,7 +46,7 @@ class RHESSysFireGenerator:
         """
         logger.info("WMFire is enabled. Setting up fire spread inputs...")
 
-        fire_dir = self.pp.rhessys_input_dir / "fire"
+        fire_dir = self.pp.fire_dir
         fire_dir.mkdir(parents=True, exist_ok=True)
 
         patch_grid_file = fire_dir / "patch_grid.txt"
@@ -117,8 +117,8 @@ class RHESSysFireGenerator:
         # Look for DEM if available
         dem_path = None
         dem_candidates = [
-            self.pp.project_dir / 'attributes' / 'elevation' / 'dem.tif',
-            self.pp.project_dir / 'attributes' / 'dem' / 'dem.tif',
+            self.pp.project_attributes_dir / 'elevation' / 'dem.tif',
+            self.pp.project_attributes_dir / 'dem' / 'dem.tif',
             self.pp.project_dir / 'domain' / 'dem.tif',
         ]
         for candidate in dem_candidates:

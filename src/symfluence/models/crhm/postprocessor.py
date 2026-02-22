@@ -17,22 +17,19 @@ class CRHMPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the CRHM model.
 
-    CRHM outputs streamflow and other variables in CSV format with
-    columns for date, flow (m3/s), SWE (mm), soil moisture, etc.
-    The flow column typically represents basin outlet discharge.
+    CRHM outputs a tab-separated text file with:
+    - Row 1: column headers (time, SWE(1), basinflow(1), ...)
+    - Row 2: units (units, (mm), (m^3/int), ...)
+    - Row 3+: ISO datetime + numeric values
 
-    Attributes:
-        model_name: "CRHM"
-        output_file_pattern: "*.csv"
-        streamflow_variable: "flow"
-        streamflow_unit: "cms"
+    ``basinflow`` is in m^3 per interval; we convert to m^3/s.
     """
 
     model_name = "CRHM"
 
-    output_file_pattern = "*.csv"
+    output_file_pattern = "crhm_output.txt"
 
-    streamflow_variable = "flow"
+    streamflow_variable = "basinflow"
     streamflow_unit = "cms"
 
     def _get_model_name(self) -> str:
@@ -49,70 +46,91 @@ class CRHMPostProcessor(StandardModelPostprocessor):
         """CRHM outputs to standard simulation directory."""
         return self.project_dir / 'simulations' / self.experiment_id / 'CRHM'
 
+    def _find_output_file(self) -> Optional[Path]:
+        """Locate the CRHM output file."""
+        output_dir = self._get_output_dir()
+
+        # Search patterns in priority order: known name, then txt, then csv
+        search_dirs = [output_dir, self.project_dir / 'settings' / 'CRHM']
+        patterns = ['crhm_output.txt', '*output*.txt', '*.txt', '*output*.csv', '*.csv']
+
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+            for pattern in patterns:
+                matches = list(search_dir.glob(pattern))
+                if matches:
+                    return matches[0]
+
+        return None
+
     def extract_streamflow(self) -> Optional[Path]:
         """
-        Extract streamflow from CRHM CSV outputs.
+        Extract streamflow from CRHM output.
 
-        CRHM outputs flow directly in m3/s in CSV format.
-        Parses the CSV to extract the flow column.
+        CRHM writes a tab-separated file with a units row.  The
+        ``basinflow`` column contains basin outflow in m^3 per
+        time-interval.  We infer the interval from consecutive
+        timestamps and convert to m^3/s.
 
         Returns:
             Path to processed streamflow file, or None if extraction fails.
         """
         self.logger.info("Extracting streamflow from CRHM outputs")
 
-        output_dir = self._get_output_dir()
-
-        # Find output file
-        output_file = None
-        for pattern in ['*output*.csv', '*.csv']:
-            matches = list(output_dir.glob(pattern))
-            if matches:
-                output_file = matches[0]
-                break
-
+        output_file = self._find_output_file()
         if output_file is None:
-            # Check settings directory
-            settings_dir = self.project_dir / 'CRHM_input' / 'settings'
-            for pattern in ['*output*.csv', '*.csv']:
-                matches = list(settings_dir.glob(pattern))
-                if matches:
-                    output_file = matches[0]
-                    break
-
-        if output_file is None:
-            self.logger.error(f"CRHM output not found in {output_dir}")
+            self.logger.error(
+                f"CRHM output not found in {self._get_output_dir()}"
+            )
             return None
+
+        self.logger.info(f"Reading CRHM output: {output_file}")
 
         try:
             import pandas as pd
 
-            df = pd.read_csv(output_file, parse_dates=True, index_col=0)
+            # Read tab-separated file, skip the units row (row index 1)
+            df = pd.read_csv(
+                output_file, sep='\t', skiprows=[1],
+                index_col=0, parse_dates=True
+            )
 
-            # Find flow column
+            # Find basinflow column (may include HRU index, e.g. "basinflow(1)")
             flow_col = None
-            for col in ['flow', 'Flow', 'discharge', 'Discharge', 'Q', 'flow_cms']:
-                if col in df.columns:
+            for col in df.columns:
+                if col.lower().startswith('basinflow'):
                     flow_col = col
                     break
 
+            # Fallback: any column with 'flow' in the name
             if flow_col is None:
-                # Try to find any column with 'flow' in the name
                 flow_cols = [c for c in df.columns if 'flow' in c.lower()]
                 if flow_cols:
                     flow_col = flow_cols[0]
 
             if flow_col is None:
-                self.logger.error("No flow variable found in CRHM output")
+                self.logger.error(
+                    f"No flow variable found in CRHM output. "
+                    f"Available columns: {list(df.columns)}"
+                )
                 return None
 
-            streamflow = df[flow_col]
+            self.logger.info(f"Using flow column: {flow_col}")
+            streamflow = df[flow_col].astype(float)
 
-            # CRHM outputs flow in m3/s, no conversion needed
-            # If units are mm/day, convert
-            if streamflow.mean() < 0.001 and streamflow.max() > 0:
-                # Likely in mm/day, convert
-                streamflow = self.convert_mm_per_day_to_cms(streamflow)
+            # Convert m^3/interval to m^3/s
+            # Infer interval from first two timestamps
+            if len(df.index) >= 2:
+                dt_seconds = (df.index[1] - df.index[0]).total_seconds()
+            else:
+                dt_seconds = 3600.0  # default hourly
+
+            if dt_seconds > 0:
+                streamflow = streamflow / dt_seconds
+                self.logger.info(
+                    f"Converted basinflow from m^3/{int(dt_seconds)}s to m^3/s"
+                )
 
             # Apply resampling if configured
             if self.resample_frequency:

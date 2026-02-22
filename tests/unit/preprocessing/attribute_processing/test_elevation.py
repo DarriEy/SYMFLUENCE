@@ -253,7 +253,7 @@ class TestFindDemFile:
         # Setup: Create a mock DEM in attributes/elevation/dem
         # Ensure we use the correct domain directory structure
         domain_name = base_config['DOMAIN_NAME']
-        dem_dir = temp_project_dir / f"domain_{domain_name}" / "attributes" / "elevation" / "dem"
+        dem_dir = temp_project_dir / f"domain_{domain_name}" / "data" / "attributes" / "elevation" / "dem"
         dem_dir.mkdir(parents=True, exist_ok=True)
         mock_dem = dem_dir / "found_me.tif"
         mock_dem.touch()
@@ -274,7 +274,7 @@ class TestFindDemFile:
     ):
         """Test DEM auto-discovery in attributes/dem directory."""
         # Create a DEM in the expected location
-        dem_dir = temp_project_dir / "attributes" / "dem"
+        dem_dir = temp_project_dir / "data" / "attributes" / "dem"
         dem_dir.mkdir(parents=True, exist_ok=True)
         auto_dem = dem_dir / "test_domain_dem.tif"
         auto_dem.touch()  # Create empty file
@@ -305,7 +305,7 @@ class TestFindDemFile:
         self, base_config, test_logger, lumped_catchment_shapefile, temp_project_dir
     ):
         """Test handling when multiple DEM files exist (should use first or most recent)."""
-        dem_dir = temp_project_dir / "attributes" / "dem"
+        dem_dir = temp_project_dir / "data" / "attributes" / "dem"
         dem_dir.mkdir(parents=True, exist_ok=True)
 
         dem1 = dem_dir / "dem_v1.tif"

@@ -200,16 +200,22 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
         "GRUs": semi_dist_data_dir / "shapefiles" / "river_basins",
         "Streamflow": semi_dist_data_dir / "observations" / "streamflow",
     }
+    _DATA_SUBDIRS = {'attributes', 'forcing', 'observations'}
     for _, src_path in reusable_data.items():
         if src_path.exists():
             rel_path = src_path.relative_to(semi_dist_data_dir)
-            dst_path = project_dir / rel_path
+            # Data subdirs live under data/ in the new project layout
+            top_dir = rel_path.parts[0] if rel_path.parts else ''
+            if top_dir in _DATA_SUBDIRS:
+                dst_path = project_dir / "data" / rel_path
+            else:
+                dst_path = project_dir / rel_path
             _copy_with_name_adaptation(
                 src_path, dst_path, semi_dist_domain, config["DOMAIN_NAME"]
             )
 
     # Clear cached outputs/remap weights to keep performance tuning predictable.
-    forcing_dir = project_dir / "forcing"
+    forcing_dir = project_dir / "data" / "forcing"
     if forcing_dir.exists():
         for subdir in ["basin_averaged_data", "merged_path", "SUMMA_input", "GR_input", "NGEN_input"]:
             shutil.rmtree(forcing_dir / subdir, ignore_errors=True)
@@ -220,7 +226,7 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
         shutil.rmtree(remap_cache, ignore_errors=True)
 
     # Prune to single forcing file for faster tests
-    forcing_raw_dir = project_dir / "forcing" / "raw_data"
+    forcing_raw_dir = project_dir / "data" / "forcing" / "raw_data"
     if forcing_raw_dir.exists():
         forcing_files = sorted(forcing_raw_dir.glob("*.nc"))
         if len(forcing_files) > 1:

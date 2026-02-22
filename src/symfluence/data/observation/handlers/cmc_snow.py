@@ -69,7 +69,7 @@ class CMCSnowHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(cmc_path, str) and cmc_path.lower() == 'default':
-            cmc_dir = self.project_dir / "observations" / "snow" / "cmc"
+            cmc_dir = self.project_observations_dir / "snow" / "cmc"
         else:
             cmc_dir = Path(cmc_path)
 

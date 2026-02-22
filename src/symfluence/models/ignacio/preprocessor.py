@@ -147,13 +147,13 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
         # Try default DEM locations
         if terrain_paths['dem_path'] is None:
             # Try RHESSys fire DEM first (most likely for fire simulations)
-            fire_dem = self.project_dir / 'RHESSys_input' / 'fire' / 'dem_grid.tif'
+            fire_dem = self.project_dir / 'settings' / 'RHESSys' / 'fire' / 'dem_grid.tif'
             if fire_dem.exists():
                 terrain_paths['dem_path'] = fire_dem
                 self.logger.info(f"Using RHESSys fire DEM: {fire_dem}")
             else:
                 # Try standard attribute location
-                default_dem = self.project_dir / 'attributes' / 'dem' / f"{self.config.domain.name}_dem.tif"
+                default_dem = self.project_attributes_dir / 'dem' / f"{self.config.domain.name}_dem.tif"
                 if default_dem.exists():
                     terrain_paths['dem_path'] = default_dem
                     self.logger.info(f"Using default DEM: {default_dem}")
@@ -193,12 +193,12 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
         # Try default locations
         default_paths = [
-            self.project_dir / 'attributes' / 'fuels' / 'fuels.tif',
+            self.project_attributes_dir / 'fuels' / 'fuels.tif',
             self.project_dir / 'shapefiles' / 'fuels' / 'fuels.tif',
             # Land class can be used as proxy for fuels (with domain_ prefix)
-            self.project_dir / 'attributes' / 'landclass' / f"domain_{self.config.domain.name}_land_classes.tif",
+            self.project_attributes_dir / 'landclass' / f"domain_{self.config.domain.name}_land_classes.tif",
             # Without prefix
-            self.project_dir / 'attributes' / 'landclass' / f"{self.config.domain.name}_land_classes.tif",
+            self.project_attributes_dir / 'landclass' / f"{self.config.domain.name}_land_classes.tif",
         ]
 
         for default_path in default_paths:
@@ -258,9 +258,9 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
             # Find ERA5 forcing files
             forcing_dirs = [
-                self.project_dir / 'forcing' / 'basin_averaged_data',
-                self.project_dir / 'forcing' / 'merged_path',
-                self.project_dir / 'forcing' / 'raw_data',
+                self.project_forcing_dir / 'basin_averaged_data',
+                self.project_forcing_dir / 'merged_path',
+                self.project_forcing_dir / 'raw_data',
             ]
 
             nc_files = []

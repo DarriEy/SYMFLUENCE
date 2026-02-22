@@ -39,7 +39,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         """Acquire Sentinel-1 SM data via cloud acquisition."""
         s1_dir = Path(self.config_dict.get(
             'SENTINEL1_SM_DIR',
-            self.project_dir / "observations" / "soil_moisture" / "sentinel1"
+            self.project_observations_dir / "soil_moisture" / "sentinel1"
         ))
 
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
@@ -129,7 +129,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         df = df.loc[self.start_date:self.end_date]
 
         # Save processed data
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "preprocessed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_sentinel1_sm_processed.csv"
 
@@ -320,7 +320,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
     def get_processed_data(self) -> Optional[pd.DataFrame]:
         """Get processed Sentinel-1 SM data."""
         processed_path = (
-            self.project_dir / "observations" / "soil_moisture" / "preprocessed"
+            self.project_observations_dir / "soil_moisture" / "preprocessed"
             / f"{self.domain_name}_sentinel1_sm_processed.csv"
         )
 

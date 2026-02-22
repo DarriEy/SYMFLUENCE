@@ -716,6 +716,12 @@ class DataPreProcessor(ConfigMixin):
             Returns: /custom/path/dem.tif
         """
         if self.config.get(f'{file_type}') == 'default':
+            # Use resolve_data_subdir for data subdirectories
+            parts = file_def_path.split('/', 1)
+            if parts[0] in ('forcing', 'attributes', 'observations'):
+                from symfluence.core.mixins.project import resolve_data_subdir
+                base = resolve_data_subdir(self.project_dir, parts[0])
+                return base / parts[1] / file_name if len(parts) > 1 else base / file_name
             return self.project_dir / file_def_path / file_name
         else:
             return Path(self.config.get(f'{file_type}'))

@@ -8,6 +8,9 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+import pandas as pd
+
 from ..registry import ModelRegistry
 from ..base import StandardModelPostprocessor
 
@@ -18,8 +21,9 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
     Postprocessor for the WRF-Hydro model.
 
     WRF-Hydro outputs streamflow in CHRTOUT NetCDF files with variable
-    'streamflow' in cubic meters per second (cms). No unit conversion
-    is needed for channel output.
+    'streamflow' in cubic meters per second (cms). When routing is
+    disabled (standalone HRLDAS mode), streamflow is derived from
+    LDASOUT accumulated runoff fields (SFCRNOFF + UGDRNOFF).
 
     Attributes:
         model_name: "WRFHYDRO"
@@ -51,35 +55,45 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
 
     def extract_streamflow(self) -> Optional[Path]:
         """
-        Extract streamflow from WRF-Hydro CHRTOUT outputs.
+        Extract streamflow from WRF-Hydro outputs.
 
-        WRF-Hydro CHRTOUT files contain streamflow in cms (m3/s) at
-        channel routing points. No unit conversion needed.
+        Tries CHRTOUT files first (routing enabled). Falls back to
+        LDASOUT-derived streamflow when routing is disabled.
 
         Returns:
             Path to processed streamflow file, or None if extraction fails.
         """
-        self.logger.info("Extracting streamflow from WRF-Hydro CHRTOUT outputs")
-
         output_dir = self._get_output_dir()
 
-        # Find CHRTOUT files
-        output_files = sorted(output_dir.glob('*CHRTOUT*.nc'))
+        # Try CHRTOUT files first (routing enabled)
+        chrtout_files = sorted(output_dir.glob('*CHRTOUT*.nc'))
+        if chrtout_files:
+            return self._extract_from_chrtout(chrtout_files)
 
-        if not output_files:
-            self.logger.error(f"WRF-Hydro CHRTOUT files not found in {output_dir}")
-            return None
+        # Fall back to LDASOUT files (standalone HRLDAS / no routing)
+        ldasout_files = sorted(output_dir.glob('*LDASOUT*'))
+        if ldasout_files:
+            self.logger.info(
+                f"No CHRTOUT files found; deriving streamflow from "
+                f"{len(ldasout_files)} LDASOUT files"
+            )
+            return self._extract_from_ldasout(ldasout_files)
+
+        self.logger.error(f"No WRF-Hydro output files found in {output_dir}")
+        return None
+
+    def _extract_from_chrtout(self, output_files: list) -> Optional[Path]:
+        """Extract streamflow from CHRTOUT NetCDF files."""
+        self.logger.info("Extracting streamflow from WRF-Hydro CHRTOUT outputs")
 
         try:
             import xarray as xr
-            import pandas as pd
 
             streamflow_series = []
 
             for fpath in output_files:
                 ds = xr.open_dataset(fpath)
 
-                # Find streamflow variable
                 flow = None
                 for var in ['streamflow', 'q_lateral', 'qSfcLatRunoff']:
                     if var in ds.data_vars:
@@ -87,15 +101,12 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
                         break
 
                 if flow is not None:
-                    # Take the outlet point (last feature or max flow)
                     if 'feature_id' in flow.dims:
-                        # Use the last feature_id (typically outlet)
                         flow = flow.isel(feature_id=-1)
 
                     if 'time' in flow.dims:
                         streamflow_series.append(flow.to_series())
                     else:
-                        # Single timestep - get time from filename or attributes
                         time_val = ds.attrs.get('model_output_valid_time',
                                                 fpath.stem[:10])
                         try:
@@ -113,9 +124,6 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
 
             streamflow = pd.concat(streamflow_series).sort_index()
 
-            # Streamflow is already in cms, no conversion needed
-
-            # Apply resampling if configured
             if self.resample_frequency:
                 streamflow = streamflow.resample(self.resample_frequency).mean()
 
@@ -129,3 +137,84 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
             self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}")
             self.logger.debug(traceback.format_exc())
             return None
+
+    def _extract_from_ldasout(self, ldasout_files: list) -> Optional[Path]:
+        """
+        Derive streamflow from LDASOUT surface and subsurface runoff.
+
+        SFCRNOFF and UGDRNOFF are accumulated mm from simulation start.
+        Daily values are derived by differencing consecutive timesteps
+        and converting to m3/s using catchment area.
+        """
+        import netCDF4
+
+        catchment_area_km2 = self._get_config_value(
+            lambda: self.config.model.wrfhydro.catchment_area_km2,
+            default=2210.0,
+            dict_key='CATCHMENT_AREA_KM2'
+        )
+        area_m2 = float(catchment_area_km2) * 1e6
+
+        timestamps = []
+        accum_values = []
+
+        for fpath in sorted(ldasout_files):
+            fname = fpath.name
+            ts_str = fname.split('.')[0]
+            try:
+                if len(ts_str) >= 10:
+                    ts = pd.Timestamp(
+                        year=int(ts_str[:4]), month=int(ts_str[4:6]),
+                        day=int(ts_str[6:8]), hour=int(ts_str[8:10])
+                    )
+                else:
+                    continue
+            except (ValueError, IndexError):
+                continue
+
+            try:
+                nc = netCDF4.Dataset(str(fpath), 'r')
+                sfcrnoff = float(nc['SFCRNOFF'][:].mean()) if 'SFCRNOFF' in nc.variables else 0.0
+                ugdrnoff = float(nc['UGDRNOFF'][:].mean()) if 'UGDRNOFF' in nc.variables else 0.0
+                nc.close()
+            except Exception:
+                continue
+
+            if np.isnan(sfcrnoff) or sfcrnoff < -9000:
+                sfcrnoff = 0.0
+            if np.isnan(ugdrnoff) or ugdrnoff < -9000:
+                ugdrnoff = 0.0
+
+            timestamps.append(ts)
+            accum_values.append(sfcrnoff + ugdrnoff)
+
+        if not timestamps:
+            self.logger.error("No valid LDASOUT runoff data found")
+            return None
+
+        accum = pd.Series(accum_values, index=pd.DatetimeIndex(timestamps)).sort_index()
+        delta_mm = accum.diff()
+        delta_mm.iloc[0] = accum.iloc[0]
+
+        # Infer timestep (handles hourly or daily output)
+        if len(accum) >= 2:
+            dt_seconds = (accum.index[1] - accum.index[0]).total_seconds()
+        else:
+            dt_seconds = 86400.0
+
+        # mm/timestep -> m3/s
+        q_cms = delta_mm * area_m2 / (dt_seconds * 1000.0)
+        q_cms.name = 'WRFHYDRO_discharge_cms'
+
+        # Resample to daily
+        streamflow = q_cms.resample('D').mean()
+
+        self.logger.info(
+            f"Derived streamflow from LDASOUT: {len(streamflow)} daily values, "
+            f"mean={streamflow.mean():.3f} m3/s"
+        )
+
+        return self.save_streamflow_to_results(
+            streamflow,
+            model_column_name='WRFHYDRO_discharge_cms'
+        )

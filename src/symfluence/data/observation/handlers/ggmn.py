@@ -32,7 +32,7 @@ class GGMNHandler(BaseObservationHandler):
         """
         self.logger.info("Starting automated GGMN data acquisition...")
 
-        raw_dir = self.project_dir / "observations" / "groundwater" / "raw_data"
+        raw_dir = self.project_observations_dir / "groundwater" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         metadata_file = raw_dir / f"{self.domain_name}_ggmn_metadata.json"
 
@@ -130,8 +130,8 @@ class GGMNHandler(BaseObservationHandler):
         """
         Process and average all acquired GGMN data.
         """
-        raw_dir = self.project_dir / "observations" / "groundwater" / "raw_data"
-        output_dir = self.project_dir / "observations" / "groundwater"
+        raw_dir = self.project_observations_dir / "groundwater" / "raw_data"
+        output_dir = self.project_observations_dir / "groundwater"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Look for all auto-acquired CSVs
@@ -166,7 +166,7 @@ class GGMNHandler(BaseObservationHandler):
 
         # 4. Save processed average to path expected by evaluator
         # Evaluator expects: observations/groundwater/depth/processed/{domain_name}_gw_processed.csv
-        out_dir = self.project_dir / "observations" / "groundwater" / "depth" / "processed"
+        out_dir = self.project_observations_dir / "groundwater" / "depth" / "processed"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_name = out_dir / f"{self.domain_name}_gw_processed.csv"
 

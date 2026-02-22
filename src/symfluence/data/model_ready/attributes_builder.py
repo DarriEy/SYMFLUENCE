@@ -15,6 +15,7 @@ import numpy as np
 
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +149,10 @@ class AttributesNetCDFBuilder:
                 for k, v in CF_STANDARD_NAMES['hru_area'].items():
                     area_v.setncattr(k, v)
 
-        # Centroid coordinates
+        # Centroid coordinates — project to equal-area CRS for accuracy, then back to WGS84
         try:
-            centroids = gdf.geometry.centroid
+            projected = gdf.geometry.to_crs(epsg=6933)
+            centroids = projected.centroid.to_crs(gdf.crs)
             lat_v = grp.createVariable('latitude', 'f8', ('hru',))
             lon_v = grp.createVariable('longitude', 'f8', ('hru',))
             lat_v[:] = centroids.y.values
@@ -296,7 +298,7 @@ class AttributesNetCDFBuilder:
 
     def _build_climate_group(self, root) -> bool:
         """Build /climate/ group from climate attribute files."""
-        climate_dir = self.project_dir / 'attributes' / 'climate'
+        climate_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'climate'
         if not climate_dir.exists():
             return False
 
@@ -327,7 +329,7 @@ class AttributesNetCDFBuilder:
 
     def _build_hydrogeology_group(self, root) -> bool:
         """Build /hydrogeology/ group from geology attribute files."""
-        geo_dir = self.project_dir / 'attributes' / 'geology'
+        geo_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'geology'
         if not geo_dir.exists():
             return False
 

@@ -101,7 +101,7 @@ class CLMDomainGenerator:
 
     def get_mean_elevation(self) -> float:
         """Get mean elevation from DEM."""
-        dem_dir = self.pp.project_dir / 'attributes' / 'elevation'
+        dem_dir = self.pp.project_attributes_dir / 'elevation'
         if dem_dir.exists():
             for f in dem_dir.glob('*dem*.nc'):
                 try:

@@ -110,7 +110,7 @@ class CanSWEHandler(BaseObservationHandler):
             return Path(canswe_path)
 
         # Set up output directory
-        raw_dir = self.project_dir / "observations" / "snow" / "canswe" / "raw_data"
+        raw_dir = self.project_observations_dir / "snow" / "canswe" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
 
         # Get version
@@ -660,7 +660,7 @@ class NorSWEHandler(CanSWEHandler):
             return Path(norswe_path)
 
         # Set up output directory
-        raw_dir = self.project_dir / "observations" / "snow" / "norswe" / "raw_data"
+        raw_dir = self.project_observations_dir / "snow" / "norswe" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / "NorSWE_v1.nc"
 

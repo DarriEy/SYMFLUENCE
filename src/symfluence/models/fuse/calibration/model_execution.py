@@ -11,6 +11,8 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +20,14 @@ def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
                          log: Optional[logging.Logger] = None) -> str:
     """
     Determine FUSE run mode based on config and kwargs.
+
+    Defaults to 'run_pre' for all regionalization methods. The run_def mode
+    is broken in many FUSE builds because it tries to create two files with
+    UNLIMITED dimensions in NETCDF3_CLASSIC format (para_def.nc and
+    runs_def.nc), which triggers "NC_UNLIMITED size already in use".
+
+    run_pre reads parameters from an existing para_def.nc and avoids
+    creating the conflicting output structure.
 
     Args:
         config: Configuration dictionary
@@ -38,12 +48,14 @@ def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
     if config.get('USE_TRANSFER_FUNCTIONS', False):
         regionalization_method = 'transfer_function'
 
+    # Default to run_pre for all modes. run_def is broken in many FUSE
+    # builds due to NC_UNLIMITED conflicts in NETCDF3_CLASSIC format.
+    mode = kwargs.get('mode', 'run_pre')
+
     if regionalization_method != 'lumped':
-        mode = kwargs.get('mode', 'run_pre')
-        log.info(f"FUSE auto-selected run_pre mode (regionalization={regionalization_method})")
+        log.info(f"FUSE using run_pre mode (regionalization={regionalization_method})")
     else:
-        mode = kwargs.get('mode', 'run_def')
-        log.debug("FUSE using run_def mode (lumped regionalization)")
+        log.debug(f"FUSE using {mode} mode (lumped regionalization)")
 
     return mode
 
@@ -92,7 +104,7 @@ def prepare_input_files(
     config: Dict[str, Any],
     execution_cwd: Path,
     log: Optional[logging.Logger] = None
-) -> Tuple[str, str]:
+) -> Optional[Tuple[str, str]]:
     """
     Create symlinks and copies for FUSE input files.
 
@@ -102,7 +114,8 @@ def prepare_input_files(
         log: Logger instance
 
     Returns:
-        Tuple of (fuse_run_id, actual_decisions_file)
+        Tuple of (fuse_run_id, actual_decisions_file), or None if critical
+        input files are missing.
     """
     log = log or logger
 
@@ -110,7 +123,7 @@ def prepare_input_files(
     data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
     domain_name = config.get('DOMAIN_NAME')
     project_dir = data_dir / f"domain_{domain_name}"
-    fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
+    fuse_input_dir = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
     experiment_id = config.get('EXPERIMENT_ID', 'run_1')
     fuse_id = config.get('FUSE_FILE_ID', experiment_id)
 
@@ -130,7 +143,21 @@ def prepare_input_files(
     )
 
     # Create symlinks (but NOT para_def.nc which was copied above)
-    _create_symlinks(input_files, execution_cwd, log)
+    missing = _create_symlinks(input_files, execution_cwd, log)
+
+    # Check for missing critical input files (forcing, elev_bands)
+    critical_missing = [
+        (name, src) for name, src in missing
+        if '_input.nc' in name or '_elev_bands.nc' in name
+    ]
+    if critical_missing:
+        names = ', '.join(f"{name} (expected at {src})" for name, src in critical_missing)
+        log.error(
+            f"FUSE cannot run: critical input files are missing: {names}. "
+            f"This usually means the FUSE preprocessing step did not complete. "
+            f"Re-run preprocessing or check the forcing data directory."
+        )
+        return None
 
     # Verify para_def copy exists
     param_file_dst = execution_cwd / f"{fuse_run_id}_{fuse_id}_para_def.nc"
@@ -204,8 +231,13 @@ def _create_symlinks(
     input_files: list,
     execution_cwd: Path,
     log: logging.Logger
-) -> None:
-    """Create symlinks for input files."""
+) -> list:
+    """Create symlinks for input files.
+
+    Returns:
+        List of (link_name, source_path) tuples for sources that were missing.
+    """
+    missing = []
     for src, link_name in input_files:
         if src.exists():
             link_path = execution_cwd / link_name
@@ -218,7 +250,72 @@ def _create_symlinks(
                 shutil.copy2(src, link_path)
                 log.debug(f"Copied (symlink unavailable): {src} -> {link_path}")
         else:
-            log.warning(f"Symlink source not found: {src}")
+            missing.append((link_name, src))
+            log.error(f"FUSE input file not found: {src}")
+    return missing
+
+
+def validate_fuse_inputs(
+    execution_cwd: Path,
+    fuse_run_id: str,
+    config: Dict[str, Any],
+    log: Optional[logging.Logger] = None
+) -> bool:
+    """
+    Pre-flight validation of all FUSE input files before execution.
+
+    Checks that forcing data, elevation bands, and configuration files
+    are present and readable. This catches missing or broken files BEFORE
+    running FUSE, providing clear diagnostics instead of silent Fortran
+    crashes.
+
+    Returns:
+        True if all inputs are valid, False otherwise.
+    """
+    log = log or logger
+    errors = []
+
+    # Check forcing input symlink resolves to a real file
+    forcing_link = execution_cwd / f"{fuse_run_id}_input.nc"
+    if forcing_link.is_symlink():
+        target = forcing_link.resolve()
+        if not target.exists():
+            errors.append(
+                f"Forcing file symlink is broken: {forcing_link.name} -> {target}. "
+                f"The FUSE_input directory may not exist."
+            )
+    elif not forcing_link.exists():
+        errors.append(f"Forcing input file not found: {forcing_link}")
+
+    # Check elevation bands
+    elev_link = execution_cwd / f"{fuse_run_id}_elev_bands.nc"
+    if elev_link.is_symlink():
+        target = elev_link.resolve()
+        if not target.exists():
+            errors.append(f"Elevation bands symlink is broken: {elev_link.name} -> {target}")
+    elif not elev_link.exists():
+        errors.append(f"Elevation bands file not found: {elev_link}")
+
+    # Check file manager
+    fm_path = execution_cwd / 'fm_catch.txt'
+    if not fm_path.exists():
+        errors.append(f"File manager not found: {fm_path}")
+
+    if errors:
+        log.error(
+            f"FUSE pre-flight validation FAILED ({len(errors)} issues):"
+        )
+        for i, err in enumerate(errors, 1):
+            log.error(f"  [{i}] {err}")
+        log.error(
+            "FUSE will not be executed. Fix the above issues and re-run. "
+            "Most commonly, this means the preprocessing step (prepare_forcing) "
+            "did not complete successfully."
+        )
+        return False
+
+    log.debug("FUSE pre-flight validation passed — all input files present")
+    return True
 
 
 def execute_fuse(
@@ -267,6 +364,30 @@ def execute_fuse(
     if not expected_para_def.exists() and not expected_para_def.is_symlink():
         log.error(f"FUSE parameter file not found: {expected_para_def}")
 
+    # Clean stale output files before execution.
+    # FUSE in run_def mode creates para_def.nc and runs_def.nc as output files.
+    # If a stale runs_def.nc exists from a previous iteration, FUSE's NetCDF
+    # library fails with "NC_UNLIMITED size already in use" because NETCDF3
+    # doesn't allow redefining unlimited dimensions on existing files.
+    run_suffix = 'runs_def' if mode == 'run_def' else 'runs_pre'
+    stale_runs = execution_cwd / f"{fuse_run_id}_{fuse_id}_{run_suffix}.nc"
+    if stale_runs.exists():
+        try:
+            stale_runs.unlink()
+            log.debug(f"Removed stale output: {stale_runs.name}")
+        except OSError as e:
+            log.warning(f"Could not remove stale output {stale_runs.name}: {e}")
+
+    # In run_def mode, FUSE also recreates para_def.nc from the constraints
+    # file. Remove the stale one so FUSE creates it fresh in its native
+    # NETCDF3 format (avoids format conflicts with our NETCDF4 copy).
+    if mode == 'run_def' and expected_para_def.exists():
+        try:
+            expected_para_def.unlink()
+            log.debug(f"Removed stale para_def for run_def: {expected_para_def.name}")
+        except OSError as e:
+            log.warning(f"Could not remove stale para_def {expected_para_def.name}: {e}")
+
     result = subprocess.run(
         cmd,
         cwd=str(execution_cwd),
@@ -283,12 +404,29 @@ def execute_fuse(
         log.error(f"STDERR: {result.stderr}")
         return None
 
-    # Detect Fortran STOP messages (FUSE returns exit code 0 on macOS even on STOP)
+    # Detect Fortran STOP messages and NetCDF errors
+    # (FUSE returns exit code 0 on macOS even on fatal errors)
     combined_output = (result.stdout or '') + (result.stderr or '')
-    if 'STOP' in combined_output and 'failed to converge' in combined_output:
+
+    # Check for NetCDF library errors (e.g. "NC_UNLIMITED size already in use")
+    if 'NetCDF:' in combined_output:
+        nc_lines = [
+            line.strip() for line in combined_output.splitlines()
+            if 'NetCDF:' in line
+        ]
+        nc_context = '; '.join(nc_lines[:3])
+        log.error(f"FUSE NetCDF error (exit code 0): {nc_context}")
+        return None
+
+    if 'STOP' in combined_output:
+        # Extract STOP lines for context
+        stop_lines = [
+            line.strip() for line in combined_output.splitlines()
+            if 'STOP' in line
+        ]
+        stop_context = '; '.join(stop_lines[:3]) if stop_lines else combined_output[-300:]
         log.error(
-            f"FUSE hit convergence failure (Fortran STOP with exit code 0). "
-            f"Output: {combined_output[-300:]}"
+            f"FUSE hit Fortran STOP (exit code 0 on macOS): {stop_context}"
         )
         return None
 
@@ -376,6 +514,13 @@ def handle_fuse_output(
 
     # Validate output has actual data
     if not _validate_fuse_output(final_output_path, result, log):
+        # Log comprehensive diagnostics on first failure
+        if not getattr(handle_fuse_output, '_diagnostics_logged', False):
+            filemanager_path = execution_cwd / 'fm_catch.txt'
+            fuse_id_str = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID', ''))
+            cmd_repr = f"fuse.exe fm_catch.txt {fuse_run_id} {mode}"
+            _log_fuse_diagnostics(execution_cwd, filemanager_path, cmd_repr.split(), log)
+            handle_fuse_output._diagnostics_logged = True
         return None
 
     log.debug(f"FUSE completed successfully, output: {final_output_path}")
@@ -387,7 +532,21 @@ def _validate_fuse_output(
     result: subprocess.CompletedProcess,
     log: logging.Logger
 ) -> bool:
-    """Validate that FUSE output file has actual data."""
+    """Validate that FUSE output file exists, is readable, and has actual data."""
+    # Check file size first — a valid FUSE NetCDF should be at least a few KB
+    try:
+        file_size = output_path.stat().st_size
+        if file_size < 1024:
+            log.error(
+                f"FUSE output file is too small ({file_size} bytes) — "
+                f"model likely crashed silently (Fortran STOP returns exit code 0)."
+            )
+            _log_fuse_subprocess_output(result, log)
+            return False
+    except OSError as e:
+        log.error(f"Cannot stat FUSE output file {output_path}: {e}")
+        return False
+
     try:
         import xarray as xr
         with xr.open_dataset(output_path, decode_times=False) as ds_check:
@@ -395,16 +554,68 @@ def _validate_fuse_output(
             if time_dim and ds_check.sizes[time_dim] == 0:
                 log.error(
                     f"FUSE output has 0 time steps — model likely crashed silently "
-                    f"(Fortran STOP returns exit code 0). "
-                    f"Stderr: {(result.stderr or '')[:500]}"
+                    f"(Fortran STOP returns exit code 0)."
                 )
+                _log_fuse_subprocess_output(result, log)
                 return False
             n_time = ds_check.sizes.get(time_dim, 0) if time_dim else -1
             log.debug(f"FUSE output validated: {n_time} time steps in {output_path.name}")
     except Exception as e:
-        log.warning(f"Could not validate FUSE output time dimension: {e}")
+        log.error(
+            f"FUSE output file is not a readable NetCDF: {output_path.name} — {e}."
+        )
+        _log_fuse_subprocess_output(result, log)
+        return False
 
     return True
+
+
+def _log_fuse_subprocess_output(
+    result: subprocess.CompletedProcess,
+    log: logging.Logger
+) -> None:
+    """Log FUSE subprocess stdout/stderr for diagnostics."""
+    stdout = (result.stdout or '').strip()
+    stderr = (result.stderr or '').strip()
+    if stdout:
+        log.error(f"FUSE stdout: {stdout[-1000:]}")
+    else:
+        log.error("FUSE stdout: (empty — Fortran may have written to a log file)")
+    if stderr:
+        log.error(f"FUSE stderr: {stderr[-500:]}")
+
+
+def _log_fuse_diagnostics(
+    execution_cwd: Path,
+    filemanager_path: Path,
+    cmd: list,
+    log: logging.Logger
+) -> None:
+    """Log comprehensive diagnostics when FUSE fails."""
+    log.error(f"FUSE command: {' '.join(cmd)}")
+    log.error(f"FUSE working directory: {execution_cwd}")
+
+    # Log key files in the working directory
+    try:
+        files = sorted(execution_cwd.iterdir())
+        file_info = []
+        for f in files:
+            if f.is_symlink():
+                target = f.resolve()
+                exists = target.exists()
+                file_info.append(f"  {f.name} -> {target} ({'OK' if exists else 'BROKEN'})")
+            elif f.is_file():
+                file_info.append(f"  {f.name} ({f.stat().st_size} bytes)")
+        log.error(f"Files in execution dir:\n" + "\n".join(file_info[:20]))
+    except Exception as e:
+        log.error(f"Could not list execution directory: {e}")
+
+    # Log file manager content
+    try:
+        content = filemanager_path.read_text(encoding='utf-8', errors='replace')
+        log.error(f"File manager content ({filemanager_path.name}):\n{content}")
+    except Exception as e:
+        log.error(f"Could not read file manager: {e}")
 
 
 def log_execution_directory(execution_cwd: Path, log: logging.Logger) -> None:

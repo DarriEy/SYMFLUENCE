@@ -69,7 +69,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
 
         # MESH-specific paths
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
-        self.forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+        self.forcing_dir = self.project_forcing_dir / 'MESH_input'
 
         # Initialize forcing_mesh_path to forcing_dir (can be overridden for parallel execution)
         self.forcing_mesh_path = self.forcing_dir
@@ -143,6 +143,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                 env=mesh_env if mesh_env else None,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully",
+                success_log_level=logging.DEBUG,
             )
 
             outputs_ok = self._verify_outputs()
@@ -161,7 +162,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                     mesh_exe_in_forcing.unlink()
                 return self.output_dir
             else:
-                self.logger.debug(f"MESH simulation failed with code {result.returncode}")
+                self.logger.debug(f"MESH simulation failed with code {result.return_code}")
                 # Log the end of the log file for easier debugging
                 if log_file.exists():
                      with open(log_file, 'r', encoding='utf-8', errors='replace') as f:  # Handle non-UTF-8 characters

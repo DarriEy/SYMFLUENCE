@@ -127,7 +127,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         else:
             self.gr_setup_dir = self.project_dir / "settings" / "GR"
 
-        self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
+        self.forcing_gr_path = self.project_forcing_dir / 'GR_input'
 
     def _get_output_dir(self) -> Path:
         """GR uses output_path naming."""
@@ -182,15 +182,24 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 return None
 
     def _calculate_and_log_metrics(self) -> None:
-        """Calculate and log performance metrics for the model run."""
+        """Calculate and log performance metrics for the model run.
+
+        Skipped during calibration (``_skip_calibration`` is True) because the
+        calibration worker has its own metric calculation via
+        ``GRStreamflowTarget``.
+        """
+        if self._skip_calibration:
+            return
+
         try:
-            from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
+            from symfluence.optimization.calibration_targets import GRStreamflowTarget
 
             self.logger.debug("Calculating performance metrics...")
 
-            # Initialize evaluator with correct project directory
-            evaluator = StreamflowEvaluator(
-                self.config if hasattr(self, 'config') and self.config else self.config_dict,
+            # Use GR-specific evaluator that knows about GR CSV output
+            config = self.config if hasattr(self, 'config') and self.config else self.config_dict
+            evaluator = GRStreamflowTarget(
+                config,
                 project_dir=self.project_dir,
                 logger=self.logger
             )
@@ -241,6 +250,49 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         except Exception as e:
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback: ", exc_info=True)
+
+    def _load_calibrated_defaults(self) -> Dict[str, float]:
+        """Load calibrated parameter values from GR_calib.Rdata if available.
+
+        When running with external parameters that only cover a subset of the
+        full CemaNeigeGR4J parameter vector (e.g. X1-X4 without CTG/Kf), this
+        provides calibrated values for the missing parameters so they keep
+        their optimized values instead of falling back to poor hardcoded
+        defaults.
+
+        Returns:
+            Dictionary of calibrated parameter values (empty if unavailable).
+        """
+        if hasattr(self, '_calibrated_defaults_cache'):
+            return self._calibrated_defaults_cache
+
+        self._calibrated_defaults_cache: Dict[str, float] = {}
+
+        try:
+            rdata_path = self.output_path / 'GR_calib.Rdata'
+            if not rdata_path.exists():
+                # Try the standard experiment output dir
+                rdata_path = self.get_experiment_output_dir() / 'GR_calib.Rdata'
+            if not rdata_path.exists():
+                return self._calibrated_defaults_cache
+
+            robjects.r['load'](str(rdata_path))
+            if 'OutputsCalib' in robjects.globalenv:
+                param_final = list(robjects.globalenv['OutputsCalib'].rx2('ParamFinalR'))
+                if len(param_final) == 8:
+                    names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
+                elif len(param_final) == 6:
+                    names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf']
+                elif len(param_final) == 4:
+                    names = ['X1', 'X2', 'X3', 'X4']
+                else:
+                    names = [f'P{i+1}' for i in range(len(param_final))]
+                self._calibrated_defaults_cache = dict(zip(names, param_final))
+                self.logger.debug(f"Loaded calibrated defaults for {len(names)} params from {rdata_path}")
+        except Exception as e:
+            self.logger.debug(f"Could not load calibrated defaults: {e}")
+
+        return self._calibrated_defaults_cache
 
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed.
@@ -322,17 +374,25 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             self.logger.debug(f"Running GR4J for {n_hrus} HRUs")
 
             # Load DEM for hypsometric curve (use catchment-wide for now)
-            dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
+            dem_path = self.project_attributes_dir / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
 
             with rasterio.open(dem_path) as src:
                 if catchment.crs != src.crs:
                     catchment = catchment.to_crs(src.crs)
-                out_image, out_transform = rasterio.mask.mask(src, catchment.geometry, crop=True)
+                fill_value = src.nodata if src.nodata is not None else 0
+                out_image, out_transform = rasterio.mask.mask(
+                    src, catchment.geometry, crop=True, nodata=fill_value
+                )
                 masked_dem = out_image[0]
-                masked_dem = masked_dem[masked_dem != src.nodata]
+                masked_dem = masked_dem[masked_dem != fill_value]
+                if masked_dem.size == 0:
+                    raise ValueError(f"No valid DEM pixels after masking with catchment. Check DEM at {dem_path}")
                 Hypso = np.percentile(masked_dem, np.arange(0, 101, 1))
                 Zmean = np.mean(masked_dem)
+                self.logger.debug(f"DEM: {masked_dem.size} valid pixels, "
+                                  f"elev range [{masked_dem.min():.1f}, {masked_dem.max():.1f}] m, "
+                                  f"mean={Zmean:.1f} m")
 
             # Get simulation periods
             time_start = pd.to_datetime(self.time_start)
@@ -348,15 +408,16 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             # Determine parameters (use instance variable, not read-only config_dict)
             external_params = self._external_params
             if external_params:
-                # Use provided parameters, falling back to defaults for missing ones
-                x1 = external_params.get('X1', 257.24)
-                x2 = external_params.get('X2', 1.012)
-                x3 = external_params.get('X3', 88.23)
-                x4 = external_params.get('X4', 2.208)
-                ctg = external_params.get('CTG', 0.0)
-                kf = external_params.get('Kf', 3.69)
-                gratio = external_params.get('Gratio', 0.1)
-                albedo_diff = external_params.get('Albedo_diff', 0.1)
+                # Use provided parameters, falling back to calibrated values then defaults
+                calibrated_defaults = self._load_calibrated_defaults()
+                x1 = external_params.get('X1', calibrated_defaults.get('X1', 257.24))
+                x2 = external_params.get('X2', calibrated_defaults.get('X2', 1.012))
+                x3 = external_params.get('X3', calibrated_defaults.get('X3', 88.23))
+                x4 = external_params.get('X4', calibrated_defaults.get('X4', 2.208))
+                ctg = external_params.get('CTG', calibrated_defaults.get('CTG', 0.0))
+                kf = external_params.get('Kf', calibrated_defaults.get('Kf', 3.69))
+                gratio = external_params.get('Gratio', calibrated_defaults.get('Gratio', 0.1))
+                albedo_diff = external_params.get('Albedo_diff', calibrated_defaults.get('Albedo_diff', 0.1))
                 param_str = f"c(X1={x1}, X2={x2}, X3={x3}, X4={x4}, CTG={ctg}, Kf={kf}, Gratio={gratio}, Albedo_diff={albedo_diff})"
             else:
                 param_str = "c(X1=257.24, X2=1.012, X3=88.23, X4=2.208, CTG=0.0, Kf=3.69, Gratio=0.1, Albedo_diff=0.1)"
@@ -664,7 +725,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 raise ValueError("GR_DEFAULT_PARAMS must contain 4 values for X1, X2, X3, X4")
 
             # Read DEM
-            dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
+            dem_path = self.project_attributes_dir / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
             with rasterio.open(dem_path) as src:
                 src.read(1)
 
@@ -675,11 +736,20 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             with rasterio.open(dem_path) as src:
                 if catchment.crs != src.crs:
                     catchment = catchment.to_crs(src.crs)
-                out_image, out_transform = rasterio.mask.mask(src, catchment.geometry, crop=True)
+                # Use a known fill value so we can reliably filter masked pixels
+                fill_value = src.nodata if src.nodata is not None else 0
+                out_image, out_transform = rasterio.mask.mask(
+                    src, catchment.geometry, crop=True, nodata=fill_value
+                )
                 masked_dem = out_image[0]
-                masked_dem = masked_dem[masked_dem != src.nodata]
+                masked_dem = masked_dem[masked_dem != fill_value]
+                if masked_dem.size == 0:
+                    raise ValueError(f"No valid DEM pixels after masking with catchment. Check DEM at {dem_path}")
                 Hypso = np.percentile(masked_dem, np.arange(0, 101, 1))
                 Zmean = np.mean(masked_dem)
+                self.logger.debug(f"DEM: {masked_dem.size} valid pixels, "
+                                  f"elev range [{masked_dem.min():.1f}, {masked_dem.max():.1f}] m, "
+                                  f"mean={Zmean:.1f} m")
 
             time_start = pd.to_datetime(self.time_start)
             time_end = pd.to_datetime(self.time_end)
@@ -704,16 +774,21 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
 
             # Determine parameters for R script
             # Use instance variable for external params (config_dict is read-only)
+            # When external params only cover a subset (e.g. X1-X4 but not
+            # CemaNeige), try to fill gaps from any previous calibration
+            # (GR_calib.Rdata) so that un-optimized params keep their
+            # calibrated values instead of falling back to poor defaults.
             external_params = self._external_params
             if external_params:
-                x1 = external_params.get('X1', default_params[0])
-                x2 = external_params.get('X2', default_params[1])
-                x3 = external_params.get('X3', default_params[2])
-                x4 = external_params.get('X4', default_params[3])
-                ctg = external_params.get('CTG', 0.0)
-                kf = external_params.get('Kf', 3.69)
-                gratio = external_params.get('Gratio', 0.1)
-                albedo_diff = external_params.get('Albedo_diff', 0.1)
+                calibrated_defaults = self._load_calibrated_defaults()
+                x1 = external_params.get('X1', calibrated_defaults.get('X1', default_params[0]))
+                x2 = external_params.get('X2', calibrated_defaults.get('X2', default_params[1]))
+                x3 = external_params.get('X3', calibrated_defaults.get('X3', default_params[2]))
+                x4 = external_params.get('X4', calibrated_defaults.get('X4', default_params[3]))
+                ctg = external_params.get('CTG', calibrated_defaults.get('CTG', 0.0))
+                kf = external_params.get('Kf', calibrated_defaults.get('Kf', 3.69))
+                gratio = external_params.get('Gratio', calibrated_defaults.get('Gratio', 0.1))
+                albedo_diff = external_params.get('Albedo_diff', calibrated_defaults.get('Albedo_diff', 0.1))
                 external_param_str = f"Param <- c(X1={x1}, X2={x2}, X3={x3}, X4={x4}, CTG={ctg}, Kf={kf}, Gratio={gratio}, Albedo_diff={albedo_diff})"
             else:
                 external_param_str = f"Param <- c(X1={default_params[0]}, X2={default_params[1]}, X3={default_params[2]}, X4={default_params[3]}, CTG=0.0, Kf=3.69, Gratio=0.1, Albedo_diff=0.1)"
@@ -811,6 +886,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 RunOptions <- CreateRunOptions(
                     FUN_MOD = RunModel_CemaNeigeGR4J,
                     InputsModel = InputsModel,
+                    IndPeriod_WarmUp = Ind_Warm,
                     IndPeriod_Run = Ind_Run,
                     IsHyst = TRUE
                 )

@@ -624,10 +624,10 @@ class AnalysisPlotter(BasePlotter):
 
         # Search paths for SWE observations (primary: processed/, fallback: preprocessed/)
         search_paths = [
-            self.project_dir / "observations" / "snow" / "swe" / "processed" / f"{domain_name}_swe_processed.csv",
-            self.project_dir / "observations" / "snow" / "processed" / f"{domain_name}_swe_processed.csv",
-            self.project_dir / "observations" / "snow" / "swe" / "preprocessed" / f"{domain_name}_swe_processed.csv",
-            self.project_dir / "observations" / "snow" / "preprocessed" / f"{domain_name}_snow_processed.csv",
+            self.project_observations_dir / "snow" / "swe" / "processed" / f"{domain_name}_swe_processed.csv",
+            self.project_observations_dir / "snow" / "processed" / f"{domain_name}_swe_processed.csv",
+            self.project_observations_dir / "snow" / "swe" / "preprocessed" / f"{domain_name}_swe_processed.csv",
+            self.project_observations_dir / "snow" / "preprocessed" / f"{domain_name}_snow_processed.csv",
         ]
 
         obs_path = None
@@ -715,9 +715,9 @@ class AnalysisPlotter(BasePlotter):
 
         # Search paths for FLUXNET/energy flux observations
         search_paths = [
-            self.project_dir / "observations" / "energy_fluxes" / "processed" / f"{domain_name}_fluxnet_processed.csv",
-            self.project_dir / "observations" / "et" / "preprocessed" / f"{domain_name}_fluxnet_et_processed.csv",
-            self.project_dir / "observations" / "energy_fluxes" / "processed",
+            self.project_observations_dir / "energy_fluxes" / "processed" / f"{domain_name}_fluxnet_processed.csv",
+            self.project_observations_dir / "et" / "preprocessed" / f"{domain_name}_fluxnet_et_processed.csv",
+            self.project_observations_dir / "energy_fluxes" / "processed",
         ]
 
         obs_path = None

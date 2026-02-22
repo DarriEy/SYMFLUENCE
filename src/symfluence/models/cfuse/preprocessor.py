@@ -650,7 +650,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
         Resamples observations to daily resolution to match cFUSE model output
         and subsets to the simulation time window.
         """
-        obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         obs_file = obs_dir / f"{self.domain_name}_streamflow_processed.csv"
 
         if obs_file.exists():

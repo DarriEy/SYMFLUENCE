@@ -65,7 +65,7 @@ class ResultsLoader:
         if not self.project_dir:
             return None
 
-        search_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        search_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         if not search_dir.is_dir():
             return None
 

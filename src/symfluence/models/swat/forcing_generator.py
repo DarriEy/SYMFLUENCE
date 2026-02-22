@@ -85,7 +85,7 @@ class SWATForcingGenerator:
         # Write .pcp file
         # Header: 4 lines (title, column headers, lat/lon/elev, elevation integers)
         # Data: format (i4,i3,1800f5.1) -- year(4), julday(3), precip(5.1) per gage
-        pcp_path = self.pp.txtinout_dir / 'pcp1.pcp'
+        pcp_path = self.pp.forcing_dir / 'pcp1.pcp'
         lines = []
         lines.append("Station  1: SYMFLUENCE generated")
         lines.append("Lati    Long  Elev")
@@ -135,7 +135,7 @@ class SWATForcingGenerator:
         # Write .tmp file
         # Header: 4 lines (title, column headers, lat/lon/elev, elevation integers)
         # Data: format (i4,i3,3600f5.1) -- year(4), julday(3), tmax(5.1), tmin(5.1) per gage
-        tmp_path = self.pp.txtinout_dir / 'tmp1.tmp'
+        tmp_path = self.pp.forcing_dir / 'tmp1.tmp'
         lines = []
         lines.append("Station  1: SYMFLUENCE generated")
         lines.append("Lati    Long  Elev")
@@ -163,7 +163,7 @@ class SWATForcingGenerator:
         # Synthetic precipitation
         precip = np.random.exponential(2.0, n)
 
-        pcp_path = self.pp.txtinout_dir / 'pcp1.pcp'
+        pcp_path = self.pp.forcing_dir / 'pcp1.pcp'
         lines = []
         lines.append("Station  1: SYMFLUENCE synthetic")
         lines.append("Lati    Long  Elev")
@@ -182,7 +182,7 @@ class SWATForcingGenerator:
         tmax = tmean + 5.0
         tmin = tmean - 5.0
 
-        tmp_path = self.pp.txtinout_dir / 'tmp1.tmp'
+        tmp_path = self.pp.forcing_dir / 'tmp1.tmp'
         lines = []
         lines.append("Station  1: SYMFLUENCE synthetic")
         lines.append("Lati    Long  Elev")
@@ -195,4 +195,4 @@ class SWATForcingGenerator:
             lines.append(f"{year:4d}{jday:3d}{tmax[i]:5.1f}{tmin[i]:5.1f}")
         tmp_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-        logger.info(f"Synthetic forcing files written to {self.pp.txtinout_dir}")
+        logger.info(f"Synthetic forcing files written to {self.pp.forcing_dir}")

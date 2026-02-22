@@ -35,6 +35,13 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         """
         super().__init__(config, logger, reporting_manager)
 
+        # Decision ensemble uses FUSE's built-in SCE calibration (calib_sce)
+        # with para_def, not external DDS optimization.
+        if isinstance(config, dict):
+            config.setdefault('FUSE_RUN_INTERNAL_CALIBRATION', True)
+        else:
+            self.config_dict.setdefault('FUSE_RUN_INTERNAL_CALIBRATION', True)
+
         # Initialize FuseRunner
         self.fuse_runner = FUSERunner(config, logger)
 
@@ -155,8 +162,15 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
         # Load simulations
         with xr.open_dataset(sim_file_path, decode_timedelta=True) as dsSim:
-            # Extract q_routed and collapse spatial/ensemble dimensions
-            daSim = dsSim['q_routed']
+            # Extract streamflow variable (q_routed preferred, q_instnt fallback)
+            if 'q_routed' in dsSim:
+                daSim = dsSim['q_routed']
+            elif 'q_instnt' in dsSim:
+                daSim = dsSim['q_instnt']
+            else:
+                self.logger.error(f"No streamflow variable found in {sim_file_path}")
+                return {'kge': np.nan, 'kgep': np.nan, 'nse': np.nan, 'mae': np.nan, 'rmse': np.nan}
+
             for dim in ['param_set', 'latitude', 'longitude']:
                 if dim in daSim.dims:
                     daSim = daSim.isel({dim: 0})

@@ -78,7 +78,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # SUMMA-specific paths (base class now handles shapefile_path, merged_forcing_path, intersect_path)
         self.dem_path = self.get_dem_path()
-        self.forcing_summa_path = self.project_dir / 'forcing' / 'SUMMA_input'
+        self.forcing_summa_path = self.project_forcing_dir / 'SUMMA_input'
 
         # Catchment and river network (use backward-compatible path resolution)
         catchment_file = self._get_catchment_file_path()
@@ -251,7 +251,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         # Check for glacier raster data (only if glacier manager can be initialized)
-        glacier_dir = self.project_dir / 'attributes' / 'glaciers'
+        glacier_dir = self.project_attributes_dir / 'glaciers'
         if self.glacier_manager is not None and self.glacier_manager.has_glacier_data(glacier_dir):
             self.logger.info("Glacier raster data detected, enabling glacier mode")
             return True
@@ -301,7 +301,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         import shutil
 
-        glacier_dir = self.project_dir / 'attributes' / 'glaciers'
+        glacier_dir = self.project_attributes_dir / 'glaciers'
         base_attr = self.setup_dir / self.attribute_name
 
         # Check if we can process raster data (glacier manager must be available)

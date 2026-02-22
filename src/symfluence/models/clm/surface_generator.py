@@ -26,6 +26,48 @@ class CLMSurfaceGenerator:
     def __init__(self, preprocessor):
         self.pp = preprocessor
 
+    def _get_soil_fractions(self):
+        """Load sand/clay percentages from attributes store or config.
+
+        Returns:
+            Tuple of (pct_sand, pct_clay) as floats.
+        """
+        default_sand, default_clay = 45.0, 20.0
+
+        # Try config overrides first
+        pct_sand = self.pp._get_config_value(
+            lambda: self.pp.config.model.clm.pct_sand,
+            default=None, dict_key='CLM_PCT_SAND'
+        )
+        pct_clay = self.pp._get_config_value(
+            lambda: self.pp.config.model.clm.pct_clay,
+            default=None, dict_key='CLM_PCT_CLAY'
+        )
+        if pct_sand is not None and pct_clay is not None:
+            return float(pct_sand), float(pct_clay)
+
+        # Try model-ready attributes NetCDF
+        try:
+            import xarray as xr
+            attrs_dir = self.pp.project_dir / 'data' / 'model_ready' / 'attributes'
+            attrs_files = list(attrs_dir.glob('*_attributes.nc')) if attrs_dir.exists() else []
+            if attrs_files:
+                ds = xr.open_dataset(attrs_files[0])
+                for sand_key in ['sand_frac', 'PCT_SAND', 'sand_0-5cm_mean']:
+                    if sand_key in ds:
+                        default_sand = float(ds[sand_key].values.mean())
+                        break
+                for clay_key in ['clay_frac', 'PCT_CLAY', 'clay_0-5cm_mean']:
+                    if clay_key in ds:
+                        default_clay = float(ds[clay_key].values.mean())
+                        break
+                ds.close()
+                logger.info(f"Loaded soil fractions from attributes: sand={default_sand:.1f}%, clay={default_clay:.1f}%")
+        except Exception as e:
+            logger.debug(f"Could not load soil attributes: {e}")
+
+        return default_sand, default_clay
+
     def generate_surface_data(self) -> None:
         """Generate CLM5 surface data file.
 
@@ -47,8 +89,7 @@ class CLMSurfaceGenerator:
         import netCDF4 as nc4
 
         lat, lon, _ = self.pp.domain_generator.get_catchment_centroid()
-        pct_sand = self.get_soil_property('PCT_SAND', default=45.0)
-        pct_clay = self.get_soil_property('PCT_CLAY', default=20.0)
+        pct_sand, pct_clay = self._get_soil_fractions()
         mean_elev = self.pp.domain_generator.get_mean_elevation()
 
         surfdata_file = self.pp._get_config_value(
@@ -198,17 +239,42 @@ class CLMSurfaceGenerator:
         logger.info(f"Generated CLM surface data: {filepath}")
 
     def copy_default_params(self) -> None:
-        """Copy default clm5_params.nc from CLM installation."""
-        install_path = self.pp._get_install_path()
-        params_src = install_path / 'share' / 'clm5_params.nc'
+        """Copy default clm5_params.nc to the project parameters directory.
+
+        Resolution order:
+        1. Bundled resource (symfluence/resources/base_settings/CLM/)
+        2. CLM install path (<install>/share/clm5_params.nc)
+        3. Error with download URL
+        """
+        from symfluence.resources import get_base_settings_dir
+
         params_file = self.pp._get_config_value(
             lambda: self.pp.config.model.clm.params_file,
             default='clm5_params.nc', dict_key='CLM_PARAMS_FILE'
         )
         params_dst = self.pp.params_dir / params_file
 
+        # 1. Bundled resource
+        try:
+            bundled = get_base_settings_dir('CLM') / 'clm5_params.nc'
+            if bundled.exists():
+                shutil.copy2(bundled, params_dst)
+                logger.info(f"Copied bundled CLM parameters: {params_dst}")
+                return
+        except FileNotFoundError:
+            pass
+
+        # 2. CLM install path
+        install_path = self.pp._get_install_path()
+        params_src = install_path / 'share' / 'clm5_params.nc'
         if params_src.exists():
             shutil.copy2(params_src, params_dst)
-            logger.info(f"Copied default CLM parameters: {params_dst}")
-        else:
-            logger.warning(f"Default clm5_params.nc not found at {params_src}")
+            logger.info(f"Copied CLM parameters from install: {params_dst}")
+            return
+
+        # 3. Not found
+        logger.error(
+            "clm5_params.nc not found in bundled resources or CLM install. "
+            "Download from: https://svn-ccsm-inputdata.cgd.ucar.edu/trunk/"
+            "inputdata/lnd/clm2/paramdata/ and place in the CLM parameters directory."
+        )

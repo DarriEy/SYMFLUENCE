@@ -59,7 +59,7 @@ class JRCWaterHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(jrc_path, str) and jrc_path.lower() == 'default':
-            jrc_dir = self.project_dir / "observations" / "surface_water" / "jrc"
+            jrc_dir = self.project_observations_dir / "surface_water" / "jrc"
         else:
             jrc_dir = Path(jrc_path)
 
@@ -144,7 +144,7 @@ class JRCWaterHandler(BaseObservationHandler):
         df.to_csv(output_file, index=False)
 
         # Also save to product-specific location
-        product_dir = self.project_dir / "observations" / "surface_water" / "jrc" / "processed"
+        product_dir = self.project_observations_dir / "surface_water" / "jrc" / "processed"
         product_dir.mkdir(parents=True, exist_ok=True)
         product_file = product_dir / f"{self.domain_name}_jrc_{dataset}_processed.csv"
         df.to_csv(product_file, index=False)

@@ -80,7 +80,7 @@ class RHESSysWorker(BaseWorker):
                 self.logger.error(
                     f"RHESSys defs directory not found: {defs_dir}. "
                     "This indicates that RHESSys input files were not correctly copied to the worker directory. "
-                    "Check that 'RHESSys_input/defs' exists in the domain directory."
+                    "Check that 'settings/RHESSys/defs' exists in the domain directory."
                 )
                 return False
 
@@ -260,7 +260,7 @@ class RHESSysWorker(BaseWorker):
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f'domain_{domain_name}'
-            rhessys_input_dir = project_dir / 'RHESSys_input'
+            rhessys_input_dir = project_dir / 'settings' / 'RHESSys'
 
             # Use sim_dir for output if provided
             rhessys_output_dir = Path(kwargs.get('sim_dir', output_dir))
@@ -307,8 +307,9 @@ class RHESSysWorker(BaseWorker):
 
             # Run RHESSys with timeout to catch parameter combinations that cause hangs
             import time as time_module
-            # Normal runs complete in <1s; 30s timeout catches problematic parameters
-            timeout_seconds = config.get('RHESSYS_CALIBRATION_TIMEOUT', 30)
+            # Normal runs complete in <1s; 120s timeout catches problematic parameters
+            # that cause numerical instability or runaway iteration in RHESSys.
+            timeout_seconds = config.get('RHESSYS_CALIBRATION_TIMEOUT', 120)
             run_start = time_module.time()
 
             # Write stdout/stderr to files to avoid pipe buffer issues
@@ -377,6 +378,31 @@ class RHESSysWorker(BaseWorker):
         except Exception as e:
             self._last_error = str(e)
             self.logger.error(f"Error running RHESSys: {e}")
+            return False
+
+    def _binary_supports_subsurfacegw(self, exe: Path) -> bool:
+        """Check if the RHESSys binary was built with SYMFLUENCE patches."""
+        cache_key = '_subsurfacegw_supported'
+        if hasattr(self, cache_key):
+            return getattr(self, cache_key)
+        try:
+            result = subprocess.run(
+                [str(exe), '-subsurfacegw', '-w', '/dev/null'],
+                capture_output=True, text=True, timeout=5,
+            )
+            stderr = result.stderr + result.stdout
+            supported = not ('invalid' in stderr.lower() and 'subsurfacegw' in stderr.lower())
+            if not supported:
+                self.logger.info(
+                    "RHESSys binary does not support -subsurfacegw; "
+                    "calibrating without subsurface-to-GW recharge pathway"
+                )
+            else:
+                self.logger.info("RHESSys binary supports -subsurfacegw (SYMFLUENCE-patched)")
+            setattr(self, cache_key, supported)
+            return supported
+        except Exception:
+            setattr(self, cache_key, False)
             return False
 
     def _get_rhessys_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -521,6 +547,10 @@ class RHESSysWorker(BaseWorker):
         cmd.extend(['-sv', '1.0', '1.0'])
         cmd.extend(['-svalt', '1.0', '1.0'])
 
+        # Longwave radiation in evaporation — must match runner for consistent
+        # water balance between calibration and production runs.
+        cmd.extend(['-longwaveevap'])
+
         # Fire spread if WMFire is enabled
         wmfire_enabled = config.get('RHESSYS_USE_WMFIRE', False)
         if wmfire_enabled:
@@ -544,9 +574,10 @@ class RHESSysWorker(BaseWorker):
             cmd.extend(["-stdev", str(std_scale)])
             self.logger.debug(f"Subgrid variability enabled with std_scale={std_scale}")
 
-        # Subsurface-to-GW recharge pathway (SYMFLUENCE Patch 2)
-        # DISABLED: testing old binary without this flag
-        # cmd.extend(["-subsurfacegw"])
+        # Subsurface-to-GW recharge pathway (SYMFLUENCE Patch 1)
+        # Requires SYMFLUENCE-patched build (symfluence binary install rhessys --patched)
+        if self._binary_supports_subsurfacegw(exe):
+            cmd.extend(["-subsurfacegw"])
 
         return cmd
 

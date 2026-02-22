@@ -22,6 +22,7 @@ from typing import Optional
 import numpy as np
 
 from symfluence.models.registry import ModelRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +75,9 @@ class ParFlowPreProcessor:
         return default
 
     def _get_forcing_dir(self) -> Optional[Path]:
-        basin_avg = self.project_dir / 'forcing' / 'basin_averaged_data'
+        basin_avg = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
         if basin_avg.exists():
-            nc_files = list(basin_avg.glob('*ERA5_remapped*.nc'))
+            nc_files = list(basin_avg.glob('*_remapped*.nc'))
             if nc_files:
                 return basin_avg
 
@@ -87,7 +88,7 @@ class ParFlowPreProcessor:
                 sub = fp / 'basin_averaged_data'
                 if sub.exists():
                     return sub
-                nc_files = list(fp.glob('*ERA5*.nc'))
+                nc_files = list(fp.glob('*_remapped*.nc'))
                 if nc_files:
                     return fp
         return None

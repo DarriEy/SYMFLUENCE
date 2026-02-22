@@ -151,7 +151,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 dataset=self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET'),
                 model='FUSE'
             )
-            ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
+            ds = xr.open_mfdataset(forcing_files, data_vars='minimal', combine='nested', concat_dim='time', coords='minimal', compat='override').sortby('time')
             ds = variable_handler.process_forcing_data(ds)
             ds = self._subset_to_simulation_time(ds, "Forcing")
 

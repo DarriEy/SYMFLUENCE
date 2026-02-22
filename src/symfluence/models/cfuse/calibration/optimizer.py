@@ -59,7 +59,7 @@ class CFUSEModelOptimizer(BaseModelOptimizer):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         self.cfuse_setup_dir = self.project_dir / 'settings' / 'CFUSE'
-        self.cfuse_forcing_dir = self.project_dir / 'forcing' / 'CFUSE_input'
+        self.cfuse_forcing_dir = self.project_forcing_dir / 'CFUSE_input'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 

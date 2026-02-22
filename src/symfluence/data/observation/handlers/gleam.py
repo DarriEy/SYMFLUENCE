@@ -37,7 +37,7 @@ class GLEAMETHandler(BaseObservationHandler):
     }
 
     def acquire(self) -> Path:
-        et_dir = Path(self.config_dict.get('GLEAM_ET_PATH', self.project_dir / "observations" / "et" / "gleam"))
+        et_dir = Path(self.config_dict.get('GLEAM_ET_PATH', self.project_observations_dir / "et" / "gleam"))
         et_dir.mkdir(parents=True, exist_ok=True)
 
         download_url = self.config_dict.get('GLEAM_ET_DOWNLOAD_URL')
@@ -102,7 +102,7 @@ class GLEAMETHandler(BaseObservationHandler):
             except (TypeError, ValueError):
                 self.logger.warning(f"Invalid ET_UNIT_CONVERSION: {conversion}")
 
-        output_dir = self.project_dir / "observations" / "et" / "preprocessed"
+        output_dir = self.project_observations_dir / "et" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_gleam_et_processed.csv"
         df.to_csv(output_file)

@@ -261,7 +261,7 @@ class XinanjiangPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin): 
 
     def _prepare_observations(self) -> None:
         """Copy observation files for validation."""
-        obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_dir = self.project_observations_dir / 'streamflow' / 'preprocessed'
         if obs_dir.exists():
             import shutil
             dest_dir = self.xinanjiang_forcing_dir

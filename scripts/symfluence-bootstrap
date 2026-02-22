@@ -1423,6 +1423,15 @@ else:
         python -m pip install "rich>=13.0.0" --quiet || true
         print_success "SYMFLUENCE package installed"
 
+        # MESH model support: hydrant (CH-Earth) + meshflow.
+        # hydrant must be installed BEFORE meshflow to prevent pip resolving
+        # "hydrant" to the wrong PyPI package (an unrelated Kinesis Firehose tool).
+        print_info "Installing MESH model dependencies (hydrant + meshflow)..."
+        $python_cmd -m pip install "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" --quiet 2>/dev/null && \
+        $python_cmd -m pip install "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" --quiet 2>/dev/null && \
+            print_success "MESH dependencies installed" || \
+            print_warning "MESH dependency installation failed (MESH model will be unavailable)"
+
         print_header "Tools"
         # External tools - use installed symfluence command with full path
         # (bash may have cached the wrapper path before pip created the venv CLI)

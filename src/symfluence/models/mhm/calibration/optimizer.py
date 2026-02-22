@@ -38,7 +38,7 @@ class MHMModelOptimizer(BaseModelOptimizer):
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        self.mhm_setup_dir = self.project_dir / 'MHM_input' / 'settings'
+        self.mhm_setup_dir = self.project_dir / 'settings' / 'MHM'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
@@ -105,7 +105,7 @@ class MHMModelOptimizer(BaseModelOptimizer):
         if success:
             # Copy mHM output files to final_evaluation dir
             output_dir.mkdir(parents=True, exist_ok=True)
-            mhm_output = self.mhm_setup_dir.parent / 'output'
+            mhm_output = self.mhm_setup_dir / 'output'
             if mhm_output.exists():
                 for f in mhm_output.glob('*'):
                     if f.is_file():

@@ -86,7 +86,7 @@ class SacSmaRunner(  # type: ignore[misc]
             self.sacsma_setup_dir = self.settings_dir
         else:
             self.sacsma_setup_dir = self.project_dir / "settings" / "SACSMA"
-        self.sacsma_forcing_dir = self.project_dir / 'forcing' / 'SACSMA_input'
+        self.sacsma_forcing_dir = self.project_forcing_dir / 'SACSMA_input'
 
     def _get_output_dir(self) -> Path:
         return self.get_experiment_output_dir()
@@ -269,7 +269,7 @@ class SacSmaRunner(  # type: ignore[misc]
             sim_time = pd.to_datetime(ds.time.values)
             ds.close()
 
-            obs_file = (self.project_dir / 'observations' / 'streamflow' /
+            obs_file = (self.project_observations_dir / 'streamflow' /
                         'preprocessed' / f"{self.domain_name}_streamflow_processed.csv")
             if not obs_file.exists():
                 return

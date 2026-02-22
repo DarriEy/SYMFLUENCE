@@ -290,8 +290,9 @@ class TestGenerateInstallScript:
         assert 'wsl -e bash -c "sudo apt-get update' in script
         assert "sudo apt-get install -y cmake" in script
 
+    @patch("shutil.which", return_value=None)
     @patch("sys.platform", "win32")
-    def test_conda_windows_script_uses_conda_win_names(self):
+    def test_conda_windows_script_uses_conda_win_names(self, _mock_which):
         reg = _fresh_registry()
         reg._platform = Platform.CONDA
         with patch.object(reg, "check_all_deps") as mock_check:

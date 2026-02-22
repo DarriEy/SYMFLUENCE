@@ -70,12 +70,12 @@ class VICWorker(BaseWorker):
             # The settings_dir should contain a 'parameters' subdirectory
             params_dir = settings_dir / 'parameters'
 
-            # Always copy fresh from the original VIC_input location
+            # Always copy fresh from the original settings location
             # to ensure dimensions match the current domain file
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_params_dir = data_dir / f'domain_{domain_name}' / 'VIC_input' / 'parameters'
+            original_params_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'VIC' / 'parameters'
 
             if original_params_dir.exists():
                 params_dir.mkdir(parents=True, exist_ok=True)
@@ -311,7 +311,7 @@ class VICWorker(BaseWorker):
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f'domain_{domain_name}'
-            vic_input_dir = project_dir / 'VIC_input'
+            vic_settings_dir = project_dir / 'settings' / 'VIC'
 
             # Use sim_dir for output if provided
             vic_output_dir = Path(kwargs.get('sim_dir', output_dir))
@@ -328,7 +328,7 @@ class VICWorker(BaseWorker):
 
             # Get or create global parameter file
             global_param_file = self._get_or_create_global_file(
-                config, vic_input_dir, settings_dir, vic_output_dir
+                config, vic_settings_dir, settings_dir, vic_output_dir
             )
 
             if not global_param_file.exists():
@@ -398,14 +398,14 @@ class VICWorker(BaseWorker):
     def _get_or_create_global_file(
         self,
         config: Dict[str, Any],
-        vic_input_dir: Path,
+        vic_settings_dir: Path,
         settings_dir: Path,
         output_dir: Path
     ) -> Path:
         """Get or create a worker-specific global parameter file."""
         # First try to find existing global file
         global_file_name = config.get('VIC_GLOBAL_PARAM_FILE', 'vic_global.txt')
-        original_global = vic_input_dir / 'settings' / global_file_name
+        original_global = vic_settings_dir / global_file_name
 
         if not original_global.exists():
             self.logger.warning(f"Original global file not found: {original_global}")

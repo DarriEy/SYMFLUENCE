@@ -45,19 +45,9 @@ class SWATPostProcessor(StandardModelPostprocessor):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up SWAT-specific paths."""
-        txtinout_name = 'TxtInOut'
-        try:
-            txtinout_name = self.config.model.swat.txtinout_dir or txtinout_name
-        except (AttributeError, TypeError):
-            pass
-        self.swat_output_dir = self.project_dir / 'SWAT_input' / txtinout_name
         catchment_file = self._get_catchment_file_path()
         self.catchment_path = catchment_file.parent
         self.catchment_name = catchment_file.name
-
-    def _get_output_dir(self) -> Path:
-        """SWAT outputs to TxtInOut directory."""
-        return self.swat_output_dir
 
     def extract_streamflow(self) -> Optional[Path]:
         """
@@ -129,10 +119,11 @@ class SWATPostProcessor(StandardModelPostprocessor):
             with open(output_rch, 'r', encoding='utf-8', errors='replace') as f:
                 lines = f.readlines()
 
-            # Skip header lines (typically 9 lines)
+            # Skip header lines (typically 9 lines ending with column names)
             header_end = 0
             for i, line in enumerate(lines):
-                if 'REACH' in line.upper() or 'RCH' in line.upper():
+                upper = line.upper()
+                if 'RCH' in upper and ('FLOW' in upper or 'MON' in upper):
                     header_end = i + 1
                     break
             if header_end == 0:
@@ -149,22 +140,25 @@ class SWATPostProcessor(StandardModelPostprocessor):
 
                 try:
                     # SWAT output.rch fixed-width format
-                    # Columns vary by SWAT version, use flexible parsing
+                    # Handle both formats:
+                    #   "1  0  1  2204.0  0.003  0.003 ..."        (no prefix)
+                    #   "REACH  1  0  1  2204.0  0.003  0.003 ..." (REACH prefix)
                     parts = line.split()
                     if len(parts) < 6:
                         continue
 
-                    rch = int(parts[0])
-                    # GIS = parts[1]
-                    mon = int(parts[2])
-                    area_km2 = float(parts[3])
-                    flow_out = float(parts[5])
+                    # Detect REACH prefix
+                    if parts[0].upper() == 'REACH':
+                        rch = int(parts[1])
+                        flow_col = 6
+                    else:
+                        rch = int(parts[0])
+                        flow_col = 5
 
-                    if rch == reach_id:
+                    if rch == reach_id and len(parts) > flow_col:
+                        flow_out = float(parts[flow_col])
                         records.append({
                             'rch': rch,
-                            'mon': mon,
-                            'area_km2': area_km2,
                             'flow_out_cms': flow_out,
                         })
                 except (ValueError, IndexError):
@@ -175,21 +169,26 @@ class SWATPostProcessor(StandardModelPostprocessor):
                 return None
 
             # Build time series
-            # MON encoding: for daily output, MON = julian day within each year
-            # For monthly output, MON = month number
-            # We need simulation start date from config
+            # SWAT output.rch starts AFTER the NYSKIP warmup period
+            # (file.cio NYSKIP is set to warmup_years by the preprocessor).
             try:
                 start_str = self.config.domain.time_start
                 start_date = pd.to_datetime(start_str)
             except (AttributeError, TypeError):
                 start_date = pd.to_datetime('2000-01-01')
 
-            # Determine output frequency
+            # Offset by warmup years (NYSKIP)
+            try:
+                warmup_years = int(self.config.model.swat.warmup_years)
+            except (AttributeError, TypeError):
+                warmup_years = 2
+            output_start = start_date + pd.DateOffset(years=warmup_years)
+
             n_records = len(records)
             flow_values = [r['flow_out_cms'] for r in records]
 
-            # Assume daily output and build date index
-            dates = pd.date_range(start=start_date, periods=n_records, freq='D')
+            # Daily output (IPRINT=1 is the default)
+            dates = pd.date_range(start=output_start, periods=n_records, freq='D')
 
             streamflow = pd.Series(flow_values, index=dates, name='SWAT_discharge_cms')
             streamflow = streamflow.clip(lower=0.0)

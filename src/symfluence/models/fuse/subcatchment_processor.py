@@ -22,6 +22,7 @@ import numpy as np
 import xarray as xr
 
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+from symfluence.core.mixins.project import resolve_data_subdir
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -84,7 +85,7 @@ class SubcatchmentProcessor:
         self.logger = logger or logging.getLogger(__name__)
 
         # Derived paths
-        self.forcing_fuse_path = project_dir / 'forcing' / 'FUSE_input'
+        self.forcing_fuse_path = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
 
     def _get_config_value(self, typed_accessor, dict_key: str, default: Any = None) -> Any:
         """Get config value with typed config fallback to dict.

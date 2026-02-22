@@ -22,6 +22,7 @@ from datetime import datetime
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from ..utils import create_robust_session
 
 # PAVICS THREDDS OPeNDAP endpoints
 PAVICS_OPENDAP_CASR_V32 = (
@@ -153,28 +154,56 @@ class RDRSAcquirer(BaseAcquisitionHandler):
 
         # Generate list of days (files are daily at 12 UTC)
         date_range = pd.date_range(start=self.start_date.normalize(), end=self.end_date.normalize(), freq='D')
+        total_files = len(date_range)
+        self.logger.info(f"Downloading {total_files} daily CaSR files via HTTP fallback")
 
-        max_workers = min(len(date_range), 4)
+        # Use robust session with connection pooling and retry logic
+        session = create_robust_session(max_retries=3, backoff_factor=1.0)
+
+        max_workers = min(total_files, 4)
         downloaded_files = []
-        failed_count = 0
+        failed_dates = []
+        completed = 0
+        log_interval = max(1, total_files // 20)  # Log every ~5%
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_date = {
-                executor.submit(self._download_daily_file, dt, base_url, output_dir): dt
+                executor.submit(self._download_daily_file, dt, base_url, output_dir, session): dt
                 for dt in date_range
             }
             for future in concurrent.futures.as_completed(future_to_date):
+                dt = future_to_date[future]
+                completed += 1
                 try:
                     f = future.result()
                     if f:
                         downloaded_files.append(f)
                     else:
-                        failed_count += 1
+                        failed_dates.append(dt)
                 except Exception as e:
-                    self.logger.error(f"HTTP download failed: {e}")
-                    failed_count += 1
+                    self.logger.warning(f"HTTP download failed for {dt.strftime('%Y-%m-%d')}: {e}")
+                    failed_dates.append(dt)
 
-        if failed_count > 0:
-            self.logger.warning(f"{failed_count}/{len(date_range)} daily files failed to download")
+                if completed % log_interval == 0 or completed == total_files:
+                    self.logger.info(
+                        f"HTTP download progress: {completed}/{total_files} "
+                        f"({len(downloaded_files)} ok, {len(failed_dates)} failed)"
+                    )
+
+        # Retry failed downloads sequentially
+        if failed_dates:
+            self.logger.info(f"Retrying {len(failed_dates)} failed downloads...")
+            retry_session = create_robust_session(max_retries=5, backoff_factor=2.0)
+            for dt in failed_dates:
+                f = self._download_daily_file(dt, base_url, output_dir, retry_session, timeout=300)
+                if f:
+                    downloaded_files.append(f)
+                else:
+                    self.logger.warning(f"Retry also failed for {dt.strftime('%Y-%m-%d')}")
+
+        final_failed = total_files - len(downloaded_files)
+        if final_failed > 0:
+            self.logger.warning(f"{final_failed}/{total_files} daily files failed to download after retries")
 
         if not downloaded_files:
             raise RuntimeError(
@@ -186,7 +215,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
 
         downloaded_files.sort()
         self.logger.info(f"Merging {len(downloaded_files)} daily CaSR files...")
-        with xr.open_mfdataset(downloaded_files, combine='by_coords', chunks={'time': 24}) as ds:
+        with xr.open_mfdataset(downloaded_files, combine='by_coords', chunks={'time': 24}, data_vars='minimal', coords='minimal', compat='override') as ds:
             if self.bbox:
                 self.logger.info("Computing spatial mask for HTTP-downloaded files...")
                 lat_vals = ds.lat.compute()
@@ -218,11 +247,15 @@ class RDRSAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"Saving merged data to {final_file.name}...")
             ds.to_netcdf(final_file)
 
+        self.logger.info("Cleaning up temporary daily files...")
         for f in downloaded_files:
             f.unlink(missing_ok=True)
         return final_file
 
-    def _download_daily_file(self, dt: datetime, base_url: str, output_dir: Path) -> Optional[Path]:
+    def _download_daily_file(
+        self, dt: datetime, base_url: str, output_dir: Path,
+        session: requests.Session, timeout: int = 120
+    ) -> Optional[Path]:
         """Download a single daily CaSR file from GPSC-C (format: YYYYMMDD12.nc)."""
         file_name = dt.strftime("%Y%m%d12.nc")
         url = f"{base_url.rstrip('/')}/{file_name}"
@@ -230,16 +263,16 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         if dest_path.exists():
             return dest_path
         try:
-            response = requests.get(url, timeout=120, stream=True)
+            response = session.get(url, timeout=timeout, stream=True)
             if response.status_code == 200:
                 with open(dest_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
+                    for chunk in response.iter_content(chunk_size=65536):
                         f.write(chunk)
                 return dest_path
             else:
                 self.logger.debug(f"CaSR download returned status {response.status_code} for {file_name}")
         except requests.exceptions.Timeout:
-            self.logger.debug(f"CaSR download timed out for {file_name}")
+            self.logger.warning(f"CaSR download timed out for {file_name}")
         except requests.exceptions.RequestException as e:
             self.logger.debug(f"CaSR download failed for {file_name}: {e}")
         return None

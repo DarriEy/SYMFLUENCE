@@ -22,8 +22,8 @@ class CLMRunner(BaseModelRunner):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up CLM-specific paths."""
-        self.clm_input_dir = self.project_dir / "CLM_input"
-        self.settings_dir = self.clm_input_dir / "settings"
+        self.setup_dir = self.project_dir / "settings" / self.model_name
+        self.settings_dir = self.setup_dir
 
         self.clm_exe = self.get_model_executable(
             install_path_key='CLM_INSTALL_PATH',
@@ -43,7 +43,8 @@ class CLMRunner(BaseModelRunner):
         return [str(self.clm_exe)]
 
     def _prepare_run(self) -> None:
-        """Copy NUOPC runtime files to run directory."""
+        """Clean stale output and copy NUOPC runtime files to run directory."""
+        self._cleanup_stale_output(self.output_dir)
         self._setup_run_directory(self.output_dir)
 
     def _get_run_cwd(self) -> Optional[Path]:
@@ -60,6 +61,20 @@ class CLMRunner(BaseModelRunner):
             lambda: self.config.model.clm.timeout,
             default=3600,
         )
+
+    def _cleanup_stale_output(self, run_dir: Path) -> None:
+        """Remove stale output/restart/rpointer files before a fresh run.
+
+        CMEPS treats the run as a continuation (not cold start) when
+        rpointer files are present, which causes SIGTRAP on macOS ARM64
+        when the restart state conflicts with the configured start date.
+        """
+        for pattern in [
+            '*.clm2.h0.*.nc', '*.clm2.r.*.nc', '*.clm2.rh0.*.nc',
+            '*.cpl.r.*.nc', '*.datm.r.*.nc', 'rpointer.*', '*.log',
+        ]:
+            for f in run_dir.glob(pattern):
+                f.unlink()
 
     def _setup_run_directory(self, run_dir: Path) -> None:
         """Copy all NUOPC runtime files to run directory."""

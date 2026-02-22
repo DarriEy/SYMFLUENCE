@@ -246,7 +246,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         Returns:
             Path to observation directory (created if it doesn't exist)
         """
-        output_dir = self.project_dir / "observations" / obs_type / stage
+        output_dir = self.project_observations_dir / obs_type / stage
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 

@@ -38,7 +38,7 @@ class PRMSModelOptimizer(BaseModelOptimizer):
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        self.prms_setup_dir = self.project_dir / 'PRMS_input' / 'settings'
+        self.prms_setup_dir = self.project_dir / 'settings' / 'PRMS'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 

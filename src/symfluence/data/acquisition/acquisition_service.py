@@ -121,6 +121,7 @@ from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
 from symfluence.data.cache import RawForcingCache
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -231,9 +232,9 @@ class AcquisitionService(ConfigurableMixin):
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='merit_hydro').lower()
 
-        dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
-        soilclass_dir = self.project_dir / 'attributes' / 'soilclass'
-        landclass_dir = self.project_dir / 'attributes' / 'landclass'
+        dem_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'elevation' / 'dem'
+        soilclass_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'soilclass'
+        landclass_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'landclass'
 
         for dir_path in [dem_dir, soilclass_dir, landclass_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
@@ -492,7 +493,7 @@ class AcquisitionService(ConfigurableMixin):
             if not check_cloud_access_availability(forcing_dataset, self.logger):
                 raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
 
-            raw_data_dir = self.project_dir / 'forcing' / 'raw_data'
+            raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)
 
             # Initialize cache
@@ -602,7 +603,7 @@ class AcquisitionService(ConfigurableMixin):
                 raise ValueError("AORC is not supported with DATA_ACCESS: MAF.")
 
             dr = datatoolRunner(self.config, self.logger)
-            raw_data_dir = self.project_dir / 'forcing' / 'raw_data'
+            raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)
 
             bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
@@ -735,7 +736,7 @@ class AcquisitionService(ConfigurableMixin):
         self.logger.info("Starting EM-Earth forcing data acquisition")
 
         try:
-            em_earth_dir = self.project_dir / 'forcing' / 'raw_data_em_earth'
+            em_earth_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data_em_earth'
             em_earth_dir.mkdir(parents=True, exist_ok=True)
 
             em_region = self.config_dict.get('EM_EARTH_REGION', 'NorthAmerica')

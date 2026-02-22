@@ -8,7 +8,6 @@ Provides shared functionality for all CLI services including:
 """
 
 import os
-import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -113,6 +112,12 @@ class BaseService:
         data_dir_valid = False
         code_dir_valid = False
 
+        # Treat 'default' sentinel as unset — let the resolver handle it
+        if data_dir == "default":
+            data_dir = None
+        if code_dir == "default":
+            code_dir = None
+
         if data_dir:
             try:
                 data_path = Path(data_dir)
@@ -146,29 +151,25 @@ class BaseService:
                 "Detected invalid or inaccessible paths in config template:"
             )
 
+            from symfluence.core.config.factories import (
+                _resolve_default_code_dir,
+                _resolve_default_data_dir,
+            )
+
             if not code_dir_valid:
-                new_code_dir = Path.cwd().resolve()
-                config["SYMFLUENCE_CODE_DIR"] = str(new_code_dir)
+                new_code_dir = _resolve_default_code_dir()
+                config["SYMFLUENCE_CODE_DIR"] = new_code_dir
                 self._console.success(f"SYMFLUENCE_CODE_DIR set to: {new_code_dir}")
 
             if not data_dir_valid:
-                new_data_dir = (Path.cwd().parent / "SYMFLUENCE_data").resolve()
+                new_data_dir = Path(_resolve_default_data_dir(
+                    config.get("SYMFLUENCE_CODE_DIR")
+                ))
                 config["SYMFLUENCE_DATA_DIR"] = str(new_data_dir)
                 try:
                     new_data_dir.mkdir(parents=True, exist_ok=True)
                     self._console.success(f"SYMFLUENCE_DATA_DIR set to: {new_data_dir}")
                 except OSError:
                     pass
-
-            try:
-                backup_path = config_path.with_name(
-                    f"{config_path.stem}_backup{config_path.suffix}"
-                )
-                if config_path.exists():
-                    shutil.copy2(config_path, backup_path)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-            except OSError:
-                pass
 
         return config

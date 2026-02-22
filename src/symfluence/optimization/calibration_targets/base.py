@@ -86,7 +86,7 @@ class MultivariateTarget(CalibrationTarget):
 
     def get_observed_data_path(self) -> Path:
         """Not directly used by MultivariateTarget."""
-        return self.project_dir / "observations"
+        return self.project_observations_dir
 
     def _load_observed_data(self) -> Optional[pd.Series]:
         """MultivariateTarget does not load a single observation series."""

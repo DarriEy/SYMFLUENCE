@@ -44,7 +44,7 @@ class SMAPHandler(BaseObservationHandler):
             lambda: self.config.evaluation.smap.path, default='default'
         )
         if isinstance(smap_path, str) and smap_path.lower() == 'default':
-            smap_dir = self.project_dir / "observations" / "soil_moisture" / "smap"
+            smap_dir = self.project_observations_dir / "soil_moisture" / "smap"
         else:
             smap_dir = Path(smap_path)
 
@@ -136,11 +136,11 @@ class SMAPHandler(BaseObservationHandler):
         if self.start_date is not None and self.end_date is not None:
             df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
 
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "smap" / "processed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "smap" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_smap_processed.csv"
         df.to_csv(output_file)
-        legacy_dir = self.project_dir / "observations" / "soil_moisture" / "preprocessed"
+        legacy_dir = self.project_observations_dir / "soil_moisture" / "preprocessed"
         legacy_dir.mkdir(parents=True, exist_ok=True)
         legacy_file = legacy_dir / f"{self.domain_name}_smap_processed.csv"
         df.to_csv(legacy_file)
@@ -168,7 +168,7 @@ class ISMNHandler(BaseObservationHandler):
             lambda: self.config.evaluation.ismn.path, default='default'
         )
         if isinstance(ismn_path, str) and ismn_path.lower() == 'default':
-            ismn_dir = self.project_dir / "observations" / "soil_moisture" / "ismn"
+            ismn_dir = self.project_observations_dir / "soil_moisture" / "ismn"
         else:
             ismn_dir = Path(ismn_path)
         ismn_dir.mkdir(parents=True, exist_ok=True)
@@ -263,7 +263,7 @@ class ISMNHandler(BaseObservationHandler):
         col_name = f"sm_{target_depth:.2f}"
         output_df = combined.to_frame(name=col_name)
 
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "ismn" / "processed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "ismn" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_ismn_processed.csv"
         output_df.to_csv(output_file)
@@ -347,7 +347,7 @@ class ESACCISMHandler(BaseObservationHandler):
         if esa_path:
             esa_dir = Path(esa_path)
         else:
-            esa_dir = self.project_dir / "observations" / "soil_moisture" / "esa_cci"
+            esa_dir = self.project_observations_dir / "soil_moisture" / "esa_cci"
         esa_dir.mkdir(parents=True, exist_ok=True)
 
         data_access = self._get_config_value(
@@ -433,7 +433,7 @@ class ESACCISMHandler(BaseObservationHandler):
         df = pd.concat(results).sort_values('time')
         df = df.rename(columns={'sm': 'soil_moisture'})
 
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "esa_sm" / "processed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "esa_sm" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_esa_processed.csv"
         df.to_csv(output_file, index=False)
@@ -462,7 +462,7 @@ class SMOSSMHandler(BaseObservationHandler):
         if smos_path:
             smos_dir = Path(smos_path)
         else:
-            smos_dir = self.project_dir / "observations" / "soil_moisture" / "smos"
+            smos_dir = self.project_observations_dir / "soil_moisture" / "smos"
         smos_dir.mkdir(parents=True, exist_ok=True)
 
         data_access = self._get_config_value(
@@ -573,7 +573,7 @@ class SMOSSMHandler(BaseObservationHandler):
         if self.start_date is not None and self.end_date is not None:
             df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
 
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "smos" / "processed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "smos" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_smos_processed.csv"
         df.to_csv(output_file)
@@ -607,7 +607,7 @@ class ASCATSMHandler(BaseObservationHandler):
         if ascat_path:
             ascat_dir = Path(ascat_path)
         else:
-            ascat_dir = self.project_dir / "observations" / "soil_moisture" / "ascat"
+            ascat_dir = self.project_observations_dir / "soil_moisture" / "ascat"
         ascat_dir.mkdir(parents=True, exist_ok=True)
 
         data_access = self._get_config_value(
@@ -745,7 +745,7 @@ class ASCATSMHandler(BaseObservationHandler):
         if self.start_date is not None and self.end_date is not None:
             df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
 
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "ascat" / "processed"
+        output_dir = self.project_observations_dir / "soil_moisture" / "ascat" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_ascat_processed.csv"
         df.to_csv(output_file)

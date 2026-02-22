@@ -288,6 +288,24 @@ class OptimizationManager(BaseManager):
             )
             hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
 
+            # Skip external DDS for FUSE when built-in SCE calibration is enabled.
+            # FUSE's internal calib_sce (run in step 11) makes external DDS redundant.
+            if 'FUSE' in hydrological_models:
+                use_internal = self._get_config_value(
+                    lambda: self.config.model.fuse.run_internal_calibration
+                    if self.config.model and self.config.model.fuse else None,
+                    self.config_dict.get('FUSE_RUN_INTERNAL_CALIBRATION', True)
+                )
+                if use_internal:
+                    self.logger.info(
+                        "Skipping external optimization for FUSE — "
+                        "using built-in SCE calibration (FUSE_RUN_INTERNAL_CALIBRATION=True). "
+                        "Set FUSE_RUN_INTERNAL_CALIBRATION=False to use external DDS instead."
+                    )
+                    hydrological_models = [m for m in hydrological_models if m != 'FUSE']
+                    if not hydrological_models:
+                        return None
+
             # Detect coupled groundwater calibration — when a GROUNDWATER_MODEL
             # is configured alongside the land-surface model, route to the
             # COUPLED_GW optimizer so that GW parameters (K, SY, etc.) are

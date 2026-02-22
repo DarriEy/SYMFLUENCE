@@ -108,8 +108,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         logger.info(f"Loading ERA5 forcing ({len(forcing_files)} files)")
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='nested',
-                                   concat_dim='time')
+            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
         except Exception:
             datasets = [xr.open_dataset(f) for f in forcing_files]
             ds = xr.concat(datasets, dim='time')
@@ -648,9 +647,9 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _find_observation_file(self):
         """Find observation streamflow file."""
         search_dirs = [
-            self.project_dir / 'observations' / 'streamflow' / 'preprocessed',
-            self.project_dir / 'observations' / 'streamflow',
-            self.project_dir / 'observations',
+            self.project_observations_dir / 'streamflow' / 'preprocessed',
+            self.project_observations_dir / 'streamflow',
+            self.project_observations_dir,
         ]
         for obs_dir in search_dirs:
             if not obs_dir.exists():

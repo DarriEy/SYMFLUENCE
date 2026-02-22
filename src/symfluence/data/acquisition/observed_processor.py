@@ -13,6 +13,7 @@ import pandas as pd # type: ignore
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
 
 class ObservedDataProcessor(ConfigMixin):
     """Process and standardize observed hydrological data from multiple global providers.
@@ -292,6 +293,12 @@ class ObservedDataProcessor(ConfigMixin):
 
     def _get_file_path(self, file_type, file_def_path, file_name):
         if self.config.get(f'{file_type}') == 'default':
+            # Use resolve_data_subdir for data subdirectories
+            parts = file_def_path.split('/', 1)
+            if parts[0] in ('observations', 'forcing', 'attributes'):
+                base = resolve_data_subdir(self.project_dir, parts[0])
+                remainder = parts[1] if len(parts) > 1 else ''
+                return base / remainder / file_name if remainder else base / file_name
             return self.project_dir / file_def_path / file_name
         else:
             return Path(self.config.get(f'{file_type}'))
@@ -398,7 +405,7 @@ class ObservedDataProcessor(ConfigMixin):
             fluxnet_path = Path(fluxnet_path_str)
 
             # Create directory for FLUXNET data if it doesn't exist
-            output_dir = self.project_dir / 'observations' / 'fluxnet'
+            output_dir = resolve_data_subdir(self.project_dir, 'observations') / 'fluxnet'
             output_dir.mkdir(parents=True, exist_ok=True)
 
             self.logger.info(f"Looking for FLUXNET files with station ID: {station_id} in {fluxnet_path}")
@@ -476,7 +483,7 @@ class ObservedDataProcessor(ConfigMixin):
 
             # Create directory for processed data if it doesn't exist
             project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
-            output_dir = project_dir / 'observations' / 'snow' / 'swe'
+            output_dir = resolve_data_subdir(project_dir, 'observations') / 'snow' / 'swe'
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Define output file path

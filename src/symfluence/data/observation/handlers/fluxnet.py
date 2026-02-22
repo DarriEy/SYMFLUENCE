@@ -46,8 +46,8 @@ class FLUXNETObservationHandler(BaseObservationHandler):
         self.domain_name = config.get('DOMAIN_NAME', 'unknown')
 
         # Output directories
-        self.raw_dir = self.project_dir / 'observations' / 'fluxnet' / 'raw'
-        self.processed_dir = self.project_dir / 'observations' / 'et' / 'preprocessed'
+        self.raw_dir = self.project_observations_dir / 'fluxnet' / 'raw'
+        self.processed_dir = self.project_observations_dir / 'et' / 'preprocessed'
 
         # Create directories
         self.raw_dir.mkdir(parents=True, exist_ok=True)

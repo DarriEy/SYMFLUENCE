@@ -112,7 +112,7 @@ class TestCalculateWaterBalance:
         processor = HydrologyProcessor(base_config, test_logger)
 
         # Remove precipitation file
-        precip_file = temp_project_dir / "forcing" / "test_domain_precipitation.csv"
+        precip_file = temp_project_dir / "data" / "forcing" / "test_domain_precipitation.csv"
         if precip_file.exists():
             precip_file.unlink()
 

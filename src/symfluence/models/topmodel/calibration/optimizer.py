@@ -109,9 +109,7 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
             )
 
             # Calculate metrics using worker's in-memory data
-            from symfluence.optimization.metrics.metric_calculator import MetricCalculator
-            metric_name = self.config.get('OPTIMIZATION_METRIC', 'KGE')
-            calculator = MetricCalculator()
+            from symfluence.evaluation.metrics import kge, nse
 
             obs = self.worker._observations
             sim = runoff
@@ -123,17 +121,22 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
 
                 valid = ~np.isnan(obs_eval) & ~np.isnan(sim_eval)
                 if np.sum(valid) > 30:
-                    score = calculator.calculate(metric_name, obs_eval[valid], sim_eval[valid])
-                    self.logger.info(f"Final evaluation {metric_name}: {score:.4f}")
+                    kge_score = kge(obs_eval[valid], sim_eval[valid])
+                    nse_score = nse(obs_eval[valid], sim_eval[valid])
+                    self.logger.info(f"Final evaluation KGE: {kge_score:.4f}, NSE: {nse_score:.4f}")
+
+                    metrics = {'KGE': kge_score, 'NSE': nse_score}
+                    self._log_final_evaluation_results(metrics, {})
+
                     return {
-                        'metric': metric_name,
-                        'score': score,
-                        'params': best_params,
+                        'final_metrics': metrics,
+                        'success': True,
+                        'best_params': best_params,
                         'output_dir': str(final_output_dir),
                     }
 
             self.logger.warning("Could not calculate final metrics")
-            return {'params': best_params, 'output_dir': str(final_output_dir)}
+            return {'best_params': best_params, 'output_dir': str(final_output_dir)}
 
         except Exception as e:
             self.logger.error(f"Final evaluation failed: {e}")

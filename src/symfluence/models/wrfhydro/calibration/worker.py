@@ -66,7 +66,7 @@ class WRFHydroWorker(BaseWorker):
             config = kwargs.get('config', self.config) or {}
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            original_settings_dir = data_dir / f'domain_{domain_name}' / 'WRFHydro_input' / 'settings'
+            original_settings_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'WRFHYDRO'
 
             if original_settings_dir.exists() and original_settings_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
@@ -190,19 +190,11 @@ class WRFHydroWorker(BaseWorker):
                     content = pattern.sub(r'\g<1>' + formatted, content)
                     self.logger.debug(f"Updated {param_name} = {formatted}")
                 else:
-                    # Insert before closing '/'
-                    insert_line = f" {param_name} = {formatted}\n"
-                    slash_pattern = re.compile(r'^(\s*/\s*)$', re.MULTILINE)
-                    slash_match = slash_pattern.search(content)
-                    if slash_match:
-                        content = (content[:slash_match.start()]
-                                   + insert_line
-                                   + content[slash_match.start():])
-                        self.logger.debug(f"Inserted {param_name} = {formatted}")
-                    else:
-                        self.logger.warning(
-                            f"Could not place {param_name} in {namelist_file}"
-                        )
+                    # Don't insert unknown params — Fortran namelists crash
+                    # on variable names the compiled binary doesn't expect.
+                    self.logger.debug(
+                        f"Skipping {param_name}: not present in {namelist_file.name}"
+                    )
 
             namelist_file.write_text(content, encoding='utf-8')
             return True
@@ -450,14 +442,18 @@ class WRFHydroWorker(BaseWorker):
 
             # Symlink routing files (unchanged between trials)
             domain_name = config.get('DOMAIN_NAME', '')
-            routing_dir = data_dir / f'domain_{domain_name}' / 'WRFHydro_input' / 'routing'
+            routing_dir = data_dir / f'domain_{domain_name}' / 'settings' / 'WRFHYDRO' / 'routing'
             if routing_dir.exists():
                 for f in routing_dir.glob('*.nc'):
                     dest = wrfhydro_output_dir / f.name
                     if not (dest.exists() or dest.is_symlink()):
                         dest.symlink_to(f.resolve())
 
-            cmd = [str(wrfhydro_exe)]
+            mpirun = shutil.which('mpirun') or shutil.which('mpiexec')
+            if mpirun:
+                cmd = [mpirun, '-np', '1', str(wrfhydro_exe)]
+            else:
+                cmd = [str(wrfhydro_exe)]
 
             env = os.environ.copy()
             env['MallocStackLogging'] = '0'
@@ -563,9 +559,9 @@ class WRFHydroWorker(BaseWorker):
             if not output_files:
                 domain_name = config.get('DOMAIN_NAME', '')
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                wrfhydro_output = data_dir / f'domain_{domain_name}' / 'WRFHydro_input'
+                wrfhydro_output = data_dir / f'domain_{domain_name}' / 'simulations'
                 if wrfhydro_output.exists():
-                    output_files = sorted(wrfhydro_output.glob('*CHRTOUT*'))
+                    output_files = sorted(wrfhydro_output.rglob('*CHRTOUT*'))
 
             if not output_files:
                 # Fallback: try LDASOUT files (standalone/no-routing mode)
@@ -575,9 +571,9 @@ class WRFHydroWorker(BaseWorker):
                 if not output_files:
                     domain_name = config.get('DOMAIN_NAME', '')
                     data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                    wrfhydro_output = data_dir / f'domain_{domain_name}' / 'WRFHydro_input'
+                    wrfhydro_output = data_dir / f'domain_{domain_name}' / 'simulations'
                     if wrfhydro_output.exists():
-                        output_files = sorted(wrfhydro_output.glob('*LDASOUT*'))
+                        output_files = sorted(wrfhydro_output.rglob('*LDASOUT*'))
 
                 if not output_files:
                     self.logger.error(f"No WRF-Hydro CHRTOUT or LDASOUT files found in {sim_dir}")

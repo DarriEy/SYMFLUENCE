@@ -13,6 +13,7 @@ from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.mesh.runner import MESHRunner
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 @OptimizerRegistry.register_worker('MESH')
@@ -141,7 +142,7 @@ class MESHWorker(BaseWorker):
 
                 data_dir = Path(data_dir)
                 project_dir = data_dir / f"domain_{domain_name}"
-                runner.forcing_mesh_path = project_dir / 'forcing' / 'MESH_input'
+                runner.forcing_mesh_path = resolve_data_subdir(project_dir, 'forcing') / 'MESH_input'
                 runner.output_dir = output_dir
 
             # Run MESH
@@ -299,8 +300,10 @@ class MESHWorker(BaseWorker):
                 data_dir = config['system'].get('data_dir', '.')
 
             data_dir = Path(data_dir)
-            obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
-                       'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
+            project_dir = data_dir / f'domain_{domain_name}'
+            obs_dir = resolve_data_subdir(project_dir, 'observations')
+            obs_file = (obs_dir / 'streamflow' / 'preprocessed' /
+                       f'{domain_name}_streamflow_processed.csv')
 
             if not obs_file.exists():
                 self.logger.error(f"Observations not found: {obs_file}")
@@ -511,9 +514,10 @@ class MESHWorker(BaseWorker):
 
         if domain_name:
             data_dir = Path(data_dir)
+            project_dir = data_dir / f'domain_{domain_name}'
+            forcing_dir = resolve_data_subdir(project_dir, 'forcing')
             drainage_db_candidates.append(
-                data_dir / f'domain_{domain_name}' / 'forcing' / 'MESH_input' /
-                'MESH_drainage_database.nc'
+                forcing_dir / 'MESH_input' / 'MESH_drainage_database.nc'
             )
 
         for db_path in drainage_db_candidates:

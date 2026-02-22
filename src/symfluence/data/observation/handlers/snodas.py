@@ -59,7 +59,7 @@ class SNODASHandler(BaseObservationHandler):
             default='default'
         )
         if isinstance(snodas_path, str) and snodas_path.lower() == 'default':
-            snodas_dir = self.project_dir / "observations" / "snow" / "snodas"
+            snodas_dir = self.project_observations_dir / "snow" / "snodas"
         else:
             snodas_dir = Path(snodas_path)
 
@@ -210,7 +210,7 @@ class SNODASHandler(BaseObservationHandler):
         df_combined.to_csv(output_file, index=False)
 
         # Also save to product-specific location
-        product_dir = self.project_dir / "observations" / "snow" / "snodas" / "processed"
+        product_dir = self.project_observations_dir / "snow" / "snodas" / "processed"
         product_dir.mkdir(parents=True, exist_ok=True)
         product_file = product_dir / f"{self.domain_name}_snodas_{variable}_processed.csv"
         df_combined.to_csv(product_file, index=False)

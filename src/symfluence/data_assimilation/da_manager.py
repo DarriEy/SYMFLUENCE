@@ -250,7 +250,7 @@ class DataAssimilationManager(BaseManager):
         Returns:
             Tuple of (times, values) arrays.
         """
-        obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
+        obs_path = self.project_observations_dir / 'streamflow' / 'preprocessed'
         domain_name = self._get_config_value(lambda: self.config.domain.name, 'domain')
 
         obs_file = obs_path / f"{domain_name}_streamflow_processed.csv"

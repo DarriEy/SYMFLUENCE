@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
+# Subdirectories that have been migrated under data/
+_DATA_SUBDIRS = ('forcing', 'attributes', 'observations')
+
 
 def resolve_path(
     config: Dict[str, Any],
@@ -24,6 +29,10 @@ def resolve_path(
     This function handles the common pattern of checking a config key for a path value,
     with special handling for 'default' keyword and None values which trigger use of
     a default path relative to the project directory.
+
+    For default subpaths starting with forcing/, attributes/, or observations/,
+    uses resolve_data_subdir for backward-compatible resolution (prefers data/{subdir},
+    falls back to {subdir}).
 
     Args:
         config: Configuration dictionary
@@ -42,7 +51,7 @@ def resolve_path(
     Examples:
         >>> config = {'FORCING_PATH': 'default'}
         >>> resolve_path(config, 'FORCING_PATH', Path('/data/domain_test'), 'forcing/merged_data')
-        Path('/data/domain_test/forcing/merged_data')
+        Path('/data/domain_test/data/forcing/merged_data')
 
         >>> config = {'FORCING_PATH': '/custom/forcing/path'}
         >>> resolve_path(config, 'FORCING_PATH', Path('/data/domain_test'), 'forcing/merged_data')
@@ -52,7 +61,13 @@ def resolve_path(
 
     # Handle 'default' or None values -> use default path relative to project_dir
     if path_value == 'default' or path_value is None:
-        resolved = project_dir / default_subpath
+        # Check if default_subpath starts with a migrated data subdirectory
+        parts = default_subpath.split('/', 1)
+        if parts[0] in _DATA_SUBDIRS:
+            base = resolve_data_subdir(project_dir, parts[0])
+            resolved = base / parts[1] if len(parts) > 1 else base
+        else:
+            resolved = project_dir / default_subpath
         if logger:
             logger.debug(f"Using default path for {config_key}: {resolved}")
     else:

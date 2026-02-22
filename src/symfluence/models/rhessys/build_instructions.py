@@ -425,8 +425,10 @@ if ($content !~ /-subsurfacegw/) {
 				command_line[0].subsurface_gw_flag = 1;
 			}/* end if */
 };
-    # Insert after the gw_loss_coeff_mult line's closing block
-    $changes += ($content =~ s/(command_line\[0\]\.gw_loss_coeff_mult\s*=.*?i\+\+;\s*\}\s*\/\*\s*end if\s*\*\/)/$1$subsurfacegw_block/s);
+    # Insert after the -gw option parsing block.
+    # Anchor to the unique strcmp(main_argv[i],"-gw") in the option-parsing loop.
+    # This avoids matching the initialization section (which uses = 1, not atof).
+    $changes += ($content =~ s/(strcmp\(main_argv\[i\],\s*"-gw"\)\s*==\s*0.*?i\+\+;\s*\}\s*\/\*\s*end if\s*\*\/)/$1$subsurfacegw_block/s);
 }
 
 open($fh, '>', $file) or die "Cannot write $file: $!";

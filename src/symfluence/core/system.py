@@ -21,6 +21,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Union, Optional
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 # Import core components
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
 from symfluence.project.logging_manager import LoggingManager
@@ -308,7 +310,7 @@ class SYMFLUENCE:
         def _load_domain_diagnostic(rm):
             """Load data and run domain definition diagnostic."""
             basin_path = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
-            dem_path = project_dir / "attributes" / "dem" / "dem.tif"
+            dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
             if not basin_path.exists():
                 return None
             basin_gdf = gpd.read_file(basin_path)
@@ -331,7 +333,7 @@ class SYMFLUENCE:
 
         def _load_observations_diagnostic(rm):
             """Load data and run observations diagnostic."""
-            obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / "streamflow_obs.csv"
+            obs_path = resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / "streamflow_obs.csv"
             if not obs_path.exists():
                 return None
             obs_df = pd.read_csv(obs_path, parse_dates=['datetime'], index_col='datetime')
@@ -342,7 +344,7 @@ class SYMFLUENCE:
 
         def _load_forcing_raw_diagnostic(rm):
             """Load data and run raw forcing diagnostic."""
-            forcing_dir = project_dir / "forcing" / "raw_data"
+            forcing_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
             if not forcing_dir.exists():
                 return None
             nc_files = list(forcing_dir.glob("*.nc"))
@@ -356,8 +358,8 @@ class SYMFLUENCE:
 
         def _load_forcing_remapped_diagnostic(rm):
             """Load data and run forcing remapped diagnostic."""
-            raw_dir = project_dir / "forcing" / "raw_data"
-            remapped_dir = project_dir / "forcing" / "basin_averaged_data"
+            raw_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
+            remapped_dir = resolve_data_subdir(project_dir, 'forcing') / "basin_averaged_data"
             if not raw_dir.exists() or not remapped_dir.exists():
                 return None
             raw_files = list(raw_dir.glob("*.nc"))
@@ -398,9 +400,9 @@ class SYMFLUENCE:
 
         def _load_attributes_diagnostic(rm):
             """Load data and run attributes diagnostic."""
-            dem_path = project_dir / "attributes" / "dem" / "dem.tif"
-            soil_path = project_dir / "attributes" / "soilclass" / "soilclass.tif"
-            land_path = project_dir / "attributes" / "landclass" / "landclass.tif"
+            dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
+            soil_path = resolve_data_subdir(project_dir, 'attributes') / "soilclass" / "soilclass.tif"
+            land_path = resolve_data_subdir(project_dir, 'attributes') / "landclass" / "landclass.tif"
             if not any(p.exists() for p in [dem_path, soil_path, land_path]):
                 return None
             return rm.workflow_diagnostic_plotter.plot_attributes_diagnostic(
