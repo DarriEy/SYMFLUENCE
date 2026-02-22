@@ -161,16 +161,14 @@ class JFUSEParameterManager(BaseParameterManager):
         self.defaults = DEFAULT_PARAMS.copy()
         self.calibration_params = self.jfuse_params
 
-        # Apply custom bounds from config if provided
+        # Apply custom bounds from config if provided (tuple storage for TF mode)
         custom_bounds = config.get('JFUSE_PARAM_BOUNDS', {})
         if custom_bounds:
-            for param_name, bounds in custom_bounds.items():
-                if isinstance(bounds, (list, tuple)) and len(bounds) == 2:
-                    self.all_bounds[param_name] = (bounds[0], bounds[1])
-                    self.logger.info(f"Custom bounds for {param_name}: {bounds}")
-                elif isinstance(bounds, dict) and 'min' in bounds and 'max' in bounds:
-                    self.all_bounds[param_name] = (bounds['min'], bounds['max'])
-                    self.logger.info(f"Custom bounds for {param_name}: [{bounds['min']}, {bounds['max']}]")
+            for param_name, bnd in custom_bounds.items():
+                if isinstance(bnd, (list, tuple)) and len(bnd) == 2:
+                    self.all_bounds[param_name] = (float(bnd[0]), float(bnd[1]))
+                elif isinstance(bnd, dict) and 'min' in bnd and 'max' in bnd:
+                    self.all_bounds[param_name] = (float(bnd['min']), float(bnd['max']))
 
         # Initialize transfer function mode if enabled
         if self._use_transfer_functions:
@@ -254,7 +252,11 @@ class JFUSEParameterManager(BaseParameterManager):
         return self.jfuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return parameter/coefficient bounds for calibration."""
+        """Return parameter/coefficient bounds for calibration.
+
+        Config overrides (JFUSE_PARAM_BOUNDS) are applied via
+        _apply_config_bounds_override to preserve any transform metadata.
+        """
         if self._use_transfer_functions and self._tf_config is not None:
             return {
                 name: {'min': bounds[0], 'max': bounds[1]}
@@ -263,11 +265,16 @@ class JFUSEParameterManager(BaseParameterManager):
                     self._tf_config.coefficient_bounds,
                 )
             }
-        return {
+        bounds = {
             name: {'min': self.all_bounds[name][0], 'max': self.all_bounds[name][1]}
             for name in self.jfuse_params
             if name in self.all_bounds
         }
+        # Apply config overrides with transform preservation
+        config_bounds = self.config.get('JFUSE_PARAM_BOUNDS', {})
+        if config_bounds:
+            self._apply_config_bounds_override(bounds, config_bounds)
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """

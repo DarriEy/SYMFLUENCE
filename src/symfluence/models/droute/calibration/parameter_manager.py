@@ -116,13 +116,20 @@ class DRouteParameterManager(BaseParameterManager):
         """
         Get initial parameter values (midpoint of bounds).
 
+        Uses geometric mean for log-transformed parameters.
+
         Returns:
             Dictionary of parameter name -> initial value, or None.
         """
+        import math
+
         bounds = self.param_bounds
         initial = {}
         for param in self.droute_params:
             if param in bounds:
                 b = bounds[param]
-                initial[param] = (b['min'] + b['max']) / 2.0
+                if b.get('transform') == 'log' and b['min'] > 0:
+                    initial[param] = math.sqrt(b['min'] * b['max'])
+                else:
+                    initial[param] = (b['min'] + b['max']) / 2.0
         return initial if initial else None

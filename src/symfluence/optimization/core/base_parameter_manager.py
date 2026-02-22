@@ -68,7 +68,7 @@ class BaseParameterManager(ConfigMixin, ABC):
 
         # Lazy-loaded caches (populated by subclass implementations)
         self._param_names: List[str] = []
-        self._param_bounds: Dict[str, Dict[str, float]] = {}
+        self._param_bounds: Dict[str, Dict[str, Any]] = {}
 
     # ========================================================================
     # ABSTRACT METHODS (Model-specific - must be implemented by subclasses)
@@ -93,12 +93,13 @@ class BaseParameterManager(ConfigMixin, ABC):
         pass
 
     @abstractmethod
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         """
         Load parameter bounds from model-specific source.
 
         Returns:
             Dictionary mapping param_name -> {'min': float, 'max': float}
+            May also include 'transform': 'log'|'linear' for normalization.
 
         Implementation notes:
             - SUMMA: Parse from localParamInfo.txt/basinParamInfo.txt files
@@ -108,7 +109,7 @@ class BaseParameterManager(ConfigMixin, ABC):
         Example:
             return {
                 'param1': {'min': 0.0, 'max': 10.0},
-                'param2': {'min': -5.0, 'max': 5.0}
+                'param2': {'min': 1e-6, 'max': 0.1, 'transform': 'log'}
             }
         """
         pass
@@ -177,12 +178,13 @@ class BaseParameterManager(ConfigMixin, ABC):
         return self._param_names
 
     @property
-    def param_bounds(self) -> Dict[str, Dict[str, float]]:
+    def param_bounds(self) -> Dict[str, Dict[str, Any]]:
         """
         Get parameter bounds dictionary (lazy loaded).
 
         Returns:
             Dictionary mapping param_name -> {'min': float, 'max': float}
+            May also include 'transform': 'log'|'linear' for normalization.
         """
         if not self._param_bounds:
             self._param_bounds = self._load_parameter_bounds()
@@ -330,7 +332,7 @@ class BaseParameterManager(ConfigMixin, ABC):
 
         return True
 
-    def get_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def get_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         """
         Get parameter bounds (convenience method).
 
@@ -372,9 +374,9 @@ class BaseParameterManager(ConfigMixin, ABC):
 
     def _apply_config_bounds_override(
         self,
-        bounds: Dict[str, Dict[str, float]],
+        bounds: Dict[str, Dict[str, Any]],
         config_bounds: Optional[Dict],
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Merge config-specified bound overrides into registry bounds,
         preserving transform metadata.
