@@ -144,7 +144,29 @@ class JFUSEParameterManager(BaseParameterManager):
         self._tf_config = None
 
         # Parse jFUSE parameters to calibrate from config
-        jfuse_params_str = config.get('JFUSE_PARAMS_TO_CALIBRATE')
+        # Try multiple access patterns since config may be a SymfluenceConfig object
+        # or a raw dict depending on the caller
+        jfuse_params_str = None
+        if isinstance(config, dict):
+            jfuse_params_str = config.get('JFUSE_PARAMS_TO_CALIBRATE')
+        else:
+            # SymfluenceConfig: try flat key, then try nested attribute
+            jfuse_params_str = getattr(config, 'JFUSE_PARAMS_TO_CALIBRATE', None)
+            if jfuse_params_str is None:
+                # Try to_dict() which may have a mapped key
+                try:
+                    cfg_dict = config.to_dict() if hasattr(config, 'to_dict') else {}
+                    raw = cfg_dict.get('params_to_calibrate', None)
+                    if isinstance(raw, dict):
+                        # Pydantic mangles {type: value} — extract the string value
+                        for v in raw.values():
+                            if isinstance(v, str):
+                                jfuse_params_str = v
+                                break
+                    elif isinstance(raw, str):
+                        jfuse_params_str = raw
+                except Exception:
+                    pass
         # Handle None, empty string, or 'default' as signal to use default parameter list
         if jfuse_params_str is None or jfuse_params_str == '' or jfuse_params_str == 'default':
             # Default 14 parameters with non-zero gradients for prms_gradient config

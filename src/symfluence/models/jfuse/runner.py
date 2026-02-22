@@ -83,6 +83,58 @@ try:
         rainfall_error=RainfallErrorType.ADDITIVE,
     )
 
+    # Mapping from Fortran FUSE decision names to jFUSE enums
+    # Enables all FUSE variants (jFUSE, cFUSE, Fortran FUSE) to share the same structure
+    FUSE_DECISION_MAP = {
+        'ARCH1': {
+            'onestate_1': UpperLayerArch.SINGLE_STATE,
+            'tension1_1': UpperLayerArch.TENSION_FREE,
+            'tension2_1': UpperLayerArch.TENSION2_FREE,
+        },
+        'ARCH2': {
+            'fixedsiz_2': LowerLayerArch.SINGLE_NOEVAP,
+            'unlimfrc_2': LowerLayerArch.SINGLE_NOEVAP,
+            'unlimpow_2': LowerLayerArch.SINGLE_EVAP,
+            'tens2pll_2': LowerLayerArch.TENSION_2RESERV,
+        },
+        'ARCH2_BASEFLOW': {
+            'fixedsiz_2': BaseflowType.LINEAR,
+            'unlimfrc_2': BaseflowType.LINEAR,
+            'unlimpow_2': BaseflowType.NONLINEAR,
+            'tens2pll_2': BaseflowType.PARALLEL_LINEAR,
+        },
+        'QSURF': {
+            'arno_x_vic': SurfaceRunoffType.UZ_PARETO,
+            'prms_varnt': SurfaceRunoffType.UZ_LINEAR,
+            'tmdl_param': SurfaceRunoffType.LZ_GAMMA,
+        },
+        'QPERC': {
+            'perc_f2sat': PercolationType.FREE_STORAGE,
+            'perc_w2sat': PercolationType.TOTAL_STORAGE,
+            'perc_lower': PercolationType.LOWER_DEMAND,
+        },
+        'ESOIL': {
+            'sequential': EvaporationType.SEQUENTIAL,
+            'rootweight': EvaporationType.ROOT_WEIGHT,
+        },
+        'QINTF': {
+            'intflwnone': InterflowType.NONE,
+            'intflwsome': InterflowType.LINEAR,
+        },
+        'Q_TDH': {
+            'rout_gamma': RoutingType.GAMMA,
+            'no_routing': RoutingType.NONE,
+        },
+        'SNOWM': {
+            'temp_index': SnowType.TEMP_INDEX,
+            'no_snowmod': SnowType.NONE,
+        },
+        'RFERR': {
+            'additive_e': RainfallErrorType.ADDITIVE,
+            'multiplc_e': RainfallErrorType.MULTIPLICATIVE,
+        },
+    }
+
     # Map config names to predefined configs
     JFUSE_CONFIGS = {
         'prms': PRMS_CONFIG,
@@ -279,23 +331,86 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         return 1000.0 * 1e6
 
     def _get_model_config(self) -> 'ModelConfig':
-        """Get the jFUSE ModelConfig based on configuration settings."""
+        """Get the jFUSE ModelConfig based on configuration settings.
+
+        Supports both predefined config names (e.g. 'prms_gradient') and
+        FUSE decision options (JFUSE_DECISION_OPTIONS dict) for compatibility
+        with Fortran FUSE decision specifications.
+        """
         if not HAS_JFUSE:
             raise ImportError("jFUSE not installed")
 
-        # Get base config from predefined configs
-        config_name = self.model_config_name.lower()
-        if config_name not in JFUSE_CONFIGS:
-            self.logger.warning(f"Unknown config '{config_name}', falling back to 'prms_gradient'")
-            config_name = 'prms_gradient'
+        # Check for FUSE decision options (shared format with Fortran FUSE)
+        decision_options = self._get_config_value(
+            lambda: None,  # No structured config path for this
+            default=None,
+            dict_key='JFUSE_DECISION_OPTIONS'
+        )
 
-        base_config = JFUSE_CONFIGS[config_name]
+        if decision_options and isinstance(decision_options, dict):
+            # Build ModelConfig from FUSE decision options
+            base_config = self._build_config_from_decisions(decision_options)
+            self.logger.info(f"Built jFUSE config from FUSE decision options: {decision_options}")
+        else:
+            # Get base config from predefined configs
+            config_name = self.model_config_name.lower()
+            if config_name not in JFUSE_CONFIGS:
+                self.logger.warning(f"Unknown config '{config_name}', falling back to 'prms_gradient'")
+                config_name = 'prms_gradient'
+            base_config = JFUSE_CONFIGS[config_name]
 
         # Modify snow setting if needed
         if not self.enable_snow:
             base_config = base_config._replace(snow=SnowType.NONE)
 
         return base_config
+
+    def _build_config_from_decisions(self, decisions: Dict[str, Any]) -> 'ModelConfig':
+        """Build a jFUSE ModelConfig from Fortran FUSE decision options.
+
+        Args:
+            decisions: Dict mapping decision keys (ARCH1, ARCH2, etc.) to
+                      decision values (tension1_1, tens2pll_2, etc.).
+                      Values can be strings or lists (first element used).
+
+        Returns:
+            ModelConfig matching the specified FUSE decisions.
+        """
+        # Resolve list values to first element
+        resolved = {}
+        for key, value in decisions.items():
+            if isinstance(value, list):
+                resolved[key] = value[0] if value else None
+            else:
+                resolved[key] = value
+
+        # Start with PRMS_GRADIENT defaults and override
+        arch2_val = resolved.get('ARCH2', 'fixedsiz_2')
+
+        config_kwargs = {
+            'upper_arch': FUSE_DECISION_MAP['ARCH1'].get(
+                resolved.get('ARCH1', 'tension1_1'), UpperLayerArch.TENSION_FREE),
+            'lower_arch': FUSE_DECISION_MAP['ARCH2'].get(
+                arch2_val, LowerLayerArch.SINGLE_NOEVAP),
+            'baseflow': FUSE_DECISION_MAP['ARCH2_BASEFLOW'].get(
+                arch2_val, BaseflowType.LINEAR),
+            'percolation': FUSE_DECISION_MAP['QPERC'].get(
+                resolved.get('QPERC', 'perc_f2sat'), PercolationType.FREE_STORAGE),
+            'surface_runoff': FUSE_DECISION_MAP['QSURF'].get(
+                resolved.get('QSURF', 'arno_x_vic'), SurfaceRunoffType.UZ_PARETO),
+            'evaporation': FUSE_DECISION_MAP['ESOIL'].get(
+                resolved.get('ESOIL', 'rootweight'), EvaporationType.ROOT_WEIGHT),
+            'interflow': FUSE_DECISION_MAP['QINTF'].get(
+                resolved.get('QINTF', 'intflwnone'), InterflowType.NONE),
+            'snow': FUSE_DECISION_MAP['SNOWM'].get(
+                resolved.get('SNOWM', 'temp_index'), SnowType.TEMP_INDEX),
+            'routing': FUSE_DECISION_MAP['Q_TDH'].get(
+                resolved.get('Q_TDH', 'rout_gamma'), RoutingType.GAMMA),
+            'rainfall_error': FUSE_DECISION_MAP['RFERR'].get(
+                resolved.get('RFERR', 'multiplc_e'), RainfallErrorType.MULTIPLICATIVE),
+        }
+
+        return ModelConfig(**config_kwargs)
 
     def _dict_to_params(self, param_dict: Dict[str, float], n_hrus: int = 1) -> 'Parameters':
         """

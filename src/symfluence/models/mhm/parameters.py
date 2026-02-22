@@ -43,15 +43,15 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'PTF_Ks_constant': {'min': -1.2, 'max': -0.285},               # PTF constant
     'interflowRecession_slope': {'min': 0.0, 'max': 10.0},         # unitless
     'rechargeCoefficient': {'min': 0.0, 'max': 50.0},              # unitless
-    'GeoParam(1,:)': {'min': 1.0, 'max': 1000.0},                  # baseflow recession (days)
+    'GeoParam(1,:)': {'min': 10.0, 'max': 500.0},                   # baseflow recession (days)
     'infiltrationShapeFactor': {'min': 1.0, 'max': 4.0},           # infiltration curve shape
     'rootFractionCoefficient_pervious': {'min': 0.001, 'max': 0.09},  # root water uptake depth
     'interflowStorageCapacityFactor': {'min': 75.0, 'max': 200.0}, # interflow storage volume
     'slowInterflowRecession_Ks': {'min': 1.0, 'max': 30.0},       # slow interflow routing speed
     'muskingumTravelTime_constant': {'min': 0.31, 'max': 0.35},   # channel routing travel time
     'orgMatterContent_forest': {'min': 5.0, 'max': 10.0},         # soil organic matter
-    'minCorrectionFactorPET': {'min': 0.50, 'max': 1.30},        # direct PET multiplier (fAsp)
-    'maxCorrectionFactorPET': {'min': 0.00, 'max': 0.20},        # PET correction range
+    'minCorrectionFactorPET': {'min': 0.30, 'max': 1.30},        # direct PET multiplier (fAsp)
+    'maxCorrectionFactorPET': {'min': 0.01, 'max': 0.20},        # PET correction range
     'rootFractionCoefficient_forest': {'min': 0.80, 'max': 0.999},  # forest root depth fraction
     'fastInterflowRecession_forest': {'min': 1.0, 'max': 3.0},  # fast interflow recession
     'exponentSlowInterflow': {'min': 0.05, 'max': 0.30},        # slow interflow recession shape
@@ -148,15 +148,15 @@ MHM_PARAMETER_NML_SPEC: List[Tuple[str, List[Tuple[str, float, float, float, int
 
     # -- PET (option 0: aspect-based correction) ------------------------------
     ('PET0', [
-        ('minCorrectionFactorPET', 0.50, 1.30, 0.90, 1, 1),
-        ('maxCorrectionFactorPET', 0.00, 0.20, 0.10, 1, 1),
+        ('minCorrectionFactorPET', 0.30, 1.30, 0.90, 1, 1),
+        ('maxCorrectionFactorPET', 0.01, 0.20, 0.10, 1, 1),
         ('aspectTresholdPET',    160.0, 200.0, 180.0, 1, 1),
     ]),
 
     # -- PET (option 1: Hargreaves-Samani) ------------------------------------
     ('PET1', [
-        ('minCorrectionFactorPET', 0.50,   1.30,  0.93,   1, 1),
-        ('maxCorrectionFactorPET', 0.00,   0.20,  0.19,   1, 1),
+        ('minCorrectionFactorPET', 0.30,   1.30,  0.93,   1, 1),
+        ('maxCorrectionFactorPET', 0.01,   0.20,  0.19,   1, 1),
         ('aspectTresholdPET',    160.0,   200.0,  171.0,  1, 1),
         ('HargreavesSamaniCoeff',  0.0016,  0.003, 0.0023, 1, 1),
     ]),
@@ -218,6 +218,6 @@ MHM_PARAMETER_NML_SPEC: List[Tuple[str, List[Tuple[str, float, float, float, int
     # geology_classdefinition.txt. For a lumped setup with 1 geology class,
     # only GeoParam(1,:) is needed.
     ('geoparameter', [
-        ('GeoParam(1,:)',  1.0, 1000.0, 100.0, 1, 1),
+        ('GeoParam(1,:)',  10.0, 500.0, 100.0, 1, 1),
     ]),
 ]

@@ -31,23 +31,25 @@ PARAM_NAMES: List[str] = [
 
 PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
     # Generation parameters
-    'K':  (0.1, 1.0),      # PET correction factor
-    'B':  (0.1, 0.4),      # Tension water capacity curve exponent
+    'K':  (0.1, 1.5),      # PET correction factor (>1 allows sublimation compensation)
+    'B':  (0.1, 2.0),      # Tension water capacity curve exponent (Zhao 1992 allows up to ~2)
     'IM': (0.01, 0.1),     # Impervious area fraction
-    'UM': (0.0, 20.0),     # Upper layer tension water capacity (mm)
-    'LM': (60.0, 90.0),    # Lower layer tension water capacity (mm)
-    'DM': (60.0, 120.0),   # Deep layer tension water capacity (mm)
+    'UM': (5.0, 50.0),     # Upper layer tension water capacity (mm)
+    'LM': (50.0, 120.0),   # Lower layer tension water capacity (mm)
+    'DM': (50.0, 200.0),   # Deep layer tension water capacity (mm)
     'C':  (0.0, 0.2),      # Deep layer ET coefficient
 
     # Source separation parameters
-    'SM': (1.0, 100.0),    # Free water capacity (mm)
-    'EX': (1.0, 1.5),      # Free water capacity curve exponent
+    'SM': (1.0, 200.0),    # Free water capacity (mm)
+    'EX': (0.5, 2.0),      # Free water capacity curve exponent
     'KI': (0.0, 0.7),      # Interflow outflow coefficient
     'KG': (0.0, 0.7),      # Groundwater outflow coefficient
 
     # Routing parameters
-    'CS': (0.0, 1.0),      # Channel recession constant (Muskingum)
-    'L':  (1.0, 10.0),     # Lag time (timesteps)
+    # Note: CS (channel recession) and L (lag time) are excluded from
+    # calibration bounds because they are not used in the current lumped
+    # model formulation. They remain in PARAM_NAMES and DEFAULT_PARAMS
+    # for structural completeness (Zhao 1992).
     'CI': (0.0, 0.9),      # Interflow recession constant
     'CG': (0.98, 0.998),   # Groundwater recession constant
 }

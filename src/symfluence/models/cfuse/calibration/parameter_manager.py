@@ -150,11 +150,15 @@ class CFUSEParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse cFUSE parameters to calibrate from config
-        cfuse_params_str = config.get('CFUSE_PARAMS_TO_CALIBRATE')
+        cfuse_params_str = None
+        if isinstance(config, dict):
+            cfuse_params_str = config.get('CFUSE_PARAMS_TO_CALIBRATE')
+        else:
+            cfuse_params_str = getattr(config, 'CFUSE_PARAMS_TO_CALIBRATE', None)
         # Handle None, empty string, or 'default' as signal to use default parameter list
         if cfuse_params_str is None or cfuse_params_str == '' or cfuse_params_str == 'default':
-            # Default 14 parameters aligned with jFUSE for consistency
-            cfuse_params_str = 'S1_max,S2_max,ku,ki,ks,n,Ac_max,b,f_rchr,T_rain,T_melt,MFMAX,MFMIN,smooth_frac'
+            # Default 13 parameters for best FUSE decision structure
+            cfuse_params_str = 'S1_max,ku,Ac_max,b,kappa,v_A,v_B,r1,smooth_frac,T_rain,T_melt,MFMAX,MFMIN'
 
         self.cfuse_params = [p.strip() for p in str(cfuse_params_str).split(',') if p.strip()]
 
@@ -166,6 +170,15 @@ class CFUSEParameterManager(BaseParameterManager):
         self.all_bounds = PARAM_BOUNDS.copy()
         self.defaults = DEFAULT_PARAMS.copy()
         self.calibration_params = self.cfuse_params
+
+        # Apply custom bounds from config if provided
+        custom_bounds = config.get('CFUSE_PARAM_BOUNDS', {})
+        if custom_bounds:
+            for param_name, bnd in custom_bounds.items():
+                if isinstance(bnd, (list, tuple)) and len(bnd) == 2:
+                    self.all_bounds[param_name] = (float(bnd[0]), float(bnd[1]))
+                elif isinstance(bnd, dict) and 'min' in bnd and 'max' in bnd:
+                    self.all_bounds[param_name] = (float(bnd['min']), float(bnd['max']))
 
     def _validate_params(self) -> None:
         """Validate that calibration parameters exist in bounds."""
@@ -185,11 +198,11 @@ class CFUSEParameterManager(BaseParameterManager):
         return self.cfuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return cFUSE parameter bounds."""
+        """Return cFUSE parameter bounds (with any config overrides applied)."""
         return {
-            name: {'min': PARAM_BOUNDS[name][0], 'max': PARAM_BOUNDS[name][1]}
+            name: {'min': self.all_bounds[name][0], 'max': self.all_bounds[name][1]}
             for name in self.cfuse_params
-            if name in PARAM_BOUNDS
+            if name in self.all_bounds
         }
 
     def update_model_files(self, params: Dict[str, float]) -> bool:

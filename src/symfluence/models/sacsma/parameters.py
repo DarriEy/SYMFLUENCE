@@ -43,9 +43,9 @@ SACSMA_PARAM_NAMES: List[str] = [
 ]
 
 SACSMA_PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
-    'UZTWM': (1.0, 150.0),    # Upper zone tension water max (mm)
+    'UZTWM': (10.0, 150.0),   # Upper zone tension water max (mm)
     'UZFWM': (1.0, 150.0),    # Upper zone free water max (mm)
-    'UZK': (0.1, 0.75),       # Upper zone lateral depletion rate (1/day)
+    'UZK': (0.15, 0.75),      # Upper zone lateral depletion rate (1/day)
     'LZTWM': (1.0, 500.0),    # Lower zone tension water max (mm)
     'LZFPM': (1.0, 1000.0),   # Lower zone primary free water max (mm) - LOG
     'LZFSM': (1.0, 1000.0),   # Lower zone supplemental free water max (mm) - LOG
@@ -150,7 +150,7 @@ def params_dict_to_namedtuple(
     for name in SACSMA_PARAM_NAMES:
         val = params_dict.get(name, SACSMA_DEFAULTS[name])
         if use_jax and _has_jax:
-            values[name] = val if hasattr(val, 'shape') else jnp.array(float(val))
+            values[name] = val if hasattr(val, 'shape') else jnp.asarray(val)
         else:
             values[name] = np.float64(val)
 

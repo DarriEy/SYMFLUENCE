@@ -128,8 +128,7 @@ class CRHMModelOptimizer(BaseModelOptimizer):
                 return None
 
             metrics = self.worker.calculate_metrics(
-                final_output_dir, self.config,
-                sim_dir=self.crhm_setup_dir
+                final_output_dir, self.config
             )
 
             if not metrics or metrics.get('kge', -999) <= -999:

@@ -12,24 +12,31 @@ import random
 import time
 import traceback
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
+from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
 from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
+
+# Lazy JAX import
+if HAS_JAX:
+    import jax
+    import jax.numpy as jnp
 
 
 @OptimizerRegistry.register_worker('SACSMA')
 class SacSmaWorker(InMemoryModelWorker):
     """Worker for SAC-SMA + Snow-17 model calibration.
 
-    Supports standard evolutionary optimization (DDS, PSO, etc.)
-    with efficient in-memory simulation.
+    Supports:
+    - Standard evolutionary optimization (evaluate -> apply -> run -> metrics)
+    - Gradient-based optimization with JAX autodiff
+    - Efficient in-memory simulation (no file I/O during calibration)
     """
 
     def __init__(
@@ -39,6 +46,7 @@ class SacSmaWorker(InMemoryModelWorker):
     ):
         super().__init__(config, logger)
         self._simulate_fn = None
+        self._use_jax = HAS_JAX
 
         # Configuration
         self.latitude = 45.0
@@ -216,6 +224,175 @@ class SacSmaWorker(InMemoryModelWorker):
 
     def _initialize_model(self) -> bool:
         return self._ensure_simulate_fn()
+
+    # =========================================================================
+    # Native Gradient Support (JAX autodiff)
+    # =========================================================================
+
+    def supports_native_gradients(self) -> bool:
+        """Check if native gradient computation is available.
+
+        SAC-SMA supports native gradients via JAX autodiff when JAX is
+        installed. The coupled Snow-17 + SAC-SMA lax.scan simulation is
+        fully differentiable end-to-end.
+
+        Returns:
+            True if JAX is available.
+        """
+        return HAS_JAX and self._use_jax
+
+    def compute_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Optional[Dict[str, float]]:
+        """Compute gradient of loss with respect to parameters.
+
+        Uses JAX autodiff through the coupled Snow-17 + SAC-SMA
+        simulation for efficient gradient computation.
+
+        Args:
+            params: Current parameter values (Snow-17 + SAC-SMA combined).
+            metric: Metric to compute gradient for ('kge' or 'nse').
+
+        Returns:
+            Dictionary of parameter gradients, or None if JAX unavailable.
+        """
+        if not HAS_JAX or not self._use_jax:
+            return None
+
+        if not self._initialized:
+            if not self.initialize():
+                return None
+
+        try:
+            from symfluence.models.sacsma.losses import kge_loss, nse_loss
+
+            assert self._forcing is not None
+            precip = jnp.array(self._forcing['precip'])
+            temp = jnp.array(self._forcing['temp'])
+            pet = jnp.array(self._forcing['pet'])
+            obs = jnp.array(self._observations)
+
+            # Day of year from time index
+            day_of_year = None
+            if self._time_index is not None:
+                day_of_year = jnp.array(self._time_index.dayofyear.values,
+                                        dtype=float)
+
+            latitude = self.latitude
+            si = self.si
+            snow_module = self.snow_module
+            warmup = self.warmup_days
+
+            def loss_fn(params_array, param_names):
+                params_dict = dict(zip(param_names, params_array))
+                if metric.lower() == 'nse':
+                    return nse_loss(
+                        params_dict, precip, temp, pet, obs,
+                        warmup, use_jax=True,
+                        day_of_year=day_of_year,
+                        latitude=latitude, si=si,
+                        snow_module=snow_module,
+                    )
+                return kge_loss(
+                    params_dict, precip, temp, pet, obs,
+                    warmup, use_jax=True,
+                    day_of_year=day_of_year,
+                    latitude=latitude, si=si,
+                    snow_module=snow_module,
+                )
+
+            grad_fn = jax.grad(loss_fn)
+            param_names = list(params.keys())
+            param_values = jnp.array([params[k] for k in param_names])
+            grad_values = grad_fn(param_values, param_names)
+
+            return dict(zip(param_names, np.array(grad_values)))
+
+        except Exception as e:
+            self.logger.error(f"Error computing gradient: {e}")
+            self.logger.debug(traceback.format_exc())
+            return None
+
+    def evaluate_with_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Tuple[float, Optional[Dict[str, float]]]:
+        """Evaluate loss and compute gradient in single pass.
+
+        Uses JAX value_and_grad for efficient computation through the
+        coupled Snow-17 + SAC-SMA simulation.
+
+        Args:
+            params: Parameter values (Snow-17 + SAC-SMA combined).
+            metric: Metric to evaluate.
+
+        Returns:
+            Tuple of (loss_value, gradient_dict).
+        """
+        if not HAS_JAX or not self._use_jax:
+            loss = self._evaluate_loss(params, metric)
+            return loss, None
+
+        if not self._initialized:
+            if not self.initialize():
+                return self.penalty_score, None
+
+        try:
+            from symfluence.models.sacsma.losses import kge_loss, nse_loss
+
+            assert self._forcing is not None
+            precip = jnp.array(self._forcing['precip'])
+            temp = jnp.array(self._forcing['temp'])
+            pet = jnp.array(self._forcing['pet'])
+            obs = jnp.array(self._observations)
+
+            # Day of year from time index
+            day_of_year = None
+            if self._time_index is not None:
+                day_of_year = jnp.array(self._time_index.dayofyear.values,
+                                        dtype=float)
+
+            latitude = self.latitude
+            si = self.si
+            snow_module = self.snow_module
+            warmup = self.warmup_days
+
+            def loss_fn(params_array, param_names):
+                params_dict = dict(zip(param_names, params_array))
+                if metric.lower() == 'nse':
+                    return nse_loss(
+                        params_dict, precip, temp, pet, obs,
+                        warmup, use_jax=True,
+                        day_of_year=day_of_year,
+                        latitude=latitude, si=si,
+                        snow_module=snow_module,
+                    )
+                return kge_loss(
+                    params_dict, precip, temp, pet, obs,
+                    warmup, use_jax=True,
+                    day_of_year=day_of_year,
+                    latitude=latitude, si=si,
+                    snow_module=snow_module,
+                )
+
+            value_and_grad_fn = jax.value_and_grad(loss_fn)
+            param_names = list(params.keys())
+            param_values = jnp.array([params[k] for k in param_names])
+            loss_val, grad_values = value_and_grad_fn(param_values, param_names)
+
+            gradient = dict(zip(param_names, np.array(grad_values)))
+            return float(loss_val), gradient
+
+        except Exception as e:
+            self.logger.error(f"Error in evaluate_with_gradient: {e}")
+            return self.penalty_score, None
+
+    # =========================================================================
+    # Static Worker Function for Process Pool
+    # =========================================================================
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

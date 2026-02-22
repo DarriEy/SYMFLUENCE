@@ -55,6 +55,8 @@ class JFUSEModelOptimizer(BaseModelOptimizer):
             reporting_manager: ReportingManager instance
         """
         # Initialize jFUSE-specific paths before super().__init__
+        # Store the raw config dict for passing to parameter manager
+        self._raw_config = config if isinstance(config, dict) else {}
         _exp_id = config.get('EXPERIMENT_ID')  # noqa: F841
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = config.get('DOMAIN_NAME')
@@ -74,8 +76,11 @@ class JFUSEModelOptimizer(BaseModelOptimizer):
     def _create_parameter_manager(self):
         """Create jFUSE parameter manager."""
         from .parameter_manager import JFUSEParameterManager
+        # Pass raw dict config so parameter manager can read flat YAML keys
+        # (SymfluenceConfig doesn't preserve JFUSE_PARAMS_TO_CALIBRATE as a flat key)
+        config_for_pm = self._raw_config if self._raw_config else self.config
         return JFUSEParameterManager(
-            self.config,
+            config_for_pm,
             self.logger,
             self.jfuse_setup_dir
         )

@@ -108,7 +108,11 @@ class PRMSModelOptimizer(BaseModelOptimizer):
         return success
 
     def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
-        """Run final evaluation using PRMS worker metrics."""
+        """Run final evaluation using PRMS worker metrics.
+
+        Computes KGE separately for the calibration and evaluation periods
+        so that split-sample validation is reported correctly.
+        """
         self.logger.info("=" * 60)
         self.logger.info("RUNNING FINAL EVALUATION")
         self.logger.info("=" * 60)
@@ -121,27 +125,48 @@ class PRMSModelOptimizer(BaseModelOptimizer):
                 self.logger.error("PRMS run failed during final evaluation")
                 return None
 
-            metrics = self.worker.calculate_metrics(
-                final_output_dir, self.config,
+            # --- Calibration-period metrics ---
+            cal_period = self.config.get('CALIBRATION_PERIOD', '')
+            cal_config = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+            cal_config['CALIBRATION_PERIOD'] = cal_period
+            cal_raw = self.worker.calculate_metrics(
+                final_output_dir, cal_config,
                 sim_dir=final_output_dir
             )
 
-            if not metrics or metrics.get('kge', -999) <= -999:
-                self.logger.error("Failed to calculate final evaluation metrics")
+            if not cal_raw or cal_raw.get('kge', -999) <= -999:
+                self.logger.error("Failed to calculate calibration-period metrics")
                 return None
 
-            calib_metrics = {"KGE_Calib": metrics.get('kge', -999)}
-            eval_metrics = {"KGE_Eval": metrics.get('kge', -999)}
+            calib_metrics = {"KGE_Calib": cal_raw.get('kge', -999)}
+            self.logger.info(f"Calibration period KGE: {cal_raw.get('kge', 'N/A'):.4f}")
+
+            # --- Evaluation-period metrics ---
+            eval_metrics: Dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_config = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+                eval_config['CALIBRATION_PERIOD'] = eval_period  # worker filters on this key
+                eval_raw = self.worker.calculate_metrics(
+                    final_output_dir, eval_config,
+                    sim_dir=final_output_dir
+                )
+                if eval_raw and eval_raw.get('kge', -999) > -999:
+                    eval_metrics = {"KGE_Eval": eval_raw.get('kge', -999)}
+                    self.logger.info(f"Evaluation period KGE: {eval_raw.get('kge', 'N/A'):.4f}")
+                else:
+                    self.logger.warning("Evaluation-period metrics could not be computed")
+            else:
+                self.logger.info("No EVALUATION_PERIOD configured; skipping split-sample validation")
 
             final_result = {
-                'final_metrics': metrics,
+                'final_metrics': cal_raw,
                 'calibration_metrics': calib_metrics,
                 'evaluation_metrics': eval_metrics,
                 'success': True,
                 'best_params': best_params
             }
 
-            self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
             return final_result
 
         except Exception as e:

@@ -53,8 +53,12 @@ except ImportError:
     torch = None
 
 
-def _get_model_config(structure: str) -> dict:
-    """Get model configuration dictionary for a structure."""
+def _get_model_config(structure: str, decision_options: Optional[Dict] = None) -> dict:
+    """Get model configuration dictionary for a structure.
+
+    Supports both preset structure names and FUSE decision options dict
+    for compatibility with Fortran FUSE decision specifications.
+    """
     if not HAS_CFUSE:
         return {}
 
@@ -66,10 +70,93 @@ def _get_model_config(structure: str) -> dict:
         'arno': ARNO_CONFIG,
     }
 
+    # If FUSE decision options provided, build config from them
+    if decision_options and isinstance(decision_options, dict):
+        return _build_config_from_decisions(decision_options)
+
     structure_lower = structure.lower()
     if structure_lower in configs:
         return configs[structure_lower].to_dict()
     return PRMS_CONFIG.to_dict()  # Default to PRMS for better gradient support
+
+
+# Mapping from Fortran FUSE decision names to cFUSE config keys
+# Enables cFUSE to accept the same decision options as Fortran FUSE
+FUSE_TO_CFUSE_MAP = {
+    'ARCH1': {
+        'onestate_1': 'single_state',
+        'tension1_1': 'tension_free',
+        'tension2_1': 'tension2_free',
+    },
+    'ARCH2': {
+        'fixedsiz_2': 'single_noevap',
+        'unlimfrc_2': 'single_noevap',
+        'unlimpow_2': 'single_evap',
+        'tens2pll_2': 'tension_2reserv',
+    },
+    'ARCH2_BASEFLOW': {
+        'fixedsiz_2': 'linear',
+        'unlimfrc_2': 'linear',
+        'unlimpow_2': 'nonlinear',
+        'tens2pll_2': 'parallel_linear',
+    },
+    'QSURF': {
+        'arno_x_vic': 'uz_pareto',
+        'prms_varnt': 'uz_linear',
+        'tmdl_param': 'lz_gamma',
+    },
+    'QPERC': {
+        'perc_f2sat': 'free_storage',
+        'perc_w2sat': 'total_storage',
+        'perc_lower': 'lower_demand',
+    },
+    'ESOIL': {
+        'sequential': 'sequential',
+        'rootweight': 'root_weight',
+    },
+    'QINTF': {
+        'intflwnone': 'none',
+        'intflwsome': 'linear',
+    },
+    'Q_TDH': {
+        'rout_gamma': 'gamma',
+        'no_routing': 'none',
+    },
+    'SNOWM': {
+        'temp_index': 'temp_index',
+        'no_snowmod': 'none',
+    },
+    'RFERR': {
+        'additive_e': 'additive',
+        'multiplc_e': 'multiplicative',
+    },
+}
+
+
+def _build_config_from_decisions(decisions: dict) -> dict:
+    """Build a cFUSE config dict from Fortran FUSE decision options."""
+    resolved = {}
+    for key, value in decisions.items():
+        if isinstance(value, list):
+            resolved[key] = value[0] if value else None
+        else:
+            resolved[key] = value
+
+    arch2_val = resolved.get('ARCH2', 'fixedsiz_2')
+
+    return {
+        'upper_arch': FUSE_TO_CFUSE_MAP['ARCH1'].get(resolved.get('ARCH1', 'tension1_1'), 'tension_free'),
+        'lower_arch': FUSE_TO_CFUSE_MAP['ARCH2'].get(arch2_val, 'single_noevap'),
+        'baseflow': FUSE_TO_CFUSE_MAP['ARCH2_BASEFLOW'].get(arch2_val, 'linear'),
+        'percolation': FUSE_TO_CFUSE_MAP['QPERC'].get(resolved.get('QPERC', 'perc_f2sat'), 'free_storage'),
+        'surface_runoff': FUSE_TO_CFUSE_MAP['QSURF'].get(resolved.get('QSURF', 'arno_x_vic'), 'uz_pareto'),
+        'evaporation': FUSE_TO_CFUSE_MAP['ESOIL'].get(resolved.get('ESOIL', 'rootweight'), 'root_weight'),
+        'interflow': FUSE_TO_CFUSE_MAP['QINTF'].get(resolved.get('QINTF', 'intflwnone'), 'none'),
+        'snow': FUSE_TO_CFUSE_MAP['SNOWM'].get(resolved.get('SNOWM', 'temp_index'), 'temp_index'),
+        'routing': FUSE_TO_CFUSE_MAP['Q_TDH'].get(resolved.get('Q_TDH', 'rout_gamma'), 'gamma'),
+        'rainfall_error': FUSE_TO_CFUSE_MAP['RFERR'].get(resolved.get('RFERR', 'multiplc_e'), 'multiplicative'),
+        'enable_snow': resolved.get('SNOWM', 'temp_index') != 'no_snowmod',
+    }
 
 
 @ModelRegistry.register_runner('CFUSE', method_name='run_cfuse')
@@ -140,9 +227,18 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             'prms'
         )
 
+        # Check for FUSE decision options (shared format with Fortran FUSE)
+        decision_options = self._get_config_value(
+            lambda: None,
+            default=None,
+            dict_key='CFUSE_DECISION_OPTIONS'
+        )
+
         # Get model configuration dictionary (use _model_config to avoid conflict
         # with the read-only config_dict property from ConfigMixin)
-        self._model_config = _get_model_config(self.model_structure)
+        self._model_config = _get_model_config(self.model_structure, decision_options)
+        if decision_options:
+            self.logger.info(f"Built cFUSE config from FUSE decision options: {decision_options}")
 
         # Snow configuration
         self.enable_snow = self._get_config_value(

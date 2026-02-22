@@ -30,7 +30,6 @@ try:
     from jfuse import (
         create_fuse_model, Parameters, PARAM_BOUNDS,
         CoupledModel, create_network_from_topology, load_network,
-        multi_gauge_kge_loss,
         FUSEModel, ModelConfig, BaseflowType, UpperLayerArch, LowerLayerArch,
         PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
     )
@@ -163,6 +162,12 @@ class JFUSEWorker(InMemoryModelWorker):
         self.enable_snow = self._get_jfuse_config('enable_snow', True)
         self.spatial_mode = self._get_jfuse_config('spatial_mode', 'lumped')
 
+        # FUSE decision options (shared format with Fortran FUSE)
+        self.decision_options = self._get_jfuse_config('decision_options', None)
+        if self.decision_options is None:
+            # Also check flat config dict key
+            self.decision_options = (self.config or {}).get('JFUSE_DECISION_OPTIONS', None)
+
         # Distributed mode configuration
         self.n_hrus = int(self._get_jfuse_config('n_hrus', 1))
         self.network_file = self._get_jfuse_config('network_file', None)
@@ -181,9 +186,16 @@ class JFUSEWorker(InMemoryModelWorker):
         if HAS_JAX and not self.use_gpu:
             jax.config.update('jax_platform_name', 'cpu')
 
+        # Initial state configuration
+        init_state_mode = self._get_jfuse_config('initial_state', 'default')
+        if init_state_mode is None:
+            init_state_mode = (self.config or {}).get('JFUSE_INITIAL_STATE', 'default')
+        self._initial_state_mode = str(init_state_mode).lower()
+
         # jFUSE-specific model components
         self._model = None
         self._default_params = None
+        self._initial_state = None  # Set during model initialization
         self._coupled_model = None
         self._network = None
         self._hru_areas = None
@@ -293,13 +305,17 @@ class JFUSEWorker(InMemoryModelWorker):
 
         # Run simulation based on mode
         if self._is_distributed and self._coupled_model is not None:
-            outlet_q, runoff = self._coupled_model.simulate(self._forcing_tuple, params_obj)
+            outlet_q, runoff = self._coupled_model.simulate(
+                self._forcing_tuple, params_obj,
+                initial_state=self._initial_state)
             outlet_q_arr = np.array(outlet_q) if HAS_JAX else outlet_q
             runoff_arr = np.array(runoff) if HAS_JAX else runoff
             self._last_outlet_q = outlet_q_arr
             return runoff_arr
         else:
-            runoff, _ = self._model.simulate(self._forcing_tuple, params_obj)
+            runoff, _ = self._model.simulate(
+                self._forcing_tuple, params_obj,
+                initial_state=self._initial_state)
             runoff_arr = np.array(runoff) if HAS_JAX else runoff
             self._last_outlet_q = None
             return runoff_arr
@@ -341,7 +357,12 @@ class JFUSEWorker(InMemoryModelWorker):
 
     def _initialize_lumped_model(self) -> None:
         """Initialize FUSEModel for lumped mode."""
-        if self.model_config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[self.model_config_name] is not None:
+        # Check for FUSE decision options first (shared format with Fortran FUSE)
+        if self.decision_options and isinstance(self.decision_options, dict):
+            custom_config = self._build_config_from_decisions(self.decision_options)
+            self._model = FUSEModel(custom_config, n_hrus=1)
+            self.logger.info(f"Initialized lumped FUSEModel from FUSE decisions: {self.decision_options}")
+        elif self.model_config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[self.model_config_name] is not None:
             custom_config = JFUSE_CONFIGS[self.model_config_name]
             self._model = FUSEModel(custom_config, n_hrus=1)
             self.logger.info(f"Initialized lumped FUSEModel with config: {self.model_config_name}")
@@ -349,6 +370,55 @@ class JFUSEWorker(InMemoryModelWorker):
             self._model = create_fuse_model(self.model_config_name, n_hrus=1)
             self.logger.debug(f"Initialized lumped FUSEModel with config: {self.model_config_name}")
         self._default_params = Parameters.default(n_hrus=1)
+
+        # Set initial state based on config
+        if self._initial_state_mode == 'zeros':
+            default_state = self._model.default_state()
+            zero_state = jax.tree.map(lambda x: jnp.zeros_like(x), default_state)
+            self._initial_state = zero_state
+            self.logger.info("Using zero initial states for jFUSE (JFUSE_INITIAL_STATE=zeros)")
+        else:
+            self._initial_state = None  # Uses default_state() internally
+            self.logger.info("Using default initial states for jFUSE")
+
+    @staticmethod
+    def _build_config_from_decisions(decisions: dict) -> 'ModelConfig':
+        """Build a jFUSE ModelConfig from Fortran FUSE decision options."""
+        # Import the decision map from the runner module
+        from symfluence.models.jfuse.runner import FUSE_DECISION_MAP
+        resolved = {}
+        for key, value in decisions.items():
+            if isinstance(value, list):
+                resolved[key] = value[0] if value else None
+            else:
+                resolved[key] = value
+
+        arch2_val = resolved.get('ARCH2', 'fixedsiz_2')
+
+        config_kwargs = {
+            'upper_arch': FUSE_DECISION_MAP['ARCH1'].get(
+                resolved.get('ARCH1', 'tension1_1'), UpperLayerArch.TENSION_FREE),
+            'lower_arch': FUSE_DECISION_MAP['ARCH2'].get(
+                arch2_val, LowerLayerArch.SINGLE_NOEVAP),
+            'baseflow': FUSE_DECISION_MAP['ARCH2_BASEFLOW'].get(
+                arch2_val, BaseflowType.LINEAR),
+            'percolation': FUSE_DECISION_MAP['QPERC'].get(
+                resolved.get('QPERC', 'perc_f2sat'), PercolationType.FREE_STORAGE),
+            'surface_runoff': FUSE_DECISION_MAP['QSURF'].get(
+                resolved.get('QSURF', 'arno_x_vic'), SurfaceRunoffType.UZ_PARETO),
+            'evaporation': FUSE_DECISION_MAP['ESOIL'].get(
+                resolved.get('ESOIL', 'rootweight'), EvaporationType.ROOT_WEIGHT),
+            'interflow': FUSE_DECISION_MAP['QINTF'].get(
+                resolved.get('QINTF', 'intflwnone'), InterflowType.NONE),
+            'snow': FUSE_DECISION_MAP['SNOWM'].get(
+                resolved.get('SNOWM', 'temp_index'), SnowType.TEMP_INDEX),
+            'routing': FUSE_DECISION_MAP['Q_TDH'].get(
+                resolved.get('Q_TDH', 'rout_gamma'), RoutingType.GAMMA),
+            'rainfall_error': FUSE_DECISION_MAP['RFERR'].get(
+                resolved.get('RFERR', 'multiplc_e'), RainfallErrorType.MULTIPLICATIVE),
+        }
+
+        return ModelConfig(**config_kwargs)
 
     def _initialize_distributed_model(self) -> None:
         """Initialize CoupledModel for distributed mode with routing."""
@@ -389,7 +459,9 @@ class JFUSEWorker(InMemoryModelWorker):
             self._hru_areas = jnp.array(areas_df.iloc[:, 0].values)
 
         # Get model config
-        if self.model_config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[self.model_config_name] is not None:
+        if self.decision_options and isinstance(self.decision_options, dict):
+            fuse_config = self._build_config_from_decisions(self.decision_options)
+        elif self.model_config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[self.model_config_name] is not None:
             fuse_config = JFUSE_CONFIGS[self.model_config_name]
         else:
             fuse_config = None
@@ -967,11 +1039,13 @@ class JFUSEWorker(InMemoryModelWorker):
                 warmup = self.warmup_days
                 fuse_model = self._model
                 default_params = self._default_params
+                init_state = self._initial_state
 
                 def loss_fn(val, pn=param_name):
                     params = default_params
                     params = eqx.tree_at(lambda p, n=pn: getattr(p, n), params, val)
-                    runoff, _ = fuse_model.simulate(forcing_tuple, params)
+                    runoff, _ = fuse_model.simulate(
+                        forcing_tuple, params, initial_state=init_state)
                     sim = runoff[warmup:]
                     obs_aligned = obs[:len(sim)]
                     return kge_loss(sim[:len(obs_aligned)], obs_aligned)
@@ -1085,6 +1159,7 @@ class JFUSEWorker(InMemoryModelWorker):
         is_distributed = self._is_distributed
         coupled_model = self._coupled_model
         fuse_model = self._model
+        initial_state = self._initial_state
         has_multi_gauge = self._gauge_obs is not None and self._gauge_reach_indices is not None
         gauge_obs = self._gauge_obs
         gauge_indices = self._gauge_reach_indices
@@ -1107,11 +1182,13 @@ class JFUSEWorker(InMemoryModelWorker):
                 )
             elif is_distributed:
                 # Single outlet path
-                outlet_q, _ = coupled_model.simulate(forcing_tuple, params_obj)
+                outlet_q, _ = coupled_model.simulate(
+                    forcing_tuple, params_obj, initial_state=initial_state)
                 sim_eval = outlet_q[warmup:]
             else:
                 # Lumped path
-                runoff, _ = fuse_model.simulate(forcing_tuple, params_obj)
+                runoff, _ = fuse_model.simulate(
+                    forcing_tuple, params_obj, initial_state=initial_state)
                 sim_eval = runoff[warmup:]
 
             assert obs is not None, "Observations required for single-gauge loss"
@@ -1225,10 +1302,14 @@ class JFUSEWorker(InMemoryModelWorker):
 
             # Single outlet / lumped evaluation path
             if self._is_distributed:
-                outlet_q, runoff = self._coupled_model.simulate(self._forcing_tuple, params_obj)
+                outlet_q, runoff = self._coupled_model.simulate(
+                    self._forcing_tuple, params_obj,
+                    initial_state=self._initial_state)
                 sim = np.array(outlet_q) if HAS_JAX else outlet_q
             else:
-                runoff, _ = self._model.simulate(self._forcing_tuple, params_obj)
+                runoff, _ = self._model.simulate(
+                    self._forcing_tuple, params_obj,
+                    initial_state=self._initial_state)
                 sim = np.array(runoff) if HAS_JAX else runoff
 
             sim = sim[self.warmup_days:]

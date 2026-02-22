@@ -253,6 +253,39 @@ class AnalysisManager(ConfigurableMixin):
         self.logger = logger
         self.reporting_manager = reporting_manager
 
+    def _find_optimization_results(self, model: Optional[str] = None) -> Optional[Path]:
+        """Find the optimization results CSV, optionally scoped to a model.
+
+        Searches the model-specific subdirectory structure used by the optimizer:
+        {project_dir}/optimization/{MODEL}/{algo}_{experiment_id}/{experiment_id}_parallel_iteration_results.csv
+
+        Falls back to the legacy flat path for backward compatibility.
+
+        Args:
+            model: Model name (e.g., 'SUMMA') to scope the search, or None to search all.
+
+        Returns:
+            Path to the results file, or None if not found.
+        """
+        opt_base = self.project_dir / "optimization"
+        if not opt_base.exists():
+            return None
+
+        pattern = f"{self.experiment_id}_parallel_iteration_results.csv"
+        search_dir = opt_base / model if model else opt_base
+
+        if search_dir.exists():
+            results = list(search_dir.rglob(pattern))
+            if results:
+                return results[0]
+
+        # Legacy flat path fallback
+        legacy = opt_base / pattern
+        if legacy.exists():
+            return legacy
+
+        return None
+
     def run_benchmarking(self) -> Optional[Path]:
         """
         Run benchmarking analysis to evaluate model performance against reference models.
@@ -377,11 +410,11 @@ class AnalysisManager(ConfigurableMixin):
                     # Use registered model-specific analyzer
                     self.logger.info(f"Using registered sensitivity analyzer for {model}")
                     analyzer = analyzer_cls(self.config, self.logger, self.reporting_manager)
-                    results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
-                    if results_file.exists():
+                    results_file = self._find_optimization_results(model)
+                    if results_file:
                         sensitivity_results[model] = analyzer.run_sensitivity_analysis(results_file)
                     else:
-                        self.logger.warning(f"Calibration results file not found for {model}: {results_file}")
+                        self.logger.warning(f"Calibration results file not found for {model}")
                 else:
                     # Fall back to generic sensitivity analyzer (works for SUMMA and similar)
                     self.logger.info(f"Using generic sensitivity analyzer for {model}")
@@ -408,10 +441,10 @@ class AnalysisManager(ConfigurableMixin):
         self.logger.info(f"Running generic sensitivity analysis for {model}")
 
         sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger, self.reporting_manager)
-        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        results_file = self._find_optimization_results(model)
 
-        if not results_file.exists():
-            self.logger.warning(f"Calibration results file not found: {results_file}")
+        if not results_file:
+            self.logger.warning(f"Calibration results file not found for {model}")
             return None
 
         return sensitivity_analyzer.run_sensitivity_analysis(results_file)
@@ -611,7 +644,7 @@ class AnalysisManager(ConfigurableMixin):
                 lambda: self.config.analysis.run_decision_analysis,
                 True
             ),
-            'optimization_results_exist': (self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv").exists(),
+            'optimization_results_exist': self._find_optimization_results() is not None,
         }
 
         # Check for analysis outputs
@@ -704,8 +737,7 @@ class AnalysisManager(ConfigurableMixin):
         }
 
         # Check for optimization results (required for sensitivity analysis)
-        optimization_results = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
-        if optimization_results.exists():
+        if self._find_optimization_results() is not None:
             requirements['sensitivity_analysis'] = True
 
         # Check for model outputs (required for decision analysis)

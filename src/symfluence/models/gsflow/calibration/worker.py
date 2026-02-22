@@ -48,6 +48,8 @@ class GSFLOWWorker(BaseWorker):
             if data_file.exists():
                 shutil.copy2(data_file, settings_dir / 'data.dat')
 
+            params = self._enforce_constraints(params)
+
             # Update PRMS params
             param_file_name = config.get('GSFLOW_PARAMETER_FILE', 'params.dat')
             param_file = settings_dir / param_file_name
@@ -107,6 +109,23 @@ class GSFLOWWorker(BaseWorker):
         except Exception as e:
             self.logger.error(f"Error updating UPW: {e}")
             return False
+
+    @staticmethod
+    def _enforce_constraints(params: Dict[str, float]) -> Dict[str, float]:
+        """Enforce GSFLOW cross-parameter physical constraints.
+
+        Mirrors PRMS worker constraints for parameters active in coupled mode:
+        - soil_rechr_max <= soil_moist_max (if both present, e.g. PRMS-only mode)
+        - tmax_allsnow < tmax_allrain (if both present)
+        """
+        p = dict(params)
+        if 'soil_rechr_max' in p and 'soil_moist_max' in p:
+            if p['soil_rechr_max'] > p['soil_moist_max']:
+                p['soil_rechr_max'] = p['soil_moist_max'] * 0.9
+        if 'tmax_allsnow' in p and 'tmax_allrain' in p:
+            if p['tmax_allsnow'] >= p['tmax_allrain']:
+                p['tmax_allsnow'] = p['tmax_allrain'] - 2.0
+        return p
 
     def _update_parameter_file(self, param_file: Path, params: Dict[str, float]) -> bool:
         """Update PRMS ####-delimited parameter file."""
@@ -295,7 +314,18 @@ class GSFLOWWorker(BaseWorker):
         return content[:dtype_end] + new_value + content[value_end:]
 
     def calculate_metrics(self, output_dir: Path, config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        """Calculate metrics from GSFLOW output."""
+        """Calculate metrics from GSFLOW output.
+
+        Args:
+            output_dir: Directory containing model outputs.
+            config: Configuration dictionary.
+            **kwargs: Optional overrides.
+                period: Comma-separated "start, end" date string to override
+                    the default CALIBRATION_PERIOD (used for evaluation-period
+                    metrics in split-sample validation).
+                sim_dir: Alternative simulation output directory.
+                settings_dir: Fallback directory for statvar files.
+        """
         try:
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
             settings_dir = kwargs.get('settings_dir', None)
@@ -321,14 +351,16 @@ class GSFLOWWorker(BaseWorker):
                 return {'kge': self.penalty_score, 'error': 'No observations'}
 
             obs_series = pd.Series(obs_values, index=obs_index)
-            cal_period_str = config.get('CALIBRATION_PERIOD', '')
-            cal_period_tuple = None
-            if cal_period_str and ',' in str(cal_period_str):
-                parts = str(cal_period_str).split(',')
-                cal_period_tuple = (parts[0].strip(), parts[1].strip())
+
+            # Allow explicit period override (for evaluation-period metrics)
+            period_str = kwargs.get('period', '') or config.get('CALIBRATION_PERIOD', '')
+            period_tuple = None
+            if period_str and ',' in str(period_str):
+                parts = str(period_str).split(',')
+                period_tuple = (parts[0].strip(), parts[1].strip())
 
             obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
-                sim_series, obs_series, calibration_period=cal_period_tuple
+                sim_series, obs_series, calibration_period=period_tuple
             )
             return self._streamflow_metrics.calculate_metrics(
                 obs_aligned, sim_aligned, metrics=['kge', 'nse']

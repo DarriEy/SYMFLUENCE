@@ -187,7 +187,7 @@ def create_params_from_dict(
 
 
 def generate_ti_distribution(
-    ti_std: float = 4.0,
+    ti_std=4.0,
     n_bins: int = N_TI_BINS,
     use_jax: bool = True
 ) -> Tuple[Any, Any]:
@@ -200,6 +200,7 @@ def generate_ti_distribution(
 
     Args:
         ti_std: Standard deviation of the TI distribution.
+            Can be a JAX tracer when use_jax=True (no float() cast).
         n_bins: Number of bins.
         use_jax: Whether to return JAX arrays.
 
@@ -214,7 +215,8 @@ def generate_ti_distribution(
     lnaotb = xp.linspace(-3.0 * ti_std, 3.0 * ti_std, n_bins)
 
     # Normal distribution PDF at bin centers
-    pdf = xp.exp(-0.5 * (lnaotb / max(float(ti_std), 1e-6)) ** 2)
+    # Use xp.maximum instead of Python max() to preserve JAX tracers
+    pdf = xp.exp(-0.5 * (lnaotb / xp.maximum(ti_std, 1e-6)) ** 2)
 
     # Normalize to sum to 1
     dist_area = pdf / xp.sum(pdf)
@@ -231,6 +233,7 @@ def create_initial_state(
 
     Args:
         params: Model parameters (for initial deficit S0 and Sr0).
+            Parameter values can be JAX tracers when use_jax=True.
         use_jax: Whether to use JAX arrays.
 
     Returns:
@@ -238,11 +241,16 @@ def create_initial_state(
     """
     xp = jnp if (use_jax and HAS_JAX) else np
 
-    s0 = float(params.S0) if params is not None else 0.5
-    sr0 = float(params.Sr0) if params is not None else 0.01
+    # Avoid float() cast to preserve JAX tracers
+    if params is not None:
+        s0 = params.S0
+        sr0 = params.Sr0
+    else:
+        s0 = 0.5
+        sr0 = 0.01
 
     return TopmodelState(
-        s_bar=xp.array(s0),
+        s_bar=xp.asarray(s0),
         srz=xp.ones(N_TI_BINS) * sr0,
         suz=xp.zeros(N_TI_BINS),
         swe=xp.array(0.0),

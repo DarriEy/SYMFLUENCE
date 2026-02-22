@@ -540,16 +540,151 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         """
         Apply best parameters for final evaluation.
 
-        Overrides base class to use param_manager which knows the correct
-        FUSE parameter file path (in simulations dir, not settings dir).
+        Ensures a complete para_def.nc exists in the settings directory
+        (required by run_pre mode), populates any zero-valued non-calibrated
+        parameters from the constraints file defaults, then applies calibrated
+        best parameters to both the constraints file and para_def.nc.
         """
         try:
-            # Use param_manager.update_model_files() which uses the correct path
-            # (self.fuse_sim_dir / domain_name_fuse_id_para_def.nc)
-            return self.param_manager.update_model_files(best_params)
+            # Ensure para_def.nc exists in settings/FUSE/ for the final run.
+            # During calibration, para_def.nc only exists in parallel worker dirs
+            # and simulations dir, but run_pre mode executes from settings/FUSE/.
+            settings_para_def = self.fuse_setup_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
+            if not settings_para_def.exists():
+                source = self._find_para_def_source()
+                if source:
+                    copy_file(source, settings_para_def)
+                    self.logger.info(f"Copied para_def.nc to settings dir from: {source}")
+                else:
+                    self.logger.error("No para_def.nc source found for final evaluation")
+                    return False
+
+            # Populate zero-valued non-calibrated parameters from constraints.
+            # The para_def.nc may have been overwritten with zeros for parameters
+            # that FUSE doesn't calibrate (e.g. LOGLAMB, TISHAPE) but which are
+            # required by certain model decisions (e.g. TOPMODEL surface runoff).
+            self._populate_non_calibrated_params(settings_para_def)
+
+            # Update constraints file (for record-keeping)
+            self.param_manager.update_model_files(best_params)
+
+            # Apply best parameters to para_def.nc via worker (updates both
+            # constraints and para_def.nc in the settings directory)
+            if not self.worker.apply_parameters(
+                best_params, self.fuse_setup_dir, config=self.config
+            ):
+                self.logger.error("Failed to apply best parameters to FUSE files")
+                return False
+
+            return True
         except Exception as e:
             self.logger.error(f"Error applying FUSE parameters for final evaluation: {e}")
             return False
+
+    def _parse_constraints_defaults(self) -> Dict[str, float]:
+        """
+        Parse parameter default values from the FUSE constraints file.
+
+        Returns:
+            Dictionary mapping parameter names to their default values.
+        """
+        defaults: Dict[str, float] = {}
+        constraints_file = self.fuse_setup_dir / 'fuse_zConstraints_snow.txt'
+        if not constraints_file.exists():
+            self.logger.warning(f"Constraints file not found: {constraints_file}")
+            return defaults
+
+        try:
+            try:
+                with open(constraints_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                with open(constraints_file, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
+
+            for line in lines:
+                stripped = line.strip()
+                # Skip format line, comments, empty lines, description section
+                if (not stripped or stripped.startswith('(') or
+                        stripped.startswith('!') or stripped.startswith('*')):
+                    continue
+                parts = stripped.split()
+                # Format: F/T flag default lower upper ... param_name ...
+                # Indices: 0=fit_flag, 1=stoch, 2=default, ..., 13=param_name
+                if len(parts) >= 14:
+                    try:
+                        default_val = float(parts[2])
+                        param_name = parts[13]
+                        defaults[param_name] = default_val
+                    except (ValueError, IndexError):
+                        continue
+        except Exception as e:
+            self.logger.warning(f"Error parsing constraints file: {e}")
+
+        return defaults
+
+    def _populate_non_calibrated_params(self, para_def_path: Path) -> None:
+        """
+        Populate zero-valued non-calibrated parameters in para_def.nc
+        from the constraints file defaults.
+
+        FUSE's run_pre mode reads ALL parameters from para_def.nc. If a
+        para_def.nc was regenerated or corrupted, non-calibrated parameters
+        (like LOGLAMB, TISHAPE) may be zero, causing Fortran crashes
+        (e.g. gammp_s args from the incomplete gamma function).
+
+        This method reads the constraints file for default values and fills
+        in any zero-valued parameters in para_def.nc that have non-zero
+        defaults in the constraints.
+        """
+        try:
+            import netCDF4 as nc
+
+            if not para_def_path.exists():
+                return
+
+            defaults = self._parse_constraints_defaults()
+            if not defaults:
+                self.logger.debug("No constraint defaults parsed; skipping non-calibrated param fill")
+                return
+
+            updated = []
+            with nc.Dataset(para_def_path, 'r+') as ds:
+                for var_name in ds.variables:
+                    if var_name in defaults and defaults[var_name] != 0.0:
+                        var = ds.variables[var_name]
+                        current_val = float(var[:].flat[0])
+                        if current_val == 0.0:
+                            var[:] = defaults[var_name]
+                            updated.append((var_name, defaults[var_name]))
+
+            if updated:
+                self.logger.info(
+                    f"Populated {len(updated)} zero-valued params in para_def.nc from constraints: "
+                    + ", ".join(f"{name}={val}" for name, val in updated)
+                )
+            else:
+                self.logger.debug("All non-calibrated params in para_def.nc already have non-zero values")
+
+        except Exception as e:
+            self.logger.warning(f"Error populating non-calibrated params: {e}")
+
+    def _find_para_def_source(self) -> Optional[Path]:
+        """Find an existing complete para_def.nc to use as source for final evaluation."""
+        candidates = [
+            # Simulations directory (from initial FUSE run)
+            self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc",
+            # Parallel worker directory (from calibration)
+            self.project_dir / 'simulations' / 'run_dds' / 'process_0' / 'settings' / 'FUSE' / f"{self.domain_name}_{self.fuse_id}_para_def.nc",
+            self.project_dir / 'simulations' / 'run_pso' / 'process_0' / 'settings' / 'FUSE' / f"{self.domain_name}_{self.fuse_id}_para_def.nc",
+            self.project_dir / 'simulations' / 'run_sce' / 'process_0' / 'settings' / 'FUSE' / f"{self.domain_name}_{self.fuse_id}_para_def.nc",
+        ]
+        # Also try the general template search
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        # Fall back to the comprehensive template search
+        return self._find_complete_fuse_template()
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run FUSE for final evaluation."""

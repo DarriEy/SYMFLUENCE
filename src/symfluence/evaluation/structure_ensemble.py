@@ -18,7 +18,10 @@ from typing import List, Tuple, Dict, Any, Optional
 import logging
 from abc import ABC, abstractmethod
 
-class BaseStructureEnsembleAnalyzer(ABC):
+from symfluence.core.mixins.project import ProjectContextMixin
+
+
+class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
     """
     Base class for performing Structure Ensemble Analysis.
 

@@ -474,9 +474,9 @@ class ParameterBoundsRegistry:
         'DAYGM': ParameterInfo(0.0, 0.3, 'mm/day', 'Daily ground melt', 'snow'),
 
         # SAC-SMA upper zone parameters
-        'UZTWM': ParameterInfo(1.0, 150.0, 'mm', 'Upper zone tension water max', 'soil'),
+        'UZTWM': ParameterInfo(10.0, 150.0, 'mm', 'Upper zone tension water max', 'soil'),
         'UZFWM': ParameterInfo(1.0, 150.0, 'mm', 'Upper zone free water max', 'soil'),
-        'UZK': ParameterInfo(0.1, 0.75, '1/day', 'Upper zone lateral depletion', 'soil'),
+        'UZK': ParameterInfo(0.15, 0.75, '1/day', 'Upper zone lateral depletion', 'soil'),
 
         # SAC-SMA lower zone parameters
         'LZTWM': ParameterInfo(1.0, 500.0, 'mm', 'Lower zone tension water max', 'soil'),
@@ -515,11 +515,11 @@ class ParameterBoundsRegistry:
         'beta': ParameterInfo(1.0, 6.0, '-', 'Shape coefficient for soil routine', 'soil'),
 
         # Response/baseflow parameters
-        'k0': ParameterInfo(0.05, 0.99, '1/day', 'Fast recession coefficient', 'baseflow'),
-        'k1': ParameterInfo(0.01, 0.5, '1/day', 'Slow recession coefficient', 'baseflow'),
+        'k0': ParameterInfo(0.05, 0.5, '1/day', 'Fast recession coefficient', 'baseflow'),
+        'k1': ParameterInfo(0.01, 0.3, '1/day', 'Slow recession coefficient', 'baseflow'),
         'k2': ParameterInfo(0.0001, 0.1, '1/day', 'Baseflow recession coefficient', 'baseflow'),
         'uzl': ParameterInfo(0.0, 100.0, 'mm', 'Upper zone threshold for fast flow', 'baseflow'),
-        'perc': ParameterInfo(0.0, 10.0, 'mm/day', 'Maximum percolation rate', 'baseflow'),
+        'perc': ParameterInfo(0.0, 20.0, 'mm/day', 'Maximum percolation rate', 'baseflow'),
 
         # Routing parameters
         'maxbas': ParameterInfo(1.0, 7.0, 'days', 'Triangular routing function length', 'routing'),
@@ -586,23 +586,21 @@ class ParameterBoundsRegistry:
     # ========================================================================
     XINANJIANG_PARAMS: Dict[str, ParameterInfo] = {
         # Generation parameters
-        'xaj_K': ParameterInfo(0.1, 1.0, '-', 'PET correction factor', 'et'),
-        'xaj_B': ParameterInfo(0.1, 0.4, '-', 'Tension water capacity curve exponent', 'soil'),
+        'xaj_K': ParameterInfo(0.1, 1.5, '-', 'PET correction factor (>1 allows sublimation compensation)', 'et'),
+        'xaj_B': ParameterInfo(0.1, 2.0, '-', 'Tension water capacity curve exponent (Zhao 1992)', 'soil'),
         'xaj_IM': ParameterInfo(0.01, 0.1, '-', 'Impervious area fraction', 'soil'),
-        'xaj_UM': ParameterInfo(0.0, 20.0, 'mm', 'Upper layer tension water capacity', 'soil'),
-        'xaj_LM': ParameterInfo(60.0, 90.0, 'mm', 'Lower layer tension water capacity', 'soil'),
-        'xaj_DM': ParameterInfo(60.0, 120.0, 'mm', 'Deep layer tension water capacity', 'soil'),
+        'xaj_UM': ParameterInfo(5.0, 50.0, 'mm', 'Upper layer tension water capacity', 'soil'),
+        'xaj_LM': ParameterInfo(50.0, 120.0, 'mm', 'Lower layer tension water capacity', 'soil'),
+        'xaj_DM': ParameterInfo(50.0, 200.0, 'mm', 'Deep layer tension water capacity', 'soil'),
         'xaj_C': ParameterInfo(0.0, 0.2, '-', 'Deep layer ET coefficient', 'et'),
 
         # Source separation parameters
-        'xaj_SM': ParameterInfo(1.0, 100.0, 'mm', 'Free water capacity', 'soil', 'log'),
-        'xaj_EX': ParameterInfo(1.0, 1.5, '-', 'Free water capacity curve exponent', 'soil'),
+        'xaj_SM': ParameterInfo(1.0, 200.0, 'mm', 'Free water capacity', 'soil', 'log'),
+        'xaj_EX': ParameterInfo(0.5, 2.0, '-', 'Free water capacity curve exponent', 'soil'),
         'xaj_KI': ParameterInfo(0.0, 0.7, '-', 'Interflow outflow coefficient', 'baseflow'),
         'xaj_KG': ParameterInfo(0.0, 0.7, '-', 'Groundwater outflow coefficient', 'baseflow'),
 
-        # Routing parameters
-        'xaj_CS': ParameterInfo(0.0, 1.0, '-', 'Channel recession constant', 'routing'),
-        'xaj_L': ParameterInfo(1.0, 10.0, 'timesteps', 'Lag time', 'routing'),
+        # Routing parameters (CS and L excluded — not used in lumped formulation)
         'xaj_CI': ParameterInfo(0.0, 0.9, '-', 'Interflow recession constant', 'routing'),
         'xaj_CG': ParameterInfo(0.98, 0.998, '-', 'Groundwater recession constant', 'routing'),
     }
@@ -1083,7 +1081,7 @@ def get_xinanjiang_bounds() -> Dict[str, Dict[str, float]]:
     """
     xaj_params = [
         'xaj_K', 'xaj_B', 'xaj_IM', 'xaj_UM', 'xaj_LM', 'xaj_DM', 'xaj_C',
-        'xaj_SM', 'xaj_EX', 'xaj_KI', 'xaj_KG', 'xaj_CS', 'xaj_L', 'xaj_CI', 'xaj_CG',
+        'xaj_SM', 'xaj_EX', 'xaj_KI', 'xaj_KG', 'xaj_CI', 'xaj_CG',
     ]
     prefixed = get_registry().get_bounds_for_params(xaj_params)
     # Strip xaj_ prefix so keys match parameter manager conventions

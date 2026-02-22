@@ -52,8 +52,15 @@ class HYPEParameterManager(BaseParameterManager):
         return self.hype_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return HYPE parameter bounds from central registry."""
-        return get_hype_bounds()
+        """Return HYPE parameter bounds from central registry, with config overrides."""
+        bounds = get_hype_bounds()
+
+        # Apply config-level bound overrides (e.g. HYPE_PARAM_BOUNDS in YAML)
+        config_bounds = self.config.get('HYPE_PARAM_BOUNDS', {})
+        if config_bounds:
+            self._apply_config_bounds_override(bounds, config_bounds)
+
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update par.txt file with new parameter values."""

@@ -347,7 +347,22 @@ class HBVWorker(InMemoryModelWorker):
 
         Returns:
             Runoff array in mm/timestep
+
+        Raises:
+            ValueError: If recession ordering constraint k0 > k1 > k2 is violated.
         """
+        # Enforce recession coefficient ordering: k0 > k1 > k2
+        # This is a physical constraint — fast flow must recede faster than
+        # interflow, which must recede faster than baseflow.
+        k0 = params.get('k0', 0.3)
+        k1 = params.get('k1', 0.1)
+        k2 = params.get('k2', 0.01)
+        if not (k0 > k1 > k2):
+            raise ValueError(
+                f"Recession ordering violated: k0={k0:.4f}, k1={k1:.4f}, k2={k2:.4f} "
+                f"(require k0 > k1 > k2)"
+            )
+
         if not self._ensure_simulate_fn():
             raise RuntimeError("HBV simulation function not available")
 

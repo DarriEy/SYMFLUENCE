@@ -79,6 +79,12 @@ _LAZY_IMPORTS = {
     'step': ('.model', 'step'),
     'HAS_JAX': ('.model', 'HAS_JAX'),
 
+    # Loss functions (for gradient-based calibration)
+    'nse_loss': ('.losses', 'nse_loss'),
+    'kge_loss': ('.losses', 'kge_loss'),
+    'get_nse_gradient_fn': ('.losses', 'get_nse_gradient_fn'),
+    'get_kge_gradient_fn': ('.losses', 'get_kge_gradient_fn'),
+
     # Calibration
     'TopmodelWorker': ('.calibration', 'TopmodelWorker'),
     'TopmodelParameterManager': ('.calibration', 'TopmodelParameterManager'),
@@ -151,6 +157,12 @@ if TYPE_CHECKING:
         step,
         HAS_JAX,
     )
+    from .losses import (
+        nse_loss,
+        kge_loss,
+        get_nse_gradient_fn,
+        get_kge_gradient_fn,
+    )
     from .calibration import TopmodelWorker, TopmodelParameterManager, get_topmodel_calibration_bounds
 
 
@@ -183,6 +195,12 @@ __all__ = [
     'route_step',
     'step',
     'HAS_JAX',
+
+    # Loss functions
+    'nse_loss',
+    'kge_loss',
+    'get_nse_gradient_fn',
+    'get_kge_gradient_fn',
 
     # Calibration
     'TopmodelWorker',

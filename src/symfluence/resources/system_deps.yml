@@ -17,7 +17,7 @@ dependencies:
     category: build_toolchain
     required: true
     min_version: "3.20"
-    needed_for: [summa, fuse, mizuroute, ngen, taudem, sundials, mesh, modflow, parflow, clm]
+    needed_for: [summa, fuse, mizuroute, ngen, taudem, sundials, mesh, modflow, parflow, clm, cfuse, enzyme]
     check:
       command: cmake
       version_flag: "--version"
@@ -243,6 +243,42 @@ dependencies:
       msys2: mingw-w64-x86_64-openblas
       hpc_module: openblas
 
+  # ── LLVM / AD Dependencies ────────────────────────────────────────
+
+  llvm:
+    display_name: LLVM/Clang
+    category: build_toolchain
+    required: false
+    min_version: "17"
+    needed_for: [enzyme, cfuse]
+    check:
+      command: llvm-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives:
+        - /opt/homebrew/opt/llvm/bin/llvm-config
+        - /usr/local/opt/llvm/bin/llvm-config
+    packages:
+      apt: llvm-dev clang
+      dnf: llvm-devel clang
+      brew: llvm
+      conda: llvmdev
+      hpc_module: llvm
+
+  enzyme:
+    display_name: Enzyme AD
+    category: optional
+    required: false
+    needed_for: [cfuse]
+    check:
+      command: ""
+      version_flag: ""
+      version_regex: ""
+    packages:
+      apt: ""
+      brew: ""
+    notes: "Auto-built during cfuse install, or install separately: symfluence binary install enzyme"
+
   # ── Optional Dependencies ──────────────────────────────────────────
 
   udunits2:
@@ -406,5 +442,9 @@ tool_requirements:
     optional: []
 
   cfuse:
-    required: [gcc]
+    required: [cmake, gcc]
+    optional: [llvm, enzyme, netcdf]
+
+  enzyme:
+    required: [cmake, gcc, llvm]
     optional: []

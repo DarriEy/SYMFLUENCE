@@ -73,6 +73,8 @@ __all__ = [
     'simulate_jax',
     'simulate_numpy',
     'simulate',
+    'nse_loss',
+    'kge_loss',
 ]
 
 
@@ -368,9 +370,9 @@ def simulate_jax(
     if initial_state is None:
         initial_state = create_initial_state(params=params, use_jax=True)
 
-    # Generate TI distribution
+    # Generate TI distribution (pass JAX tracer directly, no float() cast)
     lnaotb, dist_area = generate_ti_distribution(
-        ti_std=float(params.ti_std), use_jax=True
+        ti_std=params.ti_std, use_jax=True
     )
 
     # Stack forcing for scan
@@ -470,3 +472,19 @@ def simulate(
     else:
         return simulate_numpy(precip, temp, pet, tm_params, initial_state,
                               warmup_days, dt)
+
+
+# =============================================================================
+# LOSS FUNCTION RE-EXPORTS (from losses.py)
+# =============================================================================
+
+def nse_loss(*args, **kwargs):
+    """Compute negative NSE loss. See losses.py for details."""
+    from .losses import nse_loss as _nse_loss
+    return _nse_loss(*args, **kwargs)
+
+
+def kge_loss(*args, **kwargs):
+    """Compute negative KGE loss. See losses.py for details."""
+    from .losses import kge_loss as _kge_loss
+    return _kge_loss(*args, **kwargs)

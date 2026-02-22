@@ -47,6 +47,16 @@ class SacSmaParameterManager(BaseParameterManager):
             self.sacsma_params = [p.strip() for p in str(params_str).split(',') if p.strip()]
             logger.debug(f"Calibrating SAC-SMA parameters: {self.sacsma_params}")
 
+        # Apply config-level bounds overrides
+        config_bounds = config.get('SACSMA_PARAM_BOUNDS')
+        if config_bounds:
+            for param_name, override in config_bounds.items():
+                if param_name in available_bounds:
+                    if isinstance(override, (list, tuple)) and len(override) == 2:
+                        available_bounds[param_name] = (float(override[0]), float(override[1]))
+                    elif isinstance(override, dict) and 'min' in override and 'max' in override:
+                        available_bounds[param_name] = (float(override['min']), float(override['max']))
+
         self.all_bounds = available_bounds
         self.defaults = available_defaults
         self.calibration_params = self.sacsma_params
@@ -55,7 +65,15 @@ class SacSmaParameterManager(BaseParameterManager):
         return self.sacsma_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        return get_sacsma_bounds()
+        bounds = get_sacsma_bounds()
+
+        # Apply config-level overrides (same pattern as FUSE)
+        config_bounds = self.config_dict.get('SACSMA_PARAM_BOUNDS')
+        if config_bounds:
+            self.logger.info("Using SACSMA_PARAM_BOUNDS from config (overriding registry defaults)")
+            self._apply_config_bounds_override(bounds, config_bounds)
+
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """SAC-SMA runs in-memory; no files to update."""

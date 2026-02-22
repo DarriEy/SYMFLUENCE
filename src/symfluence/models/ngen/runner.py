@@ -220,6 +220,23 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                                   and '/envs/' not in p.lower()]
                 env['PATH'] = os.pathsep.join(filtered_parts)
 
+        # UDUNITS2 XML database path — required for unit conversions between BMI modules.
+        # When UDUNITS2 is statically linked, dladdr resolves the XML path relative to the
+        # ngen binary (e.g. <exe_dir>/../share/udunits/udunits2.xml). If the build installed
+        # UDUNITS2 into a subdirectory (e.g. ngen/udunits2/), the computed path is wrong.
+        # Setting the env var is the most reliable way to ensure UDUNITS2 finds its database.
+        udunits_xml = ngen_base / "udunits2" / "share" / "udunits" / "udunits2.xml"
+        if not udunits_xml.exists():
+            # Fallback: check the path UDUNITS2 computes from the binary location
+            udunits_xml = ngen_base / "share" / "udunits" / "udunits2.xml"
+        if udunits_xml.exists():
+            env['UDUNITS2_XML_PATH'] = str(udunits_xml)
+        else:
+            self.logger.warning(
+                "UDUNITS2 XML database not found — unit conversions between BMI modules "
+                "will fail silently, causing incorrect results (e.g. zero precipitation in CFE)."
+            )
+
         # BMI library paths
         lib_paths = []
         for sub in ["extern/sloth/cmake_build", "extern/cfe/cmake_build",

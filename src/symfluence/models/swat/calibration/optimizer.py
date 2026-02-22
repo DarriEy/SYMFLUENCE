@@ -76,7 +76,13 @@ class SWATModelOptimizer(BaseModelOptimizer):
         return routing_integration.lower() != 'none'
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
-        """Run SWAT for final evaluation using best parameters."""
+        """Run SWAT for final evaluation using best parameters.
+
+        Assembles a complete TxtInOut (settings + forcing) in output_dir,
+        applies the best parameters there, and runs SWAT.  This mirrors
+        what calibration workers do and avoids running in the template
+        settings directory which only contains empty forcing stubs.
+        """
         best_result = self.get_best_result()
         best_params = best_result.get('params')
 
@@ -84,13 +90,16 @@ class SWATModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
 
+        # Apply parameters to output_dir — this copies fresh settings +
+        # forcing files into output_dir then modifies parameters in-place,
+        # keeping the template settings/SWAT/ directory untouched.
         self.worker.apply_parameters(
-            best_params, self.swat_settings_dir, config=self.config
+            best_params, output_dir, config=self.config
         )
 
         success = self.worker.run_model(
             self.config,
-            self.swat_settings_dir,
+            output_dir,
             output_dir
         )
 

@@ -18,11 +18,12 @@ class GSFLOWParameterManager(BaseParameterManager):
     """Parameter manager for GSFLOW (PRMS + MODFLOW-NWT)."""
 
     # PRMS parameters updated in ####-delimited params.dat
+    # Note: soil_rechr_max, gwflow_coef, gw_seep_coef, and tmax_allrain are
+    # excluded — GSFLOW v2.4.0+ in COUPLED mode silently ignores them.
     PRMS_PARAMS = [
-        'soil_moist_max', 'soil_rechr_max', 'ssr2gw_rate',
-        'gwflow_coef', 'gw_seep_coef', 'slowcoef_lin',
+        'soil_moist_max', 'ssr2gw_rate', 'slowcoef_lin',
         'carea_max', 'smidx_coef',
-        'jh_coef', 'tmax_allrain', 'tmax_allsnow',
+        'jh_coef', 'tmax_allsnow',
         'rain_adj', 'snow_adj',
     ]
 
@@ -45,7 +46,7 @@ class GSFLOWParameterManager(BaseParameterManager):
         # Get calibration parameter list
         params_str = (
             self.config_dict.get('GSFLOW_PARAMS_TO_CALIBRATE', '') or
-            'soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coef,gw_seep_coef,K,SY,slowcoef_lin,carea_max,smidx_coef,jh_coef,tmax_allrain,tmax_allsnow,rain_adj,snow_adj'
+            'soil_moist_max,ssr2gw_rate,K,SY,slowcoef_lin,carea_max,smidx_coef,jh_coef,tmax_allsnow,rain_adj,snow_adj'
         )
         self.gsflow_params = [p.strip() for p in params_str.split(',') if p.strip()]
 

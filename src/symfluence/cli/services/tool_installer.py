@@ -761,7 +761,7 @@ class ToolInstaller(BaseService):
             )
 
             # Show output for critical tools
-            if tool_name in ["summa", "sundials", "mizuroute", "fuse", "ngen"]:
+            if tool_name in ["summa", "sundials", "mizuroute", "fuse", "ngen", "cfuse", "enzyme"]:
                 if build_result.stdout:
                     self._console.indent("=== Build Output ===", level=2)
                     for line in build_result.stdout.strip().split("\n"):
