@@ -121,11 +121,15 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
             bounds = get_fuse_bounds()
 
-            # Override with config bounds if specified
+            # Override with config bounds if specified (preserve transform metadata)
             config_bounds = self.config.get('FUSE_PARAM_BOUNDS', {})
             for param, bound_list in config_bounds.items():
-                if isinstance(bound_list, list) and len(bound_list) == 2:
-                    bounds[param] = {'min': float(bound_list[0]), 'max': float(bound_list[1])}
+                if isinstance(bound_list, (list, tuple)) and len(bound_list) == 2:
+                    existing = bounds.get(param, {})
+                    new_entry = {'min': float(bound_list[0]), 'max': float(bound_list[1])}
+                    if 'transform' in existing:
+                        new_entry['transform'] = existing['transform']
+                    bounds[param] = new_entry
 
             # CRITICAL: Include elevation band parameters (N_BANDS, Z_MID, AF) in para_def.nc
             # FUSE's run_def mode reads ALL parameters from para_def.nc, including elevation bands.

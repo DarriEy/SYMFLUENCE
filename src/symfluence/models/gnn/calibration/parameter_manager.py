@@ -59,6 +59,8 @@ class MLParameterManager(BaseParameterManager):
         return True
 
     def get_initial_parameters(self) -> Dict[str, Any]:
+        import math
+
         initial_params: Dict[str, Any] = {}
         for param in self._get_parameter_names():
             if param in self.config:
@@ -66,5 +68,8 @@ class MLParameterManager(BaseParameterManager):
                 continue
             bounds = self.param_bounds.get(param)
             if bounds:
-                initial_params[param] = (bounds['min'] + bounds['max']) / 2.0
+                if bounds.get('transform') == 'log' and bounds['min'] > 0:
+                    initial_params[param] = math.sqrt(bounds['min'] * bounds['max'])
+                else:
+                    initial_params[param] = (bounds['min'] + bounds['max']) / 2.0
         return initial_params

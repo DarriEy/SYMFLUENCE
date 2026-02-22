@@ -140,11 +140,17 @@ class IGNACIOParameterManager(BaseParameterManager):
         Get initial FBP parameter values.
 
         Reads from config or uses midpoint of bounds.
+        Uses geometric mean for log-transformed parameters.
         """
+        import math
+
         bounds = self.param_bounds
         initial = {}
         for param in self.ignacio_params:
             if param in bounds:
                 b = bounds[param]
-                initial[param] = (b['min'] + b['max']) / 2.0
+                if b.get('transform') == 'log' and b['min'] > 0:
+                    initial[param] = math.sqrt(b['min'] * b['max'])
+                else:
+                    initial[param] = (b['min'] + b['max']) / 2.0
         return initial if initial else None
