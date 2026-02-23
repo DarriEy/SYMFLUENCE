@@ -4,11 +4,11 @@ Test HYPE and MESH optimizer/worker registration
 Verifies that the new components are properly registered and can be instantiated.
 """
 
-import pytest
 import logging
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
+import pytest
 from symfluence.optimization.registry import OptimizerRegistry
 
 

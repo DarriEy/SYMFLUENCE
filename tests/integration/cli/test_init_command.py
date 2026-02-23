@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from symfluence import cli as cli_module
 
 pytestmark = [pytest.mark.integration, pytest.mark.cli]
@@ -41,7 +40,8 @@ def _run_cli(args, *, cwd=None, env=None):
     argv = ["symfluence"] + list(args)
 
     # Import console utilities inside the function to avoid early import issues
-    from symfluence.cli.console import Console, ConsoleConfig, set_console, get_console as get_global_console
+    from symfluence.cli.console import Console, ConsoleConfig, set_console
+    from symfluence.cli.console import get_console as get_global_console
 
     # Save original console
     original_console = get_global_console()

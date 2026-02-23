@@ -20,9 +20,10 @@ URL Structure:
     https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p05/
 """
 
-import requests
 from pathlib import Path
 from typing import List
+
+import requests
 import xarray as xr
 
 from ..base import BaseAcquisitionHandler

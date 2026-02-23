@@ -9,14 +9,15 @@ NetCDF group with its own spatial dimension.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
-from symfluence.core.mixins.project import resolve_data_subdir
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

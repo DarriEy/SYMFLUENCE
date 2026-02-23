@@ -5,7 +5,7 @@ This module defines all available tools as OpenAI function calling schemas.
 Each CLI command is mapped to a function definition that the LLM can call.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class ToolRegistry:

@@ -15,7 +15,6 @@ from .prompts import WizardPrompts
 from .questions import get_questions_for_phase
 from .state import WizardPhase, WizardState
 
-
 # Phase descriptions for display
 PHASE_DESCRIPTIONS = {
     WizardPhase.ESSENTIAL: (

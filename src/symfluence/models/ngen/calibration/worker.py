@@ -7,13 +7,13 @@ Delegates to existing worker functions while providing BaseWorker interface.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel as PydanticBaseModel
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.mixins.project import resolve_data_subdir
 
+from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +207,8 @@ class NgenWorker(BaseWorker):
                     dst_cfe_dir = ngen_dir / "CFE"
                     if src_cfe_dir.exists() and dst_cfe_dir.exists():
                         try:
-                            import shutil
                             import re
+                            import shutil
                             for src_cfe_file in src_cfe_dir.glob("*_bmi_config_cfe*.txt"):
                                 dst_cfe_file = dst_cfe_dir / src_cfe_file.name
                                 if dst_cfe_file.exists():
@@ -371,6 +371,7 @@ class NgenWorker(BaseWorker):
         """
         try:
             import pandas as pd
+
             from symfluence.evaluation.metrics import kge, nse
 
             domain_name = config.get('DOMAIN_NAME')

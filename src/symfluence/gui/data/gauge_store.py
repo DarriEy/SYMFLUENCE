@@ -16,10 +16,10 @@ import pandas as pd
 
 from .gauge_provider import (
     GaugeProvider,
-    WSCProvider,
-    USGSProvider,
-    SMHIProvider,
     LamaHICEProvider,
+    SMHIProvider,
+    USGSProvider,
+    WSCProvider,
 )
 
 logger = logging.getLogger(__name__)

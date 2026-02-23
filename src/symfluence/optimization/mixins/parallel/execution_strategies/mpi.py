@@ -12,10 +12,10 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List
 
-from .base import ExecutionStrategy
 from ..worker_environment import WorkerEnvironmentConfig
+from .base import ExecutionStrategy
 
 
 class MPIExecutionStrategy(ExecutionStrategy):

@@ -5,8 +5,8 @@ This module provides a registry for model forcing adapters,
 enabling dynamic discovery and instantiation without hardcoded model names.
 """
 
-from typing import Dict, Type, Optional, Any, Callable
 import logging
+from typing import Any, Callable, Dict, Optional, Type
 
 from .base_adapter import ForcingAdapter
 

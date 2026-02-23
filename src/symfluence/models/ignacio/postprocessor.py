@@ -11,10 +11,10 @@ Handles extraction and processing of IGNACIO fire simulation results:
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
+from symfluence.models.registry import ModelRegistry
 
 if TYPE_CHECKING:
     pass
@@ -197,6 +197,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
         """
         try:
             import geopandas as gpd
+
             from symfluence.models.wmfire import FirePerimeterValidator
 
             # Find WMFire output
@@ -297,6 +298,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
         """
         try:
             import geopandas as gpd
+
             from symfluence.models.wmfire import FirePerimeterValidator
 
             if not simulated_perimeters:

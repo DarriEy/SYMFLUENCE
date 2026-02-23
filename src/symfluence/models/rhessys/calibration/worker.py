@@ -8,15 +8,16 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.core.constants import ModelDefaults
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('RHESSys')
@@ -904,9 +905,9 @@ def _evaluate_rhessys_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, 
         Result dictionary
     """
     import os
-    import sys
-    import signal
     import random
+    import signal
+    import sys
     import time
     import traceback
 

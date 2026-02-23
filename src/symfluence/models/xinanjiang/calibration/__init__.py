@@ -8,8 +8,8 @@ Provides optimization components for Xinanjiang model calibration:
 """
 
 from .optimizer import XinanjiangModelOptimizer
-from .worker import XinanjiangWorker
 from .parameter_manager import XinanjiangParameterManager
+from .worker import XinanjiangWorker
 
 __all__ = [
     'XinanjiangModelOptimizer',

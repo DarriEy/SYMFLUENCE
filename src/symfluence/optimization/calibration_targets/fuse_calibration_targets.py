@@ -5,8 +5,6 @@ FUSE Calibration Targets (Backward Compatibility)
     Moved to symfluence.models.fuse.calibration.targets
 """
 
-from symfluence.models.fuse.calibration.targets import (
-    FUSEStreamflowTarget,FUSESnowTarget
-)
+from symfluence.models.fuse.calibration.targets import FUSESnowTarget, FUSEStreamflowTarget
 
 __all__ = ['FUSEStreamflowTarget', 'FUSESnowTarget']

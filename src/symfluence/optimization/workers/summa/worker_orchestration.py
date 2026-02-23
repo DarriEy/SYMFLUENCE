@@ -8,20 +8,21 @@ This module contains the core evaluation pipeline orchestration
 for SUMMA parameter optimization.
 """
 
-import time
 import logging
+import time
 import traceback
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 
-from .parameter_application import _apply_parameters_worker
-from .model_execution import _run_summa_worker, _run_mizuroute_worker
-from .netcdf_utilities import _convert_lumped_to_distributed_worker
-from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives
-from .error_logging import log_worker_failure
 from symfluence.evaluation.metric_transformer import MetricTransformer
+
+from .error_logging import log_worker_failure
+from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives
+from .model_execution import _run_mizuroute_worker, _run_summa_worker
+from .netcdf_utilities import _convert_lumped_to_distributed_worker
+from .parameter_application import _apply_parameters_worker
 
 
 def _evaluate_parameters_worker(task_data: Dict) -> Dict:

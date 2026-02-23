@@ -13,8 +13,8 @@ from argparse import Namespace
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class DoctorCommands(BaseCommand):
@@ -54,8 +54,8 @@ class DoctorCommands(BaseCommand):
 
         # SYMFLUENCE version + install location
         try:
-            from symfluence.symfluence_version import __version__
             import symfluence
+            from symfluence.symfluence_version import __version__
             pkg_path = Path(symfluence.__file__).parent
             console.info(f"SYMFLUENCE: {__version__}  ({pkg_path})")
         except ImportError:

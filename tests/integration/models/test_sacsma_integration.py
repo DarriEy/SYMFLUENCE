@@ -1,7 +1,7 @@
 """Integration tests for SAC-SMA + Snow-17 model in SYMFLUENCE framework."""
 
-import pytest
 import numpy as np
+import pytest
 
 
 class TestModelRegistration:
@@ -33,7 +33,8 @@ class TestModelRegistration:
 
     def test_spatial_mode_capabilities(self):
         from symfluence.models.spatial_modes import (
-            MODEL_SPATIAL_CAPABILITIES, SpatialMode,
+            MODEL_SPATIAL_CAPABILITIES,
+            SpatialMode,
             validate_spatial_mode,
         )
         assert 'SACSMA' in MODEL_SPATIAL_CAPABILITIES
@@ -61,8 +62,8 @@ class TestCalibrationRegistration:
     def _import_calibration(self):
         """Ensure calibration modules are imported to trigger registration."""
         import symfluence.models.sacsma.calibration.optimizer  # noqa: F401
-        import symfluence.models.sacsma.calibration.worker  # noqa: F401
         import symfluence.models.sacsma.calibration.parameter_manager  # noqa: F401
+        import symfluence.models.sacsma.calibration.worker  # noqa: F401
 
     def test_optimizer_registered(self):
         from symfluence.optimization.registry import OptimizerRegistry
@@ -113,9 +114,10 @@ class TestParameterManagerRoundTrip:
     """Test parameter manager normalize/denormalize round-trip."""
 
     def test_normalize_denormalize_round_trip(self):
+        import logging
+
         from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
         from symfluence.models.sacsma.parameters import DEFAULT_PARAMS
-        import logging
 
         config = {
             'DOMAIN_NAME': 'test',
@@ -137,9 +139,10 @@ class TestParameterManagerRoundTrip:
             )
 
     def test_log_transform_geometric_mean_initial(self):
+        import logging
+
         from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
         from symfluence.models.sacsma.parameters import LOG_TRANSFORM_PARAMS, PARAM_BOUNDS
-        import logging
 
         config = {'DOMAIN_NAME': 'test', 'EXPERIMENT_ID': 'exp1'}
         pm = SacSmaParameterManager(config, logging.getLogger('test'), '/tmp')

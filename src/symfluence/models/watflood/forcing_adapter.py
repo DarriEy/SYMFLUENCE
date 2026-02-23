@@ -57,8 +57,8 @@ class WATFLOODForcingAdapter:
             True if conversion succeeded
         """
         try:
-            import xarray as xr
             import numpy as np
+            import xarray as xr
 
             output_dir.mkdir(parents=True, exist_ok=True)
 

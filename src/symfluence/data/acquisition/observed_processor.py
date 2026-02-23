@@ -7,13 +7,15 @@ with standardized output formatting for model calibration.
 
 import csv
 from pathlib import Path
-from typing import Dict, Any
-import pandas as pd # type: ignore
+from typing import Any, Dict
+
+import pandas as pd  # type: ignore
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+
 
 class ObservedDataProcessor(ConfigMixin):
     """Process and standardize observed hydrological data from multiple global providers.

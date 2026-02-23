@@ -185,6 +185,7 @@ from typing import Tuple
 import geopandas as gpd
 
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
 
 from .resampling import (
     ElevationCalculator,
@@ -194,8 +195,6 @@ from .resampling import (
     RemappingWeightGenerator,
     ShapefileProcessor,
 )
-
-from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
 
 
 class _ParallelWorker:
@@ -605,8 +604,9 @@ class ForcingResampler(PathResolverMixin):
 
     def _run_parallel_with_worker(self, files, num_cpus, worker):
         """Run parallel processing with picklable worker."""
-        from tqdm import tqdm
         import gc
+
+        from tqdm import tqdm
 
         batch_size = min(10, len(files))
         total_batches = (len(files) + batch_size - 1) // batch_size

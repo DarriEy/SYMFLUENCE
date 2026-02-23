@@ -2,12 +2,12 @@
 Tests for constants module, including UnitConverter.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 from unittest.mock import MagicMock
 
-from symfluence.core.constants import UnitConverter, UnitConversion, PhysicalConstants
+import numpy as np
+import pandas as pd
+import pytest
+from symfluence.core.constants import PhysicalConstants, UnitConversion, UnitConverter
 
 
 class TestUnitConverter:

@@ -10,12 +10,11 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
-import geopandas as gpd # type: ignore
-from shapely.geometry import Polygon # type: ignore
+import geopandas as gpd  # type: ignore
+from shapely.geometry import Polygon  # type: ignore
 
-
-from ..base.base_delineator import BaseGeofabricDelineator
 from ....geospatial.delineation_registry import DelineationRegistry
+from ..base.base_delineator import BaseGeofabricDelineator
 
 
 @DelineationRegistry.register('point')

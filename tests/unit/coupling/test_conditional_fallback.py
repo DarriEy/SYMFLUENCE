@@ -7,9 +7,10 @@ Verifies that:
 4. Model manager falls back to sequential execution gracefully
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
+import pytest
 
 
 class TestDCouplerAvailability:
@@ -28,7 +29,7 @@ class TestDCouplerAvailability:
     def test_init_importable_without_dcoupler(self):
         """Verify symfluence.coupling can be imported even if dcoupler is absent."""
         # This test verifies the try/except structure in __init__.py
-        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        from symfluence.coupling import INSTALL_SUGGESTION, is_dcoupler_available
         assert callable(is_dcoupler_available)
         assert len(INSTALL_SUGGESTION) > 0
 
@@ -91,8 +92,9 @@ class TestXAJCouplingMode:
 
     def test_default_mode_is_auto(self, synthetic_forcing):
         """Default coupling_mode should be 'auto'."""
-        from symfluence.models.xinanjiang.model import simulate
         import inspect
+
+        from symfluence.models.xinanjiang.model import simulate
         sig = inspect.signature(simulate)
         assert sig.parameters['coupling_mode'].default == 'auto'
 
@@ -157,8 +159,9 @@ class TestSacSmaCouplingMode:
 
     def test_default_mode_is_auto(self, synthetic_forcing):
         """Default coupling_mode should be 'auto'."""
-        from symfluence.models.sacsma.model import simulate
         import inspect
+
+        from symfluence.models.sacsma.model import simulate
         sig = inspect.signature(simulate)
         assert sig.parameters['coupling_mode'].default == 'auto'
 
@@ -170,8 +173,9 @@ class TestModelManagerFallback:
         """Single-model workflow should skip dCoupler attempt entirely."""
         # With only one model in workflow, _try_dcoupler_execution should
         # not be called (condition: len(workflow) > 1)
-        from symfluence.models.model_manager import ModelManager
         import inspect
+
+        from symfluence.models.model_manager import ModelManager
         source = inspect.getsource(ModelManager.run_models)
         assert "len(workflow) > 1" in source
 

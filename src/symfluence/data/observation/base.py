@@ -4,12 +4,12 @@ Base Observation Handler for SYMFLUENCE
 Provides the abstract base class and utilities for observation data handlers,
 including standardized error handling, output contracts, and common operations.
 """
+import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
-import json
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import pandas as pd
 import xarray as xr

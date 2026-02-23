@@ -1,8 +1,9 @@
 """Tests for AttributesNetCDFBuilder."""
 
-import pytest
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 netCDF4 = pytest.importorskip('netCDF4')
 gpd = pytest.importorskip('geopandas')

@@ -2,12 +2,12 @@
 Tests for OutputFileLocator - file pattern matching for model outputs.
 """
 
-import pytest
+import os
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import tempfile
-import os
 
+import pytest
 from symfluence.evaluation.output_file_locator import OutputFileLocator, get_output_file_locator
 
 

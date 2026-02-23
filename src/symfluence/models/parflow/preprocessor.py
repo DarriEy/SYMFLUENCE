@@ -21,8 +21,8 @@ from typing import Optional
 
 import numpy as np
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,7 @@ class ParFlowPreProcessor:
             effective_mm_hr: hourly liquid water input (rain + snowmelt), mm/hr
         """
         import pandas as pd
+
         from symfluence.models.snow17.bmi import Snow17BMI
 
         if lapse_rate is None:

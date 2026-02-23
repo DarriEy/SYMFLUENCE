@@ -4,9 +4,9 @@ Handles loading base_settings and config_templates from package data
 in both development (editable install) and production (site-packages) modes.
 """
 
-from pathlib import Path
-import sys
 import shutil
+import sys
+from pathlib import Path
 
 # Python 3.9+ importlib.resources
 if sys.version_info >= (3, 9):

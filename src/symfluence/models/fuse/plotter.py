@@ -4,13 +4,14 @@ FUSE Model Plotter
 Model-specific visualization for FUSE outputs including streamflow comparisons.
 """
 
-import pandas as pd
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
-from symfluence.reporting.plotter_registry import PlotterRegistry
+import pandas as pd
+
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
 @PlotterRegistry.register_plotter('FUSE')
@@ -39,10 +40,11 @@ class FUSEPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
-        from symfluence.reporting.core.plot_utils import calculate_metrics
+        import xarray as xr  # type: ignore
+
         from symfluence.core.constants import UnitConversion
+        from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:
             plot_dir = self._ensure_output_dir('results')

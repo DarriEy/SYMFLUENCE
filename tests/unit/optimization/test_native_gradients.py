@@ -8,12 +8,12 @@ Tests the gradient callback infrastructure, including:
 - Gradient chain rule transformation (physical -> normalized space)
 """
 
-import pytest
-import numpy as np
 import logging
-from typing import Dict, Tuple, Optional
-from unittest.mock import Mock, MagicMock, patch
+from typing import Dict, Optional, Tuple
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pytest
 
 # ============================================================================
 # Test fixtures

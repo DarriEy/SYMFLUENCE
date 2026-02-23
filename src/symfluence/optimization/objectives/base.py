@@ -2,7 +2,8 @@
 Base Objective for SYMFLUENCE
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Union
+
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:

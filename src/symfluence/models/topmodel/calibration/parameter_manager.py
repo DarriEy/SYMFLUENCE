@@ -4,14 +4,15 @@ TOPMODEL Parameter Manager.
 Provides parameter bounds, transformations, and management for TOPMODEL calibration.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
+
 import numpy as np
 
+from symfluence.models.topmodel.parameters import DEFAULT_PARAMS, PARAM_BOUNDS
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.models.topmodel.parameters import PARAM_BOUNDS, DEFAULT_PARAMS
 
 
 @OptimizerRegistry.register_parameter_manager('TOPMODEL')

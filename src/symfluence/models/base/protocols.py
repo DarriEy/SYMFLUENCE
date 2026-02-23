@@ -8,8 +8,8 @@ requiring inheritance from ``BaseModelRunner`` et al.
 desired, but the primary purpose is static type-checking and documentation.
 """
 
-from typing import Optional, Protocol, runtime_checkable
 from pathlib import Path
+from typing import Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable

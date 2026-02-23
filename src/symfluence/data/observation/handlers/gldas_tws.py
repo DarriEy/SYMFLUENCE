@@ -5,8 +5,10 @@ Provides acquisition and preprocessing of GLDAS-2.1 Noah Land Surface Model
 monthly TWS data for model validation. TWS = Soil Moisture + SWE + Canopy Water.
 """
 
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 

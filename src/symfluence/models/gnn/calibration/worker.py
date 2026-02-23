@@ -5,10 +5,10 @@ Handles individual model evaluations for GNN calibration.
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
 from symfluence.models.gnn import GNNRunner
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 
 class GNNWorker(BaseWorker):

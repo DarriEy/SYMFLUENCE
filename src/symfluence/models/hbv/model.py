@@ -24,8 +24,8 @@ References:
     Journal of Hydrology, 201(1-4), 272-288.
 """
 
-from typing import Any, Dict, NamedTuple, Optional, Tuple
 import warnings
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 
@@ -47,16 +47,16 @@ except ImportError:
 
 # Import parameter utilities and data structures
 from .parameters import (
-    PARAM_BOUNDS,
     DEFAULT_PARAMS,
-    RATE_PARAMS,
-    FLUX_RATE_PARAMS,
-    RECESSION_PARAMS,
     DURATION_PARAMS,
+    FLUX_RATE_PARAMS,
+    PARAM_BOUNDS,
+    RATE_PARAMS,
+    RECESSION_PARAMS,
     HBVParameters,
     create_params_from_dict,
-    scale_params_for_timestep,
     get_routing_buffer_length,
+    scale_params_for_timestep,
 )
 
 # Re-export for backward compatibility

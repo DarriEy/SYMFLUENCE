@@ -1,9 +1,10 @@
 """Tests for VIC calibration components."""
 
-import pytest
 import logging
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 class TestVICCalibrationRegistration:

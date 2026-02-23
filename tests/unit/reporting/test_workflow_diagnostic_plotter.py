@@ -4,13 +4,13 @@ Unit tests for WorkflowDiagnosticPlotter.
 Tests diagnostic plotting methods for workflow step validation.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.plotters.workflow_diagnostic_plotter import WorkflowDiagnosticPlotter
 
 

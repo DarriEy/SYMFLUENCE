@@ -37,16 +37,18 @@ Configuration:
 """
 
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
 
-from symfluence.evaluation.registry import EvaluationRegistry
-from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.core.constants import UnitConverter
 from symfluence.data.observation.paths import et_observation_candidates, first_existing_path
+from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.evaluation.registry import EvaluationRegistry
+
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:

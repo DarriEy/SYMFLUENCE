@@ -4,9 +4,10 @@ System configuration model.
 Contains SystemConfig for system-level settings: paths, logging, parallelism, debugging.
 """
 
-from typing import Optional, Literal
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, AliasChoices
+from typing import Literal, Optional
+
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

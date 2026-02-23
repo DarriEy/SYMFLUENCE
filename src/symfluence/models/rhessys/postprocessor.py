@@ -9,8 +9,8 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPostProcessor
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 

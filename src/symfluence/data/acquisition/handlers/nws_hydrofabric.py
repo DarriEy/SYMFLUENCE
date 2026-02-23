@@ -24,13 +24,13 @@ References:
 
 from pathlib import Path
 from typing import List
+
 import requests
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # Lynker-Spatial S3 URL template
 _NWS_S3_TEMPLATE = (
@@ -208,8 +208,8 @@ class NWSHydrofabricAcquirer(BaseAcquisitionHandler, RetryMixin):
             riv_path: Output path for flowpaths
             vpu: VPU code for logging
         """
-        import geopandas as gpd
         import fiona
+        import geopandas as gpd
 
         available_layers = fiona.listlayers(gpkg_path)
         self.logger.info(f"VPU {vpu} GeoPackage layers: {available_layers}")

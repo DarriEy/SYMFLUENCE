@@ -7,18 +7,18 @@ and processes it into rasters for SUMMA glacier simulations.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 import numpy as np
 import rasterio
+import requests
 from rasterio import features
 from rasterio.crs import CRS
 from rasterio.transform import from_bounds
+from requests.adapters import HTTPAdapter
 from shapely.geometry import box
+from urllib3.util.retry import Retry
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry

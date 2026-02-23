@@ -1,9 +1,10 @@
 """Integration test for the model-ready data store."""
 
-import pytest
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
+import pytest
 
 netCDF4 = pytest.importorskip('netCDF4')
 gpd = pytest.importorskip('geopandas')

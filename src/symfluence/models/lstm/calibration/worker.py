@@ -5,10 +5,10 @@ Handles individual model evaluations for LSTM calibration.
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
 from symfluence.models.lstm import LSTMRunner
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 
 class LSTMWorker(BaseWorker):

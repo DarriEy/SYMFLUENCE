@@ -14,13 +14,13 @@ Data source: https://www.hydrosheds.org/products/hydrolakes
 import logging
 import zipfile
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import geopandas as gpd
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from shapely.geometry import box
+from urllib3.util.retry import Retry
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry

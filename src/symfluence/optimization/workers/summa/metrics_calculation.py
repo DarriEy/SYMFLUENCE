@@ -9,19 +9,26 @@ in worker processes, supporting multi-target optimization.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from symfluence.core.mixins.project import resolve_data_subdir
-
+from symfluence.evaluation.metrics import (
+    kge as calc_kge,
+)
+from symfluence.evaluation.metrics import (
+    mae as calc_mae,
+)
 from symfluence.evaluation.metrics import (
     nse as calc_nse,
-    kge as calc_kge,
-    rmse as calc_rmse,
-    mae as calc_mae,
+)
+from symfluence.evaluation.metrics import (
     pbias as calc_pbias,
+)
+from symfluence.evaluation.metrics import (
+    rmse as calc_rmse,
 )
 
 
@@ -204,11 +211,17 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
         project_dir: Project directory path (if None, reconstructs from config)
     """
     try:
-        from ...calibration_targets import (
-            StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget,
-            SoilMoistureTarget, TWSTarget, MultivariateTarget
-        )
         from pathlib import Path as PathType
+
+        from ...calibration_targets import (
+            ETTarget,
+            GroundwaterTarget,
+            MultivariateTarget,
+            SnowTarget,
+            SoilMoistureTarget,
+            StreamflowTarget,
+            TWSTarget,
+        )
 
         # Use provided project_dir, or reconstruct from config if not provided
         if project_dir is None:
@@ -733,10 +746,16 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
     List[float]
         [objective1, objective2] values
     """
-    from ...calibration_targets import (
-        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
-    )
     from pathlib import Path
+
+    from ...calibration_targets import (
+        ETTarget,
+        GroundwaterTarget,
+        SnowTarget,
+        SoilMoistureTarget,
+        StreamflowTarget,
+        TWSTarget,
+    )
 
     # Convert to Path objects for safety
     summa_dir = Path(summa_dir)

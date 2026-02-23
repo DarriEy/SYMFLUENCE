@@ -9,10 +9,11 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.core.mixins import ConfigMixin
+from symfluence.data.utils.variable_utils import VariableHandler
+
 
 class DataAcquisitionProcessor(ConfigMixin):
     """

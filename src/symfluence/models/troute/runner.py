@@ -13,14 +13,14 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import xarray as xr
 
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelRunner
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.registry import ModelRegistry
 
 
 def _check_troute_available() -> bool:

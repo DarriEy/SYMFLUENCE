@@ -8,10 +8,11 @@ perimeter calibration.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import IGNACIOWorker  # noqa: F401 - trigger worker registration
 
 

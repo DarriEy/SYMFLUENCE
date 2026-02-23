@@ -2,16 +2,15 @@
 
 import numpy as np
 import pytest
-
+from symfluence.models.snow17.parameters import SNOW17_DEFAULTS
 from symfluence.models.xinanjiang.model import (
     HAS_JAX,
+    XinanjiangState,
     create_initial_state,
     simulate,
     simulate_coupled_numpy,
-    XinanjiangState,
 )
 from symfluence.models.xinanjiang.parameters import DEFAULT_PARAMS
-from symfluence.models.snow17.parameters import SNOW17_DEFAULTS
 
 
 def _synthetic_forcing(n_days=730):

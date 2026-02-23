@@ -15,8 +15,8 @@ class TestCFUSEWorkerRegistration:
         assert 'CFUSE' in OptimizerRegistry._workers
 
     def test_worker_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.cfuse.calibration.worker import CFUSEWorker
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._workers.get('CFUSE') == CFUSEWorker
 
 

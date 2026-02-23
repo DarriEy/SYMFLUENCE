@@ -6,11 +6,10 @@ update in real-time as workflow steps execute. Polled every 300ms
 alongside the log viewer for responsive updates.
 """
 
-import param
 import panel as pn
+import param
 
 from ..utils.threading_utils import STEP_LABELS
-
 
 # Step status -> display properties
 _STATUS_STYLES = {

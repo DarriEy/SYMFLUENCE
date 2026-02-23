@@ -3,9 +3,10 @@ Evaluation Registry for SYMFLUENCE
 
 Provides a central registry for performance evaluation handlers.
 """
-from typing import Dict, Type, Any, Optional
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional, Type
+
 
 class EvaluationRegistry:
     _handlers: Dict[str, Type] = {}

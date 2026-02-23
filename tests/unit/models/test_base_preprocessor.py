@@ -4,9 +4,10 @@ Unit tests for BaseModelPreProcessor.
 Tests the base class functionality shared across all model preprocessors.
 """
 
-import pytest
 import shutil
 from unittest.mock import Mock
+
+import pytest
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 

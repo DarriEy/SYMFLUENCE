@@ -5,10 +5,11 @@ Provides standardized file operations with consistent logging and error handling
 to eliminate boilerplate code across the codebase.
 """
 
-import shutil
 import logging
+import shutil
 from pathlib import Path
-from typing import Union, List, Optional
+from typing import List, Optional, Union
+
 from symfluence.core.exceptions import FileOperationError
 
 

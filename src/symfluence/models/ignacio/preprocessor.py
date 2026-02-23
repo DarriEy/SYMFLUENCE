@@ -15,8 +15,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -378,9 +378,10 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
         Returns:
             Path to generated weather CSV
         """
+        from datetime import datetime, timedelta
+
         import numpy as np
         import pandas as pd
-        from datetime import datetime, timedelta
 
         # Get simulation date from config or use default
         ignition_date = ignacio_config.get('ignition_date')

@@ -208,13 +208,13 @@ See Also:
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
 from difflib import get_close_matches
+from typing import Any, Dict
 
 from pydantic import ValidationError
 
-from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.config.legacy_aliases import NORMALIZATION_ALIASES
+from symfluence.core.config.models import SymfluenceConfig
 
 
 def normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:

@@ -14,7 +14,7 @@ directly (they don't belong to any single helper).
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd

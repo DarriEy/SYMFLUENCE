@@ -10,13 +10,13 @@ import multiprocessing as mp
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Callable, Optional
+from typing import Callable, List, Optional
 
 from tqdm import tqdm
 
-from .file_validator import FileValidator
-
 from symfluence.core.mixins import ConfigMixin
+
+from .file_validator import FileValidator
 
 
 def _init_worker_pool():

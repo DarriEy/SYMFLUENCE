@@ -13,7 +13,7 @@ settings from ``settings/SWAT/`` and forcing from
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

@@ -2,8 +2,9 @@
 Tests for GNN model runner.
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 
 class TestGNNRunnerInitialization:

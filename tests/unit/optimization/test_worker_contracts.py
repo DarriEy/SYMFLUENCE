@@ -10,12 +10,13 @@ Workers are responsible for:
 3. Calculating performance metrics from model output
 """
 
-import pytest
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from unittest.mock import Mock
+
+import pytest
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -470,7 +471,7 @@ class TestSUMMAWorkerContract:
 
     def test_summa_worker_inherits_from_base(self):
         """Test that SUMMAWorker inherits from BaseWorker."""
-        from symfluence.optimization.workers import SUMMAWorker, BaseWorker
+        from symfluence.optimization.workers import BaseWorker, SUMMAWorker
         assert issubclass(SUMMAWorker, BaseWorker)
 
     def test_summa_worker_has_required_methods(self):
@@ -525,7 +526,7 @@ class TestNgenWorkerContract:
 
     def test_ngen_worker_inherits_from_base(self):
         """Test that NgenWorker inherits from BaseWorker."""
-        from symfluence.optimization.workers import NgenWorker, BaseWorker
+        from symfluence.optimization.workers import BaseWorker, NgenWorker
         assert issubclass(NgenWorker, BaseWorker)
 
     def test_ngen_worker_has_required_methods(self):

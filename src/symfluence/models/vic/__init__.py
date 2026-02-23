@@ -63,11 +63,11 @@ References:
 
     https://github.com/UW-Hydro/VIC
 """
-from .preprocessor import VICPreProcessor
-from .runner import VICRunner
+from .config import VICConfigAdapter
 from .extractor import VICResultExtractor
 from .postprocessor import VICPostProcessor
-from .config import VICConfigAdapter
+from .preprocessor import VICPreProcessor
+from .runner import VICRunner
 
 __all__ = [
     "VICPreProcessor",

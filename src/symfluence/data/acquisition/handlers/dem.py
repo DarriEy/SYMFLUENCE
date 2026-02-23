@@ -34,17 +34,18 @@ References:
 import gzip
 import math
 from pathlib import Path
-import requests
+
 import numpy as np
 import rasterio
+import requests
 from rasterio.merge import merge as rio_merge
 from rasterio.transform import from_bounds as rio_from_bounds
-from rasterio.windows import from_bounds, Window
-from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
-from ..mixins import RetryMixin
-from ..utils import create_robust_session
+from rasterio.windows import Window, from_bounds
 
+from ..base import BaseAcquisitionHandler
+from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
+from ..utils import create_robust_session
 
 # =============================================================================
 # Shared Tile Download Mixin

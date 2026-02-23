@@ -24,7 +24,6 @@ import xarray as xr
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
-
 # Variable mapping for ERA5-Land
 ERA5_LAND_VARIABLES = {
     'precipitation': ['total_precipitation'],

@@ -81,17 +81,20 @@ def __dir__():
 
 def register_with_model_registry():
     """Register jFUSE components with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import JFUSEConfigAdapter
     from .extractor import JFUSEResultExtractor
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
     ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
 
     # Import component modules to trigger their @ModelRegistry.register_* decorators
-    from . import preprocessor  # noqa: F401 — registers JFUSEPreProcessor
-    from . import runner  # noqa: F401 — registers JFUSERunner
-    from . import postprocessor  # noqa: F401 — registers JFUSEPostprocessor
+    from . import (
+        postprocessor,  # noqa: F401 — registers JFUSEPostprocessor
+        preprocessor,  # noqa: F401 — registers JFUSEPreProcessor
+        runner,  # noqa: F401 — registers JFUSERunner
+    )
 
 
 # Eagerly register when module is imported
@@ -99,12 +102,12 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
+    from .calibration import JFUSEParameterManager, JFUSEWorker, get_jfuse_calibration_bounds
     from .config import JFUSEConfig, JFUSEConfigAdapter
+    from .extractor import JFUSEResultExtractor
+    from .postprocessor import JFUSEPostprocessor, JFUSERoutedPostprocessor
     from .preprocessor import JFUSEPreProcessor
     from .runner import JFUSERunner
-    from .postprocessor import JFUSEPostprocessor, JFUSERoutedPostprocessor
-    from .extractor import JFUSEResultExtractor
-    from .calibration import JFUSEWorker, JFUSEParameterManager, get_jfuse_calibration_bounds
 
 
 __all__ = [

@@ -8,9 +8,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +141,8 @@ class IGNACIORunner(BaseModelRunner):
         Returns:
             True if successful, False otherwise
         """
-        import subprocess
         import shutil
+        import subprocess
 
         # Check if ignacio CLI is available
         ignacio_cli = shutil.which('ignacio')

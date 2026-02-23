@@ -7,7 +7,7 @@ Handles updates to SUMMA file manager for final evaluation.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.core.mixins import ConfigMixin
 

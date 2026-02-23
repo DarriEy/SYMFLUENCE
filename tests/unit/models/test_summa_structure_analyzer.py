@@ -4,8 +4,9 @@ Tests for SUMMA Structure Analyzer lazy loading and routing logic.
 Tests the refactored lazy loading pattern that prevents circular dependencies.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestSummaStructureAnalyzerLazyLoading:

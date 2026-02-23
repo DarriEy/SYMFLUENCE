@@ -5,13 +5,14 @@ Handles shapefile CRS conversion and HRU ID uniqueness.
 """
 
 import logging
-import geopandas as gpd
 from pathlib import Path
 from typing import Tuple, Union
 
-from .geometry_validator import GeometryValidator
+import geopandas as gpd
 
 from symfluence.core.mixins import ConfigMixin
+
+from .geometry_validator import GeometryValidator
 
 
 class ShapefileProcessor(ConfigMixin):

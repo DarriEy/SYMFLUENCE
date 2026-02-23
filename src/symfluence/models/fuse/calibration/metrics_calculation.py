@@ -8,14 +8,13 @@ time alignment, and metric computation.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.core.mixins.project import resolve_data_subdir
-
 from symfluence.core.constants import UnitConversion
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.utilities import StreamflowMetrics
 
 logger = logging.getLogger(__name__)

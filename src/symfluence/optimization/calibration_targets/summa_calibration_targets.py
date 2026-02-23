@@ -5,8 +5,6 @@ SUMMA Calibration Targets (Backward Compatibility)
     Moved to symfluence.models.summa.calibration.targets
 """
 
-from symfluence.models.summa.calibration.targets import (
-    SUMMAStreamflowTarget,SUMMASnowTarget,SUMMAETTarget
-)
+from symfluence.models.summa.calibration.targets import SUMMAETTarget, SUMMASnowTarget, SUMMAStreamflowTarget
 
 __all__ = ['SUMMAStreamflowTarget', 'SUMMASnowTarget', 'SUMMAETTarget']

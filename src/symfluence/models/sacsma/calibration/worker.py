@@ -5,23 +5,23 @@ Worker implementation for SAC-SMA + Snow-17 model optimization.
 Uses InMemoryModelWorker base class for common functionality.
 """
 
+import logging
 import os
-import sys
-import signal
 import random
+import signal
+import sys
 import time
 import traceback
-import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
-from symfluence.optimization.workers.base_worker import WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import HAS_JAX, InMemoryModelWorker
 
 # Lazy JAX import
 if HAS_JAX:

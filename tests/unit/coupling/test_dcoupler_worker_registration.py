@@ -1,26 +1,27 @@
 """Tests for DCouplerWorker registration and calibration pipeline integration."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import numpy as np
 import pytest
 import torch
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 
 class TestDCouplerWorkerRegistration:
     """Test that DCouplerWorker is properly registered with OptimizerRegistry."""
 
     def test_registry_returns_dcoupler_worker(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         # Import triggers registration via decorator
         from symfluence.coupling.worker import DCouplerWorker
+        from symfluence.optimization.registry import OptimizerRegistry
 
         worker_cls = OptimizerRegistry.get_worker('DCOUPLER')
         assert worker_cls is DCouplerWorker
 
     def test_dcoupler_in_worker_list(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.coupling.worker import DCouplerWorker  # noqa: F401
+        from symfluence.optimization.registry import OptimizerRegistry
 
         workers = OptimizerRegistry.list_workers()
         assert 'DCOUPLER' in workers
@@ -63,8 +64,9 @@ class TestDCouplerWorkerApplyParams:
     """Test parameter application logic."""
 
     def test_apply_process_params_logs_debug(self, caplog):
-        from symfluence.coupling.worker import DCouplerWorker
         import logging
+
+        from symfluence.coupling.worker import DCouplerWorker
 
         # Ensure the symfluence logger hierarchy allows DEBUG capture even
         # when LoggingManager from a prior test has set propagate=False or
@@ -84,8 +86,9 @@ class TestDCouplerWorkerApplyParams:
         assert "Parameter application for process models" in caplog.text
 
     def test_apply_process_params_no_log_when_empty(self, caplog):
-        from symfluence.coupling.worker import DCouplerWorker
         import logging
+
+        from symfluence.coupling.worker import DCouplerWorker
 
         for name in ("symfluence", "symfluence.coupling", "symfluence.coupling.worker"):
             lg = logging.getLogger(name)
@@ -182,8 +185,8 @@ class TestDCouplerWorkerMetrics:
         assert metrics['KGE'] != -999.0
 
     def test_supports_native_gradients_checks_components(self):
-        from symfluence.coupling.worker import DCouplerWorker
         from dcoupler.core.component import GradientMethod
+        from symfluence.coupling.worker import DCouplerWorker
 
         worker = DCouplerWorker({})
 

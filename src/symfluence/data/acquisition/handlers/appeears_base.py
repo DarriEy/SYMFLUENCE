@@ -8,12 +8,13 @@ AppEEARS: https://appeears.earthdatacloud.nasa.gov/
 """
 
 import os
-import requests
 import shutil
 import time
-import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
+import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 

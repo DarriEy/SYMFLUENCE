@@ -6,11 +6,11 @@ structured results. It integrates with the existing CLI manager to avoid
 code duplication.
 """
 
-import sys
 import io
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
-from dataclasses import dataclass
 
 
 @dataclass
@@ -169,8 +169,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.cli.commands.workflow_commands import WorkflowCommands
         from argparse import Namespace
+
+        from symfluence.cli.commands.workflow_commands import WorkflowCommands
 
         try:
             config_path = arguments.get('config_path')
@@ -227,8 +228,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.cli.commands.binary_commands import BinaryCommands
         from argparse import Namespace
+
+        from symfluence.cli.commands.binary_commands import BinaryCommands
 
         try:
             old_stdout = sys.stdout
@@ -282,8 +284,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.cli.commands.config_commands import ConfigCommands
         from argparse import Namespace
+
+        from symfluence.cli.commands.config_commands import ConfigCommands
 
         try:
             old_stdout = sys.stdout
@@ -337,8 +340,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.cli.commands.workflow_commands import WorkflowCommands
         from argparse import Namespace
+
+        from symfluence.cli.commands.workflow_commands import WorkflowCommands
 
         try:
             old_stdout = sys.stdout
@@ -394,8 +398,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.cli.commands.project_commands import ProjectCommands
         from argparse import Namespace
+
+        from symfluence.cli.commands.project_commands import ProjectCommands
 
         try:
             old_stdout = sys.stdout
@@ -449,8 +454,8 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
-        from symfluence.agent.file_operations import FileOperations
         from symfluence.agent.code_analyzer import CodeAnalyzer
+        from symfluence.agent.file_operations import FileOperations
         from symfluence.agent.pr_manager import PRManager
         from symfluence.agent.test_runner import TestRunner
 

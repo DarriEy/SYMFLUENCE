@@ -7,14 +7,15 @@ Supports gradient-based optimization when JAX is available.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
+from symfluence.evaluation.metrics import calculate_all_metrics
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.metrics import calculate_all_metrics
+
 from .worker import HBVWorker  # noqa: F401 - Import to trigger worker registration
 
 

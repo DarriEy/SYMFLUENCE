@@ -1,13 +1,10 @@
 """Unit tests for path_resolver utilities."""
 
-import pytest
-from pathlib import Path
 import logging
-from symfluence.core.path_resolver import (
-    resolve_path,
-    resolve_file_path,
-    PathResolverMixin
-)
+from pathlib import Path
+
+import pytest
+from symfluence.core.path_resolver import PathResolverMixin, resolve_file_path, resolve_path
 
 
 class TestResolvePath:

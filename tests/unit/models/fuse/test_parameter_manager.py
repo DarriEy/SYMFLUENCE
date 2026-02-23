@@ -7,10 +7,11 @@ Tests FUSE-specific parameter handling including:
 - Parameter update methods
 """
 
-import pytest
-import numpy as np
 import logging
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pytest
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -456,8 +457,8 @@ class TestFUSEBaseClassIntegration:
 
     def test_inherits_from_base(self, fuse_config, test_logger, tmp_path):
         """Test that FUSEParameterManager inherits from BaseParameterManager."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
         from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+        from symfluence.optimization.parameter_managers import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)

@@ -4,9 +4,10 @@ Snow visualization plotter.
 Handles plotting of snow water equivalent (SWE) comparisons and metrics.
 """
 
-import pandas as pd  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd  # type: ignore
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 
@@ -31,8 +32,8 @@ class SnowPlotter(BasePlotter):
         Returns:
             Dictionary containing paths to plots and calculated metrics
         """
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
+        import xarray as xr  # type: ignore
         plt, mdates = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec  # type: ignore
 

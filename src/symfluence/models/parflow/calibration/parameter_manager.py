@@ -21,15 +21,14 @@ cached hourly ERA5 data using the new snow model parameters.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import logging
 
 import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
-
 
 # Physically-based parameter bounds for variably-saturated subsurface + overland flow
 # Domain geometry (TOP/BOT) is fixed; only soil/flow properties are calibrated.
@@ -277,8 +276,9 @@ class ParFlowParameterManager(BaseParameterManager):
         parameters, and updates the z_upper BC values in the .pfidb entries dict.
         """
         import pandas as pd
-        from symfluence.models.snow17.bmi import Snow17BMI
+
         from symfluence.models.parflow.preprocessor import ParFlowPreProcessor
+        from symfluence.models.snow17.bmi import Snow17BMI
 
         cache_path = self.settings_dir / 'hourly_forcing_cache.npz'
         if not cache_path.exists():

@@ -7,15 +7,16 @@ Uses TauDEM for watershed delineation and creates simplified river network.
 Refactored from geofabric_utils.py (2026-01-01)
 """
 
-from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
-import geopandas as gpd
 import shutil
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
-from ..base.base_delineator import BaseGeofabricDelineator
-from ..processors.taudem_executor import TauDEMExecutor
-from ..processors.gdal_processor import GDALProcessor
+import geopandas as gpd
+
 from ....geospatial.delineation_registry import DelineationRegistry
+from ..base.base_delineator import BaseGeofabricDelineator
+from ..processors.gdal_processor import GDALProcessor
+from ..processors.taudem_executor import TauDEMExecutor
 
 
 @DelineationRegistry.register('lumped')

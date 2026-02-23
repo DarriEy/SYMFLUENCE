@@ -4,14 +4,14 @@ Unit tests for coordinate_utils module.
 Tests bounding box parsing, coordinate normalization, and related utilities.
 """
 
-import pytest
 import numpy as np
+import pytest
 from symfluence.geospatial.coordinate_utils import (
     BoundingBox,
-    parse_bbox,
-    normalize_longitude,
+    CoordinateUtilsMixin,
     create_coordinate_mask,
-    CoordinateUtilsMixin
+    normalize_longitude,
+    parse_bbox,
 )
 
 

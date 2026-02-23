@@ -24,7 +24,6 @@ from symfluence.evaluation.metrics_core import (
 )
 from symfluence.evaluation.metrics_types import MetricInfo
 
-
 METRIC_REGISTRY: Dict[str, Dict[str, Union[Callable, MetricInfo]]] = {
     "NSE": {
         "function": nse,

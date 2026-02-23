@@ -16,12 +16,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.evaluation.metrics import kge, kge_prime, mae, nse, rmse
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
-from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
-from symfluence.models.summa.runner import SummaRunner
+
 # Import MizuRouteRunner at module level for test mocking,
 # but still use lazy loading in the property to avoid circular imports
 from symfluence.models.mizuroute.runner import MizuRouteRunner
+from symfluence.models.summa.runner import SummaRunner
+
 
 class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     """

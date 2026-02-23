@@ -22,16 +22,16 @@ References:
     - Yamazaki et al. (2019). MERIT Hydro. Water Resources Research, 55, 5053-5073
 """
 
+import zipfile
 from pathlib import Path
 from typing import List
-import zipfile
+
 import requests
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # MERIT-Basins data URLs
 _MERIT_BASE_URL = "http://hydrology.princeton.edu/data/mpan/MERIT_Basins"

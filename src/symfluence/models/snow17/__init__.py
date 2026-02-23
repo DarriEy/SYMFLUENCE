@@ -69,8 +69,9 @@ def __dir__():
 
 def register_with_model_registry():
     """Register Snow-17 with the ModelRegistry."""
-    from .config import Snow17ConfigAdapter
     from symfluence.models.registry import ModelRegistry
+
+    from .config import Snow17ConfigAdapter
 
     ModelRegistry.register_config_adapter('SNOW17')(Snow17ConfigAdapter)
 
@@ -80,15 +81,24 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
-    from .config import Snow17Config, Snow17ConfigAdapter
     from .bmi import Snow17BMI
-    from .parameters import (
-        Snow17State, Snow17Params,
-        SNOW17_PARAM_NAMES, SNOW17_PARAM_BOUNDS, SNOW17_DEFAULTS, DEFAULT_ADC,
-    )
+    from .config import Snow17Config, Snow17ConfigAdapter
     from .model import (
-        snow17_step, snow17_simulate, snow17_simulate_jax, snow17_simulate_numpy,
-        seasonal_melt_factor, HAS_JAX, create_initial_state,
+        HAS_JAX,
+        create_initial_state,
+        seasonal_melt_factor,
+        snow17_simulate,
+        snow17_simulate_jax,
+        snow17_simulate_numpy,
+        snow17_step,
+    )
+    from .parameters import (
+        DEFAULT_ADC,
+        SNOW17_DEFAULTS,
+        SNOW17_PARAM_BOUNDS,
+        SNOW17_PARAM_NAMES,
+        Snow17Params,
+        Snow17State,
     )
 
 

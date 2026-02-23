@@ -11,8 +11,8 @@ It supports multiple BMI-compliant model modules including CFE, PET,
 NOAH-OWP-Modular, and SLOTH.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
     get_udunits2_detection_and_build,

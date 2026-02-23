@@ -22,7 +22,7 @@ import xarray as xr
 # Import geopandas and shapely with graceful fallback
 try:
     import geopandas as gpd
-    from shapely.geometry import Point, Polygon, LineString, box
+    from shapely.geometry import LineString, Point, Polygon, box
     GEOPANDAS_AVAILABLE = True
 except ImportError:
     GEOPANDAS_AVAILABLE = False

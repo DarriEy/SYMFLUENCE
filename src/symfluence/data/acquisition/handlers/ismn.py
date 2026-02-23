@@ -17,13 +17,14 @@ Authentication:
     - netrc file with ismn.earth entry
 """
 
-import re
-import requests
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 import os
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+import requests
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry

@@ -7,23 +7,25 @@ Creates EASYMORE remapping weights for forcing data.
 import gc
 import logging
 import shutil
-import xarray as xr
-import geopandas as gpd
 from pathlib import Path
 from typing import Optional, Tuple
 
-from .shapefile_processor import ShapefileProcessor
+import geopandas as gpd
+import xarray as xr
 
+from symfluence.core.hdf5_safety import clear_xarray_cache, prepare_for_netcdf_operation
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.core.hdf5_safety import prepare_for_netcdf_operation, clear_xarray_cache
+
+from .shapefile_processor import ShapefileProcessor
 
 
 def _create_easymore_instance():
     """Create an Easymore instance while suppressing initialization output."""
-    import easymore
-    from io import StringIO
     from contextlib import redirect_stdout
+    from io import StringIO
+
+    import easymore
 
     captured_output = StringIO()
     with redirect_stdout(captured_output):
@@ -39,8 +41,8 @@ def _create_easymore_instance():
 def _run_easmore_with_suppressed_output(esmr, logger):
     """Run EASMORE's nc_remapper while suppressing verbose output."""
     import warnings
+    from contextlib import redirect_stderr, redirect_stdout
     from io import StringIO
-    from contextlib import redirect_stdout, redirect_stderr
 
     # Aggressive cleanup before running easymore to prevent HDF5 conflicts
     prepare_for_netcdf_operation()

@@ -27,8 +27,8 @@ Example Usage:
     summa_config = BuildInstructionsRegistry.get_instructions('summa')
 """
 
-from typing import Any, Callable, Dict, List, Optional
 import logging
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -9,6 +9,7 @@ Extracted from geofabric_utils.py (2026-01-01)
 
 from pathlib import Path
 from typing import Any, Dict, List
+
 import numpy as np
 
 from symfluence.core.mixins import ConfigMixin

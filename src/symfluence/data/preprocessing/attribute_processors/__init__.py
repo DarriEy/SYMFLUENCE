@@ -12,12 +12,12 @@ Provides modular attribute processing functionality split into specialized proce
 """
 
 from .base import BaseAttributeProcessor
+from .climate import ClimateProcessor
 from .elevation import ElevationProcessor
 from .geology import GeologyProcessor
-from .soil import SoilProcessor
-from .landcover import LandCoverProcessor
-from .climate import ClimateProcessor
 from .hydrology import HydrologyProcessor
+from .landcover import LandCoverProcessor
+from .soil import SoilProcessor
 
 __all__ = [
     'BaseAttributeProcessor',

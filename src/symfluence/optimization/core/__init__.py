@@ -20,15 +20,17 @@ Note:
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import (
     ParameterBoundsRegistry,
-    get_registry,
+    get_depth_bounds,
     get_fuse_bounds,
+    get_mizuroute_bounds,
     get_ngen_bounds,
     get_ngen_cfe_bounds,
     get_ngen_noah_bounds,
     get_ngen_pet_bounds,
-    get_mizuroute_bounds,
-    get_depth_bounds,
+    get_registry,
 )
+
+
 # ParameterManager is deprecated - use lazy import to avoid circular dependency
 # Users should use SUMMAParameterManager from parameter_managers instead
 def __getattr__(name):
@@ -43,12 +45,12 @@ def __getattr__(name):
         from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
         return SUMMAParameterManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-from symfluence.optimization.core.transformers import TransformationManager
 from symfluence.optimization.core.directory_conventions import (
-    ModelDirectoryConvention,
     DirectoryConventionRegistry,
+    ModelDirectoryConvention,
     get_model_directories,
 )
+from symfluence.optimization.core.transformers import TransformationManager
 
 __all__ = [
     'BaseParameterManager',

@@ -1,9 +1,9 @@
 """Unit tests for InitializationManager."""
 
-import pytest
 from unittest.mock import patch
-import yaml
 
+import pytest
+import yaml
 from symfluence.cli.services import InitializationManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
@@ -16,6 +16,7 @@ def init_manager():
     Injects a capture-friendly Console instance.
     """
     import sys
+
     from symfluence.cli.console import Console, ConsoleConfig
 
     # Configure console to use stdout/stderr which capsys captures
@@ -95,6 +96,7 @@ class TestListPresets:
     def test_list_presets_prints_output(self, init_manager, capsys):
         """Test list_presets prints preset information."""
         import sys
+
         from symfluence.cli.console import Console, ConsoleConfig
 
         init_manager._console = Console(ConsoleConfig(
@@ -117,6 +119,7 @@ class TestShowPreset:
     def test_show_preset_valid_name(self, init_manager, capsys):
         """Test show_preset displays preset information."""
         import sys
+
         from symfluence.cli.console import Console, ConsoleConfig
 
         init_manager._console = Console(ConsoleConfig(
@@ -135,6 +138,7 @@ class TestShowPreset:
     def test_show_preset_invalid_name(self, init_manager, capsys):
         """Test show_preset handles invalid preset name."""
         import sys
+
         from symfluence.cli.console import Console, ConsoleConfig
 
         init_manager._console = Console(ConsoleConfig(

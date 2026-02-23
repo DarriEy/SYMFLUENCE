@@ -9,15 +9,13 @@ Tests the abstract base class functionality:
 - Credential resolution
 """
 
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
-import tempfile
 
 import pandas as pd
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Test Fixtures

@@ -27,19 +27,19 @@ References:
 """
 
 import gzip
-import re
 import math
+import re
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-import xarray as xr
 import requests
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-
 
 # NSIDC data endpoint
 IMS_BASE_URL = "https://noaadata.apps.nsidc.org/NOAA/G02156"

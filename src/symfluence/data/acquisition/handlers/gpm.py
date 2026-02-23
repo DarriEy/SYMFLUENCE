@@ -26,10 +26,11 @@ Data Access:
     Fallback: CMR granule-by-granule download
 """
 
-import requests
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 from typing import List
+
+import requests
 import xarray as xr
 
 from ..base import BaseAcquisitionHandler

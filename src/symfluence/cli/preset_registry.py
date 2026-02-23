@@ -6,8 +6,8 @@ enabling each model to register its own initialization presets without
 hardcoding them in the central init_presets.py file.
 """
 
-from typing import Dict, Any, Callable, List
 import logging
+from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,7 @@ class PresetRegistry:
         each known model package.
         """
         import logging
+
         from symfluence.core.constants import SupportedModels
 
         for model_name in SupportedModels.WITH_PRESETS:

@@ -17,7 +17,6 @@ import xarray as xr
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 
-
 logger = logging.getLogger(__name__)
 
 

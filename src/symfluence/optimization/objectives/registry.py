@@ -23,7 +23,7 @@ Example:
     >>> objective = ObjectiveRegistry.get_objective('CUSTOM_OBJECTIVE', config, logger)
     >>> score = objective.calculate(eval_results)
 """
-from typing import Dict, Type, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 if TYPE_CHECKING:
     from .base import BaseObjective

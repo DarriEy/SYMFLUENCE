@@ -31,16 +31,16 @@ References:
     - Lehner, B. (2014). HydroBASINS Technical Documentation. WWF.
 """
 
+import zipfile
 from pathlib import Path
 from typing import List
-import zipfile
+
 import requests
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # HydroBASINS download URL template (standard version, excludes endorheic)
 _HYDROBASINS_URL = (

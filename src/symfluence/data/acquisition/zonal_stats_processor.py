@@ -162,11 +162,12 @@ See Also:
 
 import os
 from pathlib import Path
-from typing import Dict, Any
-import pandas as pd # type: ignore
-import geopandas as gpd # type: ignore
-import rasterio # type: ignore
-from rasterstats import zonal_stats # type: ignore
+from typing import Any, Dict
+
+import geopandas as gpd  # type: ignore
+import pandas as pd  # type: ignore
+import rasterio  # type: ignore
+from rasterstats import zonal_stats  # type: ignore
 
 from symfluence.core.mixins import ConfigMixin
 

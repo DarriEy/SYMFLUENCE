@@ -25,7 +25,7 @@ References:
     System Sciences, 11(5), 1645-1659.
 """
 
-from typing import Tuple, NamedTuple, Optional, Any
+from typing import Any, NamedTuple, Optional, Tuple
 
 import numpy as np
 

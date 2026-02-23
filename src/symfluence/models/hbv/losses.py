@@ -7,8 +7,8 @@ and gradient computation utilities for gradient-based optimization.
 All loss functions return negative values for minimization (higher metric = lower loss).
 """
 
-from typing import Any, Callable, Dict, Optional
 import warnings
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 
@@ -23,11 +23,10 @@ except ImportError:
     jnp = None
 
 from .parameters import (
-    scale_params_for_timestep,
     create_params_from_dict,
+    scale_params_for_timestep,
 )
 from .time_utils import warmup_timesteps
-
 
 # =============================================================================
 # LOSS FUNCTIONS (DIFFERENTIABLE)

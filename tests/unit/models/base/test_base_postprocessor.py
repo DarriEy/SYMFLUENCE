@@ -5,15 +5,16 @@ Tests initialization, path resolution, unit conversions, and helper methods
 for the base postprocessor class.
 """
 
-import pytest
-import pandas as pd
-import xarray as xr
-import numpy as np
 from pathlib import Path
 from unittest.mock import Mock
-from symfluence.models.base import BaseModelPostProcessor
-from symfluence.core.constants import UnitConversion
+
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.constants import UnitConversion
+from symfluence.models.base import BaseModelPostProcessor
 
 
 class ConcretePostProcessor(BaseModelPostProcessor):

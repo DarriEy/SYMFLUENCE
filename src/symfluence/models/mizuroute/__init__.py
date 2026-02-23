@@ -63,9 +63,9 @@ Limitations and Considerations:
     - Lake/reservoir routing requires additional configuration
 """
 
+from .mixins import MizuRouteConfigMixin
 from .preprocessor import MizuRoutePreProcessor
 from .runner import MizuRouteRunner
-from .mixins import MizuRouteConfigMixin
 
 __all__ = [
     'MizuRoutePreProcessor',
@@ -82,11 +82,14 @@ except ImportError:
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import MizuRouteConfigAdapter
+
 ModelRegistry.register_config_adapter('MIZUROUTE')(MizuRouteConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import MizuRouteResultExtractor
+
 ModelRegistry.register_result_extractor('MIZUROUTE')(MizuRouteResultExtractor)
 
 # Register preprocessor with ModelRegistry

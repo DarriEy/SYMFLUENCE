@@ -14,16 +14,17 @@ Example stations:
 - Garonne at Tonneins: O5550010
 - Rhône at Beaucaire: V7200015
 """
-import requests
-import pandas as pd
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+import pandas as pd
+import requests
 
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-
 
 # Hub'Eau API configuration
 HUBEAU_BASE_URL = "https://hubeau.eaufrance.fr/api/v1/hydrometrie"

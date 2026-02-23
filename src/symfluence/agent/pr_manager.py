@@ -5,13 +5,13 @@ Generates PR titles, descriptions, and manages git staging.
 Supports fuzzy matching for code edits and automated PR creation via gh CLI.
 """
 
-import subprocess
-import shutil
 import re
-from pathlib import Path
-from typing import Optional, Tuple, List
+import shutil
+import subprocess
 from datetime import datetime
 from difflib import SequenceMatcher
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 
 class PRManager:

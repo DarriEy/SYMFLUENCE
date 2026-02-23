@@ -4,8 +4,8 @@ Acquisition Registry for SYMFLUENCE
 Provides a central registry for data acquisition handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
-from typing import Dict, Type, Any, List, Union, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Type, Union
 
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.data.base_registry import BaseRegistry

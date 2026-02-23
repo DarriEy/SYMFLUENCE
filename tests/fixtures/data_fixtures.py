@@ -4,12 +4,12 @@ Data Fixtures for SYMFLUENCE Tests
 Provides fixtures for downloading and managing test data bundles from GitHub releases.
 """
 
+import shutil
+import zipfile
+
 import pytest
 import requests
-import zipfile
-import shutil
 from symfluence.data.cache import RawForcingCache
-
 
 # Test data bundle configuration
 BUNDLE_VERSION = "v0.7.0"

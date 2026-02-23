@@ -1,18 +1,7 @@
 """Deprecated shim — UnifiedModelExecutor is now equivalent to SpatialOrchestrator."""
 
-from .model_executor import (
-    ModelExecutor,
-    ExecutionMode,
-    ExecutionResult,
-    SlurmJobConfig
-)
-from .spatial_orchestrator import (
-    SpatialOrchestrator,
-    SpatialMode,
-    SpatialConfig,
-    RoutingModel,
-    RoutingConfig
-)
+from .model_executor import ExecutionMode, ExecutionResult, ModelExecutor, SlurmJobConfig
+from .spatial_orchestrator import RoutingConfig, RoutingModel, SpatialConfig, SpatialMode, SpatialOrchestrator
 
 
 class UnifiedModelExecutor(SpatialOrchestrator):

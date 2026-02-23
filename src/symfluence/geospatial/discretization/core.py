@@ -18,10 +18,11 @@ from pyproj import CRS  # type: ignore
 from rasterio.mask import mask  # type: ignore
 from shapely.geometry import MultiPolygon, Polygon, shape  # type: ignore
 
-from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.exceptions import ShapefileError
+from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.geospatial.geometry_utils import clean_geometry
 from symfluence.geospatial.raster_utils import analyze_raster_values
+
 from .artifacts import DiscretizationArtifacts
 from .attributes import aspect, combined, elevation, grus, landclass, radiation, soilclass
 

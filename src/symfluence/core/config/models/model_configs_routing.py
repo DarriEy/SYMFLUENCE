@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 
+
 class MizuRouteConfig(BaseModel):
     """mizuRoute routing model configuration"""
     model_config = FROZEN_CONFIG

@@ -13,8 +13,9 @@ Refactored from geofabric_utils.py (2026-01-01)
 """
 
 from typing import Any, Dict, Set
-import networkx as nx
+
 import geopandas as gpd
+import networkx as nx
 
 
 class RiverGraphProcessor:

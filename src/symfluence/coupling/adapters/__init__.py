@@ -4,13 +4,13 @@ __all__: list = []
 
 try:
     from .process_adapters import (
-        SUMMAProcessComponent,
-        MizuRouteProcessComponent,
-        TRouteProcessComponent,
-        ParFlowProcessComponent,
-        MODFLOWProcessComponent,
-        MESHProcessComponent,
         CLMProcessComponent,
+        MESHProcessComponent,
+        MizuRouteProcessComponent,
+        MODFLOWProcessComponent,
+        ParFlowProcessComponent,
+        SUMMAProcessComponent,
+        TRouteProcessComponent,
     )
     __all__.extend([
         "SUMMAProcessComponent",
@@ -26,9 +26,9 @@ except ImportError:
 
 try:
     from .jax_adapters import (
+        SacSmaJAXComponent,
         Snow17JAXComponent,
         XAJJAXComponent,
-        SacSmaJAXComponent,
     )
     __all__.extend([
         "Snow17JAXComponent",

@@ -11,11 +11,12 @@ Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
 
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-import logging
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 

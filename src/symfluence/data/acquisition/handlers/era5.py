@@ -5,23 +5,24 @@ Provides acquisition from Google Cloud ARCO-ERA5 (Zarr) or ECMWF Climate
 Data Store (CDS) with automatic pathway selection and parallel processing.
 """
 
+import logging
 import os
-import xarray as xr
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Dict, Tuple
-import logging
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.validation import validate_bounding_box, validate_numeric_range
+from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
-from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
-from symfluence.core.validation import (
-    validate_bounding_box,
-    validate_numeric_range
-)
-from symfluence.core.exceptions import DataAcquisitionError
+
 
 def has_cds_credentials() -> bool:
     """

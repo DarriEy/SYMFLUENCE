@@ -24,25 +24,24 @@ since CLMParFlow uses the same .pfidb format.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import logging
 
 import numpy as np
 
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Reuse ParFlow's .pfidb utilities and parameter constants
 from symfluence.models.parflow.calibration.parameter_manager import (
+    PARAM_TO_PFIDB_KEYS,
+    ROUTING_PARAM_NAMES,
+    SNOW17_PARAM_NAMES,
     _read_pfidb,
     _write_pfidb,
-    PARAM_TO_PFIDB_KEYS,
-    SNOW17_PARAM_NAMES,
-    ROUTING_PARAM_NAMES,
 )
-
+from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.optimization.registry import OptimizerRegistry
 
 # Same physically-based parameter bounds as ParFlow
 CLMPARFLOW_DEFAULT_BOUNDS = {
@@ -243,8 +242,9 @@ class CLMParFlowParameterManager(BaseParameterManager):
         Delegates to ParFlow's implementation since the forcing format is identical.
         """
         import pandas as pd
-        from symfluence.models.snow17.bmi import Snow17BMI
+
         from symfluence.models.clmparflow.preprocessor import CLMParFlowPreProcessor
+        from symfluence.models.snow17.bmi import Snow17BMI
 
         cache_path = self.forcing_input_dir / 'hourly_forcing_cache.npz'
         if not cache_path.exists():

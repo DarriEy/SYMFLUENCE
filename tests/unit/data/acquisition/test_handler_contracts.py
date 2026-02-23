@@ -15,13 +15,11 @@ import inspect
 import logging
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Handler Discovery
@@ -308,8 +306,8 @@ class TestRegistryContracts:
 
     def test_registry_unknown_handler_raises(self, mock_config, mock_logger):
         """Registry.get_handler() should raise for unknown handlers."""
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         from symfluence.core.exceptions import DataAcquisitionError
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         with pytest.raises(DataAcquisitionError):
             AcquisitionRegistry.get_handler(

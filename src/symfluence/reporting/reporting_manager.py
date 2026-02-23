@@ -11,34 +11,35 @@ Heavy lifting is delegated to three orchestrators:
 - ``DiagnosticsOrchestrator``: per-workflow-step diagnostic validation plots
 """
 
-from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
-from pathlib import Path
 from functools import cached_property
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-# Config
-from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
+from symfluence.core.constants import ConfigKeys
 from symfluence.core.exceptions import ReportingError, symfluence_error_handler
 from symfluence.core.mixins import ConfigMixin
-from symfluence.reporting.core.decorators import skip_if_not_visualizing, skip_if_not_diagnostic
-from symfluence.core.constants import ConfigKeys
+
+# Config
+from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG, PlotConfig
+from symfluence.reporting.core.decorators import skip_if_not_diagnostic, skip_if_not_visualizing
 
 # Type hints only - actual imports are lazy
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-    from symfluence.reporting.processors.data_processor import DataProcessor
-    from symfluence.reporting.processors.spatial_processor import SpatialProcessor
-    from symfluence.reporting.plotters.domain_plotter import DomainPlotter
-    from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
+    from symfluence.reporting.orchestrators.calibration_orchestrator import CalibrationOrchestrator
+    from symfluence.reporting.orchestrators.diagnostics_orchestrator import DiagnosticsOrchestrator
+    from symfluence.reporting.orchestrators.model_output_orchestrator import ModelOutputOrchestrator
     from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
     from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
-    from symfluence.reporting.plotters.snow_plotter import SnowPlotter
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
-    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+    from symfluence.reporting.plotters.domain_plotter import DomainPlotter
     from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
+    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+    from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
+    from symfluence.reporting.plotters.snow_plotter import SnowPlotter
     from symfluence.reporting.plotters.workflow_diagnostic_plotter import WorkflowDiagnosticPlotter
-    from symfluence.reporting.orchestrators.diagnostics_orchestrator import DiagnosticsOrchestrator
-    from symfluence.reporting.orchestrators.calibration_orchestrator import CalibrationOrchestrator
-    from symfluence.reporting.orchestrators.model_output_orchestrator import ModelOutputOrchestrator
+    from symfluence.reporting.processors.data_processor import DataProcessor
+    from symfluence.reporting.processors.spatial_processor import SpatialProcessor
 
 
 class ReportingManager(ConfigMixin):

@@ -5,25 +5,24 @@ accidental re-parenting, orphaned exceptions, or duplicate definitions.
 """
 
 import pytest
-
 from symfluence.core.exceptions import (
-    SYMFLUENCEError,
+    CodeAnalysisError,
     ConfigurationError,
     ConfigValidationError,
-    ModelExecutionError,
     DataAcquisitionError,
-    OptimizationError,
-    WorkerExecutionError,
-    RetryExhaustedError,
-    GeospatialError,
-    ValidationError,
-    FileOperationError,
     DiscretizationError,
-    ShapefileError,
-    RasterProcessingError,
-    CodeAnalysisError,
     EvaluationError,
+    FileOperationError,
+    GeospatialError,
+    ModelExecutionError,
+    OptimizationError,
+    RasterProcessingError,
     ReportingError,
+    RetryExhaustedError,
+    ShapefileError,
+    SYMFLUENCEError,
+    ValidationError,
+    WorkerExecutionError,
 )
 
 
@@ -102,16 +101,16 @@ class TestObservationHierarchy:
 
     def test_observation_processing_error_under_observation(self):
         from symfluence.data.observation.base import (
-            ObservationProcessingError,
             ObservationError,
+            ObservationProcessingError,
         )
         assert issubclass(ObservationProcessingError, ObservationError)
         assert issubclass(ObservationProcessingError, DataAcquisitionError)
 
     def test_observation_validation_error_under_observation(self):
         from symfluence.data.observation.base import (
-            ObservationValidationError,
             ObservationError,
+            ObservationValidationError,
         )
         assert issubclass(ObservationValidationError, ObservationError)
         assert issubclass(ObservationValidationError, DataAcquisitionError)

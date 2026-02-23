@@ -72,11 +72,11 @@ References:
 
     https://github.com/WatershedModels/SWAT
 """
-from .preprocessor import SWATPreProcessor
-from .runner import SWATRunner
+from .config import SWATConfigAdapter
 from .extractor import SWATResultExtractor
 from .postprocessor import SWATPostProcessor
-from .config import SWATConfigAdapter
+from .preprocessor import SWATPreProcessor
+from .runner import SWATRunner
 
 __all__ = [
     "SWATPreProcessor",

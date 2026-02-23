@@ -8,11 +8,10 @@ NGEN, GR, and SUMMA preprocessors.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import pandas as pd
 import xarray as xr
-
 
 logger = logging.getLogger(__name__)
 

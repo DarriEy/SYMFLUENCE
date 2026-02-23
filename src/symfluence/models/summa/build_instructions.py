@@ -13,8 +13,7 @@ land surface model that uses SUNDIALS for solving differential equations.
 
 import sys
 
-from symfluence.cli.services import BuildInstructionsRegistry
-from symfluence.cli.services import get_common_build_environment
+from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
 
 
 @BuildInstructionsRegistry.register('summa')

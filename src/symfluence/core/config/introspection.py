@@ -9,9 +9,10 @@ The auto-generated mapping is validated against the manual mapping during
 tests to ensure backward compatibility.
 """
 
-from typing import Dict, Tuple, Type, get_origin, get_args, Union, Optional, Any
-from pydantic import BaseModel
 import logging
+from typing import Any, Dict, Optional, Tuple, Type, Union, get_args, get_origin
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 

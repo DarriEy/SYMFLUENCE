@@ -14,11 +14,11 @@ References:
     - PSO: Kennedy, J. & Eberhart, R. (1995). "Particle swarm optimization"
 """
 
-import pytest
-import numpy as np
 import logging
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
+import numpy as np
+import pytest
 
 # =============================================================================
 # Test Fixtures
@@ -242,11 +242,11 @@ class TestConfigSchema:
     def test_get_algorithm_defaults(self):
         """get_algorithm_defaults should return correct class for each algorithm."""
         from symfluence.optimization.optimizers.algorithms.config_schema import (
-            get_algorithm_defaults,
             CMAESDefaults,
-            NSGA2Defaults,
             DREAMDefaults,
+            NSGA2Defaults,
             PSODefaults,
+            get_algorithm_defaults,
         )
 
         assert get_algorithm_defaults('cmaes') is CMAESDefaults
@@ -360,8 +360,8 @@ class TestNSGA2Algorithm:
 
     def test_nsga2_imports_config_schema(self):
         """NSGA-II should import and use NSGA2Defaults."""
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
         from symfluence.optimization.optimizers.algorithms.config_schema import NSGA2Defaults
+        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         assert NSGA2Defaults is not None
 
@@ -455,15 +455,15 @@ class TestDREAMAlgorithm:
 
     def test_dream_imports_config_schema(self):
         """DREAM should import and use DREAMDefaults."""
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
         from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
 
         assert DREAMDefaults is not None
 
     def test_dream_chain_computation(self, mock_config, test_logger):
         """DREAM should use at least 2*n+1 chains."""
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
         from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
 
         mock_config['POPULATION_SIZE'] = 5  # Less than minimum
         mock_config['NUMBER_OF_ITERATIONS'] = 1
@@ -549,8 +549,8 @@ class TestPSOAlgorithm:
 
     def test_pso_imports_config_schema(self):
         """PSO should import and use PSODefaults."""
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
         from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
 
         assert PSODefaults is not None
 
@@ -558,8 +558,8 @@ class TestPSOAlgorithm:
         self, mock_config, test_logger, sphere_population_objective, mock_callbacks
     ):
         """PSO should clamp velocities to v_max."""
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
         from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -727,8 +727,8 @@ class TestModuleImports:
         """Config schema classes should be importable from algorithms package."""
         from symfluence.optimization.optimizers.algorithms import (
             CMAESDefaults,
-            NSGA2Defaults,
             DREAMDefaults,
+            NSGA2Defaults,
             PSODefaults,
             get_algorithm_defaults,
             validate_hyperparameters,

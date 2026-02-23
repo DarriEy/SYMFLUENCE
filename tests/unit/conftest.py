@@ -4,9 +4,9 @@ Unit test fixtures and configuration.
 Fixtures specific to unit tests (fast, isolated tests).
 """
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 
 # ============================================================================
 # Common Mock Fixtures

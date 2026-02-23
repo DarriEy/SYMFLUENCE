@@ -5,13 +5,14 @@ Tests calibration targets, worker functions, and parameter management
 for SUMMA, FUSE, and NGEN models.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from unittest.mock import patch
-from test_helpers.markers import skip_if_no_model
+
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
+from test_helpers.markers import skip_if_no_model
 
 
 def create_config_with_overrides(base_config: SymfluenceConfig, **overrides) -> SymfluenceConfig:
@@ -281,8 +282,9 @@ class TestFUSEWorkerFunctions:
 
     def test_fuse_parameter_application(self, fuse_config, test_logger, temp_project_dir):
         """Test applying parameters to FUSE input files via worker class."""
-        from symfluence.models.fuse.calibration.worker import FUSEWorker
         from unittest.mock import mock_open
+
+        from symfluence.models.fuse.calibration.worker import FUSEWorker
 
         params = {
             'MAXWATR_1': 500.0,

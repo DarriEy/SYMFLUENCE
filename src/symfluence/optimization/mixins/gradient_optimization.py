@@ -7,8 +7,9 @@ faster than population-based methods in some cases.
 """
 
 import logging
-import numpy as np
 from typing import Callable, Dict, List, Optional, Tuple
+
+import numpy as np
 
 from symfluence.core.mixins import ConfigMixin
 

@@ -17,8 +17,9 @@ See Also:
     - symfluence.data.preprocessing.attribute_processors: Specialized processors
 """
 
+from typing import Dict, List, Union
+
 import numpy as np
-from typing import List, Dict, Union
 
 # Re-export from consolidated spatial utilities
 

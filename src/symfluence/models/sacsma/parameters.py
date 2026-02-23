@@ -21,10 +21,12 @@ import numpy as np
 
 # Import Snow-17 definitions from the shared module
 from symfluence.models.snow17.parameters import (
-    Snow17Params,
-    SNOW17_PARAM_NAMES,
-    SNOW17_PARAM_BOUNDS,
     SNOW17_DEFAULTS,
+    SNOW17_PARAM_BOUNDS,
+    SNOW17_PARAM_NAMES,
+    Snow17Params,
+)
+from symfluence.models.snow17.parameters import (
     params_dict_to_namedtuple as snow17_params_dict_to_namedtuple,
 )
 

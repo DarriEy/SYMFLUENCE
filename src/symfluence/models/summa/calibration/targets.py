@@ -11,9 +11,9 @@ primarily provide explicit naming and registration for consistency with other mo
 
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.evaluation.evaluators import StreamflowEvaluator, SnowEvaluator, ETEvaluator
+from symfluence.evaluation.evaluators import ETEvaluator, SnowEvaluator, StreamflowEvaluator
 from symfluence.optimization.registry import OptimizerRegistry
 
 

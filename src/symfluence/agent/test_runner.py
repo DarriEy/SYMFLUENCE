@@ -6,7 +6,7 @@ Runs tests on modified code and provides formatted results.
 
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 
 class TestRunner:

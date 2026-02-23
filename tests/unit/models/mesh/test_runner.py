@@ -2,9 +2,10 @@
 Tests for MESH model runner.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 
 class TestMESHRunnerInitialization:
@@ -142,8 +143,9 @@ class TestMESHRunnerOutputCopy:
 
     def test_copy_outputs_copies_streamflow(self, mesh_config, mock_logger, setup_mesh_directories, sample_mesh_output_csv):
         """Test copy outputs copies streamflow file."""
-        from symfluence.models.mesh.runner import MESHRunner
         import shutil
+
+        from symfluence.models.mesh.runner import MESHRunner
 
         runner = MESHRunner(mesh_config, mock_logger)
         runner.forcing_mesh_path = setup_mesh_directories['forcing_dir']

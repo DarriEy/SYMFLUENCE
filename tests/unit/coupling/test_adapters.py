@@ -2,7 +2,6 @@
 
 import pytest
 import torch
-
 from dcoupler.core.component import FluxDirection, GradientMethod
 
 

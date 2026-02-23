@@ -12,13 +12,14 @@ Tests import, registration, and basic functionality for:
 - Daymet
 - VIIRS Snow
 """
-import pytest
-import pandas as pd
-import numpy as np
-import xarray as xr
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import logging
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
 
 # Test marker
 pytestmark = [pytest.mark.unit, pytest.mark.data]
@@ -62,64 +63,64 @@ class TestHandlerImports:
 
     def test_era5_land_import(self):
         """Test ERA5-Land handler imports."""
-        from symfluence.data.observation.handlers.era5_land import ERA5LandHandler
         from symfluence.data.acquisition.handlers.era5_land import ERA5LandAcquirer
+        from symfluence.data.observation.handlers.era5_land import ERA5LandHandler
         assert ERA5LandHandler is not None
         assert ERA5LandAcquirer is not None
 
     def test_mswep_import(self):
         """Test MSWEP handler imports."""
-        from symfluence.data.observation.handlers.mswep import MSWEPHandler
         from symfluence.data.acquisition.handlers.mswep import MSWEPAcquirer
+        from symfluence.data.observation.handlers.mswep import MSWEPHandler
         assert MSWEPHandler is not None
         assert MSWEPAcquirer is not None
 
     def test_modis_lst_import(self):
         """Test MODIS LST handler imports."""
-        from symfluence.data.observation.handlers.modis_lst import MODISLSTHandler
         from symfluence.data.acquisition.handlers.modis_lst import MODISLSTAcquirer
+        from symfluence.data.observation.handlers.modis_lst import MODISLSTHandler
         assert MODISLSTHandler is not None
         assert MODISLSTAcquirer is not None
 
     def test_modis_lai_import(self):
         """Test MODIS LAI handler imports."""
-        from symfluence.data.observation.handlers.modis_lai import MODISLAIHandler
         from symfluence.data.acquisition.handlers.modis_lai import MODISLAIAcquirer
+        from symfluence.data.observation.handlers.modis_lai import MODISLAIHandler
         assert MODISLAIHandler is not None
         assert MODISLAIAcquirer is not None
 
     def test_grdc_import(self):
         """Test GRDC handler imports."""
-        from symfluence.data.observation.handlers.grdc import GRDCHandler
         from symfluence.data.acquisition.handlers.grdc import GRDCAcquirer
+        from symfluence.data.observation.handlers.grdc import GRDCHandler
         assert GRDCHandler is not None
         assert GRDCAcquirer is not None
 
     def test_openet_import(self):
         """Test OpenET handler imports."""
-        from symfluence.data.observation.handlers.openet import OpenETHandler
         from symfluence.data.acquisition.handlers.openet import OpenETAcquirer
+        from symfluence.data.observation.handlers.openet import OpenETHandler
         assert OpenETHandler is not None
         assert OpenETAcquirer is not None
 
     def test_sentinel1_sm_import(self):
         """Test Sentinel-1 SM handler imports."""
-        from symfluence.data.observation.handlers.sentinel1_sm import Sentinel1SMHandler
         from symfluence.data.acquisition.handlers.sentinel1_sm import Sentinel1SMAcquirer
+        from symfluence.data.observation.handlers.sentinel1_sm import Sentinel1SMHandler
         assert Sentinel1SMHandler is not None
         assert Sentinel1SMAcquirer is not None
 
     def test_daymet_import(self):
         """Test Daymet handler imports."""
-        from symfluence.data.observation.handlers.daymet import DaymetHandler
         from symfluence.data.acquisition.handlers.daymet import DaymetAcquirer
+        from symfluence.data.observation.handlers.daymet import DaymetHandler
         assert DaymetHandler is not None
         assert DaymetAcquirer is not None
 
     def test_viirs_snow_import(self):
         """Test VIIRS Snow handler imports."""
-        from symfluence.data.observation.handlers.viirs_snow import VIIRSSnowHandler
         from symfluence.data.acquisition.handlers.viirs_snow import VIIRSSnowAcquirer
+        from symfluence.data.observation.handlers.viirs_snow import VIIRSSnowHandler
         assert VIIRSSnowHandler is not None
         assert VIIRSSnowAcquirer is not None
 
@@ -129,10 +130,9 @@ class TestHandlerRegistration:
 
     def test_observation_registry_new_handlers(self):
         """Test new handlers are registered in ObservationRegistry."""
-        from symfluence.data.observation.registry import ObservationRegistry
-
         # Ensure handlers are imported (triggers registration)
         import symfluence.data.observation.handlers  # noqa
+        from symfluence.data.observation.registry import ObservationRegistry
 
         # Check each new handler is registered
         new_handlers = [
@@ -153,10 +153,9 @@ class TestHandlerRegistration:
 
     def test_acquisition_registry_new_handlers(self):
         """Test new handlers are registered in AcquisitionRegistry."""
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
-
         # Ensure handlers are imported
         import symfluence.data.acquisition.handlers  # noqa
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         # Check each new acquisition handler is registered
         new_handlers = [
@@ -545,14 +544,14 @@ class TestVIIRSSnowProcessing:
 def test_all_handlers_in_init():
     """Test all handlers are exported from __init__.py."""
     from symfluence.data.observation.handlers import (
+        DaymetHandler,
         ERA5LandHandler,
-        MSWEPHandler,
-        MODISLSTHandler,
-        MODISLAIHandler,
         GRDCHandler,
+        MODISLAIHandler,
+        MODISLSTHandler,
+        MSWEPHandler,
         OpenETHandler,
         Sentinel1SMHandler,
-        DaymetHandler,
         VIIRSSnowHandler,
     )
 

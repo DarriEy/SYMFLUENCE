@@ -6,13 +6,15 @@ of elevation bands for both lumped and distributed spatial configurations.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any, Dict, List, Optional, Tuple
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
 
 from symfluence.core.mixins import ConfigMixin
+
 from ..spatial_modes import SpatialMode
 
 

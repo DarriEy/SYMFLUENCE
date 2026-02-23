@@ -37,11 +37,11 @@ Example
 
 import warnings
 
+from .file_utils import FileUtilsMixin
 from .logging import LoggingMixin
 from .project import ProjectContextMixin
-from .file_utils import FileUtilsMixin
-from .validation import ValidationMixin
 from .timing import TimingMixin
+from .validation import ValidationMixin
 
 
 class ConfigurableMixin(LoggingMixin, ProjectContextMixin, FileUtilsMixin, ValidationMixin, TimingMixin):

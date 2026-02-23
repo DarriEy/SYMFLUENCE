@@ -9,14 +9,15 @@ It coordinates running a model with different structural configurations (decisio
 and evaluating their performance.
 """
 
-import itertools
-import pandas as pd
-import numpy as np
 import csv
-from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional
+import itertools
 import logging
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 
 from symfluence.core.mixins.project import ProjectContextMixin
 

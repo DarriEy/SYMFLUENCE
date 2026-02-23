@@ -31,10 +31,9 @@ import geopandas as gpd
 from shapely.geometry import box
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
-
 
 # WOKAM download URL
 _WOKAM_URL = "https://download.bgr.de/bgr/grundwasser/whymap/shp/WHYMAP_WOKAM_v1.zip"

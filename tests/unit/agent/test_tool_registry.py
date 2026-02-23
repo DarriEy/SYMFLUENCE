@@ -2,8 +2,9 @@
 Tests for the ToolRegistry class.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestToolRegistryInitialization:

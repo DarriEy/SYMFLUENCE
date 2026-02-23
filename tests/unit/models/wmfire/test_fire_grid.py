@@ -1,9 +1,9 @@
 """Unit tests for WMFire FireGrid and FireGridManager classes."""
-import numpy as np
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
 from symfluence.models.wmfire.fire_grid import FireGrid, FireGridManager
 
 

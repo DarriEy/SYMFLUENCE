@@ -7,11 +7,12 @@ must satisfy. When adding a new model optimizer, it should pass all these tests.
 This ensures consistent behavior across SUMMA, FUSE, NGEN, and any future optimizers.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
 import logging
-from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pytest
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]

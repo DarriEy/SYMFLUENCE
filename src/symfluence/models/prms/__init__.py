@@ -70,11 +70,11 @@ References:
 
     https://github.com/nhm-usgs/prms
 """
-from .preprocessor import PRMSPreProcessor
-from .runner import PRMSRunner
+from .config import PRMSConfigAdapter
 from .extractor import PRMSResultExtractor
 from .postprocessor import PRMSPostProcessor
-from .config import PRMSConfigAdapter
+from .preprocessor import PRMSPreProcessor
+from .runner import PRMSRunner
 
 __all__ = [
     "PRMSPreProcessor",

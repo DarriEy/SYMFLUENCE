@@ -10,13 +10,11 @@ Tests the registry pattern implementation:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Test Fixtures
@@ -29,8 +27,8 @@ def isolated_registry():
 
     This fixture patches the registry's _handlers dict to isolate tests.
     """
-    from symfluence.data.acquisition.registry import AcquisitionRegistry
     from symfluence.data.acquisition.base import BaseAcquisitionHandler
+    from symfluence.data.acquisition.registry import AcquisitionRegistry
 
     # Save original handlers
     original_handlers = AcquisitionRegistry._handlers.copy()
@@ -386,8 +384,8 @@ class TestGlobalRegistry:
 
     def test_get_handler_with_typed_config(self, mock_logger):
         """get_handler should work with SymfluenceConfig object."""
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         try:
             from symfluence.data.acquisition import handlers

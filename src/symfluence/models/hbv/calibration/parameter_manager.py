@@ -4,15 +4,16 @@ HBV Parameter Manager.
 Provides parameter bounds, transformations, and management for HBV-96 calibration.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
+
 import numpy as np
 
+from symfluence.models.hbv.model import DEFAULT_PARAMS, PARAM_BOUNDS
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_hbv_bounds
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.models.hbv.model import PARAM_BOUNDS, DEFAULT_PARAMS
 
 
 @OptimizerRegistry.register_parameter_manager('HBV')

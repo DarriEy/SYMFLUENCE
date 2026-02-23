@@ -5,14 +5,15 @@ This module provides specialized visualization for different hydrological
 model outputs including SUMMA, FUSE, NGEN, LSTM, and HYPE.
 """
 
-import pandas as pd  # type: ignore
-import numpy as np  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+
+from symfluence.core.constants import ConfigKeys
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name
-from symfluence.core.constants import ConfigKeys
 
 
 class ModelResultsPlotter(BasePlotter):
@@ -43,10 +44,11 @@ class ModelResultsPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
-        from symfluence.reporting.core.plot_utils import calculate_metrics
+        import xarray as xr  # type: ignore
+
         from symfluence.core.constants import UnitConversion
+        from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:
             plot_dir = self._ensure_output_dir('results')
@@ -121,9 +123,9 @@ class ModelResultsPlotter(BasePlotter):
             Dictionary mapping variable names to plot paths
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib import gridspec  # type: ignore
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
+        import xarray as xr  # type: ignore
+        from matplotlib import gridspec  # type: ignore
 
         plot_paths: Dict[str, str] = {}
         try:
@@ -197,7 +199,7 @@ class ModelResultsPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
+        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve, calculate_metrics
 
         try:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.plot_config.FIGURE_SIZE_LARGE)
@@ -253,6 +255,7 @@ class ModelResultsPlotter(BasePlotter):
         """
         plt, _ = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec  # type: ignore
+
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:
@@ -401,7 +404,7 @@ class ModelResultsPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
+        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve, calculate_metrics
 
         try:
             plot_dir = self._ensure_output_dir('results')

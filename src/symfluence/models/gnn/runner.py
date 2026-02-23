@@ -7,7 +7,7 @@ Orchestrates the GNN model workflow: data loading, graph construction, training,
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,17 +15,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from ..registry import ModelRegistry
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    symfluence_error_handler
-)
-
+from ..registry import ModelRegistry
 from .model import GNNModel
-from .preprocessor import GNNPreProcessor
 from .postprocessor import GNNPostprocessor
+from .preprocessor import GNNPreProcessor
+
 
 @ModelRegistry.register_runner('GNN', method_name='run_gnn')
 class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]

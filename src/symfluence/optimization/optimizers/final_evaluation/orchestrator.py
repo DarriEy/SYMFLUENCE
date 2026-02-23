@@ -7,7 +7,7 @@ and results persistence during the final evaluation phase.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from .file_manager_updater import FileManagerUpdater
 from .model_decisions_updater import ModelDecisionsUpdater

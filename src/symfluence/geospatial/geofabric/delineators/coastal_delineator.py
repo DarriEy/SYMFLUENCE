@@ -7,22 +7,23 @@ and creation of point buffer shapes for point-scale simulations.
 Extracted from geofabric_utils.py (2026-01-01)
 """
 
+import shutil
 from pathlib import Path
 from typing import Any, Optional, Tuple
-import numpy as np
+
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+import rasterio
+import rasterio.features
 import shapely
 import shapely.geometry
 import shapely.ops
-from shapely.geometry import Polygon, Point
-import rasterio
-import rasterio.features
-import shutil
+from shapely.geometry import Point, Polygon
 
 from ..base.base_delineator import BaseGeofabricDelineator
-from ..utils.io_utils import GeofabricIOUtils
 from ..processors.geometry_processor import GeometryProcessor
+from ..utils.io_utils import GeofabricIOUtils
 
 
 class CoastalWatershedDelineator(BaseGeofabricDelineator):

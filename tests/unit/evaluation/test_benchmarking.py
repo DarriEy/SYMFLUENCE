@@ -1,11 +1,10 @@
 """Tests for benchmarking streamflow path resolution."""
 
-from pathlib import Path
 import logging
 import tempfile
+from pathlib import Path
 
 import pandas as pd
-
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.evaluation.benchmarking import BenchmarkPreprocessor
 

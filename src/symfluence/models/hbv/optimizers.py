@@ -18,15 +18,15 @@ Example:
     ...     ema.update(params)
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Re-export model-agnostic gradient utilities from optimization module
 # for backward compatibility
 from symfluence.optimization.gradient import (
+    EMA,
     AdamW,
     CosineAnnealingWarmRestarts,
     CosineDecay,
-    EMA,
 )
 
 

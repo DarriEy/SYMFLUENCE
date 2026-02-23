@@ -6,7 +6,8 @@ RHESSys (Regional Hydro-Ecologic Simulation System) requires meteorological
 forcing for ecohydrological simulations.
 """
 
-from typing import Dict, List, Callable
+from typing import Callable, Dict, List
+
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
 
 

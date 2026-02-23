@@ -195,6 +195,8 @@ exclude = [
 # Select rules to enforce
 select = [
     "F",   # Pyflakes (undefined names, unused imports, etc.)
+    "W",   # pycodestyle warnings (trailing whitespace, etc.)
+    "I",   # isort (import ordering)
 ]
 
 # Ignore rules that are intentional patterns
@@ -238,3 +240,13 @@ disallow_untyped_defs = false
 # Ignore the most common noisy errors for now
 disable_error_code = ["attr-defined", "no-any-return", "operator", "arg-type", "assignment", "union-attr"]
 exclude = ["examples/", "tests/"]
+
+[tool.coverage.run]
+source = ["src/symfluence"]
+relative_files = true
+disable_warnings = ["couldnt-parse", "no-data-collected"]
+
+[tool.coverage.report]
+# Avoid failing release checks when local/stale coverage databases
+# reference files that no longer exist after refactors/moves.
+ignore_errors = true

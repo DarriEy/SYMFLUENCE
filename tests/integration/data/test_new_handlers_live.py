@@ -14,12 +14,13 @@ Usage:
     # Run specific handler test
     pytest tests/integration/data/test_new_handlers_live.py::test_daymet_live -v
 """
-import pytest
-import pandas as pd
-import numpy as np
 import logging
 import os
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.live, pytest.mark.slow]
 
@@ -102,8 +103,8 @@ def test_daymet_live_single_pixel(tmp_path):
     Live test for Daymet single-pixel data acquisition.
     No authentication required - publicly available from ORNL DAAC.
     """
-    from symfluence.data.observation.handlers.daymet import DaymetHandler
     from symfluence.data.acquisition.handlers.daymet import DaymetAcquirer
+    from symfluence.data.observation.handlers.daymet import DaymetHandler
 
     config = create_test_config(
         tmp_path,
@@ -151,8 +152,8 @@ def test_grdc_station_metadata(tmp_path):
     Test GRDC WFS metadata access (public, no auth required).
     Full data download requires credentials.
     """
-    from symfluence.data.acquisition.handlers.grdc import GRDCAcquirer
     import requests
+    from symfluence.data.acquisition.handlers.grdc import GRDCAcquirer
 
     # Test WFS access for station metadata
     wfs_url = "https://portal.grdc.bafg.de/geoserver/grdc/wfs"
@@ -220,8 +221,8 @@ def test_era5_land_live_acquisition(tmp_path):
 
     Uses minimal request (1 variable, 1 day, small area) to avoid CDS rate limits.
     """
-    from symfluence.data.observation.handlers.era5_land import ERA5LandHandler
     from symfluence.data.acquisition.handlers.era5_land import ERA5LandAcquirer
+    from symfluence.data.observation.handlers.era5_land import ERA5LandHandler
 
     config = create_test_config(
         tmp_path,
@@ -395,8 +396,8 @@ def test_openet_live_acquisition(tmp_path):
     Requires OPENET_API_KEY environment variable.
     Note: OpenET coverage is limited to Western US.
     """
-    from symfluence.data.observation.handlers.openet import OpenETHandler
     from symfluence.data.acquisition.handlers.openet import OpenETAcquirer
+    from symfluence.data.observation.handlers.openet import OpenETHandler
 
     config = create_test_config(
         tmp_path,
@@ -475,8 +476,8 @@ def test_sentinel1_catalog_search(tmp_path):
     """
     Test Sentinel-1 catalog search via Copernicus Data Space.
     """
-    from symfluence.data.acquisition.handlers.sentinel1_sm import Sentinel1SMAcquirer
     import requests
+    from symfluence.data.acquisition.handlers.sentinel1_sm import Sentinel1SMAcquirer
 
     config = create_test_config(
         tmp_path,
@@ -510,12 +511,12 @@ def test_sentinel1_catalog_search(tmp_path):
 @pytest.mark.integration
 def test_all_new_handlers_registered():
     """Verify all new handlers are properly registered."""
-    from symfluence.data.observation.registry import ObservationRegistry
-    from symfluence.data.acquisition.registry import AcquisitionRegistry
+    import symfluence.data.acquisition.handlers
 
     # Import to trigger registration
     import symfluence.data.observation.handlers
-    import symfluence.data.acquisition.handlers
+    from symfluence.data.acquisition.registry import AcquisitionRegistry
+    from symfluence.data.observation.registry import ObservationRegistry
 
     observation_handlers = [
         'era5_land', 'mswep', 'modis_lst', 'modis_lai',

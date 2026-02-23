@@ -14,9 +14,9 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
-from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import HAS_JAX, InMemoryModelWorker
 
 # Lazy JAX imports
 if HAS_JAX:
@@ -25,15 +25,26 @@ if HAS_JAX:
 
 # Lazy jFUSE imports
 try:
-    import jfuse
     import equinox as eqx
+    import jfuse
     from jfuse import (
-        create_fuse_model, Parameters, PARAM_BOUNDS,
-        CoupledModel, create_network_from_topology, load_network,
-        FUSEModel, ModelConfig, BaseflowType, UpperLayerArch, LowerLayerArch,
-        PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
+        PARAM_BOUNDS,
+        BaseflowType,
+        CoupledModel,
+        EvaporationType,
+        FUSEModel,
+        InterflowType,
+        LowerLayerArch,
+        ModelConfig,
+        Parameters,
+        PercolationType,
+        SurfaceRunoffType,
+        UpperLayerArch,
+        create_fuse_model,
+        create_network_from_topology,
+        load_network,
     )
-    from jfuse.fuse.config import SnowType, RoutingType, RainfallErrorType
+    from jfuse.fuse.config import RainfallErrorType, RoutingType, SnowType
 
     # Define JAX-native loss functions locally (jfuse doesn't export them anymore)
     def kge_loss(sim, obs):
@@ -1141,10 +1152,11 @@ class JFUSEWorker(InMemoryModelWorker):
         Returns:
             Closure: coeff_array (28,) -> CoupledParams
         """
+        from jfuse.fuse.state import Parameters
+
         from symfluence.models.jfuse.calibration.transfer_functions import (
             apply_transfer_functions,
         )
-        from jfuse.fuse.state import Parameters
 
         default_coupled_params = self._default_params
         attr_matrix = self._tf_attr_matrix

@@ -11,7 +11,7 @@ The transfer function is implemented as a Multi-Layer Perceptron (MLP)
 using pure JAX (no external NN library dependencies).
 """
 
-from typing import List, Tuple, Dict, Any, NamedTuple
+from typing import Any, Dict, List, NamedTuple, Tuple
 
 try:
     import jax
@@ -24,8 +24,7 @@ except ImportError:
     jax = None
     random = None
 
-from .model import HBVParameters, PARAM_BOUNDS
-
+from .model import PARAM_BOUNDS, HBVParameters
 
 # Parameters to regionalize (exclude smoothing_enabled)
 REGIONALIZED_PARAMS = [

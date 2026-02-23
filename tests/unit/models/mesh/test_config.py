@@ -102,8 +102,8 @@ class TestMESHConfigAdapter:
 
     def test_adapter_returns_config_schema(self):
         """Test adapter returns config schema."""
-        from symfluence.models.mesh.config import MESHConfigAdapter
         from symfluence.core.config.models.model_configs import MESHConfig
+        from symfluence.models.mesh.config import MESHConfigAdapter
 
         adapter = MESHConfigAdapter()
         schema = adapter.get_config_schema()

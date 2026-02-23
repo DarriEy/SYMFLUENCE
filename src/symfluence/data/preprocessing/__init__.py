@@ -42,9 +42,9 @@ except ImportError as _e:
 
 try:
     from .remapping_weights import (
-        RemappingWeightGenerator,
-        RemappingWeightApplier,
         BatchProcessor,
+        RemappingWeightApplier,
+        RemappingWeightGenerator,
     )
 except ImportError as _e:
     RemappingWeightGenerator: Any = None  # type: ignore

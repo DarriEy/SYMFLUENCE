@@ -26,8 +26,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 

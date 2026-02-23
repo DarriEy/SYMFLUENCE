@@ -192,11 +192,12 @@ def register_with_model_registry():
     _show_experimental_warning()
 
     # Import components to trigger their registration decorators
+    from symfluence.models.registry import ModelRegistry
+
     from .config import HBVConfigAdapter
     from .extractor import HBVResultExtractor
     from .preprocessor import HBVPreProcessor  # Trigger @register_preprocessor decorator
     from .runner import HBVRunner  # Trigger @register_runner decorator
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('HBV')(HBVConfigAdapter)
     ModelRegistry.register_result_extractor('HBV')(HBVResultExtractor)
@@ -208,45 +209,78 @@ register_with_model_registry()
 
 # Type hints for IDE support
 if TYPE_CHECKING:
+    from .calibration import HBVParameterManager, HBVWorker, get_hbv_calibration_bounds
     from .config import HBVConfig, HBVConfigAdapter
-    from .preprocessor import HBVPreProcessor
-    from .runner import HBVRunner
-    from .postprocessor import HBVPostprocessor, HBVRoutedPostprocessor
+    from .distributed import (
+        DistributedHBV,
+        DistributedHBVParams,
+        DistributedHBVState,
+        calibrate_distributed_hbv,
+        calibrate_distributed_hbv_adam,
+        load_distributed_hbv_from_config,
+    )
     from .extractor import HBVResultExtractor
-    from .parameters import (
-        PARAM_BOUNDS,
-        DEFAULT_PARAMS,
-        RATE_PARAMS,
-        DURATION_PARAMS,
-        HBVParameters,
-        create_params_from_dict,
-        scale_params_for_timestep,
-        get_routing_buffer_length,
+    from .hbv_ode import (
+        HAS_DIFFRAX,
+        AdjointMethod,
+        HBVODEState,
+        compare_gradients,
+        create_forcing_interpolant,
+        get_nse_gradient_fn_ode,
+        hbv_dynamics,
+        nse_loss_ode,
+        simulate_ode,
+        simulate_ode_with_routing,
     )
     from .losses import (
-        nse_loss,
-        kge_loss,
-        get_nse_gradient_fn,
         get_kge_gradient_fn,
+        get_nse_gradient_fn,
+        kge_loss,
+        nse_loss,
     )
     from .model import (
-        simulate,
-        simulate_jax,
-        simulate_numpy,
-        simulate_ensemble,
+        HAS_JAX,
         HBVState,
         create_initial_state,
-        step_jax,
-        snow_routine_jax,
-        soil_routine_jax,
+        jit_simulate,
         response_routine_jax,
         routing_routine_jax,
+        simulate,
+        simulate_ensemble,
+        simulate_jax,
+        simulate_numpy,
+        snow_routine_jax,
+        soil_routine_jax,
+        step_jax,
         triangular_weights,
-        jit_simulate,
-        HAS_JAX,
     )
-    from .calibration import HBVWorker, HBVParameterManager, get_hbv_calibration_bounds
-    from .network import RiverNetwork, NetworkBuilder, create_synthetic_network
+    from .network import NetworkBuilder, RiverNetwork, create_synthetic_network
+    from .optimizers import (
+        EMA,
+        EXTENDED_PARAM_BOUNDS,
+        AdamW,
+        CalibrationResult,
+        CosineAnnealingWarmRestarts,
+        CosineDecay,
+    )
+    from .parameters import (
+        DEFAULT_PARAMS,
+        DURATION_PARAMS,
+        PARAM_BOUNDS,
+        RATE_PARAMS,
+        HBVParameters,
+        create_params_from_dict,
+        get_routing_buffer_length,
+        scale_params_for_timestep,
+    )
+    from .postprocessor import HBVPostprocessor, HBVRoutedPostprocessor
+    from .preprocessor import HBVPreProcessor
+    from .regionalization import (
+        TransferFunctionConfig,
+        TransferLayer,
+        forward_transfer_function,
+        initialize_weights,
+    )
     from .routing import (
         RoutingParams,
         RoutingState,
@@ -254,40 +288,7 @@ if TYPE_CHECKING:
         route_reach_step,
         runoff_mm_to_cms,
     )
-    from .distributed import (
-        DistributedHBV,
-        DistributedHBVState,
-        DistributedHBVParams,
-        calibrate_distributed_hbv,
-        calibrate_distributed_hbv_adam,
-        load_distributed_hbv_from_config,
-    )
-    from .regionalization import (
-        forward_transfer_function,
-        initialize_weights,
-        TransferFunctionConfig,
-        TransferLayer,
-    )
-    from .optimizers import (
-        AdamW,
-        CosineAnnealingWarmRestarts,
-        CosineDecay,
-        EMA,
-        CalibrationResult,
-        EXTENDED_PARAM_BOUNDS,
-    )
-    from .hbv_ode import (
-        HAS_DIFFRAX,
-        HBVODEState,
-        AdjointMethod,
-        hbv_dynamics,
-        simulate_ode,
-        simulate_ode_with_routing,
-        nse_loss_ode,
-        get_nse_gradient_fn_ode,
-        compare_gradients,
-        create_forcing_interpolant,
-    )
+    from .runner import HBVRunner
 
 
 __all__ = [

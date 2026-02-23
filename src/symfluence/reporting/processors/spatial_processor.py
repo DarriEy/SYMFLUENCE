@@ -5,13 +5,13 @@ Handles spatial operations related to reporting, such as finding reach IDs
 based on pour points.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional
 import logging
 import traceback
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from symfluence.core.mixins import ConfigMixin
 from symfluence.core.constants import ConfigKeys
+from symfluence.core.mixins import ConfigMixin
 
 
 class SpatialProcessor(ConfigMixin):

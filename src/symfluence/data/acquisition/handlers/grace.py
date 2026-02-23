@@ -4,14 +4,17 @@ GRACE Data Acquisition Handler
 Provides cloud acquisition for GRACE/GRACE-FO Terrestrial Water Storage anomaly data.
 Retrieves data from NASA PO.DAAC or similar cloud-hosted repositories.
 """
-import os
 import netrc
-import requests
-import xarray as xr
+import os
 from pathlib import Path
 from typing import Any, Optional, Tuple
+
+import requests
+import xarray as xr
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
 
 @AcquisitionRegistry.register('GRACE')
 class GRACEAcquirer(BaseAcquisitionHandler):

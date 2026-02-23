@@ -4,12 +4,13 @@ FUSE Model Visualizer.
 Provides model-specific visualization registration for FUSE.
 """
 
-from pathlib import Path
-from typing import Dict, Any, List
 import logging
+from pathlib import Path
+from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.registry import ModelRegistry
+
 
 @ModelRegistry.register_visualizer('FUSE')
 def visualize_fuse(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):

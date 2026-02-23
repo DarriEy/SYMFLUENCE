@@ -5,15 +5,17 @@ Provides parameter sensitivity analysis using Sobol, RBD-FAST, and correlation
 methods on calibration results, with visualization and reporting support.
 """
 
-import pandas as pd # type: ignore
-import numpy as np # type: ignore
 from pathlib import Path
-from SALib.analyze import sobol, rbd_fast # type: ignore
-from SALib.sample import sobol as sobol_sample # type: ignore
+
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+from SALib.analyze import rbd_fast, sobol  # type: ignore
+from SALib.sample import sobol as sobol_sample  # type: ignore
 from scipy.stats import spearmanr  # type: ignore
-from tqdm import tqdm # type: ignore
+from tqdm import tqdm  # type: ignore
 
 from symfluence.core.mixins import ConfigMixin
+
 
 class SensitivityAnalyzer(ConfigMixin):
     """
@@ -107,7 +109,7 @@ class SensitivityAnalyzer(ConfigMixin):
         for i, param in tqdm(enumerate(parameter_columns), total=len(parameter_columns), desc="Calculating sensitivities"):
             try:
                 try:
-                    from pyviscous import viscous # type: ignore
+                    from pyviscous import viscous  # type: ignore
                     sensitivity_result = viscous(x, y, i, sensType='total')
                 except ImportError:
                     self.logger.warning("pyviscous not installed, skipping.")

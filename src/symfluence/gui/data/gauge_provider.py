@@ -50,8 +50,8 @@ class WSCProvider(GaugeProvider):
     _LIMIT = 500  # items per page
 
     def fetch(self) -> pd.DataFrame:
-        import urllib.request
         import json
+        import urllib.request
 
         rows = []
         offset = 0
@@ -177,8 +177,8 @@ class SMHIProvider(GaugeProvider):
     _URL = "https://opendata-download-hydroobs.smhi.se/api/version/latest/parameter/2/station.json"
 
     def fetch(self) -> pd.DataFrame:
-        import urllib.request
         import json
+        import urllib.request
 
         try:
             with urllib.request.urlopen(self._URL, timeout=30) as resp:  # nosec B310

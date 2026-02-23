@@ -19,11 +19,11 @@ References:
     Kouwen, N. (2018): WATFLOOD/WATROUTE Hydrological Model Routing
     & Flood Forecasting System. University of Waterloo.
 """
-from .preprocessor import WATFLOODPreProcessor
-from .runner import WATFLOODRunner
+from .config import WATFLOODConfigAdapter
 from .extractor import WATFLOODResultExtractor
 from .postprocessor import WATFLOODPostProcessor
-from .config import WATFLOODConfigAdapter
+from .preprocessor import WATFLOODPreProcessor
+from .runner import WATFLOODRunner
 
 __all__ = [
     "WATFLOODPreProcessor",

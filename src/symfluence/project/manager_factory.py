@@ -2,8 +2,8 @@
 Lazy loading manager factory for SYMFLUENCE.
 """
 
-from typing import Dict, Any, Set
 import logging
+from typing import Any, Dict, Set
 
 
 class LazyManagerDict:

@@ -11,9 +11,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ..base import BaseModelPreProcessor
-
 from ..registry import ModelRegistry
-
 from .preprocessing import (
     MESHConfigDefaults,
     MESHConfigGenerator,
@@ -439,6 +437,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """
         if not MESHFlowManager.is_available():
             from symfluence.core.exceptions import ModelExecutionError
+
             from .preprocessing.meshflow_manager import _meshflow_import_error
             detail = f" ({_meshflow_import_error})" if _meshflow_import_error else ""
             raise ModelExecutionError(

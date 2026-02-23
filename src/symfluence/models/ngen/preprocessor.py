@@ -18,11 +18,10 @@ import pandas as pd
 import xarray as xr
 import yaml
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
-
-from symfluence.models.utilities import TimeWindowManager, ForcingDataProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
+from symfluence.models.registry import ModelRegistry
+from symfluence.models.utilities import ForcingDataProcessor, TimeWindowManager
 
 
 @ModelRegistry.register_preprocessor('NGEN')

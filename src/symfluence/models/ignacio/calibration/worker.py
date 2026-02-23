@@ -9,11 +9,10 @@ perimeters as objective functions.
 import logging
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-
-from symfluence.optimization.workers.base_worker import BaseWorker
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker
 
 
 @OptimizerRegistry.register_worker('IGNACIO')

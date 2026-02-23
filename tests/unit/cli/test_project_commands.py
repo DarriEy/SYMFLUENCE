@@ -1,10 +1,10 @@
 """Unit tests for project command handlers."""
 
-import pytest
 from argparse import Namespace
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from symfluence.cli.commands.project_commands import ProjectCommands
 from symfluence.cli.exit_codes import ExitCode
 

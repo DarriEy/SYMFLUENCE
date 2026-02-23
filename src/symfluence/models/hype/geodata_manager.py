@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 from itertools import product
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Tuple, Set
+from typing import TYPE_CHECKING, Any, Optional, Set, Tuple
 
 import geopandas as gpd
 import numpy as np

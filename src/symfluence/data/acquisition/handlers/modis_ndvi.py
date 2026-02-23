@@ -22,13 +22,14 @@ Configuration:
 
 import re
 import time
-import requests
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
+import requests
 import xarray as xr
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import List, Optional
 
 from ..registry import AcquisitionRegistry
 from .earthaccess_base import BaseEarthaccessAcquirer

@@ -4,10 +4,10 @@ Process Pool Execution Strategy
 Executes tasks using Python's ProcessPoolExecutor.
 """
 
-import logging
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
-from typing import List, Dict, Any, Callable, cast
+import logging
+from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
+from typing import Any, Callable, Dict, List, cast
 
 from .base import ExecutionStrategy
 

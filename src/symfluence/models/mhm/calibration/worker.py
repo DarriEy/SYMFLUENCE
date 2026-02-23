@@ -9,15 +9,16 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.core.constants import ModelDefaults
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('MHM')
@@ -475,8 +476,8 @@ def _evaluate_mhm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         Result dictionary
     """
     import os
-    import signal
     import random
+    import signal
     import time
     import traceback
 

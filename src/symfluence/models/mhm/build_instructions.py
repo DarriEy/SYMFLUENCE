@@ -10,8 +10,8 @@ mHM (mesoscale Hydrological Model) is built using CMake with Fortran support.
 It requires gfortran and NetCDF-Fortran libraries.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

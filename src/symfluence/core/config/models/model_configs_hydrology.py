@@ -8,6 +8,7 @@ from .base import FROZEN_CONFIG
 from .model_config_types import SpatialModeType
 from .model_configs_ml_fire import WMFireConfig
 
+
 class SUMMAConfig(BaseModel):
     """SUMMA hydrological model configuration"""
     model_config = FROZEN_CONFIG

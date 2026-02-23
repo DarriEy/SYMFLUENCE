@@ -8,7 +8,7 @@ to HYPE-compatible daily observation formats.
 # Standard library imports
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 # Third-party imports
 import cdo

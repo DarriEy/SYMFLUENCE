@@ -5,13 +5,14 @@ Provides side-by-side map visualization comparing raw gridded forcing data
 with HRU-remapped forcing data.
 """
 
-import numpy as np
-from pathlib import Path
-from typing import Optional, Dict, Any
 import traceback
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from symfluence.reporting.core.base_plotter import BasePlotter
+import numpy as np
+
 from symfluence.core.constants import ConfigKeys
+from symfluence.reporting.core.base_plotter import BasePlotter
 
 
 class ForcingComparisonPlotter(BasePlotter):
@@ -77,10 +78,10 @@ class ForcingComparisonPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr
         import geopandas as gpd
-        from matplotlib.gridspec import GridSpec
+        import xarray as xr
         from matplotlib.colors import Normalize
+        from matplotlib.gridspec import GridSpec
 
         try:
             # Check for point-scale domain (skip visualization)

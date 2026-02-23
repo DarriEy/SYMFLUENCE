@@ -7,6 +7,7 @@ EmulationConfig, and the parent OptimizationConfig.
 """
 
 from typing import Dict, List, Literal, Optional, Union
+
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG

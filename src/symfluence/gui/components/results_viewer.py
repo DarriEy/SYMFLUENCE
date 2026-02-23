@@ -17,7 +17,6 @@ from typing import Any, cast
 import numpy as np
 import panel as pn
 import param
-
 from bokeh.models import ColumnDataSource, Span
 from bokeh.plotting import figure
 

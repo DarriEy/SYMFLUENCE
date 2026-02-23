@@ -26,7 +26,8 @@ Reference:
     Environmental Modelling & Software, 75, 273-316.
 """
 
-from typing import Dict, Any, Callable, Optional, List
+from typing import Any, Callable, Dict, List, Optional
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

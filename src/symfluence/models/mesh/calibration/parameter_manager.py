@@ -15,10 +15,10 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 

@@ -4,9 +4,9 @@ Retry Mixin for Data Acquisition Handlers.
 Provides exponential backoff retry logic for network operations.
 """
 
-import time
 import logging
-from typing import Any, Callable, Tuple, Type, Optional
+import time
+from typing import Any, Callable, Optional, Tuple, Type
 
 
 class RetryMixin:

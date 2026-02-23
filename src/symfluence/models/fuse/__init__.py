@@ -55,16 +55,16 @@ Limitations and Considerations:
 """
 
 # Import main classes
-from .preprocessor import FUSEPreProcessor
-from .runner import FUSERunner
-from .postprocessor import FUSEPostprocessor
-from .structure_analyzer import FuseStructureAnalyzer
-from .visualizer import visualize_fuse
+from .elevation_band_manager import FuseElevationBandManager
 
 # Import manager classes (for advanced usage)
 from .forcing_processor import FuseForcingProcessor
-from .elevation_band_manager import FuseElevationBandManager
+from .postprocessor import FUSEPostprocessor
+from .preprocessor import FUSEPreProcessor
+from .runner import FUSERunner
+from .structure_analyzer import FuseStructureAnalyzer
 from .synthetic_data_generator import FuseSyntheticDataGenerator
+from .visualizer import visualize_fuse
 
 __all__ = [
     # Main classes (public API)
@@ -87,11 +87,14 @@ except ImportError:
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import FUSEConfigAdapter
+
 ModelRegistry.register_config_adapter('FUSE')(FUSEConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import FUSEResultExtractor
+
 ModelRegistry.register_result_extractor('FUSE')(FUSEResultExtractor)
 
 # Note: Calibration/optimization components in .calibration/ are NOT imported here

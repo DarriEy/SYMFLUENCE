@@ -10,9 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Optional, Union
 
-
-from dcoupler.core.graph import CouplingGraph
 from dcoupler.core.connection import SpatialRemapper
+from dcoupler.core.graph import CouplingGraph
 
 from symfluence.coupling.bmi_registry import BMIRegistry
 

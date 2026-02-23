@@ -6,7 +6,8 @@ StreamflowConfig, SNOTELConfig, FluxNetConfig, USGSGWConfig, SMAPConfig,
 GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent EvaluationConfig.
 """
 
-from typing import List, Literal, Optional, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG

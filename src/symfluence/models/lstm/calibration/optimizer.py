@@ -7,10 +7,11 @@ Provides unified interface for all optimization algorithms with LSTM.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import LSTMWorker  # noqa: F401 - Import to trigger worker registration
 
 

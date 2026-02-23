@@ -9,9 +9,9 @@ This module handles:
 Extracted from ForcingResampler to improve testability and reduce coupling.
 """
 
+import logging
 from pathlib import Path
 from typing import List
-import logging
 
 import geopandas as gpd
 import rasterio

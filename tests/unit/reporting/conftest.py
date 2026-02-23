@@ -4,13 +4,13 @@ Shared fixtures for reporting unit tests.
 Provides common test fixtures for plotters, processors, and the reporting manager.
 """
 
-import pytest
-import numpy as np
-import pandas as pd
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
-from datetime import datetime, timedelta
 
+import numpy as np
+import pandas as pd
+import pytest
 
 # ============================================================================
 # Mock Configuration Fixtures

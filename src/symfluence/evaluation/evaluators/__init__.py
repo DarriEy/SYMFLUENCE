@@ -15,10 +15,10 @@ target pattern. Use those modules for model-specific calibration.
 
 from .base import ModelEvaluator
 from .et import ETEvaluator
-from .streamflow import StreamflowEvaluator
-from .soil_moisture import SoilMoistureEvaluator
-from .snow import SnowEvaluator
 from .groundwater import GroundwaterEvaluator
+from .snow import SnowEvaluator
+from .soil_moisture import SoilMoistureEvaluator
+from .streamflow import StreamflowEvaluator
 from .tws import TWSEvaluator
 
 __all__ = [

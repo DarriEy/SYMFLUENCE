@@ -28,13 +28,13 @@ References:
 """
 
 import time
-import requests
 from pathlib import Path
 from typing import Dict, Optional
 
+import requests
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-
 
 # NSIDC data endpoint
 CMC_BASE_URL = (

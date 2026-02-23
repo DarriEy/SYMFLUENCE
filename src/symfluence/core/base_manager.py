@@ -7,7 +7,7 @@ orchestration patterns for DataManager, ModelManager, and OptimizationManager.
 
 import logging
 from abc import ABC
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from symfluence.core.config.coercion import ensure_config
 from symfluence.core.exceptions import symfluence_error_handler

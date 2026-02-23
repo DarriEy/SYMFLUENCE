@@ -10,7 +10,6 @@ old fallback" pattern from ``core.path_resolver._get_catchment_file_path``.
 from pathlib import Path
 from typing import Optional
 
-
 # Maps data_type tokens to their legacy directory (relative to project_dir).
 _LEGACY_PATHS = {
     'forcings':     'forcing/basin_averaged_data',

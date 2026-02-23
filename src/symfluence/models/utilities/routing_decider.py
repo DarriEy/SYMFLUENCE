@@ -7,7 +7,7 @@ Consolidates duplicate needs_routing() implementations from workers.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

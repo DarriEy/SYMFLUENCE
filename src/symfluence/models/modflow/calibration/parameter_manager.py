@@ -15,13 +15,12 @@ Config keys:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
-
 
 # MODFLOW groundwater parameter bounds
 MODFLOW_DEFAULT_BOUNDS = {

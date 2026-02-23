@@ -5,7 +5,7 @@ Abstract base class for parallel execution strategies.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List
 
 
 class ExecutionStrategy(ABC):

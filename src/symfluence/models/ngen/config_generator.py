@@ -9,12 +9,13 @@ Handles generation of model-specific configuration files for NextGen Framework:
 Extracted from NgenPreProcessor to improve modularity and testability.
 """
 
-import sys
 import json
-import pandas as pd
-import geopandas as gpd
+import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import geopandas as gpd
+import pandas as pd
 
 from symfluence.core.mixins import ConfigMixin
 

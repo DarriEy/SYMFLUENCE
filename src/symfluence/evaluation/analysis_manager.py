@@ -5,24 +5,24 @@ Coordinates benchmarking, sensitivity analysis, and decision analysis for
 evaluating hydrological model performance and parameter importance.
 """
 
-from pathlib import Path
 import logging
-import pandas as pd
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
-from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
-from symfluence.evaluation.registry import EvaluationRegistry
-from symfluence.evaluation.analysis_registry import AnalysisRegistry
+import pandas as pd
+
+from symfluence.core.exceptions import EvaluationError, symfluence_error_handler
+from symfluence.core.mixins import ConfigurableMixin
 from symfluence.data.observation.paths import (
     first_existing_path,
     streamflow_observation_candidates,
     tws_default_observation_path,
     tws_observation_candidates,
 )
-
-from symfluence.core.exceptions import EvaluationError, symfluence_error_handler
-from symfluence.core.mixins import ConfigurableMixin
+from symfluence.evaluation.analysis_registry import AnalysisRegistry
+from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor  # type: ignore
+from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer  # type: ignore
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

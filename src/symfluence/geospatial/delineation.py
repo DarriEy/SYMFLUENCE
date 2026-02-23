@@ -109,14 +109,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
+from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.geospatial.geofabric import (
     GeofabricDelineator,
     GeofabricSubsetter,
+    GridDelineator,
     LumpedWatershedDelineator,
     PointDelineator,
-    GridDelineator,
 )
-from symfluence.core.path_resolver import PathResolverMixin
 
 
 @dataclass

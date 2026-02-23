@@ -7,24 +7,24 @@ both evolutionary and gradient-based calibration.
 Refactored to use InMemoryModelWorker base class for common functionality.
 """
 
+import logging
 import os
-import sys
-import signal
 import random
+import signal
+import sys
 import time
 import traceback
-import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
-from symfluence.optimization.workers.base_worker import WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
-from symfluence.models.hbv.time_utils import warmup_timesteps
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.hbv.time_utils import warmup_timesteps
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import HAS_JAX, InMemoryModelWorker
 
 # Lazy JAX import
 if HAS_JAX:
@@ -162,8 +162,9 @@ class HBVWorker(InMemoryModelWorker):
         if self._observations is not None:
             return True
 
-        import pandas as pd
         from pathlib import Path
+
+        import pandas as pd
 
         domain_name = self._cfg('DOMAIN_NAME', 'domain')
         data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.', dict_key='DATA_DIR'))
@@ -430,7 +431,8 @@ class HBVWorker(InMemoryModelWorker):
             return True
 
         try:
-            from symfluence.models.hbv.model import simulate, HAS_JAX as MODEL_HAS_JAX
+            from symfluence.models.hbv.model import HAS_JAX as MODEL_HAS_JAX
+            from symfluence.models.hbv.model import simulate
             self._simulate_fn = simulate
             self._use_jax = MODEL_HAS_JAX and HAS_JAX
             return True

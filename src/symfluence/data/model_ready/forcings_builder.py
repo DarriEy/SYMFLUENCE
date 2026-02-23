@@ -12,9 +12,10 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
-from symfluence.core.mixins.project import resolve_data_subdir
 
 logger = logging.getLogger(__name__)
 

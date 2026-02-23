@@ -5,8 +5,9 @@ This module provides common operations for handling time series data,
 including datetime index management, alignment, and resampling.
 """
 
+from typing import Any, List, Optional, Tuple, Union
+
 import pandas as pd  # type: ignore
-from typing import Tuple, List, Optional, Union, Any
 
 
 def ensure_datetime_index(

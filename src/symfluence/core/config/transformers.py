@@ -13,10 +13,10 @@ Phase 2 Addition (Configuration Key Standardization):
 - Deprecation warnings for legacy keys (INSTALL_PATH_MIZUROUTE, EXE_NAME_MIZUROUTE)
 """
 
-from typing import Dict, Any, Tuple, Optional
-import threading
 import logging
+import threading
 import warnings
+from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.config.legacy_aliases import (
     CANONICAL_KEYS,

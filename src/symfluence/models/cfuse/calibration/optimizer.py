@@ -7,12 +7,13 @@ Provides unified interface for all optimization algorithms with cFUSE.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from .worker import CFUSEWorker  # noqa: F401 - Import to trigger worker registration
+
 from .targets import CFUSEStreamflowTarget  # noqa: F401 - Import to trigger target registration
+from .worker import CFUSEWorker  # noqa: F401 - Import to trigger worker registration
 
 
 @OptimizerRegistry.register_optimizer('CFUSE')

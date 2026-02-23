@@ -26,24 +26,38 @@ Usage:
     >>> processed = handler.process(raw_data)
 """
 
-from .registry import ObservationRegistry
+from . import handlers
 from .base import (
+    STANDARD_COLUMNS,
     BaseObservationHandler,
-    ObservationMetadata,
-    ObservationError,
     ObservationAcquisitionError,
+    ObservationError,
+    ObservationMetadata,
     ObservationProcessingError,
     ObservationValidationError,
-    STANDARD_COLUMNS,
 )
-from . import handlers
+from .registry import ObservationRegistry
 
 # Trigger registration of all observation handler plugins when this module is imported.
 # This allows handlers to self-register without hardcoding imports in the registry.
 # We catch ImportError for optional dependencies (e.g., if certain data sources
 # require external packages that may not be installed).
 try:
-    from .handlers import grace, modis_snow, modis_et, usgs, wsc, snotel, soil_moisture, fluxcom, gleam, smhi, lamah_ice, ggmn, fluxnet
+    from .handlers import (
+        fluxcom,
+        fluxnet,
+        ggmn,
+        gleam,
+        grace,
+        lamah_ice,
+        modis_et,
+        modis_snow,
+        smhi,
+        snotel,
+        soil_moisture,
+        usgs,
+        wsc,
+    )
 except ImportError:
     pass
 

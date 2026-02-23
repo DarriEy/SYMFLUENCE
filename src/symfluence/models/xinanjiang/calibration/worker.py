@@ -6,23 +6,23 @@ Uses InMemoryModelWorker base class for common functionality.
 Supports native gradient computation via JAX autodiff.
 """
 
+import logging
 import os
-import sys
-import signal
 import random
+import signal
+import sys
 import time
 import traceback
-import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
-from symfluence.optimization.workers.base_worker import WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
 
 
 @OptimizerRegistry.register_worker('XINANJIANG')
@@ -272,8 +272,9 @@ class XinanjiangWorker(InMemoryModelWorker):
             return None
 
         try:
-            from symfluence.models.xinanjiang.losses import get_kge_gradient_fn, get_nse_gradient_fn
             import jax.numpy as jnp
+
+            from symfluence.models.xinanjiang.losses import get_kge_gradient_fn, get_nse_gradient_fn
 
             assert self._forcing is not None, "Forcing data not loaded"
             precip = jnp.array(self._forcing['precip'])
@@ -337,7 +338,8 @@ class XinanjiangWorker(InMemoryModelWorker):
             if self.snow_module == 'snow17' and 'temp' in self._forcing:
                 # Coupled Snow-17 + XAJ path
                 from symfluence.models.xinanjiang.losses import (
-                    kge_loss_coupled, nse_loss_coupled,
+                    kge_loss_coupled,
+                    nse_loss_coupled,
                 )
 
                 temp = jnp.array(self._forcing['temp'])

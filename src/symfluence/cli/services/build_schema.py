@@ -6,6 +6,7 @@ validation utilities. This module is lightweight and has no heavy dependencies.
 """
 
 from typing import Any, Dict, List, Literal, Optional
+
 try:
     from typing import TypedDict
 except ImportError:

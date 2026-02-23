@@ -13,13 +13,15 @@ References:
 - earthaccess: https://github.com/nsidc/earthaccess
 """
 import warnings
-import requests
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, cast
+
 import numpy as np
 import pandas as pd
+import requests
 import xarray as xr
-from pathlib import Path
-from datetime import datetime
-from typing import Any, Dict, Optional, List, cast
+
 from ..registry import AcquisitionRegistry
 from .earthaccess_base import BaseEarthaccessAcquirer
 

@@ -25,9 +25,10 @@ The calibration optimizes coefficients (a, b) which are then applied
 across all subcatchments to generate spatially varying parameters.
 """
 
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -427,8 +428,9 @@ class ParameterTransferManager:
             True if successful
         """
         try:
-            import netCDF4 as nc
             import shutil
+
+            import netCDF4 as nc
 
             # Get distributed parameter values
             param_array, param_names = self.coefficients_to_parameters(coefficients)

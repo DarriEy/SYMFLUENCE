@@ -19,7 +19,6 @@ from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
 
-
 # =============================================================================
 # PARAMETER BOUNDS
 # =============================================================================
@@ -206,7 +205,7 @@ def split_params(params_dict: Dict[str, float]) -> Tuple[Dict[str, float], Dict[
     Returns:
         Tuple of (xaj_dict, snow17_dict)
     """
-    from symfluence.models.snow17.parameters import SNOW17_PARAM_NAMES, SNOW17_DEFAULTS
+    from symfluence.models.snow17.parameters import SNOW17_DEFAULTS, SNOW17_PARAM_NAMES
 
     snow17_dict = {}
     xaj_dict = {}

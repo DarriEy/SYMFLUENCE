@@ -5,11 +5,12 @@ Provides results persistence and tracking for optimization runs.
 Handles iteration history, best solution tracking, and results file I/O.
 """
 
-import logging
 import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+import logging
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 

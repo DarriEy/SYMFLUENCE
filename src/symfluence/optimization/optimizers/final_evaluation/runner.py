@@ -7,7 +7,7 @@ Orchestrates final model evaluation after optimization.
 import logging
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 
 from .file_manager_updater import FileManagerUpdater
 from .model_decisions_updater import ModelDecisionsUpdater

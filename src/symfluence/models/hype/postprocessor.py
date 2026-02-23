@@ -8,8 +8,8 @@ Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.2).
 from pathlib import Path
 from typing import Dict
 
-from ..registry import ModelRegistry
 from ..base import StandardModelPostprocessor
+from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('HYPE')

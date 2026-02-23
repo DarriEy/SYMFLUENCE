@@ -23,13 +23,13 @@ Usage:
     >>> results = optimizer.run_pso()
 """
 
-from .objectives import ObjectiveRegistry
-from .registry import OptimizerRegistry
-from .optimizers.base_model_optimizer import BaseModelOptimizer
-from .workers.base_worker import BaseWorker, WorkerTask, WorkerResult
-
 # Trigger objective registration
 from . import objectives
+from .objectives import ObjectiveRegistry
+from .optimizers.base_model_optimizer import BaseModelOptimizer
+from .registry import OptimizerRegistry
+from .workers.base_worker import BaseWorker, WorkerResult, WorkerTask
+
 try:
     from .objectives import multivariate
 except ImportError:
@@ -39,7 +39,7 @@ except ImportError:
 from . import model_optimizers
 
 # Gradient-based optimization utilities
-from .gradient import AdamW, CosineAnnealingWarmRestarts, CosineDecay, EMA
+from .gradient import EMA, AdamW, CosineAnnealingWarmRestarts, CosineDecay
 
 __all__ = [
     # Registries

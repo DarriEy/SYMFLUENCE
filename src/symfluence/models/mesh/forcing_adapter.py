@@ -7,6 +7,7 @@ meteorological variables.
 """
 
 from typing import Dict, List
+
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
 
 

@@ -2,8 +2,9 @@
 Unit tests for WorkflowOrchestrator.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator, WorkflowStep
 

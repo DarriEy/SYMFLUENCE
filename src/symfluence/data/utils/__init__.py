@@ -18,17 +18,17 @@ _logger = _logging.getLogger(__name__)
 # Spatial utilities
 try:
     from .spatial_utils import (
-        crop_raster_to_bbox,
-        read_raster_window,
-        read_raster_multiband_window,
+        BBox,
+        SpatialSubsetMixin,
         create_spatial_mask,
+        crop_raster_to_bbox,
         find_nearest_grid_point,
         get_bbox_center,
-        subset_xarray_to_bbox,
         normalize_longitude,
+        read_raster_multiband_window,
+        read_raster_window,
+        subset_xarray_to_bbox,
         validate_bbox,
-        SpatialSubsetMixin,
-        BBox,
     )
 except ImportError as e:
     _logger.warning("Failed to import spatial_utils: %s", e)

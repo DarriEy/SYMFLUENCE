@@ -6,10 +6,11 @@ Environmentale Communautaire - Surface and Hydrology) model outputs.
 """
 
 import re
-from pathlib import Path
-from typing import List, Dict
-import pandas as pd
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
 

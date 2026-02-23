@@ -12,6 +12,7 @@ class TestDRouteNetworkAdapter:
 
     def test_adapter_instantiation(self):
         import logging
+
         from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
         logger = logging.getLogger('test')
         adapter = DRouteNetworkAdapter(logger)

@@ -17,19 +17,20 @@ except ImportError:
     __version__ = "0+unknown"
 
 
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Union, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import SYMFLUENCEError
+from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.provenance import capture_provenance
+from symfluence.core.provenance import finalize as finalize_provenance
+from symfluence.project.logging_manager import LoggingManager
+from symfluence.project.manager_factory import LazyManagerDict
 
 # Import core components
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
-from symfluence.project.logging_manager import LoggingManager
-from symfluence.project.manager_factory import LazyManagerDict
-from symfluence.core.config.models import SymfluenceConfig
-from symfluence.core.provenance import capture_provenance, finalize as finalize_provenance
 
 
 class SYMFLUENCE:
@@ -311,6 +312,7 @@ class SYMFLUENCE:
             Dictionary mapping step names to diagnostic info
         """
         from pathlib import Path
+
         import geopandas as gpd
         import pandas as pd
 

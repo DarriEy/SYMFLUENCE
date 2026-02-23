@@ -125,11 +125,11 @@ class TestTUIPackageImports:
     def test_import_all_services(self):
         """All service classes are importable."""
         from symfluence.tui.services import (
+            CalibrationDataService,
             DataDirService,
             RunHistoryService,
-            WorkflowService,
-            CalibrationDataService,
             SlurmService,
+            WorkflowService,
         )
         assert all([
             DataDirService, RunHistoryService, WorkflowService,
@@ -139,14 +139,14 @@ class TestTUIPackageImports:
     def test_import_all_widgets(self):
         """All widget classes are importable."""
         from symfluence.tui.widgets import (
-            DomainListWidget,
-            RunSummaryTable,
-            StepProgressWidget,
-            MetricsTable,
-            LogPanel,
-            SparklineWidget,
             ConfigTreeWidget,
+            DomainListWidget,
+            LogPanel,
+            MetricsTable,
+            RunSummaryTable,
             SlurmJobTable,
+            SparklineWidget,
+            StepProgressWidget,
         )
         assert all([
             DomainListWidget, RunSummaryTable, StepProgressWidget,
@@ -157,16 +157,16 @@ class TestTUIPackageImports:
     def test_import_all_screens(self):
         """All screen classes are importable."""
         from symfluence.tui.screens import (
+            CalibrationScreen,
+            CommandPaletteScreen,
             DashboardScreen,
+            HelpScreen,
+            PathPromptScreen,
+            ResultsCompareScreen,
             RunBrowserScreen,
             RunDetailScreen,
-            WorkflowLauncherScreen,
-            CalibrationScreen,
             SlurmMonitorScreen,
-            ResultsCompareScreen,
-            HelpScreen,
-            CommandPaletteScreen,
-            PathPromptScreen,
+            WorkflowLauncherScreen,
         )
         assert all([
             DashboardScreen, RunBrowserScreen, RunDetailScreen,
@@ -183,11 +183,11 @@ class TestTUIPackageImports:
     def test_import_constants(self):
         """Constants module is importable."""
         from symfluence.tui.constants import (
-            WORKFLOW_STEPS,
-            STATUS_ICONS,
-            STATUS_COLORS,
-            SPARKLINE_CHARS,
             METRIC_THRESHOLDS,
+            SPARKLINE_CHARS,
+            STATUS_COLORS,
+            STATUS_ICONS,
+            WORKFLOW_STEPS,
         )
         assert len(WORKFLOW_STEPS) > 0
         assert len(STATUS_ICONS) > 0

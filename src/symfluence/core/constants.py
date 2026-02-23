@@ -5,8 +5,8 @@ Centralizes all hardcoded constants to eliminate duplication and
 improve maintainability across the codebase.
 """
 
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
     import pandas as pd

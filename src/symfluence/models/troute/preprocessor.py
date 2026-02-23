@@ -16,9 +16,9 @@ import netCDF4 as nc4
 import numpy as np
 import yaml
 
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelPreProcessor
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
+from symfluence.models.base import BaseModelPreProcessor
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_preprocessor('TROUTE')

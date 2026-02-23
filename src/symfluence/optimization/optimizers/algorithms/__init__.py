@@ -14,37 +14,36 @@ Usage:
     result = algorithm.optimize(...)
 """
 
-from typing import Dict, Any, Type
 import logging
+from typing import Any, Dict, Type
 
-from .base_algorithm import OptimizationAlgorithm
-from .dds import DDSAlgorithm
-from .pso import PSOAlgorithm
-from .de import DEAlgorithm
-from .sce_ua import SCEUAAlgorithm
-from .async_dds import AsyncDDSAlgorithm
-from .nsga2 import NSGA2Algorithm
-from .adam import AdamAlgorithm
-from .lbfgs import LBFGSAlgorithm
-from .cmaes import CMAESAlgorithm
-from .dream import DREAMAlgorithm
-from .glue import GLUEAlgorithm
-from .basin_hopping import BasinHoppingAlgorithm
-from .nelder_mead import NelderMeadAlgorithm
-from .ga import GAAlgorithm
-from .bayesian_optimization import BayesianOptimizationAlgorithm
-from .moead import MOEADAlgorithm
-from .simulated_annealing import SimulatedAnnealingAlgorithm
 from .abc import ABCAlgorithm
+from .adam import AdamAlgorithm
+from .async_dds import AsyncDDSAlgorithm
+from .base_algorithm import OptimizationAlgorithm
+from .basin_hopping import BasinHoppingAlgorithm
+from .bayesian_optimization import BayesianOptimizationAlgorithm
+from .cmaes import CMAESAlgorithm
 from .config_schema import (
     CMAESDefaults,
-    NSGA2Defaults,
     DREAMDefaults,
+    NSGA2Defaults,
     PSODefaults,
     get_algorithm_defaults,
     validate_hyperparameters,
 )
-
+from .dds import DDSAlgorithm
+from .de import DEAlgorithm
+from .dream import DREAMAlgorithm
+from .ga import GAAlgorithm
+from .glue import GLUEAlgorithm
+from .lbfgs import LBFGSAlgorithm
+from .moead import MOEADAlgorithm
+from .nelder_mead import NelderMeadAlgorithm
+from .nsga2 import NSGA2Algorithm
+from .pso import PSOAlgorithm
+from .sce_ua import SCEUAAlgorithm
+from .simulated_annealing import SimulatedAnnealingAlgorithm
 
 # Algorithm registry mapping names to classes
 ALGORITHM_REGISTRY: Dict[str, Type[OptimizationAlgorithm]] = {

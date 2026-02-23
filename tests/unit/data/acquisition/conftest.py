@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
@@ -22,23 +22,21 @@ from fixtures.acquisition_fixtures import (
     MockResponse,
     MockResponseFactory,
     MockSessionFactory,
-    create_mock_logger,
     create_capturing_logger,
+    create_mock_logger,
     patch_requests_session,
     patch_robust_session,
 )
-
 from fixtures.synthetic_data import (
-    era5_dataset,
-    grace_dataset,
-    soil_moisture_dataset,
     dem_array,
     dem_dataset,
-    forcing_dataset,
+    era5_dataset,
     evapotranspiration_dataset,
+    forcing_dataset,
+    grace_dataset,
     snow_cover_dataset,
+    soil_moisture_dataset,
 )
-
 
 # =============================================================================
 # Mock Config Fixtures

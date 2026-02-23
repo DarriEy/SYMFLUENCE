@@ -42,13 +42,14 @@ def __dir__():
 
 def register_with_model_registry():
     """Register LSTM components with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import LSTMConfigAdapter
     from .extractor import LSTMResultExtractor
-    from .preprocessor import LSTMPreProcessor
-    from .postprocessor import LSTMPostprocessor
-    from .runner import LSTMRunner
     from .plotter import LSTMPlotter  # noqa: F401 — triggers decorator registration
-    from symfluence.models.registry import ModelRegistry
+    from .postprocessor import LSTMPostprocessor
+    from .preprocessor import LSTMPreProcessor
+    from .runner import LSTMRunner
 
     ModelRegistry.register_config_adapter('LSTM')(LSTMConfigAdapter)
     ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
@@ -62,10 +63,10 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
-    from .runner import LSTMRunner
-    from .preprocessor import LSTMPreProcessor
-    from .postprocessor import LSTMPostprocessor
     from .model import LSTMModel
+    from .postprocessor import LSTMPostprocessor
+    from .preprocessor import LSTMPreProcessor
+    from .runner import LSTMRunner
     from .visualizer import visualize_lstm
 
 

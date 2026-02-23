@@ -28,7 +28,8 @@ Example:
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple, Type, Optional, Callable, List
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
 

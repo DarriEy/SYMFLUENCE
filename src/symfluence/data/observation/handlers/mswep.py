@@ -6,11 +6,12 @@ use in hydrological modeling validation and calibration. MSWEP provides
 high-quality merged precipitation estimates combining gauge, satellite,
 and reanalysis data.
 """
-import pandas as pd
-import xarray as xr
-import geopandas as gpd
 from pathlib import Path
 from typing import List, Optional
+
+import geopandas as gpd
+import pandas as pd
+import xarray as xr
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry

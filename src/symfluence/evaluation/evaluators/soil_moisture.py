@@ -35,15 +35,17 @@ Configuration:
 """
 
 import logging
-import pandas as pd
-import numpy as np
-import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
-from symfluence.evaluation.registry import EvaluationRegistry
-from symfluence.evaluation.output_file_locator import OutputFileLocator
+import numpy as np
+import pandas as pd
+import xarray as xr
+
 from symfluence.data.observation.paths import first_existing_path, soil_moisture_observation_candidates
+from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.evaluation.registry import EvaluationRegistry
+
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:

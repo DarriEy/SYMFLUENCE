@@ -56,20 +56,20 @@ _register_parameter_managers()
 # Re-export from canonical locations (avoids deprecation warnings for internal use)
 # Users who import directly from the stub modules will still see deprecation warnings
 from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
+from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
 from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
+from symfluence.models.gsflow.calibration.parameter_manager import GSFLOWParameterManager
 from symfluence.models.hbv.calibration.parameter_manager import HBVParameterManager
 from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
 from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
-from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
-from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
-from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
-from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
-from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
-from symfluence.models.xinanjiang.calibration.parameter_manager import XinanjiangParameterManager
 from symfluence.models.modflow.calibration.parameter_manager import CoupledGWParameterManager
+from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 from symfluence.models.pihm.calibration.parameter_manager import PIHMParameterManager
-from symfluence.models.gsflow.calibration.parameter_manager import GSFLOWParameterManager
+from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
+from symfluence.models.sacsma.calibration.parameter_manager import SacSmaParameterManager
+from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
 from symfluence.models.watflood.calibration.parameter_manager import WATFLOODParameterManager
+from symfluence.models.xinanjiang.calibration.parameter_manager import XinanjiangParameterManager
 
 __all__ = [
     'FUSEParameterManager',

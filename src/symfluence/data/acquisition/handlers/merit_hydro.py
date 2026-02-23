@@ -34,10 +34,9 @@ import rasterio
 from rasterio.merge import merge as rio_merge
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
-
 
 # Base URL for MERIT-Hydro v1.0.1
 _BASE_URL = "http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_Hydro/distribute/v1.0.1"

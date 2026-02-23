@@ -4,12 +4,13 @@ LSTM Model Plotter
 Model-specific visualization for LSTM outputs including streamflow and SWE comparisons.
 """
 
-import pandas as pd
 from pathlib import Path
 from typing import Optional
 
-from symfluence.reporting.plotter_registry import PlotterRegistry
+import pandas as pd
+
 from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
 @PlotterRegistry.register_plotter('LSTM')
@@ -47,6 +48,7 @@ class LSTMPlotter(BasePlotter):
         """
         plt, _ = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec  # type: ignore
+
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:

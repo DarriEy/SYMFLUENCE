@@ -3,15 +3,18 @@ USGS Observation Handlers
 
 Provides handlers for USGS streamflow and groundwater data.
 """
-import requests
-import pandas as pd
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import requests
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('usgs_streamflow')
 class USGSStreamflowHandler(BaseObservationHandler):

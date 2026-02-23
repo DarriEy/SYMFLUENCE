@@ -5,11 +5,12 @@ Handles saving, loading, and querying of optimization trial results
 with CSV-based storage and score tracking.
 """
 
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-import logging
-from typing import Dict, Any, Optional, List
-from pathlib import Path
 
 
 class OptimizationResultsManager:

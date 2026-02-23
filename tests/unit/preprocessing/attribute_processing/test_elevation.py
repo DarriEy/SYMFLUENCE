@@ -6,12 +6,11 @@ Tests:
 - _process_elevation_attributes() - Statistics calculation
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from symfluence.data.preprocessing.attribute_processors.elevation import ElevationProcessor
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 

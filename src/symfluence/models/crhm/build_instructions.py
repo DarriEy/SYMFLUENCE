@@ -15,8 +15,7 @@ The source code lives in crhmcode/src/ within the repository,
 and requires spdlog (git submodule) and Boost (header-only).
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
-from symfluence.cli.services import get_common_build_environment
+from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
 
 
 @BuildInstructionsRegistry.register('crhm')

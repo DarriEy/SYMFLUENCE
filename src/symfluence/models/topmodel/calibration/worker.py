@@ -5,23 +5,23 @@ Worker implementation for TOPMODEL optimization.
 Runs TOPMODEL in-memory for efficient DDS/evolutionary calibration.
 """
 
+import logging
 import os
-import sys
-import signal
 import random
+import signal
+import sys
 import time
 import traceback
-import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker, HAS_JAX
-from symfluence.optimization.workers.base_worker import WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import HAS_JAX, InMemoryModelWorker
 
 # Lazy JAX import
 if HAS_JAX:
@@ -231,7 +231,8 @@ class TopmodelWorker(InMemoryModelWorker):
             return True
 
         try:
-            from symfluence.models.topmodel.model import simulate, HAS_JAX as MODEL_HAS_JAX
+            from symfluence.models.topmodel.model import HAS_JAX as MODEL_HAS_JAX
+            from symfluence.models.topmodel.model import simulate
             self._simulate_fn = simulate
             self._use_jax = MODEL_HAS_JAX and HAS_JAX
             return True

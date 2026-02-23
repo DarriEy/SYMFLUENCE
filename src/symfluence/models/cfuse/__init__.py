@@ -76,10 +76,7 @@ def get_model_config(structure: str) -> dict:
     if not HAS_CFUSE:
         raise ImportError("cFUSE not installed. Cannot get model configuration.")
 
-    from cfuse import (
-        VIC_CONFIG, TOPMODEL_CONFIG, PRMS_CONFIG,
-        SACRAMENTO_CONFIG, ARNO_CONFIG
-    )
+    from cfuse import ARNO_CONFIG, PRMS_CONFIG, SACRAMENTO_CONFIG, TOPMODEL_CONFIG, VIC_CONFIG
 
     configs = {
         'vic': VIC_CONFIG,
@@ -133,9 +130,10 @@ def __dir__():
 
 def register_with_model_registry():
     """Register cFUSE components with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import CFUSEConfigAdapter
     from .extractor import CFUSEResultExtractor
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('CFUSE')(CFUSEConfigAdapter)
     ModelRegistry.register_result_extractor('CFUSE')(CFUSEResultExtractor)
@@ -146,12 +144,12 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
+    from .calibration import CFUSEParameterManager, CFUSEWorker, get_cfuse_calibration_bounds
     from .config import CFUSEConfig, CFUSEConfigAdapter
+    from .extractor import CFUSEResultExtractor
+    from .postprocessor import CFUSEPostprocessor, CFUSERoutedPostprocessor
     from .preprocessor import CFUSEPreProcessor
     from .runner import CFUSERunner
-    from .postprocessor import CFUSEPostprocessor, CFUSERoutedPostprocessor
-    from .extractor import CFUSEResultExtractor
-    from .calibration import CFUSEWorker, CFUSEParameterManager, get_cfuse_calibration_bounds
 
 
 __all__ = [

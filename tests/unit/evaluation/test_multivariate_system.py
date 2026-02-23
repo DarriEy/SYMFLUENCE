@@ -1,11 +1,13 @@
-import pytest
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import List, Optional
+
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.data.observation.registry import ObservationRegistry
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.optimization.objectives import ObjectiveRegistry
+
 
 def test_observation_registry():
     """Verify that observations are correctly registered and retrievable."""

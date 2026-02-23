@@ -5,19 +5,20 @@ Tests the point-scale workflow from notebook 01a (Paradise SNOTEL example).
 Runs a short SUMMA simulation for a point domain.
 """
 
-import pytest
-import requests
 import shutil
 import zipfile
 from pathlib import Path
 
+import pytest
+import requests
+
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template, write_config
 from test_helpers.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
+from test_helpers.helpers import load_config_template, write_config
 
 # GitHub release URL for example data
 EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip"

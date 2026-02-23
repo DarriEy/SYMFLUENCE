@@ -10,7 +10,8 @@ Provides shared infrastructure for all attribute processing modules including:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+
 import geopandas as gpd
 
 from symfluence.core.config.coercion import coerce_config

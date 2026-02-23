@@ -7,7 +7,7 @@ elevation, soil class, land cover, aspect, and radiation simultaneously.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import geopandas as gpd  # type: ignore
 import numpy as np  # type: ignore

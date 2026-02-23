@@ -3,14 +3,17 @@ GGMN (Global Groundwater Monitoring Network) Observation Handler
 
 Handles acquisition of groundwater level data from IGRAC's GGMN via WFS.
 """
-import requests
 import json
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
+import requests
+
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('ggmn')
 class GGMNHandler(BaseObservationHandler):

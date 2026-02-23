@@ -11,12 +11,12 @@ Exercises every coupling path:
   6. Graph builder integration for all supported model combinations
 """
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import numpy as np
 import pytest
 import torch
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
 from symfluence.coupling import is_dcoupler_available
 
 dcoupler_available = is_dcoupler_available()
@@ -29,7 +29,6 @@ except ImportError:
     jax_available = False
 
 if dcoupler_available:
-    from dcoupler.core.graph import CouplingGraph
     from dcoupler.core.component import (
         DifferentiableComponent,
         FluxDirection,
@@ -38,6 +37,7 @@ if dcoupler_available:
         ParameterSpec,
     )
     from dcoupler.core.connection import SpatialRemapper
+    from dcoupler.core.graph import CouplingGraph
     from dcoupler.wrappers.process import ProcessComponent
 
 
@@ -233,7 +233,8 @@ class TestDifferentiableJAXCoupling:
     def test_snow17_xaj_forward_produces_output(self):
         """Snow-17 → XAJ forward pass produces non-zero runoff."""
         from symfluence.coupling.adapters.jax_adapters import (
-            Snow17JAXComponent, XAJJAXComponent,
+            Snow17JAXComponent,
+            XAJJAXComponent,
         )
 
         snow = Snow17JAXComponent("snow17")
@@ -267,7 +268,8 @@ class TestDifferentiableJAXCoupling:
     def test_snow17_xaj_gradient_flow(self):
         """Gradients propagate from loss through XAJ back to Snow-17 params."""
         from symfluence.coupling.adapters.jax_adapters import (
-            Snow17JAXComponent, XAJJAXComponent,
+            Snow17JAXComponent,
+            XAJJAXComponent,
         )
 
         snow = Snow17JAXComponent("snow17")
@@ -327,7 +329,8 @@ class TestDifferentiableJAXCoupling:
     def test_snow17_xaj_optimizer_step(self):
         """Adam can take a step and reduce loss on coupled Snow-17 → XAJ."""
         from symfluence.coupling.adapters.jax_adapters import (
-            Snow17JAXComponent, XAJJAXComponent,
+            Snow17JAXComponent,
+            XAJJAXComponent,
         )
 
         snow = Snow17JAXComponent("snow17")
@@ -377,15 +380,16 @@ class TestDifferentiableSacSmaCoupling:
     @pytest.fixture(autouse=True)
     def check_models(self):
         try:
-            from symfluence.models.snow17.model import snow17_step  # noqa: F401
             from symfluence.models.sacsma.sacsma import sacsma_step  # noqa: F401
+            from symfluence.models.snow17.model import snow17_step  # noqa: F401
         except ImportError:
             pytest.skip("Snow-17 or SAC-SMA model not available")
 
     def test_snow17_sacsma_forward_and_gradients(self):
         """Snow-17 → SAC-SMA produces output and propagates gradients."""
         from symfluence.coupling.adapters.jax_adapters import (
-            Snow17JAXComponent, SacSmaJAXComponent,
+            SacSmaJAXComponent,
+            Snow17JAXComponent,
         )
 
         snow = Snow17JAXComponent("snow17")
@@ -744,7 +748,8 @@ class TestSpatialRemappingInGraph:
     def test_real_adapter_mismatch_requires_conversion(self):
         """Real SUMMA→MizuRoute connection requires unit conversion and remapper."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent, MizuRouteProcessComponent,
+            MizuRouteProcessComponent,
+            SUMMAProcessComponent,
         )
 
         summa = SUMMAProcessComponent("land")
@@ -906,7 +911,8 @@ class TestAdapterFluxSpecConsistency:
     def test_summa_mizuroute_flux_compatibility(self):
         """SUMMA output flux → MizuRoute input flux names match."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent, MizuRouteProcessComponent,
+            MizuRouteProcessComponent,
+            SUMMAProcessComponent,
         )
 
         summa = SUMMAProcessComponent("summa")
@@ -922,7 +928,8 @@ class TestAdapterFluxSpecConsistency:
     def test_summa_parflow_flux_compatibility(self):
         """SUMMA soil_drainage → ParFlow recharge names match coupling pattern."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent, ParFlowProcessComponent,
+            ParFlowProcessComponent,
+            SUMMAProcessComponent,
         )
 
         summa = SUMMAProcessComponent("summa")
@@ -934,7 +941,8 @@ class TestAdapterFluxSpecConsistency:
     def test_summa_modflow_flux_compatibility(self):
         """SUMMA soil_drainage → MODFLOW recharge names match coupling pattern."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent, MODFLOWProcessComponent,
+            MODFLOWProcessComponent,
+            SUMMAProcessComponent,
         )
 
         summa = SUMMAProcessComponent("summa")
@@ -948,7 +956,8 @@ class TestAdapterFluxSpecConsistency:
         """Snow-17 rain_plus_melt → XAJ precip flux names match."""
         try:
             from symfluence.coupling.adapters.jax_adapters import (
-                Snow17JAXComponent, XAJJAXComponent,
+                Snow17JAXComponent,
+                XAJJAXComponent,
             )
             snow = Snow17JAXComponent("snow17")
             xaj = XAJJAXComponent("xaj")
@@ -963,7 +972,8 @@ class TestAdapterFluxSpecConsistency:
         """Snow-17 rain_plus_melt → SAC-SMA precip flux names match."""
         try:
             from symfluence.coupling.adapters.jax_adapters import (
-                Snow17JAXComponent, SacSmaJAXComponent,
+                SacSmaJAXComponent,
+                Snow17JAXComponent,
             )
             snow = Snow17JAXComponent("snow17")
             sacsma = SacSmaJAXComponent("sacsma")
@@ -976,7 +986,8 @@ class TestAdapterFluxSpecConsistency:
     def test_conserved_quantity_tags(self):
         """All runoff/drainage fluxes have water_mass conservation tag."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent, MizuRouteProcessComponent,
+            MizuRouteProcessComponent,
+            SUMMAProcessComponent,
         )
 
         summa = SUMMAProcessComponent("summa")
@@ -998,12 +1009,12 @@ class TestGradientMethodClassification:
     def test_all_process_adapters_none(self):
         """All process adapters report GradientMethod.NONE."""
         from symfluence.coupling.adapters.process_adapters import (
-            SUMMAProcessComponent,
-            MizuRouteProcessComponent,
-            ParFlowProcessComponent,
-            MODFLOWProcessComponent,
-            MESHProcessComponent,
             CLMProcessComponent,
+            MESHProcessComponent,
+            MizuRouteProcessComponent,
+            MODFLOWProcessComponent,
+            ParFlowProcessComponent,
+            SUMMAProcessComponent,
             TRouteProcessComponent,
         )
 
@@ -1026,9 +1037,9 @@ class TestGradientMethodClassification:
         """All JAX adapters report GradientMethod.AUTOGRAD."""
         try:
             from symfluence.coupling.adapters.jax_adapters import (
+                SacSmaJAXComponent,
                 Snow17JAXComponent,
                 XAJJAXComponent,
-                SacSmaJAXComponent,
             )
 
             for cls in [Snow17JAXComponent, XAJJAXComponent, SacSmaJAXComponent]:

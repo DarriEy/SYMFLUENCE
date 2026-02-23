@@ -7,7 +7,8 @@ use mizuRoute for routing.
 """
 
 from pathlib import Path
-from typing import cast, List, Dict
+from typing import Dict, List, cast
+
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
@@ -65,8 +66,8 @@ class HYPEResultExtractor(ModelResultExtractor):
             return self._extract_from_text(output_file)
         elif output_file.suffix == '.nc':
             # mizuRoute NetCDF output
-            import xarray as xr
             import numpy as np
+            import xarray as xr
 
             with xr.open_dataset(output_file, engine='h5netcdf') as ds:
                 # Use mizuRoute variables

@@ -7,7 +7,7 @@ CRHM is driven by a .prj project file and reads forcing from a .obs file.
 
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

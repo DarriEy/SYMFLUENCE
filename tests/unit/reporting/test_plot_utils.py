@@ -2,17 +2,16 @@
 Unit tests for plot_utils module.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
-
+import pytest
 from symfluence.reporting.core.plot_utils import (
-    calculate_metrics,
-    calculate_flow_duration_curve,
     align_timeseries,
+    calculate_flow_duration_curve,
+    calculate_metrics,
+    calculate_summary_statistics,
     format_metrics_for_display,
     resample_timeseries,
-    calculate_summary_statistics
 )
 
 

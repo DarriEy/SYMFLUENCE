@@ -5,17 +5,19 @@ Provides benchmark calculation against simple models (mean flow, rainfall-runoff
 ratios, etc.) with configurable calibration/validation period splitting.
 """
 
-import pandas as pd # type: ignore
-from hydrobm.calculate import calc_bm # type: ignore
-from pathlib import Path
-from typing import Dict, Any
-import xarray as xr # type: ignore
-from datetime import datetime
 import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+import pandas as pd  # type: ignore
+import xarray as xr  # type: ignore
+from hydrobm.calculate import calc_bm  # type: ignore
 
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import ProjectContextMixin, resolve_data_subdir
 from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
+
 
 class Benchmarker(ConfigMixin):
     def __init__(self, config: dict, logger):

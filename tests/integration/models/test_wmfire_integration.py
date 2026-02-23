@@ -1,8 +1,9 @@
 """Integration tests for WMFire module."""
-import numpy as np
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
 
 # Skip all tests if dependencies not available
 pytest.importorskip('geopandas')
@@ -119,7 +120,7 @@ class TestWMFireIntegration:
 
     def test_fire_def_generation(self, mock_config, sample_catchment, tmp_path):
         """Test generating fire.def with matching dimensions."""
-        from symfluence.models.wmfire import FireGridManager, FireDefGenerator
+        from symfluence.models.wmfire import FireDefGenerator, FireGridManager
 
         # Create grids
         manager = FireGridManager(mock_config)
@@ -207,8 +208,8 @@ class TestWMFireIntegration:
     def test_full_fire_setup_workflow(self, mock_config, sample_catchment, tmp_path):
         """Test complete fire setup workflow."""
         from symfluence.models.wmfire import (
-            FireGridManager,
             FireDefGenerator,
+            FireGridManager,
             FuelCalculator,
         )
 
@@ -276,9 +277,9 @@ class TestWMFireConfigIntegration:
 
     def test_config_propagation(self):
         """Test that config values propagate correctly."""
-        from symfluence.models.wmfire import FireGridManager, FireDefGenerator
         import geopandas as gpd
         from shapely.geometry import box
+        from symfluence.models.wmfire import FireDefGenerator, FireGridManager
 
         # Create config with custom values
         config = MagicMock()

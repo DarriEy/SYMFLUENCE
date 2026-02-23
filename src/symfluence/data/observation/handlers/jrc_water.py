@@ -15,10 +15,11 @@ Output Format:
     CSV with spatial statistics: mean, std, min, max water occurrence/extent
 """
 
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
+import pandas as pd
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry

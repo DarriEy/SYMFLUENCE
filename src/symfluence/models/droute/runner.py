@@ -7,14 +7,15 @@ Supports both Python API mode (preferred) and subprocess fallback.
 
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import numpy as np
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.droute.mixins import DRouteConfigMixin
 from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.models.registry import ModelRegistry
 
 # Try to import dRoute Python bindings
 try:
@@ -299,8 +300,8 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
             - runoff_array: 2D array [time, hru] of runoff values
             - time_index: DatetimeIndex of timestamps
         """
-        import xarray as xr
         import pandas as pd
+        import xarray as xr
 
         input_dir = self._get_input_dir()
         self.logger.debug(f"Looking for runoff data in: {input_dir}")

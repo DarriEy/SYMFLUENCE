@@ -207,20 +207,21 @@ See Also:
     - DataManager: High-level data workflow coordination
 """
 
-from pathlib import Path
-from typing import Dict, Any, Union, TYPE_CHECKING
-import numpy as np # type: ignore
-import pandas as pd # type: ignore
-import geopandas as gpd # type: ignore
-import rasterio # type: ignore
-from rasterstats import zonal_stats # type: ignore
 import gc
 import warnings
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Union
+
+import geopandas as gpd  # type: ignore
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+import rasterio  # type: ignore
 from rasterio.windows import from_bounds
+from rasterstats import zonal_stats  # type: ignore
 from shapely.geometry import box
 
-from symfluence.data.path_manager import PathManager
 from symfluence.core import ConfigurableMixin
+from symfluence.data.path_manager import PathManager
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

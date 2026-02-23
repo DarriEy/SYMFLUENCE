@@ -5,8 +5,8 @@ Provides ripgrep-based code search capabilities for finding patterns,
 definitions, and usages across the codebase.
 """
 
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -306,8 +306,8 @@ class CodeSearch:
         case_sensitive: bool
     ) -> Tuple[bool, str]:
         """Pure Python fallback search."""
-        import re
         import fnmatch
+        import re
 
         flags = 0 if case_sensitive else re.IGNORECASE
         try:

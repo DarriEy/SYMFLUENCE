@@ -2,8 +2,7 @@
 
 import numpy as np
 import pytest
-
-from symfluence.data_assimilation.enkf.state_vector import StateVector, StateVariableSpec
+from symfluence.data_assimilation.enkf.state_vector import StateVariableSpec, StateVector
 
 
 class TestStateVector:

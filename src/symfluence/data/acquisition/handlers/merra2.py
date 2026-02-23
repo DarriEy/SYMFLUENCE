@@ -33,15 +33,16 @@ References:
 import math
 import netrc as netrc_module
 import tempfile
-import pandas as pd
-import requests
-import xarray as xr
 from pathlib import Path
 from urllib.parse import urlparse
 
+import pandas as pd
+import requests
+import xarray as xr
+
 from ..base import BaseAcquisitionHandler
+from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
 from ..registry import AcquisitionRegistry
-from ..mixins import RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 
 
 class _EarthdataSession(requests.Session):

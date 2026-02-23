@@ -14,77 +14,75 @@ Key design features:
 """
 
 # Root config - the main entry point
-from .root import SymfluenceConfig
-
-# System config
-from .system import SystemConfig
-
-# Domain configs
-from .domain import DomainConfig, DelineationConfig
+# FEWS adapter config
+from symfluence.fews.config import FEWSConfig
 
 # Data configs
 from .data import (
     DataConfig,
     GeospatialConfig,
-    SoilGridsConfig,
     MODISLandcoverConfig,
-    NLCDConfig,
     NASADEMConfig,
+    NLCDConfig,
+    SoilGridsConfig,
+)
+
+# Domain configs
+from .domain import DelineationConfig, DomainConfig
+
+# Evaluation configs
+from .evaluation import (
+    AttributesConfig,
+    EvaluationConfig,
+    FluxNetConfig,
+    GRACEConfig,
+    ISMNConfig,
+    MODISETConfig,
+    MODISSnowConfig,
+    SMAPConfig,
+    SNOTELConfig,
+    StreamflowConfig,
+    USGSGWConfig,
 )
 
 # Forcing configs
-from .forcing import ForcingConfig, NexConfig, EMEarthConfig, ERA5Config
+from .forcing import EMEarthConfig, ERA5Config, ForcingConfig, NexConfig
 
 # Model configs
 from .model_configs import (
-    ModelConfig,
-    SUMMAConfig,
     FUSEConfig,
+    GNNConfig,
     GRConfig,
     HYPEConfig,
-    NGENConfig,
+    LSTMConfig,
     MESHConfig,
     MizuRouteConfig,
-    LSTMConfig,
+    ModelConfig,
+    NGENConfig,
     RHESSysConfig,
-    GNNConfig,
+    SUMMAConfig,
 )
 
 # Optimization configs
 from .optimization import (
+    DDSConfig,
+    DEConfig,
+    EmulationConfig,
+    NSGA2Config,
     OptimizationConfig,
     PSOConfig,
-    DEConfig,
-    DDSConfig,
     SCEUAConfig,
-    NSGA2Config,
-    EmulationConfig,
-)
-
-# Evaluation configs
-from .evaluation import (
-    EvaluationConfig,
-    StreamflowConfig,
-    SNOTELConfig,
-    FluxNetConfig,
-    USGSGWConfig,
-    SMAPConfig,
-    ISMNConfig,
-    GRACEConfig,
-    MODISSnowConfig,
-    MODISETConfig,
-    AttributesConfig,
 )
 
 # Paths configs
 from .paths import PathsConfig, ShapefilePathConfig
+from .root import SymfluenceConfig
 
 # State management and data assimilation configs
-from .state_config import StateConfig, EnKFConfig, DataAssimilationConfig
+from .state_config import DataAssimilationConfig, EnKFConfig, StateConfig
 
-# FEWS adapter config
-from symfluence.fews.config import FEWSConfig
-
+# System config
+from .system import SystemConfig
 
 __all__ = [
     # Root

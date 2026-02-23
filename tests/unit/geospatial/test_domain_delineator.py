@@ -8,9 +8,10 @@ Tests domain delineation orchestration including:
 - Pre-existing shapefile detection
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
 
 # Import fixtures
 from .conftest import requires_geopandas
@@ -229,7 +230,7 @@ class TestSubsetFromGeofabric:
         mock_config_object.paths.project_dir = tmp_path
 
         # Create mock subset data
-        from fixtures.geospatial_fixtures import synthetic_watershed_gdf, synthetic_river_network_gdf
+        from fixtures.geospatial_fixtures import synthetic_river_network_gdf, synthetic_watershed_gdf
         basins = synthetic_watershed_gdf(n_basins=5)
         rivers = synthetic_river_network_gdf(basins)
 

@@ -1,10 +1,10 @@
 """Unit tests for BinaryManager."""
 
-import pytest
 import subprocess
-from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
+from unittest.mock import MagicMock, mock_open, patch
 
+import pytest
 from symfluence.cli.binary_service import BinaryManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

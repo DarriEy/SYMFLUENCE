@@ -29,8 +29,10 @@ warnings.warn(
 # Re-export from new location for backward compatibility
 # Import directly from new location to avoid circular import
 from symfluence.models.summa.calibration.parameter_manager import (
-    SUMMAParameterManager as ParameterManager,
     SUMMAParameterManager,
+)
+from symfluence.models.summa.calibration.parameter_manager import (
+    SUMMAParameterManager as ParameterManager,
 )
 
 __all__ = ['ParameterManager', 'SUMMAParameterManager']

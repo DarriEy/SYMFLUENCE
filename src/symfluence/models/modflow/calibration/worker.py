@@ -19,10 +19,10 @@ Config keys:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,8 @@ dimensions, and file patterns.
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional, cast
+from typing import Dict, List, Optional, cast
+
 import pandas as pd
 import xarray as xr
 

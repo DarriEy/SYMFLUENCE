@@ -43,8 +43,8 @@ Usage:
     bounds = registry.get_bounds_for_params(['MBASE', 'MFMAX', 'maxsmc'])
 """
 
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 
 @dataclass

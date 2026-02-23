@@ -60,9 +60,9 @@ Limitations and Considerations:
     - Primarily tested for Canadian applications
 """
 
+from .postprocessor import MESHPostProcessor
 from .preprocessor import MESHPreProcessor
 from .runner import MESHRunner
-from .postprocessor import MESHPostProcessor
 from .visualizer import visualize_mesh
 
 __all__ = [
@@ -81,9 +81,12 @@ except ImportError:
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import MESHConfigAdapter
+
 ModelRegistry.register_config_adapter('MESH')(MESHConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import MESHResultExtractor
+
 ModelRegistry.register_result_extractor('MESH')(MESHResultExtractor)

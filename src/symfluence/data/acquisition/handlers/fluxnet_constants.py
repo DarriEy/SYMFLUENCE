@@ -9,9 +9,10 @@ References:
 - AmeriFlux: https://ameriflux.lbl.gov/
 """
 
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Union
 
 # Physical constants for flux conversions
 LE_TO_ET_FACTOR = 0.0353

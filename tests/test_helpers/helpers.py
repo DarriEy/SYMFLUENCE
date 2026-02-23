@@ -4,8 +4,9 @@ Helper functions for SYMFLUENCE tests.
 Configuration management utilities for loading and writing test configs.
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
+
 import yaml
 
 

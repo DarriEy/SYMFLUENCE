@@ -9,13 +9,13 @@ Provides I/O monitoring for different operating systems:
 All monitors provide a consistent interface for the SystemIOProfiler.
 """
 
+import logging
 import os
 import sys
 import time
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class ProcessIOMonitor(ABC):

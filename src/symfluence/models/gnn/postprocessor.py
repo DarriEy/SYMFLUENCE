@@ -4,15 +4,16 @@ GNN Model Postprocessor.
 Handles result saving, formatting, and standardized streamflow plotting for the GNN model.
 """
 
-from typing import Optional, List
 from pathlib import Path
+from typing import List, Optional
+
+import geopandas as gpd
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
-import geopandas as gpd
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('GNN')

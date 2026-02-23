@@ -5,7 +5,7 @@ Tracks crash rates and logs optimization progress in a consistent format.
 """
 
 import logging
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 
 from symfluence.core.constants import ModelDefaults
 

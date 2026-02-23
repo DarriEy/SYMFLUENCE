@@ -10,13 +10,13 @@ requests multiple independent tool calls.
 
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple, Any
+from typing import Any, List, Tuple
 
+from . import system_prompts
 from .api_client import APIClient
 from .conversation_manager import ConversationManager
-from .tool_registry import ToolRegistry
 from .tool_executor import ToolExecutor, ToolResult
-from . import system_prompts
+from .tool_registry import ToolRegistry
 
 
 class AgentManager:

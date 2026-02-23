@@ -74,12 +74,11 @@ References:
 
 import subprocess
 import sys
-from pathlib import Path
-from typing import Dict, Any
 import time
+from pathlib import Path
+from typing import Any, Dict
 
 from symfluence.core.mixins import ConfigMixin
-
 
 
 class gistoolRunner(ConfigMixin):

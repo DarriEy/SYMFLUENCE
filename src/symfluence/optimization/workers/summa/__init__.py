@@ -16,52 +16,45 @@ The original summa_parallel_workers.py has been split into focused modules:
 - dds_optimization: DDS algorithm for workers
 """
 
-from .netcdf_utilities import (
-    fix_summa_time_precision,
-    fix_summa_time_precision_inplace,
-    _convert_lumped_to_distributed_worker,
+from .dds_optimization import (
+    _denormalize_params_worker,
+    _evaluate_single_solution_worker,
+    _run_dds_instance_worker,
 )
-
-from .parameter_application import (
-    _apply_parameters_worker,
-    _update_soil_depths_worker,
-    _update_mizuroute_params_worker,
-    _generate_trial_params_worker,
+from .error_logging import (
+    ErrorLogger,
+    get_worker_error_logger,
+    init_worker_error_logger,
+    log_worker_failure,
 )
-
 from .metrics_calculation import (
-    _get_catchment_area_worker,
-    _calculate_metrics_with_target,
     _calculate_metrics_inline_worker,
+    _calculate_metrics_with_target,
     _calculate_multitarget_objectives,
+    _get_catchment_area_worker,
     resample_to_timestep,
 )
-
 from .model_execution import (
-    _run_summa_worker,
-    _run_mizuroute_worker,
     _needs_mizuroute_routing_worker,
+    _run_mizuroute_worker,
+    _run_summa_worker,
 )
-
+from .netcdf_utilities import (
+    _convert_lumped_to_distributed_worker,
+    fix_summa_time_precision,
+    fix_summa_time_precision_inplace,
+)
+from .parameter_application import (
+    _apply_parameters_worker,
+    _generate_trial_params_worker,
+    _update_mizuroute_params_worker,
+    _update_soil_depths_worker,
+)
 from .worker_orchestration import (
     _evaluate_parameters_worker,
 )
-
-from .dds_optimization import (
-    _run_dds_instance_worker,
-    _evaluate_single_solution_worker,
-    _denormalize_params_worker,
-)
-
 from .worker_safety import (
     _evaluate_parameters_worker_safe,
-)
-
-from .error_logging import (
-    ErrorLogger,
-    log_worker_failure,
-    init_worker_error_logger,
-    get_worker_error_logger,
 )
 
 __all__ = [

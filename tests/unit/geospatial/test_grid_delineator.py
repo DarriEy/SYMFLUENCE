@@ -8,10 +8,11 @@ Tests grid-based domain delineation including:
 - Native grid creation (Phase 2)
 """
 
+from pathlib import Path
+from unittest.mock import MagicMock, PropertyMock, patch
+
 import numpy as np
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
 
 # Import fixtures
 from .conftest import requires_geopandas, requires_rasterio

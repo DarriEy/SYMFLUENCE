@@ -11,17 +11,17 @@ Canopy height is important for:
 - Snow interception modeling
 - Forest type classification
 """
+from pathlib import Path
+from typing import Dict, Optional
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 from rasterio.mask import mask as rio_mask
-import geopandas as gpd
-from pathlib import Path
-from typing import Dict, Optional
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-
 
 # Scale factors and valid ranges
 CANOPY_HEIGHT_VALID_RANGE = (0, 100)  # meters

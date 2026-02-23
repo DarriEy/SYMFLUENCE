@@ -11,12 +11,10 @@ Tests the utility functions:
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
-
 from fixtures.acquisition_fixtures import MockResponseFactory, MockSessionFactory
-
 
 # =============================================================================
 # Create Robust Session Tests
@@ -38,8 +36,8 @@ class TestCreateRobustSession:
 
     def test_session_has_retry_adapter(self):
         """Session should have retry adapter mounted."""
-        from symfluence.data.acquisition.utils import create_robust_session
         from requests.adapters import HTTPAdapter
+        from symfluence.data.acquisition.utils import create_robust_session
 
         session = create_robust_session()
 
@@ -149,8 +147,8 @@ class TestDownloadFileStreaming:
 
     def test_cleanup_on_error(self, tmp_path):
         """Should clean up .part file on error."""
-        from symfluence.data.acquisition.utils import download_file_streaming
         from requests.exceptions import HTTPError
+        from symfluence.data.acquisition.utils import download_file_streaming
 
         mock_response = MockResponseFactory.error(500, "Server Error")
         mock_session = MockSessionFactory.create(default_response=mock_response)

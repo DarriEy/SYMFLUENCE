@@ -5,9 +5,9 @@ This module defines a hierarchy of exceptions that provide clear, specific
 error types for different failure modes throughout the SYMFLUENCE framework.
 """
 
+import logging
 from contextlib import contextmanager
 from typing import Optional
-import logging
 
 
 class SYMFLUENCEError(Exception):

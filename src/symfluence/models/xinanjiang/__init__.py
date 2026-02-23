@@ -84,11 +84,12 @@ def __dir__():
 
 def register_with_model_registry():
     """Register Xinanjiang with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import XinanjiangConfigAdapter
     from .extractor import XinanjiangResultExtractor
     from .preprocessor import XinanjiangPreProcessor  # noqa: F401 - triggers decorator
     from .runner import XinanjiangRunner  # noqa: F401 - triggers decorator
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('XINANJIANG')(XinanjiangConfigAdapter)
     ModelRegistry.register_result_extractor('XINANJIANG')(XinanjiangResultExtractor)
@@ -99,18 +100,21 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
+    from .calibration import XinanjiangModelOptimizer, XinanjiangParameterManager, XinanjiangWorker
     from .config import XinanjiangConfig, XinanjiangConfigAdapter
+    from .extractor import XinanjiangResultExtractor
+    from .losses import get_kge_gradient_fn, get_nse_gradient_fn, kge_loss, nse_loss
+    from .model import HAS_JAX, simulate, simulate_jax, simulate_numpy
+    from .parameters import (
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        PARAM_NAMES,
+        XinanjiangParams,
+        XinanjiangState,
+    )
+    from .postprocessor import XinanjiangPostprocessor
     from .preprocessor import XinanjiangPreProcessor
     from .runner import XinanjiangRunner
-    from .postprocessor import XinanjiangPostprocessor
-    from .extractor import XinanjiangResultExtractor
-    from .parameters import (
-        PARAM_BOUNDS, DEFAULT_PARAMS, PARAM_NAMES,
-        XinanjiangParams, XinanjiangState,
-    )
-    from .model import simulate, simulate_jax, simulate_numpy, HAS_JAX
-    from .losses import kge_loss, nse_loss, get_kge_gradient_fn, get_nse_gradient_fn
-    from .calibration import XinanjiangWorker, XinanjiangParameterManager, XinanjiangModelOptimizer
 
 
 __all__ = [

@@ -9,8 +9,7 @@ The build produces a shared library (libwmfire.so on Linux, libwmfire.dylib on m
 that RHESSys links against when fire spread simulation is enabled.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
-from symfluence.cli.services import get_common_build_environment
+from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
 
 
 @BuildInstructionsRegistry.register('wmfire')

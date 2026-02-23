@@ -2,7 +2,9 @@
 SYMFLUENCE Command-Line Interface Package
 """
 import sys
+
 from .argument_parser import CLIParser
+
 
 def main():
     """Main CLI entry point."""

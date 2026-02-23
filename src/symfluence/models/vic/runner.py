@@ -5,7 +5,7 @@ Executes the VIC model using prepared input files.
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

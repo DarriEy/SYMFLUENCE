@@ -11,7 +11,6 @@ import shutil
 import urllib.request
 from pathlib import Path
 
-
 logger = logging.getLogger(__name__)
 
 # CESM inputdata root (downloaded on demand)
@@ -42,7 +41,7 @@ def _ensure_cesm_inputdata() -> None:
         url = f'{_CESM_INPUTDATA_URL}/{rel_path}'
         logger.info(f"Downloading CESM inputdata: {rel_path}")
         try:
-            urllib.request.urlretrieve(url, local)
+            urllib.request.urlretrieve(url, local)  # nosec B310 — trusted CESM inputdata URL
             logger.info(f"  Saved: {local} ({local.stat().st_size / 1e6:.1f} MB)")
         except Exception as exc:
             logger.warning(f"  Failed to download {rel_path}: {exc}")

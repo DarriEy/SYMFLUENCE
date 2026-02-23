@@ -4,11 +4,12 @@ LSTM Model Visualizer.
 Provides model-specific visualization registration for LSTM.
 """
 
-from pathlib import Path
-from typing import Dict, Any, List
 import logging
+from pathlib import Path
+from typing import Any, Dict, List
 
 from symfluence.models.registry import ModelRegistry
+
 
 @ModelRegistry.register_visualizer('LSTM')
 def visualize_lstm(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):

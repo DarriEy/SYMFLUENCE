@@ -5,12 +5,13 @@ This module centralizes metrics calculation logic, supporting different
 evaluation periods (calibration, validation) and multiple data formats.
 """
 
+import logging
+from typing import Dict, Optional, Tuple
+
 import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
-from typing import Dict, Optional, Tuple
-import logging
 
-from symfluence.reporting.core.plot_utils import calculate_metrics, align_timeseries
+from symfluence.reporting.core.plot_utils import align_timeseries, calculate_metrics
 
 
 class MetricsProcessor:

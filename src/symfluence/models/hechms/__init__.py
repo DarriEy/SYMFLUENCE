@@ -110,11 +110,12 @@ def register_with_model_registry():
     """
     _show_experimental_warning()
 
+    from symfluence.models.registry import ModelRegistry
+
     from .config import HecHmsConfigAdapter
     from .extractor import HecHmsResultExtractor
     from .preprocessor import HecHmsPreProcessor  # Trigger @register_preprocessor decorator
     from .runner import HecHmsRunner  # Trigger @register_runner decorator
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('HECHMS')(HecHmsConfigAdapter)
     ModelRegistry.register_result_extractor('HECHMS')(HecHmsResultExtractor)
@@ -126,31 +127,31 @@ register_with_model_registry()
 
 # Type hints for IDE support
 if TYPE_CHECKING:
+    from .calibration import HecHmsParameterManager, HecHmsWorker, get_hechms_calibration_bounds
     from .config import HECHMSConfig, HecHmsConfigAdapter
-    from .preprocessor import HecHmsPreProcessor
-    from .runner import HecHmsRunner
-    from .postprocessor import HecHmsPostprocessor
     from .extractor import HecHmsResultExtractor
-    from .parameters import (
-        PARAM_BOUNDS,
-        DEFAULT_PARAMS,
-        HecHmsParameters,
-        HecHmsState,
-        create_params_from_dict,
-        create_initial_state,
-    )
     from .model import (
+        HAS_JAX,
+        baseflow_step,
+        loss_step,
         simulate,
         simulate_jax,
         simulate_numpy,
         snow_step,
-        loss_step,
-        transform_step,
-        baseflow_step,
         step,
-        HAS_JAX,
+        transform_step,
     )
-    from .calibration import HecHmsWorker, HecHmsParameterManager, get_hechms_calibration_bounds
+    from .parameters import (
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        HecHmsParameters,
+        HecHmsState,
+        create_initial_state,
+        create_params_from_dict,
+    )
+    from .postprocessor import HecHmsPostprocessor
+    from .preprocessor import HecHmsPreProcessor
+    from .runner import HecHmsRunner
 
 
 __all__ = [

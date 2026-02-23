@@ -117,11 +117,12 @@ def register_with_model_registry():
     """
     _show_experimental_warning()
 
+    from symfluence.models.registry import ModelRegistry
+
     from .config import TopmodelConfigAdapter
     from .extractor import TopmodelResultExtractor
     from .preprocessor import TopmodelPreProcessor  # Trigger @register_preprocessor decorator
     from .runner import TopmodelRunner  # Trigger @register_runner decorator
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('TOPMODEL')(TopmodelConfigAdapter)
     ModelRegistry.register_result_extractor('TOPMODEL')(TopmodelResultExtractor)
@@ -133,37 +134,37 @@ register_with_model_registry()
 
 # Type hints for IDE support
 if TYPE_CHECKING:
+    from .calibration import TopmodelParameterManager, TopmodelWorker, get_topmodel_calibration_bounds
     from .config import TOPMODELConfig, TopmodelConfigAdapter
-    from .preprocessor import TopmodelPreProcessor
-    from .runner import TopmodelRunner
-    from .postprocessor import TopmodelPostprocessor
     from .extractor import TopmodelResultExtractor
-    from .parameters import (
-        PARAM_BOUNDS,
-        DEFAULT_PARAMS,
-        TopmodelParameters,
-        TopmodelState,
-        create_params_from_dict,
-        create_initial_state,
-        generate_ti_distribution,
+    from .losses import (
+        get_kge_gradient_fn,
+        get_nse_gradient_fn,
+        kge_loss,
+        nse_loss,
     )
     from .model import (
+        HAS_JAX,
+        route_step,
         simulate,
         simulate_jax,
         simulate_numpy,
         snow_step,
-        topmodel_step,
-        route_step,
         step,
-        HAS_JAX,
+        topmodel_step,
     )
-    from .losses import (
-        nse_loss,
-        kge_loss,
-        get_nse_gradient_fn,
-        get_kge_gradient_fn,
+    from .parameters import (
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        TopmodelParameters,
+        TopmodelState,
+        create_initial_state,
+        create_params_from_dict,
+        generate_ti_distribution,
     )
-    from .calibration import TopmodelWorker, TopmodelParameterManager, get_topmodel_calibration_bounds
+    from .postprocessor import TopmodelPostprocessor
+    from .preprocessor import TopmodelPreProcessor
+    from .runner import TopmodelRunner
 
 
 __all__ = [

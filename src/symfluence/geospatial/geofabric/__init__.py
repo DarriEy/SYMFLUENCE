@@ -22,10 +22,10 @@ Refactored: 2026-01-01
 
 # Import all classes from their respective modules
 from .delineators.distributed_delineator import GeofabricDelineator
-from .delineators.subsetter import GeofabricSubsetter
+from .delineators.grid_delineator import GridDelineator
 from .delineators.lumped_delineator import LumpedWatershedDelineator
 from .delineators.point_delineator import PointDelineator
-from .delineators.grid_delineator import GridDelineator
+from .delineators.subsetter import GeofabricSubsetter
 
 __all__ = [
     'GeofabricDelineator',

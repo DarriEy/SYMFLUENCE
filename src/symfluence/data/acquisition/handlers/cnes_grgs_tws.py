@@ -8,11 +8,13 @@ catalogue (no authentication required).
 Reference: Lemoine et al. (2007), Bruinsma et al. (2010)
 """
 import re
+from datetime import datetime, timedelta
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import requests
-from pathlib import Path
-from datetime import datetime, timedelta
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 

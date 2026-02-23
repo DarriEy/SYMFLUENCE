@@ -5,6 +5,7 @@ Renders performance metrics as a formatted table.
 """
 
 from typing import Any, Dict
+
 import numpy as np
 
 from symfluence.reporting.panels.base_panel import BasePanel

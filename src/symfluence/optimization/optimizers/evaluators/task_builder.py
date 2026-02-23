@@ -7,11 +7,12 @@ Eliminates duplicated task dict construction across evaluation methods.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 import numpy as np
 
-from symfluence.core.mixins import ConfigMixin
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:
     pass

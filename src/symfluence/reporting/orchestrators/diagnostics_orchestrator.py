@@ -7,8 +7,8 @@ discretization, forcing, calibration, etc.).  All methods use the
 mode is disabled.
 """
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from symfluence.reporting.core.decorators import skip_if_not_diagnostic
 

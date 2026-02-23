@@ -17,11 +17,12 @@ Output Format:
     CSV with columns: datetime, swe_mm
 """
 
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from datetime import datetime
-from typing import List, Optional
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -227,8 +228,8 @@ class CMCSnowHandler(BaseObservationHandler):
 
                     # Transform bbox if raster is in a projected CRS
                     if crs and not crs.is_geographic:
-                        from rasterio.warp import transform_bounds
                         from rasterio.crs import CRS
+                        from rasterio.warp import transform_bounds
                         xmin, ymin, xmax, ymax = transform_bounds(
                             CRS.from_epsg(4326), crs,
                             lon_min, lat_min, lon_max, lat_max

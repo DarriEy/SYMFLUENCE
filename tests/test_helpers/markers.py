@@ -133,8 +133,8 @@ def skip_if_no_model(model_name):
     Returns:
         pytest.mark.skipif decorator
     """
-    import shutil
     import os
+    import shutil
     from pathlib import Path
 
     # 1. Check PATH

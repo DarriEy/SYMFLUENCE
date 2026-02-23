@@ -24,7 +24,8 @@ Reference:
     Evolutionary Computation, 13(2), 284-302.
 """
 
-from typing import Dict, Any, Callable, Optional, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

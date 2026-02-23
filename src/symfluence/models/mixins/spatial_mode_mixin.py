@@ -6,12 +6,12 @@ Consolidates the 3-step detection pattern that was previously duplicated across 
 GR, FUSE, LSTM, and other model components.
 """
 
-from typing import Optional
 import logging
+from typing import Optional
 
 from symfluence.models.spatial_modes import (
-    SpatialMode,
     MODEL_SPATIAL_CAPABILITIES,
+    SpatialMode,
     validate_spatial_mode,
 )
 

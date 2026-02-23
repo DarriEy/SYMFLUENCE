@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, Optional, Tuple, Any, Callable, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

@@ -4,8 +4,9 @@ Unit tests for SUMMA preprocessor.
 Tests SUMMA-specific preprocessing functionality.
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 from symfluence.models.summa import SummaPreProcessor
 
 

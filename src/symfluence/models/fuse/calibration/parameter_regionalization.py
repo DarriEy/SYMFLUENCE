@@ -11,9 +11,10 @@ Configuration:
     PARAMETER_REGIONALIZATION: lumped | transfer_function | zones | distributed
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Tuple
 import logging
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 

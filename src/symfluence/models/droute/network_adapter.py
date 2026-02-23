@@ -12,9 +12,9 @@ The adapter supports:
 - Validating network topology consistency
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 

@@ -175,21 +175,22 @@ See Also:
     - MPIExecutionStrategy: MPI-based distributed execution implementation
 """
 
-import os
 import logging
 import multiprocessing as mp
+import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 from symfluence.core.mixins import ConfigMixin
+
 from .parallel import (
-    DirectoryManager,
     ConfigurationUpdater,
+    DirectoryManager,
+    MPIExecutionStrategy,
+    ProcessPoolExecutionStrategy,
+    SequentialExecutionStrategy,
     TaskDistributor,
     WorkerEnvironmentConfig,
-    SequentialExecutionStrategy,
-    ProcessPoolExecutionStrategy,
-    MPIExecutionStrategy,
 )
 
 logger = logging.getLogger(__name__)

@@ -6,15 +6,16 @@ postprocess/visualize steps, and delegates component lookups to
 ``docs/source/architecture`` and ``docs/source/models/*``).
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-from symfluence.models.base.protocols import ModelPreProcessor, ModelRunner, ModelPostProcessor
+from symfluence.models.base.protocols import ModelPostProcessor, ModelPreProcessor, ModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities.routing_decider import RoutingDecider
+
 
 class ModelManager(BaseManager):
     """Facade that turns a hydrological model list into an ordered workflow.
@@ -379,7 +380,7 @@ class ModelManager(BaseManager):
 
     def _try_dcoupler_execution(self, workflow: List[str]) -> bool:
         """Try graph-based execution via dCoupler. Returns True if successful."""
-        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        from symfluence.coupling import INSTALL_SUGGESTION, is_dcoupler_available
 
         if not is_dcoupler_available():
             self.logger.info(INSTALL_SUGGESTION)
@@ -641,7 +642,8 @@ class ModelManager(BaseManager):
             error_type=ModelExecutionError
         ):
             import numpy as np
-            from symfluence.evaluation.metrics import kge, nse, kge_prime
+
+            from symfluence.evaluation.metrics import kge, kge_prime, nse
 
             # Get results file path
             results_file = self.project_dir / "results" / f"{self.experiment_id}_results.csv"

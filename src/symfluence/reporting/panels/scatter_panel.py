@@ -5,6 +5,7 @@ Renders scatter plots comparing observations vs simulated values.
 """
 
 from typing import Any, Dict, List
+
 import numpy as np
 
 from symfluence.reporting.panels.base_panel import BasePanel

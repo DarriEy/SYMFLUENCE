@@ -23,10 +23,10 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
-from ..registry import ModelRegistry
-from ..state import StateCapableMixin, StateFormat, StateMetadata, ModelState
-from ..templates import UnifiedModelRunner, ModelRunResult
 from ..execution import ExecutionResult, SlurmJobConfig
+from ..registry import ModelRegistry
+from ..state import ModelState, StateCapableMixin, StateFormat, StateMetadata
+from ..templates import ModelRunResult, UnifiedModelRunner
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')

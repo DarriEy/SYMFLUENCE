@@ -12,13 +12,16 @@ Supported products:
     - ASCAT: EUMETSAT C-band active microwave (~25 km, 2007-present)
 """
 
+from pathlib import Path
+from typing import Any, Optional
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from typing import Any, Optional
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('smap')
 class SMAPHandler(BaseObservationHandler):

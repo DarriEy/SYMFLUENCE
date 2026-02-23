@@ -10,11 +10,11 @@ FUSE (Framework for Understanding Structural Errors) is a modular
 rainfall-runoff modeling framework.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
-    get_netcdf_detection,
     get_hdf5_detection,
+    get_netcdf_detection,
     get_netcdf_lib_detection,
 )
 

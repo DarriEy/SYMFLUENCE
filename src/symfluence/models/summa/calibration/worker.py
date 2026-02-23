@@ -7,11 +7,10 @@ Delegates to existing worker functions while providing BaseWorker interface.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
-
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +178,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing functions
-            from symfluence.optimization.workers.summa import _run_summa_worker, _run_mizuroute_worker
+            from symfluence.optimization.workers.summa import _run_mizuroute_worker, _run_summa_worker
 
             summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
             summa_exe = config.get("SUMMA_EXE", "summa_sundials.exe")
@@ -366,8 +365,9 @@ class SUMMAWorker(BaseWorker):
             Dictionary of metrics
         """
         try:
-            import xarray as xr
             import pandas as pd
+            import xarray as xr
+
             from symfluence.evaluation.metrics import kge, nse
 
             # Find output file

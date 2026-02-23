@@ -7,17 +7,17 @@ These tests verify that:
 3. Both methods converge to similar optima
 """
 
-import pytest
-import numpy as np
-import time
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Tuple
+
+import numpy as np
+import pytest
 
 # Skip all tests if JAX not available
 jax = pytest.importorskip("jax", reason="JAX required for native gradient tests")
 import jax.numpy as jnp
-
 
 # ============================================================================
 # Fixtures
@@ -341,7 +341,7 @@ class TestHBVGradientSupport:
     def test_hbv_worker_supports_native_gradients(self):
         """HBVWorker should report gradient support when JAX available."""
         try:
-            from symfluence.models.hbv.calibration.worker import HBVWorker, HAS_JAX
+            from symfluence.models.hbv.calibration.worker import HAS_JAX, HBVWorker
 
             worker = HBVWorker({}, logging.getLogger('test'))
             assert worker.supports_native_gradients() == HAS_JAX

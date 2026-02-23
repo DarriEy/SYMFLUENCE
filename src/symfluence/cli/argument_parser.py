@@ -17,11 +17,11 @@ Categories:
 """
 
 import argparse
-from typing import Optional, List
+from typing import List, Optional
 
 from symfluence.workflow_steps import (
-    WORKFLOW_STEP_ALIASES,
     WORKFLOW_STEP_ALIAS_REVERSE,
+    WORKFLOW_STEP_ALIASES,
     WORKFLOW_STEP_NAMES,
     resolve_workflow_step_name,
 )

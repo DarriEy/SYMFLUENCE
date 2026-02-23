@@ -9,11 +9,11 @@ import logging
 import os
 import subprocess  # nosec B404 - Required for running Docker containers and model executables
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelRunner
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_runner('NGEN', method_name='run_ngen')
@@ -522,7 +522,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         # Run t-route
         troute_log = output_dir / "troute_log.txt"
         try:
-            from contextlib import redirect_stdout, redirect_stderr
+            from contextlib import redirect_stderr, redirect_stdout
 
             # Capture t-route output to log file
             with open(troute_log, 'w', encoding='utf-8') as log_f:

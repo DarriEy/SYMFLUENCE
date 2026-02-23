@@ -13,10 +13,10 @@ Public API:
     - StateError, StateValidationError: Exceptions
 """
 
-from .types import StateFormat, StateMetadata, ModelState
-from .mixin import StateCapableMixin
-from .manager import StateManager
 from .exceptions import StateError, StateValidationError
+from .manager import StateManager
+from .mixin import StateCapableMixin
+from .types import ModelState, StateFormat, StateMetadata
 
 __all__ = [
     "StateFormat",

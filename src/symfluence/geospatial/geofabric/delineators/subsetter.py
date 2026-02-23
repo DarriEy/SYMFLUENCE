@@ -8,13 +8,14 @@ Refactored from geofabric_utils.py (2026-01-01)
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
 import geopandas as gpd
 
 from ..base.base_delineator import BaseGeofabricDelineator
 from ..processors.graph_processor import RiverGraphProcessor
-from ..utils.io_utils import GeofabricIOUtils
 from ..utils.crs_utils import CRSUtils
+from ..utils.io_utils import GeofabricIOUtils
 
 
 class GeofabricSubsetter(BaseGeofabricDelineator):

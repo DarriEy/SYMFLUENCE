@@ -13,10 +13,11 @@ Exports:
 
 """
 
-from typing import Union, Dict, Any
+from typing import Any, Dict, Union
+
+from symfluence.core.config.coercion import coerce_config, ensure_config
 from symfluence.core.config.config_loader import normalize_config, validate_config
 from symfluence.core.config.models import SymfluenceConfig
-from symfluence.core.config.coercion import ensure_config, coerce_config
 
 
 def ensure_typed_config(config: Union[Dict[str, Any], SymfluenceConfig]) -> SymfluenceConfig:

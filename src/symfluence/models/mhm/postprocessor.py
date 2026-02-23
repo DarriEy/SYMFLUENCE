@@ -8,8 +8,8 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
-from ..registry import ModelRegistry
 from ..base import StandardModelPostprocessor
+from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('MHM')

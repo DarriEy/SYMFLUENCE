@@ -6,7 +6,7 @@ mHM is run from within the settings directory where the namelists reside.
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

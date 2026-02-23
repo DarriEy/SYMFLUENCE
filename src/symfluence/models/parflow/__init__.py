@@ -32,12 +32,12 @@ References:
 
     https://github.com/parflow/parflow
 """
+from .config import ParFlowConfigAdapter
+from .extractor import ParFlowResultExtractor
+from .plotter import ParFlowPlotter
+from .postprocessor import ParFlowPostProcessor
 from .preprocessor import ParFlowPreProcessor
 from .runner import ParFlowRunner
-from .extractor import ParFlowResultExtractor
-from .postprocessor import ParFlowPostProcessor
-from .config import ParFlowConfigAdapter
-from .plotter import ParFlowPlotter
 
 __all__ = [
     "ParFlowPreProcessor",
@@ -61,4 +61,5 @@ except ImportError:
 # - ParFlowPostProcessor: @ModelRegistry.register_postprocessor("PARFLOW")
 # ParFlowConfigAdapter needs explicit registration (no decorator)
 from symfluence.models.registry import ModelRegistry
+
 ModelRegistry.register_config_adapter('PARFLOW')(ParFlowConfigAdapter)

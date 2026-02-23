@@ -20,6 +20,11 @@ an eco-hydrological model. International Journal of Wildland Fire. 26(8): 706-71
 """
 
 # Import core classes
+from .fire_def_generator import (
+    FireDefGenerator,
+    FireDefParameters,
+    validate_fire_def,
+)
 from .fire_grid import FireGrid, FireGridManager
 from .fuel_calculator import (
     FuelCalculator,
@@ -27,15 +32,10 @@ from .fuel_calculator import (
     FuelStats,
     estimate_initial_moisture,
 )
-from .fire_def_generator import (
-    FireDefGenerator,
-    FireDefParameters,
-    validate_fire_def,
-)
 from .ignition import (
-    IgnitionPoint,
-    IgnitionManager,
     FirePerimeterValidator,
+    IgnitionManager,
+    IgnitionPoint,
 )
 from .postprocessor import WMFirePostProcessor
 

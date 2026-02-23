@@ -8,20 +8,20 @@ Tests the refactored modular attribute processing architecture including:
 - Both lumped and distributed catchment configurations
 """
 
-import pytest
-import pandas as pd
+import warnings
 from pathlib import Path
 from unittest.mock import Mock, patch
-import warnings
 
+import pandas as pd
+import pytest
 from symfluence.data.preprocessing.attribute_processor import attributeProcessor
 from symfluence.data.preprocessing.attribute_processors import (
+    ClimateProcessor,
     ElevationProcessor,
     GeologyProcessor,
-    SoilProcessor,
+    HydrologyProcessor,
     LandCoverProcessor,
-    ClimateProcessor,
-    HydrologyProcessor
+    SoilProcessor,
 )
 
 
@@ -89,6 +89,7 @@ class TestDeprecationWarning:
     def test_original_module_raises_deprecation_warning(self):
         """Verify that importing the original module raises a deprecation warning."""
         import importlib
+
         from symfluence.data.preprocessing import attribute_processing
 
         # Reset warning registry for the module to ensure warning triggers again

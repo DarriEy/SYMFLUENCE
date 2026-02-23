@@ -37,11 +37,11 @@ References:
 
     https://github.com/ESCOMP/CTSM
 """
-from .preprocessor import CLMPreProcessor
-from .runner import CLMRunner
+from .config import CLMConfigAdapter
 from .extractor import CLMResultExtractor
 from .postprocessor import CLMPostProcessor
-from .config import CLMConfigAdapter
+from .preprocessor import CLMPreProcessor
+from .runner import CLMRunner
 
 __all__ = [
     "CLMPreProcessor",
@@ -64,6 +64,7 @@ except ImportError:
 # - CLMPostProcessor: @ModelRegistry.register_postprocessor("CLM")
 # CLMConfigAdapter needs explicit registration (no decorator)
 from symfluence.models.registry import ModelRegistry
+
 ModelRegistry.register_config_adapter('CLM')(CLMConfigAdapter)
 
 # Register calibration components with OptimizerRegistry

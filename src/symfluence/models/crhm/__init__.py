@@ -63,11 +63,11 @@ References:
 
     https://github.com/CentreForHydrology/CRHM
 """
-from .preprocessor import CRHMPreProcessor
-from .runner import CRHMRunner
+from .config import CRHMConfigAdapter
 from .extractor import CRHMResultExtractor
 from .postprocessor import CRHMPostProcessor
-from .config import CRHMConfigAdapter
+from .preprocessor import CRHMPreProcessor
+from .runner import CRHMRunner
 
 __all__ = [
     "CRHMPreProcessor",

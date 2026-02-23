@@ -11,8 +11,8 @@ hydrological model developed by SMHI (Swedish Meteorological and
 Hydrological Institute).
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

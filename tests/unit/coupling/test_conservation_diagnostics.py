@@ -1,8 +1,9 @@
 """Tests for coupling conservation diagnostics."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestCouplingDiagnostics:
@@ -191,8 +192,8 @@ class TestReportingManagerIntegration:
         assert hasattr(ReportingManager, 'diagnostic_coupling_conservation')
 
     def test_skips_when_diagnostic_disabled(self):
-        from symfluence.reporting.reporting_manager import ReportingManager
         from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.reporting.reporting_manager import ReportingManager
 
         # Bypass SymfluenceConfig type check by patching isinstance
         mock_config = MagicMock(spec=SymfluenceConfig)

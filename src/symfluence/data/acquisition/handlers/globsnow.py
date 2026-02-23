@@ -25,17 +25,16 @@ References:
 """
 
 import traceback
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
 
 from ..base import BaseAcquisitionHandler
+from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
 from ..registry import AcquisitionRegistry
-from ..mixins import RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 from ..utils import create_robust_session, download_file_streaming
-
 
 # GlobSnow v3.0 archive URL
 _V3_BASE_URL = "https://www.globsnow.info/swe/archive_v3.0/L3A_daily_SWE/NetCDF4"

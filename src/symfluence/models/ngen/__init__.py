@@ -69,10 +69,10 @@ Limitations and Considerations:
     - Multi-catchment runs benefit from parallel execution
 """
 
+from .config_generator import NgenConfigGenerator
+from .postprocessor import NgenPostprocessor
 from .preprocessor import NgenPreProcessor
 from .runner import NgenRunner
-from .postprocessor import NgenPostprocessor
-from .config_generator import NgenConfigGenerator
 from .visualizer import visualize_ngen
 
 __all__ = [
@@ -92,11 +92,14 @@ except ImportError:
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import NgenConfigAdapter
+
 ModelRegistry.register_config_adapter('NGEN')(NgenConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import NGENResultExtractor
+
 ModelRegistry.register_result_extractor('NGEN')(NGENResultExtractor)
 
 # Register plotter with PlotterRegistry (import triggers registration via decorator)

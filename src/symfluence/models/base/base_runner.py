@@ -11,23 +11,20 @@ Provides shared infrastructure for all model execution modules including:
 - Spatial mode validation (Phase 3)
 """
 
-from abc import ABC
 import logging
+from abc import ABC
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
+from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.models.mixins import (
     ModelComponentMixin,
-    SubprocessExecutionMixin,
     SlurmExecutionMixin,
+    SubprocessExecutionMixin,
 )
-from symfluence.models.spatial_modes import (
-    get_spatial_mode_from_config,
-    validate_spatial_mode
-)
+from symfluence.models.spatial_modes import get_spatial_mode_from_config, validate_spatial_mode
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -305,8 +302,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         Returns:
             Path to output directory on success, None on failure.
         """
-        from symfluence.models.registry import ModelRegistry
         from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+        from symfluence.models.registry import ModelRegistry
 
         # --- Legacy dispatch ---
         method_name = ModelRegistry.get_runner_method(self.model_name)

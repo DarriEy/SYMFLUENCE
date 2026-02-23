@@ -5,13 +5,14 @@ Handles water balance calculations, streamflow signatures, baseflow analysis,
 and river network characteristics.
 """
 
+from typing import Any, Dict
+
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
-
-from .base import BaseAttributeProcessor
 
 from symfluence.core.mixins.project import resolve_data_subdir
+
+from .base import BaseAttributeProcessor
 
 
 class HydrologyProcessor(BaseAttributeProcessor):

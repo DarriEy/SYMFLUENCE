@@ -9,9 +9,10 @@ This module provides a unified interface to the modular services:
 
 from typing import Any, Dict, List, Optional, Union
 
-from .console import Console, console as global_console
+from .console import Console
+from .console import console as global_console
 from .external_tools_config import get_external_tools_definitions
-from .services import ToolInstaller, ToolValidator, SystemDiagnostics
+from .services import SystemDiagnostics, ToolInstaller, ToolValidator
 from .services.base import BaseService
 
 

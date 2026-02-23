@@ -1,12 +1,12 @@
 """Unit tests for base command class."""
 
 import os
-import pytest
 from argparse import Namespace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from symfluence.cli.commands.base import BaseCommand, DEFAULT_CONFIG_PATH
+import pytest
+from symfluence.cli.commands.base import DEFAULT_CONFIG_PATH, BaseCommand
 from symfluence.cli.exit_codes import ExitCode
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

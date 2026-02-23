@@ -7,7 +7,7 @@ Handles all modifications to MESH_input_run_options.ini.
 import logging
 import re
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import pandas as pd
 

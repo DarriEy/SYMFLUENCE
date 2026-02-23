@@ -6,7 +6,7 @@ and BaseModelPostProcessor to eliminate code duplication.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

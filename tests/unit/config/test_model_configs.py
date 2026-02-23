@@ -6,26 +6,26 @@ verifies the transformer mappings work correctly.
 """
 
 
+from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 from symfluence.core.config.models import (
-    SymfluenceConfig,
-    RHESSysConfig,
-    GNNConfig,
-    LSTMConfig,
-    SUMMAConfig,
+    ERA5Config,
     FUSEConfig,
+    GeospatialConfig,
+    GNNConfig,
+    ISMNConfig,
+    LSTMConfig,
     MESHConfig,
     MizuRouteConfig,
-    ISMNConfig,
     MODISETConfig,
-    ERA5Config,
-    GeospatialConfig,
-    SoilGridsConfig,
     MODISLandcoverConfig,
-    NLCDConfig,
     NASADEMConfig,
+    NLCDConfig,
+    RHESSysConfig,
+    SoilGridsConfig,
+    SUMMAConfig,
+    SymfluenceConfig,
 )
 from symfluence.core.config.transformers import transform_flat_to_nested
-from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 
 
 class TestRHESSysConfig:

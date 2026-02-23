@@ -7,6 +7,7 @@ Defines the Pydantic models for FEWS General Adapter settings:
 """
 
 from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 from symfluence.core.config.models.base import FROZEN_CONFIG

@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from symfluence.core.provenance import (
     RunProvenance,
     _dependency_versions,
@@ -18,7 +17,6 @@ from symfluence.core.provenance import (
     make_run_id,
     record_step,
 )
-
 
 # ---------------------------------------------------------------------------
 # _git_info

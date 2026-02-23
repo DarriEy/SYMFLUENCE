@@ -22,27 +22,24 @@ Optional Overrides:
 import logging
 import random
 import tempfile
+from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Tuple, Callable, TYPE_CHECKING
-from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
 from symfluence.core.constants import ModelDefaults
-from symfluence.core.exceptions import require_not_none, OptimizationError
-from ..mixins import (
-    ParallelExecutionMixin,
-    ResultsTrackingMixin,
-    RetryExecutionMixin,
-    GradientOptimizationMixin
-)
+from symfluence.core.exceptions import OptimizationError, require_not_none
+
+from ..mixins import GradientOptimizationMixin, ParallelExecutionMixin, ResultsTrackingMixin, RetryExecutionMixin
 from ..workers.base_worker import BaseWorker
-from .algorithms import get_algorithm, ALGORITHM_REGISTRY
-from .evaluators import TaskBuilder, PopulationEvaluator
-from .final_evaluation import FinalResultsSaver, FinalEvaluationOrchestrator
+from .algorithms import ALGORITHM_REGISTRY, get_algorithm
 from .component_factory import OptimizerComponentFactory
+from .evaluators import PopulationEvaluator, TaskBuilder
+from .final_evaluation import FinalEvaluationOrchestrator, FinalResultsSaver
 from .metrics_tracker import EvaluationMetricsTracker
 
 if TYPE_CHECKING:

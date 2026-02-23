@@ -2,12 +2,12 @@
 Unit tests for OptimizationPlotter.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock
 import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
 
+import numpy as np
+import pytest
 from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
 
 

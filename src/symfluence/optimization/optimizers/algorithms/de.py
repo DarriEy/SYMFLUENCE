@@ -13,7 +13,8 @@ Reference:
     Journal of Global Optimization, 11(4), 341-359.
 """
 
-from typing import Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

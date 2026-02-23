@@ -9,10 +9,9 @@ This module provides a consistent registry pattern used across:
 All registries use lowercase keys internally for consistency.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Type, Any, List, TypeVar, Generic
 import logging
-
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Generic, List, Type, TypeVar
 
 T = TypeVar('T')
 

@@ -9,9 +9,8 @@ import logging
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
-
+from .base import BaseCommand, cli_exception_handler
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +66,8 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         dataset_name = args.dataset
 
@@ -169,8 +168,8 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         datasets = AcquisitionRegistry.list_datasets()
 
@@ -204,8 +203,8 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         dataset_name = args.dataset
 

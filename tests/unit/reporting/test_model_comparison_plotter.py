@@ -4,13 +4,13 @@ Unit tests for ModelComparisonPlotter.
 Tests the model comparison overview visualization functionality.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
 

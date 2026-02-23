@@ -9,9 +9,9 @@ Tests the regionalization framework:
 - RegionalizationFactory
 """
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import logging
 
 import numpy as np
 import pandas as pd
@@ -445,7 +445,8 @@ class TestRegionalizationFactory:
     def test_creates_lumped(self, param_bounds, test_logger):
         """Should create LumpedRegionalization."""
         from symfluence.models.fuse.calibration.parameter_regionalization import (
-            RegionalizationFactory, LumpedRegionalization,
+            LumpedRegionalization,
+            RegionalizationFactory,
         )
 
         reg = RegionalizationFactory.create('lumped', param_bounds, 5, logger=test_logger)
@@ -456,7 +457,8 @@ class TestRegionalizationFactory:
     ):
         """Should create TransferFunctionRegionalization."""
         from symfluence.models.fuse.calibration.parameter_regionalization import (
-            RegionalizationFactory, TransferFunctionRegionalization,
+            RegionalizationFactory,
+            TransferFunctionRegionalization,
         )
 
         reg = RegionalizationFactory.create(
@@ -479,7 +481,8 @@ class TestRegionalizationFactory:
     def test_creates_zones(self, param_bounds, test_logger):
         """Should create ZoneRegionalization."""
         from symfluence.models.fuse.calibration.parameter_regionalization import (
-            RegionalizationFactory, ZoneRegionalization,
+            RegionalizationFactory,
+            ZoneRegionalization,
         )
 
         config = {'zone_assignments': np.array([0, 0, 1, 1, 2])}
@@ -502,7 +505,8 @@ class TestRegionalizationFactory:
     def test_creates_distributed(self, param_bounds, test_logger):
         """Should create DistributedRegionalization."""
         from symfluence.models.fuse.calibration.parameter_regionalization import (
-            RegionalizationFactory, DistributedRegionalization,
+            DistributedRegionalization,
+            RegionalizationFactory,
         )
 
         reg = RegionalizationFactory.create(
@@ -524,7 +528,8 @@ class TestRegionalizationFactory:
     def test_handles_hyphenated_name(self, param_bounds, test_logger):
         """Should handle hyphenated method names (e.g., transfer-function)."""
         from symfluence.models.fuse.calibration.parameter_regionalization import (
-            RegionalizationFactory, TransferFunctionRegionalization,
+            RegionalizationFactory,
+            TransferFunctionRegionalization,
         )
 
         attrs = pd.DataFrame({

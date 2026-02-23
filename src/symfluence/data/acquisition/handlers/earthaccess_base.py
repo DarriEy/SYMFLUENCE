@@ -16,9 +16,10 @@ References:
 - CMR API: https://cmr.earthdata.nasa.gov/search/
 """
 
-import requests
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Optional, Tuple
+
+import requests
 
 from ..base import BaseAcquisitionHandler
 

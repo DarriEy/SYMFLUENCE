@@ -36,18 +36,22 @@ Factory function for registry-based target creation:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 from .base import (
     CalibrationTarget,
     ETTarget,
-    StreamflowTarget,
-    SoilMoistureTarget,
-    SnowTarget,
     GroundwaterTarget,
-    TWSTarget,
     MultivariateTarget,
+    SnowTarget,
+    SoilMoistureTarget,
+    StreamflowTarget,
+    TWSTarget,
 )
+from .gr_calibration_targets import GRStreamflowTarget
+from .hype_calibration_targets import HYPEStreamflowTarget
+from .ngen_calibration_targets import NgenStreamflowTarget
+from .rhessys_calibration_targets import RHESSysStreamflowTarget
 
 # Model-specific calibration targets
 # Note: FUSE targets are NOT imported here to avoid circular dependencies during migration.
@@ -55,16 +59,12 @@ from .base import (
 # 1. Direct import: from symfluence.optimization.calibration_targets.fuse_calibration_targets import ...
 # 2. Registry pattern: OptimizerRegistry.get_calibration_target('FUSE', 'streamflow')
 # 3. Factory function: create_calibration_target() (uses registry + fallback)
-
 from .summa_calibration_targets import (
-    SUMMAStreamflowTarget,
-    SUMMASnowTarget,
     SUMMAETTarget,
+    SUMMASnowTarget,
+    SUMMAStreamflowTarget,
 )
-from .gr_calibration_targets import GRStreamflowTarget
-from .hype_calibration_targets import HYPEStreamflowTarget
-from .rhessys_calibration_targets import RHESSysStreamflowTarget
-from .ngen_calibration_targets import NgenStreamflowTarget
+
 # FUSE targets: Use create_calibration_target() or import directly from .fuse_calibration_targets
 
 

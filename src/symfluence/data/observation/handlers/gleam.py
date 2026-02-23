@@ -12,8 +12,8 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import xarray as xr
 import requests
+import xarray as xr
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry

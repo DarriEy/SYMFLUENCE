@@ -2,9 +2,10 @@
 Tests for LSTM model runner.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 
 class TestLSTMRunnerInitialization:

@@ -7,16 +7,15 @@ Handles preparation of PRMS model inputs including:
 - Data file (data.dat) with forcing time series
 """
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Tuple
-from datetime import datetime
 
 import pandas as pd
 import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-
 
 logger = logging.getLogger(__name__)
 

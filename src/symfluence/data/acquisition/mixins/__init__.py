@@ -7,8 +7,8 @@ Provides reusable mixin classes for data acquisition handlers:
 - SpatialSubsetMixin: Spatial subsetting operations
 """
 
-from .retry import RetryMixin
 from .chunked import ChunkedDownloadMixin
+from .retry import RetryMixin
 from .spatial import SpatialSubsetMixin
 
 __all__ = [

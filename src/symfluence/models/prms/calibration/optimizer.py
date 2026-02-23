@@ -5,12 +5,13 @@ PRMS-specific optimizer inheriting from BaseModelOptimizer.
 """
 
 import logging
-from pathlib import Path
-from typing import Dict, Any, Optional
 import shutil
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import PRMSWorker  # noqa: F401 - Import to trigger worker registration
 
 

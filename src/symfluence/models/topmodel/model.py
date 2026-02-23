@@ -26,8 +26,8 @@ References:
     Wiley-Blackwell.
 """
 
-from typing import Any, Dict, Optional, Tuple
 import warnings
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -48,12 +48,12 @@ except ImportError:
     )
 
 from .parameters import (
-    PARAM_BOUNDS,
     DEFAULT_PARAMS,
+    PARAM_BOUNDS,
     TopmodelParameters,
     TopmodelState,
-    create_params_from_dict,
     create_initial_state,
+    create_params_from_dict,
     generate_ti_distribution,
 )
 

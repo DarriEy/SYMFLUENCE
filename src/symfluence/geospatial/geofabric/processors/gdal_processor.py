@@ -7,11 +7,12 @@ Used by both distributed and lumped delineators.
 Refactored from geofabric_utils.py (2026-01-01)
 """
 
+import glob
 import os
 import subprocess
-import glob
 from pathlib import Path
 from typing import Any
+
 import geopandas as gpd
 
 try:

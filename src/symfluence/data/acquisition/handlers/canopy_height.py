@@ -28,15 +28,14 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 import rasterio
+import requests
 from rasterio.merge import merge as rio_merge
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # =============================================================================
 # GEDI Canopy Height (NASA AppEEARS)

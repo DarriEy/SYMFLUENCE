@@ -5,16 +5,17 @@ Worker implementation for MESH model optimization.
 """
 
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.mesh.runner import MESHRunner
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('MESH')
@@ -180,6 +181,7 @@ class MESHWorker(BaseWorker):
             Dictionary of metric names to values
         """
         from datetime import datetime, timedelta
+
         from symfluence.models.mesh.extractor import MESHResultExtractor
 
         try:

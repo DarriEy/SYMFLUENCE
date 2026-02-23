@@ -14,8 +14,8 @@ from .exceptions import (
     RunInfoParseError,
     StateExchangeError,
 )
-from .pre_adapter import FEWSPreAdapter
 from .post_adapter import FEWSPostAdapter
+from .pre_adapter import FEWSPreAdapter
 
 __all__ = [
     "FEWSConfig",

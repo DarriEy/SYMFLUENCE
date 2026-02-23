@@ -4,17 +4,18 @@ Analysis visualization plotter.
 Handles plotting of sensitivity analysis, decision impacts, and threshold analysis.
 """
 
-import pandas as pd  # type: ignore
-import numpy as np  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+
+from symfluence.core.constants import ConfigKeys, UnitConversion
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.core.constants import UnitConversion, ConfigKeys
 from symfluence.reporting.panels import (
-    TimeSeriesPanel,
     FDCPanel,
     ScatterPanel,
+    TimeSeriesPanel,
 )
 
 
@@ -392,8 +393,11 @@ class AnalysisPlotter(BasePlotter):
         """
         plt, _ = self._setup_matplotlib()
         import xarray as xr  # type: ignore
+
         from symfluence.reporting.core.plot_utils import (
-            calculate_metrics, calculate_flow_duration_curve, align_timeseries
+            align_timeseries,
+            calculate_flow_duration_curve,
+            calculate_metrics,
         )
 
         spinup_percent = spinup_percent if spinup_percent is not None else self.plot_config.SPINUP_PERCENT_DEFAULT
@@ -546,8 +550,9 @@ class AnalysisPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
+        import xarray as xr  # type: ignore
+
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:
@@ -860,10 +865,11 @@ class AnalysisPlotter(BasePlotter):
         Visual styling matches Camille's model comparison overview for consistency.
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib import gridspec  # type: ignore
-        from matplotlib.patches import Patch  # type: ignore
         import matplotlib.dates as mdates  # type: ignore
         import xarray as xr  # type: ignore
+        from matplotlib import gridspec  # type: ignore
+        from matplotlib.patches import Patch  # type: ignore
+
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         plot_paths: Dict[str, str] = {}
@@ -1227,7 +1233,7 @@ class AnalysisPlotter(BasePlotter):
     def plot_ngen_results(self, sim_df: pd.DataFrame, obs_df: Optional[pd.DataFrame], experiment_id: str, results_dir: Path) -> Optional[str]:
         """Visualize NGen streamflow plots."""
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
+        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve, calculate_metrics
 
         try:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.plot_config.FIGURE_SIZE_LARGE)
@@ -1257,6 +1263,7 @@ class AnalysisPlotter(BasePlotter):
         """Visualize LSTM simulation results."""
         plt, _ = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec  # type: ignore
+
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         try:

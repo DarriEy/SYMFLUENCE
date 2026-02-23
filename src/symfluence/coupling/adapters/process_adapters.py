@@ -12,9 +12,8 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import torch
 import numpy as np
-
+import torch
 from dcoupler.core.component import (
     FluxDirection,
     FluxSpec,

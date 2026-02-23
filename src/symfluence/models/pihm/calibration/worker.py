@@ -9,14 +9,15 @@ import logging
 import os
 import shutil
 import subprocess
-import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.utilities import StreamflowMetrics
+import pandas as pd
+
 from symfluence.core.constants import ModelDefaults
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('PIHM')

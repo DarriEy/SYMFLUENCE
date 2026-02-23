@@ -2,10 +2,9 @@ import logging
 from pathlib import Path
 
 import pytest
-
+from symfluence.core.config.models import SymfluenceConfig
 from symfluence.geospatial.discretization import DomainDiscretizer
 from symfluence.geospatial.discretization.attributes import combined, elevation
-from symfluence.core.config.models import SymfluenceConfig
 
 
 def _base_config(tmp_path, discretization):

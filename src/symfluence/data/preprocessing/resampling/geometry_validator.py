@@ -5,6 +5,7 @@ Validates and repairs geometries in GeoDataFrames.
 """
 
 import logging
+
 from shapely.validation import make_valid
 
 

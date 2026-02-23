@@ -30,10 +30,9 @@ import rasterio
 from rasterio.windows import from_bounds
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
-
 
 # Figshare direct file download URLs (v3.1)
 # Use the Figshare API ndownloader endpoint with file IDs for reliable downloads

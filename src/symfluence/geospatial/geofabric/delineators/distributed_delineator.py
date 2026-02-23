@@ -7,23 +7,24 @@ Refactored from geofabric_utils.py (2026-01-01)
 """
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
+
 import geopandas as gpd
 
-from ..base.base_delineator import BaseGeofabricDelineator
-from ..processors.taudem_executor import TauDEMExecutor
-from ..processors.gdal_processor import GDALProcessor
-from ..processors.graph_processor import RiverGraphProcessor
-from ..processors.geometry_processor import GeometryProcessor
-from ..utils.io_utils import GeofabricIOUtils
-from ..utils.crs_utils import CRSUtils
-from ..utils.validation import GeofabricValidator
-from ..methods.stream_threshold import StreamThresholdMethod
-from ..methods.curvature import CurvatureMethod
-from ..methods.slope_area import SlopeAreaMethod
-from ..methods.multi_scale import MultiScaleMethod
-from .coastal_delineator import CoastalWatershedDelineator
 from ....geospatial.delineation_registry import DelineationRegistry
+from ..base.base_delineator import BaseGeofabricDelineator
+from ..methods.curvature import CurvatureMethod
+from ..methods.multi_scale import MultiScaleMethod
+from ..methods.slope_area import SlopeAreaMethod
+from ..methods.stream_threshold import StreamThresholdMethod
+from ..processors.gdal_processor import GDALProcessor
+from ..processors.geometry_processor import GeometryProcessor
+from ..processors.graph_processor import RiverGraphProcessor
+from ..processors.taudem_executor import TauDEMExecutor
+from ..utils.crs_utils import CRSUtils
+from ..utils.io_utils import GeofabricIOUtils
+from ..utils.validation import GeofabricValidator
+from .coastal_delineator import CoastalWatershedDelineator
 
 
 @DelineationRegistry.register('semidistributed')

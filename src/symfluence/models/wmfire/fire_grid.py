@@ -426,8 +426,8 @@ class FireGridManager:
         """
         try:
             import rasterio
-            from rasterio.warp import reproject, Resampling
             from rasterio.transform import Affine
+            from rasterio.warp import Resampling, reproject
         except ImportError:
             self.logger.warning("rasterio not available, using constant DEM")
             return np.full((nrows, ncols), 1500.0, dtype='float32')

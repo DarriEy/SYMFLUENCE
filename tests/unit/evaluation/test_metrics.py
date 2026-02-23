@@ -2,15 +2,31 @@
 Tests for metrics module - performance metrics for hydrological evaluation.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
-
+import pytest
 from symfluence.evaluation.metrics import (
-    nse, kge, kge_prime, kge_np, rmse, nrmse, mae, bias, pbias,
-    correlation, log_nse, r_squared, mare, volumetric_efficiency,
-    calculate_all_metrics, calculate_metrics, get_metric_function,
-    list_available_metrics, interpret_metric, _apply_transformation, _clean_data
+    _apply_transformation,
+    _clean_data,
+    bias,
+    calculate_all_metrics,
+    calculate_metrics,
+    correlation,
+    get_metric_function,
+    interpret_metric,
+    kge,
+    kge_np,
+    kge_prime,
+    list_available_metrics,
+    log_nse,
+    mae,
+    mare,
+    nrmse,
+    nse,
+    pbias,
+    r_squared,
+    rmse,
+    volumetric_efficiency,
 )
 
 

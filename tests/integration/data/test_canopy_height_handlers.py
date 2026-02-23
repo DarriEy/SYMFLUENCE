@@ -6,20 +6,20 @@ Tests cover:
 - Meta/WRI global canopy height (10m resolution)
 - GLAD/UMD tree height (Landsat-based)
 """
-import pytest
+import logging
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pytest
 import rasterio
 from rasterio.transform import from_bounds
-from pathlib import Path
-import logging
-from unittest.mock import patch, MagicMock
-import geopandas as gpd
 from shapely.geometry import box
-
 from symfluence.data.acquisition.registry import AcquisitionRegistry
-from symfluence.data.observation.registry import ObservationRegistry
 from symfluence.data.data_manager import DataManager
+from symfluence.data.observation.registry import ObservationRegistry
 
 pytestmark = [pytest.mark.integration, pytest.mark.data]
 

@@ -12,9 +12,10 @@ Handles climate data processing including:
 import os
 import pickle  # nosec B403 - used for trusted local cache files
 from pathlib import Path
-from typing import Dict, Any, List
-import numpy as np
+from typing import Any, Dict, List
+
 import geopandas as gpd
+import numpy as np
 from rasterstats import zonal_stats
 
 from .base import BaseAttributeProcessor

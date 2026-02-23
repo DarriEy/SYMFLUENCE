@@ -2,13 +2,13 @@
 Tests for GroundwaterEvaluator.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import xarray as xr
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
 from symfluence.evaluation.evaluators.groundwater import GroundwaterEvaluator
 
 

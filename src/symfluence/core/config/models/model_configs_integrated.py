@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from .base import FROZEN_CONFIG
 from .model_config_types import SpatialModeType
 
+
 class MODFLOWConfig(BaseModel):
     """MODFLOW 6 (USGS modular groundwater flow model) configuration.
 

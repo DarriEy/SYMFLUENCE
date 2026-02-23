@@ -8,9 +8,9 @@ including initialization and pour point setup.
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
-from ..validators import validate_coordinates, validate_bounding_box, validate_date_range
+from ..validators import validate_bounding_box, validate_coordinates, validate_date_range
+from .base import BaseCommand, cli_exception_handler
 
 
 class ProjectCommands(BaseCommand):
