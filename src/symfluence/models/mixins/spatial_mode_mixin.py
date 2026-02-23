@@ -47,7 +47,7 @@ class SpatialModeDetectionMixin:
         model_name: str,
         configured_mode: Optional[str] = None,
         log_detection: bool = True
-    ) -> str:
+    ) -> SpatialMode:
         """
         Detect spatial mode using the standard 3-step logic.
 
@@ -62,7 +62,7 @@ class SpatialModeDetectionMixin:
             log_detection: Whether to log the detection result
 
         Returns:
-            Detected spatial mode as string ('lumped', 'distributed', 'semi_distributed')
+            Detected SpatialMode enum value
         """
         logger = self._get_logger()
         model_name_upper = model_name.upper()
@@ -81,7 +81,7 @@ class SpatialModeDetectionMixin:
                     f"(DOMAIN_DEFINITION_METHOD: {domain_method})"
                 )
         else:
-            spatial_mode = configured_mode
+            spatial_mode = SpatialMode.from_string(configured_mode)
             if log_detection:
                 logger.debug(f"{model_name} spatial mode set to '{spatial_mode}' from configuration")
 
@@ -137,32 +137,32 @@ class SpatialModeDetectionMixin:
 
         return getattr(model_specific_config, 'spatial_mode', None)
 
-    def _infer_spatial_mode_from_domain(self) -> str:
+    def _infer_spatial_mode_from_domain(self) -> SpatialMode:
         """
         Infer spatial mode from domain definition method.
 
         Uses the domain_definition_method to determine the appropriate
         spatial mode:
-        - 'delineate' -> 'distributed'
-        - 'subset', 'semi_distributed' -> 'semi_distributed'
-        - 'point', 'lumped' or other -> 'lumped'
+        - 'delineate' -> DISTRIBUTED
+        - 'subset', 'semi_distributed' -> SEMI_DISTRIBUTED
+        - 'point', 'lumped' or other -> LUMPED
 
         Returns:
-            Inferred spatial mode string
+            Inferred SpatialMode enum value
         """
         domain_method = self._get_domain_definition_method()
 
         if domain_method in ('delineate', 'distributed'):
-            return 'distributed'
+            return SpatialMode.DISTRIBUTED
         elif domain_method in ('subset', 'semi_distributed', 'semidistributed'):
-            return 'semi_distributed'
+            return SpatialMode.SEMI_DISTRIBUTED
         else:
-            return 'lumped'
+            return SpatialMode.LUMPED
 
     def _validate_spatial_mode_for_model(
         self,
         model_name: str,
-        spatial_mode: str
+        spatial_mode
     ) -> None:
         """
         Validate spatial mode against model capabilities and warn if needed.
@@ -175,16 +175,19 @@ class SpatialModeDetectionMixin:
 
         Args:
             model_name: Uppercase model name
-            spatial_mode: Detected spatial mode string
+            spatial_mode: SpatialMode enum or string
         """
         logger = self._get_logger()
 
         # Convert string to SpatialMode enum for validation
-        try:
-            spatial_mode_enum = SpatialMode(spatial_mode)
-        except ValueError:
-            logger.warning(f"Unknown spatial mode '{spatial_mode}', defaulting to lumped")
-            return
+        if isinstance(spatial_mode, SpatialMode):
+            spatial_mode_enum = spatial_mode
+        else:
+            try:
+                spatial_mode_enum = SpatialMode(spatial_mode)
+            except ValueError:
+                logger.warning(f"Unknown spatial mode '{spatial_mode}', defaulting to lumped")
+                return
 
         # Check if routing is configured
         routing_model = getattr(self, 'routing_model', None)
@@ -237,48 +240,31 @@ class SpatialModeDetectionMixin:
             return self.logger
         return logging.getLogger(__name__)
 
-    def get_spatial_mode_enum(self, spatial_mode: str) -> SpatialMode:
-        """
-        Convert spatial mode string to SpatialMode enum.
-
-        Utility method for code that needs the enum representation.
-
-        Args:
-            spatial_mode: Spatial mode as string
-
-        Returns:
-            SpatialMode enum value
-
-        Raises:
-            ValueError: If spatial_mode is not a valid mode
-        """
-        return SpatialMode(spatial_mode)
-
-    def is_distributed_mode(self, spatial_mode: Optional[str] = None) -> bool:
+    def is_distributed_mode(self, spatial_mode=None) -> bool:
         """
         Check if the current or specified spatial mode is distributed.
 
         Args:
-            spatial_mode: Optional mode to check. If None, uses self.spatial_mode
+            spatial_mode: Optional SpatialMode or string to check. If None, uses self.spatial_mode
 
         Returns:
-            True if mode is 'distributed' or 'semi_distributed'
+            True if mode is distributed or semi_distributed
         """
-        mode = spatial_mode or getattr(self, 'spatial_mode', 'lumped')
-        return mode in ('distributed', 'semi_distributed')
+        mode = spatial_mode or getattr(self, 'spatial_mode', SpatialMode.LUMPED)
+        return mode in (SpatialMode.DISTRIBUTED, SpatialMode.SEMI_DISTRIBUTED)
 
-    def requires_routing_for_mode(self, model_name: str, spatial_mode: Optional[str] = None) -> bool:
+    def requires_routing_for_mode(self, model_name: str, spatial_mode=None) -> bool:
         """
         Check if the current spatial mode requires routing for the given model.
 
         Args:
             model_name: Model name to check
-            spatial_mode: Optional mode to check. If None, uses self.spatial_mode
+            spatial_mode: Optional SpatialMode or string to check. If None, uses self.spatial_mode
 
         Returns:
             True if the mode/model combination requires routing
         """
-        mode = spatial_mode or getattr(self, 'spatial_mode', 'lumped')
+        mode = spatial_mode or getattr(self, 'spatial_mode', SpatialMode.LUMPED)
         model_name_upper = model_name.upper()
 
         if model_name_upper not in MODEL_SPATIAL_CAPABILITIES:
@@ -286,8 +272,11 @@ class SpatialModeDetectionMixin:
 
         capability = MODEL_SPATIAL_CAPABILITIES[model_name_upper]
 
-        try:
-            mode_enum = SpatialMode(mode)
-            return capability.requires_routing.get(mode_enum, False)
-        except ValueError:
-            return False
+        if isinstance(mode, SpatialMode):
+            mode_enum = mode
+        else:
+            try:
+                mode_enum = SpatialMode(mode)
+            except ValueError:
+                return False
+        return capability.requires_routing.get(mode_enum, False)

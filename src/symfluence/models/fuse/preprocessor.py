@@ -22,6 +22,7 @@ import xarray as xr
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
 from ..registry import ModelRegistry
+from ..spatial_modes import SpatialMode
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
@@ -394,11 +395,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
 
         t4 = time.time()
-        if spatial_mode == 'lumped':
+        if spatial_mode == SpatialMode.LUMPED:
             ds = self._prepare_lumped_forcing(ds)
-        elif spatial_mode == 'semi_distributed':
+        elif spatial_mode == SpatialMode.SEMI_DISTRIBUTED:
             ds = self._prepare_semi_distributed_forcing(ds, subcatchment_dim)
-        elif spatial_mode == 'distributed':
+        elif spatial_mode == SpatialMode.DISTRIBUTED:
             ds = self._prepare_distributed_forcing(ds)
         else:
             raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
@@ -425,7 +426,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.logger.debug(f"Using PET method: {pet_method}")
 
         t7 = time.time()
-        if spatial_mode == 'lumped':
+        if spatial_mode == SpatialMode.LUMPED:
             catchment = gpd.read_file(self.catchment_path)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
@@ -712,7 +713,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         if ts_config is None:
             ts_config = self._get_timestep_config()
 
-        if spatial_mode == 'lumped':
+        if spatial_mode == SpatialMode.LUMPED:
             return self._create_lumped_dataset(ds, pet, obs_ds, ts_config)
         else:
             return self._create_distributed_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)

@@ -19,6 +19,7 @@ import xarray as xr
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.execution import SpatialOrchestrator
+from symfluence.models.spatial_modes import SpatialMode
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
@@ -394,7 +395,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
             # Execute model
-            if self.spatial_mode == 'lumped':
+            if self.spatial_mode == SpatialMode.LUMPED:
                 success = self._execute_lumped()
             else:
                 success = self._execute_distributed()

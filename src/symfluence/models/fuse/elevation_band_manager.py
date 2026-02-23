@@ -13,6 +13,7 @@ import xarray as xr
 import geopandas as gpd
 
 from symfluence.core.mixins import ConfigMixin
+from ..spatial_modes import SpatialMode
 
 
 class FuseElevationBandManager(ConfigMixin):
@@ -79,9 +80,9 @@ class FuseElevationBandManager(ConfigMixin):
 
         self.logger.info(f"Creating elevation bands for {spatial_mode} mode")
 
-        if spatial_mode == 'lumped':
+        if spatial_mode == SpatialMode.LUMPED:
             return self._create_lumped_elevation_bands()
-        elif spatial_mode in ['semi_distributed', 'distributed']:
+        elif spatial_mode in (SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED):
             return self._create_distributed_elevation_bands()
         else:
             raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")

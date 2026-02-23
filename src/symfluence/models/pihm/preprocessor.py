@@ -42,9 +42,7 @@ class PIHMPreProcessor:
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
-        self.config_dict = getattr(config, '_config_dict', {})
-        if not self.config_dict and hasattr(config, 'to_dict'):
-            self.config_dict = config.to_dict()
+        self.config_dict = config.to_dict(flatten=True) if hasattr(config, 'to_dict') else (config if isinstance(config, dict) else {})
 
         self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
         self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')

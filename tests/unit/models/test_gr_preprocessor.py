@@ -36,6 +36,8 @@ with patch.dict('sys.modules', {
 }):
     from symfluence.models.gr.preprocessor import GRPreProcessor
 
+from symfluence.models.spatial_modes import SpatialMode
+
 
 class TestGRPreProcessorModeDetection:
     """Test GR preprocessor mode detection logic."""
@@ -111,7 +113,7 @@ class TestGRPreProcessorModeDetection:
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
-            assert preprocessor.spatial_mode == 'lumped'
+            assert preprocessor.spatial_mode == SpatialMode.LUMPED
 
     def test_explicit_config_distributed(self, mock_logger, common_config_setup):
         """Test that explicit configuration for distributed mode is respected."""
@@ -126,7 +128,7 @@ class TestGRPreProcessorModeDetection:
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
-            assert preprocessor.spatial_mode == 'distributed'
+            assert preprocessor.spatial_mode == SpatialMode.DISTRIBUTED
 
     def test_implicit_config_delineate(self, mock_logger, common_config_setup):
         """Test that mode defaults to distributed when delineating."""
@@ -140,7 +142,7 @@ class TestGRPreProcessorModeDetection:
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
-            assert preprocessor.spatial_mode == 'distributed'
+            assert preprocessor.spatial_mode == SpatialMode.DISTRIBUTED
 
     def test_implicit_config_lumped(self, mock_logger, common_config_setup):
         """Test that mode defaults to lumped when not delineating."""
@@ -154,7 +156,7 @@ class TestGRPreProcessorModeDetection:
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
-            assert preprocessor.spatial_mode == 'lumped'
+            assert preprocessor.spatial_mode == SpatialMode.LUMPED
 
     def test_missing_gr_config(self, mock_logger, common_config_setup):
         """Test behavior when GR config section is missing/None."""
@@ -168,4 +170,4 @@ class TestGRPreProcessorModeDetection:
 
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
-            assert preprocessor.spatial_mode == 'distributed'
+            assert preprocessor.spatial_mode == SpatialMode.DISTRIBUTED

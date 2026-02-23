@@ -15,6 +15,7 @@ import xarray as xr
 import geopandas as gpd
 
 from symfluence.data.utils.variable_utils import VariableHandler
+from ..spatial_modes import SpatialMode
 from ..utilities import ForcingDataProcessor, DataQualityHandler, BaseForcingProcessor
 
 
@@ -156,11 +157,11 @@ class FuseForcingProcessor(BaseForcingProcessor):
             ds = self._subset_to_simulation_time(ds, "Forcing")
 
             # Spatial organization BEFORE resampling
-            if spatial_mode == 'lumped':
+            if spatial_mode == SpatialMode.LUMPED:
                 ds = self._prepare_lumped_forcing(ds)
-            elif spatial_mode == 'semi_distributed':
+            elif spatial_mode == SpatialMode.SEMI_DISTRIBUTED:
                 ds = self._prepare_semi_distributed_forcing(ds, subcatchment_dim)
-            elif spatial_mode == 'distributed':
+            elif spatial_mode == SpatialMode.DISTRIBUTED:
                 ds = self._prepare_distributed_forcing(ds)
             else:
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
@@ -183,7 +184,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
                     ds['pr'] = ds['pptrate']
 
             # Calculate PET for the correct spatial configuration
-            if spatial_mode == 'lumped':
+            if spatial_mode == SpatialMode.LUMPED:
                 catchment = gpd.read_file(self.catchment_path)
                 mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
                 pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)

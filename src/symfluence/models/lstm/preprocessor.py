@@ -16,6 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -272,7 +273,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
             if 'time' in features.columns and 'hruId' in features.columns else []
         )
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             # Average features across all HRUs for each timestep
             features_to_scale = forcing_df.groupby('time')[feature_columns].mean()
             features_avg = features_to_scale.copy()
@@ -308,7 +309,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
                 self.output_size = 1
                 self.target_names = ['streamflow']
 
-        if self.spatial_mode == 'distributed':
+        if self.spatial_mode == SpatialMode.DISTRIBUTED:
             # Repeat targets for each HRU if they are basin-wide
             # (In training through routing, we might want per-HRU targets if available,
             # but usually streamflow is only at outlet. If so, we can use 0 or dummy for internal HRUs
@@ -323,7 +324,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
             if train_end_idx is not None:
                 # Fit scaler only on training data to prevent data leakage
                 # For distributed mode, we need to account for n_hrus
-                if self.spatial_mode == 'distributed':
+                if self.spatial_mode == SpatialMode.DISTRIBUTED:
                     n_hrus = len(hru_ids)
                     train_samples = train_end_idx * n_hrus
                     self.target_scaler.fit(targets_to_scale[:train_samples])
@@ -340,7 +341,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         # Create sequences
         X, y = [], []
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             for i in range(len(scaled_features) - self.lookback):
                 X.append(scaled_features[i:(i + self.lookback)])
                 y.append(scaled_targets[i + self.lookback])

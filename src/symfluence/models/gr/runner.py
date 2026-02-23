@@ -20,6 +20,7 @@ import rasterio.mask
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
+from ..spatial_modes import SpatialMode
 from ..execution import SpatialOrchestrator
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -161,7 +162,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             self.output_path.mkdir(parents=True, exist_ok=True)
 
             # Execute GR model
-            if self.spatial_mode == 'lumped':
+            if self.spatial_mode == SpatialMode.LUMPED:
                 success = self._execute_gr_lumped()
             else:  # distributed
                 success = self._execute_gr_distributed()
@@ -312,13 +313,13 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
 
         # Enable routing if explicitly configured for GR
         if routing_integration and routing_integration.lower() == 'mizuroute':
-            if self.spatial_mode == 'distributed':
+            if self.spatial_mode == SpatialMode.DISTRIBUTED:
                 self.logger.info("GR routing enabled via GR_ROUTING_INTEGRATION: mizuRoute")
                 return True
 
         # Auto-enable routing if global routing model is mizuRoute and distributed mode
         if global_routing and global_routing.lower() == 'mizuroute':
-            if self.spatial_mode == 'distributed':
+            if self.spatial_mode == SpatialMode.DISTRIBUTED:
                 self.logger.info("GR routing auto-enabled: ROUTING_MODEL=mizuRoute with distributed mode")
                 return True
 

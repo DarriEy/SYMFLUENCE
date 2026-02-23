@@ -28,6 +28,7 @@ except ImportError:
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import SpatialModeDetectionMixin
+from ..spatial_modes import SpatialMode
 from ..execution import SpatialOrchestrator, RoutingModel
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.core.exceptions import (
@@ -224,7 +225,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
                         epochs=self.lstm_config.epochs,
                         learning_rate=self.lstm_config.learning_rate
                     )
-                elif self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
+                elif self.spatial_mode == SpatialMode.LUMPED or X_tensor.ndim == 3:
                     self._train_model(
                         X_tensor,
                         y_tensor,
@@ -561,7 +562,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
 
         self._log_memory_usage()
 
-        if self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
+        if self.spatial_mode == SpatialMode.LUMPED or X_tensor.ndim == 3:
             X_input = X_tensor
         else:
             # Flatten HRUs for inference: (B, T, N, F) -> (B*N, T, F)
@@ -594,7 +595,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
 
         lookback = self.preprocessor.lookback
 
-        if self.spatial_mode == 'lumped' or X_tensor.ndim == 3:
+        if self.spatial_mode == SpatialMode.LUMPED or X_tensor.ndim == 3:
             # Create a DataFrame for predictions
             pred_df = pd.DataFrame(predictions, columns=columns, index=common_dates[lookback:])
             # Join predictions with the original averaged features

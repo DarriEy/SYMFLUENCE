@@ -26,6 +26,39 @@ class SpatialMode(Enum):
     SEMI_DISTRIBUTED = "semi_distributed"
     DISTRIBUTED = "distributed"
 
+    @classmethod
+    def from_string(cls, value: str) -> 'SpatialMode':
+        """Normalize aliases and parse spatial mode from string.
+
+        Handles common variations like 'point' -> LUMPED,
+        'delineate' -> DISTRIBUTED, 'semidistributed' -> SEMI_DISTRIBUTED.
+        """
+        normalized = value.lower().replace('-', '_').replace(' ', '_')
+        mapping = {
+            'lumped': cls.LUMPED,
+            'point': cls.LUMPED,
+            'semi_distributed': cls.SEMI_DISTRIBUTED,
+            'semidistributed': cls.SEMI_DISTRIBUTED,
+            'distributed': cls.DISTRIBUTED,
+            'delineate': cls.DISTRIBUTED,
+        }
+        if normalized not in mapping:
+            raise ValueError(f"Unknown spatial mode: {value}. Valid: {list(mapping.keys())}")
+        return mapping[normalized]
+
+    def __eq__(self, other):
+        if isinstance(other, Enum) and hasattr(other, 'value'):
+            return self.value == other.value
+        if isinstance(other, str):
+            return self.value == other
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __str__(self):
+        return self.value
+
 
 @dataclass
 class ModelSpatialCapability:
