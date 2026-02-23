@@ -142,7 +142,10 @@ class SWATWorker(BaseWorker):
             for ext, ext_params in params_by_ext.items():
                 target_files = list(txtinout_dir.glob(f'*{ext}'))
                 for target_file in target_files:
-                    self._update_single_file(target_file, ext_params)
+                    if ext == '.sol':
+                        self._update_sol_file(target_file, ext_params)
+                    else:
+                        self._update_single_file(target_file, ext_params)
 
             return True
 
@@ -173,7 +176,9 @@ class SWATWorker(BaseWorker):
                 if PARAM_FILE_MAP.get(param_name) != ext:
                     continue
 
-                if f'| {param_name}' in line or f'|{param_name}' in line:
+                # Use word-boundary matching to avoid partial matches
+                # (e.g. '| ALPHA_BF' must not match '| ALPHA_BF_D')
+                if self._line_matches_param(line, param_name):
                     method = PARAM_CHANGE_METHOD.get(param_name, 'v__')
                     new_line = self._apply_change_to_line(line, param_name, value, method)
                     new_lines.append(new_line)
@@ -185,6 +190,121 @@ class SWATWorker(BaseWorker):
 
         with open(file_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
+
+    def _update_sol_file(
+        self,
+        file_path: Path,
+        params: Dict[str, float]
+    ) -> None:
+        """
+        Update a SWAT .sol file with parameter changes.
+
+        .sol files use a colon-delimited format with multiple values per line
+        (one per soil layer), e.g.:
+            SOL_AWC(mm/mm)           :        0.20        0.14
+        This differs from the pipe-delimited format of other SWAT input files.
+        """
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+
+        new_lines = []
+        for line in lines:
+            modified = False
+            for param_name, value in params.items():
+                if PARAM_FILE_MAP.get(param_name) != '.sol':
+                    continue
+                # Match lines like "SOL_AWC(mm/mm)  :  0.20  0.14"
+                if param_name in line and ':' in line:
+                    method = PARAM_CHANGE_METHOD.get(param_name, 'r__')
+                    new_line = self._apply_sol_change(line, value, method)
+                    new_lines.append(new_line)
+                    modified = True
+                    break
+
+            if not modified:
+                new_lines.append(line)
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+
+    def _apply_sol_change(
+        self,
+        line: str,
+        value: float,
+        method: str
+    ) -> str:
+        """
+        Apply a parameter change to all numeric values in a .sol file line.
+
+        Handles multi-value lines (one value per soil layer) by applying
+        the change method to every number after the colon.
+        """
+        colon_idx = line.index(':')
+        prefix = line[:colon_idx + 1]
+        data_part = line[colon_idx + 1:]
+
+        def _replace_value(match):
+            whitespace = match.group(1)
+            original_str = match.group(2)
+            try:
+                original_value = float(original_str)
+            except ValueError:
+                return match.group(0)
+
+            if method == 'r__':
+                new_value = original_value * (1.0 + value)
+            elif method == 'v__':
+                new_value = value
+            elif method == 'a__':
+                new_value = original_value + value
+            else:
+                new_value = value
+
+            orig_width = len(original_str)
+            if '.' in original_str:
+                decimal_places = len(original_str.split('.')[-1])
+                new_value_str = f"{new_value:.{decimal_places}f}"
+            else:
+                new_value_str = str(int(round(new_value)))
+
+            # Preserve total field width: steal from / pad whitespace
+            overflow = len(new_value_str) - orig_width
+            if overflow > 0 and len(whitespace) > overflow:
+                whitespace = whitespace[overflow:]
+            elif overflow < 0:
+                whitespace = ' ' * (-overflow) + whitespace
+
+            return f"{whitespace}{new_value_str}"
+
+        new_data = re.sub(
+            r'(\s+)([-+]?\d+\.?\d*)',
+            _replace_value,
+            data_part
+        )
+
+        result = prefix + new_data
+        if not result.endswith('\n'):
+            result += '\n'
+        return result
+
+    @staticmethod
+    def _line_matches_param(line: str, param_name: str) -> bool:
+        """Check if a SWAT file line contains the given parameter marker.
+
+        Uses word-boundary logic so that e.g. 'ALPHA_BF' does not match
+        a line containing 'ALPHA_BF_D'.
+        """
+        for sep in ('| ', '|'):
+            marker = f'{sep}{param_name}'
+            idx = line.find(marker)
+            if idx < 0:
+                continue
+            # Check that the character after the param name is NOT
+            # alphanumeric or underscore (i.e. it's a word boundary).
+            end_pos = idx + len(marker)
+            if end_pos >= len(line) or not (line[end_pos].isalnum() or line[end_pos] == '_'):
+                return True
+        return False
 
     def _apply_change_to_line(
         self,
@@ -237,12 +357,22 @@ class SWATWorker(BaseWorker):
         else:
             new_value = value
 
-        # Format the new value
+        # Format the new value, preserving total line width.
+        # If the formatted value is wider than the original, steal
+        # characters from the leading whitespace (prefix) so that the
+        # pipe-delimited suffix stays in the same column.
+        orig_width = len(original_str)
         if '.' in original_str:
             decimal_places = len(original_str.split('.')[-1])
-            new_value_str = f"{new_value:{len(original_str)}.{decimal_places}f}"
+            new_value_str = f"{new_value:.{decimal_places}f}"
         else:
-            new_value_str = f"{int(round(new_value)):>{len(original_str)}d}"
+            new_value_str = str(int(round(new_value)))
+
+        overflow = len(new_value_str) - orig_width
+        if overflow > 0 and len(prefix) >= overflow:
+            prefix = prefix[overflow:]
+        elif overflow < 0:
+            prefix = ' ' * (-overflow) + prefix
 
         result = f"{prefix}{new_value_str}{suffix}{trailing}"
         # Safety: ensure line always ends with newline to prevent line merging
@@ -263,6 +393,13 @@ class SWATWorker(BaseWorker):
         SWAT is executed from within the TxtInOut directory. The executable
         reads file.cio and produces output.rch.
 
+        The SWAT2022 arm64 binary suffers from non-deterministic behaviour
+        caused by uninitialised Fortran variables.  A single invocation may
+        produce all-zero output even with valid inputs.  To mitigate this
+        we retry up to ``max_retries`` times, checking that output.rch
+        contains at least one non-zero FLOW_OUT value before accepting the
+        run.
+
         Args:
             config: Configuration dictionary
             settings_dir: TxtInOut directory (SWAT runs from here)
@@ -272,6 +409,8 @@ class SWATWorker(BaseWorker):
         Returns:
             True if model ran successfully
         """
+        max_retries = int(config.get('SWAT_MAX_RETRIES', 3))
+
         try:
             # Use sim_dir as working directory if provided
             work_dir = Path(kwargs.get('sim_dir', settings_dir))
@@ -298,10 +437,7 @@ class SWATWorker(BaseWorker):
                             if not dest.exists():
                                 shutil.copy2(f, dest)
 
-            # Clean up stale output
-            self._cleanup_stale_output(work_dir)
-
-            # Get executable
+            # Get executable (check once before retry loop)
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             swat_exe = self._get_swat_executable(config, data_dir)
 
@@ -318,14 +454,6 @@ class SWATWorker(BaseWorker):
             # Build command - SWAT runs from TxtInOut
             cmd = [str(swat_exe)]
 
-            # Fsync the working directory so all copied files are flushed
-            # before the Fortran executable reads them (prevents SIGBUS on arm64)
-            fd = os.open(str(work_dir), os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-
             # Set single-threaded environment for Fortran runtime
             env = os.environ.copy()
             env.update({
@@ -334,45 +462,81 @@ class SWATWorker(BaseWorker):
                 'OPENBLAS_NUM_THREADS': '1',
             })
 
-            # Run with timeout
             timeout = config.get('SWAT_TIMEOUT', 300)
-
             stdout_file = work_dir / 'swat_stdout.log'
             stderr_file = work_dir / 'swat_stderr.log'
 
-            try:
-                with open(stdout_file, 'w', encoding='utf-8') as stdout_f, \
-                     open(stderr_file, 'w', encoding='utf-8') as stderr_f:
-                    result = subprocess.run(
-                        cmd,
-                        cwd=str(work_dir),
-                        env=env,
-                        stdin=subprocess.DEVNULL,
-                        stdout=stdout_f,
-                        stderr=stderr_f,
-                        timeout=timeout
-                    )
-            except subprocess.TimeoutExpired:
-                self.logger.warning(f"SWAT timed out after {timeout}s")
-                return False
+            for attempt in range(1, max_retries + 1):
+                # Clean up stale output
+                self._cleanup_stale_output(work_dir)
 
-            if result.returncode != 0:
-                self._last_error = f"SWAT failed with return code {result.returncode}"
-                self.logger.error(self._last_error)
-                return False
+                # Fsync the working directory so all copied files are flushed
+                # before the Fortran executable reads them (prevents SIGBUS on arm64)
+                fd = os.open(str(work_dir), os.O_RDONLY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
 
-            # Verify output
-            output_rch = work_dir / 'output.rch'
-            if not output_rch.exists() or output_rch.stat().st_size == 0:
-                self._last_error = "output.rch not produced or empty"
-                self.logger.error(self._last_error)
-                return False
+                try:
+                    with open(stdout_file, 'w', encoding='utf-8') as stdout_f, \
+                         open(stderr_file, 'w', encoding='utf-8') as stderr_f:
+                        result = subprocess.run(
+                            cmd,
+                            cwd=str(work_dir),
+                            env=env,
+                            stdin=subprocess.DEVNULL,
+                            stdout=stdout_f,
+                            stderr=stderr_f,
+                            timeout=timeout
+                        )
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"SWAT timed out after {timeout}s (attempt {attempt}/{max_retries})")
+                    continue
 
-            return True
+                if result.returncode != 0:
+                    self.logger.debug(f"SWAT returned {result.returncode} (attempt {attempt}/{max_retries})")
+                    continue
+
+                # Verify output.rch exists and has non-zero flow
+                output_rch = work_dir / 'output.rch'
+                if not output_rch.exists() or output_rch.stat().st_size == 0:
+                    self.logger.debug(f"output.rch missing or empty (attempt {attempt}/{max_retries})")
+                    continue
+
+                if self._has_nonzero_flow(output_rch):
+                    if attempt > 1:
+                        self.logger.debug(f"SWAT produced valid output on attempt {attempt}")
+                    return True
+
+                self.logger.debug(
+                    f"SWAT produced all-zero flow (attempt {attempt}/{max_retries})"
+                )
+
+            # All retries exhausted
+            self._last_error = f"SWAT produced no valid flow after {max_retries} attempts"
+            self.logger.warning(self._last_error)
+            return False
 
         except Exception as e:
             self._last_error = str(e)
             self.logger.error(f"Error running SWAT: {e}")
+            return False
+
+    def _has_nonzero_flow(self, output_rch: Path, threshold: float = 1e-6) -> bool:
+        """Quick check whether output.rch contains any non-zero FLOW_OUT."""
+        try:
+            with open(output_rch, 'r', encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    parts = line.split()
+                    if not parts or parts[0].upper() != 'REACH':
+                        continue
+                    if len(parts) > 6:
+                        flow_out = float(parts[6])
+                        if abs(flow_out) > threshold:
+                            return True
+            return False
+        except Exception:
             return False
 
     def _get_swat_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:

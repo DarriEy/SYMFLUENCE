@@ -137,7 +137,8 @@ def update_para_def_nc(
 
 def compute_derived_parameters(
     para_def_path: Path,
-    log: Optional[logging.Logger] = None
+    log: Optional[logging.Logger] = None,
+    config: Optional[Dict[str, Any]] = None
 ) -> None:
     """
     Recompute FUSE derived parameters from base calibration parameters.
@@ -155,6 +156,7 @@ def compute_derived_parameters(
     Args:
         para_def_path: Path to para_def.nc file
         log: Logger instance
+        config: Optional config dict (passes FUSE_SOLUTION_METHOD etc. through)
     """
     import netCDF4 as nc
 
@@ -208,7 +210,7 @@ def compute_derived_parameters(
                 log.warning("RFERR_MLT was 0.0 (would zero all precipitation), reset to 1.0")
 
             # --- Numerix defaults (critical for stable runs) ---
-            _enforce_numerix_defaults(ds, log)
+            _enforce_numerix_defaults(ds, log, config=config)
 
             ds.sync()
 
@@ -351,7 +353,7 @@ def apply_regionalization(
                 params_updated.add(param_name)
 
             # Ensure numerical solver settings are reasonable
-            _enforce_numerix_defaults(ds, log)
+            _enforce_numerix_defaults(ds, log, config=config)
             ds.sync()
 
         if params_updated:
@@ -418,11 +420,38 @@ def _resize_para_def_if_needed(
     shutil.move(str(tmp_path), str(para_def_path))
 
 
-def _enforce_numerix_defaults(ds: Any, log: logging.Logger) -> None:
-    """Ensure numerical solver settings are reasonable in para_def.nc."""
+def _enforce_numerix_defaults(
+    ds: Any,
+    log: logging.Logger,
+    config: Optional[Dict[str, Any]] = None
+) -> None:
+    """Ensure numerical solver settings are reasonable in para_def.nc.
+
+    Args:
+        ds: Open netCDF4 Dataset (read-write)
+        log: Logger instance
+        config: Optional config dict. If FUSE_SOLUTION_METHOD or
+                FUSE_TIMESTEP_TYPE are set, those values are used instead
+                of the hardcoded defaults (0=explicit Euler, 0=fixed).
+    """
+    # Determine solver settings from config or use defaults
+    solution_method = 0.0  # Explicit Euler (fastest)
+    timestep_type = 0.0    # Fixed time steps
+
+    if config:
+        cfg_solution = config.get('FUSE_SOLUTION_METHOD')
+        if cfg_solution is not None:
+            solution_method = float(cfg_solution)
+            log.debug(f"  Using configured FUSE_SOLUTION_METHOD={int(solution_method)}")
+
+        cfg_timestep = config.get('FUSE_TIMESTEP_TYPE')
+        if cfg_timestep is not None:
+            timestep_type = float(cfg_timestep)
+            log.debug(f"  Using configured FUSE_TIMESTEP_TYPE={int(timestep_type)}")
+
     numerix_defaults = {
-        'SOLUTION': 0.0,        # Explicit Euler (fastest)
-        'TIMSTEP_TYP': 0.0,     # Fixed time steps
+        'SOLUTION': solution_method,
+        'TIMSTEP_TYP': timestep_type,
         'ERRITERFUNC': 1e-4,
         'ERR_ITER_DX': 1e-4,
         'NITER_TOTAL': 5000.0,

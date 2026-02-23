@@ -339,6 +339,43 @@ class BaseWorker(ABC):
             return self.config.get(key, default)
         return default
 
+    def _get_config_value(
+        self,
+        typed_accessor: Any = None,
+        default: Any = None,
+        dict_key: Optional[str] = None
+    ) -> Any:
+        """Get config value with typed accessor + dict fallback.
+
+        Mirrors :class:`~symfluence.core.mixins.config.ConfigMixin` so that
+        workers can use the same typed-config access pattern as optimizers.
+
+        Args:
+            typed_accessor: Callable accessing typed config,
+                e.g. ``lambda: self.config.domain.name``
+            default: Fallback value
+            dict_key: Legacy flat dict key (e.g. 'DOMAIN_NAME')
+
+        Returns:
+            Configuration value or *default*.
+        """
+        # Try typed accessor first (works with SymfluenceConfig)
+        if typed_accessor is not None:
+            try:
+                value = typed_accessor()
+                if value is not None:
+                    return value
+            except (AttributeError, KeyError, TypeError):
+                pass
+
+        # Fallback to flat dict access
+        if dict_key is not None:
+            value = self._cfg(dict_key)
+            if value is not None:
+                return value
+
+        return default
+
     @property
     def max_retries(self) -> int:
         """Maximum number of retry attempts."""
@@ -587,13 +624,24 @@ class BaseWorker(ABC):
             Primary score for optimization (transformed for maximization)
         """
         # Get configured metric name (config is a task config dict, not self.config)
-        metric_name = config.get(
-            'OPTIMIZATION_METRIC',
-            config.get('CALIBRATION_METRIC', 'KGE')
-        ) if isinstance(config, dict) else 'KGE'
+        if isinstance(config, dict):
+            metric_name = config.get(
+                'OPTIMIZATION_METRIC',
+                config.get('CALIBRATION_METRIC', 'KGE')
+            )
+            composite_config = config.get('COMPOSITE_METRIC')
+        else:
+            # Pydantic SymfluenceConfig
+            try:
+                metric_name = config.optimization.metric
+            except AttributeError:
+                metric_name = 'KGE'
+            try:
+                composite_config = config.optimization.composite_metric
+            except AttributeError:
+                composite_config = None
 
         # Check for composite objective function
-        composite_config = config.get('COMPOSITE_METRIC') if isinstance(config, dict) else None
         if (metric_name.upper() == 'COMPOSITE' or composite_config) and isinstance(composite_config, dict):
             return self._extract_composite_score(metrics, composite_config)
 

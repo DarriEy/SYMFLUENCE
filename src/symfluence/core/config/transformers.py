@@ -680,6 +680,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'CALIBRATION_TIMESTEP': ('optimization', 'calibration_timestep'),
     'ITERATIVE_OPTIMIZATION_ALGORITHM': ('optimization', 'algorithm'),
     'OPTIMIZATION_METRIC': ('optimization', 'metric'),
+    'COMPOSITE_METRIC': ('optimization', 'composite_metric'),
     'NUMBER_OF_ITERATIONS': ('optimization', 'iterations'),
     'POPULATION_SIZE': ('optimization', 'population_size'),
     'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),

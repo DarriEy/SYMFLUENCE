@@ -140,11 +140,11 @@ class JFUSEParameterManager(BaseParameterManager):
         self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID')
 
         # Check for transfer function mode
-        self._use_transfer_functions = bool(self._get_config_value(lambda: None, default=False, dict_key='JFUSE_USE_TRANSFER_FUNCTIONS'))
+        self._use_transfer_functions = bool(self._get_jfuse_cfg('USE_TRANSFER_FUNCTIONS', default=False))
         self._tf_config = None
 
         # Parse jFUSE parameters to calibrate from config
-        jfuse_params_str = self._get_config_value(lambda: self.config.model.jfuse.params_to_calibrate, default=None, dict_key='JFUSE_PARAMS_TO_CALIBRATE')
+        jfuse_params_str = self._get_jfuse_cfg('PARAMS_TO_CALIBRATE')
         # Handle None, empty string, or 'default' as signal to use default parameter list
         if jfuse_params_str is None or jfuse_params_str == '' or jfuse_params_str == 'default':
             # Default 14 parameters with non-zero gradients for prms_gradient config
@@ -162,7 +162,7 @@ class JFUSEParameterManager(BaseParameterManager):
         self.calibration_params = self.jfuse_params
 
         # Apply custom bounds from config if provided (tuple storage for TF mode)
-        custom_bounds = self._get_config_value(lambda: None, default={}, dict_key='JFUSE_PARAM_BOUNDS')
+        custom_bounds = self._get_jfuse_cfg('PARAM_BOUNDS', default={})
         if custom_bounds:
             for param_name, bnd in custom_bounds.items():
                 if isinstance(bnd, (list, tuple)) and len(bnd) == 2:
@@ -173,6 +173,40 @@ class JFUSEParameterManager(BaseParameterManager):
         # Initialize transfer function mode if enabled
         if self._use_transfer_functions:
             self._init_transfer_function_mode(config)
+
+    def _get_jfuse_cfg(self, bare_key: str, default=None):
+        """Get JFUSE config value, handling model_extra {type: value} dicts.
+
+        SymfluenceConfig.from_file() strips the JFUSE_ prefix via ModelRegistry
+        and stores bare keys in model_extra as {type: value} dicts.
+        This tries all access paths.
+        """
+        flat_key = f'JFUSE_{bare_key.upper()}'
+
+        # Try _get_config_value first (handles dict configs and overrides)
+        val = self._get_config_value(lambda: None, default=None, dict_key=flat_key)
+        if val is not None:
+            return val
+
+        # Try model_extra paths (SymfluenceConfig from_file)
+        cfg = self.config
+        if hasattr(cfg, 'model_extra') and cfg.model_extra:
+            # Try _extra dict
+            extra = cfg.model_extra.get('_extra', {})
+            if isinstance(extra, dict):
+                val = extra.get(flat_key)
+                if val is not None:
+                    return val
+
+            # Try bare key (ModelRegistry transformer path)
+            val = cfg.model_extra.get(bare_key.lower())
+            if val is not None:
+                # Unwrap {type: value} dict from ModelRegistry
+                if isinstance(val, dict) and len(val) == 1:
+                    return next(iter(val.values()))
+                return val
+
+        return default
 
     def _validate_params(self) -> None:
         """Validate that calibration parameters exist in bounds."""

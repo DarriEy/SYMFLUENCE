@@ -1152,7 +1152,41 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             with open(fm_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
-            self.logger.debug(f"Updated file manager: SETNGS_PATH={self.project_dir / 'settings' / 'FUSE'}, OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
+            self.logger.info(
+                f"Updated file manager ({fm_path.name}): "
+                f"OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, "
+                f"FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}"
+            )
+
+            # Verify paths were written correctly by reading back
+            with open(fm_path, 'r', encoding='utf-8') as f:
+                verify_lines = f.readlines()
+            has_relative = any(
+                "'./" in ln and any(k in ln for k in ('SETNGS_PATH', 'OUTPUT_PATH', 'INPUT_PATH'))
+                for ln in verify_lines
+            )
+            if has_relative:
+                self.logger.warning(
+                    "File manager still contains relative paths after line-matching "
+                    "update — applying brute-force replacement."
+                )
+                settings_path = str(self.project_dir / 'settings' / 'FUSE') + '/'
+                patched = []
+                for ln in verify_lines:
+                    if 'SETNGS_PATH' in ln and ln.strip().startswith("'"):
+                        patched.append(f"'{settings_path}'     ! SETNGS_PATH\n")
+                    elif 'OUTPUT_PATH' in ln and ln.strip().startswith("'"):
+                        patched.append(f"'{output_path}'       ! OUTPUT_PATH\n")
+                    elif 'INPUT_PATH' in ln and ln.strip().startswith("'"):
+                        patched.append(f"'{input_path_str}'        ! INPUT_PATH\n")
+                    elif 'FMODEL_ID' in ln and ln.strip().startswith("'"):
+                        patched.append(f"'{fuse_id}'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files\n")
+                    else:
+                        patched.append(ln)
+                with open(fm_path, 'w', encoding='utf-8') as f:
+                    f.writelines(patched)
+                self.logger.info("Brute-force path replacement applied to file manager")
+
             return True
 
         except (FileNotFoundError, OSError, PermissionError) as e:
@@ -1290,6 +1324,51 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 self.logger.info(f"Processed state variables saved to: {processed_file}")
 
 
+    def _recover_para_def_from_cwd(self, fuse_id: str, expected_path: Path) -> Path:
+        """Search for para_def.nc in FUSE's working directory and copy to output.
+
+        When FUSE's file manager has relative paths (e.g. './'), output files
+        land in the working directory (settings/FUSE/) instead of the intended
+        output directory.  This method finds the file there, copies it to the
+        expected location, and returns the path.
+
+        Args:
+            fuse_id: FUSE model file ID (≤6 chars).
+            expected_path: Where the caller expects para_def.nc to be.
+
+        Returns:
+            *expected_path* if recovery succeeded, otherwise *expected_path*
+            unchanged (caller should check ``exists()``).
+        """
+        cwd_candidates = list(self.setup_dir.glob(f"*{fuse_id}*para_def.nc"))
+        if not cwd_candidates:
+            # Also try any para_def.nc in cwd (different FMODEL_ID)
+            cwd_candidates = list(self.setup_dir.glob("*para_def.nc"))
+
+        if cwd_candidates:
+            # Pick the newest, non-trivially-sized file
+            cwd_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            source = next(
+                (c for c in cwd_candidates if c.stat().st_size > 1024), None
+            )
+            if source:
+                self.logger.warning(
+                    f"para_def.nc not in output dir but found in FUSE working "
+                    f"directory: {source.name} — FUSE may have used relative "
+                    f"paths.  Copying to {expected_path.name}."
+                )
+                self.ensure_dir(expected_path.parent)
+                shutil.copy2(source, expected_path)
+
+                # Also rescue any runs_def.nc (FUSE creates it alongside para_def)
+                for suffix in ('runs_def', 'runs_pre'):
+                    run_file = source.parent / source.name.replace('para_def', suffix)
+                    if run_file.exists() and run_file.stat().st_size > 1024:
+                        dest = expected_path.parent / expected_path.name.replace('para_def', suffix)
+                        if not dest.exists():
+                            shutil.copy2(run_file, dest)
+        return expected_path
+
     def _run_lumped_fuse(self) -> bool:
         """Run FUSE in lumped mode using the original workflow.
 
@@ -1319,6 +1398,14 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 # (even if run_def itself crashes on runs_def.nc)
                 self.logger.debug("No para_def.nc found, running run_def to generate it")
                 self._execute_fuse('run_def')
+
+                # If not found in output_path, check the FUSE working directory
+                # (settings/FUSE/) — FUSE writes there when fm_catch.txt has
+                # relative paths (e.g. './') instead of absolute OUTPUT_PATH
+                if not para_def_path.exists():
+                    para_def_path = self._recover_para_def_from_cwd(
+                        fuse_id, para_def_path
+                    )
 
                 if para_def_path.exists():
                     self._fix_elevation_band_params_in_para_def()

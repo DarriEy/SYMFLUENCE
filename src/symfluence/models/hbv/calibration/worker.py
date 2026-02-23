@@ -103,7 +103,7 @@ class HBVWorker(InMemoryModelWorker):
             return False
 
         forcing_dir = self._get_forcing_dir(task)
-        domain_name = self._get_domain_name()
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
         var_map = self._get_forcing_variable_map()
 
         # Build list of files to try, prioritizing timestep-specific files
@@ -165,8 +165,8 @@ class HBVWorker(InMemoryModelWorker):
         import pandas as pd
         from pathlib import Path
 
-        domain_name = self._get_domain_name()
-        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.'))
+        domain_name = self._cfg('DOMAIN_NAME', 'domain')
+        data_dir = Path(self._get_config_value(lambda: str(self.config.system.data_dir), default='.', dict_key='DATA_DIR'))
         project_dir = data_dir / f"domain_{domain_name}"
 
         obs_patterns = [

@@ -255,10 +255,12 @@ class PIHMParameterManager(BaseParameterManager):
         soil_path.write_text('\n'.join(new_lines) + '\n')
 
     def _update_calib_file(self, params: Dict[str, float]) -> None:
-        """Update .calib file with calibration multipliers.
+        """Reset .calib multipliers to 1.0 for all calibrated parameters.
 
-        The .calib file contains multipliers applied to base values.
-        multiplier = new_value / default_value
+        Absolute parameter values are written directly to .soil, .geol,
+        .riv, and .mesh files. The .calib multipliers must therefore be
+        1.0 (identity) to avoid double-application: MM-PIHM computes
+        effective_value = base_value (from .soil) * multiplier (from .calib).
 
         Each calibration parameter may affect multiple .calib keys:
             K_SAT      -> KSATH, KSATV, KINF
@@ -272,16 +274,6 @@ class PIHMParameterManager(BaseParameterManager):
         calib_files = list(self.settings_dir.glob('*.calib'))
         if not calib_files:
             return
-
-        defaults = {
-            'K_SAT': 1e-5,
-            'POROSITY': 0.4,
-            'VG_ALPHA': 1.0,
-            'VG_N': 2.0,
-            'MACROPORE_K': 1e-4,
-            'MANNINGS_N': 0.03,
-            'SOIL_DEPTH': 2.0,
-        }
 
         # Map each .calib keyword to the parameter that controls it
         calib_key_to_param = {
@@ -307,12 +299,9 @@ class PIHMParameterManager(BaseParameterManager):
                 key = parts[0]
                 param_name = calib_key_to_param.get(key)
                 if param_name and param_name in params:
-                    default = defaults.get(param_name, 1.0)
-                    if default != 0:
-                        multiplier = params[param_name] / default
-                    else:
-                        multiplier = 1.0
-                    line = f"{key}\t\t{multiplier:.6f}"
+                    # Reset to 1.0 — absolute values are already in the
+                    # direct input files (.soil, .riv, .mesh, .geol).
+                    line = f"{key}\t\t1.000000"
             new_lines.append(line)
 
         calib_path.write_text('\n'.join(new_lines) + '\n')
