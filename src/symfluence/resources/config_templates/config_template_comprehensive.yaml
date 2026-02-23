@@ -3079,6 +3079,13 @@ ELEV_CHUNK_SIZE: 10000
 #   Usage:      Target tile size for elevation processing
 ELEV_TILE_TARGET: 50000
 
+# MAX_ACQUISITION_WORKERS
+#   Type:        int (1-8)
+#   Default:     3
+#   Source:      DataConfig (data.py)
+#   Usage:      Maximum number of concurrent workers for data acquisition
+MAX_ACQUISITION_WORKERS: 3
+
 # DEM_SOURCE
 #   Type:        str
 #   Default:     fabdem
