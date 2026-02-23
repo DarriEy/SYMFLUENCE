@@ -109,19 +109,23 @@ References:
     - MODIS: Justice et al. (2002) Remote Sensing Reviews
 """
 
+import concurrent.futures
 import logging
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
+import sys
 from datetime import datetime
-import xarray as xr
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 import pandas as pd
-from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
-from symfluence.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner
-from symfluence.data.utils.variable_utils import VariableHandler
-from symfluence.geospatial.raster_utils import calculate_landcover_mode
-from symfluence.data.cache import RawForcingCache
+import xarray as xr
+
 from symfluence.core.mixins import ConfigurableMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
+from symfluence.data.acquisition.maf_pipeline import datatoolRunner, gistoolRunner
+from symfluence.data.cache import RawForcingCache
+from symfluence.data.utils.variable_utils import VariableHandler
+from symfluence.geospatial.raster_utils import calculate_landcover_mode
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -225,6 +229,71 @@ class AcquisitionService(ConfigurableMixin):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.variable_handler = VariableHandler(self.config, self.logger, 'ERA5', 'SUMMA')
 
+    def _run_parallel_tasks(
+        self,
+        tasks: List[Tuple[str, Callable]],
+        desc: str = "Acquiring",
+    ) -> Dict[str, Any]:
+        """Run acquisition tasks concurrently using ThreadPoolExecutor.
+
+        Args:
+            tasks: List of (name, callable) tuples.
+            desc: Description for logging.
+
+        Returns:
+            Dict mapping task name to result (or exception).
+        """
+        max_workers = self._get_config_value(
+            lambda: self.config.data.max_acquisition_workers, default=3,
+        )
+
+        # On macOS, HDF5/netCDF4 have thread-safety issues that cause
+        # segfaults when multiple threads perform xarray operations
+        # concurrently.  Fall back to serial execution.
+        if sys.platform == 'darwin':
+            max_workers = 1
+
+        max_workers = min(max_workers, len(tasks))
+
+        results: Dict[str, Any] = {}
+
+        if max_workers <= 1:
+            self.logger.info(f"{desc}: {len(tasks)} tasks (serial)")
+            for name, func in tasks:
+                try:
+                    self.logger.info(f"Starting: {name}")
+                    results[name] = func()
+                    self.logger.info(f"Completed: {name}")
+                except (OSError, FileNotFoundError, KeyError, ValueError,
+                        TypeError, RuntimeError, ImportError,
+                        AttributeError, IndexError) as exc:
+                    results[name] = exc
+                    self.logger.warning(f"Failed: {name}: {exc}")
+            return results
+
+        self.logger.info(
+            f"{desc}: {len(tasks)} tasks with {max_workers} workers"
+        )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_name: Dict[concurrent.futures.Future, str] = {}
+            for name, func in tasks:
+                self.logger.info(f"Submitting: {name}")
+                future_to_name[executor.submit(func)] = name
+
+            for future in concurrent.futures.as_completed(future_to_name):
+                name = future_to_name[future]
+                try:
+                    results[name] = future.result()
+                    self.logger.info(f"Completed: {name}")
+                except (OSError, FileNotFoundError, KeyError, ValueError,
+                        TypeError, RuntimeError, ImportError,
+                        AttributeError, IndexError) as exc:
+                    results[name] = exc
+                    self.logger.warning(f"Failed: {name}: {exc}")
+
+        return results
+
     def acquire_attributes(self):
         """Acquire geospatial attributes including DEM, soil, and land cover data."""
         self.logger.info("Starting attribute acquisition")
@@ -244,117 +313,91 @@ class AcquisitionService(ConfigurableMixin):
 
             try:
                 downloader = CloudForcingDownloader(self.config, self.logger)
+                attr_tasks: List[Tuple[str, Callable]] = []
 
+                # --- DEM task ---
                 if self._get_config_value(lambda: self.config.domain.download_dem, default=True):
-                    if dem_source == 'copernicus':
-                        self.logger.info("Acquiring Copernicus DEM GLO-30 (30m) from AWS")
-                        elev_file = downloader.download_copernicus_dem()
-                        self.logger.info(f"✓ Copernicus DEM acquired: {elev_file}")
-
-                    elif dem_source == 'fabdem':
-                        self.logger.info("Acquiring FABDEM (30m, vegetation/building removed)")
-                        elev_file = downloader.download_fabdem()
-                        self.logger.info(f"✓ FABDEM acquired: {elev_file}")
-
-                    elif dem_source == 'nasadem':
-                        if self._get_config_value(lambda: self.config.data.geospatial.nasadem.local_dir, dict_key='NASADEM_LOCAL_DIR'):
-                            self.logger.info("Acquiring NASADEM (30m) from local tiles")
-                            elev_file = downloader.download_nasadem_local()
-                            self.logger.info(f"✓ NASADEM acquired: {elev_file}")
-                        else:
+                    def _acquire_dem():
+                        if dem_source == 'copernicus':
+                            return downloader.download_copernicus_dem()
+                        elif dem_source == 'fabdem':
+                            return downloader.download_fabdem()
+                        elif dem_source == 'nasadem':
+                            if self._get_config_value(lambda: self.config.data.geospatial.nasadem.local_dir, dict_key='NASADEM_LOCAL_DIR'):
+                                return downloader.download_nasadem_local()
                             raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
-
-                    elif dem_source in ('copdem90', 'copernicus_90'):
-                        self.logger.info("Acquiring Copernicus DEM GLO-90 (90m) from AWS")
-                        elev_file = downloader.download_copernicus_dem_90()
-                        self.logger.info(f"✓ Copernicus DEM GLO-90 acquired: {elev_file}")
-
-                    elif dem_source == 'srtm':
-                        self.logger.info("Acquiring SRTM GL1 (30m) from OpenTopography")
-                        elev_file = downloader.download_srtm_dem()
-                        self.logger.info(f"✓ SRTM acquired: {elev_file}")
-
-                    elif dem_source == 'etopo':
-                        self.logger.info("Acquiring ETOPO 2022 from NOAA OPeNDAP")
-                        elev_file = downloader.download_etopo_dem()
-                        self.logger.info(f"✓ ETOPO 2022 acquired: {elev_file}")
-
-                    elif dem_source == 'mapzen':
-                        self.logger.info("Acquiring Mapzen terrain tiles from AWS")
-                        elev_file = downloader.download_mapzen_dem()
-                        self.logger.info(f"✓ Mapzen terrain acquired: {elev_file}")
-
-                    elif dem_source == 'alos':
-                        self.logger.info("Acquiring ALOS AW3D30 (30m) from Planetary Computer")
-                        elev_file = downloader.download_alos_dem()
-                        self.logger.info(f"✓ ALOS AW3D30 acquired: {elev_file}")
-
-                    elif dem_source == 'merit_hydro':
-                        self.logger.info("DEM_SOURCE is merit_hydro - using MAF/gistool for elevation")
-                        gr = gistoolRunner(self.config, self.logger)
-                        bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
-                        latlims = f"{bbox[0]},{bbox[2]}"
-                        lonlims = f"{bbox[1]},{bbox[3]}"
-                        self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
-                        self.logger.info("✓ MERIT-Hydro elevation acquired via MAF")
-                        elev_file = dem_dir / f"domain_{self.domain_name}_elv.tif" # Assuming standard name
-
-                    else:
-                        raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
-
-                    if self.reporting_manager and 'elev_file' in locals() and elev_file and elev_file.exists():
-                        self.reporting_manager.visualize_spatial_coverage(elev_file, 'elevation', 'acquisition')
-
+                        elif dem_source in ('copdem90', 'copernicus_90'):
+                            return downloader.download_copernicus_dem_90()
+                        elif dem_source == 'srtm':
+                            return downloader.download_srtm_dem()
+                        elif dem_source == 'etopo':
+                            return downloader.download_etopo_dem()
+                        elif dem_source == 'mapzen':
+                            return downloader.download_mapzen_dem()
+                        elif dem_source == 'alos':
+                            return downloader.download_alos_dem()
+                        elif dem_source == 'merit_hydro':
+                            gr = gistoolRunner(self.config, self.logger)
+                            bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
+                            latlims = f"{bbox[0]},{bbox[2]}"
+                            lonlims = f"{bbox[1]},{bbox[3]}"
+                            self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
+                            return dem_dir / f"domain_{self.domain_name}_elv.tif"
+                        else:
+                            raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
+                    attr_tasks.append(('DEM', _acquire_dem))
                 else:
                     self.logger.info("Skipping DEM acquisition (DOWNLOAD_DEM is False)")
 
+                # --- Soil task ---
                 if self._get_config_value(lambda: self.config.domain.download_soil, default=True):
-                    self.logger.info("Acquiring soil class data from SoilGrids")
-                    soil_file = downloader.download_global_soilclasses()
-                    self.logger.info(f"✓ SoilGrids data acquired: {soil_file}")
-
-                    if self.reporting_manager and soil_file and soil_file.exists():
-                        self.reporting_manager.visualize_spatial_coverage(soil_file, 'soil_class', 'acquisition')
+                    attr_tasks.append(('soil', downloader.download_global_soilclasses))
                 else:
                     self.logger.info("Skipping soil class acquisition (DOWNLOAD_SOIL is False)")
 
+                # --- Landcover task ---
                 if self._get_config_value(lambda: self.config.domain.download_landcover, default=True):
                     land_source = self._get_config_value(lambda: self.config.domain.land_class_source, default='modis').lower()
-                    self.logger.info(f"Acquiring land cover data (cloud mode, source: {land_source})")
-
-                    try:
+                    def _acquire_landcover():
                         if land_source == 'modis':
-                            lc_file = downloader.download_modis_landcover()
+                            return downloader.download_modis_landcover()
                         elif land_source == 'usgs_nlcd':
-                            lc_file = downloader.download_usgs_landcover()
-                        else:
-                            raise ValueError(f"Unsupported LAND_CLASS_SOURCE: '{land_source}'. Supported: 'modis', 'usgs_nlcd'.")
-
-                        self.logger.info(f"✓ Land cover data acquired: {lc_file}")
-
-                        if self.reporting_manager and lc_file and lc_file.exists():
-                            self.reporting_manager.visualize_spatial_coverage(lc_file, 'land_class', 'acquisition')
-                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e_lc:
-                        self.logger.error(f"Land cover acquisition failed: {e_lc}")
-                        raise
-                    except (ImportError, AttributeError, IndexError) as e_lc:
-                        self.logger.error(f"Land cover acquisition failed: {e_lc}")
-                        raise
+                            return downloader.download_usgs_landcover()
+                        raise ValueError(f"Unsupported LAND_CLASS_SOURCE: '{land_source}'. Supported: 'modis', 'usgs_nlcd'.")
+                    attr_tasks.append(('landcover', _acquire_landcover))
                 else:
                     self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
 
-                # Glacier data acquisition (optional)
+                # --- Glacier task (optional, failure is non-fatal) ---
                 if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False):
-                    self.logger.info("Acquiring glacier data from RGI")
-                    try:
-                        glacier_file = downloader.download_glacier_data()
-                        self.logger.info(f"✓ Glacier data acquired: {glacier_file}")
-                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e_glacier:
-                        self.logger.warning(f"Glacier data acquisition failed: {e_glacier}")
-                        # Don't raise - glacier data is optional
-                    except (ImportError, AttributeError, IndexError) as e_glacier:
-                        self.logger.warning(f"Glacier data acquisition failed: {e_glacier}")
-                        # Don't raise - glacier data is optional
+                    attr_tasks.append(('glacier', downloader.download_glacier_data))
+
+                # Run attribute downloads concurrently
+                if attr_tasks:
+                    results = self._run_parallel_tasks(attr_tasks, desc="Acquiring attributes")
+
+                    # Re-raise failures for required attributes; glacier is optional
+                    for name, result in results.items():
+                        if isinstance(result, Exception):
+                            if name == 'glacier':
+                                self.logger.warning(f"Glacier data acquisition failed: {result}")
+                            else:
+                                self.logger.error(f"Error during cloud attribute acquisition ({name}): {result}")
+                                raise result
+
+                    # Visualization after all downloads complete
+                    if self.reporting_manager:
+                        elev_file = results.get('DEM')
+                        if elev_file and not isinstance(elev_file, Exception) and Path(elev_file).exists():
+                            self.reporting_manager.visualize_spatial_coverage(elev_file, 'elevation', 'acquisition')
+
+                        soil_file = results.get('soil')
+                        if soil_file and not isinstance(soil_file, Exception) and Path(soil_file).exists():
+                            self.reporting_manager.visualize_spatial_coverage(soil_file, 'soil_class', 'acquisition')
+
+                        lc_file = results.get('landcover')
+                        if lc_file and not isinstance(lc_file, Exception) and Path(lc_file).exists():
+                            self.reporting_manager.visualize_spatial_coverage(lc_file, 'land_class', 'acquisition')
 
             except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
                 self.logger.error(f"Error during cloud attribute acquisition: {e}")
@@ -746,18 +789,20 @@ class AcquisitionService(ConfigurableMixin):
 
         self.logger.info(f"Acquiring additional observations: {additional_obs}")
 
+        # Build task list for parallel execution
+        tasks: List[Tuple[str, Callable]] = []
         for obs_type in additional_obs:
-            try:
-                if ObservationRegistry.is_registered(obs_type):
-                    self.logger.info(f"Acquiring registry-based observation: {obs_type}")
-                    handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
-                    handler.acquire()
-                else:
-                    self.logger.debug(f"Skipping acquisition for {obs_type}: no registry handler")
-            except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
-                self.logger.warning(f"Failed to acquire additional observation {obs_type}: {e}")
-            except (ImportError, AttributeError, IndexError) as e:
-                self.logger.warning(f"Failed to acquire additional observation {obs_type}: {e}")
+            if ObservationRegistry.is_registered(obs_type):
+                handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                tasks.append((obs_type, handler.acquire))
+            else:
+                self.logger.debug(f"Skipping acquisition for {obs_type}: no registry handler")
+
+        if tasks:
+            results = self._run_parallel_tasks(tasks, desc="Acquiring observations")
+            for name, result in results.items():
+                if isinstance(result, Exception):
+                    self.logger.warning(f"Failed to acquire additional observation {name}: {result}")
 
     def acquire_em_earth_forcings(self):
         """Acquire EM-Earth precipitation and temperature data."""
@@ -793,7 +838,7 @@ class AcquisitionService(ConfigurableMixin):
                 start_date = datetime.strptime(self._get_config_value(lambda: self.config.domain.time_start), '%Y-%m-%d %H:%M')
                 end_date = datetime.strptime(self._get_config_value(lambda: self.config.domain.time_end), '%Y-%m-%d %H:%M')
             except ValueError as e:
-                raise ValueError(f"Invalid date format in configuration: {str(e)}")
+                raise ValueError(f"Invalid date format in configuration: {str(e)}") from e
 
             self.logger.info(f"Processing EM-Earth data for period: {start_date} to {end_date}")
 
@@ -802,30 +847,27 @@ class AcquisitionService(ConfigurableMixin):
             if not year_months:
                 raise ValueError("No valid year-month combinations found for the specified time period")
 
+            # Build month-processing tasks for parallel execution
+            month_tasks: List[Tuple[str, Callable]] = []
+            for year_month in year_months:
+                def _make_month_task(ym=year_month):
+                    return self._process_em_earth_month(
+                        ym, em_earth_prcp_dir, em_earth_tmean_dir, em_earth_dir, bbox
+                    )
+                month_tasks.append((year_month, _make_month_task))
+
+            results = self._run_parallel_tasks(month_tasks, desc="Processing EM-Earth months")
+
             processed_files = []
             failed_months = []
-
-            for i, year_month in enumerate(year_months, 1):
-                try:
-                    self.logger.info(f"Processing month {i}/{len(year_months)}: {year_month}")
-                    processed_file = self._process_em_earth_month(
-                        year_month, em_earth_prcp_dir, em_earth_tmean_dir, em_earth_dir, bbox
-                    )
-                    if processed_file:
-                        processed_files.append(processed_file)
-                        self.logger.info(f"✓ Successfully processed EM-Earth data for {year_month}")
-                    else:
-                        failed_months.append(year_month)
-                        self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}")
-
-                except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+            for year_month in year_months:
+                result = results.get(year_month)
+                if isinstance(result, Exception):
                     failed_months.append(year_month)
-                    self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}: {str(e)}")
-                    continue
-                except (ImportError, AttributeError, IndexError) as e:
+                elif result is not None:
+                    processed_files.append(result)
+                else:
                     failed_months.append(year_month)
-                    self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}: {str(e)}")
-                    continue
 
             if not processed_files:
                 raise ValueError("No EM-Earth data files were successfully processed")
@@ -926,7 +968,7 @@ class AcquisitionService(ConfigurableMixin):
             prcp_ds = xr.open_dataset(prcp_file)
             tmean_ds = xr.open_dataset(tmean_file)
         except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
-            raise ValueError(f"Error opening EM-Earth files: {str(e)}")
+            raise ValueError(f"Error opening EM-Earth files: {str(e)}") from e
 
         try:
             if lon_min_extract > lon_max_extract:
@@ -974,7 +1016,7 @@ class AcquisitionService(ConfigurableMixin):
                 raise ValueError("No temperature data found within the expanded bounding box.")
 
         except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
-            raise ValueError(f"Error subsetting EM-Earth data: {str(e)}")
+            raise ValueError(f"Error subsetting EM-Earth data: {str(e)}") from e
 
         if (lat_min_extract, lat_max_extract, lon_min_extract, lon_max_extract) != original_bbox:
             self.logger.info("Computing spatial average over expanded area to represent the small watershed")
@@ -1020,7 +1062,7 @@ class AcquisitionService(ConfigurableMixin):
             merged_ds.to_netcdf(output_file)
 
         except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
-            raise ValueError(f"Error merging EM-Earth datasets: {str(e)}")
+            raise ValueError(f"Error merging EM-Earth datasets: {str(e)}") from e
 
         finally:
             prcp_ds.close()

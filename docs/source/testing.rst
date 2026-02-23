@@ -120,6 +120,7 @@ Test Flags
 .. code-block:: bash
 
    # Run with coverage reporting
+   coverage erase
    pytest -v --cov=src/symfluence --cov-report=html
 
    # Run tests in parallel (faster)

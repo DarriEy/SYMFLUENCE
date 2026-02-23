@@ -6,6 +6,7 @@ including geospatial data acquisition configuration.
 """
 
 from typing import List, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
@@ -105,6 +106,9 @@ class DataConfig(BaseModel):
     # Geospatial processing settings
     elev_chunk_size: int = Field(default=10_000, alias='ELEV_CHUNK_SIZE')
     elev_tile_target: int = Field(default=50_000, alias='ELEV_TILE_TARGET')
+
+    # Concurrent acquisition
+    max_acquisition_workers: int = Field(default=3, alias='MAX_ACQUISITION_WORKERS', ge=1, le=8)
 
     # Geospatial data acquisition settings
     geospatial: Optional[GeospatialConfig] = Field(default_factory=GeospatialConfig)
