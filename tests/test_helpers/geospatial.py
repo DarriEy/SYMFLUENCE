@@ -30,7 +30,7 @@ def _project_for_signature(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         return gdf
     try:
         return gdf.to_crs("EPSG:3857")
-    except Exception:
+    except Exception:  # noqa: BLE001
         return gdf
 
 

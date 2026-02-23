@@ -99,7 +99,7 @@ def is_rdrs_s3_available():
         result = fs.exists("msc-open-data/reanalysis/rdrs/v3.1/zarr/.zmetadata")
         _cloud_availability_cache["rdrs"] = result
         return result
-    except Exception:
+    except Exception:  # noqa: BLE001
         _cloud_availability_cache["rdrs"] = False
         return False
 
@@ -135,7 +135,7 @@ def is_em_earth_s3_available():
 
         _cloud_availability_cache["em_earth"] = True
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         _cloud_availability_cache["em_earth"] = False
         return False
 
@@ -164,7 +164,7 @@ def is_cds_data_available(dataset="reanalysis-carra-single-levels"):
         # but a permissions error is different from an access denied error)
         _cloud_availability_cache[cache_key] = True
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Check if the error is an access/permissions issue vs a request format issue
         error_str = str(e).lower()
         if "access denied" in error_str or "forbidden" in error_str or "restricted" in error_str:

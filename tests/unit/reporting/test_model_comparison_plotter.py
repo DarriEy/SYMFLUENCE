@@ -150,7 +150,7 @@ class TestModelComparisonPlotterPanels:
                 model_comparison_plotter._plot_timeseries_panel(
                     mock_ax, sample_results_df, sample_obs_series, model_cols
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_timeseries_panel raised: {e}")
 
     def test_plot_fdc_panel(
@@ -165,7 +165,7 @@ class TestModelComparisonPlotterPanels:
                 model_comparison_plotter._plot_fdc_panel(
                     mock_ax, sample_results_df, sample_obs_series, model_cols
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_fdc_panel raised: {e}")
 
     def test_plot_scatter_panels(
@@ -180,7 +180,7 @@ class TestModelComparisonPlotterPanels:
                 model_comparison_plotter._plot_scatter_panels(
                     mock_axes, sample_results_df, sample_obs_series, model_cols
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_scatter_panels raised: {e}")
 
     def test_plot_metrics_table(self, model_comparison_plotter):
@@ -194,7 +194,7 @@ class TestModelComparisonPlotterPanels:
 
             try:
                 model_comparison_plotter._plot_metrics_table(mock_ax, metrics_dict)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_metrics_table raised: {e}")
 
     def test_plot_monthly_boxplots(
@@ -214,7 +214,7 @@ class TestModelComparisonPlotterPanels:
                 model_comparison_plotter._plot_monthly_boxplots(
                     mock_ax, sample_results_df, sample_obs_series, model_cols
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_monthly_boxplots raised: {e}")
 
     def test_plot_residual_analysis(
@@ -229,5 +229,5 @@ class TestModelComparisonPlotterPanels:
                 model_comparison_plotter._plot_residual_analysis(
                     mock_ax, sample_results_df, sample_obs_series, model_cols
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 pytest.fail(f"_plot_residual_analysis raised: {e}")

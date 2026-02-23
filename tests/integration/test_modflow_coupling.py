@@ -272,7 +272,7 @@ class TestMODFLOWStandalone:
             )
             # Drain discharge should be non-negative
             assert (drain >= 0).all(), "Negative drain discharge found"
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Budget file parsing may fail for some MODFLOW versions
             pytest.skip("Could not parse MODFLOW budget file")
 

@@ -128,7 +128,7 @@ def _load_test_helpers():
                 helpers_module,
                 True,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     # Fallback stubs

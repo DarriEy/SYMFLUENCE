@@ -49,7 +49,7 @@ def get_handler_class(handler_name: str):
 # This is evaluated at collection time
 try:
     ALL_HANDLERS = get_all_registered_handlers()
-except Exception:
+except Exception:  # noqa: BLE001
     ALL_HANDLERS = []
 
 
@@ -145,7 +145,7 @@ class TestHandlerContracts:
         try:
             handler = handler_class(config, mock_logger)
             assert handler is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Some handlers may have additional requirements (credentials, etc.)
             # That's acceptable - we just want to ensure the signature works
             acceptable_errors = [
@@ -171,7 +171,7 @@ class TestHandlerContracts:
             assert hasattr(handler, 'logger'), (
                 f"Handler '{handler_name}' should have 'logger' attribute"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Skip if instantiation fails (credential issues, etc.)
             pytest.skip(f"Could not instantiate handler '{handler_name}'")
 
@@ -191,7 +191,7 @@ class TestHandlerContracts:
             assert has_config, (
                 f"Handler '{handler_name}' should have config attribute"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pytest.skip(f"Could not instantiate handler '{handler_name}'")
 
     @pytest.mark.parametrize("handler_name", ALL_HANDLERS)
@@ -222,7 +222,7 @@ class TestHandlerContracts:
                         f"Handler '{handler_name}' bbox[{key}] should be numeric"
                     )
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             pytest.skip(f"Could not instantiate handler '{handler_name}'")
 
     @pytest.mark.parametrize("handler_name", ALL_HANDLERS)
@@ -247,7 +247,7 @@ class TestHandlerContracts:
                     f"Handler '{handler_name}' start_date should be <= end_date"
                 )
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             pytest.skip(f"Could not instantiate handler '{handler_name}'")
 
 
@@ -296,7 +296,7 @@ class TestRegistryContracts:
                     variation, mock_config, mock_logger
                 )
                 assert handler is not None
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Only fail if it's a "not found" error
                 if "unknown handler" in str(e).lower():
                     pytest.fail(

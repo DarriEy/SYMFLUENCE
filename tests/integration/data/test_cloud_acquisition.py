@@ -182,7 +182,7 @@ def prepared_project(base_config):
         import rasterio
         with rasterio.open(soil_raster):
             pass
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         pytest.skip(f"Skipping cloud forcing tests: SoilGrids raster unreadable ({exc})")
 
     # Define and discretize the point domain
@@ -384,7 +384,7 @@ def _run_case_worker(cfg_path_str: str, project_dir_str: str, case: dict, result
     try:
         _run_case_logic(Path(cfg_path_str), Path(project_dir_str), case)
         result_queue.put({"ok": True})
-    except Exception:
+    except Exception:  # noqa: BLE001
         result_queue.put({"ok": False, "traceback": traceback.format_exc()})
 
 def _execute_case_in_subprocess(cfg_path: Path, project_dir: Path, case: dict) -> None:
