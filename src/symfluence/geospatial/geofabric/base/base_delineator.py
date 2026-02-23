@@ -17,7 +17,7 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.path_resolver import PathResolverMixin
@@ -153,6 +153,151 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
             return attr_dir / 'elevation' / 'dem' / dem_name
 
         return Path(dem_path) / dem_name
+
+    # -----------------------------------------------------------------
+    # DEM conditioning (stream burning)
+    # -----------------------------------------------------------------
+
+    def _condition_dem(self) -> Path:
+        """
+        Apply DEM conditioning if configured.
+
+        Returns the path to the conditioned DEM, or ``self.dem_path``
+        unchanged when conditioning is disabled (the default).
+        """
+        method = self._get_config_value(
+            lambda: self.config.domain.delineation.dem_conditioning_method,
+            default='none',
+            dict_key='DEM_CONDITIONING_METHOD',
+        )
+        if isinstance(method, str):
+            method = method.lower().strip()
+
+        if method == 'none':
+            return self.dem_path
+
+        if method == 'burn_streams':
+            return self._burn_streams_into_dem()
+
+        self.logger.warning(
+            f"Unknown DEM_CONDITIONING_METHOD '{method}' — using raw DEM"
+        )
+        return self.dem_path
+
+    def _burn_streams_into_dem(self) -> Path:
+        """
+        Burn a stream network into the DEM and return the path to the
+        burned raster. Falls back to the original DEM on any error.
+        """
+        try:
+            from ..processors.stream_burner import StreamBurner
+
+            burn_depth = self._get_config_value(
+                lambda: self.config.domain.delineation.stream_burn_depth,
+                default=5.0,
+                dict_key='STREAM_BURN_DEPTH',
+            )
+            source = self._get_config_value(
+                lambda: self.config.domain.delineation.stream_burn_source,
+                default='auto',
+                dict_key='STREAM_BURN_SOURCE',
+            )
+
+            stream_path = self._find_stream_burn_source(source)
+            if stream_path is None:
+                self.logger.warning(
+                    "No stream vector file found for burning — using raw DEM"
+                )
+                return self.dem_path
+
+            output_path = self.interim_dir / "dem_burned.tif"
+            self.interim_dir.mkdir(parents=True, exist_ok=True)
+
+            burner = StreamBurner(self.logger)
+            result = burner.burn_streams(
+                self.dem_path, stream_path, output_path, burn_depth
+            )
+            self.logger.info(
+                f"DEM stream burning complete (depth={burn_depth}m): {result}"
+            )
+            return result
+
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
+            self.logger.warning(
+                f"Stream burning failed, falling back to raw DEM: {exc}"
+            )
+            return self.dem_path
+
+    def _find_stream_burn_source(self, source: str) -> Optional[Path]:
+        """
+        Locate a stream vector file for burning.
+
+        Args:
+            source: One of 'auto', 'merit', 'tdx', 'custom'.
+
+        Returns:
+            Path to the stream vector file, or None if not found.
+        """
+        source = source.lower().strip()
+
+        if source == 'custom':
+            custom = self._get_config_value(
+                lambda: self.config.domain.delineation.stream_burn_custom_path,
+                default='default',
+                dict_key='STREAM_BURN_CUSTOM_PATH',
+            )
+            if custom and custom != 'default':
+                p = Path(custom)
+                if p.exists():
+                    return p
+                self.logger.warning(f"Custom stream burn path not found: {p}")
+            return None
+
+        attr_dir = resolve_data_subdir(self.project_dir, 'attributes')
+        geofabric_dir = attr_dir / 'geofabric'
+
+        if source == 'merit':
+            return self._glob_first(
+                geofabric_dir / 'merit', '*rivernet*.shp'
+            )
+
+        if source == 'tdx':
+            return self._glob_first(
+                geofabric_dir / 'tdx', '*rivers*.parquet'
+            )
+
+        # 'auto': search all geofabric subdirs, then shapefiles/river_network
+        if source == 'auto':
+            # Try each geofabric source in preference order
+            for subdir, pattern in [
+                ('merit', '*rivernet*.shp'),
+                ('tdx', '*rivers*.parquet'),
+                ('tdx', '*rivers*.shp'),
+                ('nws', '*flowpath*.gpkg'),
+            ]:
+                hit = self._glob_first(geofabric_dir / subdir, pattern)
+                if hit is not None:
+                    return hit
+
+            # Fallback: river_network shapefiles directory
+            river_net_dir = self.project_dir / 'shapefiles' / 'river_network'
+            for pattern in ['*.shp', '*.gpkg', '*.parquet']:
+                hit = self._glob_first(river_net_dir, pattern)
+                if hit is not None:
+                    return hit
+
+            return None
+
+        self.logger.warning(f"Unknown STREAM_BURN_SOURCE '{source}'")
+        return None
+
+    @staticmethod
+    def _glob_first(directory: Path, pattern: str) -> Optional[Path]:
+        """Return the first file matching *pattern* in *directory*, or None."""
+        if not directory.is_dir():
+            return None
+        hits = sorted(directory.glob(pattern))
+        return hits[0] if hits else None
 
     def _get_pour_point_path(self) -> Path:
         """
