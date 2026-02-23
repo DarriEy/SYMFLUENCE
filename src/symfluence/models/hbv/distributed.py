@@ -730,19 +730,10 @@ class DistributedHBV:
         Returns:
             Loss function: params_array -> loss_value
         """
-        if param_names is None:
-            param_names = list(DEFAULT_PARAMS.keys())
-
-        if warmup_timesteps is None:
-            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
-
-        def loss_fn(params_array):
-            params_dict = dict(zip(param_names, params_array))
-            return self.compute_loss(
-                params_dict, precip, temp, pet, obs, metric, warmup_timesteps
-            )
-
-        return loss_fn
+        param_names, warmup_timesteps = self._resolve_calibration_context(param_names, warmup_timesteps)
+        return self._build_loss_function(
+            precip, temp, pet, obs, metric, param_names, warmup_timesteps
+        )
 
     def get_gradient_function(
         self,
@@ -774,18 +765,10 @@ class DistributedHBV:
             warnings.warn("JAX not available for gradient computation")
             return None
 
-        if param_names is None:
-            param_names = list(DEFAULT_PARAMS.keys())
-
-        if warmup_timesteps is None:
-            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
-
-        def loss_fn(params_array):
-            params_dict = dict(zip(param_names, params_array))
-            return self.compute_loss(
-                params_dict, precip, temp, pet, obs, metric, warmup_timesteps
-            )
-
+        param_names, warmup_timesteps = self._resolve_calibration_context(param_names, warmup_timesteps)
+        loss_fn = self._build_loss_function(
+            precip, temp, pet, obs, metric, param_names, warmup_timesteps
+        )
         return jax.grad(loss_fn)
 
     def get_value_and_grad_function(
@@ -813,19 +796,42 @@ class DistributedHBV:
             warnings.warn("JAX not available for gradient computation")
             return None
 
-        if param_names is None:
-            param_names = list(DEFAULT_PARAMS.keys())
+        param_names, warmup_timesteps = self._resolve_calibration_context(param_names, warmup_timesteps)
+        loss_fn = self._build_loss_function(
+            precip, temp, pet, obs, metric, param_names, warmup_timesteps
+        )
+        return jax.value_and_grad(loss_fn)
 
-        if warmup_timesteps is None:
-            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
+    def _resolve_calibration_context(
+        self,
+        param_names: Optional[List[str]],
+        warmup_timesteps: Optional[int]
+    ) -> Tuple[List[str], int]:
+        """Resolve default optimization parameter names and warmup settings."""
+        resolved_param_names = param_names or list(DEFAULT_PARAMS.keys())
+        resolved_warmup = warmup_timesteps
+        if resolved_warmup is None:
+            resolved_warmup = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
+        return resolved_param_names, resolved_warmup
 
-        def loss_fn(params_array):
+    def _build_loss_function(
+        self,
+        precip: Any,
+        temp: Any,
+        pet: Any,
+        obs: Any,
+        metric: str,
+        param_names: List[str],
+        warmup_timesteps: int
+    ) -> Callable:
+        """Build parameter-array -> loss callable for optimizers."""
+        def loss_fn(params_array: Any) -> float:
             params_dict = dict(zip(param_names, params_array))
             return self.compute_loss(
                 params_dict, precip, temp, pet, obs, metric, warmup_timesteps
             )
 
-        return jax.value_and_grad(loss_fn)
+        return loss_fn
 
 
 def calibrate_distributed_hbv(

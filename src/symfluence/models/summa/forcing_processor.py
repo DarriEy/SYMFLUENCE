@@ -11,7 +11,7 @@ import gc
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, cast
+from typing import Dict, Any, List, Optional, cast
 
 # Third-party imports
 import geopandas as gpd  # type: ignore
@@ -288,6 +288,28 @@ class SummaForcingProcessor(BaseForcingProcessor):
             except OSError as exc:
                 self.logger.warning(f"Failed to remove stale SUMMA forcing file {existing_file}: {exc}")
 
+    @staticmethod
+    def _extract_forcing_date(filename: str) -> Optional[datetime]:
+        """Extract datetime token from common forcing filename patterns."""
+        import re
+
+        patterns = (
+            (r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", "%Y-%m-%d-%H-%M-%S"),
+            (r"(\d{6})\.nc$", "%Y%m"),
+            (r"(\d{8})\.nc$", "%Y%m%d"),
+            (r"_(\d{6})_", "%Y%m"),
+        )
+
+        for pattern, fmt in patterns:
+            match = re.search(pattern, filename)
+            if not match:
+                continue
+            try:
+                return datetime.strptime(match.group(1), fmt)
+            except ValueError:
+                continue
+        return None
+
     def _precalculate_lapse_corrections(self, topo_data):
         """Pre-calculate per-HRU weighted lapse-rate corrections.
 
@@ -349,7 +371,8 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 try:
                     self._process_single_file(file, lapse_values, lapse_rate)
                     if (i + 1) % 10 == 0 or batch_size <= 10:
-                        batch_start + i + 1
+                        processed_count = batch_start + i + 1
+                        self.logger.debug(f"Processed {processed_count}/{total_files} forcing files")
                 except Exception as e:
                     self.logger.error(f"Error processing file {file}: {str(e)}")
                     raise
@@ -514,7 +537,6 @@ class SummaForcingProcessor(BaseForcingProcessor):
         share the expected prefix.
         """
         import calendar
-        import re
 
         self.logger.info("Scanning processed forcing files for leap-day insertion (source calendar: %s)",
                          self._source_calendar)
@@ -532,16 +554,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             self.logger.warning("No processed forcing files found – skipping leap-day insertion")
             return
 
-        def _extract_date(fname):
-            match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", fname)
-            if match:
-                try:
-                    return datetime.strptime(match.group(1), "%Y-%m-%d-%H-%M-%S")
-                except ValueError:
-                    pass
-            return None
-
-        dates = [_extract_date(f) for f in processed_files]
+        dates = [self._extract_forcing_date(f) for f in processed_files]
         dates = [d for d in dates if d is not None]
 
         if not dates:
@@ -1521,47 +1534,13 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 f"No {forcing_dataset} forcing files found in {forcing_path}"
             )
 
-        # Robust chronological sorting by extracting dates from filenames
-        def extract_date(filename):
-            import re
-            # Pattern 1: YYYY-MM-DD-HH-MM-SS
-            match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", filename)
-            if match:
-                try:
-                    return datetime.strptime(match.group(1), "%Y-%m-%d-%H-%M-%S")
-                except ValueError:
-                    pass
-            # Pattern 2: YYYYMM at the end (before .nc)
-            match = re.search(r"(\d{6})\.nc$", filename)
-            if match:
-                try:
-                    return datetime.strptime(match.group(1), "%Y%m")
-                except ValueError:
-                    pass
-            # Pattern 3: YYYYMMDD at the end
-            match = re.search(r"(\d{8})\.nc$", filename)
-            if match:
-                try:
-                    return datetime.strptime(match.group(1), "%Y%m%d")
-                except ValueError:
-                    pass
-            # Pattern 4: _YYYYMM_ embedded in filename (e.g. _210001_processed.nc)
-            match = re.search(r"_(\d{6})_", filename)
-            if match:
-                try:
-                    return datetime.strptime(match.group(1), "%Y%m")
-                except ValueError:
-                    pass
-            # Fallback to a very old date for non-matching files
-            return datetime(1900, 1, 1)
-
         # Sort and deduplicate (prefer files with longer names which usually contain full timestamps)
-        forcing_files.sort(key=lambda x: (extract_date(x), -len(x)))
+        forcing_files.sort(key=lambda x: (self._extract_forcing_date(x) or datetime(1900, 1, 1), -len(x)))
 
         unique_files = []
         seen_dates = set()
         for f in forcing_files:
-            date = extract_date(f)
+            date = self._extract_forcing_date(f) or datetime(1900, 1, 1)
             if date not in seen_dates:
                 unique_files.append(f)
                 seen_dates.add(date)
