@@ -247,7 +247,7 @@ class datatoolRunner(ConfigMixin):
     Wrapper for datatool command-line utility for forcing data extraction from HPC.
 
     datatool is a Model-Agnostic Framework (MAF) component that extracts atmospheric
-    forcing data (ERA5, RDRS, CASR) from large NetCDF archives hosted on HPC systems.
+    forcing data from large NetCDF archives hosted on HPC systems.
     This class generates datatool commands, submits them as Slurm jobs, and monitors
     job completion in the queue.
 
@@ -257,9 +257,7 @@ class datatoolRunner(ConfigMixin):
         or inefficient. Handles job submission, queue monitoring, and completion tracking.
 
     datatool Capabilities:
-        - Extract ERA5 forcing data
-        - Extract RDRS (Regional Deterministic Reforecast System) data
-        - Extract CASR (Canadian Arctic System Reanalysis) data
+        - Extract forcing data from 13 supported datasets
         - Spatial subsetting via bounding box
         - Temporal subsetting via date range
         - Variable selection
@@ -268,20 +266,12 @@ class datatoolRunner(ConfigMixin):
         - Caching for efficiency
 
     Datasets Supported:
-        ERA5:
-            - Global reanalysis, 0.25° resolution
-            - Hourly atmospheric variables
-            - 1979-present
-
-        RDRS (v2.1):
-            - Canadian regional reanalysis, 10 km resolution
-            - Hourly forcing data for North America
-            - 1980-2018
-
-        CASR (v3.1):
-            - Arctic-focused reanalysis, 15 km resolution
-            - 3-hourly atmospheric variables
-            - 1979-2018
+        See DATASET_MAP for the full list of supported datasets and their
+        datatool identifiers. Includes global reanalyses (ERA5), regional
+        reanalyses (RDRS, CASR), dynamically downscaled products (WRF-CONUS),
+        statistically downscaled products (NEX-GDDP-CMIP6, ESPO-G6-R2),
+        regional climate model outputs (CanRCM4, WFDEI-GEM-CaPA, MRCC5-CMIP6),
+        and gridded observation products (Daymet, Alberta Government).
 
     Workflow:
         1. Initialize with configuration and logger
@@ -300,7 +290,7 @@ class datatoolRunner(ConfigMixin):
 
     Command Generation:
         Generates extract-dataset.sh commands with parameters:
-        - Dataset specification (ERA5, RDRS, CASR)
+        - Dataset specification (see DATASET_MAP)
         - Dataset root directory on HPC filesystem
         - Output directory for NetCDF files
         - Temporal bounds (start/end dates)
@@ -380,7 +370,7 @@ class datatoolRunner(ConfigMixin):
         - Slurm scheduler required (uses squeue for monitoring)
         - Job success not validated; check output files for completeness
         - Cache directory shared across runs for efficiency
-        - Dataset naming conventions differ (ERA5 → era5, RDRS → rdrsv2.1)
+        - Dataset naming conventions differ (see DATASET_MAP for mappings)
 
     See Also:
         - data.acquisition.maf_processor.DataAcquisitionProcessor: Config generator
@@ -405,19 +395,50 @@ class datatoolRunner(ConfigMixin):
         else:
             self.datatool_path = self._get_config_value(lambda: self.config.paths.datatool_path, dict_key='DATATOOL_PATH')
 
+    # Maps SYMFLUENCE dataset names → (datatool --dataset value, dataset directory name).
+    # Directory names correspond to subdirectories under DATATOOL_DATASET_ROOT on the HPC.
+    # The --dataset values must match aliases in datatool's extract-dataset.sh case statement.
+    # See https://github.com/CH-Earth/datatool for the full list of supported datasets.
+    DATASET_MAP = {
+        # Reanalysis
+        'ERA5':             ('era5',                   'era5'),
+        'RDRS':             ('rdrs',                   'rdrsv2.1'),
+        'CASR':             ('casr',                   'casrv3.1'),
+        # Observation datasets
+        'DAYMET':           ('daymet',                 'daymet-v4r1-ornl'),
+        # Dynamically downscaled (WRF)
+        'CONUS_I':          ('conus_i',                'conus_i'),
+        'CONUS_II':         ('conus_ii',               'conus_ii'),
+        # Statistically downscaled / climate projections
+        'NEX-GDDP-CMIP6':  ('nex-gddp-cmip6',        'nex-gddp-cmip6'),
+        'ESPO-G6-R2':      ('espo-g6-r2',             'espo-g6-r2'),
+        'MRCC5-CMIP6':     ('mrcc5-cmip6',            'mrcc5-cmip6'),
+        # Regional climate model outputs
+        'CANRCM4-WFDEI-GEM-CAPA': ('canrcm4_wfdei_gem_capa', 'canrcm4_wfdei_gem_capa'),
+        'WFDEI-GEM-CAPA':  ('wfdei_gem_capa',         'wfdei_gem_capa'),
+        # Provincial datasets
+        'AB-GOV':           ('ab-gov',                 'ab-gov'),
+    }
+
+    @classmethod
+    def supported_datasets(cls):
+        """Return the set of dataset names supported by datatool on HPC."""
+        return set(cls.DATASET_MAP)
+
     def create_datatool_command(self, dataset, output_dir, start_date, end_date, lat_lims, lon_lims, variables):
-        dataset_dir = dataset
-        if dataset == "ERA5":
-            dataset_dir = 'era5'
-        elif dataset == "RDRS":
-            dataset_dir = 'rdrsv2.1'
-        elif dataset == "CASR":
-            dataset_dir = 'casrv3.1'
-            dataset = 'casr'
+        dataset_upper = dataset.upper()
+        if dataset_upper not in self.DATASET_MAP:
+            supported = ', '.join(sorted(self.DATASET_MAP))
+            raise ValueError(
+                f"Dataset '{dataset}' is not supported by datatool. "
+                f"Supported datasets: {supported}"
+            )
+
+        datatool_name, dataset_dir = self.DATASET_MAP[dataset_upper]
 
         datatool_command = [
         f"{self.datatool_path}/extract-dataset.sh",
-        f"--dataset={dataset}",
+        f"--dataset={datatool_name}",
         f"--dataset-dir={self._get_config_value(lambda: self.config.paths.datatool_dataset_root, dict_key='DATATOOL_DATASET_ROOT')}{dataset_dir}",
         f"--output-dir={output_dir}",
         f"--start-date={start_date}",

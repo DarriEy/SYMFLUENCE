@@ -15,8 +15,10 @@ Daymet features:
 Data access via ORNL DAAC:
 https://daymet.ornl.gov/
 """
+import netrc
+import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 import requests
 
@@ -159,11 +161,77 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         except Exception as e:  # noqa: BLE001 — data acquisition resilience
             self.logger.error(f"Daymet single-pixel download failed: {e}")
 
+    def _get_earthdata_credentials(self) -> Tuple[Optional[str], Optional[str]]:
+        """Get NASA Earthdata credentials from .netrc, env vars, or config.
+
+        Returns:
+            (username, password) tuple, or (None, None) if not found.
+        """
+        # 1. Try .netrc (preferred — most secure)
+        try:
+            netrc_path = Path.home() / '.netrc'
+            if netrc_path.exists():
+                nrc = netrc.netrc(str(netrc_path))
+                for host in ('urs.earthdata.nasa.gov', 'earthdata.nasa.gov'):
+                    auth = nrc.authenticators(host)
+                    if auth:
+                        self.logger.debug(f"Using Earthdata credentials from ~/.netrc ({host})")
+                        return auth[0], auth[2]
+        except (OSError, netrc.NetrcParseError) as e:
+            self.logger.debug(f"Could not read .netrc: {e}")
+
+        # 2. Try environment variables
+        username = os.environ.get('EARTHDATA_USERNAME')
+        password = os.environ.get('EARTHDATA_PASSWORD')
+        if username and password:
+            self.logger.debug("Using Earthdata credentials from environment variables")
+            return username, password
+
+        # 3. Try config
+        username = self._get_config_value(lambda: None, default=None, dict_key='EARTHDATA_USERNAME')
+        password = self._get_config_value(lambda: None, default=None, dict_key='EARTHDATA_PASSWORD')
+        if username and password:
+            self.logger.debug("Using Earthdata credentials from config")
+            return username, password
+
+        return None, None
+
+    def _get_earthdata_session(self) -> requests.Session:
+        """Build an authenticated requests session for ORNL DAAC / Earthdata.
+
+        ORNL DAAC THREDDS may redirect to urs.earthdata.nasa.gov for OAuth.
+        If credentials are available they are attached to the session so the
+        redirect is handled transparently.
+
+        Returns:
+            A :class:`requests.Session` (authenticated when credentials exist).
+        """
+        session = requests.Session()
+        username, password = self._get_earthdata_credentials()
+        if username and password:
+            session.auth = (username, password)
+        else:
+            self.logger.warning(
+                "No NASA Earthdata credentials found. ORNL DAAC may require "
+                "authentication for gridded Daymet downloads.\n"
+                "To set up credentials, create a ~/.netrc file with:\n"
+                "\n"
+                "  machine urs.earthdata.nasa.gov\n"
+                "  login <your_earthdata_username>\n"
+                "  password <your_earthdata_password>\n"
+                "\n"
+                "Register for a free account at https://urs.earthdata.nasa.gov/users/new\n"
+                "Alternatively set EARTHDATA_USERNAME and EARTHDATA_PASSWORD env vars."
+            )
+        return session
+
     def _download_gridded(self, output_file: Path, variables: List[str]):
         """Download gridded data using THREDDS subset service."""
         if not self.bbox:
             self.logger.error("Bounding box required for Daymet download")
             return
+
+        session = self._get_earthdata_session()
 
         # Download each year separately (THREDDS limitation)
         for year in range(self.start_date.year, self.end_date.year + 1):
@@ -195,7 +263,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                 try:
                     self.logger.info(f"Downloading Daymet {var} for {year}")
 
-                    response = requests.get(
+                    response = session.get(
                         url,
                         params=params,
                         stream=True,
