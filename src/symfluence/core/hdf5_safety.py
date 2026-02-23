@@ -67,10 +67,19 @@ def configure_hdf5_safety(disable_tqdm_monitor: bool = True) -> None:
                               which can cause segfaults with netCDF4/HDF5.
     """
     # Set ALL HDF5 and threading environment variables
-    # These must be set BEFORE importing libraries to prevent thread pool creation
+    # These must be set BEFORE importing libraries to prevent thread pool creation.
+    # HDF5 locking vars are FORCE-SET (not setdefault) because on HPC systems
+    # the run session often differs from the install session, and the HDF5 C
+    # library reads HDF5_USE_FILE_LOCKING at dlopen time.  If the var is unset
+    # (or the module environment sets it to something else), file-locking errors
+    # on parallel filesystems (Lustre/GPFS/BeeGFS) are almost guaranteed.
     env_vars = get_worker_environment(include_thread_limits=True)
     for key, value in env_vars.items():
-        os.environ.setdefault(key, value)
+        if key in HDF5_ENV_VARS:
+            # Force-set HDF5/netCDF locking vars — these are critical on HPC
+            os.environ[key] = value
+        else:
+            os.environ.setdefault(key, value)
 
     # Configure xarray to minimize file caching and prefer h5netcdf backend
     # h5netcdf is more stable than netCDF4 for concurrent access
