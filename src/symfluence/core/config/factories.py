@@ -42,7 +42,7 @@ def _resolve_default_code_dir() -> str:
             candidate = candidate.parent
             if (candidate / 'pyproject.toml').exists() or (candidate / '.git').exists():
                 return str(candidate)
-    except Exception:
+    except (ImportError, AttributeError, OSError, TypeError):
         pass
 
     cwd = Path.cwd()

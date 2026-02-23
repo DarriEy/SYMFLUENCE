@@ -79,7 +79,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'rb') as f:
                     return pickle.load(f)  # nosec B301
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
         self.logger.info("Processing GLCLU2019 land cover data")
@@ -184,10 +184,10 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'wb') as f:
                     pickle.dump(results, f)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching results: {e}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing GLCLU2019: {e}")
 
         return results
@@ -225,7 +225,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'rb') as f:
                     return pickle.load(f)  # nosec B301
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
         self.logger.info("Processing LAI data")
@@ -296,10 +296,10 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'wb') as f:
                     pickle.dump(results, f)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching: {e}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing LAI: {e}")
 
         return results
@@ -331,7 +331,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'rb') as f:
                     return pickle.load(f)  # nosec B301
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
         self.logger.info("Processing forest height data")
@@ -376,10 +376,10 @@ class LandCoverProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'wb') as f:
                     pickle.dump(results, f)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching: {e}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing forest height: {e}")
 
         return results

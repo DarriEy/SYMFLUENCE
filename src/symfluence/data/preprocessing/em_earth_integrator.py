@@ -157,7 +157,7 @@ def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin
 
         return True
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
         import logging
         logger = logging.getLogger('symfluence')
         logger.error(f"Error remapping {input_file.name}: {str(e)}")
@@ -224,7 +224,7 @@ class EMEarthIntegrator(ConfigMixin):
 
             self.logger.info("EM-Earth data integration completed successfully")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error during EM-Earth data integration: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -283,7 +283,7 @@ class EMEarthIntegrator(ConfigMixin):
                 self.logger.debug("Using sequential processing")
                 self._remap_em_earth_files_sequential(files_to_process, basin_shapefile, remapped_dir)
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error remapping EM-Earth data: {str(e)}")
             raise
 
@@ -298,7 +298,7 @@ class EMEarthIntegrator(ConfigMixin):
                 # Direct call to the module level function
                 _perform_em_earth_remapping_logic(em_file, output_file, basin_shapefile, self.config)
                 self.logger.info(f"✓ Successfully remapped {em_file.name}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"✗ Failed to remap {em_file.name}: {str(e)}")
                 continue
 
@@ -341,7 +341,7 @@ class EMEarthIntegrator(ConfigMixin):
                             self.logger.debug(f"Parallel remapping progress: {completed}/{len(worker_args)} files completed")
                         continue
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error in parallel processing: {str(e)}")
                 pool.terminate()
                 pool.join()
@@ -393,13 +393,13 @@ class EMEarthIntegrator(ConfigMixin):
             for forcing_file in forcing_files:
                 try:
                     self._update_single_forcing_file(forcing_file, em_earth_lookup)
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.warning(f"Failed to update {forcing_file.name}: {str(e)}")
                     continue
 
             self.logger.debug("Successfully replaced forcing variables with EM-Earth data")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error replacing forcing variables: {str(e)}")
             raise
 
@@ -522,11 +522,11 @@ class EMEarthIntegrator(ConfigMixin):
 
                 self.logger.debug(f"Successfully updated {forcing_file.name} with EM-Earth data")
 
-            except Exception as write_error:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as write_error:
                 if temp_file.exists():
                     temp_file.unlink()
                 raise write_error
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error updating {forcing_file.name}: {str(e)}")
             raise

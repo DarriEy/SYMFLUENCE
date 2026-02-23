@@ -140,7 +140,7 @@ class ERA5Handler(BaseDatasetHandler):
 
                     self.logger.debug(f"Successfully saved {output_file.name}")
 
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.error(f"Failed to process {raw_file.name}: {e}")
                     raise
         finally:
@@ -199,7 +199,7 @@ class ERA5Handler(BaseDatasetHandler):
                         f"Please use a larger bounding box (at least 0.5° x 0.5°) or use a higher-resolution "
                         f"forcing dataset like HRRR or CONUS404 for small domains."
                     )
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error reading ERA5 dimensions: {str(e)}")
                 raise
 
@@ -209,7 +209,7 @@ class ERA5Handler(BaseDatasetHandler):
                 half_dlon = abs(lon[1] - lon[0])/2 if len(lon) > 1 else 0.125
 
                 self.logger.info(f"ERA5 grid spacings: half_dlat={half_dlat}, half_dlon={half_dlon}")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error calculating grid spacings: {str(e)}")
                 raise
 
@@ -254,7 +254,7 @@ class ERA5Handler(BaseDatasetHandler):
                             lons.append(float(center_lon))
 
                 self.logger.info(f"Created {len(geometries)} grid cell geometries")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error creating grid cell geometries: {str(e)}")
                 raise
 
@@ -269,7 +269,7 @@ class ERA5Handler(BaseDatasetHandler):
                 }, crs='EPSG:4326')
 
                 self.logger.info(f"GeoDataFrame created with {len(gdf)} rows")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error creating GeoDataFrame: {str(e)}")
                 raise
 
@@ -285,7 +285,7 @@ class ERA5Handler(BaseDatasetHandler):
                 gdf['elev_m'] = elevations
 
                 self.logger.info("Elevation calculation complete")
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error calculating elevation: {str(e)}")
                 # Continue without elevation data rather than failing completely
                 gdf['elev_m'] = -9999
@@ -297,13 +297,13 @@ class ERA5Handler(BaseDatasetHandler):
                 gdf.to_file(output_shapefile)
                 self.logger.info(f"ERA5 shapefile saved successfully to {output_shapefile}")
                 return output_shapefile
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error saving shapefile: {str(e)}")
                 import traceback
                 self.logger.error(traceback.format_exc())
                 raise
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error in create_era5_shapefile: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

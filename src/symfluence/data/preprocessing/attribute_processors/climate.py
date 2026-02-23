@@ -10,7 +10,7 @@ Handles climate data processing including:
 """
 
 import os
-import pickle
+import pickle  # nosec B403 - used for trusted local cache files
 from pathlib import Path
 from typing import Dict, Any, List
 import numpy as np
@@ -71,8 +71,8 @@ class ClimateProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached raw climate results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
-            except Exception as e:
+                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
         self.logger.info("Processing raw climate variables")
@@ -164,7 +164,7 @@ class ClimateProcessor(BaseAttributeProcessor):
                                     else:
                                         monthly_values[i][month - 1] = zonal_result['mean']
 
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.error(f"Error processing {var} for month {month}: {e}")
 
             # Add monthly attributes to results
@@ -192,7 +192,7 @@ class ClimateProcessor(BaseAttributeProcessor):
         try:
             with open(cache_file, 'wb') as f:
                 pickle.dump(results, f)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"Error caching results: {e}")
 
         return results
@@ -309,8 +309,8 @@ class ClimateProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached derived climate results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
-            except Exception as e:
+                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
         self.logger.info("Processing derived climate indices")
@@ -403,7 +403,7 @@ class ClimateProcessor(BaseAttributeProcessor):
         try:
             with open(cache_file, 'wb') as f:
                 pickle.dump(results, f)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"Error caching results: {e}")
 
         return results
@@ -463,7 +463,7 @@ class ClimateProcessor(BaseAttributeProcessor):
                                 else:
                                     monthly_values[i][month - 1] = zonal_result['mean']
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error processing {product['name']} for month {month}: {e}")
 
         # Calculate annual statistics for monthly products
@@ -514,7 +514,7 @@ class ClimateProcessor(BaseAttributeProcessor):
                                 if stat in zonal_result and zonal_result[stat] is not None:
                                     results[f"{prefix}climate.{product['name']}_{stat}"] = zonal_result[stat]
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"Error processing {product['name']}: {e}")
 
     def _calculate_composite_climate_indicators(self, results: Dict[str, Any], is_lumped: bool,

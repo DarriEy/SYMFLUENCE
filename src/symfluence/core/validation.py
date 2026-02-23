@@ -299,7 +299,7 @@ def validate_date_range(
     try:
         start = pd.to_datetime(start_date)
         end = pd.to_datetime(end_date)
-    except Exception as e:
+    except (TypeError, ValueError, OverflowError) as e:
         raise ValidationError(f"Could not parse dates for {context}: {e}") from e
 
     if pd.isna(start) or pd.isna(end):
