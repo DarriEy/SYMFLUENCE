@@ -207,6 +207,7 @@ See Also:
     - DataManager: High-level data workflow coordination
 """
 
+from pathlib import Path
 from typing import Dict, Any, Union, TYPE_CHECKING
 import numpy as np # type: ignore
 import pandas as pd # type: ignore
@@ -446,6 +447,114 @@ class GeospatialStatistics(ConfigurableMixin):
                 nodata = -9999
             return nodata
 
+    def _output_has_expected_columns(
+        self,
+        output_file: Path,
+        required_prefixes: tuple[str, ...] = (),
+        required_columns: tuple[str, ...] = (),
+        warn_on_error: bool = True,
+    ) -> bool:
+        """Return True when an existing shapefile has expected columns and rows."""
+        if not output_file.exists():
+            return False
+
+        try:
+            gdf = gpd.read_file(output_file)
+        except Exception as exc:
+            msg = f"Error checking existing statistics file '{output_file}': {exc}. Recalculating."
+            if warn_on_error:
+                self.logger.warning(msg)
+            else:
+                self.logger.debug(msg)
+            return False
+
+        if len(gdf) == 0:
+            return False
+
+        if required_columns and not all(col in gdf.columns for col in required_columns):
+            return False
+
+        if required_prefixes:
+            has_required_prefix = any(
+                any(col.startswith(prefix) for col in gdf.columns)
+                for prefix in required_prefixes
+            )
+            if not has_required_prefix:
+                return False
+
+        return True
+
+    def _migrate_legacy_bundle_raster(self, raster_path: Path, legacy_filename: str) -> None:
+        """Rename known legacy Bow/Banff raster files to the configured filename."""
+        if raster_path.exists():
+            return
+
+        if self._get_config_value(lambda: self.config.domain.name) != 'bow_banff_minimal':
+            return
+
+        legacy_raster = raster_path.parent / legacy_filename
+        if legacy_raster.exists():
+            legacy_raster.replace(raster_path)
+            self.logger.info(f"Renamed legacy raster '{legacy_filename}' to '{raster_path.name}'")
+
+    def _write_legacy_stats_csv(self, filename: str, df: pd.DataFrame, label: str) -> None:
+        """Write compatibility CSVs used by older Bow/Banff workflows."""
+        if self._get_config_value(lambda: self.config.domain.name) != 'bow_banff_minimal':
+            return
+
+        legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
+        legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+        legacy_csv_path = legacy_csv_dir / filename
+        df.to_csv(legacy_csv_path)
+        self.logger.info(f"Created legacy {label} CSV: {legacy_csv_path}")
+
+    def _read_raster_crs(self, raster_path: Path, layer_label: str, fallback: Any = None) -> Any:
+        """Read raster CRS, optionally returning a fallback when CRS lookup fails."""
+        try:
+            with rasterio.open(raster_path) as src:
+                raster_crs = src.crs
+                self.logger.info(f"{layer_label} raster CRS: {raster_crs}")
+                return raster_crs
+        except Exception as exc:
+            self.logger.error(f"Error reading {layer_label} raster CRS: {exc}")
+            if fallback is not None:
+                self.logger.warning(
+                    f"Falling back to CRS '{fallback}' for {layer_label}; calculations may be less reliable."
+                )
+                return fallback
+            raise
+
+    def _align_catchments_to_raster_crs(
+        self,
+        catchment_gdf: gpd.GeoDataFrame,
+        raster_crs: Any,
+        layer_label: str,
+        *,
+        allow_fallback_on_error: bool,
+    ) -> gpd.GeoDataFrame:
+        """Align catchment geometries to raster CRS, with optional fallback behavior."""
+        shapefile_crs = catchment_gdf.crs
+        self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
+
+        if raster_crs == shapefile_crs:
+            self.logger.info("CRS match - no reprojection needed")
+            return catchment_gdf.copy()
+
+        self.logger.info(
+            f"CRS mismatch detected for {layer_label}. "
+            f"Reprojecting catchment from {shapefile_crs} to {raster_crs}"
+        )
+        try:
+            projected = catchment_gdf.to_crs(raster_crs)
+            self.logger.info("CRS reprojection successful")
+            return projected
+        except Exception as exc:
+            self.logger.error(f"Failed to reproject CRS for {layer_label}: {exc}")
+            if allow_fallback_on_error:
+                self.logger.warning("Using original CRS - calculation may fail")
+                return catchment_gdf.copy()
+            raise
+
     def calculate_elevation_stats(self):
         """
         Calculate elevation statistics with chunked processing for memory efficiency.
@@ -465,24 +574,17 @@ class GeospatialStatistics(ConfigurableMixin):
         checkpoint_dir = intersect_path / 'checkpoints'
 
         # Check if output already exists
-        if output_file.exists():
-            try:
-                gdf = gpd.read_file(output_file)
-                if 'elev_mean' in gdf.columns and len(gdf) > 0:
-                    self.logger.info(f"Elevation statistics file already exists: {output_file}. Skipping calculation.")
-                    return
-            except Exception as e:
-                self.logger.warning(f"Error checking existing elevation statistics file: {str(e)}. Recalculating.")
+        if self._output_has_expected_columns(output_file, required_columns=('elev_mean',)):
+            self.logger.info(f"Elevation statistics file already exists: {output_file}. Skipping calculation.")
+            return
 
         self.logger.info("Calculating elevation statistics (memory-optimized chunked mode)")
 
         # Fallback for legacy naming in data bundle
-        domain_name = self._get_config_value(lambda: self.config.domain.name)
-        if not self.dem_path.exists() and domain_name == 'bow_banff_minimal':
-            legacy_dem = self.dem_path.parent / "domain_Bow_at_Banff_lumped_elv.tif"
-            if legacy_dem.exists():
-                legacy_dem.replace(self.dem_path)
-                self.logger.info(f"Renamed legacy DEM file to {self.dem_path.name}")
+        self._migrate_legacy_bundle_raster(
+            self.dem_path,
+            "domain_Bow_at_Banff_lumped_elv.tif",
+        )
 
         # Load catchment shapefile
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
@@ -495,20 +597,13 @@ class GeospatialStatistics(ConfigurableMixin):
 
         try:
             # Get DEM info
-            with rasterio.open(self.dem_path) as src:
-                dem_crs = src.crs
-                self.logger.info(f"DEM CRS: {dem_crs}")
-
-            shapefile_crs = catchment_gdf.crs
-            self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
-
-            # Reproject if needed
-            if dem_crs != shapefile_crs:
-                self.logger.info(f"Reprojecting catchments from {shapefile_crs} to {dem_crs}")
-                catchment_gdf_projected = catchment_gdf.to_crs(dem_crs)
-            else:
-                self.logger.info("CRS match - no reprojection needed")
-                catchment_gdf_projected = catchment_gdf
+            dem_crs = self._read_raster_crs(self.dem_path, "DEM")
+            catchment_gdf_projected = self._align_catchments_to_raster_crs(
+                catchment_gdf,
+                dem_crs,
+                "DEM",
+                allow_fallback_on_error=False,
+            )
 
             # Initialize results array
             elev_means = np.full(n_catchments, np.nan, dtype=np.float32)
@@ -563,14 +658,12 @@ class GeospatialStatistics(ConfigurableMixin):
             self.logger.info(f"Elevation statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
-            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-                legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
-                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
-                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_elv.csv"
-                # Select only the relevant column for HYPE
-                if 'elev_mean' in catchment_gdf.columns:
-                    catchment_gdf[['elev_mean']].to_csv(legacy_csv_path)
-                    self.logger.info(f"Created legacy elevation CSV for HYPE: {legacy_csv_path}")
+            if 'elev_mean' in catchment_gdf.columns:
+                self._write_legacy_stats_csv(
+                    "modified_domain_stats_elv.csv",
+                    catchment_gdf[['elev_mean']],
+                    "elevation",
+                )
 
         except Exception as e:
             self.logger.error(f"Error calculating elevation statistics: {str(e)}")
@@ -775,19 +868,11 @@ class GeospatialStatistics(ConfigurableMixin):
         output_file = intersect_path / intersect_name
 
         # Check if output already exists
+        if self._output_has_expected_columns(output_file, required_prefixes=('USGS_',)):
+            self.logger.info(f"Soil statistics file already exists: {output_file}. Skipping calculation.")
+            return
         if output_file.exists():
-            try:
-                # Verify the file is valid
-                gdf = gpd.read_file(output_file)
-                # Check for at least one USGS soil class column
-                usgs_cols = [col for col in gdf.columns if col.startswith('USGS_')]
-                if len(usgs_cols) > 0 and len(gdf) > 0:
-                    self.logger.info(f"Soil statistics file already exists: {output_file}. Skipping calculation.")
-                    return
-                else:
-                    self.logger.info(f"Existing soil statistics file {output_file} does not contain expected data. Recalculating.")
-            except Exception as e:
-                self.logger.warning(f"Error checking existing soil statistics file: {str(e)}. Recalculating.")
+            self.logger.info(f"Existing soil statistics file {output_file} does not contain expected data. Recalculating.")
 
         self.logger.info("Calculating soil statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
@@ -797,34 +882,20 @@ class GeospatialStatistics(ConfigurableMixin):
         soil_raster = self.soil_path / soil_name
 
         # Fallback for legacy naming in data bundle
-        if not soil_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-            legacy_soil = self.soil_path / "domain_Bow_at_Banff_lumped_soil_classes.tif"
-            if legacy_soil.exists():
-                legacy_soil.replace(soil_raster)
-                self.logger.info(f"Renamed legacy soil class file to {soil_name}")
+        self._migrate_legacy_bundle_raster(
+            soil_raster,
+            "domain_Bow_at_Banff_lumped_soil_classes.tif",
+        )
 
         try:
             # Get CRS information
-            with rasterio.open(soil_raster) as src:
-                soil_crs = src.crs
-                self.logger.info(f"Soil raster CRS: {soil_crs}")
-
-            shapefile_crs = catchment_gdf.crs
-            self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
-
-            # Check if CRS match and reproject if needed
-            if soil_crs != shapefile_crs:
-                self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {soil_crs}")
-                try:
-                    catchment_gdf_projected = catchment_gdf.to_crs(soil_crs)
-                    self.logger.info("CRS reprojection successful")
-                except Exception as e:
-                    self.logger.error(f"Failed to reproject CRS: {str(e)}")
-                    self.logger.warning("Using original CRS - calculation may fail")
-                    catchment_gdf_projected = catchment_gdf.copy()
-            else:
-                self.logger.info("CRS match - no reprojection needed")
-                catchment_gdf_projected = catchment_gdf.copy()
+            soil_crs = self._read_raster_crs(soil_raster, "Soil")
+            catchment_gdf_projected = self._align_catchments_to_raster_crs(
+                catchment_gdf,
+                soil_crs,
+                "Soil",
+                allow_fallback_on_error=True,
+            )
 
             # Use rasterstats with the raster array and transform
             with rasterio.open(soil_raster) as src:
@@ -870,12 +941,11 @@ class GeospatialStatistics(ConfigurableMixin):
             self.logger.info(f"Soil statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
-            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-                legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
-                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
-                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_soil_classes.csv"
-                result_df.to_csv(legacy_csv_path)
-                self.logger.info(f"Created legacy soil CSV for HYPE: {legacy_csv_path}")
+            self._write_legacy_stats_csv(
+                "modified_domain_stats_soil_classes.csv",
+                result_df,
+                "soil",
+            )
 
         except Exception as e:
             self.logger.error(f"Error calculating soil statistics: {str(e)}")
@@ -894,19 +964,11 @@ class GeospatialStatistics(ConfigurableMixin):
         output_file = intersect_path / intersect_name
 
         # Check if output already exists
+        if self._output_has_expected_columns(output_file, required_prefixes=('IGBP_',)):
+            self.logger.info(f"Land statistics file already exists: {output_file}. Skipping calculation.")
+            return
         if output_file.exists():
-            try:
-                # Verify the file is valid
-                gdf = gpd.read_file(output_file)
-                # Check for at least one IGBP land class column
-                igbp_cols = [col for col in gdf.columns if col.startswith('IGBP_')]
-                if len(igbp_cols) > 0 and len(gdf) > 0:
-                    self.logger.info(f"Land statistics file already exists: {output_file}. Skipping calculation.")
-                    return
-                else:
-                    self.logger.info(f"Existing land statistics file {output_file} does not contain expected data. Recalculating.")
-            except Exception as e:
-                self.logger.warning(f"Error checking existing land statistics file: {str(e)}. Recalculating.")
+            self.logger.info(f"Existing land statistics file {output_file} does not contain expected data. Recalculating.")
 
         self.logger.info("Calculating land statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
@@ -916,38 +978,18 @@ class GeospatialStatistics(ConfigurableMixin):
         land_raster = self.land_path / land_name
 
         # Fallback for legacy naming in data bundle
-        if not land_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-            legacy_land = self.land_path / "domain_Bow_at_Banff_lumped_land_classes.tif"
-            if legacy_land.exists():
-                legacy_land.replace(land_raster)
-                self.logger.info(f"Renamed legacy land class file to {land_name}")
+        self._migrate_legacy_bundle_raster(
+            land_raster,
+            "domain_Bow_at_Banff_lumped_land_classes.tif",
+        )
 
-        try:
-            # Get CRS information
-            with rasterio.open(land_raster) as src:
-                land_crs = src.crs
-                self.logger.info(f"Land raster CRS: {land_crs}")
-        except Exception as e:
-            self.logger.error(f"Error reading land raster CRS: {str(e)}")
-            # Default to common CRS if failed to read
-            land_crs = 'EPSG:4326'
-
-        shapefile_crs = catchment_gdf.crs
-        self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
-
-        # Check if CRS match and reproject if needed
-        if land_crs != shapefile_crs:
-            self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {land_crs}")
-            try:
-                catchment_gdf_projected = catchment_gdf.to_crs(land_crs)
-                self.logger.info("CRS reprojection successful")
-            except Exception as e:
-                self.logger.error(f"Failed to reproject CRS: {str(e)}")
-                self.logger.warning("Using original CRS - calculation may fail")
-                catchment_gdf_projected = catchment_gdf.copy()
-        else:
-            self.logger.info("CRS match - no reprojection needed")
-            catchment_gdf_projected = catchment_gdf.copy()
+        land_crs = self._read_raster_crs(land_raster, "Land", fallback='EPSG:4326')
+        catchment_gdf_projected = self._align_catchments_to_raster_crs(
+            catchment_gdf,
+            land_crs,
+            "Land",
+            allow_fallback_on_error=True,
+        )
 
         # Use rasterstats with the raster array and transform
         with rasterio.open(land_raster) as src:
@@ -994,13 +1036,11 @@ class GeospatialStatistics(ConfigurableMixin):
         self.logger.info(f"Land statistics saved to {output_file}")
 
         # Legacy compatibility: also save as CSV in gistool-outputs for HYPE/MESH
-        if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
-            legacy_csv_dir = self.project_attributes_dir / "gistool-outputs"
-            legacy_csv_dir.mkdir(parents=True, exist_ok=True)
-            legacy_csv_path = legacy_csv_dir / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv"
-            # Export simple CSV version of the result_df
-            result_df.to_csv(legacy_csv_path)
-            self.logger.info(f"Created legacy landcover CSV for HYPE/MESH: {legacy_csv_path}")
+        self._write_legacy_stats_csv(
+            "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv",
+            result_df,
+            "landcover",
+        )
 
     def run_statistics(self):
         """Run all geospatial statistics with checks for existing outputs"""
@@ -1017,18 +1057,15 @@ class GeospatialStatistics(ConfigurableMixin):
             intersect_soil_name = 'catchment_with_soilclass.shp'
 
         soil_output_file = intersect_soil_path / intersect_soil_name
-
-        if soil_output_file.exists():
-            try:
-                gdf = gpd.read_file(soil_output_file)
-                usgs_cols = [col for col in gdf.columns if col.startswith('USGS_')]
-                if len(usgs_cols) > 0 and len(gdf) > 0:
-                    self.logger.debug(f"Soil statistics already calculated: {soil_output_file}")
-                    skipped += 1
-            except Exception as e:
-                self.logger.debug(f"Could not check soil statistics file '{soil_output_file}': {e}")
-
-        if skipped < 1:
+        soil_ready = self._output_has_expected_columns(
+            soil_output_file,
+            required_prefixes=('USGS_',),
+            warn_on_error=False,
+        )
+        if soil_ready:
+            self.logger.debug(f"Soil statistics already calculated: {soil_output_file}")
+            skipped += 1
+        else:
             self.calculate_soil_stats()
 
         # Check land stats
@@ -1038,18 +1075,15 @@ class GeospatialStatistics(ConfigurableMixin):
             intersect_land_name = 'catchment_with_landclass.shp'
 
         land_output_file = intersect_land_path / intersect_land_name
-
-        if land_output_file.exists():
-            try:
-                gdf = gpd.read_file(land_output_file)
-                igbp_cols = [col for col in gdf.columns if col.startswith('IGBP_')]
-                if len(igbp_cols) > 0 and len(gdf) > 0:
-                    self.logger.debug(f"Land statistics already calculated: {land_output_file}")
-                    skipped += 1
-            except Exception as e:
-                self.logger.debug(f"Could not check land statistics file '{land_output_file}': {e}")
-
-        if skipped < 2:
+        land_ready = self._output_has_expected_columns(
+            land_output_file,
+            required_prefixes=('IGBP_',),
+            warn_on_error=False,
+        )
+        if land_ready:
+            self.logger.debug(f"Land statistics already calculated: {land_output_file}")
+            skipped += 1
+        else:
             self.calculate_land_stats()
 
         # Check elevation stats
@@ -1059,17 +1093,15 @@ class GeospatialStatistics(ConfigurableMixin):
             intersect_dem_name = 'catchment_with_dem.shp'
 
         dem_output_file = intersect_dem_path / intersect_dem_name
-
-        if dem_output_file.exists():
-            try:
-                gdf = gpd.read_file(dem_output_file)
-                if 'elev_mean' in gdf.columns and len(gdf) > 0:
-                    self.logger.debug(f"Elevation statistics already calculated: {dem_output_file}")
-                    skipped += 1
-            except Exception as e:
-                self.logger.debug(f"Could not check elevation statistics file '{dem_output_file}': {e}")
-
-        if skipped < 3:
+        elev_ready = self._output_has_expected_columns(
+            dem_output_file,
+            required_columns=('elev_mean',),
+            warn_on_error=False,
+        )
+        if elev_ready:
+            self.logger.debug(f"Elevation statistics already calculated: {dem_output_file}")
+            skipped += 1
+        else:
             self.calculate_elevation_stats()
 
         self.logger.debug(f"Geospatial statistics completed: {skipped}/{total} steps skipped, {total-skipped}/{total} steps executed")
