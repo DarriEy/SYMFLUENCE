@@ -264,7 +264,7 @@ class AcquisitionService(ConfigurableMixin):
                         else:
                             raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
 
-                    elif dem_source == 'copdem90':
+                    elif dem_source in ('copdem90', 'copernicus_90'):
                         self.logger.info("Acquiring Copernicus DEM GLO-90 (90m) from AWS")
                         elev_file = downloader.download_copernicus_dem_90()
                         self.logger.info(f"✓ Copernicus DEM GLO-90 acquired: {elev_file}")

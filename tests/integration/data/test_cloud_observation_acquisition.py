@@ -81,8 +81,8 @@ def test_usgs_streamflow_acquisition(mock_config, mock_usgs_response):
 
     # Verify results
     project_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / f"domain_{mock_config['DOMAIN_NAME']}"
-    raw_file = project_dir / "observations" / "streamflow" / "raw_data" / "usgs_06306300_raw.rdb"
-    processed_file = project_dir / "observations" / "streamflow" / "preprocessed" / f"{mock_config['DOMAIN_NAME']}_streamflow_processed.csv"
+    raw_file = project_dir / "data" / "observations" / "streamflow" / "raw_data" / "usgs_06306300_raw.rdb"
+    processed_file = project_dir / "data" / "observations" / "streamflow" / "preprocessed" / f"{mock_config['DOMAIN_NAME']}_streamflow_processed.csv"
 
     assert raw_file.exists(), f"Raw USGS file not found at {raw_file}"
     assert processed_file.exists(), f"Processed USGS file not found at {processed_file}"
@@ -138,7 +138,7 @@ def test_usgs_groundwater_acquisition(mock_config):
 
         dm.process_observed_data()
 
-    processed_path = Path(gw_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "groundwater" / "test_domain_groundwater_processed.csv"
+    processed_path = Path(gw_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "groundwater" / "test_domain_groundwater_processed.csv"
 
     assert processed_path.exists(), f"Processed USGS GW file not found at {processed_path}"
 
@@ -220,7 +220,7 @@ def test_provo_usgs_full_e2e(tmp_path):
 
     # Verify results
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
 
     assert processed_file.exists(), f"Processed USGS file not found at {processed_file}"
 
@@ -290,7 +290,7 @@ def test_wsc_geomet_full_e2e(tmp_path):
     sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
 
     assert processed_file.exists(), "Processed WSC file not found"
     df = pd.read_csv(processed_file)
@@ -388,7 +388,7 @@ def test_usgs_gw_full_e2e(tmp_path):
         sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "groundwater" / f"{config_data['DOMAIN_NAME']}_groundwater_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "groundwater" / f"{config_data['DOMAIN_NAME']}_groundwater_processed.csv"
 
     assert processed_file.exists(), "Processed USGS GW file not found"
     df = pd.read_csv(processed_file)
@@ -404,7 +404,7 @@ def test_grace_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_grace")
 
     # 1. Create a mock GRACE NetCDF file
-    grace_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "grace"
+    grace_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "grace"
     grace_dir.mkdir(parents=True, exist_ok=True)
     mock_grace_file = grace_dir / "GRACE_JPL_test.nc"
 
@@ -425,7 +425,7 @@ def test_grace_acquisition_and_processing(mock_config, tmp_path):
     ds.to_netcdf(mock_grace_file)
 
     # 2. Create a mock catchment shapefile (required by GRACEHandler)
-    catchment_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "shapefiles" / "catchment"
+    catchment_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "shapefiles" / "catchment"
     catchment_dir.mkdir(parents=True, exist_ok=True)
     catchment_shp = catchment_dir / "test_domain_catchment.shp"
 
@@ -449,7 +449,7 @@ def test_grace_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # 5. Verify results
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "grace" / "preprocessed" / "test_domain_grace_tws_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "grace" / "preprocessed" / "test_domain_grace_tws_processed.csv"
 
     assert processed_file.exists(), "Processed GRACE file not found"
     df = pd.read_csv(processed_file)
@@ -467,7 +467,7 @@ def test_modis_snow_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_modis")
 
     # 1. Create a mock MODIS NetCDF file
-    snow_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "raw"
+    snow_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "raw"
     snow_dir.mkdir(parents=True, exist_ok=True)
     mock_snow_file = snow_dir / "test_domain_MOD10A1.006_raw.nc"
 
@@ -506,7 +506,7 @@ def test_smap_acquisition_and_processing(mock_config, tmp_path):
 
     logger = logging.getLogger("test_smap")
 
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "smap"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "soil_moisture" / "smap"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "smap_test.nc"
 
@@ -524,7 +524,7 @@ def test_smap_acquisition_and_processing(mock_config, tmp_path):
     dm.acquire_observations()
     dm.process_observed_data()
 
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "preprocessed" / "test_domain_smap_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "soil_moisture" / "preprocessed" / "test_domain_smap_processed.csv"
     assert processed_file.exists()
     df = pd.read_csv(processed_file)
     assert 'soil_moisture' in df.columns
@@ -537,7 +537,7 @@ def test_esa_cci_sm_acquisition_and_processing(mock_config, tmp_path):
 
     logger = logging.getLogger("test_esa")
 
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "esa_cci"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "soil_moisture" / "esa_cci"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "esa_test.nc"
 
@@ -565,7 +565,7 @@ def test_fluxcom_et_acquisition_and_processing(mock_config, tmp_path):
 
     logger = logging.getLogger("test_fluxcom")
 
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "fluxcom"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "fluxcom"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "fluxcom_test.nc"
 
@@ -583,7 +583,7 @@ def test_fluxcom_et_acquisition_and_processing(mock_config, tmp_path):
     dm.acquire_observations()
     dm.process_observed_data()
 
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "preprocessed" / "test_domain_fluxcom_et_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "preprocessed" / "test_domain_fluxcom_et_processed.csv"
     assert processed_file.exists()
     df = pd.read_csv(processed_file)
     assert 'ET' in df.columns
@@ -598,7 +598,7 @@ def test_gpm_imerg_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_gpm")
 
     # Create mock GPM IMERG NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "precipitation" / "gpm_imerg"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "precipitation" / "gpm_imerg"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_GPM_IMERG_final_raw.nc"
 
@@ -635,7 +635,7 @@ def test_gpm_imerg_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify output
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "precipitation" / "preprocessed" / "test_domain_gpm_imerg_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "precipitation" / "preprocessed" / "test_domain_gpm_imerg_processed.csv"
 
     assert processed_file.exists(), f"Processed GPM file not found at {processed_file}"
     df = pd.read_csv(processed_file)
@@ -713,7 +713,7 @@ def test_gpm_imerg_live_acquisition(tmp_path):
     sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "precipitation" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_gpm_imerg_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "precipitation" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_gpm_imerg_processed.csv"
 
     assert processed_file.exists(), "Processed GPM IMERG file not found"
     df = pd.read_csv(processed_file)
@@ -731,7 +731,7 @@ def test_chirps_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_chirps")
 
     # Create mock CHIRPS NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "precipitation" / "chirps"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "precipitation" / "chirps"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_CHIRPS_daily_raw.nc"
 
@@ -769,7 +769,7 @@ def test_chirps_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify output
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "precipitation" / "preprocessed" / "test_domain_chirps_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "precipitation" / "preprocessed" / "test_domain_chirps_processed.csv"
 
     assert processed_file.exists(), f"Processed CHIRPS file not found at {processed_file}"
     df = pd.read_csv(processed_file)
@@ -836,7 +836,7 @@ def test_chirps_live_acquisition(tmp_path):
     sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "precipitation" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_chirps_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "precipitation" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_chirps_processed.csv"
 
     assert processed_file.exists(), "Processed CHIRPS file not found"
     df = pd.read_csv(processed_file)
@@ -854,7 +854,7 @@ def test_snodas_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_snodas")
 
     # Create mock SNODAS NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "snodas"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "snodas"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_SNODAS_swe_raw.nc"
 
@@ -893,7 +893,7 @@ def test_snodas_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify output
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "preprocessed" / "test_domain_snodas_swe_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "preprocessed" / "test_domain_snodas_swe_processed.csv"
 
     assert processed_file.exists(), f"Processed SNODAS file not found at {processed_file}"
     df = pd.read_csv(processed_file)
@@ -960,7 +960,7 @@ def test_snodas_live_acquisition(tmp_path):
     sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "snow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_snodas_swe_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "snow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_snodas_swe_processed.csv"
 
     assert processed_file.exists(), "Processed SNODAS file not found"
     df = pd.read_csv(processed_file)
@@ -978,7 +978,7 @@ def test_jrc_water_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_jrc")
 
     # Create mock JRC GeoTIFF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "surface_water" / "jrc"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "surface_water" / "jrc"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_JRC_occurrence_merged.tif"
 
@@ -1020,7 +1020,7 @@ def test_jrc_water_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify output
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "surface_water" / "preprocessed" / "test_domain_jrc_occurrence_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "surface_water" / "preprocessed" / "test_domain_jrc_occurrence_processed.csv"
 
     assert processed_file.exists(), f"Processed JRC file not found at {processed_file}"
     df = pd.read_csv(processed_file)
@@ -1037,7 +1037,7 @@ def test_ssebop_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_ssebop")
 
     # Create mock SSEBop NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "ssebop"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "ssebop"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_SSEBop_conus_daily_raw.nc"
 
@@ -1098,7 +1098,7 @@ def test_gleam_et_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_gleam")
 
     # Create mock GLEAM NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "gleam"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "gleam"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "E_2020_GLEAM_v3.6a_daily.nc"
 
@@ -1131,7 +1131,7 @@ def test_gleam_et_acquisition_and_processing(mock_config, tmp_path):
     dm.acquire_observations()
     dm.process_observed_data()
 
-    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "preprocessed" / "test_domain_gleam_et_processed.csv"
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "preprocessed" / "test_domain_gleam_et_processed.csv"
 
     assert processed_file.exists(), f"Processed GLEAM file not found at {processed_file}"
     df = pd.read_csv(processed_file)
@@ -1147,7 +1147,7 @@ def test_modis_et_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_modis_et")
 
     # Create mock MODIS ET NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "modis"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "modis"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_MOD16A2_raw.nc"
 
@@ -1183,7 +1183,7 @@ def test_modis_et_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Check for output file
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "preprocessed"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "et" / "preprocessed"
     processed_files = list(processed_dir.glob("*modis*.csv")) + list(processed_dir.glob("*mod16*.csv"))
     assert len(processed_files) > 0 or processed_dir.exists(), "MODIS ET processing directory should exist"
 
@@ -1197,7 +1197,7 @@ def test_modis_sca_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_modis_sca")
 
     # Create mock MODIS SCA NetCDF file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "raw"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "raw"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "test_domain_MOD10A1_merged.nc"
 
@@ -1231,7 +1231,7 @@ def test_modis_sca_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify processing occurred
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "preprocessed"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "preprocessed"
     assert processed_dir.exists() or obs_dir.exists(), "MODIS SCA output directory should exist"
 
 
@@ -1267,7 +1267,7 @@ def test_smhi_streamflow_acquisition_and_processing(mock_config, tmp_path):
         dm.process_observed_data()
 
     # Check output exists or handler ran
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "streamflow"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "streamflow"
     assert processed_dir.exists() or True, "SMHI streamflow handler should have run"
 
 
@@ -1277,7 +1277,7 @@ def test_snotel_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_snotel")
 
     # Create mock SNOTEL CSV file (NRCS format)
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow" / "swe" / "raw"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow" / "swe" / "raw"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "snotel_raw.csv"
 
@@ -1306,7 +1306,7 @@ def test_snotel_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Verify handler ran
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "snow"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "snow"
     assert processed_dir.exists(), "SNOTEL processing directory should exist"
 
 
@@ -1316,7 +1316,7 @@ def test_ismn_soil_moisture_acquisition_and_processing(mock_config, tmp_path):
     logger = logging.getLogger("test_ismn")
 
     # Create mock ISMN station file
-    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "ismn"
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "soil_moisture" / "ismn"
     obs_dir.mkdir(parents=True, exist_ok=True)
     mock_file = obs_dir / "station_001.csv"
 
@@ -1342,7 +1342,7 @@ def test_ismn_soil_moisture_acquisition_and_processing(mock_config, tmp_path):
     dm.process_observed_data()
 
     # Check for processed output
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations" / "soil_moisture"
     processed_files = list(processed_dir.rglob("*ismn*.csv"))
     assert len(processed_files) > 0 or processed_dir.exists(), "ISMN processing should create output"
 
@@ -1392,7 +1392,7 @@ def test_ggmn_groundwater_acquisition_and_processing(mock_config, tmp_path):
             logger.warning(f"GGMN test completed with: {e}")
 
     # Verify handler was invoked
-    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations"
+    processed_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "data" / "observations"
     assert processed_dir.exists(), "Observations directory should exist"
 
 
@@ -1499,7 +1499,7 @@ def test_smhi_live_acquisition(tmp_path):
     sym.managers['data'].process_observed_data()
 
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
-    processed_file = project_dir / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
+    processed_file = project_dir / "data" / "observations" / "streamflow" / "preprocessed" / f"{config_data['DOMAIN_NAME']}_streamflow_processed.csv"
 
     assert processed_file.exists(), "Processed SMHI file not found"
     df = pd.read_csv(processed_file)
