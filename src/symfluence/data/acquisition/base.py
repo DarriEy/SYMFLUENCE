@@ -155,3 +155,17 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
             config=self.config_dict,
             alt_hostnames=['earthdata.nasa.gov', 'appeears.earthdatacloud.nasa.gov']
         )
+
+    def _get_earthdata_token(self) -> Optional[str]:
+        """
+        Get NASA Earthdata Bearer token.
+
+        Checks in order:
+        1. EARTHDATA_TOKEN environment variable
+        2. Config settings (EARTHDATA_TOKEN key)
+
+        Returns:
+            Token string, or None if not found
+        """
+        from .utils import resolve_earthdata_token
+        return resolve_earthdata_token(config=self.config_dict)

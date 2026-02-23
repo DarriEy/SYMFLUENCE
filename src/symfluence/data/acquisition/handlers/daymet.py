@@ -47,6 +47,27 @@ class _EarthdataSession(requests.Session):
             prepared_request.prepare_auth(self._earthdata_auth)
 
 
+class _EarthdataTokenSession(requests.Session):
+    """Session that uses a NASA Earthdata Bearer token for authentication.
+
+    NASA Earthdata supports token-based access as an alternative to the
+    username/password OAuth redirect flow.  The token is sent as a Bearer
+    ``Authorization`` header and re-applied on redirects to URS so it
+    survives the same cross-host redirect that strips default headers.
+    """
+
+    def __init__(self, token: str):
+        super().__init__()
+        self.headers.update({'Authorization': f'Bearer {token}'})
+        self._token = token
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        host = urlparse(prepared_request.url).hostname or ''
+        if host.endswith('.earthdata.nasa.gov') or host.endswith('.ornl.gov'):
+            prepared_request.headers['Authorization'] = f'Bearer {self._token}'
+
+
 @AcquisitionRegistry.register('DAYMET')
 class DaymetAcquirer(BaseAcquisitionHandler):
     """
@@ -220,15 +241,24 @@ class DaymetAcquirer(BaseAcquisitionHandler):
     def _get_earthdata_session(self) -> requests.Session:
         """Build an authenticated requests session for ORNL DAAC / Earthdata.
 
-        ORNL DAAC THREDDS redirects to ``urs.earthdata.nasa.gov`` for OAuth.
-        A plain ``session.auth`` sends credentials to every host in the
-        redirect chain (including the OAuth callback on opendap.earthdata),
-        which breaks the flow.  :class:`_EarthdataSession` overrides
-        ``rebuild_auth`` so credentials are only sent to URS itself.
+        Tries authentication methods in order of preference:
+
+        1. **Bearer token** (``EARTHDATA_TOKEN`` env var or config key) —
+           most reliable, avoids the URS OAuth redirect issues that can
+           occur with username/password credentials.
+        2. **Username/password** from ``~/.netrc``, env vars, or config —
+           uses the ``_EarthdataSession`` redirect-aware session.
 
         Returns:
             A :class:`requests.Session` (authenticated when credentials exist).
         """
+        # 1. Try Bearer token first (most reliable)
+        token = self._get_earthdata_token()
+        if token:
+            self.logger.debug("Using Earthdata Bearer token for ORNL DAAC session")
+            return _EarthdataTokenSession(token)
+
+        # 2. Fall back to username/password
         username, password = self._get_earthdata_credentials()
         if username and password:
             return _EarthdataSession(username, password)
@@ -236,14 +266,18 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         self.logger.warning(
             "No NASA Earthdata credentials found. ORNL DAAC requires "
             "authentication for gridded Daymet downloads.\n"
-            "To set up credentials, create a ~/.netrc file with:\n"
+            "To set up authentication, either:\n"
             "\n"
-            "  machine urs.earthdata.nasa.gov\n"
-            "  login <your_earthdata_username>\n"
-            "  password <your_earthdata_password>\n"
+            "  1. Set a Bearer token (recommended):\n"
+            "     export EARTHDATA_TOKEN=<your_token>\n"
+            "     Generate at: https://urs.earthdata.nasa.gov → My Profile → Generate Token\n"
             "\n"
-            "Register for a free account at https://urs.earthdata.nasa.gov/users/new\n"
-            "Alternatively set EARTHDATA_USERNAME and EARTHDATA_PASSWORD env vars."
+            "  2. Or create a ~/.netrc file with:\n"
+            "     machine urs.earthdata.nasa.gov\n"
+            "     login <your_earthdata_username>\n"
+            "     password <your_earthdata_password>\n"
+            "\n"
+            "Register for a free account at https://urs.earthdata.nasa.gov/users/new"
         )
         return requests.Session()
 
