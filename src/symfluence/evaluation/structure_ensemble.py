@@ -168,10 +168,15 @@ class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
                 )
 
             except Exception as e:
-                self.logger.error(f"Error in combination {i}: {str(e)}")
+                self.logger.error(
+                    f"Error in combination {i} ({type(e).__name__}): {str(e)}"
+                )
                 with open(self.master_file, 'a', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
-                    writer.writerow([i] + list(combination) + ['erroneous combination'])
+                    writer.writerow(
+                        [i] + list(combination) +
+                        [np.nan, np.nan, np.nan, np.nan, np.nan]
+                    )
 
         self.logger.info("Structure ensemble analysis completed")
         return self.master_file

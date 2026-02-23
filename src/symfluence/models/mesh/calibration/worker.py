@@ -5,6 +5,7 @@ Worker implementation for MESH model optimization.
 """
 
 import logging
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -417,13 +418,25 @@ class MESHWorker(BaseWorker):
             kge_result = kge(obs_aligned, sim_aligned, transfo=1, return_components=True)
             nse_val = nse(obs_aligned, sim_aligned, transfo=1)
 
+            # Log-transformed KGE for composite objective support
+            kge_log_val = float('nan')
+            try:
+                epsilon = 0.01 * np.mean(obs_aligned[obs_aligned > 0]) if np.any(obs_aligned > 0) else 0.01
+                obs_log = np.log(obs_aligned + epsilon)
+                sim_log = np.log(np.maximum(sim_aligned, 0) + epsilon)
+                valid_log = np.isfinite(obs_log) & np.isfinite(sim_log)
+                if np.sum(valid_log) > 10:
+                    kge_log_val = float(kge(obs_log[valid_log], sim_log[valid_log], transfo=1))
+            except Exception:
+                pass
+
             self.logger.debug(
                 f"MESH metrics (n={len(obs_aligned)}): "
                 f"KGE={kge_result['KGE']:.4f} "  # type: ignore[index]
                 f"(r={kge_result['r']:.3f}, "  # type: ignore[index]
                 f"alpha={kge_result['alpha']:.3f}, "  # type: ignore[index]
                 f"beta={kge_result['beta']:.3f}), "  # type: ignore[index]
-                f"NSE={nse_val:.4f}"
+                f"NSE={nse_val:.4f}, KGE_log={kge_log_val:.4f}"
             )
 
             return {
@@ -432,6 +445,7 @@ class MESHWorker(BaseWorker):
                 'r': float(kge_result['r']),  # type: ignore[index]
                 'alpha': float(kge_result['alpha']),  # type: ignore[index]
                 'beta': float(kge_result['beta']),  # type: ignore[index]
+                'kge_log': kge_log_val,
             }
 
         except FileNotFoundError as e:

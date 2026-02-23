@@ -18,6 +18,26 @@ from symfluence.optimization.core.base_parameter_manager import BaseParameterMan
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
 from symfluence.optimization.registry import OptimizerRegistry
 
+# Mapping of FUSE decisions to the parameters they require for meaningful calibration.
+# If a decision is active but its required params are not being calibrated, the model
+# structure effectively has uncalibrated degrees of freedom (poisoned pathways).
+DECISION_REQUIRED_PARAMS = {
+    # TOPMODEL surface runoff needs LOGLAMB (log of topographic index) and TISHAPE
+    'tmdl_param': {'LOGLAMB', 'TISHAPE'},
+    # Interflow requires IFLWRTE (interflow rate)
+    'intflwsome': {'IFLWRTE'},
+    # Gamma routing needs TIMEDELAY
+    'rout_gamma': {'TIMEDELAY'},
+    # Temperature index snow model needs MBASE, MFMAX, MFMIN, PXTEMP
+    'temp_index': {'MBASE', 'MFMAX', 'MFMIN', 'PXTEMP'},
+    # Percolation from field capacity to saturation needs PERCRTE, PERCEXP
+    'perc_f2sat': {'PERCRTE', 'PERCEXP'},
+    # Percolation from wilting point to saturation needs PERCRTE, PERCEXP
+    'perc_w2sat': {'PERCRTE', 'PERCEXP'},
+    # SAC-style lower-layer percolation needs PERCRTE
+    'perc_lower': {'PERCRTE'},
+}
+
 
 @OptimizerRegistry.register_parameter_manager('FUSE')
 class FUSEParameterManager(BaseParameterManager):
@@ -503,10 +523,69 @@ class FUSEParameterManager(BaseParameterManager):
 
         return params
 
-    # ========================================================================
-    # NOTE: The following methods are now inherited from BaseParameterManager:
-    # - normalize_parameters()
-    # - denormalize_parameters()
-    # - validate_parameters()
-    # These shared implementations eliminate ~90 lines of duplicated code!
-    # ========================================================================
+    def validate_params_for_decisions(self, decisions_path: Path) -> List[str]:
+        """
+        Validate that calibrated parameters cover the active model decisions.
+
+        Reads the FUSE decisions file, checks each active decision against
+        DECISION_REQUIRED_PARAMS, and warns if required parameters are missing
+        from the calibration set.
+
+        Args:
+            decisions_path: Path to the fuse_zDecisions_*.txt file
+
+        Returns:
+            List of warning messages (empty if all OK)
+        """
+        warnings_list: List[str] = []
+
+        if not decisions_path.exists():
+            self.logger.debug(f"Decisions file not found for validation: {decisions_path}")
+            return warnings_list
+
+        # Parse active decisions from the file
+        active_decisions = {}
+        try:
+            with open(decisions_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            # Lines 2-10 (1-indexed) contain decisions: "value KEY ! comment"
+            for line in lines[1:10]:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    decision_value = parts[0]
+                    decision_key = parts[1]
+                    active_decisions[decision_key] = decision_value
+        except Exception as e:
+            self.logger.debug(f"Could not parse decisions file: {e}")
+            return warnings_list
+
+        calibrated_params = set(self.fuse_params)
+
+        for decision_key, decision_value in active_decisions.items():
+            required = DECISION_REQUIRED_PARAMS.get(decision_value)
+            if required:
+                missing = required - calibrated_params
+                if missing:
+                    msg = (
+                        f"Decision {decision_key}={decision_value} requires parameters "
+                        f"{missing} but they are not being calibrated. "
+                        f"This may cause poor model performance."
+                    )
+                    warnings_list.append(msg)
+                    self.logger.warning(f"FUSE decision-param mismatch: {msg}")
+
+            # Warn about no_snowmod for catchments with snow params configured
+            if decision_value == 'no_snowmod':
+                snow_params_in_calibration = calibrated_params & {
+                    'MBASE', 'MFMAX', 'MFMIN', 'PXTEMP', 'LAPSE'
+                }
+                if snow_params_in_calibration:
+                    msg = (
+                        f"SNOWM=no_snowmod but snow parameters {snow_params_in_calibration} "
+                        f"are being calibrated. This is likely wrong for a catchment with "
+                        f"snow processes. Consider using SNOWM=temp_index."
+                    )
+                    warnings_list.append(msg)
+                    self.logger.warning(f"FUSE snow mismatch: {msg}")
+
+        return warnings_list

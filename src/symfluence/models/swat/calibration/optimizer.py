@@ -82,6 +82,10 @@ class SWATModelOptimizer(BaseModelOptimizer):
         applies the best parameters there, and runs SWAT.  This mirrors
         what calibration workers do and avoids running in the template
         settings directory which only contains empty forcing stubs.
+
+        The SWAT arm64 binary is non-deterministic due to uninitialised
+        Fortran variables, so we allow extra retries for the final
+        evaluation (controlled by SWAT_FINAL_EVAL_RETRIES, default 10).
         """
         best_result = self.get_best_result()
         best_params = best_result.get('params')
@@ -90,20 +94,33 @@ class SWATModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
 
-        # Apply parameters to output_dir — this copies fresh settings +
-        # forcing files into output_dir then modifies parameters in-place,
-        # keeping the template settings/SWAT/ directory untouched.
-        self.worker.apply_parameters(
-            best_params, output_dir, config=self.config
-        )
+        max_retries = int(self.config.get('SWAT_FINAL_EVAL_RETRIES', 10))
 
-        success = self.worker.run_model(
-            self.config,
-            output_dir,
-            output_dir
-        )
+        # Temporarily raise the per-run retry budget for the final eval
+        original_retries = self.config.get('SWAT_MAX_RETRIES')
+        self.config['SWAT_MAX_RETRIES'] = max_retries
 
-        return success
+        try:
+            # Apply parameters to output_dir — this copies fresh settings +
+            # forcing files into output_dir then modifies parameters in-place,
+            # keeping the template settings/SWAT/ directory untouched.
+            self.worker.apply_parameters(
+                best_params, output_dir, config=self.config
+            )
+
+            success = self.worker.run_model(
+                self.config,
+                output_dir,
+                output_dir
+            )
+
+            return success
+        finally:
+            # Restore original retry setting
+            if original_retries is None:
+                self.config.pop('SWAT_MAX_RETRIES', None)
+            else:
+                self.config['SWAT_MAX_RETRIES'] = original_retries
 
     def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
         """Run final evaluation using SWAT worker metrics instead of base evaluator."""

@@ -1049,14 +1049,16 @@ class BaseModelOptimizer(
                 lambda: self.config.optimization.nsga2.multi_target, default=False
             ))
 
-        # For MOEA/D, add multi-objective support
+        # For MOEA/D, add multi-objective support only when explicitly enabled
         if algorithm_name.lower() in ['moead', 'moea-d', 'moea_d']:
-            kwargs['evaluate_population_objectives'] = self._evaluate_population_objectives
-            kwargs['objective_names'] = self._get_moead_objective_names()
-            kwargs['multiobjective'] = bool(self._get_config_value(
+            moead_multi = bool(self._get_config_value(
                 lambda: self.config.optimization.moead_multi_target, default=False,
                 dict_key='MOEAD_MULTI_TARGET'
             ))
+            kwargs['multiobjective'] = moead_multi
+            if moead_multi:
+                kwargs['evaluate_population_objectives'] = self._evaluate_population_objectives
+                kwargs['objective_names'] = self._get_moead_objective_names()
 
         # For gradient-based algorithms (Adam, L-BFGS), add native gradient support
         if algorithm_name.lower() in ['adam', 'lbfgs']:

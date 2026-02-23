@@ -69,6 +69,9 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
+        # Validate that calibrated params match active decisions
+        self._validate_decision_param_consistency()
+
         self.logger.debug("FUSEModelOptimizer initialized")
 
     def _get_fuse_executable_path_pre_init(self, config) -> Path:
@@ -93,6 +96,24 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             self.logger,
             self.fuse_setup_dir
         )
+
+    def _validate_decision_param_consistency(self) -> None:
+        """Validate that calibrated parameters cover active FUSE decisions."""
+        try:
+            fuse_id = self._get_config_value(
+                lambda: self.config.model.fuse.file_id,
+                dict_key='FUSE_FILE_ID'
+            ) or self.experiment_id
+            decisions_path = self.fuse_setup_dir / f"fuse_zDecisions_{fuse_id}.txt"
+            if hasattr(self, 'param_manager') and self.param_manager is not None:
+                warnings = self.param_manager.validate_params_for_decisions(decisions_path)
+                if warnings:
+                    self.logger.warning(
+                        f"FUSE decision-parameter validation found {len(warnings)} issue(s). "
+                        f"Calibration will proceed, but results may be suboptimal."
+                    )
+        except Exception as e:
+            self.logger.debug(f"Decision-param validation skipped: {e}")
 
     def _create_para_def_nc(self, param_file: Path) -> bool:
         """
@@ -706,10 +727,18 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         return self._find_complete_fuse_template()
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
-        """Run FUSE for final evaluation."""
+        """Run FUSE for final evaluation.
+
+        Uses run_pre mode which reads all parameters from para_def.nc.
+        The para_def.nc must have been prepared with correct non-calibrated
+        parameters (including derived params like POWLAMB, MAXPOW) and
+        numerics settings before calling this method.
+
+        Note: run_def mode would be preferable (recomputes derived params
+        from constraints) but is broken in many FUSE builds due to
+        NC_UNLIMITED conflicts in NETCDF3_CLASSIC format.
+        """
         self._copy_default_initial_params_to_sce()
-        # Use run_pre mode to preserve elevation band parameters in para_def.nc
-        # run_def mode regenerates para_def.nc and can overwrite AF01, Z_MID01 to 0
         return self.worker.run_model(
             self.config,
             self.fuse_setup_dir,
@@ -724,8 +753,85 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             fuse_fm = 'fm_catch.txt'
         return self.fuse_setup_dir / fuse_fm
 
+    def _transfer_sce_to_para_def(self) -> None:
+        """
+        Transfer SCE-optimized non-calibrated parameters from para_sce.nc to para_def.nc.
+
+        When FUSE runs calib_sce (internal SCE calibration), it optimizes ALL parameters
+        and writes results to para_sce.nc. However, external DDS calibration only updates
+        the user-specified calibration parameters. Non-calibrated parameters (LOGLAMB,
+        TISHAPE, IFLWRTE, etc.) remain at their initial defaults in para_def.nc.
+
+        This method reads para_sce.nc and copies non-calibrated parameter values to
+        para_def.nc, so DDS starts with SCE-seeded values for all parameters.
+        """
+        try:
+            import netCDF4 as nc
+
+            fuse_id = self._get_config_value(
+                lambda: self.config.model.fuse.file_id,
+                dict_key='FUSE_FILE_ID'
+            ) or self.experiment_id
+
+            para_sce_path = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_sce.nc"
+            para_def_path = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
+
+            if not para_sce_path.exists() or not para_def_path.exists():
+                self.logger.debug(
+                    "SCE→DDS transfer skipped: para_sce.nc or para_def.nc not found"
+                )
+                return
+
+            # Get the set of calibrated parameter names
+            calibrated_params = set()
+            if hasattr(self, 'param_manager') and self.param_manager is not None:
+                calibrated_params = set(self.param_manager.all_param_names)
+
+            transferred = []
+            with nc.Dataset(para_sce_path, 'r') as ds_sce:
+                with nc.Dataset(para_def_path, 'r+') as ds_def:
+                    if 'par' not in ds_sce.dimensions or ds_sce.dimensions['par'].size == 0:
+                        return
+                    if 'par' not in ds_def.dimensions or ds_def.dimensions['par'].size == 0:
+                        return
+
+                    for var_name in ds_sce.variables:
+                        if var_name == 'par':
+                            continue
+                        # Only transfer non-calibrated params (DDS handles calibrated ones)
+                        if var_name in calibrated_params:
+                            continue
+                        if var_name not in ds_def.variables:
+                            continue
+
+                        sce_val = float(ds_sce.variables[var_name][0])
+                        def_val = float(ds_def.variables[var_name][0])
+
+                        # Only transfer if SCE has a meaningful value and def is different
+                        if sce_val != 0.0 and abs(sce_val - def_val) > 1e-6:
+                            ds_def.variables[var_name][0] = sce_val
+                            transferred.append((var_name, def_val, sce_val))
+
+                    ds_def.sync()
+
+            if transferred:
+                self.logger.info(
+                    f"SCE→DDS transfer: copied {len(transferred)} non-calibrated params "
+                    f"from para_sce.nc to para_def.nc"
+                )
+                for name, old_val, new_val in transferred[:10]:
+                    self.logger.debug(f"  {name}: {old_val:.4f} → {new_val:.4f}")
+            else:
+                self.logger.debug("SCE→DDS transfer: no parameters needed updating")
+
+        except Exception as e:
+            self.logger.warning(f"SCE→DDS parameter transfer failed (non-fatal): {e}")
+
     def _setup_parallel_dirs(self) -> None:
         """Setup FUSE-specific parallel directories."""
+        # Transfer SCE-optimized non-calibrated params to para_def.nc before copying
+        self._transfer_sce_to_para_def()
+
         # Use algorithm-specific directory (consistent with SUMMA)
         algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
