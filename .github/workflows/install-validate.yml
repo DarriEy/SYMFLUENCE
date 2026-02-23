@@ -170,15 +170,18 @@ jobs:
           # Install test dependencies (pytest moved to optional deps)
           pip install -e ".[test]"
 
-          # Use pip wheels for h5py and netCDF4 (NOT source builds).
-          # Source builds against system libnetcdf fail on Ubuntu 24.04 because
-          # libnetcdf 4.9.2 is built with PnetCDF dispatch and the resulting
+          # Force-reinstall h5py and netCDF4 from pip wheels (NOT source builds).
+          # The bootstrap script's setup_netcdf_environment() adds system HDF5
+          # paths to LD_LIBRARY_PATH, then rebuild_hdf5_packages() rebuilds
+          # netCDF4 from source against the system libnetcdf. On Ubuntu 24.04,
+          # libnetcdf 4.9.2 includes PnetCDF dispatch and the source-built
           # _netCDF4.so can't resolve pfnc_inq_vardimid at import time.
           # Pip wheels bundle their own compatible HDF5/netCDF-C libraries.
           # Dual-loading is avoided because:
           #   - Fortran binaries (SUMMA, mizuRoute) run as separate subprocesses
-          #   - LD_LIBRARY_PATH does NOT include system HDF5 paths (see notes below)
+          #   - LD_LIBRARY_PATH does NOT include system HDF5 paths at test time
           #   - Wheel RUNPATH correctly resolves to bundled libraries
+          pip install --force-reinstall --only-binary :all: h5py netCDF4
 
 
       - name: Add external tools to PATH
@@ -579,6 +582,10 @@ jobs:
           # Install test dependencies (pytest moved to optional deps)
           source venv/bin/activate
           pip install -e ".[test]"
+
+          # Force wheel-based h5py/netCDF4 (bootstrap may have rebuilt from source
+          # against system libnetcdf which has PnetCDF — causes pfnc_inq_vardimid)
+          pip install --force-reinstall --only-binary :all: h5py netCDF4
 
       - name: Add external tools to PATH
         run: |
