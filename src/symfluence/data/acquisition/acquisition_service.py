@@ -334,7 +334,10 @@ class AcquisitionService(ConfigurableMixin):
 
                         if self.reporting_manager and lc_file and lc_file.exists():
                             self.reporting_manager.visualize_spatial_coverage(lc_file, 'land_class', 'acquisition')
-                    except Exception as e_lc:
+                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e_lc:
+                        self.logger.error(f"Land cover acquisition failed: {e_lc}")
+                        raise
+                    except (ImportError, AttributeError, IndexError) as e_lc:
                         self.logger.error(f"Land cover acquisition failed: {e_lc}")
                         raise
                 else:
@@ -346,14 +349,18 @@ class AcquisitionService(ConfigurableMixin):
                     try:
                         glacier_file = downloader.download_glacier_data()
                         self.logger.info(f"✓ Glacier data acquired: {glacier_file}")
-                    except Exception as e_glacier:
+                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e_glacier:
+                        self.logger.warning(f"Glacier data acquisition failed: {e_glacier}")
+                        # Don't raise - glacier data is optional
+                    except (ImportError, AttributeError, IndexError) as e_glacier:
                         self.logger.warning(f"Glacier data acquisition failed: {e_glacier}")
                         # Don't raise - glacier data is optional
 
-            except Exception as e:
-                self.logger.error(f"Error during cloud attribute acquisition: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
+            except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                self.logger.error(f"Error during cloud attribute acquisition: {e}")
+                raise
+            except (ImportError, AttributeError, IndexError) as e:
+                self.logger.error(f"Error during cloud attribute acquisition: {e}")
                 raise
 
         else:
@@ -383,13 +390,16 @@ class AcquisitionService(ConfigurableMixin):
                         soil_file = soilclass_dir / f"domain_{self.domain_name}_soil_classes.tif"
                         if soil_file.exists():
                             self.reporting_manager.visualize_spatial_coverage(soil_file, 'soil_class', 'acquisition')
-                    except Exception as e_viz:
+                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e_viz:
+                        self.logger.warning(f"Failed to visualize MAF attributes: {e_viz}")
+                    except (ImportError, AttributeError, IndexError) as e_viz:
                         self.logger.warning(f"Failed to visualize MAF attributes: {e_viz}")
 
-            except Exception as e:
-                self.logger.error(f"Error during attribute acquisition: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
+            except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                self.logger.error(f"Error during attribute acquisition: {e}")
+                raise
+            except (ImportError, AttributeError, IndexError) as e:
+                self.logger.error(f"Error during attribute acquisition: {e}")
                 raise
 
     def _acquire_elevation_data(self, gistool_runner, output_dir: Path, lat_lims: str, lon_lims: str):
@@ -466,7 +476,7 @@ class AcquisitionService(ConfigurableMixin):
                 if "time" not in ds:
                     return False
                 actual_times = pd.to_datetime(ds["time"].values)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
             self.logger.warning(f"Failed to validate cached forcing file {cached_file}: {exc}")
             return False
 
@@ -481,11 +491,23 @@ class AcquisitionService(ConfigurableMixin):
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()
-        if forcing_dataset in {"CARRA", "CERRA"} and not self._get_config_value(lambda: self.config.forcing.time_step_size, dict_key='FORCING_TIME_STEP_SIZE'):
-            self.config_dict["FORCING_TIME_STEP_SIZE"] = 10800
+
+        # Compute effective forcing time step locally (never mutate shared config).
+        # CARRA/CERRA default to 10800s when the user hasn't explicitly changed
+        # from the generic default (3600s).
+        configured_ts = self._get_config_value(
+            lambda: self.config.forcing.time_step_size,
+            dict_key='FORCING_TIME_STEP_SIZE',
+        )
+        _GENERIC_DEFAULT = 3600
+        if forcing_dataset in {"CARRA", "CERRA"} and (not configured_ts or configured_ts == _GENERIC_DEFAULT):
+            self._effective_forcing_time_step = 10800
             self.logger.info(
-                f"Defaulting FORCING_TIME_STEP_SIZE to 10800s for {forcing_dataset}"
+                f"Using effective FORCING_TIME_STEP_SIZE=10800s for {forcing_dataset} "
+                f"(configured value was {configured_ts or 'unset'})"
             )
+        else:
+            self._effective_forcing_time_step = configured_ts or _GENERIC_DEFAULT
 
         if data_access == 'CLOUD':
             self.logger.info(f"Cloud data access enabled for {forcing_dataset}")
@@ -586,14 +608,17 @@ class AcquisitionService(ConfigurableMixin):
                                     'domain_name': self.domain_name
                                 }
                             )
-                        except Exception as cache_error:
+                        except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as cache_error:
                             self.logger.warning(f"Failed to cache downloaded file: {cache_error}")
                             # Don't fail the acquisition if caching fails
+                        except (ImportError, AttributeError, IndexError) as cache_error:
+                            self.logger.warning(f"Failed to cache downloaded file: {cache_error}")
 
-                except Exception as e:
-                    self.logger.error(f"Error during cloud data acquisition: {str(e)}")
-                    import traceback
-                    self.logger.error(traceback.format_exc())
+                except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                    self.logger.error(f"Error during cloud data acquisition: {e}")
+                    raise
+                except (ImportError, AttributeError, IndexError) as e:
+                    self.logger.error(f"Error during cloud data acquisition: {e}")
                     raise
 
         else:
@@ -635,10 +660,11 @@ class AcquisitionService(ConfigurableMixin):
                     if sample_files:
                         self.reporting_manager.visualize_spatial_coverage(sample_files[0], 'forcing_sample', 'acquisition')
 
-            except Exception as e:
-                self.logger.error(f"Error during forcing data acquisition: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
+            except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                self.logger.error(f"Error during forcing data acquisition: {e}")
+                raise
+            except (ImportError, AttributeError, IndexError) as e:
+                self.logger.error(f"Error during forcing data acquisition: {e}")
                 raise
 
         if self._get_config_value(lambda: self.config.forcing.supplement, default=False):
@@ -728,7 +754,9 @@ class AcquisitionService(ConfigurableMixin):
                     handler.acquire()
                 else:
                     self.logger.debug(f"Skipping acquisition for {obs_type}: no registry handler")
-            except Exception as e:
+            except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                self.logger.warning(f"Failed to acquire additional observation {obs_type}: {e}")
+            except (ImportError, AttributeError, IndexError) as e:
                 self.logger.warning(f"Failed to acquire additional observation {obs_type}: {e}")
 
     def acquire_em_earth_forcings(self):
@@ -790,7 +818,11 @@ class AcquisitionService(ConfigurableMixin):
                         failed_months.append(year_month)
                         self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}")
 
-                except Exception as e:
+                except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+                    failed_months.append(year_month)
+                    self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}: {str(e)}")
+                    continue
+                except (ImportError, AttributeError, IndexError) as e:
                     failed_months.append(year_month)
                     self.logger.warning(f"✗ Failed to process EM-Earth data for {year_month}: {str(e)}")
                     continue
@@ -808,10 +840,11 @@ class AcquisitionService(ConfigurableMixin):
                 # Visualize one sample file
                 self.reporting_manager.visualize_spatial_coverage(processed_files[0], 'em_earth_sample', 'acquisition')
 
-        except Exception as e:
-            self.logger.error(f"Error during EM-Earth forcing data acquisition: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
+        except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
+            self.logger.error(f"Error during EM-Earth forcing data acquisition: {e}")
+            raise
+        except (ImportError, AttributeError, IndexError) as e:
+            self.logger.error(f"Error during EM-Earth forcing data acquisition: {e}")
             raise
 
     def _generate_year_month_list(self, start_date: datetime, end_date: datetime) -> List[str]:
@@ -853,8 +886,11 @@ class AcquisitionService(ConfigurableMixin):
         try:
             self._process_em_earth_data(str(prcp_file), str(tmean_file), str(output_file), bbox)
             return output_file
-        except Exception as e:
+        except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
             self.logger.error(f"Error processing EM-Earth data for {year_month}: {str(e)}")
+            return None
+        except (ImportError, AttributeError, IndexError) as e:
+            self.logger.error(f"Error processing EM-Earth data for {year_month}: {e}")
             return None
 
     def _process_em_earth_data(self, prcp_file: str, tmean_file: str, output_file: str, bbox: str):
@@ -889,7 +925,7 @@ class AcquisitionService(ConfigurableMixin):
         try:
             prcp_ds = xr.open_dataset(prcp_file)
             tmean_ds = xr.open_dataset(tmean_file)
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
             raise ValueError(f"Error opening EM-Earth files: {str(e)}")
 
         try:
@@ -937,7 +973,7 @@ class AcquisitionService(ConfigurableMixin):
             if tmean_subset.sizes.get('lat', 0) == 0 or tmean_subset.sizes.get('lon', 0) == 0:
                 raise ValueError("No temperature data found within the expanded bounding box.")
 
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
             raise ValueError(f"Error subsetting EM-Earth data: {str(e)}")
 
         if (lat_min_extract, lat_max_extract, lon_min_extract, lon_max_extract) != original_bbox:
@@ -983,7 +1019,7 @@ class AcquisitionService(ConfigurableMixin):
             Path(output_file).parent.mkdir(parents=True, exist_ok=True)
             merged_ds.to_netcdf(output_file)
 
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError, TypeError, RuntimeError) as e:
             raise ValueError(f"Error merging EM-Earth datasets: {str(e)}")
 
         finally:

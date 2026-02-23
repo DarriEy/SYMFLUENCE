@@ -29,7 +29,10 @@ Discovery and Instantiation:
 """
 
 import logging
-from typing import Callable, Dict, Optional, Type
+from typing import Callable, Dict, Optional, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,45 @@ class ComponentRegistry:
     _visualizers: Dict[str, Callable] = {}
     _runner_methods: Dict[str, str] = {}
 
+    # Mapping from component kind to (Protocol class, required attributes/methods)
+    _PROTOCOL_CHECKS = {
+        'preprocessor': (
+            'symfluence.models.base.protocols', 'ModelPreProcessor',
+            ['MODEL_NAME', 'run_preprocessing'],
+        ),
+        'runner': (
+            'symfluence.models.base.protocols', 'ModelRunner',
+            ['MODEL_NAME', 'run'],
+        ),
+        'postprocessor': (
+            'symfluence.models.base.protocols', 'ModelPostProcessor',
+            ['MODEL_NAME', 'extract_streamflow'],
+        ),
+    }
+
+    @classmethod
+    def _validate_protocol_conformance(cls, component_cls: Type, kind: str, model_name: str) -> None:
+        """Advisory check that a registered class conforms to its Protocol.
+
+        Verifies the class has the expected attributes/methods via ``hasattr``
+        on the class itself (instantiation-free). Logs a warning if the class
+        appears non-conformant but does **not** raise — registration still
+        succeeds. This is advisory for the paper release, not a hard gate.
+        """
+        entry = cls._PROTOCOL_CHECKS.get(kind)
+        if entry is None:
+            return
+
+        _module, _cls_name, required_attrs = entry
+
+        missing = [attr for attr in required_attrs if not hasattr(component_cls, attr)]
+        if missing:
+            logger.warning(
+                f"Registered {kind} '{component_cls.__name__}' for model "
+                f"'{model_name}' is missing expected attributes/methods: "
+                f"{missing}. It may not conform to the {_cls_name} Protocol."
+            )
+
     @classmethod
     def register_preprocessor(cls, model_name: str) -> Callable[[Type], Type]:
         """Register a preprocessor class for a model.
@@ -97,6 +139,7 @@ class ComponentRegistry:
             ...     def run_preprocessing(self): ...
         """
         def decorator(preprocessor_cls: Type) -> Type:
+            cls._validate_protocol_conformance(preprocessor_cls, 'preprocessor', model_name)
             cls._preprocessors[model_name] = preprocessor_cls
             return preprocessor_cls
         return decorator
@@ -120,6 +163,7 @@ class ComponentRegistry:
             ...     def execute(self): ...
         """
         def decorator(runner_cls: Type) -> Type:
+            cls._validate_protocol_conformance(runner_cls, 'runner', model_name)
             cls._runners[model_name] = runner_cls
             cls._runner_methods[model_name] = method_name
             return runner_cls
@@ -141,6 +185,7 @@ class ComponentRegistry:
             ...     def extract_streamflow(self): ...
         """
         def decorator(postprocessor_cls: Type) -> Type:
+            cls._validate_protocol_conformance(postprocessor_cls, 'postprocessor', model_name)
             cls._postprocessors[model_name] = postprocessor_cls
             return postprocessor_cls
         return decorator
