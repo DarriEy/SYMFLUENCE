@@ -177,7 +177,7 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
         except Exception as e:
             self.logger.error(f"Routing computation failed: {e}")
             self.logger.debug(traceback.format_exc())
-            raise ModelExecutionError(f"dRoute routing failed: {e}")
+            raise ModelExecutionError(f"dRoute routing failed: {e}") from e
 
         # Save output
         output_dir = self._get_output_dir()

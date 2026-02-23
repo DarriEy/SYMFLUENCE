@@ -90,7 +90,7 @@ class ShapefileManager(ConfigMixin):
                     wgs84_shapefile, ensure_unique_ids, actual_hru_field
                 )
                 if existing is not None:
-                    return existing  # type: ignore
+                    return existing  # type: ignore[return-value]
 
             # Convert to WGS84
             self.logger.info(f"Converting {shapefile_path.name} from {current_crs} to WGS84")

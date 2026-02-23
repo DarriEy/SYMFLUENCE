@@ -94,7 +94,7 @@ class TestHandlerContracts:
         )
 
         # Check method signature
-        download_method = getattr(handler_class, 'download')
+        download_method = handler_class.download
         sig = inspect.signature(download_method)
         params = list(sig.parameters.keys())
 
@@ -107,7 +107,7 @@ class TestHandlerContracts:
     def test_handler_download_returns_path(self, handler_name):
         """Handler.download() should have Path return type annotation."""
         handler_class = get_handler_class(handler_name)
-        download_method = getattr(handler_class, 'download')
+        download_method = handler_class.download
 
         sig = inspect.signature(download_method)
         return_annotation = sig.return_annotation

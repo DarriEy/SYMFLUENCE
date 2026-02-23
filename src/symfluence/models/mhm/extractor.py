@@ -184,7 +184,7 @@ class MHMResultExtractor(ModelResultExtractor):
         except Exception as e:
             raise ValueError(
                 f"Error reading mHM output file {output_file}: {str(e)}"
-            )
+            ) from e
 
     def extract_streamflow(
         self,

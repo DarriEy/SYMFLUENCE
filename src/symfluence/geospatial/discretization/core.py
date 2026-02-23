@@ -10,13 +10,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
-import geopandas as gpd  # type: ignore
-import numpy as np  # type: ignore
-import rasterio  # type: ignore
-import rasterstats  # type: ignore
-from pyproj import CRS  # type: ignore
-from rasterio.mask import mask  # type: ignore
-from shapely.geometry import MultiPolygon, Polygon, shape  # type: ignore
+import geopandas as gpd
+import numpy as np
+import rasterio
+import rasterstats
+from pyproj import CRS
+from rasterio.mask import mask
+from shapely.geometry import MultiPolygon, Polygon, shape
 
 from symfluence.core.exceptions import ShapefileError
 from symfluence.core.path_resolver import PathResolverMixin

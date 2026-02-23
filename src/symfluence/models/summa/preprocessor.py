@@ -541,7 +541,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             datetime.strptime(sim_start, "%Y-%m-%d %H:%M")
             datetime.strptime(sim_end, "%Y-%m-%d %H:%M")
         except ValueError:
-            raise ValueError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'")
+            raise ValueError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'") from None
 
         return sim_start, sim_end
 

@@ -20,7 +20,7 @@ def _get_geopandas():
     """Lazy import of geopandas."""
     global _gpd
     if _gpd is None:
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         _gpd = gpd
     return _gpd
 

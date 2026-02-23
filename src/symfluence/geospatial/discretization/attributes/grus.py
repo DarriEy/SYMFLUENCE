@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-import rasterio  # type: ignore
-import rasterstats  # type: ignore
-from pyproj import CRS  # type: ignore
+import rasterio
+import rasterstats
+from pyproj import CRS
 
 if TYPE_CHECKING:
     from ..core import DomainDiscretizer

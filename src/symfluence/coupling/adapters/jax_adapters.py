@@ -70,7 +70,7 @@ class Snow17JAXComponent(JAXComponent):
         try:
             jax_step = _get_snow17_step()
         except ImportError:
-            raise ImportError("Snow-17 model not available in SYMFLUENCE")
+            raise ImportError("Snow-17 model not available in SYMFLUENCE") from None
 
         param_specs = [
             ParameterSpec(pname, lo, hi)
@@ -165,7 +165,7 @@ class XAJJAXComponent(JAXComponent):
         try:
             jax_step = _get_xaj_step()
         except ImportError:
-            raise ImportError("XAJ model not available in SYMFLUENCE")
+            raise ImportError("XAJ model not available in SYMFLUENCE") from None
 
         param_specs = [
             ParameterSpec(pname, lo, hi)
@@ -252,7 +252,7 @@ class SacSmaJAXComponent(JAXComponent):
         try:
             jax_step = _get_sacsma_step()
         except ImportError:
-            raise ImportError("SAC-SMA model not available in SYMFLUENCE")
+            raise ImportError("SAC-SMA model not available in SYMFLUENCE") from None
 
         param_specs = [
             ParameterSpec(pname, lo, hi)

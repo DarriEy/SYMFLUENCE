@@ -43,7 +43,7 @@ class SpatialProcessor(ConfigMixin):
         Returns:
             The found reach ID, or None if failed.
         """
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         try:
             # Load the pour point shapefile
             pour_point_name = self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key=ConfigKeys.POUR_POINT_SHP_NAME)

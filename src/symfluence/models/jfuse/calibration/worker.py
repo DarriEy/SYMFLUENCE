@@ -1078,13 +1078,15 @@ class JFUSEWorker(InMemoryModelWorker):
                 default_params = self._default_params
                 init_state = self._initial_state
 
-                def loss_fn(val, pn=param_name):
-                    params = default_params
+                def loss_fn(val, pn=param_name, _default_params=default_params,
+                            _fuse_model=fuse_model, _forcing_tuple=forcing_tuple,
+                            _init_state=init_state, _warmup=warmup, _obs=obs):
+                    params = _default_params
                     params = eqx.tree_at(lambda p, n=pn: getattr(p, n), params, val)
-                    runoff, _ = fuse_model.simulate(
-                        forcing_tuple, params, initial_state=init_state)
-                    sim = runoff[warmup:]
-                    obs_aligned = obs[:len(sim)]
+                    runoff, _ = _fuse_model.simulate(
+                        _forcing_tuple, params, initial_state=_init_state)
+                    sim = runoff[_warmup:]
+                    obs_aligned = _obs[:len(sim)]
                     return kge_loss(sim[:len(obs_aligned)], obs_aligned)
 
                 grad_fn = jax.grad(loss_fn)

@@ -220,8 +220,8 @@ class SymfluenceConfig(BaseModel):
             if "ConfigurationError" in str(type(e)):
                 raise
             if "ValidationError" in str(type(e)):
-                raise ConfigurationError(str(e))
-            raise ConfigurationError(f"Invalid date format: {e}")
+                raise ConfigurationError(str(e)) from e
+            raise ConfigurationError(f"Invalid date format: {e}") from e
 
         return self
 
@@ -248,7 +248,7 @@ class SymfluenceConfig(BaseModel):
             except ValueError:
                 raise ConfigurationError(
                     f"POUR_POINT_COORDS must be 'lat/lon' format, got '{self.domain.pour_point_coords}'"
-                )
+                ) from None
 
         # Validate bounding box coordinates
         if self.domain.bounding_box_coords:
@@ -269,14 +269,14 @@ class SymfluenceConfig(BaseModel):
             except ValueError:
                 raise ConfigurationError(
                     f"BOUNDING_BOX_COORDS must be 'north/west/south/east' format, got '{self.domain.bounding_box_coords}'"
-                )
+                ) from None
             except Exception as e:
                 if "ConfigurationError" in str(type(e)):
                     raise
                 # Translate lat_min/lat_max to south/north for user-facing messages
                 msg = str(e).replace('lat_min', 'south latitude').replace('lat_max', 'north latitude')
                 msg = msg.replace('lon_min', 'west longitude').replace('lon_max', 'east longitude')
-                raise ConfigurationError(msg)
+                raise ConfigurationError(msg) from e
 
         return self
 

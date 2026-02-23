@@ -111,7 +111,7 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
             raise ImportError(
                 "cdsapi package required for ERA5-Land download. "
                 "Install with: pip install cdsapi"
-            )
+            ) from None
 
         # Initialize CDS client
         client = cdsapi.Client()

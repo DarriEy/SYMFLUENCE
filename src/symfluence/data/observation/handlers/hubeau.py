@@ -75,9 +75,9 @@ def _hubeau_request(url: str, params: dict, timeout: int = DEFAULT_TIMEOUT) -> r
         return response
 
     except requests.exceptions.ConnectionError as e:
-        raise HubEauAPIError(f"Cannot connect to Hub'Eau API: {e}")
+        raise HubEauAPIError(f"Cannot connect to Hub'Eau API: {e}") from e
     except requests.exceptions.Timeout:
-        raise HubEauAPIError(f"Hub'Eau API request timed out after {timeout}s")
+        raise HubEauAPIError(f"Hub'Eau API request timed out after {timeout}s") from None
 
 
 @ObservationRegistry.register('hubeau_streamflow')

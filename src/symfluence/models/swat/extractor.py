@@ -135,7 +135,7 @@ class SWATResultExtractor(ModelResultExtractor):
         except Exception as e:
             raise ValueError(
                 f"Error reading SWAT output file {output_file}: {str(e)}"
-            )
+            ) from e
 
     def _parse_output_rch(
         self,

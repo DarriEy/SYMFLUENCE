@@ -8,7 +8,7 @@ flow duration curves, and streamflow analysis.
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import pandas as pd  # type: ignore
+import pandas as pd
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 
@@ -163,7 +163,7 @@ class HydrographPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr  # type: ignore
+        import xarray as xr
 
         from symfluence.reporting.core.plot_utils import (
             align_timeseries,

@@ -445,7 +445,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         # Update each parameter from the dict
         for name, value in param_dict.items():
             if hasattr(params, name):
-                params = eqx.tree_at(lambda p: getattr(p, name), params, jnp.array(float(value)))
+                params = eqx.tree_at(lambda p, _name=name: getattr(p, _name), params, jnp.array(float(value)))
 
         return params
 

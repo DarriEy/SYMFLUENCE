@@ -155,7 +155,7 @@ class DRouteNetworkAdapter:
         try:
             import geopandas as gpd
         except ImportError:
-            raise ImportError("geopandas required to load GeoJSON topology")
+            raise ImportError("geopandas required to load GeoJSON topology") from None
 
         self.logger.debug(f"Loading GeoJSON topology from {path}")
 
@@ -348,7 +348,7 @@ class DRouteNetworkAdapter:
         try:
             import yaml
         except ImportError:
-            raise ImportError("PyYAML required to write dRoute config")
+            raise ImportError("PyYAML required to write dRoute config") from None
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -454,7 +454,7 @@ class DatasetBuilderMixin:
                 raise ValueError(
                     f"Cannot reshape data of shape {data.shape} to expected {expected_shape} "
                     f"for dimensions {spatial_dims}"
-                )
+                ) from None
 
         # Ensure correct dtype
         data = data.astype(dtype)

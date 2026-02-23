@@ -286,7 +286,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
         except Exception as e:
             self.logger.error(f"Failed to download USGS groundwater data: {e}")
-            raise DataAcquisitionError(f"USGS groundwater acquisition failed: {e}")
+            raise DataAcquisitionError(f"USGS groundwater acquisition failed: {e}") from e
 
     def process(self, input_path: Path) -> Path:
         """Process USGS groundwater JSON."""

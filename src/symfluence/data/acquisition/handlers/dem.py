@@ -828,7 +828,7 @@ class ALOSAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
                 "ALOS DEM acquisition requires 'planetary-computer' and 'pystac-client' packages. "
                 "Install with: pip install planetary-computer pystac-client "
                 "or: pip install symfluence[alos]"
-            )
+            ) from None
 
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'

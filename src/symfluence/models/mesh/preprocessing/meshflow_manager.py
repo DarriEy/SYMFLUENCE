@@ -231,7 +231,7 @@ class MESHFlowManager:
             self.logger.error(f"Meshflow preprocessing failed: {e}")
             self.logger.debug(traceback.format_exc())
             from symfluence.core.exceptions import ModelExecutionError
-            raise ModelExecutionError(f"Meshflow preprocessing failed: {e}")
+            raise ModelExecutionError(f"Meshflow preprocessing failed: {e}") from e
 
     def _check_required_files(self) -> None:
         """Check that required input files exist."""

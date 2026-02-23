@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import easymore  # type: ignore
+import easymore
 import netCDF4 as nc4
 import xarray as xr
 from tqdm import tqdm

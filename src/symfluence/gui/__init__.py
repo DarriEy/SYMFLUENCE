@@ -29,7 +29,7 @@ def serve_app(config_path=None, port=5006, show=True, demo=None):
         raise ImportError(
             "Panel is required for the SYMFLUENCE GUI.\n"
             'Install with:  pip install "symfluence[gui]"'
-        )
+        ) from None
 
     from .server import _serve_app
     _serve_app(config_path=config_path, port=port, show=show, demo=demo)

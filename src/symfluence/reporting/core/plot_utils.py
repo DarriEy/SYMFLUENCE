@@ -7,8 +7,8 @@ like metrics calculation, data alignment, and flow duration curves.
 
 from typing import Any, Dict, Optional, Tuple, cast
 
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
+import numpy as np
+import pandas as pd
 
 from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 

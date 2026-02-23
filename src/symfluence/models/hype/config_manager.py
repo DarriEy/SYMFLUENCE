@@ -718,7 +718,7 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
             else:
                 val_str = str(value)
 
-                def replicate_value(match: Match[str]) -> str:
+                def replicate_value(match: Match[str], _val_str: str = val_str) -> str:
                     """Replace parameter values while preserving column count."""
                     prefix = match.group(1)
                     content = match.group(0)[len(prefix):]
@@ -728,8 +728,8 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
 
                     val_count = len(existing_vals.split())
                     if val_count > 1:
-                        return f"{prefix}{' '.join([val_str] * val_count)}  {comment}"
-                    return f"{prefix}{val_str}  {comment}"
+                        return f"{prefix}{' '.join([_val_str] * val_count)}  {comment}"
+                    return f"{prefix}{_val_str}  {comment}"
 
                 # Match parameter at start of line with values
                 par_content = re.sub(

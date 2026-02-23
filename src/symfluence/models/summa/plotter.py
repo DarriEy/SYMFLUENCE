@@ -36,9 +36,9 @@ class SUMMAPlotter(BasePlotter):
             Dictionary mapping variable names to plot paths
         """
         plt, _ = self._setup_matplotlib()
-        import geopandas as gpd  # type: ignore
-        import xarray as xr  # type: ignore
-        from matplotlib import gridspec  # type: ignore
+        import geopandas as gpd
+        import xarray as xr
+        from matplotlib import gridspec
 
         plot_paths: Dict[str, str] = {}
         try:

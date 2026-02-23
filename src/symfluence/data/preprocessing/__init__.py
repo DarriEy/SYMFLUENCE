@@ -18,26 +18,26 @@ _logger = _logging.getLogger(__name__)
 try:
     from .forcing_resampler import ForcingResampler
 except ImportError as _e:
-    ForcingResampler: Any = None  # type: ignore
+    ForcingResampler: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import ForcingResampler: %s", _e)
 
 try:
     from .geospatial_statistics import GeospatialStatistics
 except ImportError as _e:
-    GeospatialStatistics: Any = None  # type: ignore
+    GeospatialStatistics: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import GeospatialStatistics: %s", _e)
 
 try:
     from .shapefile_manager import ShapefileManager
 except ImportError as _e:
-    ShapefileManager: Any = None  # type: ignore
+    ShapefileManager: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import ShapefileManager: %s", _e)
 
 try:
     from .elevation_calculator import ElevationCalculator, create_elevation_calculator
 except ImportError as _e:
-    ElevationCalculator: Any = None  # type: ignore
-    create_elevation_calculator: Any = None  # type: ignore
+    ElevationCalculator: Any = None  # type: ignore[no-redef]
+    create_elevation_calculator: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import elevation_calculator: %s", _e)
 
 try:
@@ -47,9 +47,9 @@ try:
         RemappingWeightGenerator,
     )
 except ImportError as _e:
-    RemappingWeightGenerator: Any = None  # type: ignore
-    RemappingWeightApplier: Any = None  # type: ignore
-    BatchProcessor: Any = None  # type: ignore
+    RemappingWeightGenerator: Any = None  # type: ignore[no-redef]
+    RemappingWeightApplier: Any = None  # type: ignore[no-redef]
+    BatchProcessor: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import remapping_weights: %s", _e)
 
 __all__ = [

@@ -238,7 +238,7 @@ class RHESSysResultExtractor(ModelResultExtractor):
         except Exception as e:
             raise ValueError(
                 f"Error reading RHESSys daily file {daily_file}: {str(e)}"
-            )
+            ) from e
 
     def requires_unit_conversion(self, variable_type: str) -> bool:
         """Check if variable requires unit conversion.
@@ -315,7 +315,7 @@ class RHESSysResultExtractor(ModelResultExtractor):
             return results
 
         except Exception as e:
-            raise ValueError(f"Error extracting litter pools from {output_file}: {e}")
+            raise ValueError(f"Error extracting litter pools from {output_file}: {e}") from e
 
     def aggregate_litter_to_basin(
         self,

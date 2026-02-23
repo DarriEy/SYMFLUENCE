@@ -210,5 +210,5 @@ class TestReportingManagerIntegration:
             pass
 
         # Alternative: just verify the decorator is applied correctly
-        method = getattr(ReportingManager, 'diagnostic_coupling_conservation')
+        method = ReportingManager.diagnostic_coupling_conservation
         assert callable(method)

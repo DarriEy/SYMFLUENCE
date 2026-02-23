@@ -32,25 +32,25 @@ try:
     )
 except ImportError as e:
     _logger.warning("Failed to import spatial_utils: %s", e)
-    crop_raster_to_bbox: Any = None  # type: ignore
-    read_raster_window: Any = None  # type: ignore
-    read_raster_multiband_window: Any = None  # type: ignore
-    create_spatial_mask: Any = None  # type: ignore
-    find_nearest_grid_point: Any = None  # type: ignore
-    get_bbox_center: Any = None  # type: ignore
-    subset_xarray_to_bbox: Any = None  # type: ignore
-    normalize_longitude: Any = None  # type: ignore
-    validate_bbox: Any = None  # type: ignore
-    SpatialSubsetMixin: Any = None  # type: ignore
-    BBox: Any = None  # type: ignore
+    crop_raster_to_bbox: Any = None  # type: ignore[no-redef]
+    read_raster_window: Any = None  # type: ignore[no-redef]
+    read_raster_multiband_window: Any = None  # type: ignore[no-redef]
+    create_spatial_mask: Any = None  # type: ignore[no-redef]
+    find_nearest_grid_point: Any = None  # type: ignore[no-redef]
+    get_bbox_center: Any = None  # type: ignore[no-redef]
+    subset_xarray_to_bbox: Any = None  # type: ignore[no-redef]
+    normalize_longitude: Any = None  # type: ignore[no-redef]
+    validate_bbox: Any = None  # type: ignore[no-redef]
+    SpatialSubsetMixin: Any = None  # type: ignore[no-redef]
+    BBox: Any = None  # type: ignore[no-redef]
 
 # Variable utilities
 try:
     from .variable_utils import VariableHandler, VariableStandardizer
 except ImportError as e:
     _logger.warning("Failed to import variable_utils: %s", e)
-    VariableHandler: Any = None  # type: ignore
-    VariableStandardizer: Any = None  # type: ignore
+    VariableHandler: Any = None  # type: ignore[no-redef]
+    VariableStandardizer: Any = None  # type: ignore[no-redef]
 
 __all__ = [
     # Spatial utilities

@@ -188,4 +188,4 @@ def _resolve_template_path(
     except FileNotFoundError:
         raise FileOperationError(
             "Config template not found. Tried local paths and package template."
-        )
+        ) from None

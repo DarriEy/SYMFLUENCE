@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
 # Third-party imports
-import geopandas as gpd  # type: ignore
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-import psutil  # type: ignore
-import xarray as xr  # type: ignore
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import psutil
+import xarray as xr
 
 from symfluence.core.constants import PhysicalConstants
 
@@ -859,7 +859,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         except Exception as e:
             self.logger.error(f"File {filename}: Error fixing time coordinate: {str(e)}")
-            raise ValueError(f"Cannot fix time coordinate in file {filename}: {str(e)}")
+            raise ValueError(f"Cannot fix time coordinate in file {filename}: {str(e)}") from e
 
     def _fix_nan_values(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
         """
@@ -906,7 +906,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
                     # Use scipy cubic interpolation for better results with sparse temperature data
                     try:
-                        from scipy import interpolate  # type: ignore
+                        from scipy import interpolate
                         filled_data = var_data.copy()
 
                         # Process each HRU separately

@@ -323,7 +323,7 @@ class ModelComparisonCoreMixin:
         ax.set_xticks(positions)
         ax.set_xticklabels(month_names)
 
-        from matplotlib.patches import Patch  # type: ignore
+        from matplotlib.patches import Patch
 
         legend_elements = [Patch(facecolor="black", alpha=0.5, label="Observed")]
         if model_cols:

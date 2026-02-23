@@ -158,7 +158,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
             raise ImportError(
                 "paramiko is required for GLEAM SFTP downloads. "
                 "Install with: pip install paramiko"
-            )
+            ) from None
 
         downloaded: List[Path] = []
 

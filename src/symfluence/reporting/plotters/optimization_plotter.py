@@ -7,7 +7,7 @@ Handles plotting of optimization progress, parameter evolution, and convergence.
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 

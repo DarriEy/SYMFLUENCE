@@ -8,8 +8,8 @@ model outputs including SUMMA, FUSE, NGEN, LSTM, and HYPE.
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
+import numpy as np
+import pandas as pd
 
 from symfluence.core.constants import ConfigKeys
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -44,8 +44,8 @@ class ModelResultsPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import geopandas as gpd  # type: ignore
-        import xarray as xr  # type: ignore
+        import geopandas as gpd
+        import xarray as xr
 
         from symfluence.core.constants import UnitConversion
         from symfluence.reporting.core.plot_utils import calculate_metrics
@@ -123,9 +123,9 @@ class ModelResultsPlotter(BasePlotter):
             Dictionary mapping variable names to plot paths
         """
         plt, _ = self._setup_matplotlib()
-        import geopandas as gpd  # type: ignore
-        import xarray as xr  # type: ignore
-        from matplotlib import gridspec  # type: ignore
+        import geopandas as gpd
+        import xarray as xr
+        from matplotlib import gridspec
 
         plot_paths: Dict[str, str] = {}
         try:
@@ -254,7 +254,7 @@ class ModelResultsPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib.gridspec import GridSpec  # type: ignore
+        from matplotlib.gridspec import GridSpec
 
         from symfluence.reporting.core.plot_utils import calculate_metrics
 

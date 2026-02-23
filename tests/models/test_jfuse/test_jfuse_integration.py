@@ -566,7 +566,7 @@ class TestGradientCorrectness:
         def loss_fn(param_array):
             params = default_params
             for i, name in enumerate(param_names):
-                params = eqx.tree_at(lambda p: getattr(p, name), params, param_array[i])
+                params = eqx.tree_at(lambda p, _name=name: getattr(p, _name), params, param_array[i])
             runoff, _ = model.simulate(forcing, params)
             sim = runoff[warmup:]
             return kge_loss(sim[:len(obs)], obs)
@@ -628,7 +628,7 @@ class TestIntegration:
         def loss_fn(arr):
             params = default_params
             for i, name in enumerate(param_names):
-                params = eqx.tree_at(lambda p: getattr(p, name), params, arr[i])
+                params = eqx.tree_at(lambda p, _name=name: getattr(p, _name), params, arr[i])
             runoff, _ = model.simulate(forcing, params)
             return kge_loss(runoff[warmup:warmup+len(obs)], obs)
 
