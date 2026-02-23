@@ -19,11 +19,32 @@ import netrc
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 import requests
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
+
+class _EarthdataSession(requests.Session):
+    """Session that re-applies credentials during NASA URS OAuth redirect flow.
+
+    ORNL DAAC THREDDS redirects to urs.earthdata.nasa.gov for authentication,
+    then back to opendap.earthdata.nasa.gov with an OAuth code. The standard
+    requests library strips Authorization headers on cross-host redirects, so
+    credentials never reach URS. This subclass overrides ``rebuild_auth`` to
+    re-apply credentials only when the redirect target is URS.
+    """
+
+    def __init__(self, username: str, password: str):
+        super().__init__()
+        self._earthdata_auth = (username, password)
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if urlparse(prepared_request.url).hostname == 'urs.earthdata.nasa.gov':
+            prepared_request.prepare_auth(self._earthdata_auth)
 
 
 @AcquisitionRegistry.register('DAYMET')
@@ -199,31 +220,32 @@ class DaymetAcquirer(BaseAcquisitionHandler):
     def _get_earthdata_session(self) -> requests.Session:
         """Build an authenticated requests session for ORNL DAAC / Earthdata.
 
-        ORNL DAAC THREDDS may redirect to urs.earthdata.nasa.gov for OAuth.
-        If credentials are available they are attached to the session so the
-        redirect is handled transparently.
+        ORNL DAAC THREDDS redirects to ``urs.earthdata.nasa.gov`` for OAuth.
+        A plain ``session.auth`` sends credentials to every host in the
+        redirect chain (including the OAuth callback on opendap.earthdata),
+        which breaks the flow.  :class:`_EarthdataSession` overrides
+        ``rebuild_auth`` so credentials are only sent to URS itself.
 
         Returns:
             A :class:`requests.Session` (authenticated when credentials exist).
         """
-        session = requests.Session()
         username, password = self._get_earthdata_credentials()
         if username and password:
-            session.auth = (username, password)
-        else:
-            self.logger.warning(
-                "No NASA Earthdata credentials found. ORNL DAAC may require "
-                "authentication for gridded Daymet downloads.\n"
-                "To set up credentials, create a ~/.netrc file with:\n"
-                "\n"
-                "  machine urs.earthdata.nasa.gov\n"
-                "  login <your_earthdata_username>\n"
-                "  password <your_earthdata_password>\n"
-                "\n"
-                "Register for a free account at https://urs.earthdata.nasa.gov/users/new\n"
-                "Alternatively set EARTHDATA_USERNAME and EARTHDATA_PASSWORD env vars."
-            )
-        return session
+            return _EarthdataSession(username, password)
+
+        self.logger.warning(
+            "No NASA Earthdata credentials found. ORNL DAAC requires "
+            "authentication for gridded Daymet downloads.\n"
+            "To set up credentials, create a ~/.netrc file with:\n"
+            "\n"
+            "  machine urs.earthdata.nasa.gov\n"
+            "  login <your_earthdata_username>\n"
+            "  password <your_earthdata_password>\n"
+            "\n"
+            "Register for a free account at https://urs.earthdata.nasa.gov/users/new\n"
+            "Alternatively set EARTHDATA_USERNAME and EARTHDATA_PASSWORD env vars."
+        )
+        return requests.Session()
 
     def _download_gridded(self, output_file: Path, variables: List[str]):
         """Download gridded data using THREDDS subset service."""
