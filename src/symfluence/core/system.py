@@ -17,9 +17,10 @@ except ImportError:
     __version__ = "0+unknown"
 
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import SYMFLUENCEError
@@ -31,6 +32,151 @@ from symfluence.project.manager_factory import LazyManagerDict
 
 # Import core components
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
+
+# ---------------------------------------------------------------------------
+# Diagnostic spec — declarative descriptor for workflow step diagnostics
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class _DiagnosticSpec:
+    """Declarative descriptor for a single workflow diagnostic.
+
+    Each spec describes *what* to load and *which* plotter method to call,
+    replacing the procedural closures that previously lived inside
+    ``_get_step_diagnostic_mapping``.
+    """
+
+    plotter_method: str
+    """Name of the method on ``WorkflowDiagnosticPlotter``."""
+
+    loader: Callable[['SymfluenceConfig', Path], Optional[Dict[str, Any]]]
+    """Callable(config, project_dir) → kwargs dict for the plotter, or None to skip."""
+
+
+def _load_domain(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    import geopandas as gpd
+    basin_path = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
+    if not basin_path.exists():
+        return None
+    dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
+    return dict(
+        basin_gdf=gpd.read_file(basin_path),
+        dem_path=dem_path if dem_path.exists() else None,
+    )
+
+
+def _load_discretization(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    import geopandas as gpd
+    hru_path = project_dir / "shapefiles" / "catchment" / "catchment.shp"
+    if not hru_path.exists():
+        return None
+    return dict(
+        hru_gdf=gpd.read_file(hru_path),
+        method=getattr(config.discretization, 'method', 'unknown'),
+    )
+
+
+def _load_observations(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    import pandas as pd
+    obs_path = (resolve_data_subdir(project_dir, 'observations')
+                / "streamflow" / "preprocessed" / "streamflow_obs.csv")
+    if not obs_path.exists():
+        return None
+    return dict(
+        obs_df=pd.read_csv(obs_path, parse_dates=['datetime'], index_col='datetime'),
+        obs_type='streamflow',
+    )
+
+
+def _load_forcing_raw(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    forcing_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
+    if not forcing_dir.exists():
+        return None
+    nc_files = list(forcing_dir.glob("*.nc"))
+    if not nc_files:
+        return None
+    domain_shp = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
+    return dict(
+        forcing_nc=nc_files[0],
+        domain_shp=domain_shp if domain_shp.exists() else None,
+    )
+
+
+def _load_forcing_remapped(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    raw_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
+    remapped_dir = resolve_data_subdir(project_dir, 'forcing') / "basin_averaged_data"
+    if not raw_dir.exists() or not remapped_dir.exists():
+        return None
+    raw_files = list(raw_dir.glob("*.nc"))
+    remapped_files = list(remapped_dir.glob("*.nc"))
+    if not raw_files or not remapped_files:
+        return None
+    hru_shp = project_dir / "shapefiles" / "catchment" / "catchment.shp"
+    return dict(
+        raw_nc=raw_files[0],
+        remapped_nc=remapped_files[0],
+        hru_shp=hru_shp if hru_shp.exists() else None,
+    )
+
+
+def _load_model_preprocessing(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    model_name = getattr(config.model, 'name', 'SUMMA')
+    input_dir = project_dir / "simulations" / model_name.lower() / "run_settings"
+    if not input_dir.exists():
+        return None
+    return dict(input_dir=input_dir, model_name=model_name)
+
+
+def _load_model_output(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    model_name = getattr(config.model, 'name', 'SUMMA')
+    output_dir = project_dir / "simulations" / model_name.lower() / "output"
+    if not output_dir.exists():
+        return None
+    nc_files = list(output_dir.glob("*.nc"))
+    if not nc_files:
+        return None
+    return dict(output_nc=nc_files[0], model_name=model_name)
+
+
+def _load_attributes(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    attr_dir = resolve_data_subdir(project_dir, 'attributes')
+    dem_path = attr_dir / "dem" / "dem.tif"
+    soil_path = attr_dir / "soilclass" / "soilclass.tif"
+    land_path = attr_dir / "landclass" / "landclass.tif"
+    if not any(p.exists() for p in [dem_path, soil_path, land_path]):
+        return None
+    return dict(
+        dem_path=dem_path if dem_path.exists() else None,
+        soil_path=soil_path if soil_path.exists() else None,
+        land_path=land_path if land_path.exists() else None,
+    )
+
+
+def _load_calibration(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
+    import pandas as pd
+    model_name = getattr(config.model, 'name', 'SUMMA')
+    history_file = (project_dir / "simulations" / model_name.lower()
+                    / "calibration" / "calibration_history.csv")
+    if not history_file.exists():
+        return None
+    return dict(
+        history=pd.read_csv(history_file).to_dict('records'),
+        model_name=model_name,
+    )
+
+
+# Step name → diagnostic spec (declarative table)
+_DIAGNOSTIC_SPECS: Dict[str, _DiagnosticSpec] = {
+    'define_domain':                _DiagnosticSpec('plot_domain_definition_diagnostic',   _load_domain),
+    'discretize_domain':            _DiagnosticSpec('plot_discretization_diagnostic',      _load_discretization),
+    'process_observed_data':        _DiagnosticSpec('plot_observations_diagnostic',        _load_observations),
+    'acquire_forcings':             _DiagnosticSpec('plot_forcing_raw_diagnostic',         _load_forcing_raw),
+    'model_agnostic_preprocessing': _DiagnosticSpec('plot_forcing_remapped_diagnostic',    _load_forcing_remapped),
+    'model_specific_preprocessing': _DiagnosticSpec('plot_model_preprocessing_diagnostic', _load_model_preprocessing),
+    'run_model':                    _DiagnosticSpec('plot_model_output_diagnostic',        _load_model_output),
+    'acquire_attributes':           _DiagnosticSpec('plot_attributes_diagnostic',          _load_attributes),
+    'calibrate_model':              _DiagnosticSpec('plot_calibration_diagnostic',         _load_calibration),
+}
 
 
 class SYMFLUENCE:
@@ -231,12 +377,20 @@ class SYMFLUENCE:
         """
         return self.workflow_orchestrator.get_workflow_status()
 
-    def run_diagnostics_for_step(self, step_name: str) -> List[str]:
-        """
-        Run diagnostic plots for a specific workflow step on existing outputs.
+    def _run_diagnostic(self, step_name: str, spec: _DiagnosticSpec) -> Optional[str]:
+        """Execute a single diagnostic spec against the current project."""
+        project_dir = Path(self.typed_config.paths.root_path) / f"domain_{self.typed_config.domain.name}"
+        kwargs = spec.loader(self.typed_config, project_dir)
+        if kwargs is None:
+            return None
+        reporting_manager = self.managers.get('reporting')
+        if not reporting_manager:
+            return None
+        plotter_fn = getattr(reporting_manager.workflow_diagnostic_plotter, spec.plotter_method)
+        return plotter_fn(**kwargs)
 
-        This method loads existing workflow outputs from the project directory
-        and generates diagnostic plots without re-running the workflow step.
+    def run_diagnostics_for_step(self, step_name: str) -> List[str]:
+        """Run diagnostic plots for a specific workflow step on existing outputs.
 
         Args:
             step_name: Name of the workflow step to diagnose
@@ -245,209 +399,37 @@ class SYMFLUENCE:
             List of paths to generated diagnostic plots
         """
         self.logger.info(f"Running diagnostics for step: {step_name}")
-        results: List[str] = []
-
-        # Get the reporting manager
-        reporting_manager = self.managers.get('reporting')
-        if not reporting_manager:
-            self.logger.warning("Reporting manager not available")
-            return results
-
-        # Map workflow steps to their diagnostic methods and required data
-        step_diagnostics = self._get_step_diagnostic_mapping()
-
-        if step_name not in step_diagnostics:
+        spec = _DIAGNOSTIC_SPECS.get(step_name)
+        if spec is None:
             self.logger.warning(f"No diagnostic available for step: {step_name}")
-            return results
-
-        diagnostic_info = step_diagnostics[step_name]
+            return []
         try:
-            result = diagnostic_info['func'](reporting_manager)
-            if result:
-                results.append(result)
+            result = self._run_diagnostic(step_name, spec)
+            return [result] if result else []
         except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
             self.logger.error(f"Failed to generate diagnostic for {step_name}: {e}")
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
-
-        return results
+        return []
 
     def run_all_diagnostics(self) -> List[str]:
-        """
-        Run all available diagnostic plots on existing workflow outputs.
-
-        This method iterates through all workflow steps and generates diagnostic
-        plots for any step that has existing outputs in the project directory.
+        """Run all available diagnostic plots on existing workflow outputs.
 
         Returns:
             List of paths to generated diagnostic plots
         """
         self.logger.info("Running all available diagnostics...")
-        results = []
-
-        step_diagnostics = self._get_step_diagnostic_mapping()
-
-        for step_name, diagnostic_info in step_diagnostics.items():
+        results: List[str] = []
+        for step_name, spec in _DIAGNOSTIC_SPECS.items():
             self.logger.debug(f"Checking diagnostics for: {step_name}")
             try:
-                reporting_manager = self.managers.get('reporting')
-                if reporting_manager:
-                    result = diagnostic_info['func'](reporting_manager)
-                    if result:
-                        results.append(result)
-                        self.logger.info(f"Generated diagnostic for {step_name}: {result}")
+                result = self._run_diagnostic(step_name, spec)
+                if result:
+                    results.append(result)
+                    self.logger.info(f"Generated diagnostic for {step_name}: {result}")
             except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 self.logger.debug(f"Skipping {step_name} diagnostic: {e}")
             except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
-
         self.logger.info(f"Generated {len(results)} diagnostic plot(s)")
         return results
-
-    def _get_step_diagnostic_mapping(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Get mapping of workflow steps to their diagnostic functions.
-
-        Returns:
-            Dictionary mapping step names to diagnostic info
-        """
-        from pathlib import Path
-
-        import geopandas as gpd
-        import pandas as pd
-
-        config = self.typed_config
-        project_dir = Path(config.paths.root_path) / f"domain_{config.domain.name}"
-
-        def _load_domain_diagnostic(rm):
-            """Load data and run domain definition diagnostic."""
-            basin_path = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
-            dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
-            if not basin_path.exists():
-                return None
-            basin_gdf = gpd.read_file(basin_path)
-            return rm.workflow_diagnostic_plotter.plot_domain_definition_diagnostic(
-                basin_gdf=basin_gdf,
-                dem_path=dem_path if dem_path.exists() else None
-            )
-
-        def _load_discretization_diagnostic(rm):
-            """Load data and run discretization diagnostic."""
-            hru_path = project_dir / "shapefiles" / "catchment" / "catchment.shp"
-            if not hru_path.exists():
-                return None
-            hru_gdf = gpd.read_file(hru_path)
-            method = getattr(config.discretization, 'method', 'unknown')
-            return rm.workflow_diagnostic_plotter.plot_discretization_diagnostic(
-                hru_gdf=hru_gdf,
-                method=method
-            )
-
-        def _load_observations_diagnostic(rm):
-            """Load data and run observations diagnostic."""
-            obs_path = resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / "streamflow_obs.csv"
-            if not obs_path.exists():
-                return None
-            obs_df = pd.read_csv(obs_path, parse_dates=['datetime'], index_col='datetime')
-            return rm.workflow_diagnostic_plotter.plot_observations_diagnostic(
-                obs_df=obs_df,
-                obs_type='streamflow'
-            )
-
-        def _load_forcing_raw_diagnostic(rm):
-            """Load data and run raw forcing diagnostic."""
-            forcing_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
-            if not forcing_dir.exists():
-                return None
-            nc_files = list(forcing_dir.glob("*.nc"))
-            if not nc_files:
-                return None
-            domain_shp = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
-            return rm.workflow_diagnostic_plotter.plot_forcing_raw_diagnostic(
-                forcing_nc=nc_files[0],
-                domain_shp=domain_shp if domain_shp.exists() else None
-            )
-
-        def _load_forcing_remapped_diagnostic(rm):
-            """Load data and run forcing remapped diagnostic."""
-            raw_dir = resolve_data_subdir(project_dir, 'forcing') / "raw_data"
-            remapped_dir = resolve_data_subdir(project_dir, 'forcing') / "basin_averaged_data"
-            if not raw_dir.exists() or not remapped_dir.exists():
-                return None
-            raw_files = list(raw_dir.glob("*.nc"))
-            remapped_files = list(remapped_dir.glob("*.nc"))
-            if not raw_files or not remapped_files:
-                return None
-            hru_shp = project_dir / "shapefiles" / "catchment" / "catchment.shp"
-            return rm.workflow_diagnostic_plotter.plot_forcing_remapped_diagnostic(
-                raw_nc=raw_files[0],
-                remapped_nc=remapped_files[0],
-                hru_shp=hru_shp if hru_shp.exists() else None
-            )
-
-        def _load_model_preprocessing_diagnostic(rm):
-            """Load data and run model preprocessing diagnostic."""
-            model_name = getattr(config.model, 'name', 'SUMMA')
-            input_dir = project_dir / "simulations" / model_name.lower() / "run_settings"
-            if not input_dir.exists():
-                return None
-            return rm.workflow_diagnostic_plotter.plot_model_preprocessing_diagnostic(
-                input_dir=input_dir,
-                model_name=model_name
-            )
-
-        def _load_model_output_diagnostic(rm):
-            """Load data and run model output diagnostic."""
-            model_name = getattr(config.model, 'name', 'SUMMA')
-            output_dir = project_dir / "simulations" / model_name.lower() / "output"
-            if not output_dir.exists():
-                return None
-            nc_files = list(output_dir.glob("*.nc"))
-            if not nc_files:
-                return None
-            return rm.workflow_diagnostic_plotter.plot_model_output_diagnostic(
-                output_nc=nc_files[0],
-                model_name=model_name
-            )
-
-        def _load_attributes_diagnostic(rm):
-            """Load data and run attributes diagnostic."""
-            dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
-            soil_path = resolve_data_subdir(project_dir, 'attributes') / "soilclass" / "soilclass.tif"
-            land_path = resolve_data_subdir(project_dir, 'attributes') / "landclass" / "landclass.tif"
-            if not any(p.exists() for p in [dem_path, soil_path, land_path]):
-                return None
-            return rm.workflow_diagnostic_plotter.plot_attributes_diagnostic(
-                dem_path=dem_path if dem_path.exists() else None,
-                soil_path=soil_path if soil_path.exists() else None,
-                land_path=land_path if land_path.exists() else None
-            )
-
-        def _load_calibration_diagnostic(rm):
-            """Load data and run calibration diagnostic."""
-            model_name = getattr(config.model, 'name', 'SUMMA')
-            calib_dir = project_dir / "simulations" / model_name.lower() / "calibration"
-            if not calib_dir.exists():
-                return None
-            # Look for calibration history file
-            history_file = calib_dir / "calibration_history.csv"
-            if not history_file.exists():
-                return None
-            history_df = pd.read_csv(history_file)
-            history = history_df.to_dict('records')
-            return rm.workflow_diagnostic_plotter.plot_calibration_diagnostic(
-                history=history,
-                model_name=model_name
-            )
-
-        return {
-            'define_domain': {'func': _load_domain_diagnostic},
-            'discretize_domain': {'func': _load_discretization_diagnostic},
-            'process_observed_data': {'func': _load_observations_diagnostic},
-            'acquire_forcings': {'func': _load_forcing_raw_diagnostic},
-            'model_agnostic_preprocessing': {'func': _load_forcing_remapped_diagnostic},
-            'model_specific_preprocessing': {'func': _load_model_preprocessing_diagnostic},
-            'run_model': {'func': _load_model_output_diagnostic},
-            'acquire_attributes': {'func': _load_attributes_diagnostic},
-            'calibrate_model': {'func': _load_calibration_diagnostic},
-        }
