@@ -170,15 +170,15 @@ jobs:
           # Install test dependencies (pytest moved to optional deps)
           pip install -e ".[test]"
 
-          # Rebuild h5py and netCDF4 from source against system HDF5 to prevent
-          # dual-loading conflicts — pip wheels each bundle their own libhdf5,
-          # and loading two copies in one process causes [Errno -101] HDF errors.
-          echo "Rebuilding h5py/netCDF4 against system HDF5..."
-          pip install cython numpy  # build deps
-          HDF5_PKGCONFIG_NAME=hdf5 pip install --no-binary h5py --force-reinstall h5py || \
-            echo "WARNING: h5py source build failed, using wheel"
-          pip install --no-binary netCDF4 --force-reinstall netCDF4 || \
-            echo "WARNING: netCDF4 source build failed, using wheel"
+          # Use pip wheels for h5py and netCDF4 (NOT source builds).
+          # Source builds against system libnetcdf fail on Ubuntu 24.04 because
+          # libnetcdf 4.9.2 is built with PnetCDF dispatch and the resulting
+          # _netCDF4.so can't resolve pfnc_inq_vardimid at import time.
+          # Pip wheels bundle their own compatible HDF5/netCDF-C libraries.
+          # Dual-loading is avoided because:
+          #   - Fortran binaries (SUMMA, mizuRoute) run as separate subprocesses
+          #   - LD_LIBRARY_PATH does NOT include system HDF5 paths (see notes below)
+          #   - Wheel RUNPATH correctly resolves to bundled libraries
 
 
       - name: Add external tools to PATH
