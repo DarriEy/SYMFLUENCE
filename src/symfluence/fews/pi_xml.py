@@ -140,7 +140,7 @@ def read_pi_xml_timeseries(path: Path, missing_value: float = -999.0) -> xr.Data
 
     # Build unified time axis
     unique_times = sorted(set(all_times))
-    time_index = np.array(unique_times, dtype="datetime64[ns]")
+    time_index = np.array([dt.replace(tzinfo=None) for dt in unique_times], dtype="datetime64[ns]")
 
     data_vars = {}
     for sd in series_data:

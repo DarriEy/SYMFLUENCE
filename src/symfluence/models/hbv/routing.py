@@ -389,8 +389,8 @@ def route_network_step_jax(
         node = topo_order[node_idx]
 
         # Sum upstream contributions
-        upstream_sum = jnp.float64(0.0)
-        prev_upstream_sum = jnp.float64(0.0)
+        upstream_sum = jnp.float32(0.0)
+        prev_upstream_sum = jnp.float32(0.0)
 
         # Add contributions from all upstream nodes
         def add_upstream(i, sums):

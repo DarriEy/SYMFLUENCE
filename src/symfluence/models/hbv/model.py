@@ -448,7 +448,7 @@ def triangular_weights(
     maxbas_timesteps = maxbas * timesteps_per_day
 
     if HAS_JAX:
-        timesteps = jnp.arange(1, buffer_length + 1, dtype=jnp.float64)
+        timesteps = jnp.arange(1, buffer_length + 1, dtype=jnp.float32)
 
         # Triangular weights
         rising = jnp.where(
@@ -465,7 +465,7 @@ def triangular_weights(
 
         # Special case: if maxbas is <= 1 timestep, use unit weight (no routing delay)
         # Use jnp.where for JAX compatibility (no Python if statements on traced values)
-        unit_weights = jnp.zeros(buffer_length, dtype=jnp.float64).at[0].set(1.0)
+        unit_weights = jnp.zeros(buffer_length, dtype=jnp.float32).at[0].set(1.0)
         weights = jnp.where(maxbas_timesteps <= 1.0, unit_weights, weights / jnp.maximum(jnp.sum(weights), 1e-10))
 
         return weights
