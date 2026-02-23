@@ -9,7 +9,7 @@ import csv
 from pathlib import Path
 from typing import Any, Dict
 
-import pandas as pd  # type: ignore
+import pandas as pd
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
@@ -672,7 +672,7 @@ class ObservedDataProcessor(ConfigMixin):
                     UnicodeDecodeError,
                 ) as e2:
                     self.logger.error(f"Alternative parsing also failed: {e2}")
-                    raise DataAcquisitionError(f"Could not parse CARAVANS data file: {input_file}")
+                    raise DataAcquisitionError(f"Could not parse CARAVANS data file: {input_file}") from e2
 
             # Identify date and discharge columns
             date_col_name = None
@@ -856,7 +856,7 @@ class ObservedDataProcessor(ConfigMixin):
                     caravans_data.index = pd.to_datetime(caravans_data.index)
                 except (ValueError, pd.errors.ParserError, OverflowError) as idx_e:
                     self.logger.error(f"Final attempt to convert index to datetime failed: {idx_e}")
-                    raise DataAcquisitionError("Failed to create a valid DatetimeIndex.")
+                    raise DataAcquisitionError("Failed to create a valid DatetimeIndex.") from idx_e
 
             self.logger.info(f"Data date range: {caravans_data.index.min()} to {caravans_data.index.max()}")
             self.logger.info(f"Number of records after processing: {len(caravans_data)}")

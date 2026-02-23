@@ -331,7 +331,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lat_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range")
+                        raise ValueError(f"Subcatchment index {index} out of range") from None
 
                 # Extract data for this subcatchment but preserve the dimensional structure
                 subcat_data = ds.isel(latitude=slice(subcat_idx, subcat_idx + 1))
@@ -345,7 +345,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lon_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range")
+                        raise ValueError(f"Subcatchment index {index} out of range") from None
 
                 subcat_data = ds.isel(longitude=slice(subcat_idx, subcat_idx + 1))
 

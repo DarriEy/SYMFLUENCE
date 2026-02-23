@@ -7,12 +7,12 @@ methods on calibration results, with visualization and reporting support.
 
 from pathlib import Path
 
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-from SALib.analyze import rbd_fast, sobol  # type: ignore
-from SALib.sample import sobol as sobol_sample  # type: ignore
-from scipy.stats import spearmanr  # type: ignore
-from tqdm import tqdm  # type: ignore
+import numpy as np
+import pandas as pd
+from SALib.analyze import rbd_fast, sobol
+from SALib.sample import sobol as sobol_sample
+from scipy.stats import spearmanr
+from tqdm import tqdm
 
 from symfluence.core.mixins import ConfigMixin
 
@@ -109,7 +109,7 @@ class SensitivityAnalyzer(ConfigMixin):
         for i, param in tqdm(enumerate(parameter_columns), total=len(parameter_columns), desc="Calculating sensitivities"):
             try:
                 try:
-                    from pyviscous import viscous  # type: ignore
+                    from pyviscous import viscous
                     sensitivity_result = viscous(x, y, i, sensType='total')
                 except ImportError:
                     self.logger.warning("pyviscous not installed, skipping.")

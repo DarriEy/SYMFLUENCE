@@ -120,7 +120,7 @@ class SYMFLUENCE:
                 validate=True
             )
         except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+            raise FileNotFoundError(f"Configuration file not found: {self.config_path}") from None
 
     def run_workflow(self, force_run: Optional[bool] = None) -> None:
         """Execute the complete SYMFLUENCE workflow (CLI wrapper)."""

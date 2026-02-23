@@ -7,7 +7,7 @@ Handles plotting of hydrological benchmarks and performance comparisons.
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import pandas as pd  # type: ignore
+import pandas as pd
 
 from symfluence.core.constants import ConfigKeys
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -131,7 +131,7 @@ class BenchmarkPlotter(BasePlotter):
     def _plot_group_comparison(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_dir: Path) -> Optional[str]:
         """Plot benchmark time series by group."""
         plt, _ = self._setup_matplotlib()
-        import matplotlib.gridspec as gridspec  # type: ignore
+        import matplotlib.gridspec as gridspec
 
         n_groups = len(self.benchmark_groups)
         fig = plt.figure(figsize=(15, 4 * n_groups))
@@ -166,7 +166,7 @@ class BenchmarkPlotter(BasePlotter):
     def _plot_statistics(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_dir: Path) -> Optional[str]:
         """Plot statistical summaries and metrics heatmap."""
         plt, _ = self._setup_matplotlib()
-        import seaborn as sns  # type: ignore
+        import seaborn as sns
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
 

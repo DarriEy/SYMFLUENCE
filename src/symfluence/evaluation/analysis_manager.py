@@ -20,9 +20,9 @@ from symfluence.data.observation.paths import (
     tws_observation_candidates,
 )
 from symfluence.evaluation.analysis_registry import AnalysisRegistry
-from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor  # type: ignore
+from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor
 from symfluence.evaluation.registry import EvaluationRegistry
-from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer  # type: ignore
+from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

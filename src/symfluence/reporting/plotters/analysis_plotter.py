@@ -7,8 +7,8 @@ Handles plotting of sensitivity analysis, decision impacts, and threshold analys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
+import numpy as np
+import pandas as pd
 
 from symfluence.core.constants import ConfigKeys, UnitConversion
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -392,7 +392,7 @@ class AnalysisPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import xarray as xr  # type: ignore
+        import xarray as xr
 
         from symfluence.reporting.core.plot_utils import (
             align_timeseries,
@@ -550,8 +550,8 @@ class AnalysisPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        import geopandas as gpd  # type: ignore
-        import xarray as xr  # type: ignore
+        import geopandas as gpd
+        import xarray as xr
 
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
@@ -865,10 +865,10 @@ class AnalysisPlotter(BasePlotter):
         Visual styling matches Camille's model comparison overview for consistency.
         """
         plt, _ = self._setup_matplotlib()
-        import matplotlib.dates as mdates  # type: ignore
-        import xarray as xr  # type: ignore
-        from matplotlib import gridspec  # type: ignore
-        from matplotlib.patches import Patch  # type: ignore
+        import matplotlib.dates as mdates
+        import xarray as xr
+        from matplotlib import gridspec
+        from matplotlib.patches import Patch
 
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
@@ -1262,7 +1262,7 @@ class AnalysisPlotter(BasePlotter):
     def plot_lstm_results(self, results_df: pd.DataFrame, obs_streamflow: pd.DataFrame, obs_snow: pd.DataFrame, use_snow: bool, output_dir: Path, experiment_id: str) -> Optional[str]:
         """Visualize LSTM simulation results."""
         plt, _ = self._setup_matplotlib()
-        from matplotlib.gridspec import GridSpec  # type: ignore
+        from matplotlib.gridspec import GridSpec
 
         from symfluence.reporting.core.plot_utils import calculate_metrics
 

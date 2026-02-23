@@ -74,7 +74,7 @@ class WATFLOODWorker(BaseWorker):
                 )
                 if pattern_sci.search(content):
                     content = pattern_sci.sub(
-                        lambda m: f"{m.group(1)}{value:.3E}", content
+                        lambda m, _value=value: f"{m.group(1)}{_value:.3E}", content  # type: ignore[misc]
                     )
                 else:
                     # Try decimal format
@@ -83,7 +83,7 @@ class WATFLOODWorker(BaseWorker):
                         re.MULTILINE | re.IGNORECASE
                     )
                     content = pattern_dec.sub(
-                        lambda m: f"{m.group(1)}{value:.6f}", content
+                        lambda m, _value=value: f"{m.group(1)}{_value:.6f}", content  # type: ignore[misc]
                     )
 
             par_path.write_text(content, encoding='utf-8')

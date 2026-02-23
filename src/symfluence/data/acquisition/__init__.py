@@ -22,13 +22,13 @@ _logger = _logging.getLogger(__name__)
 try:
     from .registry import AcquisitionRegistry
 except ImportError as _e:
-    AcquisitionRegistry: Any = None  # type: ignore
+    AcquisitionRegistry: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import AcquisitionRegistry: %s", _e)
 
 try:
     from . import handlers
 except ImportError as _e:
-    handlers: Any = None  # type: ignore
+    handlers: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import acquisition handlers: %s", _e)
 
 __all__ = ["AcquisitionRegistry"]

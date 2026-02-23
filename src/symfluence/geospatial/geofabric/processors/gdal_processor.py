@@ -128,7 +128,7 @@ class GDALProcessor:
                 raise RuntimeError(
                     "gdal_polygonize.py not found. Ensure GDAL is installed and in PATH. "
                     "On macOS, try: brew install gdal"
-                )
+                ) from None
             except Exception as fallback_err:
                 self.logger.error(f"All polygonization attempts failed: {str(fallback_err)}")
                 raise

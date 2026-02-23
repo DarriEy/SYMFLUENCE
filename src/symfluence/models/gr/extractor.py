@@ -89,7 +89,7 @@ class GRResultExtractor(ModelResultExtractor):
             # Fallback: use first numeric column
             return df.iloc[:, 0]
         except Exception as e:
-            raise ValueError(f"Failed to parse GR CSV output {output_file}: {e}")
+            raise ValueError(f"Failed to parse GR CSV output {output_file}: {e}") from e
 
     def _extract_from_netcdf(self, output_file: Path) -> pd.Series:
         """Extract streamflow from GR NetCDF output.

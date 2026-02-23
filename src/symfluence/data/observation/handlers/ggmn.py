@@ -127,7 +127,7 @@ class GGMNHandler(BaseObservationHandler):
 
         except Exception as e:
             self.logger.error(f"GGMN acquisition failed: {e}")
-            raise DataAcquisitionError(f"Failed to acquire GGMN data: {e}")
+            raise DataAcquisitionError(f"Failed to acquire GGMN data: {e}") from e
 
     def process(self, input_path: Path) -> Path:
         """

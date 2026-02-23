@@ -180,7 +180,7 @@ class VICResultExtractor(ModelResultExtractor):
         except Exception as e:
             raise ValueError(
                 f"Error reading VIC output file {output_file}: {str(e)}"
-            )
+            ) from e
 
     def extract_streamflow(
         self,

@@ -47,7 +47,7 @@ class LSTMPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib.gridspec import GridSpec  # type: ignore
+        from matplotlib.gridspec import GridSpec
 
         from symfluence.reporting.core.plot_utils import calculate_metrics
 

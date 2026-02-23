@@ -56,7 +56,7 @@ def __getattr__(name):
             raise AttributeError(
                 f"Worker '{name}' not found. Ensure the model package is installed "
                 f"and the worker is defined in {worker_mapping[name]}"
-            )
+            ) from None
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

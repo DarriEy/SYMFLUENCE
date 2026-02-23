@@ -162,7 +162,7 @@ class CRHMResultExtractor(ModelResultExtractor):
         except Exception as e:
             raise ValueError(
                 f"Error reading CRHM output file {output_file}: {str(e)}"
-            )
+            ) from e
 
     def extract_streamflow(
         self,

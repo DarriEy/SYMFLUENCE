@@ -212,12 +212,12 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Union
 
-import geopandas as gpd  # type: ignore
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-import rasterio  # type: ignore
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import rasterio
 from rasterio.windows import from_bounds
-from rasterstats import zonal_stats  # type: ignore
+from rasterstats import zonal_stats
 from shapely.geometry import box
 
 from symfluence.core import ConfigurableMixin

@@ -71,7 +71,7 @@ class AcquisitionRegistry(BaseRegistry):
             handler_class = cls._get_handler_class(dataset_name)
             return handler_class(config, logger)
         except ValueError as e:
-            raise DataAcquisitionError(str(e))
+            raise DataAcquisitionError(str(e)) from e
 
     @classmethod
     def list_datasets(cls) -> List[str]:

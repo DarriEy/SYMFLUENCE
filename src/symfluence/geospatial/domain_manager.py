@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 from symfluence.core.exceptions import GeospatialError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
-from symfluence.geospatial.delineation import (  # type: ignore
+from symfluence.geospatial.delineation import (
     DelineationArtifacts,
     DomainDelineator,
     create_point_domain_shapefile,
 )
-from symfluence.geospatial.discretization import DiscretizationArtifacts, DomainDiscretizationRunner  # type: ignore
+from symfluence.geospatial.discretization import DiscretizationArtifacts, DomainDiscretizationRunner
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

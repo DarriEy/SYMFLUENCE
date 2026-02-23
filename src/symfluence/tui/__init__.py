@@ -28,7 +28,7 @@ def launch_tui(config_path=None, demo=None):
         raise ImportError(
             "Textual is required for the SYMFLUENCE TUI.\n"
             'Install with:  pip install "symfluence[tui]"'
-        )
+        ) from None
 
     from .app import SymfluenceTUI
     app = SymfluenceTUI(config_path=config_path, demo=demo)

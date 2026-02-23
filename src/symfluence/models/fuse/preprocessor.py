@@ -20,7 +20,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
-from symfluence.data.utils.variable_utils import VariableHandler  # type: ignore
+from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 from ..base import BaseModelPreProcessor

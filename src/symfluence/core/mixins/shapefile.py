@@ -35,7 +35,7 @@ class ShapefileColumnProperty:
 
     def __get__(self, obj: Any, objtype: type = None) -> str:
         if obj is None:
-            return self  # type: ignore
+            return self  # type: ignore[return-value]
         return obj._get_config_value(
             lambda: getattr(obj.config.paths, self.config_accessor),
             default=self.default

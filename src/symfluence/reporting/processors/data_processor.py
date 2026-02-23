@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-import pandas as pd  # type: ignore
+import pandas as pd
 
 from symfluence.core.constants import ConfigKeys
 from symfluence.core.mixins import ConfigMixin
@@ -126,7 +126,7 @@ class DataProcessor(ConfigMixin):
         Returns:
             List of (model_name, Series) tuples
         """
-        import xarray as xr  # type: ignore
+        import xarray as xr
         sim_data = []
 
         for sim_name, sim_file in model_outputs:
@@ -195,7 +195,7 @@ class DataProcessor(ConfigMixin):
         Returns:
             Time series for the specified reach, or None if loading fails
         """
-        import xarray as xr  # type: ignore
+        import xarray as xr
         try:
             ds = xr.open_dataset(model_file)
 
@@ -257,7 +257,7 @@ class DataProcessor(ConfigMixin):
         Returns:
             Time series of snow data, or None if loading fails
         """
-        import xarray as xr  # type: ignore
+        import xarray as xr
         try:
             ds = xr.open_dataset(snow_file)
 
@@ -413,7 +413,7 @@ class DataProcessor(ConfigMixin):
                 try:
                     sim_df.index = pd.to_datetime(sim_df.index)
                 except (ValueError, pd.errors.ParserError, OverflowError):
-                    raise ValueError("Index cannot be converted to datetime format")
+                    raise ValueError("Index cannot be converted to datetime format") from None
             else:
                 raise ValueError("No time or datetime column found in results file")
 

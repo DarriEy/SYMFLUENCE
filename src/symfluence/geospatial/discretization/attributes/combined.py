@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-import geopandas as gpd  # type: ignore
-import numpy as np  # type: ignore
-import rasterio  # type: ignore
-from rasterio.mask import mask  # type: ignore
-from shapely.geometry import MultiPolygon, shape  # type: ignore
+import geopandas as gpd
+import numpy as np
+import rasterio
+from rasterio.mask import mask
+from shapely.geometry import MultiPolygon, shape
 
 from symfluence.geospatial.raster_utils import (
     calculate_annual_radiation,

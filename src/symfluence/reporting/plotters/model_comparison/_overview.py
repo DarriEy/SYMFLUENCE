@@ -29,7 +29,7 @@ class ModelComparisonOverviewMixin:
             metrics_dict = self._calculate_all_metrics(results_df, obs_series, model_cols)
 
             plt, _ = self._setup_matplotlib()
-            import matplotlib.gridspec as gridspec  # type: ignore
+            import matplotlib.gridspec as gridspec
 
             fig = plt.figure(figsize=(18, 14))
             gs = gridspec.GridSpec(

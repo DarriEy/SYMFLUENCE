@@ -67,8 +67,8 @@ class BasePlotter(ConfigMixin, ABC):
             improving startup time and allowing for headless operation.
         """
         if self._plt is None or self._mdates is None:
-            import matplotlib.dates as mdates  # type: ignore
-            import matplotlib.pyplot as plt  # type: ignore
+            import matplotlib.dates as mdates
+            import matplotlib.pyplot as plt
             self._plt = plt
             self._mdates = mdates
 

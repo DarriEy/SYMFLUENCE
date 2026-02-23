@@ -142,7 +142,7 @@ class ResultsViewer(param.Parameterized):
             if disable_while_running:
                 btn.disabled = bool(self.state.is_running)
                 def _sync_disabled(event: Any, button=btn) -> None:
-                    setattr(button, 'disabled', bool(event.new))
+                    button.disabled = bool(event.new)
 
                 self.state.param.watch(
                     _sync_disabled,

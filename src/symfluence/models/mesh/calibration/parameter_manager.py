@@ -932,7 +932,7 @@ class MESHParameterManager(BaseParameterManager):
                     # Use word boundary \b to avoid matching partial names
                     # and handle KEY=value or KEY value
                     pattern = rf'\b({param_name})\b\s*[\s=]+\s*([\d\.\-\+eE]+)'
-                    content, n = re.subn(pattern, lambda m: m.group(1) + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
+                    content, n = re.subn(pattern, lambda m, _value=value: m.group(1) + " " + f"{_value:.6f}", content, count=1, flags=re.IGNORECASE)  # type: ignore[misc]
 
                 if n > 0:
                     updated += 1

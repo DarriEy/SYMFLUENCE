@@ -122,10 +122,10 @@ class HYPEParameterManager(BaseParameterManager):
                 # Pattern: param_name + whitespace + numeric value(s)
                 pattern = rf'^({param_name}\s+)([\d\.\-\+eE]+)'
 
-                def replacer(match):
+                def replacer(match, _value=value):
                     nonlocal updated
                     updated += 1
-                    return f"{match.group(1)}{value:.6f}"
+                    return f"{match.group(1)}{_value:.6f}"
 
                 content, n = re.subn(pattern, replacer, content, count=1, flags=re.MULTILINE)
 

@@ -173,7 +173,7 @@ class JobSchedulerService(BaseService):
         except subprocess.CalledProcessError as e:
             self._console.error(f"Error submitting job: {e}")
             self._console.error(f"stderr: {e.stderr}")
-            raise RuntimeError(f"Failed to submit SLURM job: {e}")
+            raise RuntimeError(f"Failed to submit SLURM job: {e}") from e
 
     def _create_symfluence_slurm_script(
         self,

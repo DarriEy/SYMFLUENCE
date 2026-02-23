@@ -115,7 +115,7 @@ class MESHResultExtractor(ModelResultExtractor):
                 return self._extract_generic_variable(df, variable_type)
 
         except Exception as e:
-            raise ValueError(f"Failed to extract {variable_type} from {output_file}: {e}")
+            raise ValueError(f"Failed to extract {variable_type} from {output_file}: {e}") from e
 
     def _extract_from_gru_water_balance(
         self,

@@ -195,7 +195,7 @@ class WMFireConfig(BaseModel):
                 if not (-180 <= lon <= 180):
                     raise ValueError(f"Longitude {lon} out of range [-180, 180]")
             except ValueError as e:
-                raise ValueError(f"Invalid ignition_point coordinates: {e}")
+                raise ValueError(f"Invalid ignition_point coordinates: {e}") from e
         return v
 
 

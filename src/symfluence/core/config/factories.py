@@ -329,7 +329,7 @@ def from_preset_factory(
         raise ConfigurationError(
             f"Preset '{preset_name}' not found. "
             f"Use 'symfluence project list-presets' to see available presets."
-        )
+        ) from None
 
     preset_settings = preset['settings'].copy()
 

@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Optional
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from symfluence.core.constants import ConfigKeys
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -38,7 +38,7 @@ class DomainPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib.lines import Line2D  # type: ignore
+        from matplotlib.lines import Line2D
 
         try:
             # Setup plot directory
@@ -164,8 +164,8 @@ class DomainPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib.colors import ListedColormap  # type: ignore
-        from matplotlib.patches import Patch  # type: ignore
+        from matplotlib.colors import ListedColormap
+        from matplotlib.patches import Patch
 
         try:
             # Setup plot directory
@@ -328,7 +328,7 @@ class DomainPlotter(BasePlotter):
 
     def _load_catchment_shapefile(self) -> Any:
         """Load catchment/river basin shapefile."""
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         catchment_name = self._get_config_value(lambda: self.config.paths.river_basins_name, dict_key=ConfigKeys.RIVER_BASINS_NAME)
         if catchment_name == 'default':
             catchment_name = (
@@ -342,7 +342,7 @@ class DomainPlotter(BasePlotter):
 
     def _load_river_network_shapefile(self) -> Any:
         """Load river network shapefile."""
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         river_name = self._get_config_value(lambda: self.config.paths.river_network_name, dict_key=ConfigKeys.RIVER_NETWORK_SHP_NAME)
         if river_name == 'default':
             domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
@@ -358,7 +358,7 @@ class DomainPlotter(BasePlotter):
 
     def _load_pour_point_shapefile(self) -> Any:
         """Load pour point shapefile."""
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         pour_point_name = self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key=ConfigKeys.POUR_POINT_SHP_NAME)
         if pour_point_name == 'default':
             pour_point_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_pourPoint.shp"
@@ -369,7 +369,7 @@ class DomainPlotter(BasePlotter):
 
     def _load_hru_shapefile(self, discretization_method: str) -> Any:
         """Load HRU shapefile for discretized domain."""
-        import geopandas as gpd  # type: ignore
+        import geopandas as gpd
         catchment_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key=ConfigKeys.CATCHMENT_SHP_NAME)
         if catchment_name == 'default':
             catchment_name = (
