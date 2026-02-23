@@ -148,7 +148,17 @@ class SpatialProcessor(ConfigMixin):
 
             return reach_id
 
-        except Exception as e:
+        except (
+            ImportError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
+            AttributeError,
+            RuntimeError,
+            PermissionError,
+        ) as e:
             self.logger.error(f"Error updating SIM_REACH_ID: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return None

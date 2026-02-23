@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Union, Optional
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.exceptions import SYMFLUENCEError
 
 # Import core components
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
@@ -144,11 +145,16 @@ class SYMFLUENCE:
 
             self.logger.info("Complete SYMFLUENCE workflow execution completed")
 
-        except Exception as e:
+        except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
             status = "failed"
             errors.append({"where": "run_workflow", "error": str(e)})
             self.logger.error(f"Workflow execution failed: {e}")
             # re-raise after summary so the CI can fail meaningfully if needed
+            raise
+        except Exception as e:
+            status = "failed"
+            errors.append({"where": "run_workflow", "error": str(e)})
+            self.logger.exception(f"Unexpected workflow execution failure: {e}")
             raise
         finally:
             end = datetime.now()
@@ -258,8 +264,10 @@ class SYMFLUENCE:
             result = diagnostic_info['func'](reporting_manager)
             if result:
                 results.append(result)
-        except Exception as e:
+        except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
             self.logger.error(f"Failed to generate diagnostic for {step_name}: {e}")
+        except Exception as e:
+            self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
 
         return results
 
@@ -287,8 +295,10 @@ class SYMFLUENCE:
                     if result:
                         results.append(result)
                         self.logger.info(f"Generated diagnostic for {step_name}: {result}")
-            except Exception as e:
+            except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 self.logger.debug(f"Skipping {step_name} diagnostic: {e}")
+            except Exception as e:
+                self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
 
         self.logger.info(f"Generated {len(results)} diagnostic plot(s)")
         return results

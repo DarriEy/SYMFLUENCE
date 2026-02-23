@@ -186,16 +186,26 @@ class ChunkedDownloadMixin:
             for future in concurrent.futures.as_completed(future_to_chunk):
                 chunk = future_to_chunk[future]
                 try:
-                    result = future.result()
-                    if result is not None:
-                        chunk_files.append(result)
-                        logger.debug(f"Completed chunk: {chunk}")
-                except Exception as exc:
-                    logger.error(f"Chunk {chunk} failed: {exc}")
+                    chunk_exc = future.exception()
+                except concurrent.futures.CancelledError as exc:
+                    logger.error(f"Chunk {chunk} was cancelled: {exc}")
+                    if fail_fast:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        raise
+                    continue
+
+                if chunk_exc is not None:
+                    logger.error(f"Chunk {chunk} failed: {chunk_exc}")
                     if fail_fast:
                         # Cancel remaining futures
                         executor.shutdown(wait=False, cancel_futures=True)
-                        raise
+                        raise chunk_exc
+                    continue
+
+                result = future.result()
+                if result is not None:
+                    chunk_files.append(result)
+                    logger.debug(f"Completed chunk: {chunk}")
 
         logger.info(f"Downloaded {len(chunk_files)}/{total} chunks successfully")
         return chunk_files

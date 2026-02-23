@@ -462,6 +462,7 @@ class TestSUMMAWorkerContract:
 
     def test_summa_worker_registered(self):
         """Test that SUMMAWorker is registered with registry."""
+        from symfluence.models.summa.calibration.worker import SUMMAWorker  # noqa: F401 — triggers @register_worker
         from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('SUMMA')
         assert worker_cls is not None
@@ -491,6 +492,7 @@ class TestFUSEWorkerContract:
 
     def test_fuse_worker_registered(self):
         """Test that FUSEWorker is registered with registry."""
+        from symfluence.models.fuse.calibration.worker import FUSEWorker  # noqa: F401 — triggers @register_worker
         from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('FUSE')
         assert worker_cls is not None
@@ -515,6 +517,7 @@ class TestNgenWorkerContract:
 
     def test_ngen_worker_registered(self):
         """Test that NgenWorker is registered with registry."""
+        from symfluence.models.ngen.calibration.worker import NgenWorker  # noqa: F401 — triggers @register_worker
         from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('NGEN')
         assert worker_cls is not None

@@ -107,7 +107,13 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
                     break
                 page += 1
 
-            except Exception as e:
+            except (
+                requests.RequestException,
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+            ) as e:
                 self.logger.warning(f"CMR search error on page {page}: {e}")
                 break
 
@@ -178,7 +184,7 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
                 netrc_auth = nrc.authenticators('urs.earthdata.nasa.gov')
                 if netrc_auth:
                     session.auth = (netrc_auth[0], netrc_auth[2])
-            except Exception:
+            except (ImportError, OSError, ValueError, TypeError, AttributeError):
                 pass
 
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -202,7 +208,13 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
                 with open(output_path, 'wb') as f:
                     f.write(response.content)
                 downloaded.append(output_path)
-            except Exception as e:
+            except (
+                requests.RequestException,
+                OSError,
+                ValueError,
+                TypeError,
+                RuntimeError,
+            ) as e:
                 self.logger.warning(f"Failed to download {filename}: {e}")
 
         self.logger.info(f"Downloaded {len(downloaded)} files")
@@ -277,5 +289,5 @@ class BaseEarthaccessAcquirer(BaseAcquisitionHandler):
         try:
             response = requests.get(self.CMR_URL, params=params, timeout=30)
             return int(response.headers.get('CMR-Hits', 0))
-        except Exception:
+        except (requests.RequestException, OSError, ValueError, TypeError):
             return 0

@@ -210,7 +210,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                         # Good quality: bits 0-1 are 00 or 01
                         good_quality = np.isin(qc_data & self.QC_GOOD_MASK, list(self.QC_GOOD_VALUES))
                         et_data[~good_quality] = np.nan
-                    except Exception:
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError):
                         pass
 
                 hdf.end()
@@ -240,7 +240,15 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                         'total_pixels': int(et_data.size)
                     })
 
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 self.logger.debug(f"Error processing {hdf_path.name}: {e}")
                 continue
 
@@ -387,7 +395,15 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 )
                 if product_file and product_file.exists():
                     product_files[product] = product_file
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                RuntimeError,
+                requests.RequestException,
+            ) as e:
                 self.logger.warning(f"Failed to download {product}: {e}")
 
         if not product_files:
@@ -408,7 +424,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 auth = nrc.authenticators('urs.earthdata.nasa.gov')
                 if auth:
                     username, _, password = auth
-            except Exception:
+            except (ImportError, OSError, ValueError, TypeError, AttributeError):
                 pass
 
         return username, password
@@ -423,7 +439,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError) as e:
             self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
@@ -435,7 +451,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30
             )
-        except Exception:
+        except (requests.RequestException, OSError, ValueError, TypeError):
             pass
 
     def _download_product_appeears(
@@ -534,7 +550,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
             task_id = response.json().get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
@@ -564,7 +580,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                 self.logger.debug(f"Task status: {status}")
                 time.sleep(check_interval)
 
-            except Exception as e:
+            except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
                 self.logger.warning(f"Error checking task status: {e}")
                 time.sleep(check_interval)
 
@@ -613,7 +629,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
 
                 self.logger.debug(f"Downloaded: {filename}")
 
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
             self.logger.error(f"Error downloading task results: {e}")
             raise
 
@@ -633,7 +649,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
             try:
                 ds = xr.open_dataset(f)
                 datasets.append(ds)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
                 self.logger.debug(f"Could not open {f}: {e}")
 
         if not datasets:
@@ -675,7 +691,7 @@ class MOD16ETAcquirer(BaseEarthaccessAcquirer):
                         if 'qc' in qc_var.lower():
                             datasets[product]['qc'] = ds[qc_var]
                             break
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
                 self.logger.warning(f"Failed to open {path}: {e}")
 
         if not datasets:

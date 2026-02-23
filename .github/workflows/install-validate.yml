@@ -82,7 +82,7 @@ jobs:
             git wget curl unzip tar \
             openmpi-bin libopenmpi-dev \
             gdal-bin libgdal-dev libproj-dev \
-            libnetcdf-dev libnetcdff-dev \
+            libnetcdf-dev libnetcdff-dev libpnetcdf-dev \
             libhdf5-dev hdf5-tools libudunits2-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
@@ -508,7 +508,7 @@ jobs:
             git wget curl unzip tar \
             openmpi-bin libopenmpi-dev \
             gdal-bin libgdal-dev libproj-dev \
-            libnetcdf-dev libnetcdff-dev \
+            libnetcdf-dev libnetcdff-dev libpnetcdf-dev \
             libhdf5-dev hdf5-tools libudunits2-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \

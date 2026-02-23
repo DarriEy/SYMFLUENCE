@@ -164,7 +164,14 @@ class SpatialSubsetMixin:
                 else:
                     subset = subset.sel({lat_name: slice(lat_min, lat_max)})
 
-        except Exception as e:
+        except (
+            KeyError,
+            ValueError,
+            TypeError,
+            IndexError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             logger.warning(f"Standard slicing failed: {e}. Trying sel with method='nearest'")
             # Fallback for irregular grids
             subset = ds.sel(

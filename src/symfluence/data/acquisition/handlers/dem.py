@@ -65,7 +65,7 @@ class _TileDownloadMixin:
             with rasterio.open(tile_path) as src:
                 src.read(1, window=Window(0, 0, 1, 1))
             return True
-        except Exception:
+        except (rasterio.errors.RasterioError, OSError, ValueError, TypeError):
             self.logger.warning(f"Cached tile {tile_name} is corrupted, will re-download")
             return False
 
@@ -117,7 +117,15 @@ class _TileDownloadMixin:
                     IOError,
                 )
             )
-        except Exception as e:
+        except (
+            requests.RequestException,
+            OSError,
+            IOError,
+            BrokenPipeError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Failed to download {tile_name}: {e}")
             raise
 
@@ -224,7 +232,16 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 
             self._merge_tiles(tile_paths, out_path)
 
-        except Exception as e:
+        except (
+            requests.RequestException,
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error downloading/processing {self._PRODUCT_NAME}: {e}")
             for p in tile_paths:
                 if p.exists() and p != out_path:
@@ -340,7 +357,16 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
                 with rasterio.open(out_path, "w", **out_meta) as dest: dest.write(mosaic)
                 for src in src_files: src.close()
                 for p in tile_paths: p.unlink(missing_ok=True)
-        except Exception as e:
+        except (
+            requests.RequestException,
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error with FABDEM: {e}")
             raise
         return out_path
@@ -505,7 +531,16 @@ class SRTMAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 
             self._merge_tiles(tile_paths, out_path)
 
-        except Exception as e:
+        except (
+            requests.RequestException,
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error downloading/processing SRTM: {e}")
             for p in tile_paths:
                 if p.exists() and p != out_path:
@@ -624,7 +659,15 @@ class ETOPO2022Acquirer(BaseAcquisitionHandler):
 
             ds.close()
 
-        except Exception as e:
+        except (
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error downloading/processing ETOPO 2022: {e}")
             raise
 
@@ -726,7 +769,16 @@ class MapzenAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 
             self._merge_tiles(tile_paths, out_path)
 
-        except Exception as e:
+        except (
+            requests.RequestException,
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error downloading/processing Mapzen tiles: {e}")
             for p in tile_paths:
                 if p.exists() and p != out_path:
@@ -848,7 +900,16 @@ class ALOSAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 
         except ImportError:
             raise
-        except Exception as e:
+        except (
+            requests.RequestException,
+            rasterio.errors.RasterioError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error downloading/processing ALOS DEM: {e}")
             raise
 
