@@ -34,7 +34,6 @@ class ModelRegistry:
     _runners = ComponentRegistry._runners
     _postprocessors = ComponentRegistry._postprocessors
     _visualizers = ComponentRegistry._visualizers
-    _runner_methods = ComponentRegistry._runner_methods
 
     # Config registry attributes
     _config_adapters = ConfigRegistry._config_adapters

@@ -65,7 +65,6 @@ class ComponentRegistry:
         _runners: Dict[model_name] -> runner_class
         _postprocessors: Dict[model_name] -> postprocessor_class
         _visualizers: Dict[model_name] -> visualizer_function
-        _runner_methods: Dict[model_name] -> method_name (e.g., 'run', 'run_summa')
 
     Example Component Registration::
 
@@ -97,7 +96,6 @@ class ComponentRegistry:
     _runners: Dict[str, Type] = _RegistryProxy(R.runners)
     _postprocessors: Dict[str, Type] = _RegistryProxy(R.postprocessors)
     _visualizers: Dict[str, Callable] = _RegistryProxy(R.visualizers)
-    _runner_methods: Dict[str, str] = {}
 
     # Mapping from component kind to (Protocol class, required attributes/methods).
     # Only method contracts are checked; MODEL_NAME is a naming convention
