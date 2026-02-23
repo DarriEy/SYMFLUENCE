@@ -628,10 +628,7 @@ class ModelComparisonDataLoadingMixin:
                 return float(gdf_proj.geometry.area.sum())
 
             return None
-        except (ImportError, OSError, ValueError, TypeError, AttributeError) as e:
-            self.logger.warning(f"Could not determine basin area: {e}")
-            return None
-        except (KeyError, RuntimeError, ImportError, AttributeError, IndexError) as e:
+        except (ImportError, OSError, ValueError, TypeError, AttributeError, KeyError, RuntimeError, IndexError) as e:
             self.logger.warning(f"Could not determine basin area: {e}")
             return None
 

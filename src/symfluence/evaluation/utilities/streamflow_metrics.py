@@ -438,7 +438,7 @@ class StreamflowMetrics:
         self,
         obs: np.ndarray,
         sim: np.ndarray,
-        metrics: List[str] = ['kge', 'nse']
+        metrics: Optional[List[str]] = None
     ) -> Dict[str, float]:
         """
         Calculate performance metrics with error handling.
@@ -457,6 +457,8 @@ class StreamflowMetrics:
         Returns:
             Dictionary of metric values, or penalty_score on error
         """
+        if metrics is None:
+            metrics = ['kge', 'nse']
         try:
             # Check for zero variance in simulation (common during spinup)
             if np.std(sim) == 0:
@@ -520,7 +522,7 @@ class StreamflowMetrics:
         area_source: str = 'shapefile',
         settings_dir: Optional[Path] = None,
         input_units: str = 'mm/day',
-        metrics: List[str] = ['kge', 'nse'],
+        metrics: Optional[List[str]] = None,
         resample_freq: Optional[str] = 'D',
         calibration_period: Optional[Tuple[str, str]] = None
     ) -> Dict[str, float]:
@@ -543,6 +545,8 @@ class StreamflowMetrics:
         Returns:
             Dictionary of metric values
         """
+        if metrics is None:
+            metrics = ['kge', 'nse']
         try:
             # Load observations
             obs_values, obs_index = self.load_observations(
@@ -613,7 +617,7 @@ def get_catchment_area(
 def calculate_metrics(
     obs: np.ndarray,
     sim: np.ndarray,
-    metrics: List[str] = ['kge', 'nse']
+    metrics: Optional[List[str]] = None
 ) -> Dict[str, float]:
     """Convenience function. See StreamflowMetrics.calculate_metrics."""
     return _streamflow_metrics.calculate_metrics(obs, sim, metrics)

@@ -99,7 +99,7 @@ class MODISLAIHandler(BaseObservationHandler):
         except ImportError as e:
             self.logger.warning(f"MODIS LAI acquirer not available: {e}")
             raise
-        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, LookupError) as e:
             self.logger.error(f"MODIS LAI acquisition failed: {e}")
             raise
 
