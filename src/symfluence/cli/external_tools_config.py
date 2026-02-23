@@ -243,7 +243,6 @@ cd ngiab
             'check_type': 'exists'
         },
         'order': 10,
-        'optional': True,  # Not installed by default with --install
     })
 
 
@@ -337,6 +336,14 @@ def _import_model_build_instructions() -> None:
         except ImportError:
             # Model may not be installed or available
             pass
+        except Exception as exc:  # noqa: BLE001 — intentional; catch all failures
+            # Catch non-ImportError failures (e.g. a dependency in the
+            # model's __init__.py raising AttributeError or TypeError).
+            # Log so the user can diagnose missing tools.
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to load build instructions from %s: %s", module_name, exc
+            )
 
 
 # Register infrastructure tools on module load

@@ -61,13 +61,19 @@ def resolve_step_name(name: str) -> str:
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = [
-    'summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool',
-    'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews',
-    'vic', 'clm', 'swat', 'mhm', 'crhm', 'prms', 'modflow', 'gsflow',
-    'watflood', 'parflow', 'wrfhydro', 'pihm',
-    'cfuse', 'droute', 'troute', 'wmfire', 'ignacio', 'wflow',
+# Default tools are installed by `symfluence binary install` (no arguments).
+# Experimental tools require explicit naming, e.g. `symfluence binary install rhessys`.
+DEFAULT_TOOLS = [
+    'sundials', 'summa', 'mizuroute', 'troute', 'fuse', 'taudem',
+    'gistool', 'datatool', 'ngen', 'ngiab', 'hype', 'mesh',
 ]
+EXPERIMENTAL_TOOLS = [
+    'rhessys', 'openfews', 'wmfire', 'cfuse', 'droute', 'ignacio',
+    'vic', 'clm', 'swat', 'mhm', 'crhm', 'prms', 'modflow', 'gsflow',
+    'watflood', 'wflow', 'parflow', 'clmparflow', 'wrfhydro', 'pihm',
+    'enzyme',
+]
+EXTERNAL_TOOLS = DEFAULT_TOOLS + EXPERIMENTAL_TOOLS
 
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
@@ -377,8 +383,13 @@ For more help on a specific command:
             'install',
             help='Install external tools'
         )
+        _tools_help = (
+            'Tools to install. If not specified, installs all default tools.\n'
+            f'  Default:      {", ".join(DEFAULT_TOOLS)}\n'
+            f'  Experimental: {", ".join(EXPERIMENTAL_TOOLS)}'
+        )
         install_parser.add_argument('tools', nargs='*', metavar='TOOL',
-                                  help=f'Tools to install. If not specified, installs all. Choices: {", ".join(EXTERNAL_TOOLS)}')
+                                  help=_tools_help)
         install_parser.add_argument('--force', action='store_true',
                                   help='Force reinstall even if already installed')
         install_parser.add_argument('--patched', action='store_true',
