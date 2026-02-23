@@ -76,7 +76,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                 self.update_control_flag_count()
                 self.logger.info("Fixed run options variable names")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix run options variable names: {e}")
 
     # ------------------------------------------------------------------
@@ -160,7 +160,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                 self.update_control_flag_count()
                 self.logger.info("Fixed run options snow/ice parameters")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix run options snow parameters: {e}")
 
     # ------------------------------------------------------------------
@@ -205,7 +205,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                         f.writelines(lines)
                     self.logger.info(f"Updated control flag count to {flag_count}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to update control flag count: {e}")
 
     # ------------------------------------------------------------------
@@ -227,7 +227,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                     f.write(content)
                 self.logger.info("Fixed output directory paths in run options")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix run options output dirs: {e}")
 
     # ------------------------------------------------------------------

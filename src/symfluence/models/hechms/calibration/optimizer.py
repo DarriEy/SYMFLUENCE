@@ -139,7 +139,7 @@ class HecHmsModelOptimizer(BaseModelOptimizer):
             self.logger.warning("Could not calculate final metrics")
             return {'best_params': best_params, 'output_dir': str(final_output_dir)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Final evaluation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

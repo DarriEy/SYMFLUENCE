@@ -282,7 +282,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                                 max_delay=60,
                             )
                             v_ds.append(ds)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 — preprocessing resilience
                             self.logger.debug(f"Variable {v} not available for {dstr} {h:02d}z: {e}")
                             continue
                     if v_ds:
@@ -308,7 +308,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                                                  f"lat={float(ds_h.latitude.values[min_idx]):.4f}, "
                                                  f"lon={float(ds_h.longitude.values[min_idx]):.4f}")
                         all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}")
                     continue
             curr += pd.Timedelta(days=1)

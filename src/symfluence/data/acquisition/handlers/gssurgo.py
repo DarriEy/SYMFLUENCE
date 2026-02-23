@@ -258,7 +258,7 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
                 base_delay=5.0,
                 backoff_factor=2.0,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"SDA query failed: {e}")
             return None
 

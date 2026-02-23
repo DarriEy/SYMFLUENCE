@@ -166,7 +166,7 @@ class CRHMParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating CRHM project file: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -216,7 +216,7 @@ class CRHMParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -259,6 +259,6 @@ class CRHMParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying params to {worker_params_dir}: {e}")
             return False

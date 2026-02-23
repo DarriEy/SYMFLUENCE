@@ -958,7 +958,7 @@ class BaseModelOptimizer(
                 self.save_results(algorithm_name, standard_filename=True)
                 self.save_best_params(algorithm_name)
                 self.logger.debug(f"Checkpoint saved at iteration {iteration}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
 
         callbacks = {

@@ -64,7 +64,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         # Try OPeNDAP pathway first (efficient remote subsetting)
         try:
             return self._download_opendap(final_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"OPeNDAP pathway failed: {e}. Falling back to HTTP.")
             return self._download_http(output_dir, final_file)
 
@@ -181,7 +181,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
                         downloaded_files.append(f)
                     else:
                         failed_dates.append(dt)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"HTTP download failed for {dt.strftime('%Y-%m-%d')}: {e}")
                     failed_dates.append(dt)
 

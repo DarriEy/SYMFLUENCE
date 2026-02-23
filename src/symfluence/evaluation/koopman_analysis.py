@@ -357,7 +357,7 @@ class KoopmanAnalyzer(ConfigMixin):
         if self.reporting_manager:
             try:
                 self.reporting_manager.visualize_koopman_analysis(results, self.output_dir)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Koopman visualization failed: {e}")
 
         return results

@@ -207,7 +207,7 @@ class IMSSnowAcquirer(BaseAcquisitionHandler):
             response.raise_for_status()
             files = re.findall(r'href="([^"]+\.asc\.gz)"', response.text)
             return sorted(files)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Could not list files for {year}: {e}")
             return []
 
@@ -230,7 +230,7 @@ class IMSSnowAcquirer(BaseAcquisitionHandler):
                 response = requests.get(url_base + pattern, timeout=120)
                 if response.status_code == 200:
                     break
-            except Exception:
+            except Exception:  # noqa: BLE001 — preprocessing resilience
                 continue
 
         if response is None or response.status_code != 200:
@@ -265,7 +265,7 @@ class IMSSnowAcquirer(BaseAcquisitionHandler):
                 return np.array(grid_data, dtype=np.uint8)
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.debug(f"Error parsing IMS file: {e}")
             return None
 

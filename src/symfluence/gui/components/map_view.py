@@ -498,7 +498,7 @@ class MapView(param.Parameterized):
                         b, h, r, names
                     )
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self.state.append_log(f"Layer load error: {e}\n")
                 )
@@ -515,7 +515,7 @@ class MapView(param.Parameterized):
                 method = getattr(cfg.domain, 'definition_method', None)
                 if method:
                     return method.lower()
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             pass
         return None
 
@@ -568,7 +568,7 @@ class MapView(param.Parameterized):
                         xs.append(list(poly.exterior.coords.xy[0]))
                         ys.append(list(poly.exterior.coords.xy[1]))
             return dict(xs=xs, ys=ys)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"Failed to load shapefile {path}: {exc}")
             return dict(xs=[], ys=[])
 
@@ -590,7 +590,7 @@ class MapView(param.Parameterized):
                         xs.append(list(line.coords.xy[0]))
                         ys.append(list(line.coords.xy[1]))
             return dict(xs=xs, ys=ys)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"Failed to load line shapefile {path}: {exc}")
             return dict(xs=[], ys=[])
 
@@ -652,7 +652,7 @@ class MapView(param.Parameterized):
                     )
                     return
                 run_on_ui_thread(lambda d=df: self._push_gauges_to_map(d))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self.state.append_log(f"Gauge load error: {e}\n")
                 )
@@ -694,7 +694,7 @@ class MapView(param.Parameterized):
             else:
                 df = self._gauge_store.load_all()
             self._push_gauges_to_map(df)
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             pass
 
     # ------------------------------------------------------------------
@@ -764,7 +764,7 @@ class MapView(param.Parameterized):
         try:
             import geopandas as gpd
             gdf = gpd.read_file(path).to_crs(epsg=3857)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self.state.append_log(f"Could not read shapefile {path}: {exc}\n")
             return
 

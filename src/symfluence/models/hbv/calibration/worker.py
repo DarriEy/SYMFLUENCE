@@ -508,7 +508,7 @@ class HBVWorker(InMemoryModelWorker):
 
             return dict(zip(param_names, np.array(grad_values)))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error computing gradient: {e}")
             self.logger.debug(traceback.format_exc())
             return None
@@ -565,7 +565,7 @@ class HBVWorker(InMemoryModelWorker):
             gradient = dict(zip(param_names, np.array(grad_values)))
             return float(loss_val), gradient
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in evaluate_with_gradient: {e}")
             return self.penalty_score, None
 
@@ -620,7 +620,7 @@ def _evaluate_hbv_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

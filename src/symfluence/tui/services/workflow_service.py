@@ -43,7 +43,7 @@ class WorkflowService:
             self._sf = SYMFLUENCE(config_input=self._config_path)
             self._last_error = ""
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self._last_error = str(exc)
             logger.error("Failed to load config: %s", exc)
             self._sf = None
@@ -55,7 +55,7 @@ class WorkflowService:
             return {}
         try:
             return self._sf.get_workflow_status()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self._last_error = str(exc)
             logger.error("Failed to get status: %s", exc)
             return {}
@@ -67,7 +67,7 @@ class WorkflowService:
         try:
             steps = self._sf.workflow_orchestrator.define_workflow_steps()
             return [s.cli_name for s in steps]
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return []
 
     def get_domain_name(self) -> str:
@@ -76,7 +76,7 @@ class WorkflowService:
             return ""
         try:
             return self._sf.config.domain.name
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return ""
 
     def get_experiment_id(self) -> str:
@@ -85,7 +85,7 @@ class WorkflowService:
             return ""
         try:
             return self._sf.config.domain.experiment_id
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return ""
 
     def run_workflow(self, force_rerun: bool = False) -> None:

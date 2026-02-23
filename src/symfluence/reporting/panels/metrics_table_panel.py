@@ -150,5 +150,5 @@ class MetricsTablePanel(BasePanel):
                 except (ValueError, KeyError):
                     pass
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — reporting resilience
             self.logger.debug(f"Could not apply cell coloring: {e}")

@@ -70,7 +70,7 @@ class ESACCISMAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin)
             if out_file and out_file.exists():
                 try:
                     shutil.unpack_archive(str(out_file), extract_dir)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Failed to extract ESA CCI SM archive {out_file.name}: {exc}")
 
         self.logger.info(f"Extracted ESA CCI SM data to {extract_dir}")

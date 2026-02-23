@@ -350,7 +350,7 @@ class ObservationsNetCDFBuilder:
             series.name = numeric_cols[0]
             return series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not read %s: %s", csv_path, e)
             return None
 

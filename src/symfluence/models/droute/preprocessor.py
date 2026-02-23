@@ -195,7 +195,7 @@ class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):  # type: ign
                     f"{len(self.droute_network['outlet_indices'])} outlets"
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Error loading topology: {e}")
                 self.droute_network = None
 

@@ -263,7 +263,7 @@ class ParFlowParameterManager(BaseParameterManager):
             self.logger.debug(f"Updated .pfidb with {len(params)} parameters")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to update .pfidb: {e}")
             return False
 
@@ -363,7 +363,7 @@ class ParFlowParameterManager(BaseParameterManager):
                         f"Loaded {len(params)} initial parameters from .pfidb"
                     )
                     return params
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.debug(f"Could not read initial params from .pfidb: {e}")
 
         # Fallback to physically-reasonable defaults

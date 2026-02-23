@@ -129,7 +129,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"AppEEARS authentication failed: {e}")
             return None
 
@@ -182,7 +182,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             task_id = result.get('task_id')
             self.logger.info(f"AppEEARS task submitted: {task_id}")
             return task_id
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
@@ -264,7 +264,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             bundle = response.json()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to get bundle info: {e}")
             return
 
@@ -295,5 +295,5 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
 
                 self.logger.debug(f"Downloaded: {file_name}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download {file_name}: {e}")

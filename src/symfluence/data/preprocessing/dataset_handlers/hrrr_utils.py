@@ -378,7 +378,7 @@ class HRRRHandler(BaseDatasetHandler):
             self.logger.info(f"Processing HRRR file: {f}")
             try:
                 ds = self.open_dataset(f)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error opening HRRR file {f}: {e}")
                 continue
 
@@ -387,7 +387,7 @@ class HRRRHandler(BaseDatasetHandler):
                 out_name = merged_forcing_path / f"{f.stem}_processed.nc"
                 ds_proc.to_netcdf(out_name)
                 self.logger.info(f"Saved processed HRRR forcing: {out_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error processing HRRR dataset from {f}: {e}")
             finally:
                 ds.close()

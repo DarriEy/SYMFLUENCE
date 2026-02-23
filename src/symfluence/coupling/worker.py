@@ -117,7 +117,7 @@ class DCouplerWorker(BaseWorker):
                     self._apply_process_params(comp, comp_params, settings_dir)
 
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Failed to apply parameters: {e}")
             return False
 
@@ -172,7 +172,7 @@ class DCouplerWorker(BaseWorker):
                     torch.save(tensor, save_path)
 
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Graph forward pass failed: {e}")
             return False
 
@@ -218,7 +218,7 @@ class DCouplerWorker(BaseWorker):
             metrics = self._compute_metrics(sim, obs, config)
             return metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Metric calculation failed: {e}")
             return {"KGE": -999.0}
 
@@ -243,7 +243,7 @@ class DCouplerWorker(BaseWorker):
             import pandas as pd
             df = pd.read_csv(obs_file)
             return torch.tensor(df.iloc[:, 1].values, dtype=torch.float32)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Failed to load observations: {e}")
             return None
 

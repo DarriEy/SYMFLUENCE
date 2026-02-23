@@ -183,7 +183,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.info(f"Successfully created {intersect_csv}")
                 del shp_df
                 gc.collect()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Failed to convert shapefile to CSV: {str(e)}")
                 raise
         elif not intersect_csv.exists() and not intersect_shp.exists():
@@ -261,7 +261,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             self.logger.info(f"Columns after rename: {topo_data.columns.tolist()[:15]}")
             self.logger.info(f"Sample HRU IDs: {topo_data[f'S_1_{self.hruId}'].head(5).tolist()}")
             return topo_data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error loading topology data: {str(e)}")
             raise
 
@@ -375,7 +375,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     if (i + 1) % 10 == 0 or batch_size <= 10:
                         processed_count = batch_start + i + 1
                         self.logger.debug(f"Processed {processed_count}/{total_files} forcing files")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                     self.logger.error(f"Error processing file {file}: {str(e)}")
                     raise
 
@@ -605,7 +605,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                             if np.any(mask):
                                 idx = int(np.argmax(mask))
                                 boundary_ds['mar01'] = ds.isel(time=idx).load()
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — model execution resilience
                     self.logger.debug("Could not read %s while scanning for leap-day boundaries: %s", fname, exc)
                     continue
 
@@ -857,7 +857,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             return dataset
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"File {filename}: Error fixing time coordinate: {str(e)}")
             raise ValueError(f"Cannot fix time coordinate in file {filename}: {str(e)}") from e
 
@@ -1453,7 +1453,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             return batch_size
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not determine optimal batch size: {str(e)}. Using default.")
             return min(10, total_files)  # Conservative fallback
 
@@ -1583,7 +1583,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             shp = shp.set_index(self._get_config_value(lambda: self.config.domain.catchment_shp_hruid))
             shp.index = shp.index.astype(int)
             available_hru_ids = set(shp.index.astype(int))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — model execution resilience
             self.logger.warning(
                 "Unable to filter forcing HRU IDs against catchment shapefile: %s",
                 exc,

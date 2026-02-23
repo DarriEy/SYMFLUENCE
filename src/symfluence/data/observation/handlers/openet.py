@@ -47,7 +47,7 @@ class OpenETHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"OpenET acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"OpenET acquisition failed: {e}")
                 raise
         else:
@@ -87,7 +87,7 @@ class OpenETHandler(BaseObservationHandler):
                 df = self._process_file(csv_file)
                 if df is not None and not df.empty:
                     all_data.append(df)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {csv_file.name}: {e}")
 
         if not all_data:
@@ -121,7 +121,7 @@ class OpenETHandler(BaseObservationHandler):
         """Process a single OpenET CSV file."""
         try:
             df = pd.read_csv(csv_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Could not parse {csv_file}: {e}")
             return None
 
@@ -177,6 +177,6 @@ class OpenETHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading OpenET data: {e}")
             return None

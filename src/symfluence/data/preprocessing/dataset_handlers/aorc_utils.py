@@ -283,7 +283,7 @@ class AORCHandler(BaseDatasetHandler):
             self.logger.info(f"Processing AORC file: {f}")
             try:
                 ds = xr.open_dataset(f, engine="h5netcdf")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error opening AORC file {f}: {e}")
                 continue
 
@@ -311,7 +311,7 @@ class AORCHandler(BaseDatasetHandler):
                 out_name = merged_forcing_path / f"{f.stem}_processed.nc"
                 ds_proc.to_netcdf(out_name, engine="h5netcdf")
                 self.logger.info(f"Saved processed AORC forcing: {out_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error processing AORC dataset from {f}: {e}")
             finally:
                 ds.close()

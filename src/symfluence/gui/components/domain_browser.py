@@ -179,7 +179,7 @@ class DomainBrowser(param.Parameterized):
                     return
                 widgets = self._scan_directory(root, depth=0)
                 run_on_ui_thread(lambda w=widgets: self._apply_tree(w))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 logger.warning(f"Domain browser scan error: {exc}")
                 run_on_ui_thread(
                     lambda e=exc: self._show_message(f'Scan error: {e}')
@@ -417,7 +417,7 @@ class DomainBrowser(param.Parameterized):
                 run_on_ui_thread(
                     lambda: self.map_view.add_raster_layer(str(path), name)
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self.state.append_log(f"Raster load error: {e}\n")
                 )
@@ -434,7 +434,7 @@ class DomainBrowser(param.Parameterized):
                 run_on_ui_thread(
                     lambda: self.map_view.add_shapefile_overlay(str(path), name)
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self.state.append_log(f"Shapefile load error: {e}\n")
                 )
@@ -474,7 +474,7 @@ class DomainBrowser(param.Parameterized):
                     'font-family:monospace;">' + ''.join(lines) + '</div>'
                 )
                 run_on_ui_thread(lambda h=html: self._set_preview(h))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self._set_preview(
                         f'<span style="color:red; font-size:11px;">Error: {e}</span>'
@@ -505,7 +505,7 @@ class DomainBrowser(param.Parameterized):
                     f'{table_html}</div>'
                 )
                 run_on_ui_thread(lambda h=html: self._set_preview(h))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self._set_preview(
                         f'<span style="color:red; font-size:11px;">Error: {e}</span>'
@@ -530,7 +530,7 @@ class DomainBrowser(param.Parameterized):
                 )
             )
             self._preview_pane.append(img)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self._set_preview(
                 f'<span style="color:red; font-size:11px;">Error: {exc}</span>'
             )
@@ -555,7 +555,7 @@ class DomainBrowser(param.Parameterized):
                     f'<b>{path.name}</b><br>{escaped}</div>'
                 )
                 run_on_ui_thread(lambda h=html: self._set_preview(h))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: self._set_preview(
                         f'<span style="color:red; font-size:11px;">Error: {e}</span>'

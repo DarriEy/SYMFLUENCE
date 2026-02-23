@@ -194,12 +194,12 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
                         ftp.retrbinary(f"RETR {file_info['remote_path']}", f.write)
                     downloaded.append(local_path)
                     self.logger.debug(f"Downloaded: {file_info['local_name']}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Failed to download {file_info['remote_path']}: {e}")
 
             ftp.quit()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"FTP connection failed: {e}")
 
         return downloaded
@@ -242,7 +242,7 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
                 downloaded.append(local_path)
                 self.logger.debug(f"Downloaded: {file_info['local_name']}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download {url}: {e}")
 
         return downloaded

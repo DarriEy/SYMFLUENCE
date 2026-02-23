@@ -641,14 +641,14 @@ class ParallelExecutionMixin(ConfigMixin):
                     self.project_dir, self.num_processes, self.logger
                 )
                 return strategy.execute(tasks, worker_func, max_workers)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"MPI batch execution failed: {e}")
                 self.logger.info("Falling back to ProcessPool execution...")
                 try:
                     # Fall back to ProcessPool which is more robust
                     strategy = ProcessPoolExecutionStrategy(self.logger)
                     return strategy.execute(tasks, worker_func, max_workers)
-                except Exception as e2:
+                except Exception as e2:  # noqa: BLE001 — must-not-raise contract
                     self.logger.error(f"ProcessPool fallback also failed: {e2}")
                     import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")

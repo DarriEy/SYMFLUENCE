@@ -193,7 +193,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     dem_path=self.dem_path,
                     project_dir=self.project_dir
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Glacier manager initialization skipped: {e}")
                 return None
         return self._glacier_manager
@@ -287,7 +287,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             # Create glacier files from base files if they don't exist
             self._create_glacier_files()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Glacier preprocessing failed: {e}")
             self.logger.info("Continuing without glacier-specific files - using base SUMMA configuration")
             # Don't raise - allow the workflow to continue without glacier files
@@ -572,7 +572,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                         times = pd.to_datetime([t.strftime('%Y-%m-%d %H:%M:%S') for t in time_raw])
                     else:
                         times = pd.to_datetime(time_raw)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Failed to read forcing times from {forcing_file}: {exc}")
                 continue
 

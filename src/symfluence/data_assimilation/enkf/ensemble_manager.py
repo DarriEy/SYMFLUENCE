@@ -285,7 +285,7 @@ class SubprocessEnsembleManager(EnsembleManager):
         for i, runner in enumerate(self.member_runners):
             try:
                 runner.run_forecast_window(t_start, t_end)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 logger.error("Member %d forecast failed: %s", i, e)
 
     def extract_states(self) -> np.ndarray:
@@ -356,7 +356,7 @@ class SubprocessEnsembleManager(EnsembleManager):
                             continue
                         ds.close()
                 predictions.append(np.nan)
-            except Exception:
+            except Exception:  # noqa: BLE001 — must-not-raise contract
                 predictions.append(np.nan)
 
         return np.array(predictions)

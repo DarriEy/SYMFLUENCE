@@ -148,7 +148,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                     # Don't raise to maintain backward compatibility
                     # Subclasses can override to raise if needed
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             # Don't let validation failures prevent model initialization
             self.logger.debug(f"Spatial mode validation skipped: {e}")
 

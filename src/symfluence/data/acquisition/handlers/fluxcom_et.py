@@ -144,7 +144,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"Downloaded: {out_file}")
             return out_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Failed to download FLUXCOM data: {e}")
             raise
 
@@ -173,7 +173,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             req = urllib.request.Request(COLLECTION_URL, headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
                 collection = json.loads(resp.read())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to query ICOS Carbon Portal: {e}")
             return []
 
@@ -195,7 +195,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                 req2 = urllib.request.Request(year_url, headers={"Accept": "application/json"})
                 with urllib.request.urlopen(req2, timeout=60) as resp2:  # nosec B310
                     year_data = json.loads(resp2.read())
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to fetch {year} metadata: {e}")
                 continue
 
@@ -236,7 +236,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                         tmp.replace(out_file)
                         downloaded.append(out_file)
                         self.logger.info(f"  {year}: OK ({out_file.stat().st_size / 1e6:.1f} MB)")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(f"  {year}: download failed: {e}")
                     break
 
@@ -309,7 +309,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
 
                 datasets.append(da)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Error reading {f}: {e}")
                 continue
 

@@ -186,7 +186,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         # Interpolate daily data to hourly if needed
         try:
             ds_out = self._interpolate_daily_to_hourly(ds_out)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to interpolate NEX-GDDP to hourly: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -387,7 +387,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
             self.logger.info(f"Processing NEX-GDDP-CMIP6 file: {f}")
             try:
                 ds = self.open_dataset(f)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error opening NEX-GDDP-CMIP6 file {f}: {e}")
                 continue
 
@@ -396,7 +396,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
                 out_name = merged_forcing_path / f"{f.stem}_processed.nc"
                 ds_proc.to_netcdf(out_name)
                 self.logger.info(f"Saved processed NEX-GDDP-CMIP6 forcing: {out_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(
                     f"Error processing NEX-GDDP-CMIP6 dataset from {f}: {e}"
                 )

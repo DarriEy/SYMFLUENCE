@@ -100,7 +100,7 @@ def _register_worker_export():
 
     try:
         atexit.register(export_on_exit)
-    except Exception:
+    except Exception:  # noqa: BLE001 — monitoring thread
         pass  # interpreter may already be shutting down
 
 

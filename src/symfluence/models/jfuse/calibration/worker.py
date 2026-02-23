@@ -386,7 +386,7 @@ class JFUSEWorker(InMemoryModelWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to initialize jFUSE model: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -927,7 +927,7 @@ class JFUSEWorker(InMemoryModelWorker):
                 gauge_idx_list.append(topo_idx)
                 gauge_name_list.append(str(gauge_name))
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.debug(f"Error loading gauge {gauge_name}: {e}")
                 continue
 
@@ -1033,7 +1033,7 @@ class JFUSEWorker(InMemoryModelWorker):
             # Calculate metrics (both in mm/day)
             return self.calculate_streamflow_metrics(sim, obs, skip_warmup=False)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating jFUSE metrics: {e}")
             return {'kge': self.penalty_score, 'error': str(e)}
 
@@ -1100,7 +1100,7 @@ class JFUSEWorker(InMemoryModelWorker):
                 else:
                     zero_grad_params.append(param_name)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.debug(f"Could not check gradient for {param_name}: {e}")
                 gradient_status[param_name] = True
 
@@ -1265,7 +1265,7 @@ class JFUSEWorker(InMemoryModelWorker):
 
             return {name: float(grad_array[i]) for i, name in enumerate(param_names)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Gradient computation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -1308,7 +1308,7 @@ class JFUSEWorker(InMemoryModelWorker):
             grad_dict = {name: float(grad_array[i]) for i, name in enumerate(param_names)}
             return float(loss_val), grad_dict
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Value and gradient computation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -1378,7 +1378,7 @@ class JFUSEWorker(InMemoryModelWorker):
                 return float(nse(obs_arr, sim, transfo=1))
             return float(kge(obs_arr, sim, transfo=1))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Parameter evaluation failed: {e}")
             return self.penalty_score
 

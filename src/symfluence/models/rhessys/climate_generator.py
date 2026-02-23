@@ -414,7 +414,7 @@ class RHESSysClimateGenerator:
                 rh = np.clip(rh, 0, 1)
 
                 return rh
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not calculate relative humidity: {e}")
         return None
 
@@ -500,7 +500,7 @@ class RHESSysClimateGenerator:
                                 elev = float(match.group(1))
                                 self.logger.info(f"Base station elevation from worldfile: {elev:.1f} m")
                                 break
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 pass
 
         if elev is None:

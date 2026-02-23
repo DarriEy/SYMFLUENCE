@@ -72,7 +72,7 @@ class FLUXNETObservationHandler(BaseObservationHandler):
             self.logger.info(f"FLUXNET data acquired: {result_path}")
             return result_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Failed to acquire FLUXNET data: {e}")
 
             # Check for pre-existing data
@@ -150,7 +150,7 @@ class FLUXNETObservationHandler(BaseObservationHandler):
 
             return output_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error processing FLUXNET data: {e}")
             raise
 
@@ -181,6 +181,6 @@ class FLUXNETObservationHandler(BaseObservationHandler):
             self.logger.info(f"FLUXNET data validated: {len(df)} records")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"FLUXNET validation error: {e}")
             return False

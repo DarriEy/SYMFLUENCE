@@ -137,7 +137,7 @@ class StateManager:
 
         try:
             state = model_runner.save_state(staging, timestamp)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error("Failed to save model state for FEWS export: %s", e)
             return None
 

@@ -187,7 +187,7 @@ class SymfluenceConfig(BaseModel):
     @model_validator(mode='after')
     def validate_time_periods(self):
         """Validate that time periods make logical sense"""
-        from symfluence.core.exceptions import ConfigurationError
+        from symfluence.core.exceptions import ConfigurationError, ValidationError
         from symfluence.core.validation import validate_date_range
 
         try:
@@ -216,11 +216,11 @@ class SymfluenceConfig(BaseModel):
                         f"EXPERIMENT_TIME_START ({start}) and EXPERIMENT_TIME_END ({end})"
                     )
 
-        except Exception as e:
-            if "ConfigurationError" in str(type(e)):
-                raise
-            if "ValidationError" in str(type(e)):
-                raise ConfigurationError(str(e)) from e
+        except ConfigurationError:
+            raise
+        except ValidationError as e:
+            raise ConfigurationError(str(e)) from e
+        except (ValueError, TypeError) as e:
             raise ConfigurationError(f"Invalid date format: {e}") from e
 
         return self
@@ -228,7 +228,7 @@ class SymfluenceConfig(BaseModel):
     @model_validator(mode='after')
     def validate_coordinates(self):
         """Validate coordinate formats and bounds"""
-        from symfluence.core.exceptions import ConfigurationError
+        from symfluence.core.exceptions import ConfigurationError, ValidationError
         from symfluence.core.validation import validate_bounding_box
 
         # Validate pour point coordinates
@@ -270,9 +270,9 @@ class SymfluenceConfig(BaseModel):
                 raise ConfigurationError(
                     f"BOUNDING_BOX_COORDS must be 'north/west/south/east' format, got '{self.domain.bounding_box_coords}'"
                 ) from None
-            except Exception as e:
-                if "ConfigurationError" in str(type(e)):
-                    raise
+            except ConfigurationError:
+                raise
+            except (ValidationError, TypeError) as e:
                 # Translate lat_min/lat_max to south/north for user-facing messages
                 msg = str(e).replace('lat_min', 'south latitude').replace('lat_max', 'north latitude')
                 msg = msg.replace('lon_min', 'west longitude').replace('lon_max', 'east longitude')
@@ -298,7 +298,7 @@ class SymfluenceConfig(BaseModel):
         for model_name in models:
             try:
                 ModelRegistry.validate_model_config(model_name, flat_config)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — configuration resilience
                 all_errors.append(f"{model_name}: {str(e)}")
 
         if all_errors:

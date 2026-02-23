@@ -118,11 +118,11 @@ class MODISSnowHandler(BaseObservationHandler):
         try:
             # Try netcdf4 engine explicitly first
             ds = xr.open_dataset(nc_path, engine='netcdf4')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to open with netcdf4, trying h5netcdf: {e}")
             try:
                 ds = xr.open_dataset(nc_path, engine='h5netcdf')
-            except Exception as e2:
+            except Exception as e2:  # noqa: BLE001 — must-not-raise contract
                 self.logger.error(f"Failed to open NetCDF with any engine: {e2}")
                 # Check if it's an error page
                 if nc_path.stat().st_size < 10000:
@@ -290,7 +290,7 @@ class MODISSnowHandler(BaseObservationHandler):
 
             return self._extract_spatial_average(masked_data)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to apply catchment mask: {e}")
             return self._extract_spatial_average(data)
 

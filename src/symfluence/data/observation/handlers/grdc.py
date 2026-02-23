@@ -46,7 +46,7 @@ class GRDCHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"GRDC acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"GRDC acquisition failed: {e}")
                 raise
         else:
@@ -86,7 +86,7 @@ class GRDCHandler(BaseObservationHandler):
                 df = self._process_file(csv_file)
                 if df is not None and not df.empty:
                     all_data.append(df)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {csv_file.name}: {e}")
 
         if not all_data:
@@ -211,6 +211,6 @@ class GRDCHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading GRDC data: {e}")
             return None

@@ -96,7 +96,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             self.logger.info("IGNACIO postprocessing complete")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"IGNACIO postprocessing failed: {e}")
             return False
 
@@ -158,7 +158,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
                     areas.append(area_ha)
                     total_area += area_ha
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Could not read {perimeter_path}: {e}")
 
             stats['total_area_ha'] = total_area
@@ -253,7 +253,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             self.logger.warning(f"Cannot compare with WMFire: {e}")
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"WMFire comparison failed: {e}")
             return None
 
@@ -338,7 +338,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             self.logger.warning(f"Cannot validate against observed: {e}")
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Validation failed: {e}")
             return None
 

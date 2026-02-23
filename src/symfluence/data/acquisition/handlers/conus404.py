@@ -37,7 +37,7 @@ def _load_with_retry(dataset, logger, max_retries=5, initial_delay=5):
         try:
             logger.info(f"Attempting to load data (attempt {attempt + 1}/{max_retries})")
             return dataset.load()
-        except (ClientPayloadError, ClientError, Exception) as e:
+        except (ClientPayloadError, ClientError, OSError, TimeoutError) as e:
             if attempt < max_retries - 1:
                 delay = initial_delay * (2 ** attempt)  # Exponential backoff
                 logger.warning(

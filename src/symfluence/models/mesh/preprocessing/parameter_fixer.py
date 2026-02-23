@@ -270,7 +270,7 @@ class MESHParameterFixer(ConfigMixin):
                     hydro_params = self._get_config_value(lambda: None, default={}, dict_key='hydrology_params')
                     if isinstance(hydro_params, dict):
                         configured_wf_r2 = hydro_params.get('routing', [{}])[0].get('wf_r2')
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     pass
 
             default_wf_r2 = 0.30
@@ -328,7 +328,7 @@ class MESHParameterFixer(ConfigMixin):
                 with open(self.hydro_path, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(new_lines))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to add WF_R2: {e}")
 
     def fix_missing_hydrology_params(self) -> None:
@@ -377,7 +377,7 @@ class MESHParameterFixer(ConfigMixin):
                 with open(self.hydro_path, 'w', encoding='utf-8') as f:
                     f.write(content)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to verify hydrology parameters: {e}")
 
     # ==================================================================
@@ -398,7 +398,7 @@ class MESHParameterFixer(ConfigMixin):
                         if len(valid_vals) > 0:
                             max_ireach = int(np.max(valid_vals))
                         self.logger.debug(f"Max IREACH from DDB: {max_ireach}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Could not read IREACH from DDB: {e}")
 
         try:
@@ -426,7 +426,7 @@ class MESHParameterFixer(ConfigMixin):
                     with open(reservoir_file, 'w', encoding='utf-8') as f:
                         f.write("0\n")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix reservoir file: {e}")
 
     # ==================================================================
@@ -469,7 +469,7 @@ class MESHParameterFixer(ConfigMixin):
                     f.writelines(new_lines)
                 self.logger.info("Configured outputs_balance.txt for lumped mode (daily RFF csv)")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to configure lumped outputs: {e}")
 
     # ==================================================================
@@ -610,7 +610,7 @@ class MESHParameterFixer(ConfigMixin):
                 start_time, end_time, self._actual_spinup_days
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.warning(f"Failed to create safe forcing: {e}")
             self.logger.debug(traceback.format_exc())

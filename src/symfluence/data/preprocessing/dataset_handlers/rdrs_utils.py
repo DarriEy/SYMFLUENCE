@@ -270,7 +270,7 @@ class RDRSHandler(BaseDatasetHandler):
                     try:
                         ds = self.open_dataset(file)
                         datasets.append(ds)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.error(f"Error opening RDRS file {file}: {str(e)}")
 
                 if not datasets:
@@ -283,7 +283,7 @@ class RDRSHandler(BaseDatasetHandler):
                     try:
                         processed_ds = self.process_dataset(ds)
                         processed_datasets.append(processed_ds)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.error(f"Error processing RDRS dataset: {str(e)}")
 
                 if not processed_datasets:
@@ -439,7 +439,7 @@ class RDRSHandler(BaseDatasetHandler):
 
             return output_shapefile
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in create_rdrs_shapefile: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

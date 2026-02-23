@@ -145,7 +145,7 @@ class PRMSParameterManager(BaseParameterManager):
             param_path.write_text(updated_content, encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating PRMS parameter file: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -253,7 +253,7 @@ class PRMSParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -311,6 +311,6 @@ class PRMSParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying PRMS files to {worker_settings_dir}: {e}")
             return False

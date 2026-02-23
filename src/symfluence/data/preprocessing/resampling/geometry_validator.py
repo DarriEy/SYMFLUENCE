@@ -64,7 +64,7 @@ class GeometryValidator:
                     self.logger.warning(f"Could not repair geometry: {geom.geom_type}")
                     return geom
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Error repairing geometry: {e}")
                     return geom
 

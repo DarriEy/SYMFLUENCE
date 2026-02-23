@@ -66,7 +66,7 @@ class ProcessIOMonitor(ABC):
                 sample = self._read_io_stats()
                 if sample:
                     self.samples.append(sample)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — monitoring thread
                 self.logger.debug(f"Error sampling process {self.pid}: {e}")
             time.sleep(self.sample_interval)
 
@@ -137,7 +137,7 @@ class LinuxProcessIOMonitor(ProcessIOMonitor):
 
             return stats
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             self.logger.debug(f"Error reading /proc/{self.pid}/io: {e}")
             return None
 
@@ -161,7 +161,7 @@ class MacOSProcessIOMonitor(ProcessIOMonitor):
                 "psutil not available - macOS I/O monitoring will use file-based fallback only. "
                 "Install psutil for better metrics: pip install psutil"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             self.logger.warning(f"Could not initialize psutil for PID {pid}: {e}")
 
     def get_platform_name(self) -> str:
@@ -205,7 +205,7 @@ class MacOSProcessIOMonitor(ProcessIOMonitor):
         except self.psutil.NoSuchProcess:
             self.logger.debug(f"Process {self.pid} no longer exists")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             self.logger.debug(f"Error reading psutil stats for {self.pid}: {e}")
             return None
 

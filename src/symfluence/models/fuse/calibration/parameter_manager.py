@@ -295,7 +295,7 @@ class FUSEParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating FUSE constraints file: {e}")
             return False
 
@@ -336,7 +336,7 @@ class FUSEParameterManager(BaseParameterManager):
 
                                 self.logger.debug(f"  ✓ {file_path.name} parameter indexing OK")
 
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 — calibration resilience
                                 self.logger.error(f"  ERROR: Cannot access parameter set 0 in {file_path.name}: {str(e)}")
                                 # Try to fix the file
                                 if self._fix_parameter_file_indexing(file_path):
@@ -351,7 +351,7 @@ class FUSEParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error verifying parameter files: {str(e)}")
             return False
 
@@ -388,7 +388,7 @@ class FUSEParameterManager(BaseParameterManager):
             self.logger.info(f"Successfully rebuilt {file_path.name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to fix {file_path.name}: {str(e)}")
             return False
 
@@ -443,7 +443,7 @@ class FUSEParameterManager(BaseParameterManager):
                                 after = float(ds.variables[p][0])
                                 self.logger.debug(f"[param write] {p}: {before} -> {after}")
                                 changed += (abs(after - before) > 1e-10)
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 — calibration resilience
                                 self.logger.error(f"Error updating parameter {p}: {str(e)}")
                                 return False
                         else:
@@ -461,11 +461,11 @@ class FUSEParameterManager(BaseParameterManager):
 
                 return True
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"NetCDF error updating {target_file}: {str(e)}")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating parameter file: {str(e)}")
             return False
 
@@ -507,7 +507,7 @@ class FUSEParameterManager(BaseParameterManager):
 
                 return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {str(e)}")
             return self._get_default_initial_values()
 
@@ -556,7 +556,7 @@ class FUSEParameterManager(BaseParameterManager):
                     decision_value = parts[0]
                     decision_key = parts[1]
                     active_decisions[decision_key] = decision_value
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.debug(f"Could not parse decisions file: {e}")
             return warnings_list
 

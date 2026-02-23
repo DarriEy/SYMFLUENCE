@@ -71,7 +71,7 @@ class NGENPlotter(BasePlotter):
             plot_file = self._ensure_output_dir('results') / f"ngen_streamflow_{experiment_id}.png"
             return self._save_and_close(fig, plot_file)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in NGENPlotter.plot_results: {str(e)}")
             return None
 

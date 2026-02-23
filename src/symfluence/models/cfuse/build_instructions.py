@@ -678,7 +678,7 @@ try:
     print(f'  Parameters defined: {len(PARAM_BOUNDS)}')
     print(f'  Model configs available: VIC, TOPMODEL, PRMS, SACRAMENTO')
     print('  Basic import test: PASSED')
-except Exception as e:
+except Exception as e:  # noqa: BLE001 — must-not-raise contract
     print(f'  Basic import test: FAILED ({e})')
     sys.exit(1)
 " || echo "Basic functionality test had issues"

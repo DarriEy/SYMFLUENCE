@@ -120,7 +120,7 @@ class CLASSFileManager:
                 with open(self._path, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to update CLASS NM: {e}")
 
     # ------------------------------------------------------------------
@@ -189,7 +189,7 @@ class CLASSFileManager:
                 self.logger.info(
                     f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to trim CLASS to count {target_count}: {e}")
 
     def trim_blocks_by_mask(self, lines: list, keep_mask: list) -> bool:
@@ -317,7 +317,7 @@ class CLASSFileManager:
             self.logger.info(f"Removed {n_remove} CLASS block(s), {n_keep} remaining")
             self.update_nm(n_keep)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to remove CLASS blocks: {e}")
 
     # ------------------------------------------------------------------
@@ -365,7 +365,7 @@ class CLASSFileManager:
                     f"CLASS NM={nm_from_class} matches {block_count} blocks"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix GRU count mismatch: {e}")
 
     # ------------------------------------------------------------------
@@ -468,7 +468,7 @@ class CLASSFileManager:
                     "for different GRU types"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix CLASS vegetation parameters: {e}")
 
     # ------------------------------------------------------------------
@@ -577,7 +577,7 @@ class CLASSFileManager:
                     f"ALBS={initial_albs}, RHOS={initial_rhos}kg/m³"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix CLASS initial conditions: {e}")
 
     @staticmethod
@@ -735,7 +735,7 @@ class CLASSFileManager:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(
                 f"Failed to create elevation band CLASS blocks: {e}"
             )

@@ -552,7 +552,7 @@ class DataPreProcessor(ConfigMixin):
             try:
                 catchment_gdf.to_file(intersect_path)
                 self.logger.info(f"Soil statistics calculated and saved to {intersect_path}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Failed to save file: {e}")
                 raise
 
@@ -661,7 +661,7 @@ class DataPreProcessor(ConfigMixin):
             try:
                 catchment_gdf.to_file(intersect_path)
                 self.logger.info(f"Land statistics calculated and saved to {intersect_path}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Failed to save file: {e}")
                 raise
 

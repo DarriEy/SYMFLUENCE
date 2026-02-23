@@ -32,7 +32,7 @@ def read_fews_netcdf(path: Path) -> xr.Dataset:
     try:
         with xr.open_dataset(path) as ds:
             return ds.load()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
         raise FEWSAdapterError(f"Failed to read FEWS NetCDF {path}: {exc}") from exc
 
 
@@ -93,5 +93,5 @@ def write_fews_netcdf(
 
         ds.to_netcdf(path, encoding=encoding)
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
         raise FEWSAdapterError(f"Failed to write FEWS NetCDF to {path}: {exc}") from exc

@@ -140,7 +140,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
                         except (ValueError, RuntimeError):
                             pass  # Optimization may fail for certain data, non-critical
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error calculating water balance: {str(e)}")
 
         return results
@@ -194,7 +194,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
             high_flow_days = np.sum(flow > high_flow_threshold)
             results["high_flow_duration"] = high_flow_days
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error calculating streamflow signatures: {str(e)}")
 
         return results
@@ -250,7 +250,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
                     if season_total > 0:
                         results[f"baseflow_index_{season_name}"] = season_bf / season_total
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error calculating baseflow attributes: {str(e)}")
 
         return results

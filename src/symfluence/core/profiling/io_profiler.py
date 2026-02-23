@@ -242,7 +242,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -280,7 +280,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -325,7 +325,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -370,7 +370,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -412,7 +412,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -449,7 +449,7 @@ class IOProfiler:
 
         try:
             yield
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             success = False
             error_msg = str(e)
             raise
@@ -781,7 +781,7 @@ class IOProfiler:
                         stack_trace=op_dict.get('stack_trace'),
                     )
                     self._record_operation(op)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             self.logger.warning(f"Failed to import profiling data from {input_path}: {e}")
 
     def aggregate_from_directory(self, profile_dir: str) -> int:
@@ -812,7 +812,7 @@ class IOProfiler:
                     os.remove(profile_file)
                 except OSError:
                     pass
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — monitoring thread
                 self.logger.warning(f"Failed to import {profile_file}: {e}")
 
         return files_imported

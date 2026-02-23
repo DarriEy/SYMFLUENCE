@@ -637,7 +637,7 @@ def _try_dcoupler_coupled(
         logger.info("Snow-17 + XAJ coupled simulation completed via dCoupler graph")
         return runoff, create_initial_state(use_jax=False)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — model execution resilience
         logger.debug(f"dCoupler coupled path failed: {e}. Using native implementation.")
         return None
 

@@ -39,7 +39,7 @@ class CNESGRGSHandler(BaseObservationHandler):
                 from symfluence.data.acquisition.handlers.cnes_grgs_tws import CNESGRGSAcquirer
                 acquirer = CNESGRGSAcquirer(self.config, self.logger)
                 acquirer.download(data_dir)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"CNES/GRGS acquisition failed: {e}")
                 raise
         else:

@@ -291,7 +291,7 @@ def _create_combined_attribute_hrus(
                         common_transform = out_transform
                         common_shape = out_image.shape
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — geospatial resilience
                 discretizer.logger.warning(
                     f"Could not extract {attr} raster data for GRU {gru_id}: {str(e)}"
                 )
@@ -603,7 +603,7 @@ def _create_hru_from_combination_mask(
 
         return hru_data
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — geospatial resilience
         discretizer.logger.warning(
             f"Error creating HRU for combination {combination}: {str(e)}"
         )

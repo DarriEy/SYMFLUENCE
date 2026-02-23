@@ -250,7 +250,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 if metrics:
                     self.logger.debug(f"Available metrics: {list(metrics.keys())}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback: ", exc_info=True)
 
@@ -292,7 +292,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                     names = [f'P{i+1}' for i in range(len(param_final))]
                 self._calibrated_defaults_cache = dict(zip(names, param_final))
                 self.logger.debug(f"Loaded calibrated defaults for {len(names)} params from {rdata_path}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not load calibrated defaults: {e}")
 
         return self._calibrated_defaults_cache
@@ -539,7 +539,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in distributed GR4J execution: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -551,7 +551,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 try:
                     import shutil
                     shutil.rmtree(temp_dir)
-                except Exception as cleanup_error:
+                except Exception as cleanup_error:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Failed to clean up temp directory {temp_dir}: {cleanup_error}")
 
     def _save_distributed_results_for_routing(self, results_df, forcing_ds):
@@ -935,7 +935,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"An error occurred: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

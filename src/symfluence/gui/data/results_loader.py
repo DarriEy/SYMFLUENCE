@@ -83,7 +83,7 @@ class ResultsLoader:
             series.index = pd.to_datetime(series.index)
             series.name = 'observed'
             return self._store(key, series)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Failed to load observed streamflow: {exc}")
             return None
 
@@ -149,7 +149,7 @@ class ResultsLoader:
             series.name = 'simulated'
             ds.close()
             return self._store(key, series)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Failed to load simulated streamflow: {exc}")
             return None
 
@@ -206,7 +206,7 @@ class ResultsLoader:
             df['iteration'] = pd.to_numeric(df['iteration'], errors='coerce')
 
             return self._store(key, df)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Failed to load optimization history: {exc}")
             return None
 
@@ -245,7 +245,7 @@ class ResultsLoader:
             with open(candidates[0], encoding='utf-8') as f:
                 data = json.load(f)
             return self._store(key, data)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Failed to load best params: {exc}")
             return None
 
@@ -274,7 +274,7 @@ class ResultsLoader:
         try:
             df = pd.read_csv(path)
             return self._store(key, df)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Failed to load benchmark scores: {exc}")
             return None
 
@@ -292,7 +292,7 @@ class ResultsLoader:
         try:
             from symfluence.evaluation.metrics import calculate_all_metrics
             return calculate_all_metrics(obs, sim)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Metrics calculation failed: {exc}")
             return {}
 
@@ -312,7 +312,7 @@ class ResultsLoader:
             values = np.asarray(data.dropna()) if hasattr(data, 'dropna') else np.asarray(data)
             exc, flows = calculate_flow_duration_curve(values)
             return exc, flows
-        except Exception as exc_err:
+        except Exception as exc_err:  # noqa: BLE001 — UI resilience
             logger.debug(f"FDC calculation failed: {exc_err}")
             return None, None
 
@@ -341,7 +341,7 @@ class ResultsLoader:
                 if name:
                     ids.append(name)
             return sorted(set(ids))
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return []
 
     # ------------------------------------------------------------------

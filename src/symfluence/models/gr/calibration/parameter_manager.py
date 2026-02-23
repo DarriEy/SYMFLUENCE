@@ -148,7 +148,7 @@ class GRParameterManager(BaseParameterManager):
             self.logger.info(f"Loaded {len(param_final)} parameters from Rdata: {param_names}")
             return {name: val for name, val in zip(param_names, param_final)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.debug(f"Could not load initial parameters from Rdata: {e}")
             return None
 

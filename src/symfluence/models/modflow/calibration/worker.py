@@ -139,7 +139,7 @@ class CoupledGWWorker(BaseWorker):
                         f"attrs_exists={Path(land_settings / 'attributes.nc').exists()}, "
                         f"trial_exists={Path(land_settings / 'trialParams.nc').exists()}"
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.error(
                     f"Land surface parameter application raised: {e}",
                     exc_info=True,
@@ -152,7 +152,7 @@ class CoupledGWWorker(BaseWorker):
             modflow_settings = self._resolve_modflow_settings(settings_dir)
             try:
                 success = self._write_modflow_params(modflow_params, modflow_settings, config)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"Failed to apply MODFLOW parameters: {e}")
                 success = False
 
@@ -257,7 +257,7 @@ class CoupledGWWorker(BaseWorker):
             self.logger.info("Coupled run via dCoupler completed successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"dCoupler execution failed: {e}")
             self.logger.info("Falling back to sequential coupling")
             return self._run_sequential(config, settings_dir, output_dir, **kwargs)
@@ -317,7 +317,7 @@ class CoupledGWWorker(BaseWorker):
             )
             if result is None:
                 return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"MODFLOW execution failed: {e}")
             return False
 
@@ -349,7 +349,7 @@ class CoupledGWWorker(BaseWorker):
             self.logger.warning("Target returned empty metrics")
             return {'kge': self.penalty_score}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating coupled metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

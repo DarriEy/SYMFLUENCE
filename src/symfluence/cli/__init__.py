@@ -14,7 +14,7 @@ def main():
     if hasattr(args, 'func'):
         try:
             return args.func(args)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — top-level fallback
             if hasattr(args, 'debug') and args.debug:
                 import traceback
                 traceback.print_exc()

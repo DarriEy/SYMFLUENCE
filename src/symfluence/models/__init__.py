@@ -53,7 +53,7 @@ warnings.filterwarnings('ignore', message='.*is an EXPERIMENTAL module.*')
 warnings.filterwarnings('ignore', message='.*import failed.*')
 
 # Import from modular packages (preferred).
-# Use `except Exception` (not ImportError) because model imports may
+# Use `except Exception` (not ImportError) because model imports may  # noqa: BLE001 — comment only
 # transitively trigger threading._register_atexit() which raises
 # RuntimeError on daemon threads (e.g. Panel's Tornado IO loop).
 _model_names = [
@@ -71,7 +71,7 @@ import importlib as _importlib
 for _model_name in _model_names:
     try:
         _importlib.import_module(f'.{_model_name}', __name__)
-    except Exception as _e:
+    except Exception as _e:  # noqa: BLE001 — optional dependency
         logger.debug(f"Could not import {_model_name}: {_e}")
 
 del _model_names, _model_name, _importlib

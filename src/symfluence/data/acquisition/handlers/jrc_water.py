@@ -123,7 +123,7 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
                 out_file = self._download_tile(session, tile, dataset, output_dir)
                 if out_file:
                     downloaded_files.append(out_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download JRC tile {tile}: {e}")
 
         if not downloaded_files:
@@ -220,7 +220,7 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Downloaded: {filename}")
                 return out_file
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Failed {version}: {e}")
                 continue
 

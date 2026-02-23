@@ -240,7 +240,7 @@ def resolve_credentials(
                 if auth:
                     logger.debug(f"Using credentials from ~/.netrc ({host})")
                     return auth[0], auth[2]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — .netrc fallback is non-critical
         logger.debug(f"Could not read .netrc: {e}")
 
     # 2. Try environment variables

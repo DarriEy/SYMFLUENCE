@@ -81,7 +81,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
                 df['datetime'] = pd.to_datetime(df['datetime'])
                 df = df.set_index('datetime')
                 return df['streamflow_cms']
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.warning(f"Error reading cFUSE CSV output: {e}")
 
         # Look for cFUSE NetCDF output
@@ -93,7 +93,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
                 sim_data = ds['streamflow'].to_pandas()
                 ds.close()
                 return sim_data  # type: ignore[return-value]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.warning(f"Error reading cFUSE NetCDF output: {e}")
 
         # Fall back to parent implementation

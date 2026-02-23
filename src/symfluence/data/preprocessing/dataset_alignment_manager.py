@@ -171,7 +171,7 @@ class DatasetAlignmentManager:
             )
             return ds_aligned
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Error aligning {name}: {e}")
             return ds
 

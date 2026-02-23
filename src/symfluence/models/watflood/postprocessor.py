@@ -45,7 +45,7 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
 
             self.logger.error(f"No WATFLOOD output found in {output_dir}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error extracting WATFLOOD streamflow: {e}")
             return None
 
@@ -59,7 +59,7 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
                         return df[col]
             elif output_file.suffix == '.tb0':
                 return self._parse_tb0(output_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Error extracting streamflow: {e}")
         return None
 
@@ -88,6 +88,6 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
                         continue
             if dates:
                 return pd.Series(values, index=dates, name='WATFLOOD_discharge_cms')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Error parsing tb0: {e}")
         return None

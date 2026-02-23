@@ -231,7 +231,7 @@ class HBVModelOptimizer(BaseModelOptimizer):
 
             return final_result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in HBV final evaluation: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -350,7 +350,7 @@ class HBVModelOptimizer(BaseModelOptimizer):
 
             return prefixed_metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating {prefix} metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

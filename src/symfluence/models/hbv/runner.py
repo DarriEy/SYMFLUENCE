@@ -202,7 +202,7 @@ class HBVRunner(  # type: ignore[misc]
                 try:
                     area_km2 = calculate_catchment_area_km2(gdf, logger=self.logger)
                     return float(area_km2 * 1e6)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.debug(f"Geometry-based area calculation failed: {e}")
                     # Fallback to area columns if geometry calculation fails
                     area_cols = [c for c in gdf.columns if 'area' in c.lower()]
@@ -618,7 +618,7 @@ class HBVRunner(  # type: ignore[misc]
 
                 obs_series = obs_series.reindex(forcing_df.index)
                 obs = obs_series.values
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to load observations for HBV: {e}")
 
         return forcing, obs  # type: ignore[return-value]

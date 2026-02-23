@@ -326,7 +326,7 @@ def symfluence_error_handler(
             logger.error(f"Error during {operation}", exc_info=True)
         if reraise:
             raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — error handler implementation
         # Convert generic exception to SYMFLUENCE exception
         if logger:
             logger.error(f"Error during {operation}: {e}", exc_info=True)

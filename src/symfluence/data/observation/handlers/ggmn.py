@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -59,7 +59,7 @@ class GGMNHandler(BaseObservationHandler):
             "cql_filter": cql_filter
         }
 
-        try:
+        with symfluence_error_handler("GGMN data acquisition", self.logger, error_type=DataAcquisitionError):
             self.logger.info(f"Querying GGMN WFS for stations in bbox: [{min_lon}, {min_lat}, {max_lon}, {max_lat}]")
             response = requests.get(self.WFS_URL, params=params, timeout=60)
             response.raise_for_status()
@@ -120,14 +120,10 @@ class GGMNHandler(BaseObservationHandler):
                         df_st.to_csv(st_file, index=False)
                         self.logger.info(f"✓ Acquired {len(df_st)} records for station {gid}")
 
-                except Exception as e_st:
+                except Exception as e_st:  # noqa: BLE001 — data acquisition resilience
                     self.logger.warning(f"Failed to fetch data for station {gid}: {e_st}")
 
             return metadata_file
-
-        except Exception as e:
-            self.logger.error(f"GGMN acquisition failed: {e}")
-            raise DataAcquisitionError(f"Failed to acquire GGMN data: {e}") from e
 
     def process(self, input_path: Path) -> Path:
         """
@@ -157,7 +153,7 @@ class GGMNHandler(BaseObservationHandler):
                 # Resample to daily mean
                 df_daily = df['groundwater_level'].resample('D').mean()
                 valid_dfs.append(df_daily)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — data acquisition resilience
                 self.logger.warning(f"Error processing {csv_file.name}: {e}")
 
         if not valid_dfs:

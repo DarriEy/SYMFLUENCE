@@ -134,7 +134,7 @@ class MultiScaleMethod(ConfigMixin):
 
             self.logger.info(f"Combined {len(src_files)} scales into unified stream source grid")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error combining multi-scale sources: {str(e)}")
             # Fallback: use the finest scale (last threshold)
             self.logger.warning("Using finest scale as fallback")

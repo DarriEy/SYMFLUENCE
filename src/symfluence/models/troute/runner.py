@@ -33,7 +33,7 @@ def _check_troute_available() -> bool:
     try:
         from nwm_routing.__main__ import main_v04  # noqa: F401
         return True
-    except (ImportError, Exception):
+    except (ImportError, AttributeError):
         return False
 
 

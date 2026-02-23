@@ -36,7 +36,7 @@ class SWATForcingGenerator:
             forcing_ds = self.pp._load_forcing_data()
             self.write_pcp_file(forcing_ds, start_date, end_date)
             self.write_tmp_file(forcing_ds, start_date, end_date)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load forcing data: {e}, generating synthetic")
             self.generate_synthetic_forcing(start_date, end_date)
 

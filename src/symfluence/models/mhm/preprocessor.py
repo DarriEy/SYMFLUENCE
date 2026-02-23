@@ -119,7 +119,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("mHM preprocessing complete.")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"mHM preprocessing failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -179,7 +179,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'area_m2': area_m2,
                     'elev': elev
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not read catchment properties: {e}")
 
         # Defaults
@@ -207,7 +207,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         try:
             forcing_ds = self._load_forcing_data()
             self._write_mhm_forcing(forcing_ds, start_date, end_date)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load forcing data: {e}, using synthetic")
             self._generate_synthetic_forcing(start_date, end_date)
 
@@ -230,7 +230,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         except ValueError:
             try:
                 ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)
 
@@ -879,7 +879,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 logger.info(
                     f"Loaded {n_obs} observed streamflow values for gauge file"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load observed streamflow: {e}")
 
         if values is None:

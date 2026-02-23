@@ -544,7 +544,7 @@ class DomainDelineator(PathResolverMixin):
                 self.logger.warning("Geofabric delineation did not produce expected outputs")
 
             return delineated_network, delineated_basins
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — geospatial resilience
             self.logger.error(f"Error delineating lumped domain: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

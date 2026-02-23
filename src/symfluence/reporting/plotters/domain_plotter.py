@@ -4,7 +4,6 @@ Domain visualization plotter.
 Handles plotting of domain boundaries, discretization, and spatial features.
 """
 
-import traceback
 from pathlib import Path
 from typing import Any, Optional
 
@@ -25,6 +24,7 @@ class DomainPlotter(BasePlotter):
     - Elevation bands and land class distributions
     """
 
+    @BasePlotter._plot_safe("plot_domain")
     def plot_domain(self) -> Optional[str]:
         """
         Create a map visualization of the delineated domain with optional basemap.
@@ -40,118 +40,113 @@ class DomainPlotter(BasePlotter):
         plt, _ = self._setup_matplotlib()
         from matplotlib.lines import Line2D
 
-        try:
-            # Setup plot directory
-            plot_dir = self._ensure_output_dir('domain')
-            plot_filename = plot_dir / 'domain_map.png'
+        # Setup plot directory
+        plot_dir = self._ensure_output_dir('domain')
+        plot_filename = plot_dir / 'domain_map.png'
 
-            # Load shapefiles
-            catchment_gdf = self._load_catchment_shapefile()
-            pour_point_gdf = self._load_pour_point_shapefile()
+        # Load shapefiles
+        catchment_gdf = self._load_catchment_shapefile()
+        pour_point_gdf = self._load_pour_point_shapefile()
 
-            # Check if we need river network
-            domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD)
-            load_river_network = domain_method not in ['lumped', 'point']
+        # Check if we need river network
+        domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD)
+        load_river_network = domain_method not in ['lumped', 'point']
 
-            river_gdf = None
-            if load_river_network:
-                river_gdf = self._load_river_network_shapefile()
+        river_gdf = None
+        if load_river_network:
+            river_gdf = self._load_river_network_shapefile()
 
-            # Reproject to Web Mercator for basemap
-            catchment_gdf_web = catchment_gdf.to_crs(epsg=3857)
-            pour_point_gdf_web = pour_point_gdf.to_crs(epsg=3857)
-            river_gdf_web = river_gdf.to_crs(epsg=3857) if river_gdf is not None else None
+        # Reproject to Web Mercator for basemap
+        catchment_gdf_web = catchment_gdf.to_crs(epsg=3857)
+        pour_point_gdf_web = pour_point_gdf.to_crs(epsg=3857)
+        river_gdf_web = river_gdf.to_crs(epsg=3857) if river_gdf is not None else None
 
-            # Create figure
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.FIGURE_SIZE_XLARGE
-            )
+        # Create figure
+        fig, ax = plt.subplots(
+            figsize=self.plot_config.FIGURE_SIZE_XLARGE
+        )
 
-            # Calculate bounds with buffer
-            bounds = catchment_gdf_web.total_bounds
-            buffer_x = (bounds[2] - bounds[0]) * 0.1
-            buffer_y = (bounds[3] - bounds[1]) * 0.1
-            plot_bounds = [
-                bounds[0] - buffer_x,
-                bounds[1] - buffer_y,
-                bounds[2] + buffer_x,
-                bounds[3] + buffer_y
-            ]
+        # Calculate bounds with buffer
+        bounds = catchment_gdf_web.total_bounds
+        buffer_x = (bounds[2] - bounds[0]) * 0.1
+        buffer_y = (bounds[3] - bounds[1]) * 0.1
+        plot_bounds = [
+            bounds[0] - buffer_x,
+            bounds[1] - buffer_y,
+            bounds[2] + buffer_x,
+            bounds[3] + buffer_y
+        ]
 
-            # Set map extent
-            ax.set_xlim([plot_bounds[0], plot_bounds[2]])
-            ax.set_ylim([plot_bounds[1], plot_bounds[3]])
+        # Set map extent
+        ax.set_xlim([plot_bounds[0], plot_bounds[2]])
+        ax.set_ylim([plot_bounds[1], plot_bounds[3]])
 
-            # Plot catchment boundary
-            catchment_gdf_web.boundary.plot(
-                ax=ax,
-                linewidth=self.plot_config.LINE_WIDTH_THICK,
-                color=self.plot_config.COLOR_BOUNDARY,
-                label='Catchment Boundary',
-                zorder=2
-            )
+        # Plot catchment boundary
+        catchment_gdf_web.boundary.plot(
+            ax=ax,
+            linewidth=self.plot_config.LINE_WIDTH_THICK,
+            color=self.plot_config.COLOR_BOUNDARY,
+            label='Catchment Boundary',
+            zorder=2
+        )
 
-            # Plot river network if available
-            if river_gdf_web is not None:
-                self._plot_river_network(ax, river_gdf_web)
+        # Plot river network if available
+        if river_gdf_web is not None:
+            self._plot_river_network(ax, river_gdf_web)
 
-            # Plot pour point
-            pour_point_gdf_web.plot(
-                ax=ax,
-                color=self.plot_config.COLOR_POUR_POINT,
-                marker='*',
-                markersize=200,
-                label='Pour Point',
-                zorder=4
-            )
+        # Plot pour point
+        pour_point_gdf_web.plot(
+            ax=ax,
+            color=self.plot_config.COLOR_POUR_POINT,
+            marker='*',
+            markersize=200,
+            label='Pour Point',
+            zorder=4
+        )
 
-            # Add north arrow (using our utility from base class)
-            self._add_north_arrow_spatial(ax)
+        # Add north arrow (using our utility from base class)
+        self._add_north_arrow_spatial(ax)
 
-            # Add title
-            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
-            plt.title(
-                f'Delineated Domain: {domain_name}',
-                fontsize=self.plot_config.FONT_SIZE_TITLE,
-                pad=20,
-                fontweight='bold'
-            )
+        # Add title
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
+        plt.title(
+            f'Delineated Domain: {domain_name}',
+            fontsize=self.plot_config.FONT_SIZE_TITLE,
+            pad=20,
+            fontweight='bold'
+        )
 
-            # Create custom legend
-            legend_elements = [
-                Line2D([0], [0], color=self.plot_config.COLOR_BOUNDARY,
-                      linewidth=2, label='Catchment Boundary'),
-                Line2D([0], [0], color=self.plot_config.COLOR_POUR_POINT,
-                      marker='*', label='Pour Point', markersize=15, linewidth=0)
-            ]
+        # Create custom legend
+        legend_elements = [
+            Line2D([0], [0], color=self.plot_config.COLOR_BOUNDARY,
+                  linewidth=2, label='Catchment Boundary'),
+            Line2D([0], [0], color=self.plot_config.COLOR_POUR_POINT,
+                  marker='*', label='Pour Point', markersize=15, linewidth=0)
+        ]
 
-            if river_gdf_web is not None:
-                legend_elements.insert(1, Line2D([0], [0],
-                    color=self.plot_config.COLOR_RIVER,
-                    linewidth=2, label='River Network'))
+        if river_gdf_web is not None:
+            legend_elements.insert(1, Line2D([0], [0],
+                color=self.plot_config.COLOR_RIVER,
+                linewidth=2, label='River Network'))
 
-            ax.legend(
-                handles=legend_elements,
-                loc='upper right',
-                frameon=True,
-                facecolor='white',
-                framealpha=0.9
-            )
+        ax.legend(
+            handles=legend_elements,
+            loc='upper right',
+            frameon=True,
+            facecolor='white',
+            framealpha=0.9
+        )
 
-            # Remove axes
-            ax.set_axis_off()
+        # Remove axes
+        ax.set_axis_off()
 
-            # Add domain info box
-            self._add_domain_info_box(ax, catchment_gdf_web)
+        # Add domain info box
+        self._add_domain_info_box(ax, catchment_gdf_web)
 
-            # Save and close
-            return self._save_and_close(fig, plot_filename)
+        # Save and close
+        return self._save_and_close(fig, plot_filename)
 
-        except Exception as e:
-            self.logger.error(f"Error in plot_domain: {str(e)}")
-            self.logger.error(traceback.format_exc())
-            return None
-
+    @BasePlotter._plot_safe("plot_discretized_domain")
     def plot_discretized_domain(self, discretization_method: str) -> Optional[str]:
         """
         Create a map visualization of the discretized domain (HRUs).
@@ -167,152 +162,146 @@ class DomainPlotter(BasePlotter):
         from matplotlib.colors import ListedColormap
         from matplotlib.patches import Patch
 
-        try:
-            # Setup plot directory
-            plot_dir = self._ensure_output_dir('discretization')
-            plot_filename = plot_dir / f'domain_discretization_{discretization_method}.png'
+        # Setup plot directory
+        plot_dir = self._ensure_output_dir('discretization')
+        plot_filename = plot_dir / f'domain_discretization_{discretization_method}.png'
 
-            # Load HRU shapefile
-            hru_gdf = self._load_hru_shapefile(discretization_method)
+        # Load HRU shapefile
+        hru_gdf = self._load_hru_shapefile(discretization_method)
 
-            # Load river network and pour point
-            domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD)
-            load_river_network = domain_method != 'lumped'
+        # Load river network and pour point
+        domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD)
+        load_river_network = domain_method != 'lumped'
 
-            river_gdf = None
-            if load_river_network:
-                river_gdf = self._load_river_network_shapefile()
+        river_gdf = None
+        if load_river_network:
+            river_gdf = self._load_river_network_shapefile()
 
-            pour_point_gdf = self._load_pour_point_shapefile()
+        pour_point_gdf = self._load_pour_point_shapefile()
 
-            # Create figure with high DPI
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.FIGURE_SIZE_XLARGE,
-                dpi=self.plot_config.DPI_DEFAULT
-            )
+        # Create figure with high DPI
+        fig, ax = plt.subplots(
+            figsize=self.plot_config.FIGURE_SIZE_XLARGE,
+            dpi=self.plot_config.DPI_DEFAULT
+        )
 
-            # Reproject to Web Mercator
-            hru_gdf_web = hru_gdf.to_crs(epsg=3857)
-            river_gdf_web = river_gdf.to_crs(epsg=3857) if river_gdf is not None else None
-            pour_point_gdf_web = pour_point_gdf.to_crs(epsg=3857)
+        # Reproject to Web Mercator
+        hru_gdf_web = hru_gdf.to_crs(epsg=3857)
+        river_gdf_web = river_gdf.to_crs(epsg=3857) if river_gdf is not None else None
+        pour_point_gdf_web = pour_point_gdf.to_crs(epsg=3857)
 
-            # Calculate bounds with buffer
-            bounds = hru_gdf_web.total_bounds
-            buffer_x = (bounds[2] - bounds[0]) * 0.1
-            buffer_y = (bounds[3] - bounds[1]) * 0.1
-            plot_bounds = [
-                bounds[0] - buffer_x,
-                bounds[1] - buffer_y,
-                bounds[2] + buffer_x,
-                bounds[3] + buffer_y
-            ]
+        # Calculate bounds with buffer
+        bounds = hru_gdf_web.total_bounds
+        buffer_x = (bounds[2] - bounds[0]) * 0.1
+        buffer_y = (bounds[3] - bounds[1]) * 0.1
+        plot_bounds = [
+            bounds[0] - buffer_x,
+            bounds[1] - buffer_y,
+            bounds[2] + buffer_x,
+            bounds[3] + buffer_y
+        ]
 
-            # Set map extent
-            ax.set_xlim([plot_bounds[0], plot_bounds[2]])
-            ax.set_ylim([plot_bounds[1], plot_bounds[3]])
+        # Set map extent
+        ax.set_xlim([plot_bounds[0], plot_bounds[2]])
+        ax.set_ylim([plot_bounds[1], plot_bounds[3]])
 
-            # Setup colormap and plot HRUs
-            class_col, legend_title, legend_labels, colors = self._setup_hru_colormap(
-                hru_gdf, discretization_method
-            )
+        # Setup colormap and plot HRUs
+        class_col, legend_title, legend_labels, colors = self._setup_hru_colormap(
+            hru_gdf, discretization_method
+        )
 
-            unique_classes = sorted(hru_gdf[class_col].unique())
-            n_classes = len(unique_classes)
+        unique_classes = sorted(hru_gdf[class_col].unique())
+        n_classes = len(unique_classes)
 
-            cmap = ListedColormap(colors)
-            norm = plt.Normalize(
-                vmin=min(unique_classes) - 0.5,
-                vmax=max(unique_classes) + 0.5
-            )
+        cmap = ListedColormap(colors)
+        norm = plt.Normalize(
+            vmin=min(unique_classes) - 0.5,
+            vmax=max(unique_classes) + 0.5
+        )
 
-            hru_gdf_web.plot(
-                column=class_col,
-                ax=ax,
-                cmap=cmap,
-                norm=norm,
+        hru_gdf_web.plot(
+            column=class_col,
+            ax=ax,
+            cmap=cmap,
+            norm=norm,
+            alpha=self.plot_config.ALPHA_LIGHT,
+            legend=False
+        )
+
+        # Create custom legend
+        legend_elements = [
+            Patch(
+                facecolor=colors[i],
                 alpha=self.plot_config.ALPHA_LIGHT,
-                legend=False
+                label=legend_labels[i]
+            )
+            for i in range(n_classes)
+        ]
+
+        # Handle large number of classes
+        if n_classes > 20:
+            # Save separate legend file
+            self._save_separate_legend(
+                legend_elements, legend_title, plot_filename
+            )
+            ax.text(
+                0.98, 0.02, 'See separate legend file',
+                transform=ax.transAxes,
+                horizontalalignment='right',
+                bbox=dict(facecolor='white', alpha=0.8)
+            )
+        else:
+            ax.legend(
+                handles=legend_elements,
+                title=legend_title,
+                loc='center left',
+                bbox_to_anchor=(1, 0.5),
+                frameon=True,
+                fancybox=True,
+                shadow=True
             )
 
-            # Create custom legend
-            legend_elements = [
-                Patch(
-                    facecolor=colors[i],
-                    alpha=self.plot_config.ALPHA_LIGHT,
-                    label=legend_labels[i]
-                )
-                for i in range(n_classes)
-            ]
+        # Plot HRU boundaries
+        hru_gdf_web.boundary.plot(
+            ax=ax,
+            linewidth=0.5,
+            color=self.plot_config.COLOR_BOUNDARY,
+            alpha=0.5
+        )
 
-            # Handle large number of classes
-            if n_classes > 20:
-                # Save separate legend file
-                self._save_separate_legend(
-                    legend_elements, legend_title, plot_filename
-                )
-                ax.text(
-                    0.98, 0.02, 'See separate legend file',
-                    transform=ax.transAxes,
-                    horizontalalignment='right',
-                    bbox=dict(facecolor='white', alpha=0.8)
-                )
-            else:
-                ax.legend(
-                    handles=legend_elements,
-                    title=legend_title,
-                    loc='center left',
-                    bbox_to_anchor=(1, 0.5),
-                    frameon=True,
-                    fancybox=True,
-                    shadow=True
-                )
+        # Plot river network if available
+        if river_gdf_web is not None:
+            self._plot_river_network(ax, river_gdf_web)
 
-            # Plot HRU boundaries
-            hru_gdf_web.boundary.plot(
-                ax=ax,
-                linewidth=0.5,
-                color=self.plot_config.COLOR_BOUNDARY,
-                alpha=0.5
-            )
+        # Plot pour point
+        pour_point_gdf_web.plot(
+            ax=ax,
+            color=self.plot_config.COLOR_POUR_POINT,
+            marker='*',
+            markersize=200,
+            label='Pour Point',
+            zorder=4
+        )
 
-            # Plot river network if available
-            if river_gdf_web is not None:
-                self._plot_river_network(ax, river_gdf_web)
+        # Add north arrow
+        self._add_north_arrow_spatial(ax)
 
-            # Plot pour point
-            pour_point_gdf_web.plot(
-                ax=ax,
-                color=self.plot_config.COLOR_POUR_POINT,
-                marker='*',
-                markersize=200,
-                label='Pour Point',
-                zorder=4
-            )
+        # Add title
+        plt.title(
+            f'Domain Discretization: {discretization_method.title()}',
+            fontsize=self.plot_config.FONT_SIZE_TITLE,
+            pad=20,
+            fontweight='bold'
+        )
 
-            # Add north arrow
-            self._add_north_arrow_spatial(ax)
+        # Add info box
+        self._add_discretization_info_box(ax, hru_gdf_web)
 
-            # Add title
-            plt.title(
-                f'Domain Discretization: {discretization_method.title()}',
-                fontsize=self.plot_config.FONT_SIZE_TITLE,
-                pad=20,
-                fontweight='bold'
-            )
+        # Remove axes
+        ax.set_axis_off()
 
-            # Add info box
-            self._add_discretization_info_box(ax, hru_gdf_web)
-
-            # Remove axes
-            ax.set_axis_off()
-
-            # Save and close
-            return self._save_and_close(fig, plot_filename)
-
-        except Exception as e:
-            self.logger.error(f"Error in plot_discretized_domain: {str(e)}")
-            self.logger.error(traceback.format_exc())
-            return None
+        # Save and close
+        return self._save_and_close(fig, plot_filename)
 
     def plot(self, *args, **kwargs) -> Optional[str]:
         """

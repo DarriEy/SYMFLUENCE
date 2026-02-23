@@ -361,7 +361,7 @@ class TWSEvaluator(ModelEvaluator):
             ds.close()
 
             return tws_series
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error loading SUMMA output: {e}")
             raise
 
@@ -651,7 +651,7 @@ class TWSEvaluator(ModelEvaluator):
                             max_val = float(sim_tws.loc[max_ts])
                             prev_min_val = float(sim_tws.loc[prev_min_ts])
                             max_minus_prev_min.append(max_val - prev_min_val)
-                        except Exception:
+                        except Exception:  # noqa: BLE001 — must-not-raise contract
                             max_minus_prev_min.append(np.nan)
 
                 annual_max_mb = pd.Series(max_minus_prev_min, index=annual_max.index)
@@ -671,7 +671,7 @@ class TWSEvaluator(ModelEvaluator):
                             min_val = float(sim_tws.loc[min_ts])
                             prev_max_val = float(sim_tws.loc[prev_max_ts])
                             min_minus_prev_max.append(min_val - prev_max_val)
-                        except Exception:
+                        except Exception:  # noqa: BLE001 — must-not-raise contract
                             min_minus_prev_max.append(np.nan)
 
                 annual_min_mb = pd.Series(min_minus_prev_max, index=annual_min.index)
@@ -696,7 +696,7 @@ class TWSEvaluator(ModelEvaluator):
                                 vm = (float(v_max[0]) if len(v_max) > 0 and not pd.isna(v_max[0]) else 0.0)
                                 vn = (float(v_min[0]) if len(v_min) > 0 and not pd.isna(v_min[0]) else 0.0)
                                 mapped.append(vm + vn)
-                            except Exception:
+                            except Exception:  # noqa: BLE001 — must-not-raise contract
                                 mapped.append(np.nan)
                         else:
                             mapped.append(np.nan)
@@ -769,7 +769,7 @@ class TWSEvaluator(ModelEvaluator):
                             self.logger.warning(f"[TWS] Baseline years {ys}-{ye} not in simulation overlap; using full-overlap mean")
                             baseline_mean_sim = sim_matched.mean()
                             baseline_mean_obs = obs_matched.mean()
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 — must-not-raise contract
                         self.logger.warning(f"[TWS] Invalid TWS_ANOMALY_BASELINE '{self.anomaly_baseline}': {exc}; using overlap mean")
                         baseline_mean_sim = sim_matched.mean()
                         baseline_mean_obs = obs_matched.mean()
@@ -793,7 +793,7 @@ class TWSEvaluator(ModelEvaluator):
             self.logger.debug(f"[TWS] Calculated metrics: {metrics}")
             return metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"[TWS] Error calculating TWS metrics: {str(e)}")
             import traceback
             self.logger.debug(f"[TWS] Traceback: {traceback.format_exc()}")
@@ -888,7 +888,7 @@ class TWSEvaluator(ModelEvaluator):
                     self.logger.warning(f"[TWS] Baseline years {ys}-{ye} not in simulation overlap; using full-overlap mean")
                     baseline_mean_sim = sim_matched.mean()
                     baseline_mean_obs = obs_matched.mean()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"[TWS] Invalid TWS_ANOMALY_BASELINE '{self.anomaly_baseline}': {exc}; using overlap mean")
                 baseline_mean_sim = sim_matched.mean()
                 baseline_mean_obs = obs_matched.mean()

@@ -85,7 +85,7 @@ class ConfigEditor(param.Parameterized):
             if hasattr(self._basic_params, key):
                 try:
                     setattr(self._basic_params, key, val)
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass
 
         # Advanced mode: show full YAML
@@ -93,7 +93,7 @@ class ConfigEditor(param.Parameterized):
             import yaml
             config_dict = config.to_dict(flatten=True)
             self._yaml_editor.value = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"Could not serialize config to YAML: {exc}")
 
     def save_to_state(self):
@@ -125,7 +125,7 @@ class ConfigEditor(param.Parameterized):
             self.state.typed_config = new_config
             self.state.invalidate_symfluence()
             self.state.save_config()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self.state.append_log(f"Save failed: {exc}\n")
 
     def _save_from_yaml(self):
@@ -142,7 +142,7 @@ class ConfigEditor(param.Parameterized):
             self.state.typed_config = new_config
             self.state.invalidate_symfluence()
             self.state.save_config()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self.state.append_log(f"YAML save failed: {exc}\n")
 
     def panel(self):
@@ -164,7 +164,7 @@ class ConfigEditor(param.Parameterized):
                 try:
                     self.state.load_config(path)
                     # load_from_state() is called by the config_path watcher
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — UI resilience
                     self.state.append_log(f"Load failed: {exc}\n")
 
         def _on_save(event):
@@ -230,7 +230,7 @@ class ConfigEditor(param.Parameterized):
                 try:
                     self.state.load_config(path)
                     file_input.value = self.state.config_path or path
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — UI resilience
                     self.state.append_log(f"Load failed: {exc}\n")
 
             load_btn.on_click(_on_load)

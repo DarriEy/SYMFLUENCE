@@ -89,7 +89,7 @@ class ERA5LandHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"ERA5-Land acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"ERA5-Land acquisition failed: {e}")
                 raise
         else:
@@ -203,7 +203,7 @@ class ERA5LandHandler(BaseObservationHandler):
         """Process a single ERA5-Land NetCDF file."""
         try:
             ds = xr.open_dataset(nc_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to open {nc_file}: {e}")
             return None
 
@@ -232,7 +232,7 @@ class ERA5LandHandler(BaseObservationHandler):
                     series = da.to_series()
                     results[std_name] = series
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process variable {var_name}: {e}")
                 continue
 
@@ -388,6 +388,6 @@ class ERA5LandHandler(BaseObservationHandler):
                 return df[matches[0]]
 
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading ERA5-Land data: {e}")
             return None

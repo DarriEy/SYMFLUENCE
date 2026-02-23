@@ -222,7 +222,7 @@ class CARRAHandler(BaseDatasetHandler):
                     self.logger.info("Applying spatial filter based on HRU extent:")
                     self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
                     self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}")
                     self.logger.warning("Will create shapefile for full domain (may be slow)")
 
@@ -399,7 +399,7 @@ class CARRAHandler(BaseDatasetHandler):
 
             return output_shapefile
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in create_carra_shapefile: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

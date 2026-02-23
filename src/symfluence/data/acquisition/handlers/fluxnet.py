@@ -236,7 +236,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                         return None
             else:
                 return pd.read_csv(best_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to load {best_file}: {e}")
             return None
 
@@ -343,7 +343,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             self.logger.warning("AmeriFlux API request timed out")
         except requests.exceptions.RequestException as e:
             self.logger.warning(f"AmeriFlux API request error: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"AmeriFlux API download failed: {e}")
 
         # Fallback: Try direct data portal approach
@@ -377,7 +377,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
 
                 self.logger.debug(f"Site {station_id} not found in availability list")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.debug(f"Could not determine site data policy: {e}")
 
         return None
@@ -420,7 +420,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
 
                 self.logger.warning("No CSV files found in downloaded archive")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to download/extract AmeriFlux data: {e}")
 
         return None
@@ -457,7 +457,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
 
                     self.logger.info(f"Task status: {task_status} ({elapsed}s elapsed)")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Status check failed: {e}")
 
             time.sleep(poll_interval)

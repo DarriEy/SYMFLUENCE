@@ -129,7 +129,7 @@ class CLMParFlowPreProcessor:
                         ds.close()
                         return lat
                     ds.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 pass
         return 51.36
 
@@ -305,7 +305,7 @@ class CLMParFlowPreProcessor:
             sort_idx = np.argsort(times)
             pptrate, airtemp, times = pptrate[sort_idx], airtemp[sort_idx], times[sort_idx]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not read ERA5 forcing: {e}")
             return None
 

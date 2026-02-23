@@ -129,7 +129,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
                     df['nexus_id'] = nexus_id
                     all_streamflow.append(df)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Error processing {nexus_file}: {e}")
                 continue
 
@@ -220,7 +220,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
                 'streamflow_cms': df[flow_col]
             })
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading {nexus_file}: {e}")
             return None
 

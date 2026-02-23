@@ -201,7 +201,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             # Save to standard results format
             return self.save_streamflow_to_results(streamflow)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}")
             raise
 
@@ -216,7 +216,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
 
         try:
             return self.read_netcdf_streamflow(file_path, variable, **selections)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading NetCDF: {e}")
             return None
 
@@ -270,7 +270,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
 
             return df[flow_column]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading text file: {e}")
             return None
 
@@ -432,7 +432,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
                     df['file_id'] = file_id
                     all_streamflow.append(df)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error processing {file_path}: {e}")
                 continue
 
@@ -500,7 +500,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading {file_path}: {e}")
             return None
 
@@ -562,6 +562,6 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
             ds.close()
             return streamflow
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading routing output: {e}")
             return None

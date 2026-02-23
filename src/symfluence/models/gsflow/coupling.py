@@ -120,6 +120,6 @@ class GSFLOWCouplingManager:
             self.logger.info(f"Updated MODFLOW parameters: {modflow_params}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error updating MODFLOW parameters: {e}")
             return False

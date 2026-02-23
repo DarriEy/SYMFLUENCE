@@ -62,7 +62,12 @@ def peak_timing_error(
         if len(sim_window) == 0:
             continue
 
-        sim_peak_local = np.argmax(sim_window)
+        # Among all indices tied at the maximum, pick the one closest to
+        # the observed peak to avoid systematic leftward bias from argmax.
+        max_val = np.max(sim_window)
+        tied_local = np.where(sim_window == max_val)[0]
+        obs_local = obs_peak_idx - window_start
+        sim_peak_local = tied_local[np.argmin(np.abs(tied_local - obs_local))]
         sim_peak_idx = window_start + sim_peak_local
 
         timing_errors.append(sim_peak_idx - obs_peak_idx)

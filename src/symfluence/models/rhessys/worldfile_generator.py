@@ -78,7 +78,7 @@ class RHESSysWorldfileGenerator:
                     logger.info(f"Detected {num_hrus} HRUs - generating distributed worldfile")
                     self.generate_distributed_worldfile(gdf, world_file)
                     return
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not check for distributed domain: {e}")
 
         # Fall back to single-patch worldfile
@@ -148,7 +148,7 @@ class RHESSysWorldfileGenerator:
             slope = max(0.01, min(slope, 2.0))
         except (FileNotFoundError, ValueError):
             raise  # Re-raise area-related errors - these must not be silently ignored
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise RuntimeError(
                 f"Failed to read catchment properties from shapefile: {e}. "
                 f"Cannot determine basin area for RHESSys worldfile generation."
@@ -356,7 +356,7 @@ class RHESSysWorldfileGenerator:
                         'ksat': row.get('soil.ksat', 1e-6),
                     }
                 logger.info(f"Loaded attributes for {len(hru_attrs)} HRUs from {attrs_file}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 logger.warning(f"Could not load HRU attributes: {e}")
 
         # Project to UTM for accurate area calculation

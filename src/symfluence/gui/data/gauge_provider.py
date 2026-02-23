@@ -60,7 +60,7 @@ class WSCProvider(GaugeProvider):
             try:
                 with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310
                     data = json.loads(resp.read().decode())
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 logger.warning(f"WSC fetch failed at offset {offset}: {exc}")
                 break
 
@@ -116,7 +116,7 @@ class USGSProvider(GaugeProvider):
         try:
             with urllib.request.urlopen(self._URL, timeout=60) as resp:  # nosec B310
                 raw = resp.read().decode('utf-8')
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"USGS fetch failed: {exc}")
             return self._empty_df()
 
@@ -183,7 +183,7 @@ class SMHIProvider(GaugeProvider):
         try:
             with urllib.request.urlopen(self._URL, timeout=30) as resp:  # nosec B310
                 data = json.loads(resp.read().decode())
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"SMHI fetch failed: {exc}")
             return self._empty_df()
 
@@ -226,7 +226,7 @@ class LamaHICEProvider(GaugeProvider):
 
         try:
             df = pd.read_csv(csv_path, sep=';', encoding='utf-8')
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"LamaH-ICE CSV read failed: {exc}")
             return self._empty_df()
 

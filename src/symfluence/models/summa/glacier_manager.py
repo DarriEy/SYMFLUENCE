@@ -174,7 +174,7 @@ class GlacierAttributesManager(ConfigMixin):
                 hru_ids, gru_ids, hru_areas
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error processing glacier attributes: {e}")
             import traceback
             self.logger.error(traceback.format_exc())

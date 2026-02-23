@@ -86,7 +86,7 @@ class MODFLOWPostProcessor(StandardModelPostprocessor):
                 stress_period_length=float(sp_length),
                 start_date=str(start_date),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Failed to extract MODFLOW drain discharge: {e}")
             return None
 
@@ -192,7 +192,7 @@ class MODFLOWPostProcessor(StandardModelPostprocessor):
 
             return total_streamflow, metadata
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.")
             return self._extract_standalone_baseflow(drain_discharge)
 
@@ -209,7 +209,7 @@ class MODFLOWPostProcessor(StandardModelPostprocessor):
             result = plotter.plot_coupling_results(experiment_id)
             if result:
                 logger.debug(f"MODFLOW coupling plot saved: {result}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.debug(f"Could not generate MODFLOW coupling plot: {e}")
 
     def _get_catchment_area(self) -> float:
@@ -229,6 +229,6 @@ class MODFLOWPostProcessor(StandardModelPostprocessor):
                 self.config_dict, self.project_dir, self.domain_name,
                 source='shapefile'
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             logger.warning("Could not determine catchment area, using default 2210 km2")
             return 2210.0

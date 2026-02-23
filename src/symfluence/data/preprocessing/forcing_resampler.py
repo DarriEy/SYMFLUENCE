@@ -473,14 +473,14 @@ class ForcingResampler(PathResolverMixin):
                             lat_min < miny - tol or lat_max > maxy + tol):
                         self.logger.debug("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
                         return False
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
                     return False
 
             self.logger.debug("Forcing shapefile already exists. Skipping creation.")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.")
             return False
 
@@ -638,7 +638,7 @@ class ForcingResampler(PathResolverMixin):
                     success_count += batch_success
                     pbar.update(len(batch_files))
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
                     pbar.update(len(batch_files))
 

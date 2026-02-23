@@ -158,7 +158,7 @@ class WRFHydroWorker(BaseWorker):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying WRF-Hydro parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -200,7 +200,7 @@ class WRFHydroWorker(BaseWorker):
             namelist_file.write_text(content, encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating WRF-Hydro namelist: {e}")
             return False
 
@@ -281,7 +281,7 @@ class WRFHydroWorker(BaseWorker):
                 )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating SOILPARM.TBL: {e}")
             return False
 
@@ -343,7 +343,7 @@ class WRFHydroWorker(BaseWorker):
             tbl_path.write_text('\n'.join(new_lines) + '\n', encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating GENPARM.TBL: {e}")
             return False
 
@@ -371,7 +371,7 @@ class WRFHydroWorker(BaseWorker):
             namelist_file.write_text(content, encoding='utf-8')
             self.logger.debug(f"Updated {key} = '{new_path}'")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating {key} in namelist: {e}")
             return False
 
@@ -498,7 +498,7 @@ class WRFHydroWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running WRF-Hydro: {e}")
             return False
@@ -628,7 +628,7 @@ class WRFHydroWorker(BaseWorker):
 
                         ds.close()
 
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — calibration resilience
                         self.logger.debug(f"Error reading {chrt_file}: {e}")
                         continue
 
@@ -668,7 +668,7 @@ class WRFHydroWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating WRF-Hydro metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -731,7 +731,7 @@ class WRFHydroWorker(BaseWorker):
                 sfcrnoff = float(nc['SFCRNOFF'][:].mean()) if 'SFCRNOFF' in nc.variables else 0.0
                 ugdrnoff = float(nc['UGDRNOFF'][:].mean()) if 'UGDRNOFF' in nc.variables else 0.0
                 nc.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 continue
 
             if np.isnan(sfcrnoff) or sfcrnoff < -9000:
@@ -805,7 +805,7 @@ def _evaluate_wrfhydro_parameters_worker(task_data: Dict[str, Any]) -> Dict[str,
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

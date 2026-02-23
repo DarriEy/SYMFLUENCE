@@ -159,7 +159,7 @@ class SnowEvaluator(ModelEvaluator):
                     return self._extract_snow_depth_data(ds)
                 else:
                     return self._extract_swe_data(ds)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting snow data from {sim_file}: {str(e)}")
             raise
 
@@ -436,7 +436,7 @@ class SnowEvaluator(ModelEvaluator):
                 obs_series = obs_series[obs_series >= 0]
 
             return obs_series.dropna()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error loading observed snow data: {str(e)}")
             return None
 

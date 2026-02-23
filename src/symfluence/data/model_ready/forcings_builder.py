@@ -150,5 +150,5 @@ class ForcingsStoreBuilder:
                                 if ak not in var.ncattrs():
                                     var.setncattr(ak, av)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 logger.warning("Could not enrich metadata for %s: %s", src_file.name, e)

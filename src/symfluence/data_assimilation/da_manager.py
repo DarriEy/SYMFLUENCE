@@ -162,7 +162,7 @@ class DataAssimilationManager(BaseManager):
             )
             return output_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error("Data assimilation failed: %s", e)
             import traceback
             self.logger.error(traceback.format_exc())

@@ -60,7 +60,7 @@ class HYPEPlotter(BasePlotter):
             plot_file = self._ensure_output_dir("results") / f"{experiment_id}_HYPE_comparison.png"
             return self._save_and_close(fig, plot_file)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in HYPEPlotter.plot_streamflow: {str(e)}")
             return None
 

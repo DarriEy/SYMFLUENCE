@@ -80,7 +80,7 @@ class DataCommands(BaseCommand):
             except FileNotFoundError as exc:
                 BaseCommand._console.error(str(exc))
                 return ExitCode.VALIDATION_ERROR
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — top-level fallback
                 BaseCommand._console.error(f"Failed to read shapefile: {exc}")
                 return ExitCode.RUNTIME_ERROR
             # Derive domain name from shapefile filename if still default

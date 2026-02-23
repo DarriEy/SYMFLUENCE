@@ -204,7 +204,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             self.logger.info(f"FUSE forcing data will be saved to: {output_file}")
             return output_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
 
@@ -285,7 +285,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
             return ds_lumped
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."
@@ -417,7 +417,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
             return pet
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}")
             catchment = gpd.read_file(self.catchment_path)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)

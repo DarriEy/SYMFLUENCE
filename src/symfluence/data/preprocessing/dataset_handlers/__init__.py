@@ -67,7 +67,7 @@ for _module_name, _handler_name in _handler_imports:
         _handler_class = getattr(_module, _handler_name)
         globals()[_handler_name] = _handler_class
         _loaded_handlers.append(_handler_name)
-    except Exception as _e:
+    except Exception as _e:  # noqa: BLE001 — optional dependency
         _failed_handlers.append((_handler_name, str(_e)))
         globals()[_handler_name] = None
         _logger.warning("Failed to import %s from %s: %s", _handler_name, _module_name, _e)

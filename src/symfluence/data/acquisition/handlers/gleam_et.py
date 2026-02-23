@@ -180,7 +180,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
             try:
                 root_items = sftp.listdir('/data/')
                 self.logger.debug(f"Available versions: {sorted(root_items)}")
-            except Exception:
+            except Exception:  # noqa: BLE001 — preprocessing resilience
                 pass
 
             # Path patterns for different GLEAM versions
@@ -215,7 +215,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
                         if local_file.exists() and local_file.stat().st_size == 0:
                             local_file.unlink()
                         continue
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.debug(f"Error downloading {remote_path}: {e}")
                         if local_file.exists() and local_file.stat().st_size == 0:
                             local_file.unlink()
@@ -226,7 +226,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
 
             sftp.close()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"SFTP connection error: {e}")
         finally:
             ssh.close()

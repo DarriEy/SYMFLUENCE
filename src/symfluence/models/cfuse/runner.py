@@ -293,7 +293,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         if HAS_CFUSE_CORE:
             try:
                 self._n_states = cfuse_core.get_num_active_states(self._model_config)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Could not get state count from cfuse_core, using default: {e}")
 
     def _setup_model_specific_paths(self) -> None:
@@ -326,7 +326,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                     total_area = gdf[area_cols[0]].sum()
                     self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km2")
                     return float(total_area)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not read catchment area from shapefile: {e}")
 
         # Fall back to config
@@ -462,7 +462,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in lumped cFUSE execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -519,7 +519,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in distributed cFUSE execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -715,7 +715,7 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             self.logger.info(f"   Output: {self.output_dir}")
             self.logger.info("=" * 40)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback:", exc_info=True)
 
@@ -792,6 +792,6 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                 return float(calc_nse(obs_arr, sim, transfo=1))
             return float(calc_kge(obs_arr, sim, transfo=1))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Parameter evaluation failed: {e}")
             return -999.0

@@ -117,7 +117,7 @@ class CHIRPSHandler(BaseObservationHandler):
         for nc_file in sorted(nc_files):
             try:
                 ds = self._open_dataset(nc_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to open {nc_file.name}: {e}")
                 continue
 

@@ -124,7 +124,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             self.logger.info(f"Geofabric delineation completed for {self.domain_name}")
             return river_network_path, river_basins_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in geofabric delineation: {str(e)}")
             self.cleanup()
             raise
@@ -254,7 +254,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
             return subset_rivers_path, subset_basins_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error during geofabric subsetting: {str(e)}")
             return None, None
 

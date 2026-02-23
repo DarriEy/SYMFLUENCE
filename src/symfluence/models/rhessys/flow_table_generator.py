@@ -98,7 +98,7 @@ class RHESSysFlowTableGenerator:
             area_m2 = gdf_proj.geometry.area.sum()
         except (FileNotFoundError, ValueError):
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise RuntimeError(
                 f"Failed to read catchment for flow table: {e}"
             ) from e

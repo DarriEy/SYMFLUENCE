@@ -78,7 +78,7 @@ class ResultsViewer(param.Parameterized):
                 exp_id = cfg.domain.experiment_id
                 if exp_id:
                     return exp_id
-            except Exception:
+            except Exception:  # noqa: BLE001 — UI resilience
                 pass
         return self.state.last_completed_run
 
@@ -460,7 +460,7 @@ class ResultsViewer(param.Parameterized):
         try:
             from symfluence.reporting.core.plot_utils import align_timeseries
             obs_aligned, sim_aligned = align_timeseries(obs, sim)
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             # Manual alignment fallback
             common = obs.index.intersection(sim.index)
             obs_aligned = obs.loc[common]
@@ -521,7 +521,7 @@ class ResultsViewer(param.Parameterized):
             if has_interpret:
                 try:
                     interpretation = interpret_metric(name, val)
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass
             rows.append(
                 f'<tr style="background-color:{color}">'
@@ -723,7 +723,7 @@ class ResultsViewer(param.Parameterized):
                                 "No diagnostics generated (check that outputs exist).\n"
                             )
                         )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — UI resilience
                     run_on_ui_thread(lambda e=exc: self.state.append_log(f"Diagnostics failed: {e}\n"))
                 finally:
                     run_on_ui_thread(lambda: _set_diagnostics_running(False))

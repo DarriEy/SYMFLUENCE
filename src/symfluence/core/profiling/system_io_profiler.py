@@ -573,7 +573,7 @@ class _SubprocessProfiler:
             self.stats.success = False
             self.stats.error_message = f"Timeout after {timeout}s"
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — monitoring thread
             self.stats.success = False
             self.stats.error_message = str(e)
             raise

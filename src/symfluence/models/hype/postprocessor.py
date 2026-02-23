@@ -71,6 +71,6 @@ class HYPEPostProcessor(StandardModelPostprocessor):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting HYPE results: {str(e)}")
             raise

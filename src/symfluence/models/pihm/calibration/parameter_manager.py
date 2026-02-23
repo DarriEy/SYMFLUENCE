@@ -166,7 +166,7 @@ class PIHMParameterManager(BaseParameterManager):
             self.logger.debug(f"Updated PIHM files with {len(params)} parameters")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to update PIHM files: {e}")
             return False
 

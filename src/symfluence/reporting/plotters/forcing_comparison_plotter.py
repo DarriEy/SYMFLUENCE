@@ -5,7 +5,6 @@ Provides side-by-side map visualization comparing raw gridded forcing data
 with HRU-remapped forcing data.
 """
 
-import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -54,6 +53,7 @@ class ForcingComparisonPlotter(BasePlotter):
         'ps': 'Greys',
     }
 
+    @BasePlotter._plot_safe("plot_raw_vs_remapped")
     def plot_raw_vs_remapped(
         self,
         raw_forcing_file: Path,
@@ -83,156 +83,150 @@ class ForcingComparisonPlotter(BasePlotter):
         from matplotlib.colors import Normalize
         from matplotlib.gridspec import GridSpec
 
-        try:
-            # Check for point-scale domain (skip visualization)
-            domain_method = self._get_config_value(
-                lambda: self.config.domain.definition_method,
-                dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
-            )
-            if domain_method == 'point':
-                self.logger.info("Skipping raw vs remapped visualization for point-scale domain")
-                return None
+        # Check for point-scale domain (skip visualization)
+        domain_method = self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
+        )
+        if domain_method == 'point':
+            self.logger.info("Skipping raw vs remapped visualization for point-scale domain")
+            return None
 
-            # Check if shapefiles exist
-            if not forcing_grid_shp.exists():
-                self.logger.warning(f"Forcing grid shapefile not found: {forcing_grid_shp}")
-                return None
+        # Check if shapefiles exist
+        if not forcing_grid_shp.exists():
+            self.logger.warning(f"Forcing grid shapefile not found: {forcing_grid_shp}")
+            return None
 
-            if not hru_shp.exists():
-                self.logger.warning(f"HRU shapefile not found: {hru_shp}")
-                return None
+        if not hru_shp.exists():
+            self.logger.warning(f"HRU shapefile not found: {hru_shp}")
+            return None
 
-            # Setup output directory
-            plot_dir = self._ensure_output_dir('agnostic_preprocessing')
-            plot_filename = plot_dir / 'raw_vs_remap.png'
+        # Setup output directory
+        plot_dir = self._ensure_output_dir('agnostic_preprocessing')
+        plot_filename = plot_dir / 'raw_vs_remap.png'
 
-            # Load NetCDF data
-            self.logger.debug(f"Loading raw forcing from {raw_forcing_file}")
-            raw_ds = xr.open_dataset(raw_forcing_file)
+        # Load NetCDF data
+        self.logger.debug(f"Loading raw forcing from {raw_forcing_file}")
+        raw_ds = xr.open_dataset(raw_forcing_file)
 
-            self.logger.debug(f"Loading remapped forcing from {remapped_forcing_file}")
-            remapped_ds = xr.open_dataset(remapped_forcing_file)
+        self.logger.debug(f"Loading remapped forcing from {remapped_forcing_file}")
+        remapped_ds = xr.open_dataset(remapped_forcing_file)
 
-            # Find the variable in the datasets
-            raw_var, raw_data = self._extract_variable_data(raw_ds, variable, time_index)
-            remap_var, remap_data = self._extract_variable_data(remapped_ds, variable, time_index)
+        # Find the variable in the datasets
+        raw_var, raw_data = self._extract_variable_data(raw_ds, variable, time_index)
+        remap_var, remap_data = self._extract_variable_data(remapped_ds, variable, time_index)
 
-            if raw_data is None or remap_data is None:
-                self.logger.warning(f"Could not find variable {variable} in forcing files")
-                raw_ds.close()
-                remapped_ds.close()
-                return None
-
-            # Load shapefiles
-            self.logger.debug(f"Loading forcing grid shapefile from {forcing_grid_shp}")
-            forcing_gdf = gpd.read_file(forcing_grid_shp)
-
-            self.logger.debug(f"Loading HRU shapefile from {hru_shp}")
-            hru_gdf = gpd.read_file(hru_shp)
-
-            # Reproject to Web Mercator for consistent visualization
-            forcing_gdf_web = forcing_gdf.to_crs(epsg=3857)
-            hru_gdf_web = hru_gdf.to_crs(epsg=3857)
-
-            # Match raw data to forcing grid cells
-            raw_gdf = self._match_raw_to_grid(raw_data, forcing_gdf_web, raw_ds)
-
-            # Match remapped data to HRUs
-            remap_gdf = self._match_remapped_to_hru(remap_data, hru_gdf_web, remapped_ds)
-
-            if raw_gdf is None or remap_gdf is None:
-                self.logger.warning("Could not match data to shapefiles")
-                raw_ds.close()
-                remapped_ds.close()
-                return None
-
-            # Calculate shared color scale
-            raw_valid = raw_gdf['value'].dropna()
-            remap_valid = remap_gdf['value'].dropna()
-
-            vmin = min(raw_valid.min(), remap_valid.min())
-            vmax = max(raw_valid.max(), remap_valid.max())
-
-            # Get colormap
-            cmap = self._get_colormap(variable)
-
-            # Create figure with GridSpec (1x3: raw, remapped, colorbar)
-            fig = plt.figure(figsize=(16, 8))
-            gs = GridSpec(1, 3, width_ratios=[1, 1, 0.05], wspace=0.15)
-
-            ax_raw = fig.add_subplot(gs[0])
-            ax_remap = fig.add_subplot(gs[1])
-            ax_cbar = fig.add_subplot(gs[2])
-
-            # Create shared normalization
-            norm = Normalize(vmin=vmin, vmax=vmax)
-
-            # Plot raw data (left panel)
-            raw_gdf.plot(
-                column='value',
-                ax=ax_raw,
-                cmap=cmap,
-                norm=norm,
-                legend=False,
-                edgecolor='gray',
-                linewidth=0.3
-            )
-            ax_raw.set_title('Raw Gridded Forcing', fontsize=self.plot_config.FONT_SIZE_TITLE, fontweight='bold')
-            ax_raw.set_axis_off()
-
-            # Plot remapped data (right panel)
-            remap_gdf.plot(
-                column='value',
-                ax=ax_remap,
-                cmap=cmap,
-                norm=norm,
-                legend=False,
-                edgecolor='gray',
-                linewidth=0.3
-            )
-            ax_remap.set_title('HRU-Remapped Forcing', fontsize=self.plot_config.FONT_SIZE_TITLE, fontweight='bold')
-            ax_remap.set_axis_off()
-
-            # Add shared colorbar
-            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-            sm.set_array([])
-            cbar = plt.colorbar(sm, cax=ax_cbar)
-
-            # Get variable units if available
-            units = self._get_variable_units(raw_ds, raw_var)
-            cbar.set_label(f'{raw_var} [{units}]' if units else raw_var, fontsize=self.plot_config.FONT_SIZE_MEDIUM)
-
-            # Add statistics boxes
-            raw_stats = self._compute_stats(raw_valid)
-            remap_stats = self._compute_stats(remap_valid)
-
-            self._add_stats_box(ax_raw, raw_stats, position=(0.02, 0.02))
-            self._add_stats_box(ax_remap, remap_stats, position=(0.02, 0.02))
-
-            # Add main title
-            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
-            forcing_dataset = self._get_config_value(
-                lambda: self.config.forcing.dataset,
-                dict_key=ConfigKeys.FORCING_DATASET
-            )
-            fig.suptitle(
-                f'Forcing Comparison: {domain_name} - {forcing_dataset}',
-                fontsize=self.plot_config.FONT_SIZE_TITLE + 2,
-                fontweight='bold',
-                y=0.98
-            )
-
-            # Clean up
+        if raw_data is None or remap_data is None:
+            self.logger.warning(f"Could not find variable {variable} in forcing files")
             raw_ds.close()
             remapped_ds.close()
-
-            # Save and close
-            return self._save_and_close(fig, plot_filename)
-
-        except Exception as e:
-            self.logger.error(f"Error in plot_raw_vs_remapped: {str(e)}")
-            self.logger.error(traceback.format_exc())
             return None
+
+        # Load shapefiles
+        self.logger.debug(f"Loading forcing grid shapefile from {forcing_grid_shp}")
+        forcing_gdf = gpd.read_file(forcing_grid_shp)
+
+        self.logger.debug(f"Loading HRU shapefile from {hru_shp}")
+        hru_gdf = gpd.read_file(hru_shp)
+
+        # Reproject to Web Mercator for consistent visualization
+        forcing_gdf_web = forcing_gdf.to_crs(epsg=3857)
+        hru_gdf_web = hru_gdf.to_crs(epsg=3857)
+
+        # Match raw data to forcing grid cells
+        raw_gdf = self._match_raw_to_grid(raw_data, forcing_gdf_web, raw_ds)
+
+        # Match remapped data to HRUs
+        remap_gdf = self._match_remapped_to_hru(remap_data, hru_gdf_web, remapped_ds)
+
+        if raw_gdf is None or remap_gdf is None:
+            self.logger.warning("Could not match data to shapefiles")
+            raw_ds.close()
+            remapped_ds.close()
+            return None
+
+        # Calculate shared color scale
+        raw_valid = raw_gdf['value'].dropna()
+        remap_valid = remap_gdf['value'].dropna()
+
+        vmin = min(raw_valid.min(), remap_valid.min())
+        vmax = max(raw_valid.max(), remap_valid.max())
+
+        # Get colormap
+        cmap = self._get_colormap(variable)
+
+        # Create figure with GridSpec (1x3: raw, remapped, colorbar)
+        fig = plt.figure(figsize=(16, 8))
+        gs = GridSpec(1, 3, width_ratios=[1, 1, 0.05], wspace=0.15)
+
+        ax_raw = fig.add_subplot(gs[0])
+        ax_remap = fig.add_subplot(gs[1])
+        ax_cbar = fig.add_subplot(gs[2])
+
+        # Create shared normalization
+        norm = Normalize(vmin=vmin, vmax=vmax)
+
+        # Plot raw data (left panel)
+        raw_gdf.plot(
+            column='value',
+            ax=ax_raw,
+            cmap=cmap,
+            norm=norm,
+            legend=False,
+            edgecolor='gray',
+            linewidth=0.3
+        )
+        ax_raw.set_title('Raw Gridded Forcing', fontsize=self.plot_config.FONT_SIZE_TITLE, fontweight='bold')
+        ax_raw.set_axis_off()
+
+        # Plot remapped data (right panel)
+        remap_gdf.plot(
+            column='value',
+            ax=ax_remap,
+            cmap=cmap,
+            norm=norm,
+            legend=False,
+            edgecolor='gray',
+            linewidth=0.3
+        )
+        ax_remap.set_title('HRU-Remapped Forcing', fontsize=self.plot_config.FONT_SIZE_TITLE, fontweight='bold')
+        ax_remap.set_axis_off()
+
+        # Add shared colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = plt.colorbar(sm, cax=ax_cbar)
+
+        # Get variable units if available
+        units = self._get_variable_units(raw_ds, raw_var)
+        cbar.set_label(f'{raw_var} [{units}]' if units else raw_var, fontsize=self.plot_config.FONT_SIZE_MEDIUM)
+
+        # Add statistics boxes
+        raw_stats = self._compute_stats(raw_valid)
+        remap_stats = self._compute_stats(remap_valid)
+
+        self._add_stats_box(ax_raw, raw_stats, position=(0.02, 0.02))
+        self._add_stats_box(ax_remap, remap_stats, position=(0.02, 0.02))
+
+        # Add main title
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
+        forcing_dataset = self._get_config_value(
+            lambda: self.config.forcing.dataset,
+            dict_key=ConfigKeys.FORCING_DATASET
+        )
+        fig.suptitle(
+            f'Forcing Comparison: {domain_name} - {forcing_dataset}',
+            fontsize=self.plot_config.FONT_SIZE_TITLE + 2,
+            fontweight='bold',
+            y=0.98
+        )
+
+        # Clean up
+        raw_ds.close()
+        remapped_ds.close()
+
+        # Save and close
+        return self._save_and_close(fig, plot_filename)
 
     def plot(self, *args, **kwargs) -> Optional[str]:
         """
@@ -314,6 +308,7 @@ class ForcingComparisonPlotter(BasePlotter):
 
         return None, None
 
+    @BasePlotter._plot_safe("matching raw data to grid")
     def _match_raw_to_grid(
         self,
         raw_data: np.ndarray,
@@ -331,64 +326,59 @@ class ForcingComparisonPlotter(BasePlotter):
         Returns:
             GeoDataFrame with 'value' column, or None if failed
         """
+        # Get coordinates from dataset
+        lat_name = None
+        lon_name = None
+        for name in ['lat', 'latitude', 'y', 'rlat']:
+            if name in ds.coords or name in ds.dims:
+                lat_name = name
+                break
+        for name in ['lon', 'longitude', 'x', 'rlon']:
+            if name in ds.coords or name in ds.dims:
+                lon_name = name
+                break
 
-        try:
-            # Get coordinates from dataset
-            lat_name = None
-            lon_name = None
-            for name in ['lat', 'latitude', 'y', 'rlat']:
-                if name in ds.coords or name in ds.dims:
-                    lat_name = name
-                    break
-            for name in ['lon', 'longitude', 'x', 'rlon']:
-                if name in ds.coords or name in ds.dims:
-                    lon_name = name
-                    break
-
-            if lat_name is None or lon_name is None:
-                self.logger.warning("Could not find lat/lon coordinates in raw dataset")
-                # Fall back: assume grid cells are in order
-                if len(forcing_gdf) == raw_data.size:
-                    forcing_gdf = forcing_gdf.copy()
-                    forcing_gdf['value'] = raw_data.flatten()
-                    return forcing_gdf
-                return None
-
-            lats = ds[lat_name].values
-            lons = ds[lon_name].values
-
-            # Create meshgrid if 1D
-            if lats.ndim == 1 and lons.ndim == 1:
-                lon_grid, lat_grid = np.meshgrid(lons, lats)
-            else:
-                lon_grid, lat_grid = lons, lats
-
-            # Flatten data and coordinates
-            flat_data = raw_data.flatten()
-            flat_lat = lat_grid.flatten()
-            flat_lon = lon_grid.flatten()
-
-            # Match to grid cells by centroid
-            forcing_gdf = forcing_gdf.copy()
-            centroids = forcing_gdf.geometry.centroid
-
-            # Convert centroids back to geographic coordinates for matching
-            centroids_geo = centroids.to_crs(epsg=4326)
-
-            # Simple nearest-neighbor matching
-            values = []
-            for cent in centroids_geo:
-                dist = np.sqrt((flat_lon - cent.x)**2 + (flat_lat - cent.y)**2)
-                nearest_idx = np.argmin(dist)
-                values.append(flat_data[nearest_idx])
-
-            forcing_gdf['value'] = values
-            return forcing_gdf
-
-        except Exception as e:
-            self.logger.warning(f"Error matching raw data to grid: {e}")
+        if lat_name is None or lon_name is None:
+            self.logger.warning("Could not find lat/lon coordinates in raw dataset")
+            # Fall back: assume grid cells are in order
+            if len(forcing_gdf) == raw_data.size:
+                forcing_gdf = forcing_gdf.copy()
+                forcing_gdf['value'] = raw_data.flatten()
+                return forcing_gdf
             return None
 
+        lats = ds[lat_name].values
+        lons = ds[lon_name].values
+
+        # Create meshgrid if 1D
+        if lats.ndim == 1 and lons.ndim == 1:
+            lon_grid, lat_grid = np.meshgrid(lons, lats)
+        else:
+            lon_grid, lat_grid = lons, lats
+
+        # Flatten data and coordinates
+        flat_data = raw_data.flatten()
+        flat_lat = lat_grid.flatten()
+        flat_lon = lon_grid.flatten()
+
+        # Match to grid cells by centroid
+        forcing_gdf = forcing_gdf.copy()
+        centroids = forcing_gdf.geometry.centroid
+
+        # Convert centroids back to geographic coordinates for matching
+        centroids_geo = centroids.to_crs(epsg=4326)
+
+        # Simple nearest-neighbor matching
+        values = []
+        for cent in centroids_geo:
+            dist = np.sqrt((flat_lon - cent.x)**2 + (flat_lat - cent.y)**2)
+            nearest_idx = np.argmin(dist)
+            values.append(flat_data[nearest_idx])
+
+        forcing_gdf['value'] = values
+        return forcing_gdf
+
+    @BasePlotter._plot_safe("matching remapped data to HRUs")
     def _match_remapped_to_hru(
         self,
         remap_data: np.ndarray,
@@ -406,46 +396,41 @@ class ForcingComparisonPlotter(BasePlotter):
         Returns:
             GeoDataFrame with 'value' column, or None if failed
         """
-        try:
-            hru_gdf = hru_gdf.copy()
+        hru_gdf = hru_gdf.copy()
 
-            # Check if data length matches HRU count
-            if len(remap_data.flatten()) == len(hru_gdf):
-                hru_gdf['value'] = remap_data.flatten()
-                return hru_gdf
+        # Check if data length matches HRU count
+        if len(remap_data.flatten()) == len(hru_gdf):
+            hru_gdf['value'] = remap_data.flatten()
+            return hru_gdf
 
-            # Try to match by HRU ID
-            hru_id_names = ['hru', 'hruId', 'HRU_ID', 'gruId', 'gru', 'GRU_ID', 'COMID', 'cat']
-            ds_hru_ids = None
-            for name in hru_id_names:
-                if name in ds.dims or name in ds.coords:
-                    ds_hru_ids = ds[name].values if name in ds.coords else None
-                    break
+        # Try to match by HRU ID
+        hru_id_names = ['hru', 'hruId', 'HRU_ID', 'gruId', 'gru', 'GRU_ID', 'COMID', 'cat']
+        ds_hru_ids = None
+        for name in hru_id_names:
+            if name in ds.dims or name in ds.coords:
+                ds_hru_ids = ds[name].values if name in ds.coords else None
+                break
 
-            gdf_hru_col = None
-            for name in ['HRU_ID', 'hru_id', 'hruId', 'COMID', 'cat', 'gruId', 'GRU_ID']:
-                if name in hru_gdf.columns:
-                    gdf_hru_col = name
-                    break
+        gdf_hru_col = None
+        for name in ['HRU_ID', 'hru_id', 'hruId', 'COMID', 'cat', 'gruId', 'GRU_ID']:
+            if name in hru_gdf.columns:
+                gdf_hru_col = name
+                break
 
-            if ds_hru_ids is not None and gdf_hru_col is not None:
-                # Match by ID
-                id_to_value = dict(zip(ds_hru_ids, remap_data.flatten()))
-                hru_gdf['value'] = hru_gdf[gdf_hru_col].map(id_to_value)
-                return hru_gdf
+        if ds_hru_ids is not None and gdf_hru_col is not None:
+            # Match by ID
+            id_to_value = dict(zip(ds_hru_ids, remap_data.flatten()))
+            hru_gdf['value'] = hru_gdf[gdf_hru_col].map(id_to_value)
+            return hru_gdf
 
-            # Fallback: assume order matches
-            if len(remap_data.flatten()) <= len(hru_gdf):
-                hru_gdf['value'] = np.nan
-                hru_gdf.iloc[:len(remap_data.flatten()), hru_gdf.columns.get_loc('value')] = remap_data.flatten()
-                return hru_gdf
+        # Fallback: assume order matches
+        if len(remap_data.flatten()) <= len(hru_gdf):
+            hru_gdf['value'] = np.nan
+            hru_gdf.iloc[:len(remap_data.flatten()), hru_gdf.columns.get_loc('value')] = remap_data.flatten()
+            return hru_gdf
 
-            self.logger.warning(f"Remapped data length ({len(remap_data.flatten())}) doesn't match HRU count ({len(hru_gdf)})")
-            return None
-
-        except Exception as e:
-            self.logger.warning(f"Error matching remapped data to HRUs: {e}")
-            return None
+        self.logger.warning(f"Remapped data length ({len(remap_data.flatten())}) doesn't match HRU count ({len(hru_gdf)})")
+        return None
 
     def _compute_stats(self, data: Any) -> Dict[str, float]:
         """

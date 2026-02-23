@@ -74,7 +74,7 @@ class IDMapper:
             import yaml
             with open(path) as f:
                 data = yaml.safe_load(f)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
             raise IDMappingError(f"Failed to load ID map YAML {path}: {exc}") from exc
 
         if not isinstance(data, list):

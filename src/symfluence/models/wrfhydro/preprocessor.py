@@ -104,7 +104,7 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("WRF-Hydro preprocessing completed successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"WRF-Hydro preprocessing failed: {str(e)}")
             import traceback
             logger.debug(traceback.format_exc())

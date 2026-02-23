@@ -95,7 +95,7 @@ class MESHDataPreprocessor:
                     if temp_ext.exists():
                         shutil.move(temp_ext, path.with_suffix(ext))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
 
     def fix_network_topology_fields(self, shp_path: str) -> None:
@@ -178,7 +178,7 @@ class MESHDataPreprocessor:
                 gdf.to_file(path)
                 self.logger.info(f"Saved topology-fixed shapefile: {path.name}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix network topology fields: {e}")
 
     def fix_outlet_segment(self, shp_path: str, outlet_value: int = 0) -> None:
@@ -214,7 +214,7 @@ class MESHDataPreprocessor:
                 gdf.to_file(path)
                 self.logger.info(f"Fixed {outlet_mask.sum()} outlet segment(s) in {path.name}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix outlet segment: {e}")
 
     def ensure_gru_id(self, shp_path: str) -> None:
@@ -265,7 +265,7 @@ class MESHDataPreprocessor:
             if needs_update:
                 gdf.to_file(path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to ensure GRU_ID: {e}")
 
     def ensure_hru_id(self, shp_path: str, hru_col: str, main_id_col: str = 'GRU_ID') -> None:
@@ -321,7 +321,7 @@ class MESHDataPreprocessor:
             if needs_update:
                 gdf.to_file(path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to ensure HRU ID ({hru_col}): {e}")
 
     def fix_missing_columns(self, shp_path: str, column_mapping: Dict[str, str]) -> None:
@@ -360,7 +360,7 @@ class MESHDataPreprocessor:
             if needs_update:
                 gdf.to_file(path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix missing columns in {path.name}: {e}")
 
     def detect_gru_classes(self, landcover_path: Path) -> List[int]:
@@ -399,7 +399,7 @@ class MESHDataPreprocessor:
             self.logger.debug(f"Detected GRU classes from {landcover_path.name}: {result}")
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to detect GRU classes: {e}")
             return []
 
@@ -486,7 +486,7 @@ class MESHDataPreprocessor:
             df.to_csv(temp_path, index=False)
             return str(temp_path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to sanitize landcover stats: {e}")
             return csv_path
 
@@ -548,7 +548,7 @@ class MESHDataPreprocessor:
 
             return df
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to expand landcover to catchment: {e}")
             return df
 
@@ -605,7 +605,7 @@ class MESHDataPreprocessor:
                 df.to_csv(csv_path, index=False)
                 self.logger.info(f"Converted {csv_path} to MAF format")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to convert to MAF: {e}")
 
     def copy_settings_to_forcing(self) -> None:
@@ -631,7 +631,7 @@ class MESHDataPreprocessor:
             if self.setup_dir.resolve() == self.forcing_dir.resolve():
                 self.logger.info("Settings and forcing directories are the same, skipping")
                 return
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not compare directory paths: {e}")
 
         skip_files = [

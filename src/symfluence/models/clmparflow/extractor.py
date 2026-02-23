@@ -249,7 +249,7 @@ class CLMParFlowResultExtractor(ModelResultExtractor):
                     values.append(float(data[z_idx, 0, 0]))
                 else:
                     values.append(0.0)
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 values.append(0.0)
 
         date_index = self._build_time_index(len(values), **kwargs)

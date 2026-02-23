@@ -239,7 +239,7 @@ class ShapefileHelper(ConfigMixin):
             area_m2 = float(basin_gdf[area_col].sum())
             return area_m2
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error getting basin area: {str(e)}")
             return None
 
@@ -287,6 +287,6 @@ class ShapefileHelper(ConfigMixin):
             gdf = gpd.read_file(path)
             self.logger.debug(f"Loaded shapefile: {path}")
             return gdf
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error loading shapefile {path}: {str(e)}")
             return None

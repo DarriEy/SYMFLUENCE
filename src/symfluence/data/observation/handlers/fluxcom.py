@@ -38,7 +38,7 @@ class FLUXCOMETHandler(BaseObservationHandler):
             from symfluence.data.acquisition.handlers.observation_acquirers import FLUXCOMETAcquirer
             acquirer = FLUXCOMETAcquirer(self.config, self.logger)
             acquirer.download(self.project_observations_dir)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}")
 
         return et_dir

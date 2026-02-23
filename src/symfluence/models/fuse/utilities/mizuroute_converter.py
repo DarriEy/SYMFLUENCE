@@ -117,7 +117,7 @@ class FuseToMizurouteConverter:
             ds_routing.close()
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error converting FUSE output to mizuRoute format: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -231,7 +231,7 @@ class FuseToMizurouteConverter:
             if hasattr(time_values, 'tz') and time_values.tz is not None:
                 time_values = time_values.tz_localize(None)
             return time_values
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not round times for mizuRoute: {e}")
             return ds['time'].values
 

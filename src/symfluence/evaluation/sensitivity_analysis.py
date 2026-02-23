@@ -124,7 +124,7 @@ class SensitivityAnalyzer(ConfigMixin):
 
                 sensitivities.append(sensitivity)
                 self.logger.info(f"Successfully calculated sensitivity for {param}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.error(f"Error in sensitivity analysis for parameter {param}: {str(e)}")
                 sensitivities.append(-999)
 

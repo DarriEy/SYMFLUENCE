@@ -111,6 +111,7 @@ test = [
   "pytest-xdist>=3.0.0",
   "pytest-cov>=4.0.0",
   "pytest-timeout>=2.0.0",
+  "hypothesis>=6.0.0,<7.0.0",
 ]
 # Documentation tools
 docs = [
@@ -199,6 +200,7 @@ select = [
     "I",      # isort (import ordering)
     "B",      # flake8-bugbear (common bug patterns)
     "PGH003", # Blanket type: ignore without error code
+    "BLE001", # No blind except Exception
 ]
 
 # Ignore rules that are intentional patterns

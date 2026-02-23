@@ -110,7 +110,7 @@ class SacSmaRunner(  # type: ignore[misc]
                     try:
                         area_km2 = calculate_catchment_area_km2(gdf, logger=self.logger)
                         return float(area_km2 * 1e6)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — model execution resilience
                         area_cols = [c for c in gdf.columns if 'area' in c.lower()]
                         if area_cols:
                             total_area = gdf[area_cols[0]].sum()
@@ -119,7 +119,7 @@ class SacSmaRunner(  # type: ignore[misc]
                             return float(total_area)
         except ImportError:
             pass
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not read catchment shapefile: {e}")
 
         area_km2 = self._get_config_value(
@@ -303,5 +303,5 @@ class SacSmaRunner(  # type: ignore[misc]
             self.logger.info(f"   NSE: {nse_val:.4f}")
             self.logger.info("=" * 40)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error calculating metrics: {e}")

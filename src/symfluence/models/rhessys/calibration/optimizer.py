@@ -132,6 +132,6 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
                 rhessys_settings_dir,  # This directory has the defs/ subdirectory
                 config=self.config
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying parameters for final evaluation: {e}")
             return False

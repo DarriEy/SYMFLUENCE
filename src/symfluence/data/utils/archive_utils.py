@@ -60,7 +60,7 @@ def tar_directory(source_dir: Path, archive_name: Optional[str] = None,
 
         return True
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — preprocessing resilience
         if logger:
             logger.error(f"Error creating archive {archive_path}: {str(e)}")
         return False

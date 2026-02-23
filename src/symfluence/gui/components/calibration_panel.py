@@ -36,7 +36,7 @@ class CalibrationPanel(param.Parameterized):
         if state.typed_config is not None:
             try:
                 defaults = config_to_params(state.typed_config)
-            except Exception:
+            except Exception:  # noqa: BLE001 — UI resilience
                 pass
 
         self._algorithm = pn.widgets.Select(
@@ -143,7 +143,7 @@ class CalibrationPanel(param.Parameterized):
                     f"Auto-set calibration period: {calib_period} "
                     f"(skipping {spinup_days}-day spinup)\n"
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 logger.debug(f"Could not auto-derive calibration period: {exc}")
 
         # Build overrides via params_to_config_overrides
@@ -165,7 +165,7 @@ class CalibrationPanel(param.Parameterized):
             current = self.state.typed_config.to_dict(flatten=True)
             current.update(overrides)
             self.state.typed_config = SymfluenceConfig(**current)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self.state.append_log(f"Config update failed: {exc}\n")
             return
 

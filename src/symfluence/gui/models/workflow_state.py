@@ -100,7 +100,7 @@ class WorkflowState(param.Parameterized):
             root = str(config.system.data_dir)
             domain_name = config.domain.name
             self.project_dir = str(Path(root) / f"domain_{domain_name}")
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             self.project_dir = None
 
         # Extract pour point if present
@@ -152,7 +152,7 @@ class WorkflowState(param.Parameterized):
         try:
             sf = self.initialize_symfluence()
             self.workflow_status = sf.get_workflow_status()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Could not refresh status: {exc}")
             self.workflow_status = {}
 

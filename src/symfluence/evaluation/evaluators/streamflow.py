@@ -146,7 +146,7 @@ class StreamflowEvaluator(ModelEvaluator):
                 return self._extract_vic_streamflow(sim_file)
             else:
                 return self._extract_summa_streamflow(sim_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting streamflow data from {sim_file}: {str(e)}")
             raise
 
@@ -567,7 +567,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                              weighted_runoff = (var * areas.values).sum(dim='gru')
                                              return cast(pd.Series, weighted_runoff.to_pandas())
 
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 — must-not-raise contract
                             self.logger.warning(f"Failed to perform area-weighted aggregation: {e}")
 
                     # Fallback to selection (original logic)
@@ -704,7 +704,7 @@ class StreamflowEvaluator(ModelEvaluator):
                             )
                             return validated
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error reading SUMMA attributes file: {str(e)}")
 
         # Priority 2: Try basin shapefile
@@ -743,7 +743,7 @@ class StreamflowEvaluator(ModelEvaluator):
                         f"Using catchment area from basin geometry: {validated:.0f} m²"
                     )
                     return validated
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(
                 f"Could not calculate catchment area from basin shapefile: {str(e)}"
             )
@@ -770,7 +770,7 @@ class StreamflowEvaluator(ModelEvaluator):
                             f"Using catchment area from catchment shapefile: {validated:.0f} m²"
                         )
                         return validated
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error reading catchment shapefile: {str(e)}")
 
         # Fallback: Check if explicit area is required

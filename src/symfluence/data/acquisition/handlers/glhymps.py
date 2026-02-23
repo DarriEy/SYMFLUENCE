@@ -178,7 +178,7 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
             self.logger.error("No shapefile found in extracted archive")
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to download GLHYMPS: {e}")
             self.logger.info(
                 "Manual download: visit https://borealisdata.ca/dataset.xhtml"

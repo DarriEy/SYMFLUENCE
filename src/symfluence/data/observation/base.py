@@ -212,7 +212,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         """
         try:
             return self.acquire()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             source = self.source_name or self.__class__.__name__
             self.logger.error(f"{source} acquisition failed: {e}")
             raise ObservationAcquisitionError(f"{source}: {e}") from e
@@ -231,7 +231,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         """
         try:
             return self.process(input_path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             source = self.source_name or self.__class__.__name__
             self.logger.error(f"{source} processing failed: {e}")
             raise ObservationProcessingError(f"{source}: {e}") from e
@@ -301,7 +301,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         for engine in engines:
             try:
                 return xr.open_dataset(path, engine=engine, **kwargs)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 last_error = e
                 continue
 

@@ -133,26 +133,26 @@ class GaugeStationStore:
                     df = pd.read_csv(cache_file, dtype={'station_id': str})
                     logger.info(f"Cache hit for {provider.network}: {len(df)} stations")
                     return df
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — UI resilience
                     logger.warning(f"Corrupt cache for {provider.network}: {exc}")
 
         # Fetch fresh data
         try:
             df = provider.fetch()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning(f"Provider {provider.network} failed: {exc}")
             # Fall back to stale cache if available
             if cache_file.exists():
                 try:
                     return pd.read_csv(cache_file, dtype={'station_id': str})
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass
             return None
 
         if df is not None and not df.empty:
             try:
                 df.to_csv(cache_file, index=False)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 logger.warning(f"Failed to cache {provider.network}: {exc}")
 
         return df

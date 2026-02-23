@@ -186,6 +186,6 @@ class attributeProcessor(ConfigMixin):
                 self.logger.warning("No attributes were processed")
                 return pd.DataFrame()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in attribute processing: {str(e)}")
             raise

@@ -48,6 +48,6 @@ class UXTelemetry:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             with self._path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row, default=str) + "\n")
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             # Telemetry is non-critical; never break GUI flows.
             return

@@ -130,7 +130,7 @@ class IGNACIORunner(BaseModelRunner):
             self.logger.warning("Install with: symfluence binary install ignacio")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"IGNACIO API execution failed: {e}")
             return False
 
@@ -186,7 +186,7 @@ class IGNACIORunner(BaseModelRunner):
             self.logger.error("IGNACIO simulation timed out after 1 hour")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"IGNACIO CLI execution failed: {e}")
             return False
 

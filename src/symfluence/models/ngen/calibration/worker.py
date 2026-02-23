@@ -257,7 +257,7 @@ class NgenWorker(BaseWorker):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying ngen parameters: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -306,7 +306,7 @@ class NgenWorker(BaseWorker):
         except FileNotFoundError as e:
             self.logger.error(f"Required ngen input file not found: {e}")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running ngen: {e}")
             return False
 
@@ -350,7 +350,7 @@ class NgenWorker(BaseWorker):
             # Fallback: Calculate metrics directly
             return self._calculate_metrics_direct(output_dir, config)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating ngen metrics: {e}")
             return {'kge': self.penalty_score}
 
@@ -435,7 +435,7 @@ class NgenWorker(BaseWorker):
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in direct ngen metrics calculation: {e}")
             return {'kge': self.penalty_score}
 

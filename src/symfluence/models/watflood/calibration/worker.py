@@ -88,7 +88,7 @@ class WATFLOODWorker(BaseWorker):
 
             par_path.write_text(content, encoding='utf-8')
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying WATFLOOD parameters: {e}")
             return False
 
@@ -165,7 +165,7 @@ class WATFLOODWorker(BaseWorker):
                 self.logger.error(self._last_error)
                 return False
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running WATFLOOD: {e}")
             return False
@@ -224,7 +224,7 @@ class WATFLOODWorker(BaseWorker):
             return self._streamflow_metrics.calculate_metrics(
                 obs_aligned, sim_aligned, metrics=['kge', 'nse']
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating WATFLOOD metrics: {e}")
             return {'kge': self.penalty_score, 'error': str(e)}
 
@@ -258,7 +258,7 @@ class WATFLOODWorker(BaseWorker):
                 if dates:
                     return pd.Series(values, index=dates, name='WATFLOOD_discharge_cms')
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error extracting WATFLOOD streamflow: {e}")
             return None
 
@@ -294,7 +294,7 @@ def _evaluate_watflood_parameters_worker(task_data: Dict[str, Any]) -> Dict[str,
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

@@ -150,7 +150,7 @@ class ToolExecutor:
                     exit_code=1
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -209,7 +209,7 @@ class ToolExecutor:
             finally:
                 sys.stdout = old_stdout
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -265,7 +265,7 @@ class ToolExecutor:
             finally:
                 sys.stdout = old_stdout
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -321,7 +321,7 @@ class ToolExecutor:
             finally:
                 sys.stdout = old_stdout
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -380,7 +380,7 @@ class ToolExecutor:
             finally:
                 sys.stdout = old_stdout
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -435,7 +435,7 @@ class ToolExecutor:
             finally:
                 sys.stdout = old_stdout
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -634,7 +634,7 @@ class ToolExecutor:
                     exit_code=1
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -745,7 +745,7 @@ Optional steps:
                 exit_code=1
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",

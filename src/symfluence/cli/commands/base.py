@@ -397,7 +397,7 @@ class BaseCommand(ABC):
         except ConfigurationError as e:
             BaseCommand._console.error(f"Configuration error: {e}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — top-level fallback
             BaseCommand._console.error(f"Failed to load config: {e}")
             return None
 

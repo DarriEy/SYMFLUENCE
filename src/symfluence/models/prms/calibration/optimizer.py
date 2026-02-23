@@ -170,7 +170,7 @@ class PRMSModelOptimizer(BaseModelOptimizer):
 
             return final_result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in final evaluation: {e}")
             import traceback
             self.logger.error(traceback.format_exc())

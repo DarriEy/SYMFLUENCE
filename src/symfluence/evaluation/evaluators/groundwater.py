@@ -223,7 +223,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                 calibration_only=calibration_only
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error calculating groundwater metrics: {str(e)}")
             return None
 
@@ -246,7 +246,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                     if data is not None and not data.empty:
                         self.logger.info(f"Successfully extracted {len(data)} points from {sim_file.name}")
                         return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Failed to extract from {sim_file.name}: {e}")
 
         raise ValueError(f"Could not extract groundwater data from any of {sim_files}")
@@ -321,7 +321,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                     total_storage = total_storage + sim_data
 
             return self._convert_tws_units(total_storage)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error calculating TWS: {str(e)}")
             raise
 
@@ -433,7 +433,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                 obs_series.index = obs_series.index.tz_convert('UTC').tz_localize(None)
 
             return obs_series
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error loading observed groundwater data: {str(e)}")
             return None
 

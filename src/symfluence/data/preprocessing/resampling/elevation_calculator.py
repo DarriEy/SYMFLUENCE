@@ -68,7 +68,7 @@ class ElevationCalculator:
                     try:
                         gdf_projected = gdf.to_crs(dem_crs)
                         self.logger.info("CRS reprojection successful")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.error(f"Failed to reproject CRS: {str(e)}")
                         self.logger.warning("Using original CRS - elevation calculation may fail")
                         gdf_projected = gdf.copy()
@@ -105,7 +105,7 @@ class ElevationCalculator:
                     except ValueError:
                         # Usually means geometry is outside raster bounds
                         pass
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         if idx < 5:
                             self.logger.debug(
                                 f"Error calculating elevation for geometry {idx}: {str(e)}"
@@ -116,7 +116,7 @@ class ElevationCalculator:
                 f"Successfully calculated elevation for {valid_count}/{len(elevations)} geometries"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error in elevation calculation: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

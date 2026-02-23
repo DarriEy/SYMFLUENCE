@@ -262,7 +262,7 @@ def calculate_aspect(dem_raster: Path, aspect_raster: Path, aspect_class_number:
         logger.info(f"Aspect classes: {np.unique(classified_aspect[classified_aspect != -9999])}")
         return aspect_raster
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — plotting resilience
         logger.error(f"Error calculating aspect: {str(e)}", exc_info=True)
         return None
 
@@ -453,7 +453,7 @@ def calculate_annual_radiation(dem_raster: Path, radiation_raster: Path, logger:
         logger.info(f"Radiation raster saved to: {radiation_raster}")
         return radiation_raster
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — plotting resilience
         logger.error(f"Error calculating annual radiation: {str(e)}", exc_info=True)
         return None
 

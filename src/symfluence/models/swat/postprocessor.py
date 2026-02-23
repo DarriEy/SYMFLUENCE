@@ -85,7 +85,7 @@ class SWATPostProcessor(StandardModelPostprocessor):
                 model_column_name='SWAT_discharge_cms'
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.error(f"Error extracting SWAT streamflow: {str(e)}")
             self.logger.debug(traceback.format_exc())
@@ -199,6 +199,6 @@ class SWATPostProcessor(StandardModelPostprocessor):
             )
             return streamflow
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error parsing output.rch: {e}")
             return None

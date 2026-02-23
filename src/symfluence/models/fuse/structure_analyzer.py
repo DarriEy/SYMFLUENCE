@@ -166,7 +166,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             with open(self.model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error updating FUSE model decisions: {str(e)}")
             raise
 
@@ -303,7 +303,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                     if basin_gdf.crs and basin_gdf.crs.is_geographic:
                         basin_gdf = basin_gdf.to_crs(epsg=3857) # Simple projection for area
                     return basin_gdf.geometry.area.sum() / 1e6
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Failed to calculate area from shapefile: {e}")
 
         return 1.0 # Default fallback
@@ -324,5 +324,5 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                         self.output_folder,
                         metric
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Highlight visualization for {metric} failed: {e}")

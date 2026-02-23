@@ -43,10 +43,10 @@ def run_on_ui_thread(callback):
     """
     try:
         pn.state.execute(callback)
-    except Exception:
+    except Exception:  # noqa: BLE001 — UI resilience
         try:
             callback()
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             pass
 
 
@@ -67,7 +67,7 @@ class GUILogHandler(logging.Handler):
         try:
             msg = self.format(record) + '\n'
             run_on_ui_thread(lambda m=msg: self.state.append_log(m))
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             pass  # never crash the logger
 
 
@@ -112,7 +112,7 @@ class WorkflowThread:
         )
         try:
             self._thread.start()
-        except Exception:
+        except Exception:  # noqa: BLE001 — shutdown cleanup
             self.state.end_run()
             raise
 
@@ -129,7 +129,7 @@ class WorkflowThread:
         )
         try:
             self._thread.start()
-        except Exception:
+        except Exception:  # noqa: BLE001 — shutdown cleanup
             self.state.end_run()
             raise
 
@@ -195,7 +195,7 @@ class WorkflowThread:
             # Mark all complete
             run_on_ui_thread(lambda: self.state.append_log("All steps completed successfully.\n"))
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             # Mark current step as failed
             run_on_ui_thread(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
             done = self.state.steps_done
@@ -211,7 +211,7 @@ class WorkflowThread:
                     run_on_ui_thread(
                         lambda s=status: setattr(self.state, 'workflow_status', s)
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass
             # Signal results-producing steps so the Results tab auto-refreshes
             _RESULTS_STEPS = {'calibrate_model', 'run_benchmarking', 'postprocess_results'}
@@ -236,7 +236,7 @@ class WorkflowThread:
             self._attach_logger()
             sf.run_workflow(force_run=force_rerun)
             run_on_ui_thread(lambda: self.state.append_log("Full workflow completed successfully.\n"))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             run_on_ui_thread(lambda e=exc: self.state.append_log(f"ERROR: {e}\n"))
         finally:
             self._detach_logger()
@@ -247,7 +247,7 @@ class WorkflowThread:
                     run_on_ui_thread(
                         lambda s=status: setattr(self.state, 'workflow_status', s)
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass
             exp_id = (self.state.typed_config.domain.experiment_id
                       if self.state.typed_config else None)

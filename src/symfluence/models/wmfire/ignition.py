@@ -205,7 +205,7 @@ class IgnitionManager:
         except ImportError:
             self.logger.error("geopandas required for shapefile loading")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading ignition shapefile: {e}")
             return None
 
@@ -257,7 +257,7 @@ class IgnitionManager:
         except ImportError:
             self.logger.error("geopandas required for shapefile writing")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error writing ignition shapefile: {e}")
             return None
 
@@ -320,7 +320,7 @@ class IgnitionManager:
         except ImportError:
             self.logger.warning("pyproj required for coordinate transformation")
             return -1, -1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error converting ignition to grid indices: {e}")
             return -1, -1
 
@@ -372,7 +372,7 @@ class FirePerimeterValidator:
                         gdf = gpd.read_file(shp)
                         gdf['source_file'] = shp.name
                         gdfs.append(gdf)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — model execution resilience
                         self.logger.warning(f"Could not load {shp}: {e}")
 
                 if gdfs:
@@ -391,7 +391,7 @@ class FirePerimeterValidator:
         except ImportError:
             self.logger.error("geopandas required for perimeter loading")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading perimeters: {e}")
             return None
 
@@ -469,7 +469,7 @@ class FirePerimeterValidator:
 
             return metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error comparing perimeters: {e}")
             return {}
 
@@ -556,7 +556,7 @@ class FirePerimeterValidator:
         except ImportError as e:
             self.logger.warning(f"matplotlib required for map creation: {e}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error creating comparison map: {e}")
             return None
 

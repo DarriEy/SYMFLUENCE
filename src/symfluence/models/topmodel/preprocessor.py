@@ -91,7 +91,7 @@ class TopmodelPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  #
             self.logger.info("TOPMODEL preprocessing completed successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"TOPMODEL preprocessing failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -201,7 +201,7 @@ class TopmodelPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  #
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading forcing: {e}")
             return None
 

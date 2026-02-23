@@ -177,7 +177,7 @@ class VICResultExtractor(ModelResultExtractor):
             ds.close()
             return series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(
                 f"Error reading VIC output file {output_file}: {str(e)}"
             ) from e

@@ -156,7 +156,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
             self.logger.info(f"Downloaded Daymet data: {output_file}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — data acquisition resilience
             self.logger.error(f"Daymet single-pixel download failed: {e}")
 
     def _download_gridded(self, output_file: Path, variables: List[str]):
@@ -207,5 +207,5 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                         for chunk in response.iter_content(chunk_size=8192):
                             f.write(chunk)
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Failed to download Daymet {var} {year}: {e}")

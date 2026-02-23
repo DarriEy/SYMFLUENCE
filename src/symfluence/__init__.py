@@ -67,7 +67,7 @@ if _sys.platform == "win32":
             )
             if _os.path.isdir(_torch_lib):
                 _dll_directory_handles.append(_os.add_dll_directory(_torch_lib))
-    except Exception:
+    except Exception:  # noqa: BLE001 — top-level fallback
         pass
 
     # PyTorch must be imported BEFORE conda's HDF5/netCDF4 libraries.

@@ -128,7 +128,7 @@ class JRCWaterHandler(BaseObservationHandler):
                 stats = self._compute_basin_stats(tif_file, dataset, catchment_path)
                 if stats:
                     results.append(stats)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {tif_file.name}: {e}")
 
         if not results:
@@ -261,7 +261,7 @@ class JRCWaterHandler(BaseObservationHandler):
 
                 return stats
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             import traceback
             self.logger.warning(f"Error computing stats for {tif_path.name}: {e}")
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")

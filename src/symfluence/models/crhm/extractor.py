@@ -159,7 +159,7 @@ class CRHMResultExtractor(ModelResultExtractor):
 
             return series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(
                 f"Error reading CRHM output file {output_file}: {str(e)}"
             ) from e

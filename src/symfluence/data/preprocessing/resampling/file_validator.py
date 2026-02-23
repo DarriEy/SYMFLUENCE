@@ -85,7 +85,7 @@ class FileValidator:
                 self.logger.debug(f"{worker_str}File {file_path.name} validated successfully")
                 return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(
                 f"{worker_str}Error validating file {file_path.name}: {str(e)}"
             )

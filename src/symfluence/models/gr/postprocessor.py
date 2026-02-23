@@ -73,7 +73,7 @@ class GRPostprocessor(BaseModelPostProcessor):
             else:  # distributed
                 return self._extract_distributed_streamflow()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting GR streamflow: {str(e)}")
             raise
 

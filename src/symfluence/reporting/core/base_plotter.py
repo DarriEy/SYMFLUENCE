@@ -7,6 +7,7 @@ eliminating code duplication and providing consistent behavior.
 
 import logging
 from abc import ABC, abstractmethod
+from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -54,6 +55,28 @@ class BasePlotter(ConfigMixin, ABC):
 
         # Base project directory
         self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR)) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}"
+
+    @staticmethod
+    def _plot_safe(operation: str):
+        """Decorator: catch plotting errors, log, return None.
+
+        Centralizes the ubiquitous try/except-log-return-None pattern used
+        across all plotter methods so that a single ``# noqa: BLE001``
+        annotation covers every resilience wrapper.
+
+        Args:
+            operation: Human-readable description shown in the error log.
+        """
+        def decorator(func):
+            @wraps(func)
+            def wrapper(self, *args, **kwargs):
+                try:
+                    return func(self, *args, **kwargs)
+                except Exception as e:  # noqa: BLE001 — plotting resilience
+                    self.logger.error(f"Error during {operation}: {e}")
+                    return None
+            return wrapper
+        return decorator
 
     def _setup_matplotlib(self) -> Tuple[Any, Any]:
         """
@@ -127,7 +150,7 @@ class BasePlotter(ConfigMixin, ABC):
         try:
             fig.savefig(filepath, dpi=dpi, bbox_inches=bbox_inches)
             self.logger.info(f"Plot saved: {filepath}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — plotting resilience
             self.logger.error(f"Error saving plot to {filepath}: {str(e)}")
             raise
         finally:

@@ -285,7 +285,7 @@ class RawForcingCache:
                 logger.warning(f"Corrupted cache metadata (JSON error) at {meta_file}: {e}")
             except (OSError, IOError) as e:
                 logger.warning(f"Could not read cache metadata at {meta_file}: {e}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 logger.warning(f"Unexpected error reading cache metadata at {meta_file}: {e}")
 
         return {
@@ -368,7 +368,7 @@ class RawForcingCache:
                 meta_file.unlink(missing_ok=True)
             except (OSError, IOError) as e:
                 logger.warning(f"Could not read/remove cache metadata at {meta_file}: {e}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 logger.warning(f"Unexpected error processing cache metadata at {meta_file}: {e}")
                 meta_file.unlink(missing_ok=True)
 

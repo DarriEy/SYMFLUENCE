@@ -186,7 +186,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             else:
                 raise ValueError(f"Unknown GR spatial mode: {self.spatial_mode}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
 
@@ -256,7 +256,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
             return ds_lumped
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."

@@ -198,7 +198,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
             return metrics_dict
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error calculating metrics for {self.__class__.__name__}: {str(e)}")
             return None
 
@@ -228,7 +228,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             obs_path = self.get_observed_data_path()
             return self._load_observed_data_from_path(obs_path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error loading observed data: {str(e)}")
             return None
 
@@ -267,7 +267,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 except (ValueError, TypeError):
                     pass  # Index is not a date, fall through to standard parsing
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.debug(f"Could not parse {obs_path} with index_col=0: {e}")
 
         # Fallback: Standard CSV read with explicit date column search
@@ -318,7 +318,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             ds.close()
             return series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error reading NetCDF observations from {nc_path}: {e}")
             return None
 
@@ -514,7 +514,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             else:
                 return base_metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error calculating period metrics: {str(e)}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -616,7 +616,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         except ValueError:
             # Re-raise ValueError for upsampling rejection
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error resampling to {target_timestep}: {str(e)}")
             self.logger.warning("Returning original data without resampling")
             return data
@@ -644,7 +644,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 'beta': result['beta']
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error calculating performance metrics: {str(e)}")
             return {
                 'KGE': np.nan,
@@ -664,7 +664,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             dates = [d.strip() for d in date_range_str.split(',')]
             if len(dates) >= 2:
                 return pd.Timestamp(dates[0]), pd.Timestamp(dates[1])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Could not parse date range '{date_range_str}': {str(e)}")
 
         return None, None

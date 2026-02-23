@@ -49,7 +49,7 @@ class MSWEPHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"MSWEP acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"MSWEP acquisition failed: {e}")
                 raise
         else:
@@ -91,7 +91,7 @@ class MSWEPHandler(BaseObservationHandler):
                 precip = self._extract_basin_precip(nc_file, basin_gdf)
                 if precip is not None:
                     all_data.append(precip)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {nc_file.name}: {e}")
 
         if not all_data:
@@ -156,7 +156,7 @@ class MSWEPHandler(BaseObservationHandler):
         """Extract basin-averaged precipitation from NetCDF file."""
         try:
             ds = xr.open_dataset(nc_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to open {nc_file}: {e}")
             return None
 
@@ -286,6 +286,6 @@ class MSWEPHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading MSWEP data: {e}")
             return None

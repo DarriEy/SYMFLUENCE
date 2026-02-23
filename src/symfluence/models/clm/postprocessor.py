@@ -142,6 +142,6 @@ class CLMPostProcessor(StandardModelPostprocessor):
                 self.config_dict, self.project_dir, self.domain_name,
                 source='shapefile'
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             logger.warning("Could not determine catchment area, using default 2210 km2")
             return 2210.0

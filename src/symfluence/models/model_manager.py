@@ -427,7 +427,7 @@ class ModelManager(BaseManager):
                 "Falling back to sequential model execution."
             )
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.exception(
                 f"Unexpected dCoupler graph execution failure: {e}. "
                 "Falling back to sequential model execution."

@@ -96,7 +96,7 @@ class ParFlowWorker(BaseWorker):
             _write_pfidb(pfidb_path, entries)
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to apply ParFlow parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -135,7 +135,7 @@ class ParFlowWorker(BaseWorker):
             result = runner.run_parflow(sim_dir=output_dir)
             return result is not None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running ParFlow in worker: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -173,7 +173,7 @@ class ParFlowWorker(BaseWorker):
                 self.logger.warning("ParFlow target returned empty metrics")
                 return {'kge': self.penalty_score}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating ParFlow metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

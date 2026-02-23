@@ -174,7 +174,7 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
                     routing_dt
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Routing computation failed: {e}")
             self.logger.debug(traceback.format_exc())
             raise ModelExecutionError(f"dRoute routing failed: {e}") from e
@@ -257,7 +257,7 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
                 }
                 return network_config
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Error loading network config: {e}")
                 return None
 
@@ -355,7 +355,7 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
             ds.close()
             return runoff, time_index
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading runoff: {e}")
             self.logger.debug(traceback.format_exc())
             return None, None
@@ -650,7 +650,7 @@ class DRouteRunner(BaseModelRunner, DRouteConfigMixin):  # type: ignore[misc]
 
             return gradients
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error computing gradients: {e}")
             self.logger.debug(traceback.format_exc())
             return None

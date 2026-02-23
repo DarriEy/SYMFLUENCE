@@ -85,7 +85,7 @@ for _module_name in _handler_modules:
         _module = _importlib.import_module(f'.{_module_name}', __name__)
         globals()[_module_name] = _module
         _imported.append(_module_name)
-    except Exception as _e:
+    except Exception as _e:  # noqa: BLE001 — optional handler import resilience
         _failed.append((_module_name, str(_e)))
         _logger.debug("Failed to import acquisition handler '%s': %s", _module_name, _e)
 

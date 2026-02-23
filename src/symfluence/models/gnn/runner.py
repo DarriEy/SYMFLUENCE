@@ -451,7 +451,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                     adj_matrix = self.model.gnn.adj
                     self._save_model_checkpoint(checkpoint_path, adj_matrix)
                     self.logger.info(f"Checkpoint saved at epoch {epoch+1}: {checkpoint_path}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}")
 
     def _simulate(self, X: torch.Tensor, common_dates: pd.DatetimeIndex, hru_ids: List[int]) -> pd.DataFrame:

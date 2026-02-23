@@ -63,7 +63,7 @@ class _EarthdataSession(requests.Session):
                 auth = nrc.authenticators('urs.earthdata.nasa.gov')
                 if auth:
                     prepared_request.prepare_auth((auth[0], auth[2]))
-            except Exception:
+            except Exception:  # noqa: BLE001 — netrc fallback is non-critical
                 pass
 
 
@@ -220,7 +220,7 @@ class MERRA2Acquirer(
                 earthaccess.login()
                 nrc = netrc_module.netrc()
                 auth = nrc.authenticators('urs.earthdata.nasa.gov')
-            except Exception:
+            except Exception:  # noqa: BLE001 — netrc fallback is non-critical
                 pass
 
         if not auth:
@@ -366,7 +366,7 @@ class MERRA2Acquirer(
                         ds = self._download_subset_file(session, subset_url)
                         if ds is not None:
                             day_datasets.append(ds)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(
                             f"Failed to download MERRA-2 {key} for {date.strftime('%Y-%m-%d')}: {e}"
                         )

@@ -120,7 +120,7 @@ class FUSEPostprocessor(StandardModelPostprocessor):
                     elif 'param_set' in ds.dims:
                         # Variable doesn't have param_set but dataset does
                         selections['param_set'] = 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not auto-detect param_set: {e}, defaulting to 0")
             selections['param_set'] = 0
 

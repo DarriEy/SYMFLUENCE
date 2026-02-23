@@ -125,14 +125,14 @@ class HYPEForcingProcessor(BaseForcingProcessor):
 
             self.logger.info("CDO merge successful")
 
-        except (AttributeError, Exception) as e:
+        except (AttributeError, OSError, ValueError) as e:
             self.logger.warning(f"CDO merge failed or CDO not available: {e}. Falling back to xarray...")
             try:
                 # Fallback to xarray (more portable but slower for huge files)
                 with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override', engine='h5netcdf') as ds:
                     ds.sortby('time').to_netcdf(merged_forcing_path, engine='h5netcdf')
                 self.logger.info("Xarray merge successful")
-            except Exception as xe:
+            except Exception as xe:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Xarray merge also failed: {xe}")
                 return None
 

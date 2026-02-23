@@ -160,7 +160,7 @@ class WMFirePostProcessor:
                 self.logger.warning("No significant fires to generate perimeters for")
                 return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"WMFire postprocessing failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -214,7 +214,7 @@ class WMFirePostProcessor:
                 sd_log_wind=params.get('sd_log_wind', 0.6),
                 windmax=params.get('windmax', 1.0),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error creating FireDefParams: {e}")
             return None
 
@@ -253,7 +253,7 @@ class WMFirePostProcessor:
                             except (ValueError, IndexError):
                                 continue
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error parsing {fsf}: {e}")
 
         return events
@@ -291,7 +291,7 @@ class WMFirePostProcessor:
 
             except ImportError:
                 self.logger.warning("rasterio not available, using default metadata")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error reading patch_grid.tif: {e}")
 
         # Fall back to text file dimensions

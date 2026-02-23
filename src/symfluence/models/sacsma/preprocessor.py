@@ -233,7 +233,7 @@ class SacSmaPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
                 catchment = gpd.read_file(self.get_catchment_path())
                 centroid = catchment.to_crs(epsg=4326).unary_union.centroid
                 lat = centroid.y
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 lat = 45.0
                 self.logger.warning(f"Using default latitude {lat}°")
 

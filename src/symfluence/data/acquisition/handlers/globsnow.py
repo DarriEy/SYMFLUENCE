@@ -142,7 +142,7 @@ class GlobSnowAcquirer(
                             return chunk_path
                     self.logger.warning(f"Corrupt chunk {month_str}, reprocessing")
                     chunk_path.unlink()
-                except Exception:
+                except Exception:  # noqa: BLE001 — corrupt cache validation
                     self.logger.warning(f"Unreadable chunk {month_str}, reprocessing")
                     chunk_path.unlink(missing_ok=True)
 
@@ -181,7 +181,7 @@ class GlobSnowAcquirer(
 
                     daily_datasets.append(ds_sub)
                     ds.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Error processing GlobSnow {date.strftime('%Y-%m-%d')}: {e}\n"
                         f"{traceback.format_exc()}"
@@ -301,7 +301,7 @@ class GlobSnowAcquirer(
                 backoff_factor=2.0,
             )
             return local_path
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             # Try NSIDC fallback for v3.0 failures
             if version == 'v3.0' and not use_nsidc:
                 try:
@@ -315,7 +315,7 @@ class GlobSnowAcquirer(
                             fallback_url, local_path, session=session, timeout=300
                         )
                         return local_path
-                except Exception:
+                except Exception:  # noqa: BLE001 — NSIDC fallback resilience
                     pass
 
             self.logger.warning(
@@ -396,6 +396,6 @@ class GlobSnowAcquirer(
                 "Install with: pip install pyproj"
             )
             return ds
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"EASE-Grid reprojection failed: {e}")
             return ds

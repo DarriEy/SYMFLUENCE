@@ -219,5 +219,5 @@ class AridityIndexAcquirer(BaseAcquisitionHandler, RetryMixin):
                         f"  {var}: min={valid.min():.3f}, mean={valid.mean():.3f}, "
                         f"max={valid.max():.3f} {units}, pixels={len(valid)}"
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — summary logging is non-critical
             self.logger.debug(f"Could not log summary for {var}: {e}")

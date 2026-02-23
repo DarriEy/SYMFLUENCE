@@ -86,9 +86,19 @@ def _prepare_metric_inputs(
     return obs, sim
 
 
+def _near_zero(value: float, obs: np.ndarray) -> bool:
+    """Check if value is near zero relative to the scale of observations."""
+    scale = np.mean(np.abs(obs))
+    if scale == 0:
+        return True
+    return abs(value) < 1e-10 * scale * scale * len(obs)
+
+
 def _safe_pearson_correlation(obs: np.ndarray, sim: np.ndarray) -> float:
-    """Return Pearson r, or NaN when variance is zero."""
-    if np.std(obs) == 0 or np.std(sim) == 0:
+    """Return Pearson r, or NaN when variance is near zero."""
+    if _near_zero(np.sum((obs - np.mean(obs)) ** 2), obs):
+        return np.nan
+    if _near_zero(np.sum((sim - np.mean(sim)) ** 2), sim):
         return np.nan
     return float(np.corrcoef(obs, sim)[0, 1])
 
@@ -108,7 +118,7 @@ def nse(
     numerator = np.sum((obs - sim) ** 2)
     denominator = np.sum((obs - mean_obs) ** 2)
 
-    if denominator == 0:
+    if _near_zero(denominator, obs):
         return np.nan
 
     return 1.0 - (numerator / denominator)
@@ -250,11 +260,12 @@ def nrmse(
     obs, sim = prepared
 
     rmse_value = np.sqrt(np.mean((obs - sim) ** 2))
-    std_obs = np.std(obs)
+    denominator = np.sum((obs - np.mean(obs)) ** 2)
 
-    if std_obs == 0:
+    if _near_zero(denominator, obs):
         return np.nan
 
+    std_obs = np.sqrt(denominator / len(obs))
     return float(rmse_value / std_obs)
 
 
@@ -350,7 +361,7 @@ def log_nse(
     numerator = np.sum((obs_log - sim_log) ** 2)
     denominator = np.sum((obs_log - mean_obs_log) ** 2)
 
-    if denominator == 0:
+    if _near_zero(denominator, obs_log):
         return np.nan
 
     return float(1.0 - (numerator / denominator))

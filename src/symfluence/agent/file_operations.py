@@ -85,7 +85,7 @@ class FileOperations:
 
             return True, content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error reading file: {str(e)}"
 
     def write_file(self, file_path: str, content: str) -> Tuple[bool, str]:
@@ -121,7 +121,7 @@ class FileOperations:
 
             return True, f"Successfully wrote {file_path}"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error writing file: {str(e)}"
 
     def list_directory(
@@ -181,7 +181,7 @@ class FileOperations:
 
             return True, content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error listing directory: {str(e)}"
 
     def show_diff(self, file_path: str) -> Tuple[bool, str]:
@@ -224,7 +224,7 @@ class FileOperations:
             output = result.stdout or "(no changes)"
             return True, output
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error showing diff: {str(e)}"
 
     def stage_changes(self, file_paths: Optional[List[str]] = None) -> Tuple[bool, str]:
@@ -272,7 +272,7 @@ class FileOperations:
 
             return True, f"Successfully staged changes\n\n{status.stdout}"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error staging changes: {str(e)}"
 
     def get_staged_changes(self) -> Tuple[bool, str]:
@@ -344,7 +344,7 @@ class FileOperations:
             finally:
                 os.unlink(temp_file)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Syntax check failed: {str(e)}"
 
     @staticmethod

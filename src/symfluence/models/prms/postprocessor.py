@@ -102,7 +102,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
                 model_column_name='PRMS_discharge_cms'
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.error(f"Error extracting PRMS streamflow: {str(e)}")
             self.logger.debug(traceback.format_exc())
@@ -179,7 +179,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error parsing statvar file: {e}")
             return None
 

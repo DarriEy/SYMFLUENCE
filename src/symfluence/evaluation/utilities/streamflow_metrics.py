@@ -94,7 +94,7 @@ class StreamflowMetrics:
 
             return np.asarray(observed.values), cast(pd.DatetimeIndex, observed.index)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Error loading observations: {e}")
             return None, None
 
@@ -131,7 +131,7 @@ class StreamflowMetrics:
             else:
                 logger.warning(f"Unknown area source: {source}. Using default {default_area} km2")
                 return default_area
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.warning(f"Error getting catchment area from {source}: {e}. Using default {default_area} km2")
             return default_area
 
@@ -502,13 +502,13 @@ class StreamflowMetrics:
 
                     result[metric] = float(val)
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — must-not-raise contract
                     logger.warning(f"Error calculating {metric}: {e}")
                     result[metric] = self.penalty_score
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Error in metric calculation: {e}")
             return {'kge': self.penalty_score}
 
@@ -584,7 +584,7 @@ class StreamflowMetrics:
         except ValueError as e:
             logger.warning(f"Alignment error: {e}")
             return {'kge': self.penalty_score}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Error in streamflow evaluation: {e}")
             return {'kge': self.penalty_score}
 

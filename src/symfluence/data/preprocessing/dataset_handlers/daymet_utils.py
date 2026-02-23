@@ -315,7 +315,7 @@ class DaymetHandler(BaseDatasetHandler):
                 try:
                     ds = self.open_dataset(f)
                     var_datasets.append(ds)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Error opening {f}: {e}")
 
             if not var_datasets:
@@ -341,7 +341,7 @@ class DaymetHandler(BaseDatasetHandler):
                 processed.to_netcdf(out_file)
                 self.logger.info(f"Saved processed Daymet forcing: {out_file}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error processing Daymet data for {year}: {e}")
             finally:
                 for ds in var_datasets:

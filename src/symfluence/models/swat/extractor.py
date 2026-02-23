@@ -132,7 +132,7 @@ class SWATResultExtractor(ModelResultExtractor):
                 raise ValueError(
                     f"Unsupported SWAT output file: {output_file.name}"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(
                 f"Error reading SWAT output file {output_file}: {str(e)}"
             ) from e

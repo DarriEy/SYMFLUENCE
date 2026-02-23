@@ -191,7 +191,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
                             f"Skipping settings copy."
                         )
                         return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not locate base settings: {e}")
                 return
 
@@ -373,7 +373,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
 
         try:
             return pd.to_datetime(start_raw), pd.to_datetime(end_raw)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Unable to parse simulation time window: {exc}")
             return None
 
@@ -399,7 +399,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         start_time, end_time = time_window
         try:
             subset = ds.sel(time=slice(start_time, end_time))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Unable to subset {label} to simulation window: {exc}")
             return ds
 
@@ -443,7 +443,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         for name, ds in datasets.items():
             try:
                 aligned[name] = ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not align {name} to time period: {exc}")
                 aligned[name] = ds
 

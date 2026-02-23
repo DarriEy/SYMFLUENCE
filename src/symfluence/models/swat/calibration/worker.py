@@ -105,7 +105,7 @@ class SWATWorker(BaseWorker):
             # Apply parameter changes
             return self._update_swat_files(settings_dir, params)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying SWAT parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -150,7 +150,7 @@ class SWATWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating SWAT files: {e}")
             return False
 
@@ -519,7 +519,7 @@ class SWATWorker(BaseWorker):
             self.logger.warning(self._last_error)
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running SWAT: {e}")
             return False
@@ -537,7 +537,7 @@ class SWATWorker(BaseWorker):
                         if abs(flow_out) > threshold:
                             return True
             return False
-        except Exception:
+        except Exception:  # noqa: BLE001 — calibration resilience
             return False
 
     def _get_swat_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -645,7 +645,7 @@ class SWATWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating SWAT metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -706,7 +706,7 @@ class SWATWorker(BaseWorker):
 
             return np.array(flow_values)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error parsing output.rch: {e}")
             return None
 
@@ -757,7 +757,7 @@ def _evaluate_swat_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),
