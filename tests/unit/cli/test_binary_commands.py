@@ -5,6 +5,7 @@ from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.cli.commands.binary_commands import BinaryCommands
 from symfluence.cli.exit_codes import ExitCode
 

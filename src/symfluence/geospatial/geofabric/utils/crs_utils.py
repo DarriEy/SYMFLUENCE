@@ -7,7 +7,8 @@ Eliminates code duplication across GeofabricDelineator and GeofabricSubsetter.
 Refactored from geofabric_utils.py (2026-01-01)
 """
 
-from typing import Any, Tuple
+import warnings
+from typing import Any, Optional, Tuple
 
 import geopandas as gpd
 
@@ -62,29 +63,57 @@ class CRSUtils:
     def find_basin_for_pour_point(
         pour_point: gpd.GeoDataFrame,
         basins: gpd.GeoDataFrame,
-        id_col: str = 'GRU_ID'
+        id_col: str = 'GRU_ID',
+        logger: Optional[Any] = None,
     ) -> Any:
         """
         Find the basin containing the pour point.
 
         Uses spatial join to find which basin polygon contains the pour point.
+        Falls back to nearest-basin matching if the pour point does not fall
+        strictly within any basin polygon (e.g., pour point on a boundary,
+        small geometric precision issues, or very small basins).
 
         Args:
             pour_point: Pour point GeoDataFrame (single point)
             basins: Basin GeoDataFrame
             id_col: Column name for basin ID (default: 'GRU_ID')
+            logger: Optional logger for diagnostic messages
 
         Returns:
-            Basin ID containing the pour point
+            Basin ID containing (or nearest to) the pour point
 
         Raises:
-            ValueError: If no basin contains the pour point
+            ValueError: If no basin contains or is near the pour point
         """
-        # Spatial join to find containing basin
+        # Primary: spatial join with 'within' predicate
         containing_basin = gpd.sjoin(pour_point, basins, how='left', predicate='within')
 
-        if containing_basin.empty:
-            raise ValueError("No basin contains the given pour point.")
+        if not containing_basin.empty:
+            basin_id = containing_basin.iloc[0][id_col]
+            # Check for NaN (sjoin returns NaN when no match found with how='left')
+            if basin_id == basin_id:  # NaN != NaN
+                return basin_id
 
-        # Return the basin ID from the first match
-        return containing_basin.iloc[0][id_col]
+        # Fallback: find the nearest basin polygon
+        if logger:
+            logger.warning(
+                "Pour point does not fall within any basin polygon. "
+                "Falling back to nearest-basin matching."
+            )
+
+        pour_point_geom = pour_point.geometry.iloc[0]
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*geographic CRS.*")
+            distances = basins.geometry.distance(pour_point_geom)
+        nearest_idx = distances.idxmin()
+        nearest_distance = distances[nearest_idx]
+        basin_id = basins.loc[nearest_idx, id_col]
+
+        if logger:
+            logger.info(
+                f"Nearest basin {basin_id} is {nearest_distance:.6f} degrees "
+                f"from pour point (approx. {nearest_distance * 111_000:.0f} m)."
+            )
+
+        return basin_id

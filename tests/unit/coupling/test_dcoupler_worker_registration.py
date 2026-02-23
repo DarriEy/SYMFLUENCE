@@ -186,6 +186,7 @@ class TestDCouplerWorkerMetrics:
 
     def test_supports_native_gradients_checks_components(self):
         from dcoupler.core.component import GradientMethod
+
         from symfluence.coupling.worker import DCouplerWorker
 
         worker = DCouplerWorker({})

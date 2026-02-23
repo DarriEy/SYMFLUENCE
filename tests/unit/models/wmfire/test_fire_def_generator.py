@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+
 from symfluence.models.wmfire.fire_def_generator import (
     FireDefGenerator,
     FireDefParameters,

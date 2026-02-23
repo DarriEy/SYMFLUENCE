@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from symfluence.optimization.parameter_managers import HYPEParameterManager
 
 

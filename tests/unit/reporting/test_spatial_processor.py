@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.reporting.processors.spatial_processor import SpatialProcessor
 
 

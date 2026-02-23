@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+
 from symfluence.cli.services import InitializationManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

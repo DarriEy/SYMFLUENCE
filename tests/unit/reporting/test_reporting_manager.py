@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.reporting.reporting_manager import ReportingManager
 

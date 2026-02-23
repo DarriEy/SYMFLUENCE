@@ -279,6 +279,7 @@ class TestWMFireConfigIntegration:
         """Test that config values propagate correctly."""
         import geopandas as gpd
         from shapely.geometry import box
+
         from symfluence.models.wmfire import FireDefGenerator, FireGridManager
 
         # Create config with custom values

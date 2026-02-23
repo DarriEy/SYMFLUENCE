@@ -4,6 +4,7 @@ import subprocess
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+
 from symfluence.cli.services import JobScheduler
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

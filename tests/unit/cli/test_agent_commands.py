@@ -4,6 +4,7 @@ from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.cli.commands.agent_commands import AgentCommands
 from symfluence.cli.exit_codes import ExitCode
 

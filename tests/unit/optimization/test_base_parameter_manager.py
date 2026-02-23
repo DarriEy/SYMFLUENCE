@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pytest
+
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 

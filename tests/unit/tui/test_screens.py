@@ -166,8 +166,9 @@ class TestDashboardScreen:
 
     def test_domain_selection_applies_run_browser_filter(self, mock_data_dir):
         """Selecting a dashboard domain opens Run Browser with that filter set."""
-        from symfluence.tui.screens.run_browser import RunBrowserScreen
         from textual.widgets import Input
+
+        from symfluence.tui.screens.run_browser import RunBrowserScreen
 
         async def _test():
             app = SymfluenceTUI()
@@ -274,8 +275,9 @@ class TestRunDetailScreen:
 
     def test_displays_errors(self, mock_data_dir, sample_run_summary):
         """RunDetailScreen shows error details."""
-        from symfluence.tui.screens.run_detail import RunDetailScreen
         from textual.widgets import RichLog
+
+        from symfluence.tui.screens.run_detail import RunDetailScreen
 
         async def _test():
             app = SymfluenceTUI()

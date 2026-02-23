@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.data.data_manager import DataManager
 

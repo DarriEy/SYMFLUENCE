@@ -9,6 +9,7 @@ netCDF4 = pytest.importorskip('netCDF4')
 gpd = pytest.importorskip('geopandas')
 
 from shapely.geometry import box
+
 from symfluence.data.model_ready.attributes_builder import AttributesNetCDFBuilder
 
 

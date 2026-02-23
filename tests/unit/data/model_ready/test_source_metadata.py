@@ -1,6 +1,7 @@
 """Tests for SourceMetadata dataclass."""
 
 import pytest
+
 from symfluence.data.model_ready.source_metadata import SourceMetadata
 
 

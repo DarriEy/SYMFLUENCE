@@ -232,7 +232,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
                 # Find basin containing pour point
                 downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-                    pour_point, basins
+                    pour_point, basins, logger=self.logger,
                 )
 
                 # Build river network graph

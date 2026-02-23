@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.core.constants import PhysicalConstants, UnitConversion, UnitConverter
 
 

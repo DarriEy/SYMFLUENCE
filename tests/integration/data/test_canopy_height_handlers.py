@@ -17,6 +17,7 @@ import pytest
 import rasterio
 from rasterio.transform import from_bounds
 from shapely.geometry import box
+
 from symfluence.data.acquisition.registry import AcquisitionRegistry
 from symfluence.data.data_manager import DataManager
 from symfluence.data.observation.registry import ObservationRegistry

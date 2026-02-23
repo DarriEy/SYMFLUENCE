@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.optimization.optimization_manager import OptimizationManager
 

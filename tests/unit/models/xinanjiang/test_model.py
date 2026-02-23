@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.snow17.parameters import SNOW17_DEFAULTS
 from symfluence.models.xinanjiang.model import (
     HAS_JAX,

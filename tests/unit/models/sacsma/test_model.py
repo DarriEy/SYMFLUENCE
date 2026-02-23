@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.sacsma.model import HAS_JAX, SacSmaSnow17State, simulate
 from symfluence.models.sacsma.parameters import DEFAULT_PARAMS
 from symfluence.models.sacsma.sacsma import SacSmaState

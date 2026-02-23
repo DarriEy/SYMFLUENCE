@@ -11,6 +11,7 @@ it is not installed.
 
 import numpy as np
 import pytest
+
 from symfluence.coupling import is_dcoupler_available
 
 dcoupler_available = is_dcoupler_available()
@@ -44,6 +45,7 @@ class TestSnow17XAJEquivalence:
     def test_forward_output_shape(self):
         """Verify the graph produces outputs with correct shapes."""
         from dcoupler.core.graph import CouplingGraph
+
         from symfluence.coupling.adapters.jax_adapters import (
             Snow17JAXComponent,
             XAJJAXComponent,
@@ -96,6 +98,7 @@ class TestSnow17SacSmaEquivalence:
     def test_forward_output_shape(self):
         """Verify the graph produces outputs with correct shapes."""
         from dcoupler.core.graph import CouplingGraph
+
         from symfluence.coupling.adapters.jax_adapters import (
             SacSmaJAXComponent,
             Snow17JAXComponent,
@@ -289,6 +292,7 @@ class TestTRouteMCCalibrationVerification:
         import logging
 
         import xarray as xr
+
         from symfluence.models.troute.runner import TRouteRunner
 
         n_seg = 3

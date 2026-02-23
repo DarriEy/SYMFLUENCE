@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import torch
+
 from symfluence.coupling import is_dcoupler_available
 
 dcoupler_available = is_dcoupler_available()

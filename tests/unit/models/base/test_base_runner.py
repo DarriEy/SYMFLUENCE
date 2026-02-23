@@ -19,6 +19,7 @@ import warnings
 from unittest.mock import Mock, patch
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.execution.model_executor import (

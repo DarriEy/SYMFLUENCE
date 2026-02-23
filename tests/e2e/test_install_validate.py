@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 from symfluence import SYMFLUENCE
 
 pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
@@ -593,6 +594,7 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     import math
 
     import pandas as pd
+
     from test_helpers.helpers import load_config_template, write_config
 
     # Validate required source data exists before proceeding

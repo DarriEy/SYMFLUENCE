@@ -130,6 +130,7 @@ class TestDRouteParameterManagerInstance:
     def test_update_model_files_with_yaml(self, droute_config, logger, temp_dir):
         """With a YAML config file, parameters should be written."""
         import yaml
+
         from symfluence.models.droute.calibration.parameter_manager import DRouteParameterManager
 
         config_path = temp_dir / 'droute_config.yaml'

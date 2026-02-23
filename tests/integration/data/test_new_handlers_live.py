@@ -153,6 +153,7 @@ def test_grdc_station_metadata(tmp_path):
     Full data download requires credentials.
     """
     import requests
+
     from symfluence.data.acquisition.handlers.grdc import GRDCAcquirer
 
     # Test WFS access for station metadata
@@ -477,6 +478,7 @@ def test_sentinel1_catalog_search(tmp_path):
     Test Sentinel-1 catalog search via Copernicus Data Space.
     """
     import requests
+
     from symfluence.data.acquisition.handlers.sentinel1_sm import Sentinel1SMAcquirer
 
     config = create_test_config(
@@ -563,5 +565,8 @@ def test_api_connectivity():
     logger.info(f"API connectivity: {results}")
 
     # At least Daymet should be accessible (no auth required)
-    assert results.get('Daymet ORNL') == 200 or 'timeout' not in str(results.get('Daymet ORNL', '')).lower(), \
-        "Daymet API should be accessible"
+    daymet_result = results.get('Daymet ORNL')
+    if isinstance(daymet_result, str) and 'timeout' in daymet_result.lower():
+        pytest.skip(f"Daymet API timeout (network issue, not a code failure): {daymet_result}")
+    assert daymet_result == 200, \
+        f"Daymet API should be accessible, got: {daymet_result}"

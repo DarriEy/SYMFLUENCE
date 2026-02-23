@@ -8,6 +8,7 @@ from importlib.machinery import ModuleSpec
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 
 # Pre-import jax at collection time to avoid abseil timezone conflict that

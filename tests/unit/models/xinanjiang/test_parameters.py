@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.xinanjiang.parameters import (
     DEFAULT_PARAMS,
     LOG_TRANSFORM_PARAMS,

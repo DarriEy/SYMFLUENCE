@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.evaluation.output_file_locator import OutputFileLocator, get_output_file_locator
 
 

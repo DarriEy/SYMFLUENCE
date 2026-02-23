@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import pytest
+
 from symfluence.core.path_resolver import PathResolverMixin, resolve_file_path, resolve_path
 
 

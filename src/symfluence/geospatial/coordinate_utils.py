@@ -103,6 +103,28 @@ class BoundingBox:
 
         return BoundingBox(self.lat_min, self.lat_max, lon_min, lon_max)
 
+    def pad(self, degrees: float) -> 'BoundingBox':
+        """
+        Expand bounding box by given degrees in all directions.
+
+        Parameters
+        ----------
+        degrees : float
+            Padding in degrees to add in each direction.
+            Latitudes are clamped to [-90, 90].
+
+        Returns
+        -------
+        BoundingBox
+            New padded bounding box
+        """
+        return BoundingBox(
+            lat_min=max(-90.0, self.lat_min - degrees),
+            lat_max=min(90.0, self.lat_max + degrees),
+            lon_min=self.lon_min - degrees,
+            lon_max=self.lon_max + degrees,
+        )
+
     def crosses_meridian(self, longitude_range: str = '0-360') -> bool:
         """
         Check if bounding box crosses the prime meridian or antimeridian.

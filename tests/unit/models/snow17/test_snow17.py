@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.snow17.model import (
     HAS_JAX,
     create_initial_state,

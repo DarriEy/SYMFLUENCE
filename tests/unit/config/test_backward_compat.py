@@ -9,6 +9,7 @@ existing code expecting flat dictionaries.
 from pathlib import Path
 
 import pytest
+
 from symfluence.core.config.models import DomainConfig, ForcingConfig, ModelConfig, SymfluenceConfig, SystemConfig
 
 

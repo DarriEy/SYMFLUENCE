@@ -7,6 +7,7 @@ Tests FUSE-specific preprocessing functionality.
 from unittest.mock import patch
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.models.fuse import FUSEPreProcessor

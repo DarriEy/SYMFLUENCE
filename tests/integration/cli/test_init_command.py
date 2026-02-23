@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from symfluence import cli as cli_module
 
 pytestmark = [pytest.mark.integration, pytest.mark.cli]

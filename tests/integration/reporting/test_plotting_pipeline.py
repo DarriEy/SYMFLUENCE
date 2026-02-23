@@ -87,6 +87,7 @@ class TestPanelRendering:
     def test_timeseries_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test TimeSeriesPanel creates valid plot."""
         import matplotlib.pyplot as plt
+
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
         from symfluence.reporting.panels import TimeSeriesPanel
 
@@ -111,6 +112,7 @@ class TestPanelRendering:
     def test_fdc_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test FDCPanel creates valid flow duration curve."""
         import matplotlib.pyplot as plt
+
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
         from symfluence.reporting.panels import FDCPanel
 
@@ -134,6 +136,7 @@ class TestPanelRendering:
     def test_scatter_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test ScatterPanel creates valid scatter plot."""
         import matplotlib.pyplot as plt
+
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
         from symfluence.reporting.panels import ScatterPanel
 
@@ -157,6 +160,7 @@ class TestPanelRendering:
     def test_metrics_table_panel(self, sample_config, mock_logger):
         """Test MetricsTablePanel renders metrics table."""
         import matplotlib.pyplot as plt
+
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
         from symfluence.reporting.panels import MetricsTablePanel
 

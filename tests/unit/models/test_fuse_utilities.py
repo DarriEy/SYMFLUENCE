@@ -5,6 +5,7 @@ Tests FUSE-specific utility functions including mizuRoute conversion.
 """
 
 import pytest
+
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
 
 

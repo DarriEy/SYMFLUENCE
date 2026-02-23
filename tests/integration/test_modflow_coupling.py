@@ -358,6 +358,7 @@ class TestSUMMAMODFLOWCoupling:
     def test_extract_recharge_from_summa(self, tmp_path):
         """Verify SUMMA recharge extraction with unit conversion."""
         import xarray as xr
+
         from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
 
         # Create fake SUMMA output

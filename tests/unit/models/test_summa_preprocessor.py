@@ -7,6 +7,7 @@ Tests SUMMA-specific preprocessing functionality.
 from unittest.mock import patch
 
 import pytest
+
 from symfluence.models.summa import SummaPreProcessor
 
 
