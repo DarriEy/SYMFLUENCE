@@ -364,18 +364,43 @@ detect_netcdf() {
             fi
         fi
 
-        # 6. Fallback: NETCDF env var, system paths
+        # 6. Spack sibling search: if nc-config is available, look for nf-config
+        #    in sibling Spack directories (netcdf-fortran alongside netcdf-c).
         if [ -z "${NETCDF_FORTRAN}" ]; then
-            if [ -n "${NETCDF:-}" ] && [ -d "${NETCDF}/include" ]; then
+            local _nc_bin=""
+            _nc_bin="$(command -v nc-config 2>/dev/null)" || true
+            if [ -n "$_nc_bin" ]; then
+                # e.g. /apps/spack/.../netcdf-c/<hash>/bin/nc-config → search ../../../netcdf-fortran/*/bin/nf-config
+                local _apps_dir
+                _apps_dir="$(dirname "$(dirname "$(dirname "$_nc_bin")")")"
+                if [ -d "$_apps_dir/netcdf-fortran" ]; then
+                    for _nf_bin in "$_apps_dir"/netcdf-fortran/*/bin/nf-config; do
+                        if [ -x "$_nf_bin" ]; then
+                            local _nf_prefix
+                            _nf_prefix="$("$_nf_bin" --prefix 2>/dev/null)"
+                            if [ -n "$_nf_prefix" ] && _has_fortran_netcdf "$_nf_prefix"; then
+                                NETCDF_FORTRAN="$_nf_prefix"
+                                echo "Found NetCDF-Fortran via Spack sibling at: ${NETCDF_FORTRAN}"
+                                break
+                            fi
+                        fi
+                    done
+                fi
+            fi
+        fi
+
+        # 7. Fallback: NETCDF env var (only if it has Fortran files), system paths
+        if [ -z "${NETCDF_FORTRAN}" ]; then
+            if [ -n "${NETCDF:-}" ] && _has_fortran_netcdf "${NETCDF}"; then
                 NETCDF_FORTRAN="${NETCDF}"
                 echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
             else
                 # Try common locations (Homebrew, system paths)
                 for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
                                 /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
-                    if [ -d "$try_path/include" ]; then
+                    if _has_fortran_netcdf "$try_path"; then
                         NETCDF_FORTRAN="$try_path"
-                        echo "Found NetCDF at: $try_path"
+                        echo "Found NetCDF-Fortran at: $try_path"
                         break
                     fi
                 done
