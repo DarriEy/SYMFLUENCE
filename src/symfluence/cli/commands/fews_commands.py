@@ -177,7 +177,7 @@ class FEWSCommands(BaseCommand):
                     candidate = Path.cwd() / "data" / instructions.get('default_path_suffix', '')
                     if candidate.exists():
                         openfews_exe = str(candidate / instructions.get('default_exe', 'bin/fews.sh'))
-            except Exception:
+            except (ImportError, AttributeError, OSError, TypeError, ValueError):
                 pass
 
         if openfews_exe is None:

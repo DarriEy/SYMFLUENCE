@@ -176,7 +176,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
                     try:
                         qc_sds = hdf.select(qc_sds_name)
                         qc_data = qc_sds[:]
-                    except Exception:
+                    except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError):
                         pass
 
                 # Process LAI
@@ -201,7 +201,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
                 if 'lai' in record or 'fpar' in record:
                     results.append(record)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.debug(f"Error processing {hdf_path.name}: {e}")
                 continue
 
@@ -378,7 +378,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
                 auth = nrc.authenticators('urs.earthdata.nasa.gov')
                 if auth:
                     username, _, password = auth
-            except Exception:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError):
                 pass
 
         return username, password
@@ -393,7 +393,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
@@ -405,7 +405,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30
             )
-        except Exception:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError):
             pass
 
     def _submit_appeears_task(
@@ -469,7 +469,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
             task_id = result.get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
@@ -526,7 +526,7 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             bundle = response.json()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to get bundle info: {e}")
             return
 
@@ -557,5 +557,5 @@ class MODISLAIAcquirer(BaseEarthaccessAcquirer):
 
                 self.logger.debug(f"Downloaded: {file_name}")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to download {file_name}: {e}")

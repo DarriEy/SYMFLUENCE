@@ -47,7 +47,7 @@ def ensure_dir(
         return dir_path
     except FileOperationError:
         raise
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         raise FileOperationError(
             f"Failed to create directory {dir_path}: {e}"
         ) from e
@@ -94,7 +94,9 @@ def copy_file(
             logger.debug(f"Copied {src_path.name} to {result}")
         return result
 
-    except Exception as e:
+    except FileOperationError:
+        raise
+    except (FileNotFoundError, PermissionError, shutil.Error, OSError, TypeError, ValueError) as e:
         raise FileOperationError(
             f"Failed to copy {src_path} to {dst_path}: {e}"
         ) from e
@@ -144,7 +146,7 @@ def copy_tree(
             logger.info(f"Copied directory tree from {src_path} to {dst_path}")
         return result
 
-    except Exception as e:
+    except (FileNotFoundError, PermissionError, shutil.Error, OSError, TypeError, ValueError) as e:
         raise FileOperationError(
             f"Failed to copy directory tree {src_path} to {dst_path}: {e}"
         ) from e
@@ -179,7 +181,7 @@ def safe_delete(
         if logger:
             logger.info(f"Deleted: {del_path}")
         return True
-    except Exception as e:
+    except (PermissionError, shutil.Error, OSError, TypeError, ValueError) as e:
         if logger:
             logger.error(f"Failed to delete {del_path}: {e}")
         if ignore_errors:

@@ -99,7 +99,7 @@ class MODISLAIHandler(BaseObservationHandler):
         except ImportError as e:
             self.logger.warning(f"MODIS LAI acquirer not available: {e}")
             raise
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"MODIS LAI acquisition failed: {e}")
             raise
 
@@ -230,7 +230,7 @@ class MODISLAIHandler(BaseObservationHandler):
             df.index.name = 'datetime'
             return df
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing consolidated NetCDF: {e}")
             return None
 
@@ -242,7 +242,7 @@ class MODISLAIHandler(BaseObservationHandler):
             df = pd.read_csv(csv_path, parse_dates=['date'], index_col='date')
             df.index.name = 'datetime'
             return df
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing timeseries CSV: {e}")
             return None
 
@@ -268,7 +268,7 @@ class MODISLAIHandler(BaseObservationHandler):
                     results['lai'].extend(lai_vals)
                     results['fpar'].extend(fpar_vals)
                     results['datetime'].extend(times)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to process {nc_file.name}: {e}")
 
         if not results['datetime']:
@@ -430,7 +430,7 @@ class MODISLAIHandler(BaseObservationHandler):
                         lon_name: slice(bounds[0], bounds[2]),
                         lat_name: lat_slice
                     })
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.debug(f"Could not subset data to shapefile bounds: {e}")
 
         elif self.bbox:
@@ -447,7 +447,7 @@ class MODISLAIHandler(BaseObservationHandler):
                         lon_name: slice(self.bbox['lon_min'], self.bbox['lon_max']),
                         lat_name: lat_slice
                     })
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.debug(f"Could not subset data to bbox: {e}")
 
         mean_val = float(da.mean(skipna=True).values)
@@ -517,6 +517,6 @@ class MODISLAIHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error loading MODIS LAI data: {e}")
             return None

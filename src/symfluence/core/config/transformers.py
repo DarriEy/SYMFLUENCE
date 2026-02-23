@@ -92,7 +92,7 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
 
             logger.info(f"Auto-generated {len(_AUTO_GENERATED_MAP)} configuration mappings")
 
-        except Exception as e:
+        except (ImportError, AttributeError, TypeError, ValueError, RuntimeError) as e:
             logger.debug(f"Auto-generation failed: {e}, using legacy aliases only")
             _AUTO_GENERATED_MAP = dict(LEGACY_FLAT_TO_NESTED_ALIASES)
 

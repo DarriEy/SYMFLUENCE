@@ -191,7 +191,7 @@ class SystemDiagnostics(BaseService):
                 if npm_bin_dir.exists() and npm_bin_dir.is_dir():
                     return npm_bin_dir
 
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, OSError, ValueError):
             pass
 
         return None
@@ -312,7 +312,7 @@ class SystemDiagnostics(BaseService):
                     self._console.indent(f"Build date: {build_date}")
                     self._console.indent(f"Fortran: {fortran}")
                     return True
-                except Exception as e:
+                except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
                     self._console.warning(f"Error reading {toolchain_path}: {e}")
 
         self._console.error("No toolchain metadata found")
@@ -348,7 +348,7 @@ class SystemDiagnostics(BaseService):
 
             return lib_rows, found_libs, len(results)
 
-        except Exception:
+        except (ImportError, AttributeError, OSError, TypeError, ValueError, RuntimeError):
             # Fall back to legacy hardcoded check if registry fails
             return self._check_system_libraries_legacy()
 
@@ -443,6 +443,6 @@ class SystemDiagnostics(BaseService):
             self._console.rule()
             return True
 
-        except Exception as e:
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             self._console.error(f"Error reading toolchain file: {e}")
             return False

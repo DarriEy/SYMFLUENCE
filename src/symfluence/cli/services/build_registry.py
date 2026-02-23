@@ -119,7 +119,7 @@ class BuildInstructionsRegistry:
                 instructions = cls._providers[name]()
                 cls._instructions[name] = instructions  # Cache it
                 return instructions
-            except Exception as e:
+            except (ImportError, AttributeError, KeyError, OSError, TypeError, ValueError, RuntimeError) as e:
                 logger.warning(f"Failed to load build instructions for {name}: {e}")
                 return None
 
@@ -140,7 +140,7 @@ class BuildInstructionsRegistry:
             if name not in cls._instructions:
                 try:
                     cls._instructions[name] = provider()
-                except Exception as e:
+                except (ImportError, AttributeError, KeyError, OSError, TypeError, ValueError, RuntimeError) as e:
                     logger.warning(f"Failed to load build instructions for {name}: {e}")
 
         return dict(cls._instructions)

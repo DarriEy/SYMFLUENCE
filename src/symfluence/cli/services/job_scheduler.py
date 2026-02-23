@@ -77,7 +77,7 @@ class JobSchedulerService(BaseService):
                 self._console.error("Job submission failed")
                 return False
 
-        except Exception as e:
+        except (KeyError, RuntimeError, OSError, ValueError, TypeError, subprocess.SubprocessError) as e:
             self._console.error(f"Error in SLURM job submission: {str(e)}")
             return False
 

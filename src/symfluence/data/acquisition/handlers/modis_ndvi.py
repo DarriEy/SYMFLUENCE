@@ -166,7 +166,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
                     if qc_sds_name:
                         try:
                             qc_data = hdf.select(qc_sds_name)[:]
-                        except Exception:
+                        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError):
                             pass
 
                 # Process NDVI
@@ -190,7 +190,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
                 if 'ndvi' in record or 'evi' in record:
                     results.append(record)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.debug(f"Error processing {hdf_path.name}: {e}")
                 continue
 
@@ -345,7 +345,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
@@ -355,7 +355,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
                 f"{self.APPEEARS_BASE}/logout",
                 headers={"Authorization": f"Bearer {token}"}, timeout=30
             )
-        except Exception:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError):
             pass
 
     def _build_appeears_task(self, token: str, task_name: str, layers: list) -> dict:
@@ -403,7 +403,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
             task_id = response.json().get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
@@ -435,7 +435,7 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             files = response.json().get('files', [])
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to get bundle info: {e}")
             return
 
@@ -453,5 +453,5 @@ class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
                 with open(output_dir / file_name, 'wb') as f:
                     for chunk in resp.iter_content(chunk_size=8192):
                         f.write(chunk)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to download {file_name}: {e}")

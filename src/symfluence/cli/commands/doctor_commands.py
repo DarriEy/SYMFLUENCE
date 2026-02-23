@@ -7,8 +7,10 @@ path resolution reporting, and binary/library checks.
 
 import os
 import shutil
+import subprocess
 import sys
 from argparse import Namespace
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
 from .base import BaseCommand, cli_exception_handler
@@ -82,7 +84,6 @@ class DoctorCommands(BaseCommand):
         sys_gdal = shutil.which("gdal-config")
         if sys_gdal:
             try:
-                import subprocess
                 result = subprocess.run(
                     ["gdal-config", "--version"],
                     capture_output=True, text=True, timeout=5
@@ -96,7 +97,7 @@ class DoctorCommands(BaseCommand):
                         f"GDAL version mismatch: Python={py_gdal_str}, system={sys_gdal_ver}"
                     )
                     issues_found = True
-            except Exception:
+            except (subprocess.SubprocessError, OSError, ValueError):
                 console.info(f"GDAL (system): gdal-config found but failed  ({sys_gdal})")
         else:
             console.warning("gdal-config not found on PATH")
@@ -141,7 +142,7 @@ def _report_package(console, name: str) -> None:
         from importlib.metadata import version
         ver = version(name)
         console.info(f"{name}: {ver}")
-    except Exception:
+    except PackageNotFoundError:
         console.info(f"{name}: not installed")
 
 
@@ -165,7 +166,7 @@ def _report_code_dir(console) -> None:
                 console.indent("source: detected repository root from package location")
                 return
             candidate = candidate.parent
-    except Exception:
+    except (ImportError, AttributeError, OSError, RuntimeError):
         pass
 
     console.warning("CODE_DIR: not set")
@@ -192,7 +193,7 @@ def _report_data_dir(console) -> bool:
         # Directory doesn't exist yet — that's fine, it will be created on first install
         console.indent("directory will be created on first install")
         return True
-    except Exception:
+    except (ImportError, OSError, RuntimeError):
         pass
 
     # Last resort fallback

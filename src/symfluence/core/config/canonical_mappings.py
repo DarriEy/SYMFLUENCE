@@ -44,7 +44,7 @@ def _generate_canonical_map() -> Dict[str, Tuple[str, ...]]:
                 "Auto-generated %d canonical mappings from Pydantic aliases",
                 len(_CANONICAL_MAP),
             )
-        except Exception as e:
+        except (ImportError, AttributeError, TypeError, ValueError, RuntimeError) as e:
             logger.warning("Canonical map auto-generation failed: %s", e)
             _CANONICAL_MAP = {}
 

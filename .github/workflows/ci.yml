@@ -35,6 +35,10 @@ jobs:
           # Lint only src and tests, exclude examples (notebooks can be informal)
           ruff check src/ tests/
 
+      - name: Guard broad Exception catches
+        run: |
+          python scripts/check_broad_exceptions.py
+
       - name: Type check with mypy
         continue-on-error: false
         run: |

@@ -460,7 +460,7 @@ class GeospatialStatistics(ConfigurableMixin):
 
         try:
             gdf = gpd.read_file(output_file)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as exc:
             msg = f"Error checking existing statistics file '{output_file}': {exc}. Recalculating."
             if warn_on_error:
                 self.logger.warning(msg)
@@ -515,7 +515,7 @@ class GeospatialStatistics(ConfigurableMixin):
                 raster_crs = src.crs
                 self.logger.info(f"{layer_label} raster CRS: {raster_crs}")
                 return raster_crs
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as exc:
             self.logger.error(f"Error reading {layer_label} raster CRS: {exc}")
             if fallback is not None:
                 self.logger.warning(
@@ -548,7 +548,7 @@ class GeospatialStatistics(ConfigurableMixin):
             projected = catchment_gdf.to_crs(raster_crs)
             self.logger.info("CRS reprojection successful")
             return projected
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as exc:
             self.logger.error(f"Failed to reproject CRS for {layer_label}: {exc}")
             if allow_fallback_on_error:
                 self.logger.warning("Using original CRS - calculation may fail")
@@ -665,7 +665,7 @@ class GeospatialStatistics(ConfigurableMixin):
                     "elevation",
                 )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error calculating elevation statistics: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -758,7 +758,7 @@ class GeospatialStatistics(ConfigurableMixin):
                     np.save(checkpoint_file, np.array(tile_elevs, dtype=np.float32))
                     processed_count += len(tile_gdf)
 
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.warning(f"  Error: {str(e)}")
 
                 del tile_gdf
@@ -814,7 +814,7 @@ class GeospatialStatistics(ConfigurableMixin):
                 elev_means[start_idx:end_idx] = chunk_elevs
                 np.save(checkpoint_file, chunk_elevs)
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"  Error: {str(e)}")
 
             del chunk_gdf
@@ -947,7 +947,7 @@ class GeospatialStatistics(ConfigurableMixin):
                 "soil",
             )
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error calculating soil statistics: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

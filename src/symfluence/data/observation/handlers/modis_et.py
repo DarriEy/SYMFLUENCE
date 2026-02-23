@@ -90,7 +90,7 @@ class MODISETHandler(BaseObservationHandler):
 
         except ImportError:
             self.logger.warning("MOD16 acquisition handler not available")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"MOD16 acquisition failed: {e}")
 
         # Fallback: check for manually placed data
@@ -207,7 +207,7 @@ class MODISETHandler(BaseObservationHandler):
             ds.close()
             return df
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing NetCDF: {e}")
             return pd.DataFrame()
 
@@ -220,7 +220,7 @@ class MODISETHandler(BaseObservationHandler):
             df = self._standardize_columns(df)
             df = self._interpolate_to_daily(df)
             return df
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing timeseries CSV: {e}")
             return pd.DataFrame()
 
@@ -242,7 +242,7 @@ class MODISETHandler(BaseObservationHandler):
             df = self._interpolate_to_daily(df)
             return df
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing legacy CSV: {e}")
             return pd.DataFrame()
 
@@ -263,7 +263,7 @@ class MODISETHandler(BaseObservationHandler):
             df = self._interpolate_to_daily(df)
             return df
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing generic CSV: {e}")
             return pd.DataFrame()
 
@@ -336,7 +336,7 @@ class MODISETHandler(BaseObservationHandler):
             df_daily.index.name = 'date'
             return df_daily
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"Interpolation failed: {e}")
             return df
 
@@ -363,6 +363,6 @@ class MODISETHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['date'], index_col='date')
             return df
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error loading processed data: {e}")
             return None

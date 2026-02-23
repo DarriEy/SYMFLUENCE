@@ -98,7 +98,7 @@ class ProjectWizard:
         except KeyboardInterrupt:
             self.prompts.show_cancelled()
             return ExitCode.USER_INTERRUPT
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError, TypeError) as e:
             self.console.print(f"[red]Error:[/red] {e}")
             return ExitCode.GENERAL_ERROR
 
@@ -191,7 +191,7 @@ class ProjectWizard:
             config_path, scaffold_path = self._generate_config(output_dir, scaffold)
             self.prompts.show_success(config_path, scaffold_path)
             return ExitCode.SUCCESS
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError, TypeError) as e:
             self.console.print(f"[red]Failed to generate config:[/red] {e}")
             return ExitCode.GENERAL_ERROR
 

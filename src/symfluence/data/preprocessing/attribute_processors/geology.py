@@ -72,7 +72,7 @@ class GeologyProcessor(BaseAttributeProcessor):
             try:
                 with open(cache_file, 'rb') as f:
                     return pickle.load(f)  # nosec B301 - loading trusted local cache files
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cached GLHYMPS results: {str(e)}")
 
         self.logger.info("Processing GLHYMPS data for hydrogeological attributes")
@@ -200,7 +200,7 @@ class GeologyProcessor(BaseAttributeProcessor):
                             results["geology.transmissivity_m2_per_s"] = transmissivity
                     else:
                         self.logger.warning("No intersection between GLHYMPS and catchment boundary")
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.error(f"Error processing GLHYMPS for lumped catchment: {str(e)}")
             else:
                 # For distributed catchment, process each HRU
@@ -302,7 +302,7 @@ class GeologyProcessor(BaseAttributeProcessor):
                                     results[f"{prefix}geology.transmissivity_m2_per_s"] = transmissivity
                             else:
                                 self.logger.debug(f"No intersection between GLHYMPS and HRU {hru_id}")
-                        except Exception as e:
+                        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                             self.logger.error(f"Error processing GLHYMPS for HRU {hru_id}: {str(e)}")
 
             # Cache results
@@ -310,10 +310,10 @@ class GeologyProcessor(BaseAttributeProcessor):
                 self.logger.info(f"Caching GLHYMPS results to {cache_file}")
                 with open(cache_file, 'wb') as f:
                     pickle.dump(results, f)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching GLHYMPS results: {str(e)}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing GLHYMPS data: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -538,10 +538,10 @@ class GeologyProcessor(BaseAttributeProcessor):
                                 results[f"{prefix}geology.dominant_category"] = dominant_category
                         else:
                             self.logger.debug(f"No intersection between geological map and HRU {hru_id}")
-                    except Exception as e:
+                    except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                         self.logger.error(f"Error processing lithology for HRU {hru_id}: {str(e)}")
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error processing lithology data: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -673,6 +673,6 @@ class GeologyProcessor(BaseAttributeProcessor):
 
             return results
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error enhancing hydrogeological attributes: {str(e)}")
             return current_results  # Return the original results if there was an error

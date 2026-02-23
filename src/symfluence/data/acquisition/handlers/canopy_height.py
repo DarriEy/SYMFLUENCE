@@ -174,7 +174,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"AppEEARS authentication failed: {e}")
             return None
 
@@ -231,7 +231,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
             task_id = result.get('task_id')
             self.logger.info(f"AppEEARS GEDI task submitted: {task_id}")
             return task_id
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             return None
 
@@ -310,7 +310,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             bundle = response.json()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to get bundle info: {e}")
             return
 
@@ -341,7 +341,7 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
 
                 self.logger.debug(f"Downloaded: {file_name}")
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to download {file_name}: {e}")
 
     def _consolidate_output(self, input_dir: Path, output_file: Path, metric: str):
@@ -496,7 +496,7 @@ class MetaCanopyHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.logger.info(f"Meta/WRI canopy height download complete: {output_file}")
             return output_file
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error downloading Meta/WRI canopy height: {e}")
             raise
 
@@ -711,7 +711,7 @@ class GLADTreeHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.logger.info(f"GLAD tree height download complete: {output_file}")
             return output_file
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error downloading GLAD tree height: {e}")
             raise
 
@@ -775,7 +775,7 @@ class GLADTreeHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
                     IOError,
                 )
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Failed to download {tile_name}: {e}")
             if local_tile.exists():
                 local_tile.unlink()

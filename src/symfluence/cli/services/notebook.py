@@ -153,7 +153,7 @@ class NotebookService(BaseService):
                 ],
                 check=True,
             )
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
             self._console.warning(f"Could not ensure ipykernel: {e}")
 
         # Try to launch Jupyter

@@ -8,6 +8,7 @@ and per-step timing into a self-documenting run manifest (JSON).
 import json
 import platform
 import subprocess
+from importlib.metadata import PackageNotFoundError, version
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,10 +60,9 @@ def _dependency_versions() -> Dict[str, str]:
     versions: Dict[str, str] = {}
     for pkg in packages:
         try:
-            mod = __import__(pkg)
-            versions[pkg] = getattr(mod, "__version__", "unknown")
-        except Exception:
-            pass
+            versions[pkg] = version(pkg)
+        except PackageNotFoundError:
+            continue
     return versions
 
 

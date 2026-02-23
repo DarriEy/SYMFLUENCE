@@ -65,7 +65,7 @@ class MODISLSTHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"MODIS LST acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.error(f"MODIS LST acquisition failed: {e}")
                 raise
         else:
@@ -106,7 +106,7 @@ class MODISLSTHandler(BaseObservationHandler):
                     results['lst_day_k'].extend(day_lst)
                     results['lst_night_k'].extend(night_lst)
                     results['datetime'].extend(times)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to process {nc_file.name}: {e}")
 
         for tif_file in tif_files:
@@ -120,7 +120,7 @@ class MODISLSTHandler(BaseObservationHandler):
                         results['lst_day_k'].append(np.nan)
                         results['lst_night_k'].append(lst_val)
                     results['datetime'].append(time_val)
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Failed to process {tif_file.name}: {e}")
 
         if not results['datetime']:
@@ -294,7 +294,7 @@ class MODISLSTHandler(BaseObservationHandler):
                         nodata=np.nan
                     )
                     data = out_image[0]
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.warning(f"Rasterio masking failed, using full extent: {e}")
                     data = src.read(1)
             else:
@@ -360,7 +360,7 @@ class MODISLSTHandler(BaseObservationHandler):
                         lon_name: slice(bounds[0], bounds[2]),
                         lat_name: lat_slice
                     })
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.debug(f"Could not subset data to shapefile bounds: {e}")
 
         elif self.bbox:
@@ -377,7 +377,7 @@ class MODISLSTHandler(BaseObservationHandler):
                         lon_name: slice(self.bbox['lon_min'], self.bbox['lon_max']),
                         lat_name: lat_slice
                     })
-                except Exception as e:
+                except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                     self.logger.debug(f"Could not subset data to bbox: {e}")
 
         return float(da.mean(skipna=True).values)
@@ -433,6 +433,6 @@ class MODISLSTHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.error(f"Error loading MODIS LST data: {e}")
             return None

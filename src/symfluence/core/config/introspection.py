@@ -184,7 +184,7 @@ def generate_flat_to_nested_map(
                         logger.debug(
                             f"Added {len(model_transformers)} transformers for {model_name}"
                         )
-                except Exception as e:
+                except (ImportError, KeyError, AttributeError, TypeError, ValueError, RuntimeError) as e:
                     # Log but don't fail - model might not have custom transformers
                     logger.debug(f"No custom transformers for {model_name}: {e}")
 
