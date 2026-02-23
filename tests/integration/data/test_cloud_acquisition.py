@@ -414,6 +414,7 @@ def _execute_case_in_subprocess(cfg_path: Path, project_dir: Path, case: dict) -
 
 @pytest.mark.slow
 @pytest.mark.requires_data
+@pytest.mark.timeout(600)  # CDS-based cases (CARRA, CERRA) involve server-side queuing
 @pytest.mark.parametrize("case", _selected_cases())
 def test_cloud_forcing_acquisition(prepared_project, case):
     """
