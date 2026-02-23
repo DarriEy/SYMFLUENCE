@@ -20,34 +20,16 @@ import threading
 import logging
 import warnings
 
+from symfluence.core.config.legacy_aliases import (
+    CANONICAL_KEYS,
+    DEPRECATED_KEYS,
+    LEGACY_FLAT_TO_NESTED_ALIASES,
+)
+
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
-
-
-# ========================================
-# DEPRECATED KEY MAPPING (Phase 2)
-# ========================================
-
-# Maps deprecated keys to their standardized replacements
-# Used to emit warnings when deprecated keys are encountered
-DEPRECATED_KEYS: Dict[str, str] = {
-    # MizuRoute legacy naming (inverted: INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH)
-    'INSTALL_PATH_MIZUROUTE': 'MIZUROUTE_INSTALL_PATH',
-    'EXE_NAME_MIZUROUTE': 'MIZUROUTE_EXE',
-}
-
-# Canonical keys for nested paths with multiple aliases
-# When flattening config back to flat format, use these keys (not the aliases)
-# Format: nested_path_tuple -> canonical_flat_key
-CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
-    ('system', 'num_processes'): 'NUM_PROCESSES',  # Prefer over MPI_PROCESSES
-    ('optimization', 'nsga2', 'secondary_target'): 'NSGA2_SECONDARY_TARGET',
-    ('optimization', 'nsga2', 'secondary_metric'): 'NSGA2_SECONDARY_METRIC',
-    ('model', 'mizuroute', 'install_path'): 'MIZUROUTE_INSTALL_PATH',
-    ('model', 'mizuroute', 'exe'): 'MIZUROUTE_EXE',
-}
 
 
 def _warn_deprecated_keys(flat_config: Dict[str, Any]) -> None:
@@ -124,7 +106,7 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
 # FLAT-TO-NESTED MAPPING
 # ========================================
 
-# Comprehensive mapping from flat uppercase keys to nested paths
+# Comprehensive canonical mapping from flat uppercase keys to nested paths.
 # Format: 'FLAT_KEY': ('section', 'subsection', 'field') or ('section', 'field')
 #
 # NOTE: This mapping can be auto-generated from Pydantic model aliases using:
@@ -134,12 +116,11 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
 #
 # The manual mapping is kept for backward compatibility and explicit control.
 # Use validate_mapping_against_pydantic() to verify sync with Pydantic models.
-FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
+CANONICAL_FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== SYSTEM CONFIGURATION ==========
     'SYMFLUENCE_DATA_DIR': ('system', 'data_dir'),
     'SYMFLUENCE_CODE_DIR': ('system', 'code_dir'),
     'NUM_PROCESSES': ('system', 'num_processes'),
-    'MPI_PROCESSES': ('system', 'num_processes'),  # Backward compatibility alias
     'DEBUG_MODE': ('system', 'debug_mode'),
     'LOG_LEVEL': ('system', 'log_level'),
     'LOG_TO_FILE': ('system', 'log_to_file'),
@@ -301,26 +282,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > SUMMA
     'SUMMA_INSTALL_PATH': ('model', 'summa', 'install_path'),
     'SUMMA_EXE': ('model', 'summa', 'exe'),
-    'SETTINGS_SUMMA_PATH': ('model', 'summa', 'settings_path'),
-    'SETTINGS_SUMMA_FILEMANAGER': ('model', 'summa', 'filemanager'),
-    'SETTINGS_SUMMA_FORCING_LIST': ('model', 'summa', 'forcing_list'),
-    'SETTINGS_SUMMA_COLDSTATE': ('model', 'summa', 'coldstate'),
-    'SETTINGS_SUMMA_TRIALPARAMS': ('model', 'summa', 'trialparams'),
-    'SETTINGS_SUMMA_ATTRIBUTES': ('model', 'summa', 'attributes'),
-    'SETTINGS_SUMMA_OUTPUT': ('model', 'summa', 'output'),
-    'SETTINGS_SUMMA_BASIN_PARAMS_FILE': ('model', 'summa', 'basin_params_file'),
-    'SETTINGS_SUMMA_LOCAL_PARAMS_FILE': ('model', 'summa', 'local_params_file'),
-    'SETTINGS_SUMMA_CONNECT_HRUS': ('model', 'summa', 'connect_hrus'),
-    'SETTINGS_SUMMA_TRIALPARAM_N': ('model', 'summa', 'trialparam_n'),
-    'SETTINGS_SUMMA_TRIALPARAM_1': ('model', 'summa', 'trialparam_1'),
-    'SETTINGS_SUMMA_USE_PARALLEL_SUMMA': ('model', 'summa', 'use_parallel'),
-    'SETTINGS_SUMMA_CPUS_PER_TASK': ('model', 'summa', 'cpus_per_task'),
-    'SETTINGS_SUMMA_TIME_LIMIT': ('model', 'summa', 'time_limit'),
-    'SETTINGS_SUMMA_MEM': ('model', 'summa', 'mem'),
-    'SETTINGS_SUMMA_GRU_COUNT': ('model', 'summa', 'gru_count'),
-    'SETTINGS_SUMMA_GRU_PER_JOB': ('model', 'summa', 'gru_per_job'),
-    'SETTINGS_SUMMA_PARALLEL_PATH': ('model', 'summa', 'parallel_path'),
-    'SETTINGS_SUMMA_PARALLEL_EXE': ('model', 'summa', 'parallel_exe'),
+    # Legacy SETTINGS_*_PATH aliases are isolated in legacy_aliases.py
+    # Legacy SETTINGS_SUMMA_* aliases are isolated in legacy_aliases.py
     'EXPERIMENT_OUTPUT_SUMMA': ('model', 'summa', 'experiment_output'),
     'EXPERIMENT_LOG_SUMMA': ('model', 'summa', 'experiment_log'),
     'PARAMS_TO_CALIBRATE': ('model', 'summa', 'params_to_calibrate'),
@@ -329,27 +292,18 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'CALIBRATE_DEPTH': ('model', 'summa', 'calibrate_depth'),
     'DEPTH_TOTAL_MULT_BOUNDS': ('model', 'summa', 'depth_total_mult_bounds'),
     'DEPTH_SHAPE_FACTOR_BOUNDS': ('model', 'summa', 'depth_shape_factor_bounds'),
-    'SETTINGS_SUMMA_GLACIER_MODE': ('model', 'summa', 'glacier_mode'),
-    'SETTINGS_SUMMA_GLACIER_ATTRIBUTES': ('model', 'summa', 'glacier_attributes'),
-    'SETTINGS_SUMMA_GLACIER_COLDSTATE': ('model', 'summa', 'glacier_coldstate'),
     'SUMMA_TIMEOUT': ('model', 'summa', 'timeout'),
     'EXPERIMENT_BACKUP_SETTINGS': ('model', 'summa', 'backup_settings'),
     'MONITOR_SLURM_JOB': ('model', 'summa', 'monitor_slurm_job'),
-    'SETTINGS_SUMMA_SOILPROFILE': ('model', 'summa', 'soilprofile'),
     'SUMMA_INIT_MATRIC_HEAD': ('model', 'summa', 'init_matric_head'),
-    'SETTINGS_SUMMA_INIT_GRID_FILE': ('model', 'summa', 'init_grid_file'),
-    'SETTINGS_SUMMA_ATTRIB_GRID_FILE': ('model', 'summa', 'attrib_grid_file'),
 
     # Model > FUSE
     'FUSE_INSTALL_PATH': ('model', 'fuse', 'install_path'),
     'FUSE_EXE': ('model', 'fuse', 'exe'),
     'FUSE_ROUTING_INTEGRATION': ('model', 'fuse', 'routing_integration'),
-    'SETTINGS_FUSE_PATH': ('model', 'fuse', 'settings_path'),
-    'SETTINGS_FUSE_FILEMANAGER': ('model', 'fuse', 'filemanager'),
     'FUSE_SPATIAL_MODE': ('model', 'fuse', 'spatial_mode'),
     'FUSE_SUBCATCHMENT_DIM': ('model', 'fuse', 'subcatchment_dim'),
     'EXPERIMENT_OUTPUT_FUSE': ('model', 'fuse', 'experiment_output'),
-    'SETTINGS_FUSE_PARAMS_TO_CALIBRATE': ('model', 'fuse', 'params_to_calibrate'),
     'FUSE_DECISION_OPTIONS': ('model', 'fuse', 'decision_options'),
     'FUSE_FILE_ID': ('model', 'fuse', 'file_id'),
     'FUSE_N_ELEVATION_BANDS': ('model', 'fuse', 'n_elevation_bands'),
@@ -368,8 +322,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'GR_EXE': ('model', 'gr', 'exe'),
     'GR_SPATIAL_MODE': ('model', 'gr', 'spatial_mode'),
     'GR_ROUTING_INTEGRATION': ('model', 'gr', 'routing_integration'),
-    'SETTINGS_GR_PATH': ('model', 'gr', 'settings_path'),
-    'SETTINGS_GR_CONTROL': ('model', 'gr', 'control'),
     'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
     'GR_PARAM_BOUNDS': ('model', 'gr', 'param_bounds'),
     'GR4J_PARAM_BOUNDS': ('model', 'gr', 'gr4j_param_bounds'),
@@ -456,7 +408,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > GSFLOW
     'GSFLOW_INSTALL_PATH': ('model', 'gsflow', 'install_path'),
     'GSFLOW_EXE': ('model', 'gsflow', 'exe'),
-    'SETTINGS_GSFLOW_PATH': ('model', 'gsflow', 'settings_path'),
     'GSFLOW_CONTROL_FILE': ('model', 'gsflow', 'control_file'),
     'GSFLOW_PARAMETER_FILE': ('model', 'gsflow', 'parameter_file'),
     'GSFLOW_MODFLOW_NAM_FILE': ('model', 'gsflow', 'modflow_nam_file'),
@@ -469,7 +420,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > WATFLOOD
     'WATFLOOD_INSTALL_PATH': ('model', 'watflood', 'install_path'),
     'WATFLOOD_EXE': ('model', 'watflood', 'exe'),
-    'SETTINGS_WATFLOOD_PATH': ('model', 'watflood', 'settings_path'),
     'WATFLOOD_SHED_FILE': ('model', 'watflood', 'shed_file'),
     'WATFLOOD_PAR_FILE': ('model', 'watflood', 'par_file'),
     'WATFLOOD_EVENT_FILE': ('model', 'watflood', 'event_file'),
@@ -481,8 +431,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > HYPE
     'HYPE_INSTALL_PATH': ('model', 'hype', 'install_path'),
     'HYPE_EXE': ('model', 'hype', 'exe'),
-    'SETTINGS_HYPE_PATH': ('model', 'hype', 'settings_path'),
-    'SETTINGS_HYPE_INFO': ('model', 'hype', 'info_file'),
     'HYPE_PARAMS_TO_CALIBRATE': ('model', 'hype', 'params_to_calibrate'),
     'HYPE_SPINUP_DAYS': ('model', 'hype', 'spinup_days'),
 
@@ -505,7 +453,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_INSTALL_PATH': ('model', 'mesh', 'install_path'),
     'MESH_EXE': ('model', 'mesh', 'exe'),
     'MESH_SPATIAL_MODE': ('model', 'mesh', 'spatial_mode'),
-    'SETTINGS_MESH_PATH': ('model', 'mesh', 'settings_path'),
     'EXPERIMENT_OUTPUT_MESH': ('model', 'mesh', 'experiment_output'),
     'MESH_FORCING_PATH': ('model', 'mesh', 'forcing_path'),
     'MESH_FORCING_VARS': ('model', 'mesh', 'forcing_vars'),
@@ -524,7 +471,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_GRU_DIM': ('model', 'mesh', 'gru_dim'),
     'MESH_HRU_DIM': ('model', 'mesh', 'hru_dim'),
     'MESH_OUTLET_VALUE': ('model', 'mesh', 'outlet_value'),
-    'SETTINGS_MESH_INPUT': ('model', 'mesh', 'input_file'),
     'MESH_PARAMS_TO_CALIBRATE': ('model', 'mesh', 'params_to_calibrate'),
     'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
     'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
@@ -538,29 +484,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
     'MIZUROUTE_EXE': ('model', 'mizuroute', 'exe'),
 
-    # Model > mizuRoute - LEGACY ALIASES (deprecated, will be removed in v2.0)
-    'INSTALL_PATH_MIZUROUTE': ('model', 'mizuroute', 'install_path'),
-    'EXE_NAME_MIZUROUTE': ('model', 'mizuroute', 'exe'),
-    'SETTINGS_MIZU_PATH': ('model', 'mizuroute', 'settings_path'),
-    'SETTINGS_MIZU_WITHIN_BASIN': ('model', 'mizuroute', 'within_basin'),
-    'SETTINGS_MIZU_ROUTING_DT': ('model', 'mizuroute', 'routing_dt'),
-    'SETTINGS_MIZU_ROUTING_UNITS': ('model', 'mizuroute', 'routing_units'),
-    'SETTINGS_MIZU_ROUTING_VAR': ('model', 'mizuroute', 'routing_var'),
-    'SETTINGS_MIZU_OUTPUT_FREQ': ('model', 'mizuroute', 'output_freq'),
-    'SETTINGS_MIZU_OUTPUT_VARS': ('model', 'mizuroute', 'output_vars'),
-    'SETTINGS_MIZU_MAKE_OUTLET': ('model', 'mizuroute', 'make_outlet'),
-    'SETTINGS_MIZU_NEEDS_REMAP': ('model', 'mizuroute', 'needs_remap'),
-    'SETTINGS_MIZU_TOPOLOGY': ('model', 'mizuroute', 'topology'),
-    'SETTINGS_MIZU_PARAMETERS': ('model', 'mizuroute', 'parameters'),
-    'SETTINGS_MIZU_CONTROL_FILE': ('model', 'mizuroute', 'control_file'),
-    'SETTINGS_MIZU_REMAP': ('model', 'mizuroute', 'remap'),
+    # Legacy aliases are intentionally isolated in legacy_aliases.py
     'MIZU_FROM_MODEL': ('model', 'mizuroute', 'from_model'),
     'EXPERIMENT_LOG_MIZUROUTE': ('model', 'mizuroute', 'experiment_log'),
     'EXPERIMENT_OUTPUT_MIZUROUTE': ('model', 'mizuroute', 'experiment_output'),
-    'SETTINGS_MIZU_OUTPUT_VAR': ('model', 'mizuroute', 'output_var'),
-    'SETTINGS_MIZU_PARAMETER_FILE': ('model', 'mizuroute', 'parameter_file'),
-    'SETTINGS_MIZU_REMAP_FILE': ('model', 'mizuroute', 'remap_file'),
-    'SETTINGS_MIZU_TOPOLOGY_FILE': ('model', 'mizuroute', 'topology_file'),
     'MIZUROUTE_PARAMS_TO_CALIBRATE': ('model', 'mizuroute', 'params_to_calibrate'),
     'CALIBRATE_MIZUROUTE': ('model', 'mizuroute', 'calibrate'),
     'MIZUROUTE_TIMEOUT': ('model', 'mizuroute', 'timeout'),
@@ -569,7 +496,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DROUTE_EXECUTION_MODE': ('model', 'droute', 'execution_mode'),
     'DROUTE_INSTALL_PATH': ('model', 'droute', 'install_path'),
     'DROUTE_EXE': ('model', 'droute', 'exe'),
-    'SETTINGS_DROUTE_PATH': ('model', 'droute', 'settings_path'),
+    # Legacy SETTINGS_DROUTE_* aliases are isolated in legacy_aliases.py
     'DROUTE_ROUTING_METHOD': ('model', 'droute', 'routing_method'),
     'DROUTE_ROUTING_DT': ('model', 'droute', 'routing_dt'),
     'DROUTE_ENABLE_GRADIENTS': ('model', 'droute', 'enable_gradients'),
@@ -587,10 +514,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > t-route (NOAA OWP channel routing)
     'TROUTE_INSTALL_PATH': ('model', 'troute', 'install_path'),
     'TROUTE_PKG_PATH': ('model', 'troute', 'pkg_path'),
-    'SETTINGS_TROUTE_PATH': ('model', 'troute', 'settings_path'),
-    'SETTINGS_TROUTE_TOPOLOGY': ('model', 'troute', 'topology_file'),
-    'SETTINGS_TROUTE_CONFIG_FILE': ('model', 'troute', 'config_file'),
-    'SETTINGS_TROUTE_DT_SECONDS': ('model', 'troute', 'dt_seconds'),
+    # Legacy SETTINGS_TROUTE_* aliases are isolated in legacy_aliases.py
     'TROUTE_ROUTING_METHOD': ('model', 'troute', 'routing_method'),
     'TROUTE_FROM_MODEL': ('model', 'troute', 'from_model'),
     'TROUTE_MANNINGS_N': ('model', 'troute', 'mannings_n'),
@@ -621,7 +545,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > RHESSys
     'RHESSYS_INSTALL_PATH': ('model', 'rhessys', 'install_path'),
     'RHESSYS_EXE': ('model', 'rhessys', 'exe'),
-    'SETTINGS_RHESSYS_PATH': ('model', 'rhessys', 'settings_path'),
     'EXPERIMENT_OUTPUT_RHESSYS': ('model', 'rhessys', 'experiment_output'),
     'FORCING_RHESSYS_PATH': ('model', 'rhessys', 'forcing_path'),
     'RHESSYS_WORLD_TEMPLATE': ('model', 'rhessys', 'world_template'),
@@ -740,9 +663,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'NSGA2_MUTATION_RATE': ('optimization', 'nsga2', 'mutation_rate'),
     'NSGA2_ETA_C': ('optimization', 'nsga2', 'eta_c'),
     'NSGA2_ETA_M': ('optimization', 'nsga2', 'eta_m'),
-    # Legacy aliases for NSGA2 multi-target settings
-    'OPTIMIZATION_TARGET2': ('optimization', 'nsga2', 'secondary_target'),
-    'OPTIMIZATION_METRIC2': ('optimization', 'nsga2', 'secondary_metric'),
+    # Legacy aliases for NSGA2 multi-target settings are isolated in legacy_aliases.py
 
     # MOEAD multi-target settings (own Pydantic model: MOEADConfig)
     'MOEAD_MULTI_TARGET': ('optimization', 'moead', 'multi_target'),
@@ -963,6 +884,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'EASYMORE_JOB_CONF': ('paths', 'easymore_job_conf'),
     'CLUSTER_JSON': ('paths', 'cluster_json'),
     'GISTOOL_LIB_PATH': ('paths', 'gistool_lib_path'),
+}
+
+# Full mapping used by transformation code: canonical keys plus compatibility aliases.
+FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
+    **CANONICAL_FLAT_TO_NESTED_MAP,
+    **LEGACY_FLAT_TO_NESTED_ALIASES,
 }
 
 

@@ -43,6 +43,18 @@ class MODISETHandler(BaseObservationHandler):
         'url': 'https://lpdaac.usgs.gov/products/mod16a2v061/',
     }
 
+    def _resolve_mod16_dir(self) -> Path:
+        """Resolve MOD16_ET_DIR, treating 'default' as the project observations path."""
+        default_dir = self.project_observations_dir / "et" / "modis"
+        configured = self._get_config_value(
+            lambda: None,
+            default=default_dir,
+            dict_key='MOD16_ET_DIR',
+        )
+        if isinstance(configured, str) and configured.strip().lower() == 'default':
+            return default_dir
+        return Path(configured)
+
     def acquire(self) -> Path:
         """
         Acquire MODIS ET data via cloud acquisition.
@@ -50,7 +62,7 @@ class MODISETHandler(BaseObservationHandler):
         Returns path to raw data directory/file.
         """
         # Check if data already exists
-        et_dir = Path(self._get_config_value(lambda: None, default=self.project_observations_dir / "et" / "modis", dict_key='MOD16_ET_DIR'))
+        et_dir = self._resolve_mod16_dir()
 
         # Check for existing processed file
         processed_file = et_dir / "preprocessed" / f"{self.domain_name}_modis_et_processed.csv"
