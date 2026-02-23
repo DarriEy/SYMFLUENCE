@@ -41,6 +41,34 @@ class DelineationConfig(BaseModel):
     max_retries: int = Field(default=3, alias='MAX_RETRIES')
     retry_delay: float = Field(default=5.0, alias='RETRY_DELAY')
 
+    # DEM conditioning (stream burning)
+    dem_conditioning_method: str = Field(default='none', alias='DEM_CONDITIONING_METHOD')
+    stream_burn_depth: float = Field(default=5.0, alias='STREAM_BURN_DEPTH')
+    stream_burn_source: str = Field(default='auto', alias='STREAM_BURN_SOURCE')
+    stream_burn_custom_path: str = Field(default='default', alias='STREAM_BURN_CUSTOM_PATH')
+
+    @field_validator('dem_conditioning_method', mode='before')
+    @classmethod
+    def normalize_conditioning_method(cls, v):
+        """Normalize and validate DEM conditioning method."""
+        if not isinstance(v, str):
+            return v
+        v = v.lower().strip()
+        valid = {'none', 'burn_streams'}
+        if v not in valid:
+            raise ValueError(
+                f"DEM_CONDITIONING_METHOD must be one of {valid}, got '{v}'"
+            )
+        return v
+
+    @field_validator('stream_burn_depth')
+    @classmethod
+    def validate_burn_depth(cls, v):
+        """Ensure burn depth is positive."""
+        if v <= 0:
+            raise ValueError(f"STREAM_BURN_DEPTH must be positive, got {v}")
+        return v
+
     @field_validator('multi_scale_thresholds', mode='before')
     @classmethod
     def normalize_multi_scale_thresholds(cls, v):

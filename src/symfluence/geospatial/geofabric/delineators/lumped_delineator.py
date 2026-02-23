@@ -198,9 +198,12 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
             # Create output directory if it doesn't exist
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
+            # Apply DEM conditioning (stream burning) if configured
+            dem_input = self._condition_dem()
+
             # TauDEM processing steps for lumped watershed delineation
             steps = [
-                f"{self.taudem_dir}/pitremove -z {self.dem_path} -fel {self.output_dir}/fel.tif",
+                f"{self.taudem_dir}/pitremove -z {dem_input} -fel {self.output_dir}/fel.tif",
                 f"{self.taudem_dir}/d8flowdir -fel {self.output_dir}/fel.tif -p {self.output_dir}/p.tif -sd8 {self.output_dir}/sd8.tif",
                 f"{self.taudem_dir}/aread8 -p {self.output_dir}/p.tif -ad8 {self.output_dir}/ad8.tif",
                 f"{self.taudem_dir}/threshold -ssa {self.output_dir}/ad8.tif -src {self.output_dir}/src.tif -thresh 100",

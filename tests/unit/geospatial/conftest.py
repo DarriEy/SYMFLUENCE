@@ -156,6 +156,10 @@ def mock_config_object(mock_config_dict, tmp_path):
             self.geofabric_type = 'na'
             self.delineate_coastal_watersheds = False
             self.delineate_by_pourpoint = True
+            self.dem_conditioning_method = d.get('DEM_CONDITIONING_METHOD', 'none')
+            self.stream_burn_depth = d.get('STREAM_BURN_DEPTH', 5.0)
+            self.stream_burn_source = d.get('STREAM_BURN_SOURCE', 'auto')
+            self.stream_burn_custom_path = d.get('STREAM_BURN_CUSTOM_PATH', 'default')
 
     class MockPaths:
         def __init__(self, d: Dict[str, Any], tmp_path: Path):

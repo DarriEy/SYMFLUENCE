@@ -188,8 +188,11 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         """
         taudem_dir = self.taudem.taudem_dir
 
+        # Apply DEM conditioning (stream burning) if configured
+        dem_input = self._condition_dem()
+
         common_steps = [
-            f"{mpi_prefix}{taudem_dir}/pitremove -z {self.dem_path} -fel {self.interim_dir}/elv-fel.tif -v",
+            f"{mpi_prefix}{taudem_dir}/pitremove -z {dem_input} -fel {self.interim_dir}/elv-fel.tif -v",
             f"{mpi_prefix}{taudem_dir}/d8flowdir -fel {self.interim_dir}/elv-fel.tif -sd8 {self.interim_dir}/elv-sd8.tif -p {self.interim_dir}/elv-fdir.tif",
             f"{mpi_prefix}{taudem_dir}/aread8 -p {self.interim_dir}/elv-fdir.tif -ad8 {self.interim_dir}/elv-ad8.tif -nc",
         ]
