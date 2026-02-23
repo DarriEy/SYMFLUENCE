@@ -133,14 +133,14 @@ class WorkflowOrchestrator(ConfigMixin):
         """
         Check if required observed data files exist based on configuration.
 
-        Checks for any of the following based on config:
+        Checks for required observation families based on config:
         - Streamflow data (if EVALUATION_DATA or ADDITIONAL_OBSERVATIONS includes streamflow-like sources)
         - Snow data (SWE, SCA if EVALUATION_DATA includes SWE/SCA or DOWNLOAD_MODIS_SNOW/DOWNLOAD_SNOTEL)
         - Soil moisture data (if EVALUATION_DATA includes SM_ISMN, SM_SMAP, etc.)
         - ET data (if EVALUATION_DATA includes ET)
 
         Returns:
-            bool: True if at least one required observation type has been processed
+            bool: True only if all required observation families have been processed
         """
         evaluation_data = self._normalize_config_list(
             self.config.evaluation.evaluation_data
@@ -149,14 +149,15 @@ class WorkflowOrchestrator(ConfigMixin):
             self.config.data.additional_observations
         )
         requested_tokens = evaluation_data + additional_observations
+        required_families: List[str] = []
 
         check_snow = (
             self._tokens_include(requested_tokens, "SWE", "SCA", "SNOW")
             or bool(self.config.evaluation.snotel.download)
             or bool(self.config.evaluation.modis_snow.download)
         )
-        if check_snow and self._has_observation_output("snow"):
-            return True
+        if check_snow:
+            required_families.append("snow")
 
         check_soil_moisture = self._tokens_include(
             requested_tokens,
@@ -165,8 +166,8 @@ class WorkflowOrchestrator(ConfigMixin):
             "ISMN",
             "SOIL_MOISTURE",
         )
-        if check_soil_moisture and self._has_observation_output("soil_moisture"):
-            return True
+        if check_soil_moisture:
+            required_families.append("soil_moisture")
 
         check_streamflow = (
             self._tokens_include(
@@ -182,18 +183,18 @@ class WorkflowOrchestrator(ConfigMixin):
             or bool(self.config.data.download_usgs_data)
             or bool(self.config.evaluation.streamflow.download_wsc)
         )
-        if check_streamflow and self._has_observation_output("streamflow"):
-            return True
+        if check_streamflow:
+            required_families.append("streamflow")
 
         check_et = self._tokens_include(requested_tokens, "ET", "FLUXNET", "MODIS_ET", "OPENET")
-        if check_et and self._has_observation_output("et"):
-            return True
+        if check_et:
+            required_families.append("et")
 
         # Default for generic configs: streamflow is the minimum expected observation.
-        if not requested_tokens:
+        if not required_families:
             return self._has_observation_output("streamflow")
 
-        return False
+        return all(self._has_observation_output(family) for family in required_families)
 
     def define_workflow_steps(self) -> List[WorkflowStep]:
         """
