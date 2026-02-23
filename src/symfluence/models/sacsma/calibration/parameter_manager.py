@@ -29,7 +29,10 @@ class SacSmaParameterManager(BaseParameterManager):
         self.experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
 
         # Snow module determines parameter set
-        self.snow_module = str(config.get('SACSMA_SNOW_MODULE', 'snow17'))
+        self.snow_module = str(self._get_config_value(
+            lambda: self.config.model.sacsma.snow_module,
+            default='snow17'
+        ))
 
         if self.snow_module == 'none':
             available_bounds = SACSMA_PARAM_BOUNDS.copy()
@@ -39,7 +42,10 @@ class SacSmaParameterManager(BaseParameterManager):
             available_defaults = DEFAULT_PARAMS.copy()
 
         # Parse parameters to calibrate
-        params_str = config.get('SACSMA_PARAMS_TO_CALIBRATE', 'all')
+        params_str = self._get_config_value(
+            lambda: self.config.model.sacsma.params_to_calibrate,
+            default='all'
+        )
         if params_str is None or params_str == '' or params_str == 'all':
             self.sacsma_params = list(available_bounds.keys())
             logger.debug(f"Calibrating all {len(self.sacsma_params)} SAC-SMA parameters")
@@ -48,7 +54,10 @@ class SacSmaParameterManager(BaseParameterManager):
             logger.debug(f"Calibrating SAC-SMA parameters: {self.sacsma_params}")
 
         # Apply config-level bounds overrides
-        config_bounds = config.get('SACSMA_PARAM_BOUNDS')
+        config_bounds = self._get_config_value(
+            lambda: self.config.model.sacsma.param_bounds,
+            default=None
+        )
         if config_bounds:
             for param_name, override in config_bounds.items():
                 if param_name in available_bounds:
@@ -68,7 +77,10 @@ class SacSmaParameterManager(BaseParameterManager):
         bounds = get_sacsma_bounds()
 
         # Apply config-level overrides (same pattern as FUSE)
-        config_bounds = self.config_dict.get('SACSMA_PARAM_BOUNDS')
+        config_bounds = self._get_config_value(
+            lambda: self.config.model.sacsma.param_bounds,
+            dict_key='SACSMA_PARAM_BOUNDS'
+        )
         if config_bounds:
             self.logger.info("Using SACSMA_PARAM_BOUNDS from config (overriding registry defaults)")
             self._apply_config_bounds_override(bounds, config_bounds)

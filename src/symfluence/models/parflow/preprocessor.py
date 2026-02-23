@@ -34,61 +34,41 @@ class ParFlowPreProcessor:
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
-        self.config_dict = getattr(config, '_config_dict', {})
-        if not self.config_dict and hasattr(config, 'to_dict'):
-            self.config_dict = config.to_dict()
 
-        self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
-        self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')
+        try:
+            self.domain_name = config.domain.name or 'unknown'
+        except (AttributeError, TypeError):
+            self.domain_name = 'unknown'
+        try:
+            self.experiment_id = config.domain.experiment_id or 'default'
+        except (AttributeError, TypeError):
+            self.experiment_id = 'default'
 
-        project_dir = self.config_dict.get('PROJECT_DIR')
+        # PROJECT_DIR is a derived path — check dict sources first, then compute
+        _dict = getattr(config, '_config_dict', None)
+        if not _dict and hasattr(config, 'to_dict'):
+            _dict = config.to_dict()
+        project_dir = (_dict or {}).get('PROJECT_DIR')
         if not project_dir or project_dir == '.':
             try:
                 data_dir = str(config.system.data_dir)
             except (AttributeError, TypeError):
-                data_dir = self.config_dict.get('SYMFLUENCE_DATA_DIR', '.')
-            project_dir = Path(data_dir) / f"domain_{self.domain_name}"
+                data_dir = '.'
+            project_dir = str(Path(data_dir) / f"domain_{self.domain_name}")
         self.project_dir = Path(project_dir)
 
-    def _get_cfg(self, key, default=None):
-        """Get config value with typed config first, dict fallback."""
-        try:
-            if key == 'DOMAIN_NAME':
-                val = self.config.domain.name
-                if val is not None:
-                    return val
-            elif key == 'EXPERIMENT_ID':
-                val = self.config.domain.experiment_id
-                if val is not None:
-                    return val
-            elif key == 'SYMFLUENCE_DATA_DIR':
-                val = str(self.config.system.data_dir)
-                if val is not None:
-                    return val
-        except (AttributeError, TypeError):
-            pass
-        val = self.config_dict.get(key)
-        if val is not None and val != 'default':
-            return val
-        return default
-
     def _get_pf_cfg(self, key, default=None):
-        """Get ParFlow-specific config value with typed config first."""
+        """Get ParFlow-specific config value from typed config."""
         try:
             pf_cfg = self.config.model.parflow
             if pf_cfg:
                 attr = key.lower()
                 if hasattr(pf_cfg, attr):
-                    pydantic_val = getattr(pf_cfg, attr)
-                    if pydantic_val is not None:
-                        return pydantic_val
+                    val = getattr(pf_cfg, attr)
+                    if val is not None:
+                        return val
         except (AttributeError, TypeError):
             pass
-        val = self._get_cfg(f'PARFLOW_{key}')
-        if val is None:
-            val = self._get_cfg(key)
-        if val is not None:
-            return val
         return default
 
     def _get_forcing_dir(self) -> Optional[Path]:
@@ -98,10 +78,7 @@ class ParFlowPreProcessor:
             if nc_files:
                 return basin_avg
 
-        try:
-            forcing_dir = self.config.paths.forcing_path
-        except (AttributeError, TypeError):
-            forcing_dir = self.config_dict.get('FORCING_PATH')
+        forcing_dir = getattr(self.config.paths, 'forcing_path', None)
         if forcing_dir and forcing_dir != 'default':
             fp = Path(forcing_dir)
             if fp.exists():
@@ -114,22 +91,9 @@ class ParFlowPreProcessor:
         return None
 
     def _get_latitude(self) -> float:
-        try:
-            lat = self.config.paths.catchment_lat
-            if lat and lat != 'center_lat':
-                return float(lat)
-        except (AttributeError, TypeError, ValueError):
-            pass
-        try:
-            lat = self.config.domain.latitude
-        except (AttributeError, TypeError):
-            lat = self.config_dict.get('CATCHMENT_LAT')
+        lat = getattr(self.config.domain, 'latitude', None)
         if lat is not None:
             return float(lat)
-        try:
-            return float(self.config.domain.latitude)
-        except (AttributeError, TypeError):
-            pass
         forcing_dir = self._get_forcing_dir()
         if forcing_dir:
             try:
@@ -148,14 +112,8 @@ class ParFlowPreProcessor:
 
     def _get_time_info(self):
         import pandas as pd
-        try:
-            start = self.config.domain.time_start
-        except (AttributeError, TypeError):
-            start = '2000-01-01'
-        try:
-            end = self.config.domain.time_end
-        except (AttributeError, TypeError):
-            end = '2001-01-01'
+        start = self.config.domain.time_start or '2000-01-01'
+        end = self.config.domain.time_end or '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))
@@ -348,14 +306,8 @@ class ParFlowPreProcessor:
             return None
 
         # Clip to simulation window
-        try:
-            start = self.config.domain.time_start
-        except (AttributeError, TypeError):
-            start = '2000-01-01'
-        try:
-            end = self.config.domain.time_end
-        except (AttributeError, TypeError):
-            end = '2001-01-01'
+        start = self.config.domain.time_start or '2000-01-01'
+        end = self.config.domain.time_end or '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))

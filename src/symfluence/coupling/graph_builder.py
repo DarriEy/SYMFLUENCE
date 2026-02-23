@@ -19,20 +19,6 @@ from symfluence.coupling.bmi_registry import BMIRegistry
 logger = logging.getLogger(__name__)
 
 
-def _get_cfg(config, typed_accessor, default=None):
-    """Get config value from typed config or fall back to dict access.
-
-    Supports both typed SymfluenceConfig and plain dict configs.
-    """
-    if not isinstance(config, dict):
-        try:
-            value = typed_accessor()
-            if value is not None:
-                return value
-        except (AttributeError, KeyError, TypeError):
-            pass
-    return default
-
 # Unit conversion factors for common coupling interfaces
 UNIT_CONVERSIONS = {
     # SUMMA soil drainage (kg/m2/s) -> ParFlow recharge (m/hr)
@@ -89,38 +75,30 @@ class CouplingGraphBuilder:
         Returns:
             Configured CouplingGraph with all components and connections.
         """
-        # Build a dict view for component constructors that still expect dict
-        config_dict = config if isinstance(config, dict) else (
+        # Build a dict view for BMI component constructors that still expect dict
+        component_config_dict = config if isinstance(config, dict) else (
             config.to_dict() if hasattr(config, 'to_dict') else {}
         )
 
-        conservation_mode = _get_cfg(
-            config, lambda: config.model.conservation_mode, default=None
-        ) or config_dict.get("CONSERVATION_MODE")
+        # Read config values: typed config first, dict fallback
+        if isinstance(config, dict):
+            conservation_mode = config.get("CONSERVATION_MODE")
+            model_name = config.get("HYDROLOGICAL_MODEL", "")
+            routing_name = config.get("ROUTING_MODEL", "")
+            gw_name = config.get("GROUNDWATER_MODEL", "")
+            snow_module = config.get("SNOW_MODULE", "")
+        else:
+            _model = getattr(config, 'model', None)
+            conservation_mode = getattr(_model, 'conservation_mode', None)
+            model_name = getattr(_model, 'hydrological_model', None) or ""
+            routing_name = getattr(_model, 'routing_model', None) or ""
+            gw_name = getattr(_model, 'groundwater_model', None) or ""
+            snow_module = getattr(_model, 'snow_module', None) or ""
+
         graph = CouplingGraph(conservation_mode=conservation_mode)
-
-        model_name = _get_cfg(
-            config, lambda: config.model.hydrological_model,
-            default=config_dict.get("HYDROLOGICAL_MODEL", "")
-        )
         model_name = (model_name if isinstance(model_name, str) else str(model_name or "")).upper()
-
-        routing_name = _get_cfg(
-            config, lambda: config.model.routing_model,
-            default=config_dict.get("ROUTING_MODEL", "")
-        )
         routing_name = (routing_name or "").upper()
-
-        gw_name = _get_cfg(
-            config, lambda: config.model.groundwater_model,
-            default=config_dict.get("GROUNDWATER_MODEL", "")
-        )
         gw_name = (gw_name or "").upper()
-
-        snow_module = _get_cfg(
-            config, lambda: config.model.snow_module,
-            default=config_dict.get("SNOW_MODULE", "")
-        )
         snow_module = (snow_module or "").upper()
 
         if not model_name:
@@ -128,14 +106,14 @@ class CouplingGraphBuilder:
 
         # Create primary land surface component
         land_cls = self._registry.get(model_name)
-        land = land_cls(name="land", config=config_dict)
+        land = land_cls(name="land", config=component_config_dict)
         graph.add_component(land)
         logger.info(f"Added land component: {model_name}")
 
         # Snow module coupling (for JAX models)
         if snow_module and snow_module in ("SNOW17",):
             snow_cls = self._registry.get(snow_module)
-            snow = snow_cls(name="snow", config=config_dict)
+            snow = snow_cls(name="snow", config=component_config_dict)
             graph.add_component(snow)
 
             unit_conv = UNIT_CONVERSIONS.get((snow_module, model_name), 1.0)
@@ -149,7 +127,7 @@ class CouplingGraphBuilder:
         # Groundwater coupling
         if gw_name:
             gw_cls = self._registry.get(gw_name)
-            gw = gw_cls(name="groundwater", config=config_dict)
+            gw = gw_cls(name="groundwater", config=component_config_dict)
             graph.add_component(gw)
 
             unit_conv = self._get_unit_conversion(model_name, gw_name)
@@ -170,7 +148,7 @@ class CouplingGraphBuilder:
         # Routing coupling
         if routing_name:
             route_cls = self._registry.get(routing_name)
-            route = route_cls(name="routing", config=config_dict)
+            route = route_cls(name="routing", config=component_config_dict)
             graph.add_component(route)
 
             remapper = self._build_remapper(config)
@@ -227,9 +205,12 @@ class CouplingGraphBuilder:
 
         Looks for HRU-to-reach mapping in the topology file.
         """
-        topology_file = _get_cfg(config, lambda: config.model.topology_file, default=None)
-        if topology_file is None and isinstance(config, dict):
+        if isinstance(config, dict):
             topology_file = config.get("TOPOLOGY_FILE")
+        else:
+            topology_file = getattr(
+                getattr(config, 'model', None), 'topology_file', None
+            )
         if topology_file is None:
             return None
 

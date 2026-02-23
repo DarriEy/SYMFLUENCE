@@ -678,22 +678,13 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         return result is not None
 
     def _setup_gr_mizuroute_config(self):
-        """Update configuration for GR-mizuRoute integration.
+        """Set up runtime state for GR-mizuRoute integration.
 
-        Uses config_dict write-backs for runtime cross-model integration
-        (MIZU_FROM_MODEL, SETTINGS_MIZU_CONTROL_FILE, HYDROLOGICAL_MODEL).
+        No-op: the mizuroute preprocessor infers from_model from
+        HYDROLOGICAL_MODEL when MIZU_FROM_MODEL is not explicitly set,
+        and the control file name is handled by the fallback in
+        _run_distributed_routing.
         """
-        # Set mizuRoute to look for GR output instead of SUMMA
-        self.config_dict['MIZU_FROM_MODEL'] = 'GR'
-
-        # Ensure we have a control file name set
-        if not self.mizu_control_file:
-            self.config_dict['SETTINGS_MIZU_CONTROL_FILE'] = 'mizuRoute_control_GR.txt'
-
-        # Ensure HYDROLOGICAL_MODEL includes both if we're in this integrated step
-        current_models = self.hydrological_model
-        if 'MIZUROUTE' not in current_models.upper():
-            self.config_dict['HYDROLOGICAL_MODEL'] = f"{current_models},MIZUROUTE" if current_models else "GR,MIZUROUTE"
 
     def _execute_gr_lumped(self):
         """

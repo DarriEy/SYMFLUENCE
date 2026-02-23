@@ -274,7 +274,11 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         self.config = config
         self.logger = logger
         self.project_dir = project_dir
-        self.domain_name = self.config['DOMAIN_NAME']
+        # Support both typed SymfluenceConfig (.domain.name) and plain dict
+        if hasattr(config, 'domain') and not isinstance(config, dict):
+            self.domain_name = config.domain.name
+        else:
+            self.domain_name = config['DOMAIN_NAME']
         # Store extra kwargs like forcing_timestep_seconds if provided
         for key, value in kwargs.items():
             setattr(self, key, value)

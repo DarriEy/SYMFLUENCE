@@ -35,61 +35,41 @@ class MODFLOWPreProcessor:
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
-        self.config_dict = getattr(config, '_config_dict', {})
-        if not self.config_dict and hasattr(config, 'to_dict'):
-            self.config_dict = config.to_dict()
 
-        self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
-        self.experiment_id = self._get_cfg('EXPERIMENT_ID', 'default')
+        try:
+            self.domain_name = config.domain.name or 'unknown'
+        except (AttributeError, TypeError):
+            self.domain_name = 'unknown'
+        try:
+            self.experiment_id = config.domain.experiment_id or 'default'
+        except (AttributeError, TypeError):
+            self.experiment_id = 'default'
 
-        project_dir = self.config_dict.get('PROJECT_DIR')
+        # PROJECT_DIR is a derived path — check dict sources first, then compute
+        _dict = getattr(config, '_config_dict', None)
+        if not _dict and hasattr(config, 'to_dict'):
+            _dict = config.to_dict()
+        project_dir = (_dict or {}).get('PROJECT_DIR')
         if not project_dir or project_dir == '.':
             try:
                 data_dir = str(config.system.data_dir)
             except (AttributeError, TypeError):
-                data_dir = self._get_cfg('SYMFLUENCE_DATA_DIR', '.')
-            project_dir = Path(data_dir) / f"domain_{self.domain_name}"
+                data_dir = '.'
+            project_dir = str(Path(data_dir) / f"domain_{self.domain_name}")
         self.project_dir = Path(project_dir)
 
-    def _get_cfg(self, key, default=None):
-        """Get config value with typed config first, dict fallback."""
-        try:
-            if key == 'DOMAIN_NAME':
-                val = self.config.domain.name
-                if val is not None:
-                    return val
-            elif key == 'EXPERIMENT_ID':
-                val = self.config.domain.experiment_id
-                if val is not None:
-                    return val
-            elif key == 'SYMFLUENCE_DATA_DIR':
-                val = str(self.config.system.data_dir)
-                if val is not None:
-                    return val
-        except (AttributeError, TypeError):
-            pass
-        val = self.config_dict.get(key)
-        if val is not None and val != 'default':
-            return val
-        return default
-
     def _get_modflow_cfg(self, key, default=None):
-        """Get MODFLOW-specific config value with typed config first."""
+        """Get MODFLOW-specific config value from typed config."""
         try:
             mf_cfg = self.config.model.modflow
             if mf_cfg:
                 attr = key.lower()
                 if hasattr(mf_cfg, attr):
-                    pydantic_val = getattr(mf_cfg, attr)
-                    if pydantic_val is not None:
-                        return pydantic_val
+                    val = getattr(mf_cfg, attr)
+                    if val is not None:
+                        return val
         except (AttributeError, TypeError):
             pass
-        val = self._get_cfg(f'MODFLOW_{key}')
-        if val is None:
-            val = self._get_cfg(key)
-        if val is not None:
-            return val
         return default
 
     def _get_catchment_area_m2(self) -> float:
@@ -101,12 +81,7 @@ class MODFLOWPreProcessor:
         3. Auto-detect from watershed shapefile (UTM projection)
         4. Fallback default (27 km2)
         """
-        try:
-            area_km2 = self.config.domain.catchment_area
-        except (AttributeError, TypeError):
-            area_km2 = None
-        if area_km2 is None:
-            area_km2 = self._get_cfg('CATCHMENT_AREA')
+        area_km2 = getattr(self.config.domain, 'catchment_area', None)
         if area_km2 is None:
             # Try to compute from watershed shapefile
             area_km2 = self._detect_catchment_area_km2()
@@ -142,18 +117,8 @@ class MODFLOWPreProcessor:
         """Get simulation time range and number of stress periods."""
         import pandas as pd
 
-        try:
-            start = self.config.domain.time_start
-        except (AttributeError, TypeError):
-            start = None
-        try:
-            end = self.config.domain.time_end
-        except (AttributeError, TypeError):
-            end = None
-        if start is None:
-            start = self._get_cfg('EXPERIMENT_TIME_START', '2000-01-01')
-        if end is None:
-            end = self._get_cfg('EXPERIMENT_TIME_END', '2001-01-01')
+        start = self.config.domain.time_start or '2000-01-01'
+        end = self.config.domain.time_end or '2001-01-01'
 
         start_dt = pd.Timestamp(str(start))
         end_dt = pd.Timestamp(str(end))

@@ -25,10 +25,19 @@ class GSFLOWCouplingManager:
     - COUPLED: Full bidirectional exchange via SFR/UZF (default)
     """
 
-    def __init__(self, config_dict: dict, logger_instance=None):
-        self.config_dict = config_dict
+    def __init__(self, config, logger_instance=None):
+        self.config = config
         self.logger = logger_instance or logger
-        self.mode = config_dict.get('GSFLOW_MODE', 'COUPLED').upper()
+
+        # Resolve GSFLOW mode from typed config
+        mode = None
+        try:
+            gsflow_cfg = config.model.gsflow
+            if gsflow_cfg is not None:
+                mode = gsflow_cfg.mode
+        except (AttributeError, TypeError):
+            pass
+        self.mode = (mode or 'COUPLED').upper()
 
     def get_gsflow_mode(self) -> str:
         """Return the GSFLOW operation mode."""
