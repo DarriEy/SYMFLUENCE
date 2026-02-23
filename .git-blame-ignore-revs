@@ -1,0 +1,5 @@
+# Automated formatting commits that should be ignored by git blame.
+# Configure with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Add W and I ruff rules and auto-fix import ordering
+e301991b
