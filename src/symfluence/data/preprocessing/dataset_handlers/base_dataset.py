@@ -401,13 +401,25 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         """
         return apply_standard_variable_attributes(ds, overrides=overrides)
 
+    # Patterns in OSError messages that indicate HDF5/netCDF engine issues
+    # where falling back to h5netcdf may help.
+    _HDF_ERROR_PATTERNS = (
+        "HDF error",
+        "HDF5 error",
+        "Errno -101",
+        "unable to lock file",      # errno 11 on parallel filesystems
+        "Resource temporarily",      # EAGAIN variant
+        "unable to synchronously",   # HDF5 1.14+ error format
+    )
+
     def open_dataset(self, path: Path, **kwargs) -> xr.Dataset:
         """
         Open a NetCDF dataset with automatic engine fallback.
 
-        Tries the default engine first. If that fails with an HDF error
-        (common on HPC where system modules load a conflicting libhdf5),
-        retries with h5netcdf which bypasses the netCDF-C library entirely.
+        Tries the default engine first. If that fails with an HDF5/locking
+        error (common on HPC where system modules load a conflicting libhdf5,
+        or the parallel filesystem does not support POSIX file locking),
+        retries with h5netcdf using ``lock=False``.
 
         Args:
             path: Path to the NetCDF file
@@ -419,10 +431,15 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         try:
             return xr.open_dataset(path, **kwargs)
         except OSError as e:
-            if "HDF error" not in str(e) and "Errno -101" not in str(e):
+            msg = str(e).lower()
+            if not any(pat.lower() in msg for pat in self._HDF_ERROR_PATTERNS):
                 raise
             self.logger.warning(
                 f"netcdf4 engine failed on {Path(path).name} (likely HDF5 "
-                f"library conflict), retrying with h5netcdf engine"
+                f"library conflict or file-locking issue), retrying with "
+                f"h5netcdf engine (lock=False)"
             )
-            return xr.open_dataset(path, engine="h5netcdf", **kwargs)
+            # lock=False avoids Python-level fcntl locking that also fails
+            # on parallel filesystems (Lustre, GPFS, BeeGFS).
+            fallback_kw = {**kwargs, "lock": False}
+            return xr.open_dataset(path, engine="h5netcdf", **fallback_kw)
