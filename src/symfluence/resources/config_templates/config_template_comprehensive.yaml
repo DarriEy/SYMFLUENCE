@@ -1374,6 +1374,13 @@ NUMBER_OF_ITERATIONS: 1000
 #   Usage:      14
 OPTIMIZATION_METRIC: "KGE"
 
+# COMPOSITE_METRIC
+#   Type:        dict | None
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Weighted combination of metrics for composite optimization. Example: {'KGE': 0.6, 'KGE_LOG': 0.4}
+COMPOSITE_METRIC: null
+
 # OPTIMIZATION_TARGET
 #   Type:        str
 #   Default:     streamflow
@@ -4004,6 +4011,20 @@ USE_TRANSFER_FUNCTIONS: false
 #   Source:      FUSEConfig (model_configs.py)
 #   Description: Bounds for transfer function coefficients
 TRANSFER_FUNCTION_COEFF_BOUNDS: null
+
+# FUSE_SOLUTION_METHOD
+#   Type:        int | None
+#   Default:     None
+#   Source:      FUSEConfig (model_configs_hydrology.py)
+#   Description: Numerical solver: 0=explicit Euler (fast), 1=implicit Euler (stable). Default: 0
+FUSE_SOLUTION_METHOD: null
+
+# FUSE_TIMESTEP_TYPE
+#   Type:        int | None
+#   Default:     None
+#   Source:      FUSEConfig (model_configs_hydrology.py)
+#   Description: Timestep control: 0=fixed, 1=adaptive. Default: 0
+FUSE_TIMESTEP_TYPE: null
 
 
 # 9. GR Model Configuration
