@@ -97,31 +97,31 @@ class SWATModelOptimizer(BaseModelOptimizer):
 
         max_retries = int(self.config.get('SWAT_FINAL_EVAL_RETRIES', 10))
 
-        # Temporarily raise the per-run retry budget for the final eval
-        original_retries = self.config.get('SWAT_MAX_RETRIES')
-        self.config['SWAT_MAX_RETRIES'] = max_retries
+        # Build a plain-dict config copy with the higher retry budget.
+        # SymfluenceConfig is a frozen Pydantic model that does not support
+        # item assignment, so we convert to a mutable dict first.
+        if hasattr(self.config, 'to_dict'):
+            eval_config = self.config.to_dict()
+        elif isinstance(self.config, dict):
+            eval_config = self.config.copy()
+        else:
+            eval_config = dict(self.config)
+        eval_config['SWAT_MAX_RETRIES'] = max_retries
 
-        try:
-            # Apply parameters to output_dir — this copies fresh settings +
-            # forcing files into output_dir then modifies parameters in-place,
-            # keeping the template settings/SWAT/ directory untouched.
-            self.worker.apply_parameters(
-                best_params, output_dir, config=self.config
-            )
+        # Apply parameters to output_dir — this copies fresh settings +
+        # forcing files into output_dir then modifies parameters in-place,
+        # keeping the template settings/SWAT/ directory untouched.
+        self.worker.apply_parameters(
+            best_params, output_dir, config=eval_config
+        )
 
-            success = self.worker.run_model(
-                self.config,
-                output_dir,
-                output_dir
-            )
+        success = self.worker.run_model(
+            eval_config,
+            output_dir,
+            output_dir
+        )
 
-            return success
-        finally:
-            # Restore original retry setting
-            if original_retries is None:
-                self.config.pop('SWAT_MAX_RETRIES', None)
-            else:
-                self.config['SWAT_MAX_RETRIES'] = original_retries
+        return success
 
     def run_final_evaluation(self, best_params: Dict[str, float]) -> Optional[Dict[str, Any]]:
         """Run final evaluation using SWAT worker metrics instead of base evaluator."""
