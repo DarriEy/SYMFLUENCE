@@ -7,7 +7,7 @@ Handles drainage database topology fixes, completeness, and normalization.
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -391,6 +391,12 @@ class MESHDrainageDatabase(ConfigMixin):
         """Ensure drainage database has all required variables for MESH."""
         if not self.ddb_path.exists():
             return
+        self._ensure_completeness_impl()
+
+    def _ensure_completeness_impl(self) -> None:
+        """Internal implementation for drainage database completeness checks."""
+        if not self.ddb_path.exists():
+            return
 
         try:
             with xr.open_dataset(self.ddb_path) as ds:
@@ -401,471 +407,441 @@ class MESHDrainageDatabase(ConfigMixin):
                 n_size = ds.sizes[n_dim]
                 modified = False
 
-                # MESH 1.5 with nc_subbasin expects 'subbasin' as the spatial dimension
-                target_n_dim = 'subbasin'
-                if n_dim != target_n_dim:
-                    self.logger.info(f"Renaming spatial dimension '{n_dim}' to '{target_n_dim}'")
-                    ds = ds.rename({n_dim: target_n_dim})
-                    n_dim = target_n_dim
-                    modified = True
+                ds, n_dim, modified = self._prepare_ddb_dimensions(ds, n_dim, n_size, modified)
+                ds, modified = self._ensure_gru_coverage(ds, n_dim, n_size, modified)
+                ds, modified = self._normalize_ddb_variables(ds, n_dim, n_size, modified)
+                ds, modified = self._normalize_lat_lon_coordinates(ds, n_dim, n_size, modified)
+                ds, modified = self._postprocess_gru_dimensions(ds, n_dim, n_size, modified)
+                ds, modified = self._ensure_required_mesh_variables(ds, n_dim, n_size, modified)
+                ds, modified = self._normalize_integer_fields(ds, modified)
 
-                # Also rename variables if they match the old dimension name
-                for old_name in ['N']:
-                    if old_name in ds.coords or old_name in ds.data_vars:
-                        ds = ds.rename({old_name: target_n_dim})
-                        modified = True
-
-                # Ensure dimension 'subbasin' is the index and has correct values
-                ds[target_n_dim] = xr.DataArray(
-                    np.arange(1, n_size + 1, dtype=np.int32),
-                    dims=[target_n_dim],
-                    attrs={'long_name': 'Grid index', 'units': '1'}
-                )
-                modified = True
-
-                # Rename land or landclass dimension to 'NGRU' (MESH's expected name)
-                old_lc_dim = 'land' if 'land' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
-                if old_lc_dim and old_lc_dim != 'NGRU':
-                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'NGRU'")
-                    ds = ds.rename({old_lc_dim: 'NGRU'})
-                    modified = True
-
-                # Ensure GRU variable exists and is on (subbasin, NGRU)
-                if 'GRU' in ds:
-                    # Correct dimension names if needed
-                    if ds['GRU'].dims != (target_n_dim, 'NGRU'):
-                        ds['GRU'] = ((target_n_dim, 'NGRU'), ds['GRU'].values, ds['GRU'].attrs)
-                        modified = True
-                    ds['GRU'].attrs['grid_mapping'] = 'crs'
-
-                    # Collapse to single GRU when lumped mode is active.
-                    # Threshold > 2: NGRU=2 is already single-GRU format
-                    # (MESH reads NGRU-1 GRUs due to off-by-one).
-                    if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
-                        self.logger.info(
-                            f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
-                            f"(NGRU=2 for MESH off-by-one workaround)"
-                        )
-                        # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU
-                        gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
-                        if n_size > 1:
-                            gru_data = np.tile(gru_data, (n_size, 1))
-                        vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
-                        if vars_to_drop:
-                            ds = ds.drop_vars(vars_to_drop, errors='ignore')
-                        if 'NGRU' in ds.coords:
-                            ds = ds.drop_vars('NGRU', errors='ignore')
-                        ds['GRU'] = xr.DataArray(
-                            gru_data,
-                            dims=[target_n_dim, 'NGRU'],
-                            attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
-                        )
-                        modified = True
-
-                elif 'NGRU' in ds:
-                    # If NGRU variable is present but GRU is missing, treat it as GRU fractions
-                    self.logger.info("Found 'NGRU' variable without GRU; renaming to GRU")
-                    ds['GRU'] = ((target_n_dim, 'NGRU'), ds['NGRU'].values, ds['NGRU'].attrs)
-                    ds = ds.drop_vars('NGRU')
-                    ds['GRU'].attrs['grid_mapping'] = 'crs'
-                    modified = True
-
-                    # Collapse to single GRU when lumped mode is active (same
-                    # check as the 'GRU' branch above — shared predicate).
-                    if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
-                        self.logger.info(
-                            f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
-                            f"(NGRU=2 for MESH off-by-one workaround)"
-                        )
-                        # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU
-                        gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
-                        if n_size > 1:
-                            gru_data = np.tile(gru_data, (n_size, 1))
-                        vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
-                        if vars_to_drop:
-                            ds = ds.drop_vars(vars_to_drop, errors='ignore')
-                        if 'NGRU' in ds.coords:
-                            ds = ds.drop_vars('NGRU', errors='ignore')
-                        ds['GRU'] = xr.DataArray(
-                            gru_data,
-                            dims=[target_n_dim, 'NGRU'],
-                            attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
-                        )
-                        modified = True
-                else:
-                    # Create GRU variable if it doesn't exist (e.g., for lumped mode)
-                    # For lumped mode, we have 1 subbasin and 1 landclass, with 100% coverage
-                    self.logger.info("Creating GRU variable for lumped mode (1 landclass, 100% coverage)")
-                    n_landclass = 1  # Single landcover class for lumped mode
-                    landclass_data = np.ones((n_size, n_landclass), dtype=np.float64)
-                    ds['GRU'] = ((target_n_dim, 'NGRU'), landclass_data, {
-                        'long_name': 'Land cover class fractions',
-                        'units': '1',
-                        'grid_mapping': 'crs'
-                    })
-                    modified = True
-
-                # Ensure all variables are 1D over N (except landclass which is 2D)
-                # and remove potentially conflicting variables
-                vars_to_remove = ['landclass_dim', 'time']
-                for v in vars_to_remove:
-                    if v in ds:
-                        ds = ds.drop_vars(v)
-
-                # Don't drop 'subbasin' as it's now a coordinate we need
-
-                # Also drop 'time' dimension if it exists as a coordinate or dim
-                if 'time' in ds.dims:
-                    ds = ds.isel(time=0, drop=True)
-
-                # Robustly add/ensure CRS variable
-                if 'crs' not in ds:
-                    ds['crs'] = xr.DataArray(
-                        np.array(0, dtype=np.int32),
-                        attrs={
-                            'grid_mapping_name': 'latitude_longitude',
-                            'semi_major_axis': 6378137.0,
-                            'inverse_flattening': 298.257223563,
-                            'longitude_of_prime_meridian': 0.0
-                        }
-                    )
-                    modified = True
-                elif ds['crs'].dtype != np.int32:
-                    ds['crs'] = ds['crs'].astype(np.int32)
-                    modified = True
-
-                for var_name in list(ds.data_vars):
-                    if var_name == 'crs':
-                        continue
-
-                    if var_name == 'GRU':
-                        ds[var_name].attrs['grid_mapping'] = 'crs'
-                        continue
-
-                    if n_dim not in ds[var_name].dims:
-                        self.logger.warning(f"Variable {var_name} missing dimension {n_dim}. Forcing it.")
-                        # If it has another dimension, take the first value
-                        if ds[var_name].values.size > 0:
-                            temp_data = ds[var_name].values.flatten()[0]
-                        else:
-                            temp_data = 0
-                        ds[var_name] = xr.DataArray(
-                            np.full(n_size, temp_data, dtype=ds[var_name].dtype),
-                            dims=[n_dim],
-                            attrs=ds[var_name].attrs
-                        )
-                        modified = True
-                    elif len(ds[var_name].dims) > 1:
-                        # Drop other dims if they are singletons
-                        other_dims = [d for d in ds[var_name].dims if d != n_dim]
-                        self.logger.debug(f"Squeezing {var_name} to 1D over {n_dim} (removing {other_dims})")
-                        ds[var_name] = ds[var_name].isel({d: 0 for d in other_dims}, drop=True)
-                        modified = True
-
-                    # Ensure it is explicitly on n_dim
-                    ds[var_name] = ds[var_name].transpose(n_dim)
-                    ds[var_name].attrs['grid_mapping'] = 'crs'
-                    # Remove coordinate attributes that might point to 'time' or other missing coords
-                    if 'coordinates' in ds[var_name].attrs:
-                        coords_str = ds[var_name].attrs['coordinates']
-                        new_coords = " ".join([c for c in coords_str.split() if c in ['lat', 'lon', 'N']])
-                        if new_coords:
-                            ds[var_name].attrs['coordinates'] = new_coords
-                        else:
-                            del ds[var_name].attrs['coordinates']
-
-                # Special handling for lat/lon - must be 1D on subbasin
-                for coord in ['lat', 'lon']:
-                    if coord in ds:
-                        # Force to data variable if it's a coordinate
-                        if coord in ds.coords:
-                            ds = ds.reset_coords(coord)
-
-                        # Re-create as clean 1D variable on subbasin, preserving all values
-                        vals = ds[coord].values.flatten()
-                        if len(vals) >= n_size:
-                            # Use the first n_size values (handles case where we have enough)
-                            coord_vals = vals[:n_size].astype(np.float64)
-                        elif len(vals) == 1:
-                            # Single value - broadcast to all subbasins (legacy behavior)
-                            coord_vals = np.full(n_size, vals[0], dtype=np.float64)
-                        else:
-                            # Fewer values than needed - pad with last value
-                            coord_vals = np.zeros(n_size, dtype=np.float64)
-                            coord_vals[:len(vals)] = vals
-                            coord_vals[len(vals):] = vals[-1]
-                            self.logger.warning(
-                                f"Lat/lon array has {len(vals)} values but need {n_size}, "
-                                f"padding with last value"
-                            )
-
-                        ds[coord] = (target_n_dim, coord_vals, {
-                            'units': 'degrees_north' if coord == 'lat' else 'degrees_east',
-                            'long_name': 'latitude' if coord == 'lat' else 'longitude',
-                            'standard_name': 'latitude' if coord == 'lat' else 'longitude',
-                            'grid_mapping': 'crs'
-                        })
-                        modified = True
-
-                # Trim zero-fraction GRUs before setting coordinates
-                # Meshflow may create extra GRU entries with zero fractions
-                # Skip for elevation band mode — the padding column is required for MESH off-by-one
-                if 'NGRU' in ds.dims and 'GRU' in ds and not is_elevation_band_mode(self.config_dict):
-                    gru_vals = ds['GRU'].values
-                    # Sum GRU fractions across subbasins for each GRU
-                    if gru_vals.ndim == 2:
-                        gru_sums = gru_vals.sum(axis=0)
-                    else:
-                        gru_sums = gru_vals
-
-                    # Find non-zero GRUs
-                    nonzero_mask = gru_sums > 0.001
-                    n_nonzero = nonzero_mask.sum()
-                    n_original = len(nonzero_mask)
-
-                    if n_nonzero < n_original:
-                        self.logger.info(
-                            f"Trimming {n_original - n_nonzero} zero-fraction GRU(s) "
-                            f"(keeping {n_nonzero} of {n_original})"
-                        )
-                        # Trim NGRU dimension
-                        ds = ds.isel(NGRU=nonzero_mask)
-
-                        # Renormalize GRU fractions to sum to 1.0
-                        if 'GRU' in ds:
-                            gru_trimmed = ds['GRU'].values
-                            if gru_trimmed.ndim == 2:
-                                row_sums = gru_trimmed.sum(axis=1, keepdims=True)
-                                row_sums = np.where(row_sums == 0, 1, row_sums)
-                                ds['GRU'] = (ds['GRU'].dims, gru_trimmed / row_sums)
-                            else:
-                                total = gru_trimmed.sum()
-                                if total > 0:
-                                    ds['GRU'] = (ds['GRU'].dims, gru_trimmed / total)
-                        modified = True
-
-                # MESH does NOT expect a coordinate variable for the NGRU dimension.
-                # Having NGRU(NGRU) confuses MESH - it tries to map it as a data variable
-                # and reports "cannot be mapped from elemental dimension 'GRU'".
-                # Remove any NGRU coordinate variable if present.
-                if 'NGRU' in ds.dims and 'NGRU' in ds.coords:
-                    ds = ds.drop_vars('NGRU')
-                    self.logger.info("Removed NGRU coordinate variable (MESH expects dimension only)")
-                    modified = True
-
-                # FINAL CHECK: Enforce single GRU for lumped mode (after all other processing).
-                # Threshold > 2: NGRU=2 is already the correct single-GRU format
-                # (MESH reads NGRU-1 GRUs due to off-by-one).
-                if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and 'GRU' in ds and ds.sizes['NGRU'] > 2:
-                    self.logger.info(
-                        f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
-                        f"(set MESH_FORCE_SINGLE_GRU=false to use multiple GRUs)"
-                    )
-                    # Create NGRU=2: [0.998, 0.002] so MESH reads 1 GRU (due to off-by-one)
-                    gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
-                    if n_size > 1:
-                        gru_data = np.tile(gru_data, (n_size, 1))
-                    # Drop all vars with NGRU dimension
-                    vars_to_drop = [v for v in ds.data_vars if 'NGRU' in ds[v].dims]
-                    if vars_to_drop:
-                        ds = ds.drop_vars(vars_to_drop, errors='ignore')
-                    if 'NGRU' in ds.coords:
-                        ds = ds.drop_vars('NGRU', errors='ignore')
-                    ds['GRU'] = xr.DataArray(
-                        gru_data,
-                        dims=[target_n_dim, 'NGRU'],
-                        attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
-                    )
-                    modified = True
-
-                # Ensure GRU has proper attributes that MESH expects
-                if 'GRU' in ds:
-                    ds['GRU'].attrs.update({
-                        'long_name': 'Group Response Unit',
-                        'standard_name': 'GRU',
-                        'grid_mapping': 'crs'
-                    })
-                    modified = True
-
-                # Remove global attributes that might confuse MESH
-                for attr in ['crs', 'grid_mapping', 'featureType']:
-                    if attr in ds.attrs:
-                        del ds.attrs[attr]
-
-                # Add IREACH if missing (0 = no reservoir, positive = reservoir ID)
-                # Note: Do NOT use _FillValue for IREACH - MESH interprets it incorrectly
-                # and reads -2147483648 (INT_MIN) which causes reservoir mismatch errors
-                if 'IREACH' not in ds:
-                    ds['IREACH'] = xr.DataArray(
-                        np.zeros(n_size, dtype=np.int32),
-                        dims=[n_dim],
-                        attrs={'long_name': 'Reservoir ID', 'units': '1'}
-                    )
-                    modified = True
-                    self.logger.info("Added IREACH to drainage database")
-                else:
-                    # Fix existing IREACH if it has problematic _FillValue attribute
-                    if '_FillValue' in ds['IREACH'].attrs:
-                        # Remove the _FillValue and ensure clean int32 encoding
-                        ireach_vals = ds['IREACH'].values.copy()
-                        # Replace any fill values with 0 (no reservoir)
-                        fill_val = ds['IREACH'].attrs['_FillValue']
-                        ireach_vals = np.where(ireach_vals == fill_val, 0, ireach_vals)
-                        ireach_vals = np.where(np.isnan(ireach_vals.astype(float)), 0, ireach_vals)
-                        ds['IREACH'] = xr.DataArray(
-                            ireach_vals.astype(np.int32),
-                            dims=[n_dim],
-                            attrs={'long_name': 'Reservoir ID', 'units': '1'}
-                        )
-                        modified = True
-                        self.logger.info("Fixed IREACH encoding (removed problematic _FillValue)")
-
-                # Add IAK if missing (river class, 1 = default single class)
-                # Note: Do NOT use _FillValue for IAK - same issue as IREACH
-                if 'IAK' not in ds:
-                    ds['IAK'] = xr.DataArray(
-                        np.ones(n_size, dtype=np.int32),
-                        dims=[n_dim],
-                        attrs={'long_name': 'River class', 'units': '1'}
-                    )
-                    modified = True
-                    self.logger.info("Added IAK to drainage database")
-                elif '_FillValue' in ds['IAK'].attrs:
-                    # Fix existing IAK if it has problematic _FillValue attribute
-                    iak_vals = ds['IAK'].values.copy()
-                    fill_val = ds['IAK'].attrs['_FillValue']
-                    iak_vals = np.where(iak_vals == fill_val, 1, iak_vals)
-                    ds['IAK'] = xr.DataArray(
-                        iak_vals.astype(np.int32),
-                        dims=[n_dim],
-                        attrs={'long_name': 'River class', 'units': '1'}
-                    )
-                    modified = True
-                    self.logger.info("Fixed IAK encoding (removed problematic _FillValue)")
-
-                # Add AL (characteristic length)
-                # AL is used in MESH routing for time-of-concentration calculations
-                # Prefer: perimeter-based > channel length > sqrt(area) fallback
-                if 'AL' not in ds and 'GridArea' in ds:
-                    grid_area = ds['GridArea'].values
-
-                    if 'Perimeter' in ds:
-                        # Best: use equivalent radius from perimeter (A = pi*r^2, P = 2*pi*r)
-                        perimeter = ds['Perimeter'].values
-                        # Characteristic length = perimeter / (2*pi) for circular approximation
-                        char_length = perimeter / (2 * np.pi)
-                        method = 'perimeter-based'
-                    elif 'ChnlLength' in ds:
-                        # Good: use channel length if available (represents flow path)
-                        char_length = ds['ChnlLength'].values
-                        method = 'channel length'
-                    elif 'ChnlLen' in ds:
-                        char_length = ds['ChnlLen'].values
-                        method = 'channel length'
-                    else:
-                        # Fallback: sqrt(area) assumes square cells (less accurate for irregular polygons)
-                        char_length = np.sqrt(grid_area)
-                        method = 'sqrt(area) fallback'
-                        self.logger.warning(
-                            "AL computed from sqrt(area) - may be inaccurate for irregular catchments. "
-                            "Consider adding Perimeter or ChnlLength to input shapefiles."
-                        )
-
-                    # Ensure positive values
-                    char_length = np.maximum(char_length, 1.0)
-
-                    ds['AL'] = xr.DataArray(
-                        char_length,
-                        dims=[n_dim],
-                        attrs={
-                            'long_name': 'Characteristic length of grid',
-                            'units': 'm',
-                            '_FillValue': np.nan
-                        }
-                    )
-                    modified = True
-                    self.logger.info(f"Added AL ({method}): min={char_length.min():.1f}m, max={char_length.max():.1f}m")
-
-                # Add DA (drainage area)
-                if 'DA' not in ds and 'GridArea' in ds and 'Next' in ds and 'Rank' in ds:
-                    ds['DA'] = self._compute_drainage_area(ds, n_dim, n_size)
-                    modified = True
-
-                # Add Area if missing (alias of GridArea)
-                if 'Area' not in ds and 'GridArea' in ds:
-                    ds['Area'] = xr.DataArray(
-                        ds['GridArea'].values,
-                        dims=[n_dim],
-                        attrs={'long_name': 'Grid area', 'units': 'm2'}
-                    )
-                    modified = True
-                    self.logger.info("Added Area (alias of GridArea) to drainage database")
-
-                # Add Slope if missing (use ChnlSlope if available)
-                if 'Slope' not in ds:
-                    if 'ChnlSlope' in ds:
-                        slope_vals = ds['ChnlSlope'].values
-                    else:
-                        slope_vals = np.full(n_size, 0.001, dtype=np.float64)
-
-                    # Ensure no NaNs or non-positive values
-                    slope_vals = np.where(np.isnan(slope_vals), 0.001, slope_vals)
-                    slope_vals = np.where(slope_vals <= 0, 0.001, slope_vals)
-
-                    ds['Slope'] = xr.DataArray(
-                        slope_vals,
-                        dims=[n_dim],
-                        attrs={'long_name': 'Mean basin slope', 'units': '1'}
-                    )
-                    modified = True
-                    self.logger.info("Added Slope to drainage database")
-
-                # Add ChnlLen if missing (alias of ChnlLength)
-                if 'ChnlLen' not in ds and 'ChnlLength' in ds:
-                    ds['ChnlLen'] = xr.DataArray(
-                        ds['ChnlLength'].values,
-                        dims=[n_dim],
-                        attrs={'long_name': 'Channel length', 'units': 'm'}
-                    )
-                    modified = True
-                    self.logger.info("Added ChnlLen (alias of ChnlLength) to drainage database")
-
-                # Normalize integer-like fields to int32
-                for name in ['Rank', 'Next', 'IAK', 'IREACH', 'N']:
-                    if name in ds and ds[name].dtype != np.int32:
-                        ds[name] = ds[name].astype(np.int32)
-                        modified = True
-                        self.logger.info(f"Coerced {name} to int32 in drainage database")
-
-                if modified:
-                    # Final GRU/landclass normalization check
-                    lc_var = 'NGRU' if 'NGRU' in ds else 'GRU' if 'GRU' in ds else None
-                    lc_dim = 'NGRU' if 'NGRU' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
-
-                    if lc_var and lc_dim:
-                        lc_da = ds[lc_var]
-                        lc_sums = lc_da.sum(lc_dim)
-                        safe_sums = xr.where(lc_sums == 0, 1.0, lc_sums)
-                        ds[lc_var] = lc_da / safe_sums
-
-                        if (lc_sums == 0).any():
-                            self.logger.warning(f"Found subbasins with 0 {lc_var} coverage during completeness check. Setting first entry to 1.0.")
-                            vals = ds[lc_var].values
-                            zero_indices = np.where(lc_sums.values == 0)[0]
-                            for idx in zero_indices:
-                                vals[idx, 0] = 1.0
-                            ds[lc_var].values = vals
-
-                    temp_path = self.ddb_path.with_suffix('.tmp.nc')
-                    # Ensure landclass is written as float64
-                    encoding = {}
-                    if 'NGRU' in ds.coords:
-                        encoding['NGRU'] = {'dtype': 'float64'}
-                    ds.to_netcdf(temp_path, encoding=encoding)
-                    os.replace(temp_path, self.ddb_path)
+                self._write_ddb_if_modified(ds, modified)
 
         except Exception as e:
             self.logger.warning(f"Failed to ensure DDB completeness: {e}")
+
+    def _prepare_ddb_dimensions(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, str, bool]:
+        target_n_dim = 'subbasin'
+        if n_dim != target_n_dim:
+            self.logger.info(f"Renaming spatial dimension '{n_dim}' to '{target_n_dim}'")
+            ds = ds.rename({n_dim: target_n_dim})
+            n_dim = target_n_dim
+            modified = True
+
+        for old_name in ['N']:
+            if old_name in ds.coords or old_name in ds.data_vars:
+                ds = ds.rename({old_name: target_n_dim})
+                modified = True
+
+        ds[target_n_dim] = xr.DataArray(
+            np.arange(1, n_size + 1, dtype=np.int32),
+            dims=[target_n_dim],
+            attrs={'long_name': 'Grid index', 'units': '1'}
+        )
+        modified = True
+
+        old_lc_dim = 'land' if 'land' in ds.dims else None
+        if old_lc_dim:
+            self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'NGRU'")
+            ds = ds.rename({old_lc_dim: 'NGRU'})
+            modified = True
+
+        return ds, n_dim, modified
+
+    def _collapse_to_single_gru(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        message: str,
+    ) -> xr.Dataset:
+        self.logger.info(message)
+        gru_data = np.array([[0.998, 0.002]], dtype=np.float64)
+        if n_size > 1:
+            gru_data = np.tile(gru_data, (n_size, 1))
+
+        vars_to_drop = [name for name in ds.data_vars if 'NGRU' in ds[name].dims]
+        if vars_to_drop:
+            ds = ds.drop_vars(vars_to_drop, errors='ignore')
+        if 'NGRU' in ds.coords:
+            ds = ds.drop_vars('NGRU', errors='ignore')
+
+        ds['GRU'] = xr.DataArray(
+            gru_data,
+            dims=[n_dim, 'NGRU'],
+            attrs={'long_name': 'Group Response Unit', 'standard_name': 'GRU', 'grid_mapping': 'crs'}
+        )
+        return ds
+
+    def _ensure_gru_coverage(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        if 'GRU' in ds:
+            if ds['GRU'].dims != (n_dim, 'NGRU'):
+                ds['GRU'] = ((n_dim, 'NGRU'), ds['GRU'].values, ds['GRU'].attrs)
+                modified = True
+            ds['GRU'].attrs['grid_mapping'] = 'crs'
+
+            if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
+                ds = self._collapse_to_single_gru(
+                    ds,
+                    n_dim,
+                    n_size,
+                    f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                    "(NGRU=2 for MESH off-by-one workaround)"
+                )
+                modified = True
+
+        elif 'NGRU' in ds:
+            self.logger.info("Found 'NGRU' variable without GRU; renaming to GRU")
+            ds['GRU'] = ((n_dim, 'NGRU'), ds['NGRU'].values, ds['NGRU'].attrs)
+            ds = ds.drop_vars('NGRU')
+            ds['GRU'].attrs['grid_mapping'] = 'crs'
+            modified = True
+
+            if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and ds.sizes['NGRU'] > 2:
+                ds = self._collapse_to_single_gru(
+                    ds,
+                    n_dim,
+                    n_size,
+                    f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                    "(NGRU=2 for MESH off-by-one workaround)"
+                )
+                modified = True
+        else:
+            self.logger.info("Creating GRU variable for lumped mode (1 landclass, 100% coverage)")
+            ds['GRU'] = ((n_dim, 'NGRU'), np.ones((n_size, 1), dtype=np.float64), {
+                'long_name': 'Land cover class fractions',
+                'units': '1',
+                'grid_mapping': 'crs'
+            })
+            modified = True
+
+        return ds, modified
+
+    def _normalize_ddb_variables(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        for var_name in ['landclass_dim', 'time']:
+            if var_name in ds:
+                ds = ds.drop_vars(var_name)
+
+        if 'time' in ds.dims:
+            ds = ds.isel(time=0, drop=True)
+
+        if 'crs' not in ds:
+            ds['crs'] = xr.DataArray(
+                np.array(0, dtype=np.int32),
+                attrs={
+                    'grid_mapping_name': 'latitude_longitude',
+                    'semi_major_axis': 6378137.0,
+                    'inverse_flattening': 298.257223563,
+                    'longitude_of_prime_meridian': 0.0
+                }
+            )
+            modified = True
+        elif ds['crs'].dtype != np.int32:
+            ds['crs'] = ds['crs'].astype(np.int32)
+            modified = True
+
+        for var_name in list(ds.data_vars):
+            if var_name == 'crs':
+                continue
+
+            if var_name == 'GRU':
+                ds[var_name].attrs['grid_mapping'] = 'crs'
+                continue
+
+            if n_dim not in ds[var_name].dims:
+                self.logger.warning(f"Variable {var_name} missing dimension {n_dim}. Forcing it.")
+                temp_data = ds[var_name].values.flatten()[0] if ds[var_name].values.size > 0 else 0
+                ds[var_name] = xr.DataArray(
+                    np.full(n_size, temp_data, dtype=ds[var_name].dtype),
+                    dims=[n_dim],
+                    attrs=ds[var_name].attrs
+                )
+                modified = True
+            elif len(ds[var_name].dims) > 1:
+                other_dims = [dim for dim in ds[var_name].dims if dim != n_dim]
+                self.logger.debug(f"Squeezing {var_name} to 1D over {n_dim} (removing {other_dims})")
+                ds[var_name] = ds[var_name].isel({dim: 0 for dim in other_dims}, drop=True)
+                modified = True
+
+            ds[var_name] = ds[var_name].transpose(n_dim)
+            ds[var_name].attrs['grid_mapping'] = 'crs'
+            if 'coordinates' in ds[var_name].attrs:
+                coords_str = ds[var_name].attrs['coordinates']
+                new_coords = " ".join([coord for coord in coords_str.split() if coord in ['lat', 'lon', 'N']])
+                if new_coords:
+                    ds[var_name].attrs['coordinates'] = new_coords
+                else:
+                    del ds[var_name].attrs['coordinates']
+
+        return ds, modified
+
+    def _normalize_lat_lon_coordinates(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        for coord in ['lat', 'lon']:
+            if coord not in ds:
+                continue
+
+            if coord in ds.coords:
+                ds = ds.reset_coords(coord)
+
+            vals = ds[coord].values.flatten()
+            if len(vals) >= n_size:
+                coord_vals = vals[:n_size].astype(np.float64)
+            elif len(vals) == 1:
+                coord_vals = np.full(n_size, vals[0], dtype=np.float64)
+            else:
+                coord_vals = np.zeros(n_size, dtype=np.float64)
+                coord_vals[:len(vals)] = vals
+                coord_vals[len(vals):] = vals[-1]
+                self.logger.warning(
+                    f"Lat/lon array has {len(vals)} values but need {n_size}, padding with last value"
+                )
+
+            ds[coord] = (n_dim, coord_vals, {
+                'units': 'degrees_north' if coord == 'lat' else 'degrees_east',
+                'long_name': 'latitude' if coord == 'lat' else 'longitude',
+                'standard_name': 'latitude' if coord == 'lat' else 'longitude',
+                'grid_mapping': 'crs'
+            })
+            modified = True
+
+        return ds, modified
+
+    def _postprocess_gru_dimensions(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        if 'NGRU' in ds.dims and 'GRU' in ds and not is_elevation_band_mode(self.config_dict):
+            gru_vals = ds['GRU'].values
+            gru_sums = gru_vals.sum(axis=0) if gru_vals.ndim == 2 else gru_vals
+            nonzero_mask = gru_sums > 0.001
+            n_nonzero = nonzero_mask.sum()
+            n_original = len(nonzero_mask)
+
+            if n_nonzero < n_original:
+                self.logger.info(
+                    f"Trimming {n_original - n_nonzero} zero-fraction GRU(s) (keeping {n_nonzero} of {n_original})"
+                )
+                ds = ds.isel(NGRU=nonzero_mask)
+                if 'GRU' in ds:
+                    gru_trimmed = ds['GRU'].values
+                    if gru_trimmed.ndim == 2:
+                        row_sums = gru_trimmed.sum(axis=1, keepdims=True)
+                        row_sums = np.where(row_sums == 0, 1, row_sums)
+                        ds['GRU'] = (ds['GRU'].dims, gru_trimmed / row_sums)
+                    else:
+                        total = gru_trimmed.sum()
+                        if total > 0:
+                            ds['GRU'] = (ds['GRU'].dims, gru_trimmed / total)
+                modified = True
+
+        if 'NGRU' in ds.dims and 'NGRU' in ds.coords:
+            ds = ds.drop_vars('NGRU')
+            self.logger.info("Removed NGRU coordinate variable (MESH expects dimension only)")
+            modified = True
+
+        if should_force_single_gru(self.config_dict) and 'NGRU' in ds.dims and 'GRU' in ds and ds.sizes['NGRU'] > 2:
+            ds = self._collapse_to_single_gru(
+                ds,
+                n_dim,
+                n_size,
+                f"Enforcing lumped mode: collapsing {ds.sizes['NGRU']} GRUs to 1 "
+                "(set MESH_FORCE_SINGLE_GRU=false to use multiple GRUs)"
+            )
+            modified = True
+
+        if 'GRU' in ds:
+            ds['GRU'].attrs.update({
+                'long_name': 'Group Response Unit',
+                'standard_name': 'GRU',
+                'grid_mapping': 'crs'
+            })
+            modified = True
+
+        for attr in ['crs', 'grid_mapping', 'featureType']:
+            if attr in ds.attrs:
+                del ds.attrs[attr]
+
+        return ds, modified
+
+    def _ensure_required_mesh_variables(
+        self,
+        ds: xr.Dataset,
+        n_dim: str,
+        n_size: int,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        if 'IREACH' not in ds:
+            ds['IREACH'] = xr.DataArray(
+                np.zeros(n_size, dtype=np.int32),
+                dims=[n_dim],
+                attrs={'long_name': 'Reservoir ID', 'units': '1'}
+            )
+            modified = True
+            self.logger.info("Added IREACH to drainage database")
+        elif '_FillValue' in ds['IREACH'].attrs:
+            ireach_vals = ds['IREACH'].values.copy()
+            fill_val = ds['IREACH'].attrs['_FillValue']
+            ireach_vals = np.where(ireach_vals == fill_val, 0, ireach_vals)
+            ireach_vals = np.where(np.isnan(ireach_vals.astype(float)), 0, ireach_vals)
+            ds['IREACH'] = xr.DataArray(
+                ireach_vals.astype(np.int32),
+                dims=[n_dim],
+                attrs={'long_name': 'Reservoir ID', 'units': '1'}
+            )
+            modified = True
+            self.logger.info("Fixed IREACH encoding (removed problematic _FillValue)")
+
+        if 'IAK' not in ds:
+            ds['IAK'] = xr.DataArray(
+                np.ones(n_size, dtype=np.int32),
+                dims=[n_dim],
+                attrs={'long_name': 'River class', 'units': '1'}
+            )
+            modified = True
+            self.logger.info("Added IAK to drainage database")
+        elif '_FillValue' in ds['IAK'].attrs:
+            iak_vals = ds['IAK'].values.copy()
+            fill_val = ds['IAK'].attrs['_FillValue']
+            iak_vals = np.where(iak_vals == fill_val, 1, iak_vals)
+            ds['IAK'] = xr.DataArray(
+                iak_vals.astype(np.int32),
+                dims=[n_dim],
+                attrs={'long_name': 'River class', 'units': '1'}
+            )
+            modified = True
+            self.logger.info("Fixed IAK encoding (removed problematic _FillValue)")
+
+        if 'AL' not in ds and 'GridArea' in ds:
+            grid_area = ds['GridArea'].values
+            if 'Perimeter' in ds:
+                char_length = ds['Perimeter'].values / (2 * np.pi)
+                method = 'perimeter-based'
+            elif 'ChnlLength' in ds:
+                char_length = ds['ChnlLength'].values
+                method = 'channel length'
+            elif 'ChnlLen' in ds:
+                char_length = ds['ChnlLen'].values
+                method = 'channel length'
+            else:
+                char_length = np.sqrt(grid_area)
+                method = 'sqrt(area) fallback'
+                self.logger.warning(
+                    "AL computed from sqrt(area) - may be inaccurate for irregular catchments. "
+                    "Consider adding Perimeter or ChnlLength to input shapefiles."
+                )
+
+            char_length = np.maximum(char_length, 1.0)
+            ds['AL'] = xr.DataArray(
+                char_length,
+                dims=[n_dim],
+                attrs={'long_name': 'Characteristic length of grid', 'units': 'm', '_FillValue': np.nan}
+            )
+            modified = True
+            self.logger.info(f"Added AL ({method}): min={char_length.min():.1f}m, max={char_length.max():.1f}m")
+
+        if 'DA' not in ds and 'GridArea' in ds and 'Next' in ds and 'Rank' in ds:
+            ds['DA'] = self._compute_drainage_area(ds, n_dim, n_size)
+            modified = True
+
+        if 'Area' not in ds and 'GridArea' in ds:
+            ds['Area'] = xr.DataArray(
+                ds['GridArea'].values,
+                dims=[n_dim],
+                attrs={'long_name': 'Grid area', 'units': 'm2'}
+            )
+            modified = True
+            self.logger.info("Added Area (alias of GridArea) to drainage database")
+
+        if 'Slope' not in ds:
+            slope_vals = ds['ChnlSlope'].values if 'ChnlSlope' in ds else np.full(n_size, 0.001, dtype=np.float64)
+            slope_vals = np.where(np.isnan(slope_vals), 0.001, slope_vals)
+            slope_vals = np.where(slope_vals <= 0, 0.001, slope_vals)
+            ds['Slope'] = xr.DataArray(
+                slope_vals,
+                dims=[n_dim],
+                attrs={'long_name': 'Mean basin slope', 'units': '1'}
+            )
+            modified = True
+            self.logger.info("Added Slope to drainage database")
+
+        if 'ChnlLen' not in ds and 'ChnlLength' in ds:
+            ds['ChnlLen'] = xr.DataArray(
+                ds['ChnlLength'].values,
+                dims=[n_dim],
+                attrs={'long_name': 'Channel length', 'units': 'm'}
+            )
+            modified = True
+            self.logger.info("Added ChnlLen (alias of ChnlLength) to drainage database")
+
+        return ds, modified
+
+    def _normalize_integer_fields(
+        self,
+        ds: xr.Dataset,
+        modified: bool,
+    ) -> Tuple[xr.Dataset, bool]:
+        for name in ['Rank', 'Next', 'IAK', 'IREACH', 'N']:
+            if name in ds and ds[name].dtype != np.int32:
+                ds[name] = ds[name].astype(np.int32)
+                modified = True
+                self.logger.info(f"Coerced {name} to int32 in drainage database")
+        return ds, modified
+
+    def _write_ddb_if_modified(self, ds: xr.Dataset, modified: bool) -> None:
+        if not modified:
+            return
+
+        lc_var = 'NGRU' if 'NGRU' in ds else 'GRU' if 'GRU' in ds else None
+        lc_dim = 'NGRU' if 'NGRU' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
+        if lc_var and lc_dim:
+            lc_da = ds[lc_var]
+            lc_sums = lc_da.sum(lc_dim)
+            safe_sums = xr.where(lc_sums == 0, 1.0, lc_sums)
+            ds[lc_var] = lc_da / safe_sums
+
+            if (lc_sums == 0).any():
+                self.logger.warning(
+                    f"Found subbasins with 0 {lc_var} coverage during completeness check. Setting first entry to 1.0."
+                )
+                vals = ds[lc_var].values
+                zero_indices = np.where(lc_sums.values == 0)[0]
+                for idx in zero_indices:
+                    vals[idx, 0] = 1.0
+                ds[lc_var].values = vals
+
+        temp_path = self.ddb_path.with_suffix('.tmp.nc')
+        encoding = {}
+        if 'NGRU' in ds.coords:
+            encoding['NGRU'] = {'dtype': 'float64'}
+        ds.to_netcdf(temp_path, encoding=encoding)
+        os.replace(temp_path, self.ddb_path)
 
     def _compute_drainage_area(
         self,

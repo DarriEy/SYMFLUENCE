@@ -9,7 +9,7 @@ in worker processes, supporting multi-target optimization.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 import numpy as np
 import pandas as pd
@@ -320,338 +320,42 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
     Use _calculate_metrics_with_target instead for multi-target support.
     """
     try:
-        import xarray as xr
-
         logger.debug("Starting inline metrics calculation")
         logger.debug(f"SUMMA dir: {summa_dir}")
         logger.debug(f"mizuRoute dir: {mizuroute_dir}")
         logger.debug(f"SUMMA dir exists: {summa_dir.exists()}")
         logger.debug(f"mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
 
-        # Priority 1: Look for mizuRoute output files first (already in m³/s)
-        sim_files = []
-        use_mizuroute = False
-        catchment_area = None
-
-        if mizuroute_dir and mizuroute_dir.exists():
-            mizu_files = list(mizuroute_dir.glob("*.nc"))
-            logger.debug(f"Found {len(mizu_files)} mizuRoute .nc files")
-            for f in mizu_files[:3]:  # Show first 3
-                logger.debug(f"mizuRoute file: {f.name}")
-
-            if mizu_files:
-                sim_files = mizu_files
-                use_mizuroute = True
-                logger.debug("Using mizuRoute files (already in m³/s)")
-
-        # Priority 2: If no mizuRoute files, look for SUMMA files (need m/s to m³/s conversion)
-        # Only allow fallback to SUMMA if BOTH domain and routing are lumped
-        if not sim_files:
-            domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-            routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
-
-            if domain_method in ['lumped', 'point'] and routing_delineation == 'lumped':
-                summa_files = list(summa_dir.glob("*timestep.nc"))
-                logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
-
-                if summa_files:
-                    sim_files = summa_files
-                    use_mizuroute = False
-                    logger.debug("Using SUMMA files (lumped/point domain and routing, need m/s to m³/s conversion)")
-
-                    # Get the ACTUAL catchment area for unit conversion
-                    try:
-                        catchment_area = _get_catchment_area_worker(config, logger)
-                        logger.debug(f"Got catchment area = {catchment_area:.2e} m²")
-                    except (ValueError, KeyError, FileNotFoundError) as e:
-                        logger.debug(f"Error getting catchment area: {str(e)}")
-                        catchment_area = 1e6  # Default fallback
-            else:
-                logger.error(f"No mizuRoute output found and domain/routing not both lumped (Domain: {domain_method}, Routing: {routing_delineation}). Cannot fall back to SUMMA runoff.")
-                return None
-
-        # Check if we found any simulation files
-        if not sim_files:
-            logger.debug("No simulation files found")
+        source = _select_inline_simulation_source(summa_dir, mizuroute_dir, config, logger)
+        if source is None:
             return None
 
-        logger.debug(f"Found {len(sim_files)} simulation files, use_mizuroute={use_mizuroute}")
-
-        sim_file = sim_files[0]
+        sim_file, use_mizuroute, catchment_area = source
         logger.debug(f"Using simulation file: {sim_file}")
-
-        # Extract simulated streamflow
         logger.debug(f"Extracting simulated streamflow (use_mizuroute={use_mizuroute})...")
 
-        try:
-            with xr.open_dataset(sim_file) as ds:
-                if use_mizuroute:
-                    # mizuRoute output - select segment with highest average runoff (outlet)
-                    routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
-                    routing_var = None
-
-                    for var_name in routing_vars:
-                        if var_name in ds.variables:
-                            routing_var = var_name
-                            break
-
-                    if routing_var is None:
-                        return None
-
-                    var = ds[routing_var]
-
-                    try:
-                        # Calculate average runoff for each segment to find outlet
-                        if 'seg' in var.dims:
-                            segment_means = var.mean(dim='time').values
-                            outlet_seg_idx = np.argmax(segment_means)
-                            sim_data = var.isel(seg=outlet_seg_idx).to_pandas()
-                        elif 'reachID' in var.dims:
-                            reach_means = var.mean(dim='time').values
-                            outlet_reach_idx = np.argmax(reach_means)
-                            sim_data = var.isel(reachID=outlet_reach_idx).to_pandas()
-                        else:
-                            return None
-
-                        logger.debug(f"Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s")
-
-                    except (ValueError, KeyError, FileNotFoundError) as e:
-                        logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
-                        return None
-
-                else:
-                    # SUMMA output - convert from m/s to m³/s using ACTUAL area
-                    summa_vars = ['averageRoutedRunoff', 'basin__TotalRunoff', 'scalarTotalRunoff']
-                    sim_data = None
-
-                    for var_name in summa_vars:
-                        if var_name in ds.variables:
-                            var = ds[var_name]
-
-                            units = var.attrs.get('units', 'unknown')
-                            logger.debug(f"Worker found streamflow variable {var_name} with units: '{units}'")
-
-                            # Unit conversion: Mass flux (kg m-2 s-1) to Volume flux (m s-1)
-                            is_mass_flux = False
-                            if 'units' in var.attrs and 'kg' in var.attrs['units'] and 's-1' in var.attrs['units']:
-                                is_mass_flux = True
-                            elif float(var.mean().item()) > 1e-6:
-                                logger.debug(f"Worker: Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high. Assuming mislabeled mass flux.")
-                                is_mass_flux = True
-
-                            if is_mass_flux:
-                                logger.debug(f"Worker: Converting {var_name} from mass flux to volume flux (dividing by 1000)")
-                                var = var / 1000.0
-
-                            try:
-                                # Attempt area-weighted aggregation first
-                                aggregated = False
-                                if len(var.shape) > 1:
-                                    try:
-                                        # Look for attributes.nc in common locations
-                                        possible_attr_paths = [
-                                            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc',
-                                            Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'attributes.nc'
-                                        ]
-
-                                        attrs_file = None
-                                        for p in possible_attr_paths:
-                                            if p.exists():
-                                                attrs_file = p
-                                                break
-
-                                        if attrs_file:
-                                            with xr.open_dataset(attrs_file) as attrs:
-                                                # Handle HRU dimension
-                                                if 'hru' in var.dims and 'HRUarea' in attrs:
-                                                    areas = attrs['HRUarea']
-                                                    if areas.sizes['hru'] == var.sizes['hru']:
-                                                        total_area = float(areas.values.sum())
-                                                        logger.debug(f"Worker: Performing area-weighted aggregation for {var_name} (HRU). Total area: {total_area:.1f} m²")
-                                                        sim_data = (var * areas).sum(dim='hru').to_pandas()
-                                                        aggregated = True
-
-                                                # Handle GRU dimension
-                                                elif 'gru' in var.dims and 'GRUarea' in attrs:
-                                                    areas = attrs['GRUarea']
-                                                    if areas.sizes['gru'] == var.sizes['gru']:
-                                                        total_area = float(areas.values.sum())
-                                                        logger.debug(f"Worker: Performing area-weighted aggregation for {var_name} (GRU). Total area: {total_area:.1f} m²")
-                                                        sim_data = (var * areas).sum(dim='gru').to_pandas()
-                                                        aggregated = True
-
-                                                # Handle GRU dimension with HRUarea fallback
-                                                elif 'gru' in var.dims and 'HRUarea' in attrs:
-                                                    if attrs.sizes['hru'] == var.sizes['gru']:
-                                                        areas = attrs['HRUarea']
-                                                        total_area = float(areas.values.sum())
-                                                        logger.debug(f"Worker: Performing area-weighted aggregation for {var_name} (GRU fallback). Total area: {total_area:.1f} m²")
-                                                        dim_name = 'hru' if 'hru' in areas.dims else 'gru'
-                                                        sim_data = (var * areas).sum(dim=dim_name).to_pandas()
-                                                        aggregated = True
-                                    except (ValueError, KeyError, FileNotFoundError) as e:
-                                        logger.debug(f"Aggregation failed, falling back: {e}")
-
-                                if not aggregated:
-                                    if len(var.shape) > 1:
-                                        if 'hru' in var.dims:
-                                            sim_data = var.isel(hru=0).to_pandas()
-                                        elif 'gru' in var.dims:
-                                            sim_data = var.isel(gru=0).to_pandas()
-                                        else:
-                                            non_time_dims = [dim for dim in var.dims if dim != 'time']
-                                            if non_time_dims:
-                                                sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
-                                            else:
-                                                sim_data = var.to_pandas()
-                                    else:
-                                        sim_data = var.to_pandas()
-
-                                    # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
-                                    logger.debug(f"Converting {var_name} using catchment area = {catchment_area:.2e} m²")
-                                    logger.debug(f"Pre-conversion mean = {sim_data.mean():.2e}")
-                                    sim_data = sim_data * catchment_area
-                                    logger.debug(f"Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
-
-                                break
-                            except (KeyError, ValueError):
-                                continue
-
-                    if sim_data is None:
-                        logger.debug("sim_data is None after trying all SUMMA variables")
-                        return None
-
-        except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
-            logger.error(f"Exception extracting simulated streamflow: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+        sim_data = _extract_inline_simulated_streamflow(
+            sim_file, use_mizuroute, summa_dir, config, catchment_area, logger
+        )
+        if sim_data is None:
             return None
 
-        # Load observed data
-        try:
-            domain_name = config.get('DOMAIN_NAME')
-            project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
-            obs_path = resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
-
-            logger.debug(f"Looking for observations at: {obs_path}")
-            if not obs_path.exists():
-                logger.debug("Observation file does not exist")
-                return None
-
-            obs_df = pd.read_csv(obs_path)
-            date_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['date', 'time', 'datetime'])), None)
-            flow_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow'])), None)
-
-            logger.debug(f"Found date_col={date_col}, flow_col={flow_col}")
-            if not date_col or not flow_col:
-                logger.debug("Missing date or flow column in observations")
-                return None
-
-            obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
-            obs_df.set_index('DateTime', inplace=True)
-            obs_data = obs_df[flow_col]
-            logger.debug(f"Loaded {len(obs_data)} observation points")
-        except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
-            logger.error(f"Exception loading observations: {str(e)}")
+        obs_data = _load_inline_observations(config, logger)
+        if obs_data is None:
             return None
 
-        # Filter to calibration period
-        cal_period = config.get('CALIBRATION_PERIOD', '')
-        if cal_period:
-            try:
-                dates = [d.strip() for d in cal_period.split(',')]
-                if len(dates) >= 2:
-                    start_date = pd.Timestamp(dates[0])
-                    end_date = pd.Timestamp(dates[1])
-
-                    obs_mask = (obs_data.index >= start_date) & (obs_data.index <= end_date)
-                    obs_period = obs_data[obs_mask]
-
-                    # Round sim times if needed
-                    sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-                    if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
-                        sim_data.index = sim_data.index.round('h')
-
-                    sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
-                    sim_period = sim_data[sim_mask]  # type: ignore[index]
-                    logger.debug(f"After period filtering, sim_period mean = {float(sim_period.mean().item()):.2f}")
-                else:
-                    obs_period = obs_data
-                    sim_period = sim_data
-            except (KeyError, ValueError):
-                obs_period = obs_data
-                sim_period = sim_data
-        else:
-            obs_period = obs_data
-            sim_period = sim_data
-
-        # Timezone alignment
-        if obs_period.index.tz is not None and sim_period.index.tz is None:
-            sim_period.index = sim_period.index.tz_localize(obs_period.index.tz)
-        elif obs_period.index.tz is None and sim_period.index.tz is not None:
-            obs_period.index = obs_period.index.tz_localize(sim_period.index.tz)
-
-        # Resampling
-        calibration_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
-        if calibration_timestep != 'native':
-            obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
-            sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
-            logger.debug(f"After resampling, sim_period mean = {float(sim_period.mean().item()):.2f}")
-
-        # Alignment
-        common_idx = obs_period.index.intersection(sim_period.index)
-        logger.debug(f"obs_period has {len(obs_period)} points, sim_period has {len(sim_period)} points")
-        logger.debug(f"obs_period type: {type(obs_period)}, sim_period type: {type(sim_period)}")
-        logger.debug(f"Common index has {len(common_idx)} points")
-        if len(common_idx) == 0:
-            logger.debug("No common timesteps between sim and obs")
+        obs_period, sim_period = _filter_inline_calibration_period(
+            obs_data, sim_data, config.get('CALIBRATION_PERIOD', ''), logger
+        )
+        aligned = _align_inline_timeseries(obs_period, sim_period, config, logger)
+        if aligned is None:
             return None
 
-        # Ensure we're working with Series
-        if isinstance(obs_period, pd.DataFrame):
-            obs_period = obs_period.squeeze()
-        if isinstance(sim_period, pd.DataFrame):
-            sim_period = sim_period.squeeze()
-
-        obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
-        sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')  # type: ignore[call-overload]
-        logger.debug(f"After intersection, sim_common mean = {float(sim_common.mean().item()):.2f}")
-
-        # Final cleaning
-        valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
-        obs_valid = obs_common[valid]
-        sim_valid = sim_common[valid]
-
+        obs_valid, sim_valid = aligned
         if len(obs_valid) < 10:
             return None
 
-        # Calculate metrics using centralized module
-        try:
-            # Use centralized metric functions for consistency
-            nse_val = calc_nse(obs_valid.values, sim_valid.values)
-            kge_result = calc_kge(obs_valid.values, sim_valid.values, return_components=True)
-            rmse_val = calc_rmse(obs_valid.values, sim_valid.values)
-            mae_val = calc_mae(obs_valid.values, sim_valid.values)
-            pbias_val = calc_pbias(obs_valid.values, sim_valid.values)
-
-            # Extract KGE components
-            kge_val = kge_result['KGE'] if isinstance(kge_result, dict) else kge_result
-            r_val = kge_result['r'] if isinstance(kge_result, dict) else obs_valid.corr(sim_valid)
-            alpha_val = kge_result['alpha'] if isinstance(kge_result, dict) else np.nan
-            beta_val = kge_result['beta'] if isinstance(kge_result, dict) else np.nan
-
-            logger.debug(f"Final KGE = {kge_val:.4f} (obs_mean={obs_valid.mean():.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
-
-            return {
-                'Calib_NSE': nse_val, 'Calib_KGE': kge_val, 'Calib_RMSE': rmse_val,
-                'Calib_MAE': mae_val, 'Calib_PBIAS': pbias_val,
-                'Calib_r': r_val, 'Calib_alpha': alpha_val, 'Calib_beta': beta_val,
-                'Calib_correlation': r_val,
-                'NSE': nse_val, 'KGE': kge_val, 'RMSE': rmse_val, 'MAE': mae_val,
-                'PBIAS': pbias_val, 'correlation': r_val
-            }
-        except (KeyError, ValueError):
-            return None
+        return _compute_inline_metrics(obs_valid, sim_valid, logger)
 
     except ImportError as e:
         logger.error(f"Import error: {str(e)}")
@@ -663,6 +367,336 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         logger.error(f"Error in inline metrics calculation: {str(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
+        return None
+
+
+def _select_inline_simulation_source(
+    summa_dir: Path,
+    mizuroute_dir: Path,
+    config: Dict,
+    logger,
+) -> Optional[Tuple[Path, bool, float]]:
+    if mizuroute_dir and mizuroute_dir.exists():
+        mizu_files = list(mizuroute_dir.glob("*.nc"))
+        logger.debug(f"Found {len(mizu_files)} mizuRoute .nc files")
+        for file in mizu_files[:3]:
+            logger.debug(f"mizuRoute file: {file.name}")
+        if mizu_files:
+            logger.debug("Using mizuRoute files (already in m³/s)")
+            return mizu_files[0], True, 0.0
+
+    domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+    routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
+    if domain_method not in ['lumped', 'point'] or routing_delineation != 'lumped':
+        logger.error(
+            "No mizuRoute output found and domain/routing not both lumped "
+            f"(Domain: {domain_method}, Routing: {routing_delineation}). "
+            "Cannot fall back to SUMMA runoff."
+        )
+        return None
+
+    summa_files = list(summa_dir.glob("*timestep.nc"))
+    logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
+    if not summa_files:
+        logger.debug("No simulation files found")
+        return None
+
+    try:
+        catchment_area = _get_catchment_area_worker(config, logger)
+        logger.debug(f"Got catchment area = {catchment_area:.2e} m²")
+    except (ValueError, KeyError, FileNotFoundError) as e:
+        logger.debug(f"Error getting catchment area: {str(e)}")
+        catchment_area = 1e6
+
+    logger.debug("Using SUMMA files (lumped/point domain and routing, need m/s to m³/s conversion)")
+    return summa_files[0], False, catchment_area
+
+
+def _extract_inline_simulated_streamflow(
+    sim_file: Path,
+    use_mizuroute: bool,
+    summa_dir: Path,
+    config: Dict,
+    catchment_area: float,
+    logger,
+) -> Optional[pd.Series]:
+    import xarray as xr
+
+    try:
+        with xr.open_dataset(sim_file) as ds:
+            if use_mizuroute:
+                return _extract_inline_mizuroute_streamflow(ds, logger)
+            return _extract_inline_summa_streamflow(ds, summa_dir, config, catchment_area, logger)
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
+        logger.error(f"Exception extracting simulated streamflow: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None
+
+
+def _extract_inline_mizuroute_streamflow(ds, logger) -> Optional[pd.Series]:
+    routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
+    routing_var = next((name for name in routing_vars if name in ds.variables), None)
+    if routing_var is None:
+        return None
+
+    var = ds[routing_var]
+    try:
+        if 'seg' in var.dims:
+            outlet_idx = np.argmax(var.mean(dim='time').values)
+            sim_data = var.isel(seg=outlet_idx).to_pandas()
+        elif 'reachID' in var.dims:
+            outlet_idx = np.argmax(var.mean(dim='time').values)
+            sim_data = var.isel(reachID=outlet_idx).to_pandas()
+        else:
+            return None
+        logger.debug(
+            f"Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s"
+        )
+        return sim_data
+    except (ValueError, KeyError, FileNotFoundError) as e:
+        logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
+        return None
+
+
+def _extract_inline_summa_streamflow(
+    ds,
+    summa_dir: Path,
+    config: Dict,
+    catchment_area: float,
+    logger,
+) -> Optional[pd.Series]:
+    summa_vars = ['averageRoutedRunoff', 'basin__TotalRunoff', 'scalarTotalRunoff']
+    for var_name in summa_vars:
+        if var_name not in ds.variables:
+            continue
+
+        var = ds[var_name]
+        units = var.attrs.get('units', 'unknown')
+        logger.debug(f"Worker found streamflow variable {var_name} with units: '{units}'")
+
+        if _inline_is_mass_flux(var, logger, var_name):
+            logger.debug(f"Worker: Converting {var_name} from mass flux to volume flux (dividing by 1000)")
+            var = var / 1000.0
+
+        sim_data = _try_inline_area_weighted_aggregation(var, summa_dir, config, logger, var_name)
+        if sim_data is None:
+            sim_data = _inline_extract_first_series(var)
+            logger.debug(f"Converting {var_name} using catchment area = {catchment_area:.2e} m²")
+            logger.debug(f"Pre-conversion mean = {sim_data.mean():.2e}")
+            sim_data = sim_data * catchment_area
+            logger.debug(f"Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
+
+        return sim_data
+
+    logger.debug("sim_data is None after trying all SUMMA variables")
+    return None
+
+
+def _inline_is_mass_flux(var, logger, var_name: str) -> bool:
+    if 'units' in var.attrs and 'kg' in var.attrs['units'] and 's-1' in var.attrs['units']:
+        return True
+    if float(var.mean().item()) > 1e-6:
+        logger.debug(
+            f"Worker: Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high. "
+            "Assuming mislabeled mass flux."
+        )
+        return True
+    return False
+
+
+def _try_inline_area_weighted_aggregation(
+    var,
+    summa_dir: Path,
+    config: Dict,
+    logger,
+    var_name: str,
+) -> Optional[pd.Series]:
+    import xarray as xr
+
+    if len(var.shape) <= 1:
+        return None
+
+    try:
+        possible_attr_paths = [
+            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc',
+            Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'attributes.nc'
+        ]
+        attrs_file = next((path for path in possible_attr_paths if path.exists()), None)
+        if attrs_file is None:
+            return None
+
+        with xr.open_dataset(attrs_file) as attrs:
+            if 'hru' in var.dims and 'HRUarea' in attrs:
+                areas = attrs['HRUarea']
+                if areas.sizes['hru'] == var.sizes['hru']:
+                    logger.debug(
+                        f"Worker: Performing area-weighted aggregation for {var_name} (HRU). "
+                        f"Total area: {float(areas.values.sum()):.1f} m²"
+                    )
+                    return (var * areas).sum(dim='hru').to_pandas()
+
+            if 'gru' in var.dims and 'GRUarea' in attrs:
+                areas = attrs['GRUarea']
+                if areas.sizes['gru'] == var.sizes['gru']:
+                    logger.debug(
+                        f"Worker: Performing area-weighted aggregation for {var_name} (GRU). "
+                        f"Total area: {float(areas.values.sum()):.1f} m²"
+                    )
+                    return (var * areas).sum(dim='gru').to_pandas()
+
+            if 'gru' in var.dims and 'HRUarea' in attrs and attrs.sizes['hru'] == var.sizes['gru']:
+                areas = attrs['HRUarea']
+                dim_name = 'hru' if 'hru' in areas.dims else 'gru'
+                logger.debug(
+                    f"Worker: Performing area-weighted aggregation for {var_name} (GRU fallback). "
+                    f"Total area: {float(areas.values.sum()):.1f} m²"
+                )
+                return (var * areas).sum(dim=dim_name).to_pandas()
+    except (ValueError, KeyError, FileNotFoundError) as e:
+        logger.debug(f"Aggregation failed, falling back: {e}")
+
+    return None
+
+
+def _inline_extract_first_series(var) -> pd.Series:
+    if len(var.shape) <= 1:
+        return var.to_pandas()
+    if 'hru' in var.dims:
+        return var.isel(hru=0).to_pandas()
+    if 'gru' in var.dims:
+        return var.isel(gru=0).to_pandas()
+
+    non_time_dims = [dim for dim in var.dims if dim != 'time']
+    if non_time_dims:
+        return var.isel({non_time_dims[0]: 0}).to_pandas()
+    return var.to_pandas()
+
+
+def _load_inline_observations(config: Dict, logger) -> Optional[pd.Series]:
+    try:
+        domain_name = config.get('DOMAIN_NAME')
+        project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
+        obs_path = resolve_data_subdir(project_dir, 'observations') / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
+
+        logger.debug(f"Looking for observations at: {obs_path}")
+        if not obs_path.exists():
+            logger.debug("Observation file does not exist")
+            return None
+
+        obs_df = pd.read_csv(obs_path)
+        date_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['date', 'time', 'datetime'])), None)
+        flow_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow'])), None)
+
+        logger.debug(f"Found date_col={date_col}, flow_col={flow_col}")
+        if not date_col or not flow_col:
+            logger.debug("Missing date or flow column in observations")
+            return None
+
+        obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
+        obs_df.set_index('DateTime', inplace=True)
+        obs_data = obs_df[flow_col]
+        logger.debug(f"Loaded {len(obs_data)} observation points")
+        return obs_data
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
+        logger.error(f"Exception loading observations: {str(e)}")
+        return None
+
+
+def _filter_inline_calibration_period(
+    obs_data: pd.Series,
+    sim_data: pd.Series,
+    cal_period: str,
+    logger,
+) -> Tuple[pd.Series, pd.Series]:
+    if not cal_period:
+        return obs_data, sim_data
+
+    try:
+        dates = [d.strip() for d in cal_period.split(',')]
+        if len(dates) < 2:
+            return obs_data, sim_data
+
+        start_date = pd.Timestamp(dates[0])
+        end_date = pd.Timestamp(dates[1])
+        obs_period = obs_data[(obs_data.index >= start_date) & (obs_data.index <= end_date)]
+
+        sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
+        if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
+            sim_data.index = sim_data.index.round('h')
+
+        sim_period = sim_data[(sim_data.index >= start_date) & (sim_data.index <= end_date)]
+        logger.debug(f"After period filtering, sim_period mean = {float(sim_period.mean().item()):.2f}")
+        return obs_period, sim_period
+    except (KeyError, ValueError):
+        return obs_data, sim_data
+
+
+def _align_inline_timeseries(
+    obs_period: pd.Series,
+    sim_period: pd.Series,
+    config: Dict,
+    logger,
+) -> Optional[Tuple[pd.Series, pd.Series]]:
+    if obs_period.index.tz is not None and sim_period.index.tz is None:
+        sim_period.index = sim_period.index.tz_localize(obs_period.index.tz)
+    elif obs_period.index.tz is None and sim_period.index.tz is not None:
+        obs_period.index = obs_period.index.tz_localize(sim_period.index.tz)
+
+    calibration_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
+    if calibration_timestep != 'native':
+        obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
+        sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
+        logger.debug(f"After resampling, sim_period mean = {float(sim_period.mean().item()):.2f}")
+
+    common_idx = obs_period.index.intersection(sim_period.index)
+    logger.debug(f"obs_period has {len(obs_period)} points, sim_period has {len(sim_period)} points")
+    logger.debug(f"obs_period type: {type(obs_period)}, sim_period type: {type(sim_period)}")
+    logger.debug(f"Common index has {len(common_idx)} points")
+    if len(common_idx) == 0:
+        logger.debug("No common timesteps between sim and obs")
+        return None
+
+    if isinstance(obs_period, pd.DataFrame):
+        obs_period = obs_period.squeeze()
+    if isinstance(sim_period, pd.DataFrame):
+        sim_period = sim_period.squeeze()
+
+    obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
+    sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')  # type: ignore[call-overload]
+    logger.debug(f"After intersection, sim_common mean = {float(sim_common.mean().item()):.2f}")
+
+    valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
+    return obs_common[valid], sim_common[valid]
+
+
+def _compute_inline_metrics(obs_valid: pd.Series, sim_valid: pd.Series, logger) -> Optional[Dict[Any, Any]]:
+    try:
+        nse_val = calc_nse(obs_valid.values, sim_valid.values)
+        kge_result = calc_kge(obs_valid.values, sim_valid.values, return_components=True)
+        rmse_val = calc_rmse(obs_valid.values, sim_valid.values)
+        mae_val = calc_mae(obs_valid.values, sim_valid.values)
+        pbias_val = calc_pbias(obs_valid.values, sim_valid.values)
+
+        kge_val = kge_result['KGE'] if isinstance(kge_result, dict) else kge_result
+        r_val = kge_result['r'] if isinstance(kge_result, dict) else obs_valid.corr(sim_valid)
+        alpha_val = kge_result['alpha'] if isinstance(kge_result, dict) else np.nan
+        beta_val = kge_result['beta'] if isinstance(kge_result, dict) else np.nan
+
+        logger.debug(
+            f"Final KGE = {kge_val:.4f} (obs_mean={obs_valid.mean():.2f}, "
+            f"sim_mean={float(sim_valid.mean().item()):.2f})"
+        )
+
+        return {
+            'Calib_NSE': nse_val, 'Calib_KGE': kge_val, 'Calib_RMSE': rmse_val,
+            'Calib_MAE': mae_val, 'Calib_PBIAS': pbias_val,
+            'Calib_r': r_val, 'Calib_alpha': alpha_val, 'Calib_beta': beta_val,
+            'Calib_correlation': r_val,
+            'NSE': nse_val, 'KGE': kge_val, 'RMSE': rmse_val, 'MAE': mae_val,
+            'PBIAS': pbias_val, 'correlation': r_val
+        }
+    except (KeyError, ValueError):
         return None
 
 

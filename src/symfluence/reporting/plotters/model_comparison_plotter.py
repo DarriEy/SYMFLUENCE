@@ -331,14 +331,13 @@ class ModelComparisonPlotter(BasePlotter):
         Returns:
             DataFrame with model outputs, or None if no outputs found
         """
-        import xarray as xr
-
-        # For calibration context, prioritize final_evaluation directory
         if context == 'calibrate_model':
             final_eval_dir = self.project_dir / "optimization" / "final_evaluation"
             if final_eval_dir.exists():
                 self.logger.info(f"Loading calibrated outputs from: {final_eval_dir}")
-                results_df = self._load_from_directory(final_eval_dir, experiment_id, label_suffix="_calibrated")
+                results_df = self._load_from_directory(
+                    final_eval_dir, experiment_id, label_suffix="_calibrated"
+                )
                 if results_df is not None:
                     return results_df
                 self.logger.info("No outputs in final_evaluation, checking simulations directory...")
@@ -347,281 +346,278 @@ class ModelComparisonPlotter(BasePlotter):
         if not sim_dir.exists():
             return None
 
-        results_df = None
         basin_area_m2 = self._get_basin_area_m2()
+        spinup_end = self._get_spinup_end_date()
 
-        # Get spinup end date for filtering
-        spinup_period = self._get_config_value(
-            lambda: self.config.domain.spinup_period,
-            default='',
-            dict_key=ConfigKeys.SPINUP_PERIOD
-        )
-        spinup_end = None
-        if spinup_period and ',' in str(spinup_period):
-            try:
-                spinup_end = pd.to_datetime(str(spinup_period).split(',')[1].strip())
-            except (ValueError, TypeError):
-                pass
-
-        # Check for mizuRoute output first (distributed routing)
-        # Try multiple possible locations for mizuRoute output
-        mizu_dir_candidates = [
-            sim_dir / "mizuRoute",           # Direct mizuRoute subdirectory
-            sim_dir / "SUMMA" / "mizuRoute", # mizuRoute nested under SUMMA (common for semi-distributed)
+        loaders = [
+            lambda: self._load_mizuroute_from_simulations(sim_dir),
+            lambda: self._load_troute_from_simulations(sim_dir),
+            lambda: self._load_summa_from_simulations(sim_dir, basin_area_m2),
+            lambda: self._load_fuse_from_simulations(sim_dir, basin_area_m2),
+            lambda: self._load_gr_from_simulations(sim_dir),
+            lambda: self._load_clm_from_simulations(sim_dir),
         ]
 
-        mizu_files = []
-        mizu_dir = None
+        results_df = None
+        for load in loaders:
+            results_df = load()
+            if results_df is not None:
+                break
+
+        if results_df is None:
+            return None
+
+        obs_series = self._load_observations(results_df.index)
+        if obs_series is not None:
+            results_df['observed_discharge_cms'] = obs_series
+
+        if spinup_end is not None:
+            results_df = results_df[results_df.index > spinup_end]
+        return results_df
+
+    def _select_outlet_series(
+        self,
+        var_data,
+        dataset=None,
+        sim_reach_id: Optional[Any] = None,
+    ) -> pd.Series:
+        if 'seg' in var_data.dims:
+            if sim_reach_id and dataset is not None and 'reachID' in dataset:
+                segment_mask = dataset['reachID'].values == int(sim_reach_id)
+                return var_data.sel(seg=segment_mask).to_pandas()
+            outlet_idx = int(np.argmax(var_data.mean(dim='time').values))
+            return var_data.isel(seg=outlet_idx).to_pandas()
+
+        if 'reachID' in var_data.dims:
+            outlet_idx = int(np.argmax(var_data.mean(dim='time').values))
+            return var_data.isel(reachID=outlet_idx).to_pandas()
+
+        if 'feature_id' in var_data.dims:
+            outlet_idx = int(np.argmax(var_data.mean(dim='time').values))
+            return var_data.isel(feature_id=outlet_idx).to_pandas()
+
+        return var_data.squeeze().to_pandas()
+
+    def _load_mizuroute_from_simulations(self, sim_dir: Path) -> Optional[pd.DataFrame]:
+        import xarray as xr
+
+        mizu_dir_candidates = [
+            sim_dir / "mizuRoute",
+            sim_dir / "SUMMA" / "mizuRoute",
+        ]
+        mizu_files: List[Path] = []
         for candidate_dir in mizu_dir_candidates:
             if candidate_dir.exists():
                 candidate_files = list(candidate_dir.glob("*.nc"))
                 if candidate_files:
-                    mizu_dir = candidate_dir
                     mizu_files = candidate_files
-                    self.logger.debug(f"Found mizuRoute output in: {mizu_dir}")
+                    self.logger.debug(f"Found mizuRoute output in: {candidate_dir}")
                     break
 
-        if mizu_files:
-            self.logger.info(f"Found {len(mizu_files)} mizuRoute output files")
-            try:
-                # Load all files using open_mfdataset for multi-year simulations
-                if len(mizu_files) > 1:
-                    ds = xr.open_mfdataset(
-                        sorted(mizu_files),
-                        combine='by_coords',
-                        data_vars='minimal',
-                        coords='minimal',
-                        compat='override',
-                        join='override'
+        if not mizu_files:
+            return None
+
+        self.logger.info(f"Found {len(mizu_files)} mizuRoute output files")
+        try:
+            if len(mizu_files) > 1:
+                ds = xr.open_mfdataset(
+                    sorted(mizu_files),
+                    combine='by_coords',
+                    data_vars='minimal',
+                    coords='minimal',
+                    compat='override',
+                    join='override'
+                )
+                self.logger.info(f"Loaded {len(mizu_files)} files with open_mfdataset")
+            else:
+                ds = xr.open_dataset(mizu_files[0])
+
+            with ds:
+                routing_vars = [
+                    'IRFroutedRunoff', 'KWTroutedRunoff', 'sumUpstreamRunoff',
+                    'dlayRunoff', 'averageRoutedRunoff'
+                ]
+                routing_var = next((name for name in routing_vars if name in ds), None)
+                if routing_var is None:
+                    self.logger.warning(
+                        f"No recognized routing variable found in mizuRoute output. "
+                        f"Available: {list(ds.data_vars)}"
                     )
-                    self.logger.info(f"Loaded {len(mizu_files)} files with open_mfdataset")
-                else:
-                    ds = xr.open_dataset(mizu_files[0])
+                    return None
 
-                # Try multiple mizuRoute output variable names
-                # Priority: cumulative/routed flow first, then per-reach delayed runoff last
-                routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'sumUpstreamRunoff', 'dlayRunoff', 'averageRoutedRunoff']
-                routing_var = None
-                for var_name in routing_vars:
-                    if var_name in ds:
-                        routing_var = var_name
-                        break
+                self.logger.info(f"Using mizuRoute variable: {routing_var}")
+                sim_reach_id = self._get_config_value(
+                    lambda: self.config.routing.sim_reach_id,
+                    default=None,
+                    dict_key=ConfigKeys.SIM_REACH_ID
+                )
+                streamflow = self._select_outlet_series(ds[routing_var], dataset=ds, sim_reach_id=sim_reach_id)
+                streamflow.index = streamflow.index.round('h')
+                streamflow = streamflow.resample('D').mean()
 
-                if routing_var:
-                    self.logger.info(f"Using mizuRoute variable: {routing_var}")
-                    # Get outlet reach (last segment or by SIM_REACH_ID)
-                    sim_reach_id = self._get_config_value(
-                        lambda: self.config.routing.sim_reach_id,
-                        default=None,
-                        dict_key=ConfigKeys.SIM_REACH_ID
+                results_df = pd.DataFrame(index=streamflow.index)
+                results_df['SUMMA_discharge_cms'] = streamflow
+                self.logger.info(f"Loaded {len(streamflow)} discharge values from mizuRoute")
+                return results_df
+        except Exception as e:
+            self.logger.warning(f"Error loading mizuRoute output: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return None
+
+    def _load_troute_from_simulations(self, sim_dir: Path) -> Optional[pd.DataFrame]:
+        import xarray as xr
+
+        troute_dir = sim_dir / "TRoute"
+        troute_files = list(troute_dir.glob("troute_output.nc")) if troute_dir.exists() else []
+        if not troute_files and troute_dir.exists():
+            troute_files = list(troute_dir.glob("*.nc"))
+        if not troute_files:
+            return None
+
+        self.logger.info("Found T-Route output")
+        try:
+            with xr.open_dataset(troute_files[0]) as ds:
+                flow_var = next((name for name in ['flow', 'streamflow', 'discharge', 'q_lateral'] if name in ds), None)
+                if flow_var is None:
+                    self.logger.warning(
+                        f"No recognized flow variable in T-Route output. Available: {list(ds.data_vars)}"
                     )
+                    return None
 
-                    var_data = ds[routing_var]
-
-                    # Handle different dimension names (seg vs reachID)
-                    if 'seg' in var_data.dims:
-                        if sim_reach_id and 'reachID' in ds:
-                            segment_mask = ds['reachID'].values == int(sim_reach_id)
-                            streamflow = var_data.sel(seg=segment_mask).to_pandas()
-                        else:
-                            # Use segment with highest mean runoff (outlet)
-                            segment_means = var_data.mean(dim='time').values
-                            outlet_idx = int(np.argmax(segment_means))
-                            streamflow = var_data.isel(seg=outlet_idx).to_pandas()
-                    elif 'reachID' in var_data.dims:
-                        reach_means = var_data.mean(dim='time').values
-                        outlet_idx = int(np.argmax(reach_means))
-                        streamflow = var_data.isel(reachID=outlet_idx).to_pandas()
-                    else:
-                        # No spatial dimension, use directly
-                        streamflow = var_data.to_pandas()
-
-                    # Resample hourly to daily
+                streamflow = self._select_outlet_series(ds[flow_var])
+                if hasattr(streamflow.index, 'freq') or len(streamflow) > 366 * 10:
                     streamflow.index = streamflow.index.round('h')
                     streamflow = streamflow.resample('D').mean()
 
-                    results_df = pd.DataFrame(index=streamflow.index)
-                    results_df['SUMMA_discharge_cms'] = streamflow
-                    self.logger.info(f"Loaded {len(streamflow)} discharge values from mizuRoute")
-                else:
-                    self.logger.warning(f"No recognized routing variable found in mizuRoute output. Available: {list(ds.data_vars)}")
-                ds.close()
-            except Exception as e:
-                self.logger.warning(f"Error loading mizuRoute output: {e}")
-                import traceback
-                self.logger.debug(traceback.format_exc())
+                results_df = pd.DataFrame(index=streamflow.index)
+                results_df['TRoute_discharge_cms'] = streamflow
+                self.logger.info(
+                    f"Loaded {len(streamflow)} discharge values from T-Route (variable: {flow_var})"
+                )
+                return results_df
+        except Exception as e:
+            self.logger.warning(f"Error loading T-Route output: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return None
 
-        # Check for T-Route output (channel routing from SUMMA lateral inflows)
-        if results_df is None:
-            troute_dir = sim_dir / "TRoute"
-            troute_files = list(troute_dir.glob("troute_output.nc")) if troute_dir.exists() else []
-            if not troute_files and troute_dir.exists():
-                troute_files = list(troute_dir.glob("*.nc"))
+    def _load_summa_from_simulations(
+        self,
+        sim_dir: Path,
+        basin_area_m2: Optional[float],
+    ) -> Optional[pd.DataFrame]:
+        import xarray as xr
 
-            if troute_files:
-                self.logger.info("Found T-Route output")
-                try:
-                    ds = xr.open_dataset(troute_files[0])
-                    # T-Route built-in output uses 'flow' variable
-                    flow_var = None
-                    for vname in ['flow', 'streamflow', 'discharge', 'q_lateral']:
-                        if vname in ds:
-                            flow_var = vname
-                            break
+        summa_dir = sim_dir / "SUMMA"
+        summa_files = list(summa_dir.glob("*_timestep.nc")) if summa_dir.exists() else []
+        if not summa_files:
+            return None
 
-                    if flow_var:
-                        var_data = ds[flow_var]
+        self.logger.info("Found SUMMA lumped output")
+        try:
+            with xr.open_dataset(summa_files[0]) as ds:
+                if 'averageRoutedRunoff' not in ds:
+                    return None
 
-                        # Handle feature_id dimension — select outlet (highest mean flow)
-                        if 'feature_id' in var_data.dims:
-                            feature_means = var_data.mean(dim='time').values
-                            outlet_idx = int(np.argmax(feature_means))
-                            streamflow = var_data.isel(feature_id=outlet_idx).to_pandas()
-                        elif 'seg' in var_data.dims:
-                            seg_means = var_data.mean(dim='time').values
-                            outlet_idx = int(np.argmax(seg_means))
-                            streamflow = var_data.isel(seg=outlet_idx).to_pandas()
-                        else:
-                            streamflow = var_data.squeeze().to_pandas()
-
-                        # Resample to daily if sub-daily
-                        if hasattr(streamflow.index, 'freq') or len(streamflow) > 366 * 10:
-                            streamflow.index = streamflow.index.round('h')
-                            streamflow = streamflow.resample('D').mean()
-
-                        results_df = pd.DataFrame(index=streamflow.index)
-                        results_df['TRoute_discharge_cms'] = streamflow
-                        self.logger.info(
-                            f"Loaded {len(streamflow)} discharge values from T-Route "
-                            f"(variable: {flow_var})"
-                        )
+                var = ds['averageRoutedRunoff']
+                if 'hru' in var.dims and var.sizes['hru'] > 1:
+                    if 'HRUarea' in ds:
+                        weights = ds['HRUarea'] / ds['HRUarea'].sum()
+                        streamflow = (var * weights).sum(dim='hru').to_pandas()
                     else:
-                        self.logger.warning(
-                            f"No recognized flow variable in T-Route output. "
-                            f"Available: {list(ds.data_vars)}"
-                        )
-                    ds.close()
-                except Exception as e:
-                    self.logger.warning(f"Error loading T-Route output: {e}")
-                    import traceback
-                    self.logger.debug(traceback.format_exc())
+                        streamflow = var.mean(dim='hru').to_pandas()
+                else:
+                    streamflow = var.squeeze().to_pandas()
 
-        # Check for SUMMA output (lumped model without routing)
-        if results_df is None:
-            summa_dir = sim_dir / "SUMMA"
-            summa_files = list(summa_dir.glob("*_timestep.nc")) if summa_dir.exists() else []
+                if basin_area_m2:
+                    streamflow = streamflow * basin_area_m2
 
-            if summa_files:
-                self.logger.info("Found SUMMA lumped output")
-                try:
-                    ds = xr.open_dataset(summa_files[0])
-                    if 'averageRoutedRunoff' in ds:
-                        var = ds['averageRoutedRunoff']
+                results_df = pd.DataFrame(index=streamflow.index)
+                results_df['SUMMA_discharge_cms'] = streamflow
+                return results_df
+        except Exception as e:
+            self.logger.warning(f"Error loading SUMMA output: {e}")
+            return None
 
-                        # Semi-distributed: multiple HRUs → area-weighted mean
-                        if 'hru' in var.dims and var.sizes['hru'] > 1:
-                            if 'HRUarea' in ds:
-                                weights = ds['HRUarea'] / ds['HRUarea'].sum()
-                                streamflow = (var * weights).sum(dim='hru').to_pandas()
-                            else:
-                                streamflow = var.mean(dim='hru').to_pandas()
-                        else:
-                            streamflow = var.squeeze().to_pandas()
+    def _load_fuse_from_simulations(
+        self,
+        sim_dir: Path,
+        basin_area_m2: Optional[float],
+    ) -> Optional[pd.DataFrame]:
+        import xarray as xr
 
-                        # Convert from m/s to m³/s using basin area
-                        if basin_area_m2:
-                            streamflow = streamflow * basin_area_m2
+        fuse_dir = sim_dir / "FUSE"
+        fuse_files = list(fuse_dir.glob("*_runs_best.nc")) if fuse_dir.exists() else []
+        if not fuse_files:
+            return None
 
-                        results_df = pd.DataFrame(index=streamflow.index)
-                        results_df['SUMMA_discharge_cms'] = streamflow
-                    ds.close()
-                except Exception as e:
-                    self.logger.warning(f"Error loading SUMMA output: {e}")
+        self.logger.info("Found FUSE output")
+        try:
+            with xr.open_dataset(fuse_files[0]) as ds:
+                if 'q_routed' not in ds:
+                    return None
+                streamflow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_pandas()
+                if basin_area_m2:
+                    streamflow = streamflow * (basin_area_m2 / 1e6) / 86400
 
-        # Check for FUSE output
-        if results_df is None:
-            fuse_dir = sim_dir / "FUSE"
-            fuse_files = list(fuse_dir.glob("*_runs_best.nc")) if fuse_dir.exists() else []
+                results_df = pd.DataFrame(index=streamflow.index)
+                results_df['FUSE_discharge_cms'] = streamflow
+                return results_df
+        except Exception as e:
+            self.logger.warning(f"Error loading FUSE output: {e}")
+            return None
 
-            if fuse_files:
-                self.logger.info("Found FUSE output")
-                try:
-                    ds = xr.open_dataset(fuse_files[0])
-                    if 'q_routed' in ds:
-                        streamflow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_pandas()
+    def _load_gr_from_simulations(self, sim_dir: Path) -> Optional[pd.DataFrame]:
+        gr_dir = sim_dir / "GR"
+        gr_files = list(gr_dir.glob("GR_results.csv")) if gr_dir.exists() else []
+        if not gr_files:
+            return None
 
-                        # FUSE outputs mm/day, convert to cms
-                        if basin_area_m2:
-                            streamflow = streamflow * (basin_area_m2 / 1e6) / 86400
+        self.logger.info("Found GR output")
+        try:
+            gr_df = pd.read_csv(gr_files[0], parse_dates=['Date'])
+            gr_df.set_index('Date', inplace=True)
+            flow_col = next((col for col in gr_df.columns if 'sim' in col.lower() or 'qsim' in col.lower()), None)
+            if flow_col is None:
+                return None
 
-                        results_df = pd.DataFrame(index=streamflow.index)
-                        results_df['FUSE_discharge_cms'] = streamflow
-                    ds.close()
-                except Exception as e:
-                    self.logger.warning(f"Error loading FUSE output: {e}")
+            results_df = pd.DataFrame(index=gr_df.index)
+            results_df['GR_discharge_cms'] = gr_df[flow_col]
+            return results_df
+        except Exception as e:
+            self.logger.warning(f"Error loading GR output: {e}")
+            return None
 
-        # Check for GR output
-        if results_df is None:
-            gr_dir = sim_dir / "GR"
-            gr_files = list(gr_dir.glob("GR_results.csv")) if gr_dir.exists() else []
+    def _load_clm_from_simulations(self, sim_dir: Path) -> Optional[pd.DataFrame]:
+        import xarray as xr
 
-            if gr_files:
-                self.logger.info("Found GR output")
-                try:
-                    gr_df = pd.read_csv(gr_files[0], parse_dates=['Date'])
-                    gr_df.set_index('Date', inplace=True)
+        clm_dir = sim_dir / "CLM"
+        clm_files = sorted(clm_dir.glob("*.clm2.h0.*.nc")) if clm_dir.exists() else []
+        if not clm_files:
+            return None
 
-                    # Find discharge column
-                    for col in gr_df.columns:
-                        if 'sim' in col.lower() or 'qsim' in col.lower():
-                            results_df = pd.DataFrame(index=gr_df.index)
-                            results_df['GR_discharge_cms'] = gr_df[col]
-                            break
-                except Exception as e:
-                    self.logger.warning(f"Error loading GR output: {e}")
-
-        # Check for CLM output
-        if results_df is None:
-            clm_dir = sim_dir / "CLM"
-            clm_files = sorted(clm_dir.glob("*.clm2.h0.*.nc")) if clm_dir.exists() else []
-
-            if clm_files:
-                self.logger.info(f"Found {len(clm_files)} CLM history file(s)")
-                try:
-                    import xarray as xr
-                    ds = xr.open_mfdataset(
-                        [str(f) for f in clm_files], combine='by_coords',
-                        data_vars='minimal', coords='minimal', compat='override'
+        self.logger.info(f"Found {len(clm_files)} CLM history file(s)")
+        try:
+            with xr.open_mfdataset(
+                [str(path) for path in clm_files], combine='by_coords',
+                data_vars='minimal', coords='minimal', compat='override'
+            ) as ds:
+                if 'QRUNOFF' not in ds:
+                    return None
+                qrunoff = ds['QRUNOFF'].values.squeeze()
+                area_m2 = float(
+                    self._get_config_value(
+                        lambda: self.config.domain.catchment_area,
+                        default=2210.0
                     )
-                    if 'QRUNOFF' in ds:
-                        qrunoff = ds['QRUNOFF'].values.squeeze()  # mm/s
-                        area_m2 = float(
-                            self._get_config_value(
-                                lambda: self.config.domain.catchment_area,
-                                default=2210.0
-                            )
-                        ) * 1e6
-                        streamflow = qrunoff * area_m2 / 1000.0  # m3/s
-                        time_idx = pd.DatetimeIndex(ds.time.values)
-                        results_df = pd.DataFrame(
-                            {'CLM_discharge_cms': streamflow},
-                            index=time_idx
-                        )
-                    ds.close()
-                except Exception as e:
-                    self.logger.warning(f"Error loading CLM output: {e}")
-
-        # Load and add observations
-        if results_df is not None:
-            obs_series = self._load_observations(results_df.index)
-            if obs_series is not None:
-                results_df['observed_discharge_cms'] = obs_series
-
-            # Filter by spinup if configured
-            if spinup_end is not None:
-                results_df = results_df[results_df.index > spinup_end]
-
-        return results_df
+                ) * 1e6
+                streamflow = qrunoff * area_m2 / 1000.0
+                time_idx = pd.DatetimeIndex(ds.time.values)
+                return pd.DataFrame({'CLM_discharge_cms': streamflow}, index=time_idx)
+        except Exception as e:
+            self.logger.warning(f"Error loading CLM output: {e}")
+            return None
 
     def _load_from_directory(
         self,
