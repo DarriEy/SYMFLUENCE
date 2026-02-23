@@ -667,8 +667,13 @@ class AcquisitionService(ConfigurableMixin):
         else:
             self.logger.info("Using traditional MAF data acquisition workflow")
 
-            if forcing_dataset == 'AORC':
-                raise ValueError("AORC is not supported with DATA_ACCESS: MAF.")
+            if forcing_dataset not in datatoolRunner.supported_datasets():
+                supported = ', '.join(sorted(datatoolRunner.supported_datasets()))
+                raise ValueError(
+                    f"Dataset '{forcing_dataset}' is not supported with DATA_ACCESS: MAF. "
+                    f"Supported datatool datasets: {supported}. "
+                    f"Try DATA_ACCESS: cloud for this dataset instead."
+                )
 
             dr = datatoolRunner(self.config, self.logger)
             raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
@@ -720,7 +725,7 @@ class AcquisitionService(ConfigurableMixin):
         This handles registry-based observations (GRACE, MODIS, etc.)
         that require an 'acquire' step before processing.
         """
-        from symfluence.data.observation.registry import ObservationRegistry
+        from symfluence.core.registries import R
 
         additional_obs = self._get_config_value(lambda: self.config.data.additional_observations) or []
         if isinstance(additional_obs, str):
@@ -792,9 +797,11 @@ class AcquisitionService(ConfigurableMixin):
         # Build task list for parallel execution
         tasks: List[Tuple[str, Callable]] = []
         for obs_type in additional_obs:
-            if ObservationRegistry.is_registered(obs_type):
-                handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
-                tasks.append((obs_type, handler.acquire))
+            if obs_type in R.observation_handlers:
+                handler_cls = R.observation_handlers.get(obs_type)
+                if handler_cls:
+                    handler = handler_cls(self.config, self.logger)
+                    tasks.append((obs_type, handler.acquire))
             else:
                 self.logger.debug(f"Skipping acquisition for {obs_type}: no registry handler")
 
