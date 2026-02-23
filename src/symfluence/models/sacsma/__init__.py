@@ -95,24 +95,22 @@ def __getattr__(name: str):
 
 
 def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Register SAC-SMA with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all SAC-SMA components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import SacSmaConfigAdapter
-    from .extractor import SacSmaResultExtractor
-    from .preprocessor import SacSmaPreProcessor  # noqa: F401 - triggers decorator
-    from .runner import SacSmaRunner  # noqa: F401 - triggers decorator
+from .config import SacSmaConfigAdapter
+from .extractor import SacSmaResultExtractor
+from .preprocessor import SacSmaPreProcessor  # noqa: F401 – triggers decorator registration
+from .runner import SacSmaRunner  # noqa: F401 – triggers decorator registration
 
-    ModelRegistry.register_config_adapter('SACSMA')(SacSmaConfigAdapter)
-    ModelRegistry.register_result_extractor('SACSMA')(SacSmaResultExtractor)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "SACSMA",
+    config_adapter=SacSmaConfigAdapter,
+    result_extractor=SacSmaResultExtractor,
+)
 
 
 if TYPE_CHECKING:
@@ -154,5 +152,4 @@ __all__ = [
     'SacSmaState', 'sacsma_step', 'sacsma_simulate',
     'sacsma_simulate_jax', 'sacsma_simulate_numpy', 'HAS_JAX',
     'SacSmaWorker', 'SacSmaParameterManager', 'SacSmaModelOptimizer',
-    'register_with_model_registry',
 ]

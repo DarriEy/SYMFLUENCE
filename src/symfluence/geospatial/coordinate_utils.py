@@ -92,20 +92,22 @@ class BoundingBox:
         BoundingBox
             New bbox with normalized longitudes
         """
+        _eps = 1e-10
         if target_range == '0-360':
             lon_min = self.lon_min % 360
             lon_max = self.lon_max % 360
-            # Clamp: modulo of very small negatives can produce exactly 360.0
-            if lon_min == 360.0:
+            # Clamp: modulo of very small negatives can produce 360.0 or
+            # values a few ULPs below it (e.g. 359.99999999999994).
+            if lon_min >= 360.0 - _eps:
                 lon_min = 0.0
-            if lon_max == 360.0:
+            if lon_max >= 360.0 - _eps:
                 lon_max = 0.0
         elif target_range == '-180-180':
             lon_min = ((self.lon_min + 180) % 360) - 180
             lon_max = ((self.lon_max + 180) % 360) - 180
-            if lon_min == 180.0:
+            if lon_min >= 180.0 - _eps:
                 lon_min = -180.0
-            if lon_max == 180.0:
+            if lon_max >= 180.0 - _eps:
                 lon_max = -180.0
         else:
             raise ValueError(f"Unknown target_range: {target_range}")
@@ -267,19 +269,21 @@ def normalize_longitude(
     >>> normalize_longitude(240.0, '-180-180')
     -120.0
     """
+    _EPS = 1e-10  # tolerance for boundary clamping
     if target_range == '0-360':
         result = lon % 360
-        # Clamp: modulo of very small negatives can produce exactly 360.0
+        # Clamp: modulo of very small negatives can produce 360.0 or
+        # values a few ULPs below it (e.g. 359.99999999999994).
         if isinstance(result, np.ndarray):
-            result[result == 360.0] = 0.0
-        elif result == 360.0:
+            result[result >= 360.0 - _EPS] = 0.0
+        elif result >= 360.0 - _EPS:
             result = 0.0
         return result
     elif target_range == '-180-180':
         result = ((lon + 180) % 360) - 180
         if isinstance(result, np.ndarray):
-            result[result == 180.0] = -180.0
-        elif result == 180.0:
+            result[result >= 180.0 - _EPS] = -180.0
+        elif result >= 180.0 - _EPS:
             result = -180.0
         return result
     else:
