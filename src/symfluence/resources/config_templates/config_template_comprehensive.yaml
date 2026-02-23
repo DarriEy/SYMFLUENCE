@@ -2956,13 +2956,10 @@ MIN_SOURCE_THRESHOLD: 100
 #   Usage:      7
 MOVE_OUTLETS_MAX_DISTANCE: 200.0
 
-# GEOFABRIC_BBOX_PADDING
+# GEOFABRIC_BBOX_PADDING - bbox padding (degrees) for geofabric subsetter; prevents small-basin failures
 #   Type:        float
 #   Default:     0.02
 #   Source:      DelineationConfig (domain.py)
-#   Description: Padding in degrees added to the bounding box when downloading
-#                geofabric data. Prevents failures on small basins where the pour
-#                point may fall on or near a basin boundary. Set to 0 to disable.
 GEOFABRIC_BBOX_PADDING: 0.02
 
 # MULTI_SCALE_THRESHOLDS

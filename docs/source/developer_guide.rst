@@ -348,6 +348,7 @@ SYMFLUENCE uses pytest with multiple test levels:
    pytest tests/unit/models/test_summa_preprocessor.py
 
    # With coverage
+   coverage erase
    pytest --cov=symfluence --cov-report=html
 
    # Specific markers
