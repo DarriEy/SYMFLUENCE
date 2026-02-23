@@ -1,799 +1,123 @@
 """Canonical flat-to-nested configuration key mappings.
 
-Pure data module — maps uppercase flat configuration keys to their nested
-(section, subsection, field) paths within the SymfluenceConfig hierarchy.
+The primary mapping is now auto-generated from Pydantic model aliases via
+``introspection.generate_flat_to_nested_map``.  This module provides a
+lazy-loaded fallback that uses the same introspection machinery plus legacy
+aliases from ``legacy_aliases.py``.
 
-The canonical mapping contains only the preferred key names. Legacy aliases
-live in ``legacy_aliases.py`` and are merged at import time via
-``FLAT_TO_NESTED_MAP``.
+The exported names (``CANONICAL_FLAT_TO_NESTED_MAP`` and ``FLAT_TO_NESTED_MAP``)
+are kept for backward compatibility with any code that imports them directly.
 """
 
+import logging
+import threading
 from typing import Dict, Tuple
 
 from symfluence.core.config.legacy_aliases import LEGACY_FLAT_TO_NESTED_ALIASES
 
-# Comprehensive canonical mapping from flat uppercase keys to nested paths.
-# Format: 'FLAT_KEY': ('section', 'subsection', 'field') or ('section', 'field')
-#
-# NOTE: This mapping can be auto-generated from Pydantic model aliases using:
-#   from symfluence.core.config.introspection import generate_flat_to_nested_map
-#   from symfluence.core.config.models import SymfluenceConfig
-#   auto_mapping = generate_flat_to_nested_map(SymfluenceConfig)
-#
-# The manual mapping is kept for backward compatibility and explicit control.
-# Use validate_mapping_against_pydantic() to verify sync with Pydantic models.
-CANONICAL_FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
-    # ========== SYSTEM CONFIGURATION ==========
-    'SYMFLUENCE_DATA_DIR': ('system', 'data_dir'),
-    'SYMFLUENCE_CODE_DIR': ('system', 'code_dir'),
-    'NUM_PROCESSES': ('system', 'num_processes'),
-    'DEBUG_MODE': ('system', 'debug_mode'),
-    'LOG_LEVEL': ('system', 'log_level'),
-    'LOG_TO_FILE': ('system', 'log_to_file'),
-    'LOG_FORMAT': ('system', 'log_format'),
-    'FORCE_RUN_ALL_STEPS': ('system', 'force_run_all_steps'),
-    # Note: FORCE_DOWNLOAD mapped to ('data', 'force_download') in Data section
-    'USE_LOCAL_SCRATCH': ('system', 'use_local_scratch'),
-    'RANDOM_SEED': ('system', 'random_seed'),
-    'STOP_ON_ERROR': ('system', 'stop_on_error'),
+logger = logging.getLogger(__name__)
+
+_CANONICAL_MAP: Dict[str, Tuple[str, ...]] | None = None
+_CANONICAL_LOCK = threading.Lock()
 
-    # ========== DOMAIN CONFIGURATION ==========
-    'DOMAIN_NAME': ('domain', 'name'),
-    'EXPERIMENT_ID': ('domain', 'experiment_id'),
-    'EXPERIMENT_TIME_START': ('domain', 'time_start'),
-    'EXPERIMENT_TIME_END': ('domain', 'time_end'),
-    'CALIBRATION_PERIOD': ('domain', 'calibration_period'),
-    'CALIBRATION_START_DATE': ('domain', 'calibration_start_date'),
-    'CALIBRATION_END_DATE': ('domain', 'calibration_end_date'),
-    'EVALUATION_PERIOD': ('domain', 'evaluation_period'),
-    'SPINUP_PERIOD': ('domain', 'spinup_period'),
-    'DOMAIN_DEFINITION_METHOD': ('domain', 'definition_method'),
-    'SUB_GRID_DISCRETIZATION': ('domain', 'discretization'),
-    'SUBSET_FROM_GEOFABRIC': ('domain', 'subset_from_geofabric'),
-    'GRID_SOURCE': ('domain', 'grid_source'),
-    'NATIVE_GRID_DATASET': ('domain', 'native_grid_dataset'),
-    'POUR_POINT_COORDS': ('domain', 'pour_point_coords'),
-    'BOUNDING_BOX_COORDS': ('domain', 'bounding_box_coords'),
-    'MIN_GRU_SIZE': ('domain', 'min_gru_size'),
-    'MIN_HRU_SIZE': ('domain', 'min_hru_size'),
-    'ELEVATION_BAND_SIZE': ('domain', 'elevation_band_size'),
-    'RADIATION_CLASS_NUMBER': ('domain', 'radiation_class_number'),
-    'ASPECT_CLASS_NUMBER': ('domain', 'aspect_class_number'),
-    'ASPECT_PATH': ('domain', 'aspect_path'),
-    'GRID_CELL_SIZE': ('domain', 'grid_cell_size'),
-    'CLIP_GRID_TO_WATERSHED': ('domain', 'clip_grid_to_watershed'),
-    'DATA_ACCESS': ('domain', 'data_access'),
-    'DOWNLOAD_DEM': ('domain', 'download_dem'),
-    'DOWNLOAD_SOIL': ('domain', 'download_soil'),
-    'DOWNLOAD_LAND_COVER': ('domain', 'download_landcover'),
-    'DEM_SOURCE': ('domain', 'dem_source'),
-    'LAND_CLASS_SOURCE': ('domain', 'land_class_source'),
-    'LAND_CLASS_NAME': ('domain', 'land_class_name'),
+
+def _generate_canonical_map() -> Dict[str, Tuple[str, ...]]:
+    """Lazy-generate the canonical mapping from Pydantic model aliases."""
+    global _CANONICAL_MAP
+
+    if _CANONICAL_MAP is not None:
+        return _CANONICAL_MAP
+
+    with _CANONICAL_LOCK:
+        if _CANONICAL_MAP is not None:
+            return _CANONICAL_MAP
+
+        try:
+            from symfluence.core.config.introspection import generate_flat_to_nested_map
+            from symfluence.core.config.models import SymfluenceConfig
+
+            _CANONICAL_MAP = generate_flat_to_nested_map(
+                SymfluenceConfig,
+                include_model_overrides=False,
+            )
+            logger.debug(
+                "Auto-generated %d canonical mappings from Pydantic aliases",
+                len(_CANONICAL_MAP),
+            )
+        except Exception as e:
+            logger.warning("Canonical map auto-generation failed: %s", e)
+            _CANONICAL_MAP = {}
+
+    return _CANONICAL_MAP
+
+
+class _LazyMap(dict):
+    """Dict subclass that lazily populates from the auto-generated mapping.
+
+    This lets ``CANONICAL_FLAT_TO_NESTED_MAP`` and ``FLAT_TO_NESTED_MAP``
+    remain importable module-level dicts without triggering Pydantic model
+    import at module load time (which would cause circular imports).
+    """
+
+    def __init__(self, include_legacy: bool = False):
+        super().__init__()
+        self._include_legacy = include_legacy
+        self._loaded = False
+
+    def _ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        self.update(_generate_canonical_map())
+        if self._include_legacy:
+            # Legacy aliases have lower priority — only add missing keys
+            for key, path in LEGACY_FLAT_TO_NESTED_ALIASES.items():
+                self.setdefault(key, path)
+
+    # Override all read methods to ensure data is loaded first
+    def __getitem__(self, key):
+        self._ensure_loaded()
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        self._ensure_loaded()
+        return super().__contains__(key)
+
+    def __iter__(self):
+        self._ensure_loaded()
+        return super().__iter__()
+
+    def __len__(self):
+        self._ensure_loaded()
+        return super().__len__()
+
+    def keys(self):
+        self._ensure_loaded()
+        return super().keys()
+
+    def values(self):
+        self._ensure_loaded()
+        return super().values()
+
+    def items(self):
+        self._ensure_loaded()
+        return super().items()
+
+    def get(self, key, default=None):
+        self._ensure_loaded()
+        return super().get(key, default)
+
+    def copy(self):
+        self._ensure_loaded()
+        return dict(self)
+
+    def __repr__(self):
+        self._ensure_loaded()
+        return super().__repr__()
+
+
+# Canonical mapping (no legacy aliases) — importable as before.
+CANONICAL_FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = _LazyMap(include_legacy=False)
 
-    # ========== DATA CONFIGURATION ==========
-    'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
-    # Note: SUPPLEMENT_FORCING mapped to ('forcing', 'supplement') in Forcing section
-    'FORCE_DOWNLOAD': ('data', 'force_download'),
-    'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
-    'USGS_SITE_CODE': ('data', 'usgs_site_code'),
-    'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
-    # Note: DOWNLOAD_USGS_GW mapped to ('evaluation', 'usgs_gw', 'download') in Evaluation section
-    # Note: DOWNLOAD_MODIS_SNOW mapped to ('evaluation', 'modis_snow', 'download') in Evaluation section
-    # Note: DOWNLOAD_SNOTEL mapped to ('evaluation', 'snotel', 'download') in Evaluation section
-    # Note: DOWNLOAD_SMHI_DATA mapped to ('evaluation', 'smhi', 'download') in Evaluation section
-    # Note: DOWNLOAD_LAMAH_ICE_DATA mapped to ('evaluation', 'lamah_ice', 'download') in Evaluation section
-    # Note: DOWNLOAD_GLACIER_DATA mapped to ('evaluation', 'glacier', 'download') in Evaluation section
-    # Note: LAMAH_ICE_PATH mapped to ('evaluation', 'lamah_ice', 'path') in Evaluation section
-    'DOWNLOAD_ISMN': ('data', 'download_ismn'),
-    'BUILD_MODEL_READY_STORE': ('data', 'build_model_ready_store'),
-    'MODEL_READY_FORCING_STRATEGY': ('data', 'model_ready_forcing_strategy'),
-    'STREAMFLOW_STATION_ID': ('data', 'streamflow_station_id'),
-    'ELEV_CHUNK_SIZE': ('data', 'elev_chunk_size'),
-    'ELEV_TILE_TARGET': ('data', 'elev_tile_target'),
-
-    # Data > Geospatial > SoilGrids
-    'SOILGRIDS_LAYER': ('data', 'geospatial', 'soilgrids', 'layer'),
-    'SOILGRIDS_WCS_MAP': ('data', 'geospatial', 'soilgrids', 'wcs_map'),
-    'SOILGRIDS_COVERAGE_ID': ('data', 'geospatial', 'soilgrids', 'coverage_id'),
-    'SOILGRIDS_HS_CACHE_DIR': ('data', 'geospatial', 'soilgrids', 'hs_cache_dir'),
-    'SOILGRIDS_HS_RESOURCE_ID': ('data', 'geospatial', 'soilgrids', 'hs_resource_id'),
-    'SOILGRIDS_HS_API_URL': ('data', 'geospatial', 'soilgrids', 'hs_api_url'),
-
-    # Data > Geospatial > MODIS Landcover
-    'MODIS_LANDCOVER_YEARS': ('data', 'geospatial', 'modis_landcover', 'years'),
-    'MODIS_LANDCOVER_START_YEAR': ('data', 'geospatial', 'modis_landcover', 'start_year'),
-    'MODIS_LANDCOVER_END_YEAR': ('data', 'geospatial', 'modis_landcover', 'end_year'),
-    'LANDCOVER_YEAR': ('data', 'geospatial', 'modis_landcover', 'year'),
-    'MODIS_LANDCOVER_BASE_URL': ('data', 'geospatial', 'modis_landcover', 'base_url'),
-    'MODIS_LANDCOVER_CACHE_DIR': ('data', 'geospatial', 'modis_landcover', 'cache_dir'),
-    'LANDCOVER_LOCAL_FILE': ('data', 'geospatial', 'modis_landcover', 'local_file'),
-
-    # Data > Geospatial > NLCD
-    'NLCD_COVERAGE_ID': ('data', 'geospatial', 'nlcd', 'coverage_id'),
-
-    # Data > Geospatial > NASADEM
-    'NASADEM_LOCAL_DIR': ('data', 'geospatial', 'nasadem', 'local_dir'),
-
-    # Domain > Delineation
-    'ROUTING_DELINEATION': ('domain', 'delineation', 'routing'),
-    'GEOFABRIC_TYPE': ('domain', 'delineation', 'geofabric_type'),
-    'DELINEATION_METHOD': ('domain', 'delineation', 'method'),
-    'CURVATURE_THRESHOLD': ('domain', 'delineation', 'curvature_threshold'),
-    'MIN_SOURCE_THRESHOLD': ('domain', 'delineation', 'min_source_threshold'),
-    'STREAM_THRESHOLD': ('domain', 'delineation', 'stream_threshold'),
-    'SLOPE_AREA_THRESHOLD': ('domain', 'delineation', 'slope_area_threshold'),
-    'SLOPE_AREA_EXPONENT': ('domain', 'delineation', 'slope_area_exponent'),
-    'AREA_EXPONENT': ('domain', 'delineation', 'area_exponent'),
-    'MULTI_SCALE_THRESHOLDS': ('domain', 'delineation', 'multi_scale_thresholds'),
-    'USE_DROP_ANALYSIS': ('domain', 'delineation', 'use_drop_analysis'),
-    'DROP_ANALYSIS_MIN_THRESHOLD': ('domain', 'delineation', 'drop_analysis_min_threshold'),
-    'DROP_ANALYSIS_MAX_THRESHOLD': ('domain', 'delineation', 'drop_analysis_max_threshold'),
-    'DROP_ANALYSIS_NUM_THRESHOLDS': ('domain', 'delineation', 'drop_analysis_num_thresholds'),
-    'DROP_ANALYSIS_LOG_SPACING': ('domain', 'delineation', 'drop_analysis_log_spacing'),
-    'LUMPED_WATERSHED_METHOD': ('domain', 'delineation', 'lumped_watershed_method'),
-    'CLEANUP_INTERMEDIATE_FILES': ('domain', 'delineation', 'cleanup_intermediate_files'),
-    'DELINEATE_COASTAL_WATERSHEDS': ('domain', 'delineation', 'delineate_coastal_watersheds'),
-    'DELINEATE_BY_POURPOINT': ('domain', 'delineation', 'delineate_by_pourpoint'),
-    'MOVE_OUTLETS_MAX_DISTANCE': ('domain', 'delineation', 'move_outlets_max_distance'),
-    'POINT_BUFFER_DISTANCE': ('domain', 'delineation', 'point_buffer_distance'),
-    'MAX_RETRIES': ('domain', 'delineation', 'max_retries'),
-    'RETRY_DELAY': ('domain', 'delineation', 'retry_delay'),
-
-    # Domain > Catchment area
-    'CATCHMENT_AREA': ('domain', 'catchment_area'),
-
-    # ========== FORCING CONFIGURATION ==========
-    'FORCING_DATASET': ('forcing', 'dataset'),
-    'FORCING_TIME_STEP_SIZE': ('forcing', 'time_step_size'),
-    'FORCING_VARIABLES': ('forcing', 'variables'),
-    'FORCING_MEASUREMENT_HEIGHT': ('forcing', 'measurement_height'),
-    'APPLY_LAPSE_RATE': ('forcing', 'apply_lapse_rate'),
-    'LAPSE_RATE': ('forcing', 'lapse_rate'),
-    'FORCING_SHAPE_LAT_NAME': ('forcing', 'shape_lat_name'),
-    'FORCING_SHAPE_LON_NAME': ('forcing', 'shape_lon_name'),
-    'PET_METHOD': ('forcing', 'pet_method'),
-    'SUPPLEMENT_FORCING': ('forcing', 'supplement'),
-    'KEEP_RAW_FORCING': ('forcing', 'keep_raw'),
-
-    # Forcing > ERA5
-    'ERA5_USE_CDS': ('forcing', 'era5_use_cds'),
-    'ERA5_ZARR_PATH': ('forcing', 'era5', 'zarr_path'),
-    'ERA5_TIME_STEP_HOURS': ('forcing', 'era5', 'time_step_hours'),
-    'ERA5_VARS': ('forcing', 'era5', 'variables'),
-
-    # Forcing > NEX
-    'NEX_MODELS': ('forcing', 'nex', 'models'),
-    'NEX_SCENARIOS': ('forcing', 'nex', 'scenarios'),
-    'NEX_ENSEMBLES': ('forcing', 'nex', 'ensembles'),
-    'NEX_VARIABLES': ('forcing', 'nex', 'variables'),
-
-    # Forcing > EM-Earth
-    'EM_EARTH_REGION': ('forcing', 'em_earth', 'region'),
-    'EM_EARTH_PRCP_DIR': ('forcing', 'em_earth', 'prcp_dir'),
-    'EM_EARTH_TMEAN_DIR': ('forcing', 'em_earth', 'tmean_dir'),
-    'EM_EARTH_MIN_BBOX_SIZE': ('forcing', 'em_earth', 'min_bbox_size'),
-    'EM_EARTH_MAX_EXPANSION': ('forcing', 'em_earth', 'max_expansion'),
-    'EM_PRCP': ('forcing', 'em_earth', 'prcp_var'),
-    'EM_EARTH_DATA_TYPE': ('forcing', 'em_earth', 'data_type'),
-
-    # ========== MODEL CONFIGURATION ==========
-    'HYDROLOGICAL_MODEL': ('model', 'hydrological_model'),
-    'ROUTING_MODEL': ('model', 'routing_model'),
-    'GROUNDWATER_MODEL': ('model', 'groundwater_model'),
-    'COUPLING_MODE': ('model', 'coupling_mode'),
-    'CONSERVATION_MODE': ('model', 'conservation_mode'),
-    'TOPOLOGY_FILE': ('model', 'topology_file'),
-    'SNOW_MODULE': ('model', 'snow_module'),
-
-    # Model > SUMMA
-    'SUMMA_INSTALL_PATH': ('model', 'summa', 'install_path'),
-    'SUMMA_EXE': ('model', 'summa', 'exe'),
-    # Legacy SETTINGS_*_PATH aliases are isolated in legacy_aliases.py
-    # Legacy SETTINGS_SUMMA_* aliases are isolated in legacy_aliases.py
-    'EXPERIMENT_OUTPUT_SUMMA': ('model', 'summa', 'experiment_output'),
-    'EXPERIMENT_LOG_SUMMA': ('model', 'summa', 'experiment_log'),
-    'PARAMS_TO_CALIBRATE': ('model', 'summa', 'params_to_calibrate'),
-    'BASIN_PARAMS_TO_CALIBRATE': ('model', 'summa', 'basin_params_to_calibrate'),
-    'SUMMA_DECISION_OPTIONS': ('model', 'summa', 'decision_options'),
-    'CALIBRATE_DEPTH': ('model', 'summa', 'calibrate_depth'),
-    'DEPTH_TOTAL_MULT_BOUNDS': ('model', 'summa', 'depth_total_mult_bounds'),
-    'DEPTH_SHAPE_FACTOR_BOUNDS': ('model', 'summa', 'depth_shape_factor_bounds'),
-    'SUMMA_TIMEOUT': ('model', 'summa', 'timeout'),
-    'EXPERIMENT_BACKUP_SETTINGS': ('model', 'summa', 'backup_settings'),
-    'MONITOR_SLURM_JOB': ('model', 'summa', 'monitor_slurm_job'),
-    'SUMMA_INIT_MATRIC_HEAD': ('model', 'summa', 'init_matric_head'),
-
-    # Model > FUSE
-    'FUSE_INSTALL_PATH': ('model', 'fuse', 'install_path'),
-    'FUSE_EXE': ('model', 'fuse', 'exe'),
-    'FUSE_ROUTING_INTEGRATION': ('model', 'fuse', 'routing_integration'),
-    'FUSE_SPATIAL_MODE': ('model', 'fuse', 'spatial_mode'),
-    'FUSE_SUBCATCHMENT_DIM': ('model', 'fuse', 'subcatchment_dim'),
-    'EXPERIMENT_OUTPUT_FUSE': ('model', 'fuse', 'experiment_output'),
-    'FUSE_DECISION_OPTIONS': ('model', 'fuse', 'decision_options'),
-    'FUSE_FILE_ID': ('model', 'fuse', 'file_id'),
-    'FUSE_N_ELEVATION_BANDS': ('model', 'fuse', 'n_elevation_bands'),
-    'FUSE_TIMEOUT': ('model', 'fuse', 'timeout'),
-    'FUSE_OUTPUT_TIMESTEP_SECONDS': ('model', 'fuse', 'output_timestep_seconds'),
-    'FUSE_SNOW_MODEL': ('model', 'fuse', 'snow_model'),
-    'FUSE_PARAM_BOUNDS': ('model', 'fuse', 'param_bounds'),
-    'PARAMETER_REGIONALIZATION': ('model', 'fuse', 'parameter_regionalization'),
-    'USE_TRANSFER_FUNCTIONS': ('model', 'fuse', 'use_transfer_functions'),
-    'TRANSFER_FUNCTION_COEFF_BOUNDS': ('model', 'fuse', 'transfer_function_coeff_bounds'),
-    'FUSE_SOLUTION_METHOD': ('model', 'fuse', 'solution_method'),
-    'FUSE_TIMESTEP_TYPE': ('model', 'fuse', 'timestep_type'),
-
-    # Model > GR
-    'GR_INSTALL_PATH': ('model', 'gr', 'install_path'),
-    'GR_EXE': ('model', 'gr', 'exe'),
-    'GR_SPATIAL_MODE': ('model', 'gr', 'spatial_mode'),
-    'GR_ROUTING_INTEGRATION': ('model', 'gr', 'routing_integration'),
-    'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
-    'GR_PARAM_BOUNDS': ('model', 'gr', 'param_bounds'),
-    'GR4J_PARAM_BOUNDS': ('model', 'gr', 'gr4j_param_bounds'),
-    'GR_INITIAL_PARAMS': ('model', 'gr', 'initial_params'),
-    'GR_DEFAULT_PARAMS': ('model', 'gr', 'default_params'),
-
-    # Model > HBV
-    'HBV_SPATIAL_MODE': ('model', 'hbv', 'spatial_mode'),
-    'HBV_ROUTING_INTEGRATION': ('model', 'hbv', 'routing_integration'),
-    'HBV_BACKEND': ('model', 'hbv', 'backend'),
-    'HBV_USE_GPU': ('model', 'hbv', 'use_gpu'),
-    'HBV_JIT_COMPILE': ('model', 'hbv', 'jit_compile'),
-    'HBV_WARMUP_DAYS': ('model', 'hbv', 'warmup_days'),
-    'HBV_TIMESTEP_HOURS': ('model', 'hbv', 'timestep_hours'),
-    'HBV_PARAMS_TO_CALIBRATE': ('model', 'hbv', 'params_to_calibrate'),
-    'HBV_USE_GRADIENT_CALIBRATION': ('model', 'hbv', 'use_gradient_calibration'),
-    'HBV_CALIBRATION_METRIC': ('model', 'hbv', 'calibration_metric'),
-    'HBV_INITIAL_SNOW': ('model', 'hbv', 'initial_snow'),
-    'HBV_INITIAL_SM': ('model', 'hbv', 'initial_sm'),
-    'HBV_INITIAL_SUZ': ('model', 'hbv', 'initial_suz'),
-    'HBV_INITIAL_SLZ': ('model', 'hbv', 'initial_slz'),
-    'HBV_PET_METHOD': ('model', 'hbv', 'pet_method'),
-    'HBV_LATITUDE': ('model', 'hbv', 'latitude'),
-    'HBV_SAVE_STATES': ('model', 'hbv', 'save_states'),
-    'HBV_OUTPUT_FREQUENCY': ('model', 'hbv', 'output_frequency'),
-    'HBV_DEFAULT_TT': ('model', 'hbv', 'default_tt'),
-    'HBV_DEFAULT_CFMAX': ('model', 'hbv', 'default_cfmax'),
-    'HBV_DEFAULT_SFCF': ('model', 'hbv', 'default_sfcf'),
-    'HBV_DEFAULT_CFR': ('model', 'hbv', 'default_cfr'),
-    'HBV_DEFAULT_CWH': ('model', 'hbv', 'default_cwh'),
-    'HBV_DEFAULT_FC': ('model', 'hbv', 'default_fc'),
-    'HBV_DEFAULT_LP': ('model', 'hbv', 'default_lp'),
-    'HBV_DEFAULT_BETA': ('model', 'hbv', 'default_beta'),
-    'HBV_DEFAULT_K0': ('model', 'hbv', 'default_k0'),
-    'HBV_DEFAULT_K1': ('model', 'hbv', 'default_k1'),
-    'HBV_DEFAULT_K2': ('model', 'hbv', 'default_k2'),
-    'HBV_DEFAULT_UZL': ('model', 'hbv', 'default_uzl'),
-    'HBV_DEFAULT_PERC': ('model', 'hbv', 'default_perc'),
-    'HBV_DEFAULT_MAXBAS': ('model', 'hbv', 'default_maxbas'),
-
-    # Model > HECHMS
-    'HECHMS_BACKEND': ('model', 'hechms', 'backend'),
-    'HECHMS_WARMUP_DAYS': ('model', 'hechms', 'warmup_days'),
-    'HECHMS_PARAMS_TO_CALIBRATE': ('model', 'hechms', 'params_to_calibrate'),
-    'HECHMS_CALIBRATION_METRIC': ('model', 'hechms', 'calibration_metric'),
-    'HECHMS_PET_METHOD': ('model', 'hechms', 'pet_method'),
-    'HECHMS_LATITUDE': ('model', 'hechms', 'latitude'),
-    'HECHMS_INITIAL_SNOW_SWE': ('model', 'hechms', 'initial_snow_swe'),
-    'HECHMS_INITIAL_GW_STORAGE': ('model', 'hechms', 'initial_gw_storage'),
-    'HECHMS_DEFAULT_PX_TEMP': ('model', 'hechms', 'default_px_temp'),
-    'HECHMS_DEFAULT_BASE_TEMP': ('model', 'hechms', 'default_base_temp'),
-    'HECHMS_DEFAULT_ATI_MELTRATE_COEFF': ('model', 'hechms', 'default_ati_meltrate_coeff'),
-    'HECHMS_DEFAULT_MELTRATE_MAX': ('model', 'hechms', 'default_meltrate_max'),
-    'HECHMS_DEFAULT_MELTRATE_MIN': ('model', 'hechms', 'default_meltrate_min'),
-    'HECHMS_DEFAULT_COLD_LIMIT': ('model', 'hechms', 'default_cold_limit'),
-    'HECHMS_DEFAULT_ATI_COLD_RATE_COEFF': ('model', 'hechms', 'default_ati_cold_rate_coeff'),
-    'HECHMS_DEFAULT_WATER_CAPACITY': ('model', 'hechms', 'default_water_capacity'),
-    'HECHMS_DEFAULT_CN': ('model', 'hechms', 'default_cn'),
-    'HECHMS_DEFAULT_INITIAL_ABSTRACTION_RATIO': ('model', 'hechms', 'default_initial_abstraction_ratio'),
-    'HECHMS_DEFAULT_TC': ('model', 'hechms', 'default_tc'),
-    'HECHMS_DEFAULT_R_COEFF': ('model', 'hechms', 'default_r_coeff'),
-    'HECHMS_DEFAULT_GW_STORAGE_COEFF': ('model', 'hechms', 'default_gw_storage_coeff'),
-    'HECHMS_DEFAULT_DEEP_PERC_FRACTION': ('model', 'hechms', 'default_deep_perc_fraction'),
-
-    # Model > TOPMODEL
-    'TOPMODEL_BACKEND': ('model', 'topmodel', 'backend'),
-    'TOPMODEL_WARMUP_DAYS': ('model', 'topmodel', 'warmup_days'),
-    'TOPMODEL_PARAMS_TO_CALIBRATE': ('model', 'topmodel', 'params_to_calibrate'),
-    'TOPMODEL_CALIBRATION_METRIC': ('model', 'topmodel', 'calibration_metric'),
-    'TOPMODEL_PET_METHOD': ('model', 'topmodel', 'pet_method'),
-    'TOPMODEL_LATITUDE': ('model', 'topmodel', 'latitude'),
-    'TOPMODEL_DEFAULT_M': ('model', 'topmodel', 'default_m'),
-    'TOPMODEL_DEFAULT_LNTE': ('model', 'topmodel', 'default_lnTe'),
-    'TOPMODEL_DEFAULT_SRMAX': ('model', 'topmodel', 'default_Srmax'),
-    'TOPMODEL_DEFAULT_SR0': ('model', 'topmodel', 'default_Sr0'),
-    'TOPMODEL_DEFAULT_TD': ('model', 'topmodel', 'default_td'),
-    'TOPMODEL_DEFAULT_K_ROUTE': ('model', 'topmodel', 'default_k_route'),
-    'TOPMODEL_DEFAULT_DDF': ('model', 'topmodel', 'default_DDF'),
-    'TOPMODEL_DEFAULT_T_MELT': ('model', 'topmodel', 'default_T_melt'),
-    'TOPMODEL_DEFAULT_T_SNOW': ('model', 'topmodel', 'default_T_snow'),
-    'TOPMODEL_DEFAULT_TI_STD': ('model', 'topmodel', 'default_ti_std'),
-    'TOPMODEL_DEFAULT_S0': ('model', 'topmodel', 'default_S0'),
-
-    # Model > GSFLOW
-    'GSFLOW_INSTALL_PATH': ('model', 'gsflow', 'install_path'),
-    'GSFLOW_EXE': ('model', 'gsflow', 'exe'),
-    'GSFLOW_CONTROL_FILE': ('model', 'gsflow', 'control_file'),
-    'GSFLOW_PARAMETER_FILE': ('model', 'gsflow', 'parameter_file'),
-    'GSFLOW_MODFLOW_NAM_FILE': ('model', 'gsflow', 'modflow_nam_file'),
-    'GSFLOW_SPATIAL_MODE': ('model', 'gsflow', 'spatial_mode'),
-    'EXPERIMENT_OUTPUT_GSFLOW': ('model', 'gsflow', 'experiment_output'),
-    'GSFLOW_PARAMS_TO_CALIBRATE': ('model', 'gsflow', 'params_to_calibrate'),
-    'GSFLOW_MODE': ('model', 'gsflow', 'gsflow_mode'),
-    'GSFLOW_TIMEOUT': ('model', 'gsflow', 'timeout'),
-
-    # Model > WATFLOOD
-    'WATFLOOD_INSTALL_PATH': ('model', 'watflood', 'install_path'),
-    'WATFLOOD_EXE': ('model', 'watflood', 'exe'),
-    'WATFLOOD_SHED_FILE': ('model', 'watflood', 'shed_file'),
-    'WATFLOOD_PAR_FILE': ('model', 'watflood', 'par_file'),
-    'WATFLOOD_EVENT_FILE': ('model', 'watflood', 'event_file'),
-    'WATFLOOD_SPATIAL_MODE': ('model', 'watflood', 'spatial_mode'),
-    'EXPERIMENT_OUTPUT_WATFLOOD': ('model', 'watflood', 'experiment_output'),
-    'WATFLOOD_PARAMS_TO_CALIBRATE': ('model', 'watflood', 'params_to_calibrate'),
-    'WATFLOOD_TIMEOUT': ('model', 'watflood', 'timeout'),
-
-    # Model > HYPE
-    'HYPE_INSTALL_PATH': ('model', 'hype', 'install_path'),
-    'HYPE_EXE': ('model', 'hype', 'exe'),
-    'HYPE_PARAMS_TO_CALIBRATE': ('model', 'hype', 'params_to_calibrate'),
-    'HYPE_SPINUP_DAYS': ('model', 'hype', 'spinup_days'),
-
-    # Model > NGEN
-    'NGEN_INSTALL_PATH': ('model', 'ngen', 'install_path'),
-    'NGEN_EXE': ('model', 'ngen', 'exe'),
-    'NGEN_MODULES_TO_CALIBRATE': ('model', 'ngen', 'modules_to_calibrate'),
-    'NGEN_CFE_PARAMS_TO_CALIBRATE': ('model', 'ngen', 'cfe_params_to_calibrate'),
-    'NGEN_NOAH_PARAMS_TO_CALIBRATE': ('model', 'ngen', 'noah_params_to_calibrate'),
-    'NGEN_PET_PARAMS_TO_CALIBRATE': ('model', 'ngen', 'pet_params_to_calibrate'),
-    'NGEN_ACTIVE_CATCHMENT_ID': ('model', 'ngen', 'active_catchment_id'),
-    'ENABLE_SLOTH': ('model', 'ngen', 'enable_sloth'),
-    'ENABLE_PET': ('model', 'ngen', 'enable_pet'),
-    'ENABLE_NOAH': ('model', 'ngen', 'enable_noah'),
-    'ENABLE_CFE': ('model', 'ngen', 'enable_cfe'),
-    'NGEN_NOAH_ET_FALLBACK': ('model', 'ngen', 'noah_et_fallback'),
-    'NGEN_RUN_TROUTE': ('model', 'ngen', 'run_troute'),
-
-    # Model > MESH
-    'MESH_INSTALL_PATH': ('model', 'mesh', 'install_path'),
-    'MESH_EXE': ('model', 'mesh', 'exe'),
-    'MESH_SPATIAL_MODE': ('model', 'mesh', 'spatial_mode'),
-    'EXPERIMENT_OUTPUT_MESH': ('model', 'mesh', 'experiment_output'),
-    'MESH_FORCING_PATH': ('model', 'mesh', 'forcing_path'),
-    'MESH_FORCING_VARS': ('model', 'mesh', 'forcing_vars'),
-    'MESH_FORCING_UNITS': ('model', 'mesh', 'forcing_units'),
-    'MESH_FORCING_TO_UNITS': ('model', 'mesh', 'forcing_to_units'),
-    'MESH_LANDCOVER_STATS_PATH': ('model', 'mesh', 'landcover_stats_path'),
-    'MESH_LANDCOVER_STATS_DIR': ('model', 'mesh', 'landcover_stats_dir'),
-    'MESH_LANDCOVER_STATS_FILE': ('model', 'mesh', 'landcover_stats_file'),
-    'MESH_MAIN_ID': ('model', 'mesh', 'main_id'),
-    'MESH_DS_MAIN_ID': ('model', 'mesh', 'ds_main_id'),
-    'MESH_LANDCOVER_CLASSES': ('model', 'mesh', 'landcover_classes'),
-    'MESH_DDB_VARS': ('model', 'mesh', 'ddb_vars'),
-    'MESH_DDB_UNITS': ('model', 'mesh', 'ddb_units'),
-    'MESH_DDB_TO_UNITS': ('model', 'mesh', 'ddb_to_units'),
-    'MESH_DDB_MIN_VALUES': ('model', 'mesh', 'ddb_min_values'),
-    'MESH_GRU_DIM': ('model', 'mesh', 'gru_dim'),
-    'MESH_HRU_DIM': ('model', 'mesh', 'hru_dim'),
-    'MESH_OUTLET_VALUE': ('model', 'mesh', 'outlet_value'),
-    'MESH_PARAMS_TO_CALIBRATE': ('model', 'mesh', 'params_to_calibrate'),
-    'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
-    'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
-    'MESH_FORCE_SINGLE_GRU': ('model', 'mesh', 'force_single_gru'),
-    'MESH_APPLY_PARAMS_ALL_GRUS': ('model', 'mesh', 'apply_params_all_grus'),
-    'MESH_USE_LANDCOVER_MULTIPLIERS': ('model', 'mesh', 'use_landcover_multipliers'),
-    'MESH_ENABLE_FROZEN_SOIL': ('model', 'mesh', 'enable_frozen_soil'),
-    'MESH_DAILY_TOLERANCE_DAYS': ('model', 'mesh', 'daily_tolerance_days'),
-
-    # Model > mizuRoute - STANDARD NAMING (preferred)
-    'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
-    'MIZUROUTE_EXE': ('model', 'mizuroute', 'exe'),
-
-    # Legacy aliases are intentionally isolated in legacy_aliases.py
-    'MIZU_FROM_MODEL': ('model', 'mizuroute', 'from_model'),
-    'EXPERIMENT_LOG_MIZUROUTE': ('model', 'mizuroute', 'experiment_log'),
-    'EXPERIMENT_OUTPUT_MIZUROUTE': ('model', 'mizuroute', 'experiment_output'),
-    'MIZUROUTE_PARAMS_TO_CALIBRATE': ('model', 'mizuroute', 'params_to_calibrate'),
-    'CALIBRATE_MIZUROUTE': ('model', 'mizuroute', 'calibrate'),
-    'MIZUROUTE_TIMEOUT': ('model', 'mizuroute', 'timeout'),
-
-    # Model > dRoute (experimental C++ routing library)
-    'DROUTE_EXECUTION_MODE': ('model', 'droute', 'execution_mode'),
-    'DROUTE_INSTALL_PATH': ('model', 'droute', 'install_path'),
-    'DROUTE_EXE': ('model', 'droute', 'exe'),
-    # Legacy SETTINGS_DROUTE_* aliases are isolated in legacy_aliases.py
-    'DROUTE_ROUTING_METHOD': ('model', 'droute', 'routing_method'),
-    'DROUTE_ROUTING_DT': ('model', 'droute', 'routing_dt'),
-    'DROUTE_ENABLE_GRADIENTS': ('model', 'droute', 'enable_gradients'),
-    'DROUTE_AD_BACKEND': ('model', 'droute', 'ad_backend'),
-    'DROUTE_TOPOLOGY_FILE': ('model', 'droute', 'topology_file'),
-    'DROUTE_TOPOLOGY_FORMAT': ('model', 'droute', 'topology_format'),
-    'DROUTE_CONFIG_FILE': ('model', 'droute', 'config_file'),
-    'DROUTE_FROM_MODEL': ('model', 'droute', 'from_model'),
-    'EXPERIMENT_OUTPUT_DROUTE': ('model', 'droute', 'experiment_output'),
-    'EXPERIMENT_LOG_DROUTE': ('model', 'droute', 'experiment_log'),
-    'DROUTE_PARAMS_TO_CALIBRATE': ('model', 'droute', 'params_to_calibrate'),
-    'CALIBRATE_DROUTE': ('model', 'droute', 'calibrate'),
-    'DROUTE_TIMEOUT': ('model', 'droute', 'timeout'),
-
-    # Model > t-route (NOAA OWP channel routing)
-    'TROUTE_INSTALL_PATH': ('model', 'troute', 'install_path'),
-    'TROUTE_PKG_PATH': ('model', 'troute', 'pkg_path'),
-    # Legacy SETTINGS_TROUTE_* aliases are isolated in legacy_aliases.py
-    'TROUTE_ROUTING_METHOD': ('model', 'troute', 'routing_method'),
-    'TROUTE_FROM_MODEL': ('model', 'troute', 'from_model'),
-    'TROUTE_MANNINGS_N': ('model', 'troute', 'mannings_n'),
-    'EXPERIMENT_OUTPUT_TROUTE': ('model', 'troute', 'experiment_output'),
-    'EXPERIMENT_LOG_TROUTE': ('model', 'troute', 'experiment_log'),
-    'TROUTE_HG_WIDTH_COEFF': ('model', 'troute', 'hg_width_coeff'),
-    'TROUTE_HG_WIDTH_EXP': ('model', 'troute', 'hg_width_exp'),
-    'TROUTE_QTS_SUBDIVISIONS': ('model', 'troute', 'qts_subdivisions'),
-    'TROUTE_PARAMS_TO_CALIBRATE': ('model', 'troute', 'params_to_calibrate'),
-    'CALIBRATE_TROUTE': ('model', 'troute', 'calibrate'),
-    'TROUTE_TIMEOUT': ('model', 'troute', 'timeout'),
-
-    # Model > LSTM
-    'LSTM_LOAD': ('model', 'lstm', 'load'),
-    'LSTM_HIDDEN_SIZE': ('model', 'lstm', 'hidden_size'),
-    'LSTM_NUM_LAYERS': ('model', 'lstm', 'num_layers'),
-    'LSTM_EPOCHS': ('model', 'lstm', 'epochs'),
-    'LSTM_BATCH_SIZE': ('model', 'lstm', 'batch_size'),
-    'LSTM_LEARNING_RATE': ('model', 'lstm', 'learning_rate'),
-    'LSTM_LEARNING_PATIENCE': ('model', 'lstm', 'learning_patience'),
-    'LSTM_LOOKBACK': ('model', 'lstm', 'lookback'),
-    'LSTM_DROPOUT': ('model', 'lstm', 'dropout'),
-    'LSTM_L2_REGULARIZATION': ('model', 'lstm', 'l2_regularization'),
-    'LSTM_USE_ATTENTION': ('model', 'lstm', 'use_attention'),
-    'LSTM_USE_SNOW': ('model', 'lstm', 'use_snow'),
-    'LSTM_TRAIN_THROUGH_ROUTING': ('model', 'lstm', 'train_through_routing'),
-
-    # Model > RHESSys
-    'RHESSYS_INSTALL_PATH': ('model', 'rhessys', 'install_path'),
-    'RHESSYS_EXE': ('model', 'rhessys', 'exe'),
-    'EXPERIMENT_OUTPUT_RHESSYS': ('model', 'rhessys', 'experiment_output'),
-    'FORCING_RHESSYS_PATH': ('model', 'rhessys', 'forcing_path'),
-    'RHESSYS_WORLD_TEMPLATE': ('model', 'rhessys', 'world_template'),
-    'RHESSYS_FLOW_TEMPLATE': ('model', 'rhessys', 'flow_template'),
-    'RHESSYS_LNA_AREA_CAP_M2': ('model', 'rhessys', 'lna_area_cap_m2'),
-    'RHESSYS_LNA_MIN': ('model', 'rhessys', 'lna_min'),
-    'RHESSYS_LNA_MAX': ('model', 'rhessys', 'lna_max'),
-    'RHESSYS_SKIP_CALIBRATION': ('model', 'rhessys', 'skip_calibration'),
-    'RHESSYS_USE_WMFIRE': ('model', 'rhessys', 'use_wmfire'),
-    'WMFIRE_INSTALL_PATH': ('model', 'rhessys', 'wmfire_install_path'),
-    'WMFIRE_LIB': ('model', 'rhessys', 'wmfire_lib'),
-
-    # Model > RHESSys > WMFire (nested fire spread configuration)
-    'WMFIRE_GRID_RESOLUTION': ('model', 'rhessys', 'wmfire', 'grid_resolution'),
-    'WMFIRE_TIMESTEP_HOURS': ('model', 'rhessys', 'wmfire', 'timestep_hours'),
-    'WMFIRE_NDAYS_AVERAGE': ('model', 'rhessys', 'wmfire', 'ndays_average'),
-    'WMFIRE_FUEL_SOURCE': ('model', 'rhessys', 'wmfire', 'fuel_source'),
-    'WMFIRE_MOISTURE_SOURCE': ('model', 'rhessys', 'wmfire', 'moisture_source'),
-    'WMFIRE_CARBON_TO_FUEL_RATIO': ('model', 'rhessys', 'wmfire', 'carbon_to_fuel_ratio'),
-    'WMFIRE_IGNITION_SHAPEFILE': ('model', 'rhessys', 'wmfire', 'ignition_shapefile'),
-    'WMFIRE_IGNITION_POINT': ('model', 'rhessys', 'wmfire', 'ignition_point'),
-    'WMFIRE_IGNITION_DATE': ('model', 'rhessys', 'wmfire', 'ignition_date'),
-    'WMFIRE_IGNITION_NAME': ('model', 'rhessys', 'wmfire', 'ignition_name'),
-    'WMFIRE_PERIMETER_SHAPEFILE': ('model', 'rhessys', 'wmfire', 'perimeter_shapefile'),
-    'WMFIRE_PERIMETER_DIR': ('model', 'rhessys', 'wmfire', 'perimeter_dir'),
-    'WMFIRE_WRITE_GEOTIFF': ('model', 'rhessys', 'wmfire', 'write_geotiff'),
-    'WMFIRE_LOAD_K1': ('model', 'rhessys', 'wmfire', 'load_k1'),
-    'WMFIRE_LOAD_K2': ('model', 'rhessys', 'wmfire', 'load_k2'),
-    'WMFIRE_MOISTURE_K1': ('model', 'rhessys', 'wmfire', 'moisture_k1'),
-    'WMFIRE_MOISTURE_K2': ('model', 'rhessys', 'wmfire', 'moisture_k2'),
-    'WMFIRE_IGN_DEF_MOD': ('model', 'rhessys', 'wmfire', 'ign_def_mod'),
-    'WMFIRE_MEAN_IGN': ('model', 'rhessys', 'wmfire', 'mean_ign'),
-    'WMFIRE_WINDMAX': ('model', 'rhessys', 'wmfire', 'windmax'),
-    'WMFIRE_SLOPE_K1': ('model', 'rhessys', 'wmfire', 'slope_k1'),
-
-    'RHESSYS_USE_VMFIRE': ('model', 'rhessys', 'use_vmfire'),
-    'VMFIRE_INSTALL_PATH': ('model', 'rhessys', 'vmfire_install_path'),
-    'RHESSYS_TIMEOUT': ('model', 'rhessys', 'timeout'),
-    'RHESSYS_USE_GROW_MODE': ('model', 'rhessys', 'use_grow_mode'),
-
-    # Model > GNN
-    'GNN_LOAD': ('model', 'gnn', 'load'),
-    'GNN_HIDDEN_SIZE': ('model', 'gnn', 'hidden_size'),
-    'GNN_NUM_LAYERS': ('model', 'gnn', 'num_layers'),
-    'GNN_EPOCHS': ('model', 'gnn', 'epochs'),
-    'GNN_BATCH_SIZE': ('model', 'gnn', 'batch_size'),
-    'GNN_LEARNING_RATE': ('model', 'gnn', 'learning_rate'),
-    'GNN_LEARNING_PATIENCE': ('model', 'gnn', 'learning_patience'),
-    'GNN_DROPOUT': ('model', 'gnn', 'dropout'),
-    'GNN_L2_REGULARIZATION': ('model', 'gnn', 'l2_regularization'),
-    'GNN_PARAMS_TO_CALIBRATE': ('model', 'gnn', 'params_to_calibrate'),
-    'GNN_PARAMETER_BOUNDS': ('model', 'gnn', 'parameter_bounds'),
-
-    # ========== OPTIMIZATION CONFIGURATION ==========
-    'OPTIMIZATION_METHODS': ('optimization', 'methods'),
-    'OPTIMIZATION_TARGET': ('optimization', 'target'),
-    'CALIBRATION_VARIABLE': ('optimization', 'calibration_variable'),
-    'CALIBRATION_TIMESTEP': ('optimization', 'calibration_timestep'),
-    'ITERATIVE_OPTIMIZATION_ALGORITHM': ('optimization', 'algorithm'),
-    'OPTIMIZATION_METRIC': ('optimization', 'metric'),
-    'COMPOSITE_METRIC': ('optimization', 'composite_metric'),
-    'NUMBER_OF_ITERATIONS': ('optimization', 'iterations'),
-    'POPULATION_SIZE': ('optimization', 'population_size'),
-    'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),
-    'CLEANUP_PARALLEL_DIRS': ('optimization', 'cleanup_parallel_dirs'),
-    'ERROR_LOG_DIR': ('optimization', 'error_log_dir'),
-    'ERROR_LOGGING_MODE': ('optimization', 'error_logging_mode'),
-    'PARAMS_KEEP_TRIALS': ('optimization', 'params_keep_trials'),
-    'STOP_ON_MODEL_FAILURE': ('optimization', 'stop_on_model_failure'),
-    'GRADIENT_MODE': ('optimization', 'gradient_mode'),
-    'GRADIENT_EPSILON': ('optimization', 'gradient_epsilon'),
-    'GRADIENT_CLIP_VALUE': ('optimization', 'gradient_clip_value'),
-
-    # Optimization > Multivariate objective
-    'OBJECTIVE_WEIGHTS': ('optimization', 'objective_weights'),
-    'OBJECTIVE_METRICS': ('optimization', 'objective_metrics'),
-
-    # Optimization > Worker retry settings
-    'WORKER_MAX_RETRIES': ('optimization', 'worker_max_retries'),
-    'WORKER_BASE_DELAY': ('optimization', 'worker_base_delay'),
-    'WORKER_MAX_DELAY': ('optimization', 'worker_max_delay'),
-    'WORKER_JITTER': ('optimization', 'worker_jitter'),
-
-    # Optimization > PSO
-    'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
-    'PSO_COGNITIVE_PARAM': ('optimization', 'pso', 'cognitive_param'),
-    'PSO_SOCIAL_PARAM': ('optimization', 'pso', 'social_param'),
-    'PSO_INERTIA_WEIGHT': ('optimization', 'pso', 'inertia_weight'),
-    'PSO_INERTIA_REDUCTION_RATE': ('optimization', 'pso', 'inertia_reduction_rate'),
-    'INERTIA_SCHEDULE': ('optimization', 'pso', 'inertia_schedule'),
-
-    # Optimization > DE
-    'DE_SCALING_FACTOR': ('optimization', 'de', 'scaling_factor'),
-    'DE_CROSSOVER_RATE': ('optimization', 'de', 'crossover_rate'),
-
-    # Optimization > DDS
-    'DDS_R': ('optimization', 'dds', 'r'),
-    'ASYNC_DDS_POOL_SIZE': ('optimization', 'dds', 'async_pool_size'),
-    'ASYNC_DDS_BATCH_SIZE': ('optimization', 'dds', 'async_batch_size'),
-    'MAX_STAGNATION_BATCHES': ('optimization', 'dds', 'max_stagnation_batches'),
-
-    # Optimization > SCE-UA
-    'NUMBER_OF_COMPLEXES': ('optimization', 'sce_ua', 'number_of_complexes'),
-    'POINTS_PER_SUBCOMPLEX': ('optimization', 'sce_ua', 'points_per_subcomplex'),
-    'NUMBER_OF_EVOLUTION_STEPS': ('optimization', 'sce_ua', 'number_of_evolution_steps'),
-    'EVOLUTION_STAGNATION': ('optimization', 'sce_ua', 'evolution_stagnation'),
-    'PERCENT_CHANGE_THRESHOLD': ('optimization', 'sce_ua', 'percent_change_threshold'),
-
-    # Optimization > NSGA2
-    'NSGA2_MULTI_TARGET': ('optimization', 'nsga2', 'multi_target'),
-    'NSGA2_PRIMARY_TARGET': ('optimization', 'nsga2', 'primary_target'),
-    'NSGA2_SECONDARY_TARGET': ('optimization', 'nsga2', 'secondary_target'),
-    'NSGA2_PRIMARY_METRIC': ('optimization', 'nsga2', 'primary_metric'),
-    'NSGA2_SECONDARY_METRIC': ('optimization', 'nsga2', 'secondary_metric'),
-    'NSGA2_CROSSOVER_RATE': ('optimization', 'nsga2', 'crossover_rate'),
-    'NSGA2_MUTATION_RATE': ('optimization', 'nsga2', 'mutation_rate'),
-    'NSGA2_ETA_C': ('optimization', 'nsga2', 'eta_c'),
-    'NSGA2_ETA_M': ('optimization', 'nsga2', 'eta_m'),
-    # Legacy aliases for NSGA2 multi-target settings are isolated in legacy_aliases.py
-
-    # MOEAD multi-target settings (own Pydantic model: MOEADConfig)
-    'MOEAD_MULTI_TARGET': ('optimization', 'moead', 'multi_target'),
-    'MOEAD_PRIMARY_TARGET': ('optimization', 'moead', 'primary_target'),
-    'MOEAD_SECONDARY_TARGET': ('optimization', 'moead', 'secondary_target'),
-    'MOEAD_PRIMARY_METRIC': ('optimization', 'moead', 'primary_metric'),
-    'MOEAD_SECONDARY_METRIC': ('optimization', 'moead', 'secondary_metric'),
-
-    # Optimization > Emulation
-    'EMULATION_NUM_SAMPLES': ('optimization', 'emulation', 'num_samples'),
-    'EMULATION_SEED': ('optimization', 'emulation', 'seed'),
-    'EMULATION_SAMPLING_METHOD': ('optimization', 'emulation', 'sampling_method'),
-    'EMULATION_PARALLEL_ENSEMBLE': ('optimization', 'emulation', 'parallel_ensemble'),
-    'EMULATION_MAX_PARALLEL_JOBS': ('optimization', 'emulation', 'max_parallel_jobs'),
-    'EMULATION_SKIP_MIZUROUTE': ('optimization', 'emulation', 'skip_mizuroute'),
-    'EMULATION_USE_ATTRIBUTES': ('optimization', 'emulation', 'use_attributes'),
-    'EMULATION_MAX_ITERATIONS': ('optimization', 'emulation', 'max_iterations'),
-
-    # ========== EVALUATION CONFIGURATION ==========
-    'EVALUATION_DATA': ('evaluation', 'evaluation_data'),
-    'ANALYSES': ('evaluation', 'analyses'),
-    'SIM_REACH_ID': ('evaluation', 'sim_reach_id'),
-    'HRU_GAUGE_MAPPING': ('evaluation', 'hru_gauge_mapping'),
-    'EVALUATION_VARIABLE': ('evaluation', 'evaluation_variable'),
-    'EVALUATION_SPINUP_YEARS': ('evaluation', 'spinup_years'),
-
-    # Evaluation > TWS
-    'TWS_GRACE_COLUMN': ('evaluation', 'tws', 'grace_column'),
-    'TWS_ANOMALY_BASELINE': ('evaluation', 'tws', 'anomaly_baseline'),
-    'TWS_UNIT_CONVERSION': ('evaluation', 'tws', 'unit_conversion'),
-    'TWS_DETREND': ('evaluation', 'tws', 'detrend'),
-    'TWS_SCALE_TO_OBS': ('evaluation', 'tws', 'scale_to_obs'),
-    'TWS_STORAGE_COMPONENTS': ('evaluation', 'tws', 'storage_components'),
-    'TWS_OBS_PATH': ('evaluation', 'tws', 'obs_path'),
-
-    # Evaluation > ET
-    'ET_OBS_SOURCE': ('evaluation', 'et', 'obs_source'),
-    'ET_TEMPORAL_AGGREGATION': ('evaluation', 'et', 'temporal_aggregation'),
-    'ET_USE_QUALITY_CONTROL': ('evaluation', 'et', 'use_quality_control'),
-    'ET_MAX_QUALITY_FLAG': ('evaluation', 'et', 'max_quality_flag'),
-    'ET_MODIS_MAX_QC': ('evaluation', 'et', 'modis_max_qc'),
-    'ET_GLEAM_MAX_RELATIVE_UNCERTAINTY': ('evaluation', 'et', 'gleam_max_relative_uncertainty'),
-    'ET_OBS_PATH': ('evaluation', 'et', 'obs_path'),
-
-    # Evaluation > Streamflow
-    # NOTE: STREAMFLOW_DATA_PROVIDER and DOWNLOAD_USGS_DATA are mapped to 'data' section
-    # for observation handlers. Evaluation uses the same values from data section.
-    'DOWNLOAD_WSC_DATA': ('evaluation', 'streamflow', 'download_wsc'),
-    'STATION_ID': ('evaluation', 'streamflow', 'station_id'),
-    'STREAMFLOW_RAW_PATH': ('evaluation', 'streamflow', 'raw_path'),
-    'STREAMFLOW_RAW_NAME': ('evaluation', 'streamflow', 'raw_name'),
-    'STREAMFLOW_PROCESSED_PATH': ('evaluation', 'streamflow', 'processed_path'),
-    'HYDAT_PATH': ('evaluation', 'streamflow', 'hydat_path'),
-
-    # Evaluation > SNOTEL
-    'DOWNLOAD_SNOTEL': ('evaluation', 'snotel', 'download'),
-    'SNOTEL_STATION': ('evaluation', 'snotel', 'station'),
-    'SNOTEL_PATH': ('evaluation', 'snotel', 'path'),
-
-    # Evaluation > FluxNet
-    'DOWNLOAD_FLUXNET': ('evaluation', 'fluxnet', 'download'),
-    'FLUXNET_STATION': ('evaluation', 'fluxnet', 'station'),
-    'FLUXNET_PATH': ('evaluation', 'fluxnet', 'path'),
-
-    # Evaluation > USGS GW
-    'DOWNLOAD_USGS_GW': ('evaluation', 'usgs_gw', 'download'),
-    'USGS_STATION': ('evaluation', 'usgs_gw', 'station'),
-
-    # Evaluation > SMAP
-    'DOWNLOAD_SMAP': ('evaluation', 'smap', 'download'),
-    'SMAP_PRODUCT': ('evaluation', 'smap', 'product'),
-    'SMAP_PATH': ('evaluation', 'smap', 'path'),
-    'SMAP_MAX_GRANULES': ('evaluation', 'smap', 'max_granules'),
-    'SMAP_USE_OPENDAP': ('evaluation', 'smap', 'use_opendap'),
-    'SMAP_SURFACE_DEPTH_M': ('evaluation', 'smap', 'surface_depth_m'),
-    'SMAP_ROOTZONE_DEPTH_M': ('evaluation', 'smap', 'rootzone_depth_m'),
-    'ISMN_PATH': ('evaluation', 'ismn', 'path'),
-    'ISMN_API_BASE': ('evaluation', 'ismn', 'api_base'),
-    'ISMN_METADATA_URL': ('evaluation', 'ismn', 'metadata_url'),
-    'ISMN_VARIABLE_LIST_URL': ('evaluation', 'ismn', 'variable_list_url'),
-    'ISMN_DATA_URL_TEMPLATE': ('evaluation', 'ismn', 'data_url_template'),
-    'ISMN_MAX_STATIONS': ('evaluation', 'ismn', 'max_stations'),
-    'ISMN_SEARCH_RADIUS_KM': ('evaluation', 'ismn', 'search_radius_km'),
-    'ISMN_TARGET_DEPTH_M': ('evaluation', 'ismn', 'target_depth_m'),
-    'ISMN_TEMPORAL_AGGREGATION': ('evaluation', 'ismn', 'temporal_aggregation'),
-
-    # Evaluation > GRACE
-    'DOWNLOAD_GRACE': ('evaluation', 'grace', 'download'),
-    'GRACE_PRODUCT': ('evaluation', 'grace', 'product'),
-    'GRACE_PATH': ('evaluation', 'grace', 'path'),
-    'GRACE_DATA_DIR': ('evaluation', 'grace', 'data_dir'),
-
-    # Evaluation > MODIS Snow
-    'DOWNLOAD_MODIS_SNOW': ('evaluation', 'modis_snow', 'download'),
-    'MODIS_SNOW_PRODUCT': ('evaluation', 'modis_snow', 'product'),
-    'MODIS_SNOW_PATH': ('evaluation', 'modis_snow', 'path'),
-    'MODIS_SNOW_DIR': ('evaluation', 'modis_snow', 'data_dir'),
-    'MODIS_MIN_PIXELS': ('evaluation', 'modis_snow', 'min_pixels'),
-    'MODIS_SCA_MERGE': ('evaluation', 'modis_snow', 'merge'),
-    'MODIS_SCA_PRODUCTS': ('evaluation', 'modis_snow', 'products'),
-    'MODIS_SCA_MERGE_STRATEGY': ('evaluation', 'modis_snow', 'merge_strategy'),
-    'MODIS_SCA_CLOUD_FILTER': ('evaluation', 'modis_snow', 'cloud_filter'),
-    'MODIS_SCA_MIN_VALID_RATIO': ('evaluation', 'modis_snow', 'min_valid_ratio'),
-    'MODIS_SCA_NORMALIZE': ('evaluation', 'modis_snow', 'normalize'),
-    'MODIS_SCA_USE_CATCHMENT_MASK': ('evaluation', 'modis_snow', 'use_catchment_mask'),
-
-    # Evaluation > MODIS ET
-    'DOWNLOAD_MODIS_ET': ('evaluation', 'modis_et', 'download'),
-    'MODIS_ET_PRODUCT': ('evaluation', 'modis_et', 'product'),
-    'MODIS_ET_PATH': ('evaluation', 'modis_et', 'path'),
-    'MOD16_ET_DIR': ('evaluation', 'modis_et', 'data_dir'),
-
-    # Evaluation > SMHI
-    'DOWNLOAD_SMHI_DATA': ('evaluation', 'smhi', 'download'),
-    'SMHI_STATION_ID': ('evaluation', 'smhi', 'station_id'),
-    'SMHI_PATH': ('evaluation', 'smhi', 'path'),
-
-    # Evaluation > LAMAH-ICE
-    'DOWNLOAD_LAMAH_ICE_DATA': ('evaluation', 'lamah_ice', 'download'),
-    'LAMAH_ICE_PATH': ('evaluation', 'lamah_ice', 'path'),
-    'LAMAH_ICE_STATION_ID': ('evaluation', 'lamah_ice', 'station_id'),
-
-    # Evaluation > Glacier
-    'DOWNLOAD_GLACIER_DATA': ('evaluation', 'glacier', 'download'),
-    'GLACIER_PATH': ('evaluation', 'glacier', 'path'),
-    'GLACIER_SOURCE': ('evaluation', 'glacier', 'source'),
-
-    # Evaluation > Attributes
-    'ATTRIBUTES_DATA_DIR': ('evaluation', 'attributes', 'data_dir'),
-    'ATTRIBUTES_SOILGRIDS_PATH': ('evaluation', 'attributes', 'soilgrids_path'),
-    'ATTRIBUTES_PELLETIER_PATH': ('evaluation', 'attributes', 'pelletier_path'),
-    'ATTRIBUTES_MERIT_PATH': ('evaluation', 'attributes', 'merit_path'),
-    'ATTRIBUTES_MODIS_PATH': ('evaluation', 'attributes', 'modis_path'),
-    'ATTRIBUTES_GLCLU_PATH': ('evaluation', 'attributes', 'glclu_path'),
-    'ATTRIBUTES_FOREST_HEIGHT_PATH': ('evaluation', 'attributes', 'forest_height_path'),
-    'ATTRIBUTES_WORLDCLIM_PATH': ('evaluation', 'attributes', 'worldclim_path'),
-    'ATTRIBUTES_GLIM_PATH': ('evaluation', 'attributes', 'glim_path'),
-    'ATTRIBUTES_GROUNDWATER_PATH': ('evaluation', 'attributes', 'groundwater_path'),
-    'ATTRIBUTES_STREAMFLOW_PATH': ('evaluation', 'attributes', 'streamflow_path'),
-    'ATTRIBUTES_GLWD_PATH': ('evaluation', 'attributes', 'glwd_path'),
-    'ATTRIBUTES_HYDROLAKES_PATH': ('evaluation', 'attributes', 'hydrolakes_path'),
-    'ATTRIBUTES_OUTPUT_DIR': ('evaluation', 'attributes', 'output_dir'),
-
-    # ========== PATHS CONFIGURATION ==========
-    # Catchment shapefile
-    'CATCHMENT_PATH': ('paths', 'catchment_path'),
-    'CATCHMENT_SHP_NAME': ('paths', 'catchment_name'),
-    'CATCHMENT_SHP_LAT': ('paths', 'catchment_lat'),
-    'CATCHMENT_SHP_LON': ('paths', 'catchment_lon'),
-    'CATCHMENT_SHP_AREA': ('paths', 'catchment_area'),
-    'CATCHMENT_SHP_ELEV': ('paths', 'catchment_elev'),
-    'CATCHMENT_SHP_SLOPE': ('paths', 'catchment_slope'),
-    'CATCHMENT_SHP_HRUID': ('paths', 'catchment_hruid'),
-    'CATCHMENT_SHP_GRUID': ('paths', 'catchment_gruid'),
-
-    # River basins shapefile
-    'RIVER_BASINS_PATH': ('paths', 'river_basins_path'),
-    'RIVER_BASINS_NAME': ('paths', 'river_basins_name'),
-    'RIVER_BASIN_SHP_RM_GRUID': ('paths', 'river_basin_rm_gruid'),
-    'RIVER_BASIN_SHP_HRU_TO_SEG': ('paths', 'river_basin_hru_to_seg'),
-    'RIVER_BASIN_SHP_AREA': ('paths', 'river_basin_area'),
-
-    # River network shapefile
-    'RIVER_NETWORK_SHP_PATH': ('paths', 'river_network_path'),
-    'RIVER_NETWORK_SHP_NAME': ('paths', 'river_network_name'),
-    'RIVER_NETWORK_SHP_LENGTH': ('paths', 'river_network_length'),
-    'RIVER_NETWORK_SHP_SEGID': ('paths', 'river_network_segid'),
-    'RIVER_NETWORK_SHP_DOWNSEGID': ('paths', 'river_network_downsegid'),
-    'RIVER_NETWORK_SHP_SLOPE': ('paths', 'river_network_slope'),
-
-    # Pour point shapefile
-    'POUR_POINT_SHP_PATH': ('paths', 'pour_point_path'),
-    'POUR_POINT_SHP_NAME': ('paths', 'pour_point_name'),
-
-    # Common paths
-    'FORCING_PATH': ('paths', 'forcing_path'),
-    'OBSERVATIONS_PATH': ('paths', 'observations_path'),
-    'SIMULATIONS_PATH': ('paths', 'simulations_path'),
-    'INTERSECT_SOIL_PATH': ('paths', 'intersect_soil_path'),
-    'INTERSECT_SOIL_NAME': ('paths', 'intersect_soil_name'),
-    'INTERSECT_ROUTING_PATH': ('paths', 'intersect_routing_path'),
-    'INTERSECT_ROUTING_NAME': ('paths', 'intersect_routing_name'),
-    'INTERSECT_DEM_PATH': ('paths', 'intersect_dem_path'),
-    'INTERSECT_DEM_NAME': ('paths', 'intersect_dem_name'),
-    'INTERSECT_LAND_PATH': ('paths', 'intersect_land_path'),
-    'INTERSECT_LAND_NAME': ('paths', 'intersect_land_name'),
-    'OUTPUT_BASINS_PATH': ('paths', 'output_basins_path'),
-    'OUTPUT_RIVERS_PATH': ('paths', 'output_rivers_path'),
-    'DEM_PATH': ('paths', 'dem_path'),
-    'DEM_NAME': ('paths', 'dem_name'),
-    'SOURCE_GEOFABRIC_BASINS_PATH': ('paths', 'source_geofabric_basins_path'),
-    'SOURCE_GEOFABRIC_RIVERS_PATH': ('paths', 'source_geofabric_rivers_path'),
-    'TAUDEM_DIR': ('paths', 'taudem_dir'),
-    'OUTPUT_DIR': ('paths', 'output_dir'),
-    'CATCHMENT_PLOT_DIR': ('paths', 'catchment_plot_dir'),
-    'SOIL_CLASS_PATH': ('paths', 'soil_class_path'),
-    'SOIL_CLASS_NAME': ('paths', 'soil_class_name'),
-    'LAND_CLASS_PATH': ('paths', 'land_class_path'),
-    'RADIATION_PATH': ('paths', 'radiation_path'),
-
-    # ========== FEWS ADAPTER CONFIGURATION ==========
-    'FEWS_WORK_DIR': ('fews', 'work_dir'),
-    'FEWS_DATA_FORMAT': ('fews', 'data_format'),
-    'FEWS_ID_MAP_FILE': ('fews', 'id_map_file'),
-    'FEWS_STATE_DIR': ('fews', 'state_dir'),
-    'FEWS_DIAGNOSTICS_FILE': ('fews', 'diagnostics_file'),
-    'FEWS_MISSING_VALUE': ('fews', 'missing_value'),
-    'FEWS_AUTO_ID_MAP': ('fews', 'auto_id_map'),
-
-    # Tool paths
-    'DATATOOL_PATH': ('paths', 'datatool_path'),
-    'GISTOOL_PATH': ('paths', 'gistool_path'),
-    'EASYMORE_CLIENT': ('paths', 'easymore_client'),
-    'DATATOOL_DATASET_ROOT': ('paths', 'datatool_dataset_root'),
-    'GISTOOL_DATASET_ROOT': ('paths', 'gistool_dataset_root'),
-    'TOOL_CACHE': ('paths', 'tool_cache'),
-    'EASYMORE_CACHE': ('paths', 'easymore_cache'),
-    'EASYMORE_JOB_CONF': ('paths', 'easymore_job_conf'),
-    'CLUSTER_JSON': ('paths', 'cluster_json'),
-    'GISTOOL_LIB_PATH': ('paths', 'gistool_lib_path'),
-}
-
-# Full mapping used by transformation code: canonical keys plus compatibility aliases.
-FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
-    **CANONICAL_FLAT_TO_NESTED_MAP,
-    **LEGACY_FLAT_TO_NESTED_ALIASES,
-}
+# Full mapping (canonical + legacy aliases) — importable as before.
+FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = _LazyMap(include_legacy=True)

@@ -32,7 +32,7 @@ def _ensure_flat_config(config: Any) -> Dict[str, Any]:
     """
     # Check if it's a SymfluenceConfig by checking for model_dump (Pydantic method)
     if hasattr(config, 'model_dump'):
-        from symfluence.core.config.transformers import flatten_nested_config
+        from symfluence.core.config.flattening import flatten_nested_config
         return flatten_nested_config(config)
     # Already a dict
     return config

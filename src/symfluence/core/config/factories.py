@@ -403,39 +403,17 @@ def _normalize_config_key(key: str) -> str:
         if nested_path[-1] == lowercase_key:
             return flat_key
 
-    # Special handling for common abbreviated forms
-    key_mappings = {
-        'time_start': 'EXPERIMENT_TIME_START',
-        'time_end': 'EXPERIMENT_TIME_END',
-        'routing_model': 'ROUTING_MODEL',
-        'forcing_dataset': 'FORCING_DATASET',
-        'definition_method': 'DOMAIN_DEFINITION_METHOD',
-        'discretization': 'SUB_GRID_DISCRETIZATION',
-        'data_access': 'DATA_ACCESS',
-        'forcing_measurement_height': 'FORCING_MEASUREMENT_HEIGHT',
-        'spinup_period': 'SPINUP_PERIOD',
-        'calibration_period': 'CALIBRATION_PERIOD',
-        'evaluation_period': 'EVALUATION_PERIOD',
-        'pour_point_coords': 'POUR_POINT_COORDS',
-        'bounding_box_coords': 'BOUNDING_BOX_COORDS',
-        'lumped_watershed_method': 'LUMPED_WATERSHED_METHOD',
-        'dem_source': 'DEM_SOURCE',
-        'download_dem': 'DOWNLOAD_DEM',
-        'station_id': 'STATION_ID',
-        'streamflow_data_provider': 'STREAMFLOW_DATA_PROVIDER',
-        'download_usgs_data': 'DOWNLOAD_USGS_DATA',
-        'params_to_calibrate': 'PARAMS_TO_CALIBRATE',
-        'basin_params_to_calibrate': 'BASIN_PARAMS_TO_CALIBRATE',
-        'optimization_target': 'OPTIMIZATION_TARGET',
-        'optimization_algorithm': 'ITERATIVE_OPTIMIZATION_ALGORITHM',
-        'optimization_metric': 'OPTIMIZATION_METRIC',
-        'calibration_timestep': 'CALIBRATION_TIMESTEP',
-        'iterations': 'NUMBER_OF_ITERATIONS',
-        'max_iterations': 'NUMBER_OF_ITERATIONS',  # Alias for iterations
-    }
+    # Reverse lookup: build field_name → flat_key from the auto-generated map
+    # This handles abbreviated forms like 'iterations' → 'NUMBER_OF_ITERATIONS'
+    field_to_flat: Dict[str, str] = {}
+    for flat_key, nested_path in flat_to_nested.items():
+        last = nested_path[-1]
+        # First match wins — canonical keys are iterated before legacy aliases
+        if last not in field_to_flat:
+            field_to_flat[last] = flat_key
 
-    if lowercase_key in key_mappings:
-        return key_mappings[lowercase_key]
+    if lowercase_key in field_to_flat:
+        return field_to_flat[lowercase_key]
 
     # Fallback: return uppercase version of the key
     # This handles simple cases like 'DEBUG_MODE' or 'debug_mode' -> 'DEBUG_MODE'

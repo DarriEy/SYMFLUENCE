@@ -7,7 +7,6 @@ with legacy code that expects flat configs.
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 from pathlib import Path
 
-from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 from symfluence.core.config.legacy_aliases import CANONICAL_KEYS
 
 if TYPE_CHECKING:
@@ -37,8 +36,11 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
 
     # Create reverse mapping (nested path -> flat key)
     # Use CANONICAL_KEYS for paths with multiple aliases to ensure consistent output
+    from symfluence.core.config.transformers import get_flat_to_nested_map
+    flat_to_nested = get_flat_to_nested_map()
+
     nested_to_flat: Dict[Tuple[str, ...], str] = {}
-    for flat_key, nested_path in FLAT_TO_NESTED_MAP.items():
+    for flat_key, nested_path in flat_to_nested.items():
         # Only set if not already set, OR if this is the canonical key for this path
         if nested_path not in nested_to_flat:
             nested_to_flat[nested_path] = flat_key
