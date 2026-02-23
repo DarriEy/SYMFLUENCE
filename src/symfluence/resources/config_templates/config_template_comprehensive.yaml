@@ -6728,6 +6728,82 @@ WATFLOOD_PARAMS_TO_CALIBRATE: R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNI
 #   Usage:      3
 WATFLOOD_TIMEOUT: 3600
 
+# ================================================================================
+# 9.26. Wflow Model Configuration
+# ================================================================================
+# Wflow is a distributed hydrological modelling framework in Julia,
+# supporting multiple model concepts (SBM, HBV, FLEXTopo).
+
+# WFLOW_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      4
+WFLOW_INSTALL_PATH: default
+
+# WFLOW_EXE
+#   Type:        str
+#   Default:     wflow_cli
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      4
+WFLOW_EXE: "wflow_cli"
+
+# SETTINGS_WFLOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      4
+SETTINGS_WFLOW_PATH: default
+
+# WFLOW_CONFIG_FILE
+#   Type:        str
+#   Default:     wflow_sbm.toml
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_CONFIG_FILE: "wflow_sbm.toml"
+
+# WFLOW_STATICMAPS_FILE
+#   Type:        str
+#   Default:     wflow_staticmaps.nc
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_STATICMAPS_FILE: "wflow_staticmaps.nc"
+
+# WFLOW_SPATIAL_MODE
+#   Type:        str
+#   Default:     lumped
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_SPATIAL_MODE: "lumped"
+
+# EXPERIMENT_OUTPUT_WFLOW
+#   Type:        str
+#   Default:     default
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+EXPERIMENT_OUTPUT_WFLOW: default
+
+# WFLOW_OUTPUT_FILE
+#   Type:        str
+#   Default:     output.nc
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_OUTPUT_FILE: "output.nc"
+
+# WFLOW_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,KsatHorFrac,n_river,PathFrac,thetaS,thetaR
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      4
+WFLOW_PARAMS_TO_CALIBRATE: KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,KsatHorFrac,n_river,PathFrac,thetaS,thetaR
+
+# WFLOW_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_TIMEOUT: 7200
+
 
 # 18. State Management
 # ================================================================================

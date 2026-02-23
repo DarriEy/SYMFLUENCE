@@ -91,7 +91,11 @@ def _near_zero(value: float, obs: np.ndarray) -> bool:
     scale = np.mean(np.abs(obs))
     if scale == 0:
         return True
-    return abs(value) < 1e-10 * scale * scale * len(obs)
+    # Use coefficient of variation squared: denominator / (scale^2 * n)
+    # is the normalized variance.  Treat as zero only when this ratio is
+    # smaller than machine epsilon, avoiding false positives for data with
+    # large absolute scale but small relative variance.
+    return abs(value) / (scale * scale * len(obs)) < np.finfo(np.float64).eps
 
 
 def _safe_pearson_correlation(obs: np.ndarray, sim: np.ndarray) -> float:
