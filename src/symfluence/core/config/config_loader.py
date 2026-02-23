@@ -46,7 +46,8 @@ Key Functionality:
         - Links to documentation and templates
 
 Alias Mapping:
-    The ALIAS_MAP dictionary provides backwards compatibility::
+    Normalization aliases are defined in ``legacy_aliases.NORMALIZATION_ALIASES``
+    and provide backwards compatibility::
 
         GR_SPATIAL → GR_SPATIAL_MODE
         OPTIMISATION_METHODS → OPTIMIZATION_METHODS (UK → US spelling)
@@ -54,6 +55,7 @@ Alias Mapping:
         OPTIMIZATION_ALGORITHM → ITERATIVE_OPTIMIZATION_ALGORITHM
         CONFLUENCE_DATA_DIR → SYMFLUENCE_DATA_DIR (legacy name)
         CONFLUENCE_CODE_DIR → SYMFLUENCE_CODE_DIR
+        DOMAIN_DISCRETIZATION → SUB_GRID_DISCRETIZATION
 
 Required Configuration Fields:
     Core:
@@ -212,19 +214,7 @@ from difflib import get_close_matches
 from pydantic import ValidationError
 
 from symfluence.core.config.models import SymfluenceConfig
-
-
-ALIAS_MAP = {
-    "GR_SPATIAL": "GR_SPATIAL_MODE",
-    "OPTIMISATION_METHODS": "OPTIMIZATION_METHODS",
-    "OPTIMISATION_TARGET": "OPTIMIZATION_TARGET",
-    "OPTIMIZATION_ALGORITHM": "ITERATIVE_OPTIMIZATION_ALGORITHM",
-    # Legacy CONFLUENCE naming (backwards compatibility)
-    "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
-    "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
-    # Legacy domain discretization naming
-    "DOMAIN_DISCRETIZATION": "SUB_GRID_DISCRETIZATION",
-}
+from symfluence.core.config.legacy_aliases import NORMALIZATION_ALIASES
 
 
 def normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -306,7 +296,7 @@ def _load_env_overrides() -> Dict[str, Any]:
 
 def _normalize_key(key: str) -> str:
     key_upper = key.upper()
-    return ALIAS_MAP.get(key_upper, key_upper)
+    return NORMALIZATION_ALIASES.get(key_upper, key_upper)
 
 
 def _coerce_value(value: Any) -> Any:

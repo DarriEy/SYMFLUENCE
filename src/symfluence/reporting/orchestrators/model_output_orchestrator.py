@@ -1,8 +1,8 @@
 """Orchestrator for model output visualizations.
 
 Extracted from ``ReportingManager`` — handles registry-based model plotter
-dispatch (``visualize_model_results``), the individual ``visualize_*_outputs``
-methods, and the legacy fallback logic.
+dispatch (``visualize_model_results``) and the individual
+``visualize_*_outputs`` methods.
 """
 
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class ModelOutputOrchestrator:
-    """Orchestrates model output visualizations via registry dispatch + legacy fallbacks."""
+    """Orchestrates model output visualizations via registry dispatch."""
 
     def __init__(
         self,
@@ -155,7 +155,13 @@ class ModelOutputOrchestrator:
             Plot result (path to saved plot or dict of paths), or None.
         """
         # Import model modules to trigger plotter registration
-        self._import_model_plotters()
+        from symfluence.core.constants import SupportedModels
+
+        for model in SupportedModels.WITH_PLOTTERS:
+            try:
+                __import__(f'symfluence.models.{model}')
+            except ImportError:
+                self.logger.debug(f"Model plotter module '{model}' not available")
 
         from symfluence.reporting.plotter_registry import PlotterRegistry
 
@@ -166,10 +172,9 @@ class ModelOutputOrchestrator:
             available = PlotterRegistry.list_plotters()
             self.logger.warning(
                 f"No plotter registered for model '{model_name}'. "
-                f"Available plotters: {available}. Falling back to legacy method if available."
+                f"Available plotters: {available}. Use a direct visualize_*_outputs method instead."
             )
-            # Fallback to legacy methods for backward compatibility
-            return self._fallback_visualize(model_upper, **kwargs)
+            return None
 
         self.logger.info(f"Creating {model_name} visualizations using registered plotter...")
 
@@ -181,46 +186,5 @@ class ModelOutputOrchestrator:
         ):
             plotter = plotter_cls(self.config, self.logger, self.plot_config)
             return plotter.plot(**kwargs)
-
-        return None
-
-    def _import_model_plotters(self) -> None:
-        """Import model modules to trigger plotter registration with PlotterRegistry."""
-        from symfluence.core.constants import SupportedModels
-
-        for model in SupportedModels.WITH_PLOTTERS:
-            try:
-                __import__(f'symfluence.models.{model}')
-            except ImportError:
-                self.logger.debug(f"Model plotter module '{model}' not available")
-
-    def _fallback_visualize(self, model_name: str, **kwargs) -> Optional[Any]:
-        """Fallback to legacy visualization methods for backward compatibility.
-
-        Args:
-            model_name: Model name (uppercase)
-            **kwargs: Arguments for the visualization method
-
-        Returns:
-            Plot result or None
-        """
-        if model_name == 'SUMMA' and 'experiment_id' in kwargs:
-            return self.visualize_summa_outputs(kwargs['experiment_id'])
-        elif model_name == 'FUSE' and 'model_outputs' in kwargs and 'obs_files' in kwargs:
-            return self.visualize_fuse_outputs(kwargs['model_outputs'], kwargs['obs_files'])
-        elif model_name == 'HYPE':
-            required = ['sim_flow', 'obs_flow', 'outlet_id', 'domain_name', 'experiment_id', 'project_dir']
-            if all(k in kwargs for k in required):
-                return self.visualize_hype_results(**{k: kwargs[k] for k in required})
-        elif model_name == 'NGEN':
-            required = ['sim_df', 'experiment_id', 'results_dir']
-            if all(k in kwargs for k in required):
-                return self.visualize_ngen_results(
-                    kwargs['sim_df'], kwargs.get('obs_df'), kwargs['experiment_id'], kwargs['results_dir'],
-                )
-        elif model_name == 'LSTM':
-            required = ['results_df', 'obs_streamflow', 'obs_snow', 'use_snow', 'output_dir', 'experiment_id']
-            if all(k in kwargs for k in required):
-                return self.visualize_lstm_results(**{k: kwargs[k] for k in required})
 
         return None

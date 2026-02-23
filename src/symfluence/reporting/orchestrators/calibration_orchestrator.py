@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
     from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
     from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
+    from symfluence.reporting.orchestrators.model_output_orchestrator import ModelOutputOrchestrator
 
 
 class CalibrationOrchestrator(ConfigMixin):
@@ -32,7 +33,7 @@ class CalibrationOrchestrator(ConfigMixin):
         model_comparison_plotter: 'ModelComparisonPlotter',
         analysis_plotter: 'AnalysisPlotter',
         *,
-        visualize_summa_outputs_fn: Any,
+        model_output_orchestrator: 'ModelOutputOrchestrator',
     ) -> None:
         self._config = config
         self.logger = logger
@@ -41,7 +42,7 @@ class CalibrationOrchestrator(ConfigMixin):
         self.optimization_plotter = optimization_plotter
         self.model_comparison_plotter = model_comparison_plotter
         self.analysis_plotter = analysis_plotter
-        self._visualize_summa_outputs = visualize_summa_outputs_fn
+        self.model_output_orchestrator = model_output_orchestrator
 
     @skip_if_not_visualizing()
     def generate_model_comparison_overview(
@@ -197,7 +198,7 @@ class CalibrationOrchestrator(ConfigMixin):
 
             elif calibration_target in ('swe', 'snow', 'snow_water_equivalent'):
                 # SWE calibration -> SUMMA outputs with SWE observations
-                summa_plots = self._visualize_summa_outputs(experiment_id)
+                summa_plots = self.model_output_orchestrator.visualize_summa_outputs(experiment_id)
                 if 'scalarSWE' in summa_plots:
                     plot_paths['scalarSWE'] = summa_plots['scalarSWE']
                     plot_paths['model_comparison'] = summa_plots['scalarSWE']
@@ -208,7 +209,7 @@ class CalibrationOrchestrator(ConfigMixin):
 
             elif calibration_target in ('et', 'evapotranspiration', 'latent_heat', 'le'):
                 # ET/energy flux calibration -> SUMMA outputs with energy observations
-                summa_plots = self._visualize_summa_outputs(experiment_id)
+                summa_plots = self.model_output_orchestrator.visualize_summa_outputs(experiment_id)
                 if 'scalarLatHeatTotal' in summa_plots:
                     plot_paths['scalarLatHeatTotal'] = summa_plots['scalarLatHeatTotal']
                     plot_paths['model_comparison'] = summa_plots['scalarLatHeatTotal']
@@ -229,7 +230,7 @@ class CalibrationOrchestrator(ConfigMixin):
                 if comparison_plot:
                     plot_paths['model_comparison'] = comparison_plot
 
-                summa_plots = self._visualize_summa_outputs(experiment_id)
+                summa_plots = self.model_output_orchestrator.visualize_summa_outputs(experiment_id)
                 plot_paths.update(summa_plots)
 
         self.logger.info(f"Generated {len(plot_paths)} calibration visualization(s)")
