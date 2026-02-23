@@ -16,7 +16,6 @@ from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.constants import UnitConversion
 
 
 @ModelRegistry.register_preprocessor('TOPMODEL')

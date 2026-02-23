@@ -136,6 +136,29 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         """FUSE uses custom result_dir naming."""
         return self.get_experiment_output_dir()
 
+    def _fuse_output_candidates(self, output_dir: Path, fuse_id: str) -> List[Path]:
+        """Return FUSE output candidates ordered by preferred usage."""
+        return [
+            output_dir / f"{self.domain_name}_{fuse_id}_runs_def.nc",
+            output_dir / f"{self.domain_name}_{fuse_id}_runs_best.nc",
+        ]
+
+    def _convert_routing_units_for_mizuroute(self, dataset: xr.Dataset) -> bool:
+        """Convert routed runoff units from mm/day to m/s when required."""
+        routing_var = self.mizu_routing_var
+        if self.mizu_routing_units != 'm/s' or routing_var not in dataset:
+            return False
+
+        fuse_timestep = int(self._get_config_value(
+            lambda: self.config.model.fuse.output_timestep_seconds,
+            default=86400
+        ))
+        conversion_factor = 1.0 / (1000.0 * fuse_timestep)
+        dataset[routing_var] = dataset[routing_var] * conversion_factor
+        dataset[routing_var].attrs['units'] = 'm/s'
+        self.logger.debug(f"Converted {routing_var}: mm/day → m/s (factor={conversion_factor:.2e})")
+        return True
+
     def _convert_fuse_distributed_to_mizuroute_format(self):
         """
         Convert FUSE spatial dimensions to mizuRoute format.
@@ -155,19 +178,12 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         fuse_out_dir = self.project_dir / "simulations" / experiment_id / "FUSE"
 
         # Find FUSE output file
-        target_files = [
-            fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc",
-            fuse_out_dir / f"{domain}_{fuse_id}_runs_best.nc"
-        ]
-
-        target = None
-        for file_path in target_files:
-            if file_path.exists():
-                target = file_path
-                break
+        target = next((path for path in self._fuse_output_candidates(fuse_out_dir, fuse_id) if path.exists()), None)
 
         if target is None:
-            raise FileNotFoundError(f"FUSE output not found. Tried: {[str(f) for f in target_files]}")
+            raise FileNotFoundError(
+                f"FUSE output not found. Tried: {[str(path) for path in self._fuse_output_candidates(fuse_out_dir, fuse_id)]}"
+            )
 
         self.logger.debug(f"Converting FUSE spatial dimensions: {target}")
 
@@ -202,40 +218,19 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             ds['gruId'] = xr.DataArray(gru_ids, dims=['gru'],
                                        attrs={'long_name': 'gru identifier'})
 
-            # Convert FUSE runoff from mm/day to m/s for mizuRoute
-            routing_var = self.mizu_routing_var
-            routing_units = self.mizu_routing_units
-            if routing_units == 'm/s' and routing_var in ds:
-                fuse_timestep = int(self._get_config_value(
-                    lambda: self.config.model.fuse.output_timestep_seconds,
-                    default=86400
-                ))
-                conversion_factor = 1.0 / (1000.0 * fuse_timestep)
-                ds[routing_var] = ds[routing_var] * conversion_factor
-                ds[routing_var].attrs['units'] = 'm/s'
-                self.logger.debug(f"Converted {routing_var}: mm/day → m/s (factor={conversion_factor:.2e})")
+            self._convert_routing_units_for_mizuroute(ds)
 
             ds.to_netcdf(target)
             self.logger.debug(f"Saved filtered output with {n_keep} GRUs to {target}")
         else:
             self.logger.warning(f"Mapping file not found at {mapping_file}, skipping coastal GRU filtering")
             # Still need to convert units from mm/day to m/s for mizuRoute
-            routing_var = self.mizu_routing_var
-            routing_units = self.mizu_routing_units
-            if routing_units == 'm/s':
+            if self.mizu_routing_units == 'm/s':
                 ds = xr.open_dataset(target)
                 ds = ds.load()
                 ds.close()
-                if routing_var in ds:
-                    fuse_timestep = int(self._get_config_value(
-                        lambda: self.config.model.fuse.output_timestep_seconds,
-                        default=86400
-                    ))
-                    conversion_factor = 1.0 / (1000.0 * fuse_timestep)
-                    ds[routing_var] = ds[routing_var] * conversion_factor
-                    ds[routing_var].attrs['units'] = 'm/s'
+                if self._convert_routing_units_for_mizuroute(ds):
                     ds.to_netcdf(target)
-                    self.logger.debug(f"Converted {routing_var}: mm/day → m/s (factor={conversion_factor:.2e})")
 
         # Ensure _runs_def.nc exists if we processed a different file
         def_file = fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc"
@@ -500,16 +495,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             bool: True if output is valid, False if empty or missing.
         """
         fuse_id = self._get_fuse_file_id()
-        target_files = [
-            self.output_path / f"{self.domain_name}_{fuse_id}_runs_def.nc",
-            self.output_path / f"{self.domain_name}_{fuse_id}_runs_best.nc",
-        ]
-
-        target = None
-        for f in target_files:
-            if f.exists():
-                target = f
-                break
+        target = next(
+            (path for path in self._fuse_output_candidates(self.output_path, fuse_id) if path.exists()),
+            None
+        )
 
         if target is None:
             self.logger.error("FUSE output file not found - model may have failed silently")

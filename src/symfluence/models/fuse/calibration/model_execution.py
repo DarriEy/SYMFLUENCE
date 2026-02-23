@@ -517,7 +517,6 @@ def handle_fuse_output(
         # Log comprehensive diagnostics on first failure
         if not getattr(handle_fuse_output, '_diagnostics_logged', False):
             filemanager_path = execution_cwd / 'fm_catch.txt'
-            fuse_id_str = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID', ''))
             cmd_repr = f"fuse.exe fm_catch.txt {fuse_run_id} {mode}"
             _log_fuse_diagnostics(execution_cwd, filemanager_path, cmd_repr.split(), log)
             handle_fuse_output._diagnostics_logged = True
@@ -553,8 +552,8 @@ def _validate_fuse_output(
             time_dim = 'time' if 'time' in ds_check.dims else None
             if time_dim and ds_check.sizes[time_dim] == 0:
                 log.error(
-                    f"FUSE output has 0 time steps — model likely crashed silently "
-                    f"(Fortran STOP returns exit code 0)."
+                    "FUSE output has 0 time steps — model likely crashed silently "
+                    "(Fortran STOP returns exit code 0)."
                 )
                 _log_fuse_subprocess_output(result, log)
                 return False
@@ -606,7 +605,7 @@ def _log_fuse_diagnostics(
                 file_info.append(f"  {f.name} -> {target} ({'OK' if exists else 'BROKEN'})")
             elif f.is_file():
                 file_info.append(f"  {f.name} ({f.stat().st_size} bytes)")
-        log.error(f"Files in execution dir:\n" + "\n".join(file_info[:20]))
+        log.error("Files in execution dir:\n" + "\n".join(file_info[:20]))
     except Exception as e:
         log.error(f"Could not list execution directory: {e}")
 

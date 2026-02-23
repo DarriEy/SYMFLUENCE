@@ -119,6 +119,33 @@ class ModelComparisonPlotter(BasePlotter):
             self.__residual_panel = ResidualAnalysisPanel(self.plot_config, self.logger)
         return self.__residual_panel
 
+    @staticmethod
+    def _model_name_from_column(column: str) -> str:
+        """Normalize result column names to display model names."""
+        return column.replace('_discharge_cms', '').replace('_discharge', '')
+
+    @staticmethod
+    def _find_discharge_columns(results_df: pd.DataFrame) -> List[str]:
+        """Return modeled discharge columns (excluding observations)."""
+        return [
+            column for column in results_df.columns
+            if 'discharge' in column.lower() and 'obs' not in column.lower()
+        ]
+
+    @staticmethod
+    def _align_valid_pairs(
+        obs_values: np.ndarray,
+        sim_values: np.ndarray,
+        min_points: int = 1
+    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """Return aligned finite observation/simulation vectors."""
+        valid_mask = ~(np.isnan(obs_values) | np.isnan(sim_values))
+        obs_clean = obs_values[valid_mask]
+        sim_clean = sim_values[valid_mask]
+        if len(obs_clean) < min_points:
+            return None
+        return obs_clean, sim_clean
+
     def plot_model_comparison_overview(
         self,
         experiment_id: str = 'default',
@@ -142,8 +169,7 @@ class ModelComparisonPlotter(BasePlotter):
                 return None
 
             # Find model columns (discharge columns)
-            model_cols = [c for c in results_df.columns
-                         if 'discharge' in c.lower() and 'obs' not in c.lower()]
+            model_cols = self._find_discharge_columns(results_df)
 
             if not model_cols:
                 self.logger.warning("No model discharge columns found in results")
@@ -951,13 +977,10 @@ class ModelComparisonPlotter(BasePlotter):
         for col in model_cols:
             sim_values = results_df[col].values
 
-            # Get aligned, valid data
-            valid_mask = ~(np.isnan(obs_values) | np.isnan(sim_values))
-            obs_clean = obs_values[valid_mask]
-            sim_clean = sim_values[valid_mask]
-
-            if len(obs_clean) < 10:
+            aligned = self._align_valid_pairs(obs_values, sim_values, min_points=10)
+            if aligned is None:
                 continue
+            obs_clean, sim_clean = aligned
 
             # Calculate metrics using existing utility
             metrics = calculate_metrics(obs_clean, sim_clean)
@@ -969,7 +992,7 @@ class ModelComparisonPlotter(BasePlotter):
             metrics['Bias%'] = bias
 
             # Extract model name from column
-            model_name = col.replace('_discharge_cms', '').replace('_discharge', '')
+            model_name = self._model_name_from_column(col)
             metrics_dict[model_name] = metrics
 
         return metrics_dict
@@ -997,7 +1020,7 @@ class ModelComparisonPlotter(BasePlotter):
         # Plot each model
         for i, col in enumerate(model_cols):
             color = self.MODEL_COLORS[i % len(self.MODEL_COLORS)]
-            model_name = col.replace('_discharge_cms', '').replace('_discharge', '')
+            model_name = self._model_name_from_column(col)
             ax.plot(results_df.index, results_df[col],
                    color=color, linewidth=1.0, alpha=0.8, label=model_name)
 
@@ -1038,7 +1061,7 @@ class ModelComparisonPlotter(BasePlotter):
             color = self.MODEL_COLORS[i % len(self.MODEL_COLORS)]
             exc, flows = calculate_flow_duration_curve(results_df[col].values)
             if len(exc) > 0:
-                model_name = col.replace('_discharge_cms', '').replace('_discharge', '')
+                model_name = self._model_name_from_column(col)
                 ax.plot(exc * 100, flows, color=color, linewidth=1.5,
                        alpha=0.8, label=model_name)
 
@@ -1077,15 +1100,12 @@ class ModelComparisonPlotter(BasePlotter):
         for i, (ax, col) in enumerate(zip(axes, model_cols[:len(axes)])):
             sim_values = results_df[col].values
 
-            # Get valid data
-            valid_mask = ~(np.isnan(obs_values) | np.isnan(sim_values))
-            obs_clean = obs_values[valid_mask]
-            sim_clean = sim_values[valid_mask]
-
-            if len(obs_clean) < 10:
+            aligned = self._align_valid_pairs(obs_values, sim_values, min_points=10)
+            if aligned is None:
                 ax.text(0.5, 0.5, 'Insufficient data',
                        transform=ax.transAxes, ha='center', va='center')
                 continue
+            obs_clean, sim_clean = aligned
 
             # Scatter plot
             color = self.MODEL_COLORS[i % len(self.MODEL_COLORS)]
@@ -1107,7 +1127,7 @@ class ModelComparisonPlotter(BasePlotter):
                    verticalalignment='top',
                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
-            model_name = col.replace('_discharge_cms', '').replace('_discharge', '')
+            model_name = self._model_name_from_column(col)
             self._apply_standard_styling(
                 ax,
                 xlabel='Observed (m³/s)',
@@ -1215,7 +1235,7 @@ class ModelComparisonPlotter(BasePlotter):
         from matplotlib.patches import Patch  # type: ignore
         legend_elements = [Patch(facecolor='black', alpha=0.5, label='Observed')]
         if model_cols:
-            model_name = model_cols[0].replace('_discharge_cms', '').replace('_discharge', '')
+            model_name = self._model_name_from_column(model_cols[0])
             legend_elements.append(
                 Patch(facecolor=self.MODEL_COLORS[0], alpha=0.5, label=model_name)
             )
@@ -1282,7 +1302,7 @@ class ModelComparisonPlotter(BasePlotter):
         ax.set_xticks(positions)
         ax.set_xticklabels(month_names)
 
-        model_name = col.replace('_discharge_cms', '').replace('_discharge', '')
+        model_name = self._model_name_from_column(col)
         self._apply_standard_styling(
             ax,
             xlabel='Month',
@@ -1321,10 +1341,8 @@ class ModelComparisonPlotter(BasePlotter):
                 return None
 
             # Find model columns
-            default_cols = [c for c in default_df.columns
-                           if 'discharge' in c.lower() and 'obs' not in c.lower()]
-            calibrated_cols = [c for c in calibrated_df.columns
-                              if 'discharge' in c.lower() and 'obs' not in c.lower()]
+            default_cols = self._find_discharge_columns(default_df)
+            calibrated_cols = self._find_discharge_columns(calibrated_df)
 
             if not default_cols or not calibrated_cols:
                 self.logger.warning("No model discharge columns found")
@@ -1479,8 +1497,8 @@ class ModelComparisonPlotter(BasePlotter):
         ax.axis('off')
 
         # Extract metrics for each run
-        default_name = default_col.replace('_discharge_cms', '').replace('_discharge', '')
-        calibrated_name = calibrated_col.replace('_discharge_cms', '').replace('_discharge', '')
+        default_name = self._model_name_from_column(default_col)
+        calibrated_name = self._model_name_from_column(calibrated_col)
 
         def_metrics = default_metrics.get(default_name, {})
         cal_metrics = calibrated_metrics.get(calibrated_name, {})
@@ -1549,15 +1567,12 @@ class ModelComparisonPlotter(BasePlotter):
         obs_values = obs_series.values
         sim_values = sim_series.values
 
-        # Get valid data
-        valid_mask = ~(np.isnan(obs_values) | np.isnan(sim_values))
-        obs_clean = obs_values[valid_mask]
-        sim_clean = sim_values[valid_mask]
-
-        if len(obs_clean) < 10:
+        aligned = self._align_valid_pairs(obs_values, sim_values, min_points=10)
+        if aligned is None:
             ax.text(0.5, 0.5, 'Insufficient data',
                    transform=ax.transAxes, ha='center', va='center')
             return
+        obs_clean, sim_clean = aligned
 
         # Scatter plot
         ax.scatter(obs_clean, sim_clean, c=color, alpha=0.3, s=15, edgecolors='none')

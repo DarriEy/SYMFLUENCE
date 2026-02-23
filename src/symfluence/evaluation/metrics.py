@@ -197,6 +197,31 @@ def _apply_transformation(
     return obs_trans[valid_mask], sim_trans[valid_mask]
 
 
+def _prepare_metric_inputs(
+    observed: Union[np.ndarray, pd.Series],
+    simulated: Union[np.ndarray, pd.Series],
+    transfo: float = 1.0,
+    min_length: int = 1,
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """Return cleaned/transformed arrays when enough valid data exist."""
+    obs, sim = _clean_data(observed, simulated)
+    if len(obs) < min_length:
+        return None
+
+    obs, sim = _apply_transformation(obs, sim, transfo)
+    if len(obs) < min_length:
+        return None
+
+    return obs, sim
+
+
+def _safe_pearson_correlation(obs: np.ndarray, sim: np.ndarray) -> float:
+    """Return Pearson r, or NaN when variance is zero."""
+    if np.std(obs) == 0 or np.std(sim) == 0:
+        return np.nan
+    return float(np.corrcoef(obs, sim)[0, 1])
+
+
 def nse(
     observed: Union[np.ndarray, pd.Series],
     simulated: Union[np.ndarray, pd.Series],
@@ -230,12 +255,10 @@ def nse(
     conceptual models part I—A discussion of principles. Journal of hydrology,
     10(3), 282-290.
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     mean_obs = np.mean(obs)
     numerator = np.sum((obs - sim) ** 2)
@@ -289,14 +312,12 @@ def kge(
     Implications for improving hydrological modelling. Journal of hydrology,
     377(1-2), 80-91.
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         if return_components:
             return {'KGE': np.nan, 'r': np.nan, 'alpha': np.nan, 'beta': np.nan}
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     # Calculate components
     mean_obs = np.mean(obs)
@@ -305,10 +326,7 @@ def kge(
     std_sim = np.std(sim, ddof=1)
 
     # Correlation
-    if std_obs == 0 or std_sim == 0:
-        r = np.nan
-    else:
-        r = np.corrcoef(obs, sim)[0, 1]
+    r = _safe_pearson_correlation(obs, sim)
 
     # Variability ratio
     alpha = std_sim / std_obs if std_obs != 0 else np.nan
@@ -372,14 +390,12 @@ def kge_prime(
     Danube basin under an ensemble of climate change scenarios. Journal of
     hydrology, 424, 264-277.
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         if return_components:
             return {'KGEp': np.nan, 'r': np.nan, 'gamma': np.nan, 'beta': np.nan}
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     # Calculate components
     mean_obs = np.mean(obs)
@@ -388,10 +404,7 @@ def kge_prime(
     std_sim = np.std(sim, ddof=1)
 
     # Correlation
-    if std_obs == 0 or std_sim == 0:
-        r = np.nan
-    else:
-        r = np.corrcoef(obs, sim)[0, 1]
+    r = _safe_pearson_correlation(obs, sim)
 
     # Coefficient of variation ratio (gamma)
     cv_obs = std_obs / mean_obs if mean_obs != 0 else np.nan
@@ -449,12 +462,10 @@ def kge_np(
     towards a non-parametric variant of the Kling-Gupta efficiency.
     Hydrological Sciences Journal, 63(13-14), 1941-1953.
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     mean_obs = np.mean(obs)
     mean_sim = np.mean(sim)
@@ -504,12 +515,10 @@ def rmse(
     float
         RMSE value, or np.nan if calculation fails
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     return float(np.sqrt(np.mean((obs - sim) ** 2)))
 
@@ -541,12 +550,10 @@ def nrmse(
     float
         NRMSE value, or np.nan if calculation fails
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     rmse_value = np.sqrt(np.mean((obs - sim) ** 2))
     std_obs = np.std(obs)
@@ -583,12 +590,10 @@ def mae(
     float
         MAE value, or np.nan if calculation fails
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     return float(np.mean(np.abs(obs - sim)))
 
@@ -620,12 +625,10 @@ def bias(
     float
         Bias value, or np.nan if calculation fails
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     return float(np.mean(sim) - np.mean(obs))
 
@@ -657,12 +660,10 @@ def pbias(
     float
         Percent bias value, or np.nan if calculation fails
     """
-    obs, sim = _clean_data(observed, simulated)
-
-    if len(obs) == 0:
+    prepared = _prepare_metric_inputs(observed, simulated, transfo=transfo)
+    if prepared is None:
         return np.nan
-
-    obs, sim = _apply_transformation(obs, sim, transfo)
+    obs, sim = prepared
 
     sum_obs = np.sum(obs)
     if sum_obs == 0:
@@ -699,9 +700,7 @@ def correlation(
         return np.nan
 
     if method == 'pearson':
-        if np.std(obs) == 0 or np.std(sim) == 0:
-            return np.nan
-        return float(np.corrcoef(obs, sim)[0, 1])
+        return _safe_pearson_correlation(obs, sim)
     elif method == 'spearman':
         return float(stats.spearmanr(obs, sim)[0])
     else:

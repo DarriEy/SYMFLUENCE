@@ -643,11 +643,6 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
         _, unique_idx = np.unique(merged.time.values, return_index=True)
         merged = merged.isel(time=np.sort(unique_idx))
 
-        # Get spatial dim names
-        first_da = aligned_das[0]
-        lat_dim = 'lat' if 'lat' in first_da.dims else 'y'
-        lon_dim = 'lon' if 'lon' in first_da.dims else 'x'
-
         merged.name = 'NDSI_Snow_Cover'
         merged.attrs = {
             'long_name': 'NDSI Snow Cover (Merged Terra+Aqua)',
