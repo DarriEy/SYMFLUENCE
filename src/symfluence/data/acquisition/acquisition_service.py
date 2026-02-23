@@ -482,7 +482,7 @@ class AcquisitionService(ConfigurableMixin):
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()
         if forcing_dataset in {"CARRA", "CERRA"} and not self._get_config_value(lambda: self.config.forcing.time_step_size, dict_key='FORCING_TIME_STEP_SIZE'):
-            self.config["FORCING_TIME_STEP_SIZE"] = 10800
+            self.config_dict["FORCING_TIME_STEP_SIZE"] = 10800
             self.logger.info(
                 f"Defaulting FORCING_TIME_STEP_SIZE to 10800s for {forcing_dataset}"
             )

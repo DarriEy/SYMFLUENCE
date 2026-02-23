@@ -57,8 +57,8 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Domain settings from notebook 02b
-    config["DOMAIN_NAME"] = "Bow_at_Banff_semi_distributed"
-    config["EXPERIMENT_ID"] = f"test_{tmp_path.name[:8]}"  # Keep short to avoid Fortran strLen=256 overflow in mizuRoute
+    config["DOMAIN_NAME"] = "Bow_Banff_sd"  # Keep short to avoid Fortran strLen=256 overflow (SUMMA/mizuRoute)
+    config["EXPERIMENT_ID"] = f"test_{tmp_path.name[:8]}"
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
     # Semi-distributed basin settings

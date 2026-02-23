@@ -117,12 +117,12 @@ class HYPEWorker(BaseWorker):
             # Get experiment dates from config
             experiment_start = preprocessor._get_config_value(
                 lambda: preprocessor.config.domain.time_start,
-                default=None, dict_key='EXPERIMENT_TIME_START'
-            ) if hasattr(preprocessor, '_get_config_value') else preprocessor.config_dict.get('EXPERIMENT_TIME_START')
+                default=None,
+            )
             experiment_end = preprocessor._get_config_value(
                 lambda: preprocessor.config.domain.time_end,
-                default=None, dict_key='EXPERIMENT_TIME_END'
-            ) if hasattr(preprocessor, '_get_config_value') else preprocessor.config_dict.get('EXPERIMENT_TIME_END')
+                default=None,
+            )
 
             # Write info and file directory files
             preprocessor.config_manager.write_info_filedir(
@@ -302,25 +302,11 @@ class HYPEWorker(BaseWorker):
                 self.logger.debug(f"Using single outlet column: {outlet_col}")
 
             # Load observations
-            # Handle both flat config dict and nested Pydantic model config
-            if hasattr(config, 'domain') and hasattr(config.domain, 'name'):
-                # Pydantic model
+            # Resolve domain_name and data_dir from config
+            try:
                 domain_name = config.domain.name
-                data_dir = Path(config.system.data_dir) if hasattr(config, 'system') else Path('.')
-            elif isinstance(config, dict):
-                # Dict format - check for nested keys first, then flat uppercase keys
-                domain = config.get('domain', {})
-                system = config.get('system', {})
-                # Try nested format first
-                domain_name = domain.get('name') if isinstance(domain, dict) and domain else None
-                data_dir_val = system.get('data_dir') if isinstance(system, dict) and system else None
-                # Fall back to flat uppercase keys
-                if not domain_name:
-                    domain_name = config.get('DOMAIN_NAME')
-                if not data_dir_val:
-                    data_dir_val = config.get('SYMFLUENCE_DATA_DIR')
-                data_dir = Path(data_dir_val) if data_dir_val else Path('.')
-            else:
+                data_dir = Path(str(config.system.data_dir))
+            except (AttributeError, TypeError):
                 domain_name = None
                 data_dir = Path('.')
 
@@ -359,7 +345,11 @@ class HYPEWorker(BaseWorker):
             obs_daily.index = obs_daily.index.normalize()
 
             # Apply calibration period if configured
-            calib_period = config.get('CALIBRATION_PERIOD')
+            calib_period = None
+            try:
+                calib_period = config.optimization.calibration_period
+            except (AttributeError, TypeError):
+                pass
             if calib_period:
                 try:
                     start_str, end_str = [s.strip() for s in calib_period.split(',')]

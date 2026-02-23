@@ -209,7 +209,7 @@ class SpatialModeDetectionMixin:
         Get the domain definition method from config.
 
         Safely retrieves domain_definition_method from the object,
-        falling back to config_dict if the attribute isn't directly available.
+        falling back to typed config if the attribute isn't directly available.
 
         Returns:
             Domain definition method string
@@ -218,16 +218,12 @@ class SpatialModeDetectionMixin:
         if hasattr(self, 'domain_definition_method'):
             return getattr(self, 'domain_definition_method', 'lumped')
 
-        # Fall back to typed config or dict
+        # Fall back to typed config
         if hasattr(self, '_get_config_value'):
             return self._get_config_value(
                 lambda: self.config.domain.definition_method,
                 default='lumped',
-                dict_key='DOMAIN_DEFINITION_METHOD'
             )
-        config_dict = getattr(self, 'config_dict', {})
-        if isinstance(config_dict, dict):
-            return config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
         return 'lumped'
 
     def _get_logger(self) -> logging.Logger:

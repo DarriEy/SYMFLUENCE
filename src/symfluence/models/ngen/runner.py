@@ -27,15 +27,25 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
     MODEL_NAME = "NGEN"
 
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        logger: logging.Logger,
+        reporting_manager: Optional[Any] = None,
+        ngen_settings_dir: Optional[Path] = None,
+        ngen_output_dir: Optional[Path] = None,
+    ):
+        # Store overrides before super().__init__ so _setup_model_specific_paths can use them
+        self._ngen_settings_dir_override = Path(ngen_settings_dir) if ngen_settings_dir else None
+        self._ngen_output_dir_override = Path(ngen_output_dir) if ngen_output_dir else None
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
     def _setup_model_specific_paths(self) -> None:
         """Set up NGEN-specific paths."""
         # Check if parallel worker has provided isolated settings directory
-        if '_ngen_settings_dir' in self.config_dict:
-            self.ngen_setup_dir = Path(self.config_dict['_ngen_settings_dir'])
+        if getattr(self, '_ngen_settings_dir_override', None):
+            self.ngen_setup_dir = self._ngen_settings_dir_override
         else:
             self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
 
@@ -70,8 +80,8 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             if experiment_id is None:
                 experiment_id = self.experiment_id
 
-            if '_ngen_output_dir' in self.config_dict:
-                output_dir = Path(self.config_dict['_ngen_output_dir'])
+            if getattr(self, '_ngen_output_dir_override', None):
+                output_dir = self._ngen_output_dir_override
             else:
                 output_dir = self.get_experiment_output_dir(experiment_id)
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -393,8 +403,8 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     self.logger.debug("Preserving {{id}} in forcing file pattern for multi-catchment runs")
 
             # 4. Patch output_root for isolated calibration directories
-            if '_ngen_output_dir' in self.config_dict:
-                isolated_output_dir = str(Path(self.config_dict['_ngen_output_dir']).resolve())
+            if getattr(self, '_ngen_output_dir_override', None):
+                isolated_output_dir = str(self._ngen_output_dir_override.resolve())
                 if data.get('output_root') != isolated_output_dir:
                     data['output_root'] = isolated_output_dir
                     changed = True
@@ -554,19 +564,19 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 experiment_id = self.experiment_id
 
             # Determine output directory
-            if '_ngen_output_dir' in self.config_dict:
-                output_dir = Path(self.config_dict['_ngen_output_dir'])
+            if getattr(self, '_ngen_output_dir_override', None):
+                output_dir = self._ngen_output_dir_override
             else:
                 output_dir = self.get_experiment_output_dir(experiment_id)
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Determine if we're in calibration mode (isolated directories)
-            is_calibration_mode = '_ngen_settings_dir' in self.config_dict
+            is_calibration_mode = getattr(self, '_ngen_settings_dir_override', None) is not None
             if is_calibration_mode:
                 # In calibration mode, ngen_setup_dir is the isolated directory with modified BMI configs
                 # But we need the original project's nexus, catchments, and realization files
                 original_ngen_setup_dir = self.project_dir / "settings" / "NGEN"
-                isolated_settings_dir = Path(self.config_dict['_ngen_settings_dir'])
+                isolated_settings_dir = self._ngen_settings_dir_override
                 self.logger.debug(f"Calibration mode: isolated={isolated_settings_dir}, original={original_ngen_setup_dir}")
             else:
                 original_ngen_setup_dir = self.ngen_setup_dir

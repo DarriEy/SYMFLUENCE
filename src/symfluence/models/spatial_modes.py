@@ -265,18 +265,14 @@ def get_spatial_mode_from_config(config_dict) -> SpatialMode:
     Returns:
         Inferred SpatialMode
     """
-    if isinstance(config_dict, dict):
-        domain_method = config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        routing_delineation = config_dict.get('ROUTING_DELINEATION', 'lumped')
-    else:
-        try:
-            domain_method = config_dict.domain.definition_method or 'lumped'
-        except (AttributeError, TypeError):
-            domain_method = 'lumped'
-        try:
-            routing_delineation = config_dict.model.mizuroute.routing_delineation or 'lumped'
-        except (AttributeError, TypeError):
-            routing_delineation = 'lumped'
+    try:
+        domain_method = config_dict.domain.definition_method or 'lumped'
+    except (AttributeError, TypeError):
+        domain_method = config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped') if isinstance(config_dict, dict) else 'lumped'
+    try:
+        routing_delineation = config_dict.model.mizuroute.routing_delineation or 'lumped'
+    except (AttributeError, TypeError):
+        routing_delineation = config_dict.get('ROUTING_DELINEATION', 'lumped') if isinstance(config_dict, dict) else 'lumped'
 
     # Map domain method to spatial mode
     if domain_method in ('point', 'lumped'):

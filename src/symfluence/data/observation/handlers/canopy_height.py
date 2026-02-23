@@ -69,7 +69,12 @@ class CanopyHeightHandler(BaseObservationHandler):
         canopy_dir = self.project_observations_dir / "vegetation" / "canopy_height"
         canopy_dir.mkdir(parents=True, exist_ok=True)
 
-        source = self._get_config_value(lambda: None, default='meta', dict_key='CANOPY_HEIGHT_SOURCE').lower()
+        # Check instance attribute first, then derive from source_name
+        source = getattr(self, 'canopy_height_source', None)
+        if source is None:
+            source = {
+                'NASA_GEDI': 'gedi', 'META_WRI': 'meta', 'UMD_GLAD': 'glad',
+            }.get(self.source_name, 'meta') if self.source_name != 'MULTI_SOURCE' else 'all'
         force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
 
         acquired_sources = []
@@ -450,9 +455,7 @@ class GEDICanopyHeightHandler(CanopyHeightHandler):
 
     def __init__(self, config, logger):
         super().__init__(config, logger)
-        # Override source to GEDI
-        if isinstance(self.config_dict, dict):
-            self.config_dict['CANOPY_HEIGHT_SOURCE'] = 'gedi'
+        self.canopy_height_source = 'gedi'
 
 
 @ObservationRegistry.register('meta_canopy_height')
@@ -468,9 +471,7 @@ class MetaCanopyHeightHandler(CanopyHeightHandler):
 
     def __init__(self, config, logger):
         super().__init__(config, logger)
-        # Override source to Meta
-        if isinstance(self.config_dict, dict):
-            self.config_dict['CANOPY_HEIGHT_SOURCE'] = 'meta'
+        self.canopy_height_source = 'meta'
 
 
 @ObservationRegistry.register('glad_tree_height')
@@ -486,6 +487,4 @@ class GLADTreeHeightHandler(CanopyHeightHandler):
 
     def __init__(self, config, logger):
         super().__init__(config, logger)
-        # Override source to GLAD
-        if isinstance(self.config_dict, dict):
-            self.config_dict['CANOPY_HEIGHT_SOURCE'] = 'glad'
+        self.canopy_height_source = 'glad'

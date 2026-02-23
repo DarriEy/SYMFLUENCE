@@ -285,24 +285,20 @@ class NgenWorker(BaseWorker):
             True if model ran successfully
         """
         try:
-            # Check for parallel mode keys
-            # Handle both Pydantic models and dicts
-            if isinstance(config, PydanticBaseModel):
-                parallel_config = dict(config.model_dump())
-            else:
-                parallel_config = dict(config)
-
-            # Ensure runner uses isolated directories
-            parallel_config['_ngen_output_dir'] = str(output_dir)
-            parallel_config['_ngen_settings_dir'] = str(settings_dir)
-
             # Import NgenRunner
             from symfluence.models.ngen import NgenRunner
 
-            experiment_id = parallel_config.get('EXPERIMENT_ID')
+            if isinstance(config, PydanticBaseModel):
+                experiment_id = getattr(getattr(config, 'domain', None), 'experiment_id', None)
+            else:
+                experiment_id = config.get('EXPERIMENT_ID')
 
-            # Initialize and run
-            runner = NgenRunner(parallel_config, self.logger)
+            # Initialize runner with isolated directories as constructor kwargs
+            runner = NgenRunner(
+                config, self.logger,
+                ngen_settings_dir=settings_dir,
+                ngen_output_dir=output_dir,
+            )
             success = runner.run_ngen(experiment_id)
 
             return success

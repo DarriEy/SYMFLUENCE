@@ -764,19 +764,13 @@ class HBVRunner(  # type: ignore[misc]
         return result is not None
 
     def _setup_hbv_mizuroute_config(self):
-        """Update configuration for HBV-mizuRoute integration.
+        """Set up runtime state for HBV-mizuRoute integration.
 
-        Uses config_dict write-backs for runtime cross-model integration
-        (MIZU_FROM_MODEL, SETTINGS_MIZU_CONTROL_FILE, HYDROLOGICAL_MODEL).
+        No-op: the mizuroute preprocessor infers from_model from
+        HYDROLOGICAL_MODEL when MIZU_FROM_MODEL is not explicitly set,
+        and the control file name is handled by the fallback in
+        _run_distributed_routing.
         """
-        self.config_dict['MIZU_FROM_MODEL'] = 'HBV'
-
-        if not self.mizu_control_file:
-            self.config_dict['SETTINGS_MIZU_CONTROL_FILE'] = 'mizuRoute_control_HBV.txt'
-
-        current_models = self.hydrological_model
-        if 'MIZUROUTE' not in current_models.upper():
-            self.config_dict['HYDROLOGICAL_MODEL'] = f"{current_models},MIZUROUTE"
 
     def _calculate_and_log_metrics(self) -> None:
         """Calculate and log performance metrics."""
