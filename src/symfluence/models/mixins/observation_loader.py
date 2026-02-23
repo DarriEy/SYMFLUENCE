@@ -220,7 +220,7 @@ class ObservationLoaderMixin:
         # Parse datetime and drop timezone to avoid tz-aware/naive comparisons
         # Note: dayfirst=False (default) is correct for ISO-format dates (YYYY-MM-DD)
         # Using dayfirst=True silently misparses dates where day > 12, causing massive data loss
-        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce').dt.tz_convert(None)
+        times = pd.to_datetime(df[datetime_col], utc=True, format='mixed', errors='coerce').dt.tz_convert(None)
 
         # Create series
         series = pd.Series(

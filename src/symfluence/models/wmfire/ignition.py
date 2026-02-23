@@ -535,7 +535,12 @@ class FirePerimeterValidator:
                 )
 
             ax.set_title(title)
-            ax.legend()
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                handles, labels = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend(handles, labels)
             ax.set_xlabel('Easting (m)')
             ax.set_ylabel('Northing (m)')
 
