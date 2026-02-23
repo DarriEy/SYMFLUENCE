@@ -284,7 +284,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         debug_info['errors'].append(error_msg)
         return False
 
-    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
+    except (FileNotFoundError, OSError) as e:
         error_msg = f"Error running SUMMA: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)

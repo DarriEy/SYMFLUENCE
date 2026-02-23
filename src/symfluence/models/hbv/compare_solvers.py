@@ -302,7 +302,7 @@ def run_adjoint_verification(
 
 
 def run_scaling_comparison(
-    simulation_lengths: list = [100, 365, 730, 1825, 3650],
+    simulation_lengths: Optional[list] = None,
     timestep_hours: int = 24,
     verbose: bool = True
 ) -> Dict[str, Any]:
@@ -317,6 +317,8 @@ def run_scaling_comparison(
     Returns:
         Scaling results dictionary
     """
+    if simulation_lengths is None:
+        simulation_lengths = [100, 365, 730, 1825, 3650]
     from .hbv_ode import compare_gradients
     from .parameters import DEFAULT_PARAMS
 

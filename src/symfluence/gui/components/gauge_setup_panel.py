@@ -158,8 +158,9 @@ class GaugeSetupPanel(param.Parameterized):
                         f"<span style='color:green'>Config created: {p}</span>",
                     )
                 )
+                station_id = gauge.get('station_id', '')
                 run_on_ui_thread(
-                    lambda p=config_path, sid=gauge.get('station_id', ''): self.state.append_log(
+                    lambda p=config_path, sid=station_id: self.state.append_log(
                         f"Domain config created from gauge {sid}: {p}\n"
                     )
                 )

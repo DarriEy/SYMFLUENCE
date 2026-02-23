@@ -65,7 +65,7 @@ class MODISLSTHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"MODIS LST acquirer not available: {e}")
                 raise
-            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, LookupError) as e:
                 self.logger.error(f"MODIS LST acquisition failed: {e}")
                 raise
         else:

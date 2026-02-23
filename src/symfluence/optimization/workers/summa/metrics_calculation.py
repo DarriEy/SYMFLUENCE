@@ -376,7 +376,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
     except FileNotFoundError as e:
         logger.error(f"File not found error: {str(e)}")
         return None
-    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
+    except (ValueError, KeyError, ZeroDivisionError) as e:
         logger.error(f"Error in inline metrics calculation: {str(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")

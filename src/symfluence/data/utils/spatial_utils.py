@@ -397,7 +397,6 @@ def _subset_regular_grid(
 ):
     """Subset a regular grid using xarray sel()."""
     lat = ds[lat_dim].values
-    ds[lon_dim].values
 
     # Handle longitude convention
     lon_min, lon_max = bbox['lon_min'], bbox['lon_max']

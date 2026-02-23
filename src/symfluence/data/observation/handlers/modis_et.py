@@ -92,7 +92,7 @@ class MODISETHandler(BaseObservationHandler):
 
         except ImportError:
             self.logger.warning("MOD16 acquisition handler not available")
-        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, LookupError) as e:
             self.logger.warning(f"MOD16 acquisition failed: {e}")
 
         # Fallback: check for manually placed data

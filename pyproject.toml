@@ -194,9 +194,11 @@ exclude = [
 [tool.ruff.lint]
 # Select rules to enforce
 select = [
-    "F",   # Pyflakes (undefined names, unused imports, etc.)
-    "W",   # pycodestyle warnings (trailing whitespace, etc.)
-    "I",   # isort (import ordering)
+    "F",      # Pyflakes (undefined names, unused imports, etc.)
+    "W",      # pycodestyle warnings (trailing whitespace, etc.)
+    "I",      # isort (import ordering)
+    "B",      # flake8-bugbear (common bug patterns)
+    "PGH003", # Blanket type: ignore without error code
 ]
 
 # Ignore rules that are intentional patterns
@@ -207,6 +209,13 @@ ignore = [
     "F405",  # Name may be undefined from star import - related to F403
     "E701",  # Multiple statements on one line (colon) - common guard clause pattern
     "E402",  # Module level import not at top - intentional for optional deps/deprecation
+    # Bugbear rules deferred — high count, low value for paper release
+    "B905",  # zip-without-strict (stylistic)
+    "B007",  # Unused loop variable (cosmetic)
+    "B028",  # No explicit stacklevel in warnings (cosmetic)
+    "B017",  # assert-raises-exception in tests (test-only)
+    "B027",  # Empty method without abstract decorator (intentional base classes)
+    "B024",  # Abstract base class without abstract method (intentional)
 ]
 
 [tool.ruff.lint.per-file-ignores]

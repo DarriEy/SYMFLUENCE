@@ -161,7 +161,7 @@ class ConfigurationUpdater(ConfigMixin):
                 continue
 
             # Split by whitespace, but keep original indentation if possible
-            parts = re.split(r'(\s+)', line, 1)
+            parts = re.split(r'(\s+)', line, maxsplit=1)
             if len(parts) < 2:
                 updated_lines.append(line)
                 continue
