@@ -29,7 +29,7 @@ Discovery and Instantiation:
 """
 
 import logging
-from typing import Callable, Dict, Optional, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Type
 
 if TYPE_CHECKING:
     pass
@@ -140,7 +140,7 @@ class ComponentRegistry:
         """
         def decorator(preprocessor_cls: Type) -> Type:
             cls._validate_protocol_conformance(preprocessor_cls, 'preprocessor', model_name)
-            cls._preprocessors[model_name] = preprocessor_cls
+            cls._preprocessors[model_name.upper()] = preprocessor_cls
             return preprocessor_cls
         return decorator
 
@@ -164,8 +164,8 @@ class ComponentRegistry:
         """
         def decorator(runner_cls: Type) -> Type:
             cls._validate_protocol_conformance(runner_cls, 'runner', model_name)
-            cls._runners[model_name] = runner_cls
-            cls._runner_methods[model_name] = method_name
+            cls._runners[model_name.upper()] = runner_cls
+            cls._runner_methods[model_name.upper()] = method_name
             return runner_cls
         return decorator
 
@@ -186,7 +186,7 @@ class ComponentRegistry:
         """
         def decorator(postprocessor_cls: Type) -> Type:
             cls._validate_protocol_conformance(postprocessor_cls, 'postprocessor', model_name)
-            cls._postprocessors[model_name] = postprocessor_cls
+            cls._postprocessors[model_name.upper()] = postprocessor_cls
             return postprocessor_cls
         return decorator
 
@@ -209,7 +209,7 @@ class ComponentRegistry:
             ...     pass
         """
         def decorator(visualizer_func: Callable) -> Callable:
-            cls._visualizers[model_name] = visualizer_func
+            cls._visualizers[model_name.upper()] = visualizer_func
             return visualizer_func
         return decorator
 
@@ -223,10 +223,7 @@ class ComponentRegistry:
         Returns:
             Preprocessor class or None if not registered
         """
-        result = cls._preprocessors.get(model_name)
-        if result is None:
-            result = cls._preprocessors.get(model_name.upper())
-        return result
+        return cls._preprocessors.get(model_name.upper())
 
     @classmethod
     def get_runner(cls, model_name: str) -> Optional[Type]:
@@ -238,10 +235,7 @@ class ComponentRegistry:
         Returns:
             Runner class or None if not registered
         """
-        result = cls._runners.get(model_name)
-        if result is None:
-            result = cls._runners.get(model_name.upper())
-        return result
+        return cls._runners.get(model_name.upper())
 
     @classmethod
     def get_postprocessor(cls, model_name: str) -> Optional[Type]:
@@ -253,10 +247,7 @@ class ComponentRegistry:
         Returns:
             Postprocessor class or None if not registered
         """
-        result = cls._postprocessors.get(model_name)
-        if result is None:
-            result = cls._postprocessors.get(model_name.upper())
-        return result
+        return cls._postprocessors.get(model_name.upper())
 
     @classmethod
     def get_visualizer(cls, model_name: str) -> Optional[Callable]:
@@ -268,10 +259,7 @@ class ComponentRegistry:
         Returns:
             Visualizer function or None if not registered
         """
-        result = cls._visualizers.get(model_name)
-        if result is None:
-            result = cls._visualizers.get(model_name.upper())
-        return result
+        return cls._visualizers.get(model_name.upper())
 
     @classmethod
     def get_runner_method(cls, model_name: str) -> str:
@@ -283,10 +271,7 @@ class ComponentRegistry:
         Returns:
             Method name string (defaults to 'run' if not specified)
         """
-        result = cls._runner_methods.get(model_name)
-        if result is None:
-            result = cls._runner_methods.get(model_name.upper())
-        return result if result is not None else "run"
+        return cls._runner_methods.get(model_name.upper(), "run")
 
     @classmethod
     def list_models(cls) -> list[str]:
@@ -314,6 +299,7 @@ class ComponentRegistry:
                 - visualizer: Visualizer function or None
                 - runner_method: Name of the run method (str)
         """
+        model_name = model_name.upper()
         return {
             'preprocessor': cls._preprocessors.get(model_name),
             'runner': cls._runners.get(model_name),
@@ -349,6 +335,7 @@ class ComponentRegistry:
         Raises:
             ValueError: If require_all=True and required components are missing
         """
+        model_name = model_name.upper()
         components = {
             'preprocessor': cls._preprocessors.get(model_name),
             'runner': cls._runners.get(model_name),

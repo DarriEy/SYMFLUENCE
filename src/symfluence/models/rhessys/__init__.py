@@ -71,9 +71,9 @@ Limitations and Considerations:
     - Computationally intensive for large watersheds
     - Patch-level output can generate very large files
 """
+from .postprocessor import RHESSysPostProcessor
 from .preprocessor import RHESSysPreProcessor
 from .runner import RHESSysRunner
-from .postprocessor import RHESSysPostProcessor
 
 __all__ = ["RHESSysPreProcessor", "RHESSysRunner", "RHESSysPostProcessor"]
 
@@ -86,18 +86,12 @@ except ImportError:
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import RHESSysConfigAdapter
+
 ModelRegistry.register_config_adapter('RHESSYS')(RHESSysConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import RHESSysResultExtractor
+
 ModelRegistry.register_result_extractor('RHESSYS')(RHESSysResultExtractor)
-
-# Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('RHESSYS')(RHESSysPreProcessor)
-
-# Register runner with ModelRegistry
-ModelRegistry.register_runner('RHESSYS')(RHESSysRunner)
-
-# Register postprocessor with ModelRegistry
-ModelRegistry.register_postprocessor('RHESSYS')(RHESSysPostProcessor)
