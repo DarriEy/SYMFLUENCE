@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.reporting.processors.data_processor import DataProcessor
 
 

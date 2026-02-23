@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.data_assimilation.diagnostics import (
     crps,
     innovation_consistency,

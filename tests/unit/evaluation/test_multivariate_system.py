@@ -4,6 +4,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.data.observation.registry import ObservationRegistry
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.optimization.objectives import ObjectiveRegistry

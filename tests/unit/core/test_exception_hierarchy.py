@@ -5,6 +5,7 @@ accidental re-parenting, orphaned exceptions, or duplicate definitions.
 """
 
 import pytest
+
 from symfluence.core.exceptions import (
     CodeAnalysisError,
     ConfigurationError,

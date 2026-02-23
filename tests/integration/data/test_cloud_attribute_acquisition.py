@@ -7,6 +7,7 @@ Validates cloud attribute acquisition for DEM, land cover, and soil classes.
 from pathlib import Path
 
 import pytest
+
 from symfluence import SYMFLUENCE
 from test_helpers.helpers import load_config_template, write_config
 

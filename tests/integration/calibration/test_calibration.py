@@ -12,8 +12,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template
+from test_helpers.helpers import has_cds_credentials, load_config_template
 
 # Skip tests on macOS ARM due to known HDF5/netCDF4 segfault issues with easymore
 _MACOS_ARM_SKIP = pytest.mark.skipif(
@@ -21,11 +22,17 @@ _MACOS_ARM_SKIP = pytest.mark.skipif(
     reason="Skipped on macOS ARM due to HDF5/netCDF4 segfault in easymore with CARRA data"
 )
 
+_CDS_SKIP = pytest.mark.skipif(
+    not has_cds_credentials(),
+    reason="CDS API credentials not available (no ~/.cdsapirc or CDSAPI_URL/CDSAPI_KEY env vars)"
+)
+
 pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requires_data, pytest.mark.slow]
 
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
+@_CDS_SKIP
 @_MACOS_ARM_SKIP
 def test_ellioaar_calibration(ellioaar_domain, symfluence_code_dir):
     """Run calibration demo for Elliðaár, Iceland."""
@@ -107,6 +114,7 @@ def test_ellioaar_calibration(ellioaar_domain, symfluence_code_dir):
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
+@_CDS_SKIP
 @_MACOS_ARM_SKIP
 def test_fyris_calibration(fyris_domain, symfluence_code_dir):
     """Run calibration demo for Fyris, Uppsala."""

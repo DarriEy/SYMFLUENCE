@@ -1,6 +1,7 @@
 """Tests for CF convention helpers."""
 
 import pytest
+
 from symfluence.data.model_ready.cf_conventions import (
     CF_STANDARD_NAMES,
     build_global_attrs,

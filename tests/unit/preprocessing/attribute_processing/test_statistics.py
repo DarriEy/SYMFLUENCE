@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+
 from symfluence.data.preprocessing.attribute_processors.elevation import ElevationProcessor
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]

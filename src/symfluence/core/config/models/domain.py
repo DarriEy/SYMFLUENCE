@@ -36,6 +36,7 @@ class DelineationConfig(BaseModel):
     delineate_coastal_watersheds: bool = Field(default=False, alias='DELINEATE_COASTAL_WATERSHEDS')
     delineate_by_pourpoint: bool = Field(default=True, alias='DELINEATE_BY_POURPOINT')
     move_outlets_max_distance: float = Field(default=200.0, alias='MOVE_OUTLETS_MAX_DISTANCE')
+    geofabric_bbox_padding: float = Field(default=0.02, alias='GEOFABRIC_BBOX_PADDING')
     point_buffer_distance: Optional[float] = Field(default=None, alias='POINT_BUFFER_DISTANCE')
     max_retries: int = Field(default=3, alias='MAX_RETRIES')
     retry_delay: float = Field(default=5.0, alias='RETRY_DELAY')

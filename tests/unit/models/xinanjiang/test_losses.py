@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.xinanjiang.losses import kge_loss, nse_loss
 from symfluence.models.xinanjiang.model import HAS_JAX
 from symfluence.models.xinanjiang.parameters import DEFAULT_PARAMS
@@ -67,6 +68,7 @@ class TestGradients:
     def test_kge_gradient_nonzero(self):
         """KGE gradient should be non-zero for non-optimal parameters."""
         import jax.numpy as jnp
+
         from symfluence.models.xinanjiang.losses import get_kge_gradient_fn
         from symfluence.models.xinanjiang.parameters import PARAM_NAMES
 
@@ -94,6 +96,7 @@ class TestGradients:
     def test_nse_gradient_nonzero(self):
         """NSE gradient should be non-zero for non-optimal parameters."""
         import jax.numpy as jnp
+
         from symfluence.models.xinanjiang.losses import get_nse_gradient_fn
 
         precip, pet, obs = _synthetic_data()

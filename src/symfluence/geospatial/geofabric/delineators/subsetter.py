@@ -112,7 +112,8 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
 
         # Find downstream basin using shared utility
         downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-            pour_point, basins, fabric_config['basin_id_col']
+            pour_point, basins, fabric_config['basin_id_col'],
+            logger=self.logger,
         )
 
         # Build graph and find upstream using shared processor

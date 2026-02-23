@@ -50,6 +50,7 @@ class TestIGNACIOParameterApplication:
     def test_apply_params_to_yaml(self):
         """With a config file, params should be written to YAML."""
         import yaml
+
         from symfluence.models.ignacio.calibration.worker import IGNACIOWorker
 
         worker = IGNACIOWorker()
@@ -72,6 +73,7 @@ class TestIGNACIOParameterApplication:
     def test_apply_initial_radius(self):
         """initial_radius should be written to simulation section."""
         import yaml
+
         from symfluence.models.ignacio.calibration.worker import IGNACIOWorker
 
         worker = IGNACIOWorker()

@@ -6,6 +6,7 @@ from the shared ``symfluence.models.snow17`` module.
 
 import numpy as np
 import pytest
+
 from symfluence.models.sacsma.parameters import (
     Snow17Parameters,
     create_snow17_params,

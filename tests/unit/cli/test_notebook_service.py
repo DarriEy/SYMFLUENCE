@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.cli.services import NotebookService
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from symfluence.core.provenance import (
     RunProvenance,
     _dependency_versions,

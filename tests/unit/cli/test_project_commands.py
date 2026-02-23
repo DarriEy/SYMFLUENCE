@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from symfluence.cli.commands.project_commands import ProjectCommands
 from symfluence.cli.exit_codes import ExitCode
 

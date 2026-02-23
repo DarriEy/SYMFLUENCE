@@ -8,6 +8,7 @@ import shutil
 from unittest.mock import Mock
 
 import pytest
+
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 

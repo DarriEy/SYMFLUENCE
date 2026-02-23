@@ -6,6 +6,7 @@ Tests bounding box parsing, coordinate normalization, and related utilities.
 
 import numpy as np
 import pytest
+
 from symfluence.geospatial.coordinate_utils import (
     BoundingBox,
     CoordinateUtilsMixin,

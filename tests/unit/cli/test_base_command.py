@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from symfluence.cli.commands.base import DEFAULT_CONFIG_PATH, BaseCommand
 from symfluence.cli.exit_codes import ExitCode
 

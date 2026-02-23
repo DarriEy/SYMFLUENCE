@@ -1,6 +1,7 @@
 """Unit tests for init_presets module."""
 
 import pytest
+
 from symfluence.cli.init_presets import get_preset, list_preset_names, load_presets, validate_preset
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

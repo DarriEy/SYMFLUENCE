@@ -5,6 +5,7 @@ Unit tests for plot_utils module.
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.reporting.core.plot_utils import (
     align_timeseries,
     calculate_flow_duration_curve,

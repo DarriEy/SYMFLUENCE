@@ -9,6 +9,7 @@ Runs the full EnKF loop using HBV model components:
 
 import numpy as np
 import pytest
+
 from symfluence.data_assimilation.enkf.enkf_algorithm import EnKFAlgorithm
 from symfluence.data_assimilation.enkf.observation_operator import StreamflowObservationOperator
 from symfluence.data_assimilation.enkf.perturbation import GaussianPerturbation

@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from test_helpers.markers import skip_if_no_model
 

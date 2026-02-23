@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+
 from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
 
 

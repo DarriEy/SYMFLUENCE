@@ -1,6 +1,7 @@
 """Unit tests for CLI validators."""
 
 import pytest
+
 from symfluence.cli.validators import (
     validate_bounding_box,
     validate_config_exists,

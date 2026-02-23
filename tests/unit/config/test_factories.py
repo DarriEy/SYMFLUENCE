@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import ConfigurationError
 

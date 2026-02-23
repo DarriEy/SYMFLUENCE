@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import ConfigurationError
 

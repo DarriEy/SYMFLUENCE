@@ -2,6 +2,7 @@
 
 import pytest
 import torch
+
 from symfluence.coupling.bmi_registry import BMIRegistry
 from symfluence.coupling.graph_builder import UNIT_CONVERSIONS, CouplingGraphBuilder
 

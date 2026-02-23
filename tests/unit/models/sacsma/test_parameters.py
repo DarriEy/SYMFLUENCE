@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.sacsma.parameters import (
     DEFAULT_PARAMS,
     LOG_TRANSFORM_PARAMS,

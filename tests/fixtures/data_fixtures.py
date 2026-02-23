@@ -9,6 +9,7 @@ import zipfile
 
 import pytest
 import requests
+
 from symfluence.data.cache import RawForcingCache
 
 # Test data bundle configuration

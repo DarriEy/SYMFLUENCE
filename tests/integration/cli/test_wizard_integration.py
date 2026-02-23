@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.console import Console
+
 from symfluence.cli.exit_codes import ExitCode
 from symfluence.cli.wizard import ProjectWizard, WizardState
 

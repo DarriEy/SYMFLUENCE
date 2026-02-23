@@ -3,6 +3,7 @@ Tests for MESH configuration.
 """
 
 import pytest
+
 from symfluence.core.config.models import SymfluenceConfig
 
 

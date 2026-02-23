@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from symfluence.models.sacsma.parameters import (
     SACSMA_DEFAULTS,
     create_sacsma_params,
@@ -288,6 +289,7 @@ class TestDualBackend:
     def test_jax_numpy_consistency(self):
         """JAX and NumPy backends should produce similar results."""
         import jax.numpy as jnp
+
         from symfluence.models.sacsma.parameters import params_dict_to_namedtuple
         from symfluence.models.sacsma.sacsma import sacsma_simulate_jax
 
@@ -308,6 +310,7 @@ class TestDualBackend:
         """JAX should compute non-zero gradients through SAC-SMA."""
         import jax
         import jax.numpy as jnp
+
         from symfluence.models.sacsma.parameters import SACSMA_PARAM_NAMES, SacSmaParameters
         from symfluence.models.sacsma.sacsma import _create_default_state, sacsma_simulate_jax
 

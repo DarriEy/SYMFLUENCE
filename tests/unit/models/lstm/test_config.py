@@ -3,6 +3,7 @@ Tests for LSTM configuration.
 """
 
 import pytest
+
 from symfluence.core.config.models import LSTMConfig, SymfluenceConfig
 
 

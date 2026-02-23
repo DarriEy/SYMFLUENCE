@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
 from symfluence.models.wmfire.ignition import (
     FirePerimeterValidator,
     IgnitionManager,

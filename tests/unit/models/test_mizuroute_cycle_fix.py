@@ -3,6 +3,7 @@ import logging
 import unittest
 
 import numpy as np
+
 from symfluence.models.mizuroute.topology_generator import MizuRouteTopologyGenerator
 
 

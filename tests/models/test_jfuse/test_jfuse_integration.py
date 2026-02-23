@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
 from symfluence.models.jfuse import HAS_JAX as _HAS_JAX
 
 # Check for jFUSE availability using symfluence's detection

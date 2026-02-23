@@ -6,6 +6,7 @@ registered and provide expected interfaces.
 """
 
 import pytest
+
 from symfluence.models.base import ModelResultExtractor
 from symfluence.models.registry import ModelRegistry
 

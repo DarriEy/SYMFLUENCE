@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.evaluation.benchmarking import BenchmarkPreprocessor
 

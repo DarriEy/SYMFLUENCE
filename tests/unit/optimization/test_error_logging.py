@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+
 from symfluence.optimization.workers.summa.error_logging import (
     ErrorLogger,
     _serialize_debug_info,
