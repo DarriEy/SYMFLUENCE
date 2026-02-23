@@ -2,9 +2,33 @@
 
 This module isolates compatibility shims so core transformer logic can treat
 canonical mappings separately from deprecated/legacy aliases.
+
+Three categories of aliases are defined here:
+
+1. **Normalization aliases** (``NORMALIZATION_ALIASES``): spelling, product-name,
+   and shorthand normalization applied during config loading (e.g.
+   ``CONFLUENCE_DATA_DIR`` → ``SYMFLUENCE_DATA_DIR``).
+2. **Deprecated keys** (``DEPRECATED_KEYS``): flat keys replaced by
+   canonical successors but still accepted with a deprecation warning.
+3. **Legacy flat-to-nested aliases** (``LEGACY_FLAT_TO_NESTED_ALIASES``):
+   flat keys that map to nested config paths for backward compatibility.
 """
 
 from typing import Any, Dict, Iterable, List, Mapping, Tuple
+
+# Normalization aliases: spelling, product-name, and shorthand corrections
+# applied during config loading by config_loader._normalize_key().
+NORMALIZATION_ALIASES: Dict[str, str] = {
+    "GR_SPATIAL": "GR_SPATIAL_MODE",
+    "OPTIMISATION_METHODS": "OPTIMIZATION_METHODS",
+    "OPTIMISATION_TARGET": "OPTIMIZATION_TARGET",
+    "OPTIMIZATION_ALGORITHM": "ITERATIVE_OPTIMIZATION_ALGORITHM",
+    # Legacy CONFLUENCE naming (backwards compatibility)
+    "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
+    "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
+    # Legacy domain discretization naming
+    "DOMAIN_DISCRETIZATION": "SUB_GRID_DISCRETIZATION",
+}
 
 # Maps deprecated flat keys to their preferred replacements.
 DEPRECATED_KEYS: Dict[str, str] = {

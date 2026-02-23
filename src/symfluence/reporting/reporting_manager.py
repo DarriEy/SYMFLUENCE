@@ -6,7 +6,7 @@ multi-model comparison. Implements the Facade pattern to orchestrate
 specialized plotters while hiding complexity from client code.
 
 Heavy lifting is delegated to three orchestrators:
-- ``ModelOutputOrchestrator``: registry-based model output dispatch + legacy fallbacks
+- ``ModelOutputOrchestrator``: registry-based model output dispatch
 - ``CalibrationOrchestrator``: post-calibration target dispatch and comparison plots
 - ``DiagnosticsOrchestrator``: per-workflow-step diagnostic validation plots
 """
@@ -177,7 +177,7 @@ class ReportingManager(ConfigMixin):
             optimization_plotter=self.optimization_plotter,
             model_comparison_plotter=self.model_comparison_plotter,
             analysis_plotter=self.analysis_plotter,
-            visualize_summa_outputs_fn=self.visualize_summa_outputs,
+            model_output_orchestrator=self._model_output_orchestrator,
         )
 
     @cached_property
