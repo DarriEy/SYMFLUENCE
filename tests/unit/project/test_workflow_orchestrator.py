@@ -2,6 +2,7 @@
 Unit tests for WorkflowOrchestrator.
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -103,3 +104,78 @@ class TestWorkflowOrchestrator:
             assert results[0]["success"] is False
             assert results[1]["success"] is True
             step2.func.assert_called_once()
+
+    def _build_orchestrator_for_observation_checks(
+        self,
+        tmp_path: Path,
+        *,
+        evaluation_data: str
+    ) -> WorkflowOrchestrator:
+        """Create an orchestrator rooted at tmp_path for observation output checks."""
+        managers = {
+            'project': MagicMock(),
+            'domain': MagicMock(),
+            'data': MagicMock(),
+            'model': MagicMock(),
+            'analysis': MagicMock(),
+            'optimization': MagicMock(),
+        }
+        config = SymfluenceConfig.from_minimal(
+            domain_name='obs_domain',
+            model='SUMMA',
+            time_start='2010-01-01 00:00',
+            time_end='2010-01-02 00:00',
+            SYMFLUENCE_DATA_DIR=tmp_path,
+            EVALUATION_DATA=evaluation_data,
+        )
+        return WorkflowOrchestrator(managers, config, MagicMock())
+
+    @staticmethod
+    def _touch_streamflow_output(project_dir: Path, domain_name: str) -> None:
+        path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("datetime,streamflow\n2010-01-01,1.0\n", encoding="utf-8")
+
+    @staticmethod
+    def _touch_snow_output(project_dir: Path, domain_name: str) -> None:
+        path = project_dir / "observations" / "snow" / "preprocessed" / f"{domain_name}_snow_processed.csv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("datetime,snow\n2010-01-01,1.0\n", encoding="utf-8")
+
+    def test_check_observed_data_requires_all_requested_families(self, tmp_path):
+        """
+        When multiple observation families are requested, all must exist.
+        """
+        orchestrator = self._build_orchestrator_for_observation_checks(
+            tmp_path,
+            evaluation_data="streamflow,swe",
+        )
+
+        # Only streamflow exists -> should still be incomplete.
+        self._touch_streamflow_output(orchestrator.project_dir, orchestrator.domain_name)
+        assert orchestrator._check_observed_data_exists() is False
+
+    def test_check_observed_data_true_when_all_requested_families_exist(self, tmp_path):
+        """Requested families are complete only when each required output exists."""
+        orchestrator = self._build_orchestrator_for_observation_checks(
+            tmp_path,
+            evaluation_data="streamflow,swe",
+        )
+
+        self._touch_streamflow_output(orchestrator.project_dir, orchestrator.domain_name)
+        self._touch_snow_output(orchestrator.project_dir, orchestrator.domain_name)
+
+        assert orchestrator._check_observed_data_exists() is True
+
+    def test_check_observed_data_default_behavior_streamflow_only(self, tmp_path):
+        """
+        With no explicit observation request, fallback still checks streamflow.
+        """
+        orchestrator = self._build_orchestrator_for_observation_checks(
+            tmp_path,
+            evaluation_data="",
+        )
+        assert orchestrator._check_observed_data_exists() is False
+
+        self._touch_streamflow_output(orchestrator.project_dir, orchestrator.domain_name)
+        assert orchestrator._check_observed_data_exists() is True
