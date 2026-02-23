@@ -179,7 +179,7 @@ class SoilGridsPropertiesAcquirer(BaseAcquisitionHandler, RetryMixin):
                     output_paths[combo_key] = out_path
                     self.logger.info(f"Saved: {out_path}")
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Failed to download SoilGrids {prop} {depth}: {e}"
                     )

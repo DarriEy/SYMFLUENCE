@@ -81,7 +81,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("CRHM preprocessing complete.")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"CRHM preprocessing failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -136,7 +136,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'area_km2': area_m2 / 1e6,
                     'elev': elev
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not read catchment properties: {e}")
 
         # Defaults for cold-region catchment
@@ -178,7 +178,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         try:
             forcing_ds = self._load_forcing_data()
             self._write_obs_file(forcing_ds, obs_path, start_date, end_date)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load forcing data: {e}, using synthetic")
             self._generate_synthetic_obs(obs_path, start_date, end_date)
 
@@ -204,7 +204,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         except ValueError:
             try:
                 ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)
 

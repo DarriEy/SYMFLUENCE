@@ -328,7 +328,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                     total_area = gdf[area_cols[0]].sum()
                     self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km2")
                     return float(total_area)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not read catchment area from shapefile: {e}")
 
         # Fall back to config
@@ -563,7 +563,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in lumped jFUSE execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -634,7 +634,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in distributed jFUSE execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -834,7 +834,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             self.logger.info(f"   Output: {self.output_dir}")
             self.logger.info("=" * 40)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback:", exc_info=True)
 

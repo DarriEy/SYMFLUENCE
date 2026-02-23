@@ -984,7 +984,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         try:
             river_gdf = gpd.read_file(river_network_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to read river network: {e}")
             return None
 
@@ -1143,7 +1143,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 self.logger.warning(f"Catchments file not found: {catchments_file}. Using GeoJSON only.")
                 gpkg_file = None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to create hydrofabric GeoPackage: {e}. Using GeoJSON only.")
             import traceback
             self.logger.debug(traceback.format_exc())

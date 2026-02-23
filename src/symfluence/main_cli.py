@@ -53,7 +53,7 @@ def main():
     except (SYMFLUENCEError, FileNotFoundError, ValueError) as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         return 1
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — top-level fallback
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return 1
 

@@ -105,7 +105,7 @@ class HYPEWorker(BaseWorker):
                 geoclass_df = pd.read_csv(geoclass_file, sep='\t', skiprows=1, header=None)
                 land_uses = geoclass_df.iloc[:, 1].unique()
                 self.logger.debug(f"Read {len(land_uses)} land use types from GeoClass.txt")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"Failed to read GeoClass.txt: {e}")
                 return False
 
@@ -169,7 +169,7 @@ class HYPEWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying HYPE parameters: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -237,7 +237,7 @@ class HYPEWorker(BaseWorker):
 
             return result_path is not None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running HYPE: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -358,7 +358,7 @@ class HYPEWorker(BaseWorker):
                     calib_end = pd.to_datetime(end_str)
                     sim_series = sim_series[(sim_series.index >= calib_start) & (sim_series.index <= calib_end)]
                     obs_daily = obs_daily[(obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)]
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.warning(f"Could not apply calibration period: {e}")
 
             # Find common dates
@@ -418,7 +418,7 @@ class HYPEWorker(BaseWorker):
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating HYPE metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -483,7 +483,7 @@ def _evaluate_hype_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

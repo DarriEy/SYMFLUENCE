@@ -7,117 +7,99 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve
 
 
 class ModelComparisonDefaultVsCalibratedMixin:
     """Plot default vs calibrated run comparisons."""
 
+    @BasePlotter._plot_safe("creating default vs calibrated comparison")
     def plot_default_vs_calibrated_comparison(
         self,
         experiment_id: str = "default",
     ) -> Optional[str]:
         """Create a multi-panel default-vs-calibrated comparison plot."""
-        try:
-            default_df, obs_series = self._collect_model_data(experiment_id, context="run_model")
-            calibrated_df, _ = self._collect_model_data(experiment_id, context="calibrate_model")
+        default_df, obs_series = self._collect_model_data(experiment_id, context="run_model")
+        calibrated_df, _ = self._collect_model_data(experiment_id, context="calibrate_model")
 
-            if default_df is None or calibrated_df is None:
-                self.logger.warning("Could not load both default and calibrated results for comparison")
-                return None
-
-            default_cols = self._find_discharge_columns(default_df)
-            calibrated_cols = self._find_discharge_columns(calibrated_df)
-
-            if not default_cols or not calibrated_cols:
-                self.logger.warning("No model discharge columns found")
-                return None
-
-            default_metrics = self._calculate_all_metrics(default_df, obs_series, default_cols)
-            calibrated_metrics = self._calculate_all_metrics(calibrated_df, obs_series, calibrated_cols)
-
-            plt, _ = self._setup_matplotlib()
-            import matplotlib.gridspec as gridspec
-
-            fig = plt.figure(figsize=(16, 12))
-            gs = gridspec.GridSpec(3, 2, height_ratios=[1.2, 1, 1], hspace=0.3, wspace=0.3)
-
-            fig.suptitle(
-                f"Default vs Calibrated Model Comparison\n{experiment_id}",
-                fontsize=16,
-                fontweight="bold",
-                y=0.98,
-            )
-
-            ax_ts = fig.add_subplot(gs[0, :])
-            self._plot_comparison_timeseries(
-                ax_ts,
-                default_df,
-                calibrated_df,
-                obs_series,
-                default_cols[0],
-                calibrated_cols[0],
-            )
-
-            ax_fdc = fig.add_subplot(gs[1, 0])
-            self._plot_comparison_fdc(
-                ax_fdc,
-                default_df,
-                calibrated_df,
-                obs_series,
-                default_cols[0],
-                calibrated_cols[0],
-            )
-
-            ax_metrics = fig.add_subplot(gs[1, 1])
-            self._plot_comparison_metrics_table(
-                ax_metrics,
-                default_metrics,
-                calibrated_metrics,
-                default_cols[0],
-                calibrated_cols[0],
-            )
-
-            ax_scatter_default = fig.add_subplot(gs[2, 0])
-            self._plot_single_scatter(
-                ax_scatter_default,
-                default_df[default_cols[0]],
-                obs_series,
-                "Default Run",
-                self.MODEL_COLORS[0],
-            )
-
-            ax_scatter_calib = fig.add_subplot(gs[2, 1])
-            self._plot_single_scatter(
-                ax_scatter_calib,
-                calibrated_df[calibrated_cols[0]],
-                obs_series,
-                "Calibrated Run",
-                self.MODEL_COLORS[1],
-            )
-
-            output_dir = self._ensure_output_dir("model_comparison")
-            plot_path = output_dir / f"{experiment_id}_default_vs_calibrated.png"
-            return self._save_and_close(fig, plot_path)
-
-        except (
-            FileNotFoundError,
-            OSError,
-            ValueError,
-            TypeError,
-            KeyError,
-            RuntimeError,
-            ImportError,
-            AttributeError,
-            IndexError,
-        ) as e:
-            self.logger.error(f"Error creating default vs calibrated comparison: {e}")
+        if default_df is None or calibrated_df is None:
+            self.logger.warning("Could not load both default and calibrated results for comparison")
             return None
-        except Exception as e:
-            # Boundary-level fallback to keep plot API fail-soft for unforeseen panel errors.
-            self.logger.error(f"Error creating default vs calibrated comparison: {e}")
-            self.logger.exception(f"Unexpected error creating default vs calibrated comparison: {e}")
+
+        default_cols = self._find_discharge_columns(default_df)
+        calibrated_cols = self._find_discharge_columns(calibrated_df)
+
+        if not default_cols or not calibrated_cols:
+            self.logger.warning("No model discharge columns found")
             return None
+
+        default_metrics = self._calculate_all_metrics(default_df, obs_series, default_cols)
+        calibrated_metrics = self._calculate_all_metrics(calibrated_df, obs_series, calibrated_cols)
+
+        plt, _ = self._setup_matplotlib()
+        import matplotlib.gridspec as gridspec
+
+        fig = plt.figure(figsize=(16, 12))
+        gs = gridspec.GridSpec(3, 2, height_ratios=[1.2, 1, 1], hspace=0.3, wspace=0.3)
+
+        fig.suptitle(
+            f"Default vs Calibrated Model Comparison\n{experiment_id}",
+            fontsize=16,
+            fontweight="bold",
+            y=0.98,
+        )
+
+        ax_ts = fig.add_subplot(gs[0, :])
+        self._plot_comparison_timeseries(
+            ax_ts,
+            default_df,
+            calibrated_df,
+            obs_series,
+            default_cols[0],
+            calibrated_cols[0],
+        )
+
+        ax_fdc = fig.add_subplot(gs[1, 0])
+        self._plot_comparison_fdc(
+            ax_fdc,
+            default_df,
+            calibrated_df,
+            obs_series,
+            default_cols[0],
+            calibrated_cols[0],
+        )
+
+        ax_metrics = fig.add_subplot(gs[1, 1])
+        self._plot_comparison_metrics_table(
+            ax_metrics,
+            default_metrics,
+            calibrated_metrics,
+            default_cols[0],
+            calibrated_cols[0],
+        )
+
+        ax_scatter_default = fig.add_subplot(gs[2, 0])
+        self._plot_single_scatter(
+            ax_scatter_default,
+            default_df[default_cols[0]],
+            obs_series,
+            "Default Run",
+            self.MODEL_COLORS[0],
+        )
+
+        ax_scatter_calib = fig.add_subplot(gs[2, 1])
+        self._plot_single_scatter(
+            ax_scatter_calib,
+            calibrated_df[calibrated_cols[0]],
+            obs_series,
+            "Calibrated Run",
+            self.MODEL_COLORS[1],
+        )
+
+        output_dir = self._ensure_output_dir("model_comparison")
+        plot_path = output_dir / f"{experiment_id}_default_vs_calibrated.png"
+        return self._save_and_close(fig, plot_path)
 
     def _plot_comparison_timeseries(
         self,

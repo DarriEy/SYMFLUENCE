@@ -273,7 +273,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
 
         except FileNotFoundError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error preparing lumped forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -488,7 +488,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
         except FileNotFoundError:
             # Re-raise file not found errors without wrapping
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error preparing distributed forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -518,7 +518,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
                     # Subset to simulation time window
                     ds = self.subset_to_simulation_time(ds, "Forcing")
                     return ds
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 raise RuntimeError(
                     f"Error loading forcing data from {self.forcing_basin_path}: {e}"
                 ) from e
@@ -803,7 +803,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
                     precip_hru[t, i] = np.ma.mean(precip_masked)
                     temp_hru[t, i] = np.ma.mean(temp_masked)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error averaging HRU {i}: {e}. Using catchment mean.")
                 precip_hru[:, i] = np.nanmean(precip_grid, axis=(1, 2))
                 temp_hru[:, i] = np.nanmean(temp_grid, axis=(1, 2))

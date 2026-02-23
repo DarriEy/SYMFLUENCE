@@ -125,7 +125,7 @@ class ElevationProcessor(BaseAttributeProcessor):
                 'aspect': aspect_file
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error generating slope and aspect: {str(e)}")
             raise
 
@@ -262,7 +262,7 @@ class ElevationProcessor(BaseAttributeProcessor):
                         clean_stat = clean_stat.replace(f"{attribute_name}_", "")
                         results[f"{prefix}{attribute_name}.{clean_stat}"] = value
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error processing elevation attributes: {str(e)}")
 
         return results

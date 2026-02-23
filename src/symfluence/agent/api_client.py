@@ -184,7 +184,7 @@ class APIClient:
             print(f"Error: Invalid request - {str(e)}", file=sys.stderr)
             raise
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             print(f"Unexpected API error: {str(e)}", file=sys.stderr)
             raise
 
@@ -202,7 +202,7 @@ class APIClient:
                 max_tokens=5
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             if self.verbose:
                 print(f"Connection test failed: {str(e)}", file=sys.stderr)
             return False

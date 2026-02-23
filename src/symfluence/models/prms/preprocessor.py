@@ -88,7 +88,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("PRMS preprocessing completed successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"PRMS preprocessing failed: {str(e)}")
             import traceback
             logger.debug(traceback.format_exc())
@@ -172,7 +172,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         try:
             ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             datasets = [xr.open_dataset(f) for f in forcing_files]
             ds = xr.concat(datasets, dim='time')
 

@@ -120,7 +120,7 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
                 streamflow = extractor.extract_variable(
                     output_dir, 'overland_flow', **common_kwargs
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 streamflow = pd.Series(dtype=float)
 
             if streamflow.empty:
@@ -140,7 +140,7 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
 
             try:
                 catchment_area_m2 = self._get_catchment_area()
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 catchment_area_m2 = domain_area_m2
 
             if catchment_area_m2 > domain_area_m2:
@@ -181,7 +181,7 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
 
             return streamflow_daily
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to extract CLMParFlow streamflow: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -194,14 +194,14 @@ class CLMParFlowStreamflowTarget(StreamflowEvaluator):
             if sidecar.exists():
                 try:
                     return json.loads(sidecar.read_text())
-                except Exception:
+                except Exception:  # noqa: BLE001 — calibration resilience
                     pass
 
         settings_path = self.project_dir / 'settings' / 'CLMPARFLOW' / 'routing_params.json'
         if settings_path.exists():
             try:
                 return json.loads(settings_path.read_text())
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 pass
 
         return None

@@ -184,7 +184,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
                 data = self._fetch_daily_data(station_id, start_date, end_date)
                 if data:
                     return self._save_json(data, output_path, 'daily')
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Daily data fetch failed: {e}, trying real-time...")
 
         # Fall back to real-time observations
@@ -192,7 +192,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
             data = self._fetch_realtime_data(station_id, start_date, end_date)
             if data:
                 return self._save_json(data, output_path, 'realtime')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Real-time data fetch also failed: {e}")
 
         raise DataAcquisitionError(f"Could not retrieve Hub'Eau data for station {station_id}")

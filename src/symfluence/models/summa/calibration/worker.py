@@ -108,7 +108,7 @@ class SUMMAWorker(BaseWorker):
             # Fallback: Apply parameters directly
             return self._apply_parameters_direct(params, settings_dir, kwargs.get('config', {}))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying SUMMA parameters: {e}")
             return False
 
@@ -153,7 +153,7 @@ class SUMMAWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in direct parameter application: {e}")
             return False
 
@@ -251,7 +251,7 @@ class SUMMAWorker(BaseWorker):
             # Fallback: Run SUMMA directly
             return self._run_summa_direct(config, settings_dir, output_dir)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running SUMMA: {e}")
             return False
 
@@ -299,7 +299,7 @@ class SUMMAWorker(BaseWorker):
 
             return result.returncode == 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in direct SUMMA execution: {e}")
             return False
 
@@ -345,7 +345,7 @@ class SUMMAWorker(BaseWorker):
             # Fallback: Calculate metrics directly
             return self._calculate_metrics_direct(output_dir, config)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating SUMMA metrics: {e}")
             return {'kge': self.penalty_score}
 
@@ -429,7 +429,7 @@ class SUMMAWorker(BaseWorker):
                 'nse': float(nse_val),
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in direct metrics calculation: {e}")
             return {'kge': self.penalty_score}
 

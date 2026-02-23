@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -77,7 +77,7 @@ class SNOTELHandler(BaseObservationHandler):
         url_params = 'POR_BEGIN,POR_END/WTEQ::value,PREC::value,PRCP::value'
         url = url_base + url_station + url_params
 
-        try:
+        with symfluence_error_handler("SNOTEL data download", self.logger, error_type=DataAcquisitionError):
             self.logger.info(f"Fetching SNOTEL report: {url}")
             headers = {'User-Agent': 'Mozilla/5.0'}
             response = requests.get(url, headers=headers, timeout=60)
@@ -89,10 +89,6 @@ class SNOTELHandler(BaseObservationHandler):
 
             self.logger.info(f"Successfully downloaded SNOTEL data to {output_path}")
             return output_path
-
-        except Exception as e:
-            self.logger.error(f"SNOTEL download failed: {e}")
-            raise DataAcquisitionError(f"Could not retrieve SNOTEL data for station {station_id}") from e
 
     def process(self, input_path: Path) -> Path:
         """

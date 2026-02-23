@@ -10,7 +10,7 @@ import pandas as pd
 import requests
 
 from symfluence.core.constants import UnitConversion
-from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -245,7 +245,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
         url = f"https://waterservices.usgs.gov/nwis/gwlevels/?format=json&sites={station_numeric}&agencyCd=USGS&siteStatus=all"
 
         self.logger.info(f"Downloading USGS groundwater data: {url}")
-        try:
+        with symfluence_error_handler("USGS groundwater download", self.logger, error_type=DataAcquisitionError):
             response = requests.get(url, timeout=60)
             response.raise_for_status()
 
@@ -284,10 +284,6 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             self.logger.warning(f"No groundwater data found for station {station_numeric} in any endpoint (gwlevels, iv, dv).")
             raise DataAcquisitionError(f"No USGS groundwater data available for station {station_numeric}")
 
-        except Exception as e:
-            self.logger.error(f"Failed to download USGS groundwater data: {e}")
-            raise DataAcquisitionError(f"USGS groundwater acquisition failed: {e}") from e
-
     def process(self, input_path: Path) -> Path:
         """Process USGS groundwater JSON."""
         import json
@@ -297,7 +293,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
         try:
             with open(input_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             self.logger.error(f"Failed to load USGS GW JSON: {e}")
             raise DataAcquisitionError(f"Invalid JSON in USGS GW file: {input_path}") from e
 

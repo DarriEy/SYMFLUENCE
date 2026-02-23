@@ -160,7 +160,7 @@ class RHESSysParameterManager(BaseParameterManager):
                     params[param_name] = (bounds['min'] + bounds['max']) / 2
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -193,7 +193,7 @@ class RHESSysParameterManager(BaseParameterManager):
                     match = re.search(pattern, content, re.MULTILINE)
                     if match:
                         return float(match.group(1))
-                except Exception:
+                except Exception:  # noqa: BLE001 — calibration resilience
                     pass
             return None
 
@@ -214,7 +214,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Error reading {param_name} from {def_file}: {e}")
             return None
 
@@ -251,7 +251,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating definition files: {e}")
             return False
 
@@ -294,7 +294,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating {def_file}: {e}")
             return False
 
@@ -327,6 +327,6 @@ class RHESSysParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying def files to {worker_defs_dir}: {e}")
             return False

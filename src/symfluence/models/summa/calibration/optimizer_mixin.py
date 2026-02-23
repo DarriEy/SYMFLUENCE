@@ -301,7 +301,7 @@ class SUMMAOptimizerMixin:
                         self.logger.info(f"Using spinup + calibration period: {sim_start} to {sim_end}")
                         return sim_start, sim_end
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.warning(f"Could not parse spinup+calibration periods: {str(e)}")
 
         # Fall back to experiment time period
@@ -349,7 +349,7 @@ class SUMMAOptimizerMixin:
 
             return end_time_str
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Could not adjust end time: {e}")
             return end_time_str
 
@@ -530,7 +530,7 @@ class SUMMAOptimizerMixin:
                     updated_lines.append(line)
             with open(model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating modelDecisions.txt: {str(e)}")
 
     def _restore_model_decisions_for_optimization(self) -> None:
@@ -549,7 +549,7 @@ class SUMMAOptimizerMixin:
                     updated_lines.append(line)
             with open(model_decisions_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error restoring modelDecisions.txt: {str(e)}")
 
     # =========================================================================

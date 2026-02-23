@@ -61,7 +61,7 @@ class GRACEHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.error(f"Could not import GRACEAcquirer: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"GRACE acquisition failed: {e}")
                 raise
         else:

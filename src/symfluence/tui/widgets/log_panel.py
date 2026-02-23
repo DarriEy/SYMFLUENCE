@@ -48,5 +48,5 @@ class TUILogHandler(logging.Handler):
             self._app.call_from_thread(self._log_panel.write_line, msg)
             if self._on_message:
                 self._app.call_from_thread(self._on_message, record.getMessage())
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             self.handleError(record)

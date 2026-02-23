@@ -99,7 +99,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
             f"Successfully calculated elevation statistics for {len(gru_gdf)} HRUs"
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — geospatial resilience
         discretizer.logger.error(f"Error calculating zonal statistics: {str(e)}")
         # Fallback: set all elevation means to -9999
         gru_gdf["elev_mean"] = -9999
@@ -130,7 +130,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
             f"lon range {centroids_wgs84.x.min():.6f} to {centroids_wgs84.x.max():.6f}"
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — geospatial resilience
         discretizer.logger.error(f"Error calculating centroids: {str(e)}")
         # Fallback: try to use existing center_lat/center_lon if they exist and look reasonable
         if "center_lat" in gru_gdf.columns and "center_lon" in gru_gdf.columns:

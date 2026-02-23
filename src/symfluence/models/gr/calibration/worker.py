@@ -131,7 +131,7 @@ class GRWorker(BaseWorker):
             success_path = runner.run_gr(params=params)
 
             return success_path is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running GR model in worker: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -188,7 +188,7 @@ class GRWorker(BaseWorker):
                 self.logger.warning("GR calibration target returned empty metrics")
                 return {'kge': self.penalty_score}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating GR metrics via target: {e}")
             import traceback
             self.logger.debug(f"Traceback: {traceback.format_exc()}")

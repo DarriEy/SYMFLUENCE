@@ -72,7 +72,7 @@ __all__ = [
 try:
     from symfluence.models.registry import ModelRegistry
     ModelRegistry.register_result_extractor('IGNACIO')(IGNACIOResultExtractor)
-except Exception:
+except Exception:  # noqa: BLE001 — optional dependency
     pass
 
 # Register calibration components with OptimizerRegistry

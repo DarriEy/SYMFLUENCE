@@ -553,7 +553,7 @@ class SpatialOrchestrator(ABC):
         except (ModelExecutionError, GeospatialError) as e:
             self.logger.error(f"Routing failed: {e}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}")
             return None
 
@@ -602,7 +602,7 @@ class SpatialOrchestrator(ABC):
         except ImportError:
             self.logger.error("mizuRoute runner not available")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"mizuRoute execution failed: {e}")
             return None
 
@@ -642,7 +642,7 @@ class SpatialOrchestrator(ABC):
 
         except ImportError:
             self.logger.warning("MizuRoutePreProcessor not available - skipping control file creation")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error creating mizuRoute control file: {e}")
 
     def _run_troute(
@@ -672,7 +672,7 @@ class SpatialOrchestrator(ABC):
         except ImportError:
             self.logger.error("t-route runner not available")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"t-route execution failed: {e}")
             return None
 
@@ -703,7 +703,7 @@ class SpatialOrchestrator(ABC):
         except ImportError:
             self.logger.error("dRoute runner not available")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"dRoute execution failed: {e}")
             return None
 
@@ -759,7 +759,7 @@ class SpatialOrchestrator(ABC):
         except KeyError as e:
             self.logger.error(f"Missing expected column in shapefile: {e}")
             return 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}")
             return 1
 

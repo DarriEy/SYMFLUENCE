@@ -125,7 +125,7 @@ class MHMPostProcessor(StandardModelPostprocessor):
                 model_column_name='MHM_discharge_cms'
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.error(f"Error extracting mHM streamflow: {str(e)}")
             self.logger.debug(traceback.format_exc())

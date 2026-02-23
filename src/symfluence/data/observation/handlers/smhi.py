@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -56,7 +56,7 @@ class SMHIStreamflowHandler(BaseObservationHandler):
         period = 'corrected-archive'
         url = f"https://opendata-download-hydroobs.smhi.se/api/version/latest/parameter/{parameter_key}/station/{station_id}/period/{period}/data.json"
 
-        try:
+        with symfluence_error_handler("SMHI data download", self.logger, error_type=DataAcquisitionError):
             response = requests.get(url, timeout=60)
             response.raise_for_status()
             data = response.json()
@@ -76,10 +76,6 @@ class SMHIStreamflowHandler(BaseObservationHandler):
 
             self.logger.info(f"Successfully downloaded {len(df)} records to {output_path}")
             return output_path
-
-        except Exception as e:
-            self.logger.error(f"Failed to download SMHI data: {e}")
-            raise DataAcquisitionError(f"Could not retrieve SMHI data for station {station_id}") from e
 
     def process(self, input_path: Path) -> Path:
         """

@@ -203,7 +203,7 @@ class WorkflowLauncherScreen(Screen):
             else:
                 self._workflow_svc.run_steps(steps)
             return "completed"
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             return f"error: {exc}"
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:

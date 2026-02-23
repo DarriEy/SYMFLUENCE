@@ -356,7 +356,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             self.logger.info("Time precision fixed successfully")
             return runoff_filepath
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error fixing time precision: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
@@ -439,7 +439,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             else:
                 self.logger.warning("Could not determine dimensions to sync.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error syncing control file dimensions: {e}")
 
     def run_mizuroute(self):

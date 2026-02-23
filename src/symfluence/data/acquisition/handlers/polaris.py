@@ -172,7 +172,7 @@ class POLARISAcquirer(BaseAcquisitionHandler, RetryMixin):
                                 backoff_factor=2.0,
                             )
                             tile_paths.append(local_tile)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 — preprocessing resilience
                             self.logger.warning(
                                 f"Failed to download POLARIS tile {tile_name} "
                                 f"for {variable}/{depth}: {e}"

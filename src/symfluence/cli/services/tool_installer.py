@@ -208,7 +208,7 @@ class ToolInstaller(BaseService):
 
             return True
 
-        except Exception:
+        except Exception:  # noqa: BLE001 — top-level fallback
             # Registry unavailable — fall through to legacy
             return self._legacy_preflight_check(tool_name)
 
@@ -609,7 +609,7 @@ class ToolInstaller(BaseService):
                 installation_results["failed"].append(tool_name)
                 installation_results["errors"].append(f"{tool_name}: {error_msg}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — top-level fallback
                 error_msg = f"Installation error: {str(e)}"
                 self._console.error(error_msg)
                 installation_results["failed"].append(tool_name)
@@ -823,7 +823,7 @@ class ToolInstaller(BaseService):
                             capture_output=True, timeout=15,
                         )
                         ok = _r.returncode == 0
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — top-level fallback
                         ok = False
                     status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
                     self._console.indent(f"Install verification ({check_type}): {status}")
@@ -862,7 +862,7 @@ class ToolInstaller(BaseService):
 
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — top-level fallback
             self._console.warning(f"Verification error: {str(e)}")
             return False
 
@@ -983,7 +983,7 @@ class ToolInstaller(BaseService):
                             cmd.split(), capture_output=True, text=True, timeout=5,
                         )
                         compilers[name] = r.stdout.strip().split("\n")[0]
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — top-level fallback
                         compilers[name] = exe
                     break
             else:
@@ -1010,7 +1010,7 @@ class ToolInstaller(BaseService):
                                 out = line.split(":")[-1].strip()
                                 break
                     libraries[lib_name] = out.split("\n")[0]
-                except Exception:
+                except Exception:  # noqa: BLE001 — top-level fallback
                     libraries[lib_name] = "unknown"
             else:
                 libraries[lib_name] = "not found"
@@ -1036,7 +1036,7 @@ class ToolInstaller(BaseService):
                     ).stdout.strip()
                     entry["commit"] = commit
                     entry["branch"] = branch
-                except Exception:
+                except Exception:  # noqa: BLE001 — top-level fallback
                     pass
             tools_meta[name] = entry
         toolchain["tools"] = tools_meta

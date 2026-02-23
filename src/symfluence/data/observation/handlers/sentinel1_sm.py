@@ -56,7 +56,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"Sentinel-1 acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Sentinel-1 acquisition failed: {e}")
                 raise
         else:
@@ -99,7 +99,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['datetime'].extend(data['datetime'])
                     results['soil_moisture'].extend(data['soil_moisture'])
                     results['backscatter_vv'].extend(data.get('backscatter_vv', [np.nan] * len(data['datetime'])))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {nc_file.name}: {e}")
 
         # Process ZIP files (raw S1 products)
@@ -110,7 +110,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['datetime'].extend(data['datetime'])
                     results['soil_moisture'].extend(data.get('soil_moisture', [np.nan] * len(data['datetime'])))
                     results['backscatter_vv'].extend(data['backscatter_vv'])
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {zip_file.name}: {e}")
 
         if not results['datetime']:
@@ -242,7 +242,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     'backscatter_vv': [backscatter_vv],
                 }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to process ZIP {zip_file}: {e}")
             return None
 
@@ -325,6 +325,6 @@ class Sentinel1SMHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading Sentinel-1 data: {e}")
             return None

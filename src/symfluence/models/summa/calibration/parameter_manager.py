@@ -394,7 +394,7 @@ class SUMMAParameterManager(BaseParameterManager):
                         except ValueError as e:
                             self.logger.error(f"Could not parse bounds for {param_name}: {str(e)}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading parameter file {file_path}: {str(e)}")
 
         return bounds
@@ -468,7 +468,7 @@ class SUMMAParameterManager(BaseParameterManager):
                                 defaults[param_name] = np.array([default_val])
                             except ValueError:
                                 continue
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error parsing defaults from {file_path}: {str(e)}")
 
         return defaults
@@ -505,7 +505,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             return expanded_defaults
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error expanding defaults: {str(e)}")
             return defaults
 
@@ -535,7 +535,7 @@ class SUMMAParameterManager(BaseParameterManager):
                 if 'mLayerDepth' in ds.variables:
                     return ds.variables['mLayerDepth'][:, 0].copy()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error loading original depths: {str(e)}")
 
         return None
@@ -575,7 +575,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating soil depths: {str(e)}")
             return False
 
@@ -643,7 +643,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating mizuRoute parameters: {str(e)}")
             return False
 
@@ -720,7 +720,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error generating trial params file: {str(e)}")
             return False
 

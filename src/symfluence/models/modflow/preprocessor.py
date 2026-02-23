@@ -107,7 +107,7 @@ class MODFLOWPreProcessor:
             area_km2 = gdf_proj.geometry.area.sum() / 1e6
             self.logger.info(f"Auto-detected catchment area from shapefile: {area_km2:.1f} km2")
             return area_km2
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not auto-detect catchment area: {e}")
             return None
 

@@ -126,7 +126,7 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             return response.json().get('access_token')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to get access token: {e}")
             return None
 
@@ -174,7 +174,7 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             return response.json().get('value', [])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Product search failed: {e}")
             return []
 
@@ -195,6 +195,6 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             self.logger.debug(f"Downloaded: {output_file.name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to download {product_id}: {e}")
             return False

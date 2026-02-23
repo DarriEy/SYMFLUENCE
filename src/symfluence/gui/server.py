@@ -29,7 +29,7 @@ def _serve_app(config_path=None, port=5006, show=True, demo=None):
     # (Importing on a daemon thread can fail due to atexit restrictions.)
     try:
         import symfluence.models  # noqa: F401
-    except Exception:
+    except Exception:  # noqa: BLE001 — UI resilience
         pass
 
     pn.extension(

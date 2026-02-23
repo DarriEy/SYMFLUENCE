@@ -76,7 +76,7 @@ class RHESSysRunner(BaseModelRunner):
                 )
                 return False
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             return False
 
     def _get_wmfire_resolution(self) -> int:

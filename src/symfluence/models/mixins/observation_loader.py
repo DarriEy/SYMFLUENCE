@@ -109,7 +109,7 @@ class ObservationLoaderMixin:
             # Format output
             return self._format_output(series, output_format, target_units)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             if return_none_on_error:
                 self.logger.error(f"Error loading observations: {e}")
                 return None
@@ -139,7 +139,7 @@ class ObservationLoaderMixin:
                 with xr.open_dataset(model_ready_obs, group='streamflow') as _ds:
                     if _ds.data_vars:
                         candidates.append(model_ready_obs)
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Model-ready observations file has no streamflow group: {model_ready_obs}")
 
         # Strategy 1: Explicit path in config
@@ -193,7 +193,7 @@ class ObservationLoaderMixin:
                     with xr.open_dataset(file_path, group=group) as ds:
                         if ds.data_vars:
                             return ds.to_dataframe().reset_index()
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     continue
             raise ValueError(f"No readable data in NetCDF file: {file_path}")
         return pd.read_csv(file_path)
@@ -398,7 +398,7 @@ class ObservationLoaderMixin:
                 self.logger.debug(f"Using estimated catchment area: {area_km2:.2f} km2")
                 return area_km2
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Could not determine catchment area: {e}")
 
         return None

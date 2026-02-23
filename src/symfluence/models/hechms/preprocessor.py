@@ -91,7 +91,7 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
             self.logger.info("HEC-HMS preprocessing completed successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"HEC-HMS preprocessing failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -202,7 +202,7 @@ class HecHmsPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # t
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading forcing: {e}")
             return None
 

@@ -104,7 +104,7 @@ class MHMWorker(BaseWorker):
             # Update parameter namelist with new parameter values
             return self._update_namelist_file(param_namelist, params)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying mHM parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -191,7 +191,7 @@ class MHMWorker(BaseWorker):
             namelist_file.write_text(content, encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating mHM namelist: {e}")
             return False
 
@@ -308,7 +308,7 @@ class MHMWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running mHM: {e}")
             return False
@@ -453,7 +453,7 @@ class MHMWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating mHM metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -507,7 +507,7 @@ def _evaluate_mhm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

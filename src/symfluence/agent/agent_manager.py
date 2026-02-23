@@ -122,7 +122,7 @@ class AgentManager:
             except EOFError:
                 print("\n" + system_prompts.GOODBYE_MESSAGE)
                 return 0
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — agent resilience
                 print(f"\nError: {str(e)}", file=sys.stderr)
                 if self.verbose:
                     import traceback
@@ -147,7 +147,7 @@ class AgentManager:
             response = self._agent_loop(prompt)
             print(response)
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             print(f"Error: {str(e)}", file=sys.stderr)
             if self.verbose:
                 import traceback
@@ -199,7 +199,7 @@ class AgentManager:
                     tools=tools,
                     tool_choice="auto"
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — agent resilience
                 return f"API error: {str(e)}"
 
             # Extract response
@@ -294,7 +294,7 @@ class AgentManager:
                 error=f"Invalid tool arguments: {str(e)}",
                 exit_code=1
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return ToolResult(
                 success=False,
                 output="",
@@ -361,7 +361,7 @@ class AgentManager:
                     tool_call = future_to_call[future]
                     try:
                         result = future.result()
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — agent resilience
                         result = ToolResult(
                             success=False,
                             output="",

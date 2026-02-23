@@ -91,7 +91,7 @@ class CLMParFlowWorker(BaseWorker):
             _write_pfidb(pfidb_path, entries)
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to apply CLMParFlow parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -123,7 +123,7 @@ class CLMParFlowWorker(BaseWorker):
             result = runner.run_clmparflow(sim_dir=output_dir)
             return result is not None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running CLMParFlow in worker: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -156,7 +156,7 @@ class CLMParFlowWorker(BaseWorker):
                 self.logger.warning("CLMParFlow target returned empty metrics")
                 return {'kge': self.penalty_score}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating CLMParFlow metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

@@ -95,7 +95,7 @@ class PointScaleForcingExtractor(ConfigMixin):
 
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Could not check forcing grid size: {e}")
             return False
 

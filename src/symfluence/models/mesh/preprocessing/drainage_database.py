@@ -103,7 +103,7 @@ class MESHDrainageDatabase(ConfigMixin):
                     if class_ids:
                         self.logger.debug(f"Found landcover class IDs from {lc_path.name}: {sorted(class_ids)}")
                         return sorted(class_ids)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Failed to read landcover classes from {lc_path}: {e}")
 
         return None
@@ -145,7 +145,7 @@ class MESHDrainageDatabase(ConfigMixin):
             # Rebuild topology
             self._rebuild_topology(n_size)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.error(f"Failed to fix drainage topology: {e}")
             self.logger.debug(traceback.format_exc())
@@ -418,7 +418,7 @@ class MESHDrainageDatabase(ConfigMixin):
 
                 self._write_ddb_if_modified(ds, modified)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to ensure DDB completeness: {e}")
 
     def _prepare_ddb_dimensions(
@@ -1011,7 +1011,7 @@ class MESHDrainageDatabase(ConfigMixin):
 
             self.logger.info("Reordered by Rank and normalized GRU fractions")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to reorder: {e}")
 
     def _get_spatial_dim(self, ds: xr.Dataset) -> Optional[str]:
@@ -1148,7 +1148,7 @@ class MESHDrainageDatabase(ConfigMixin):
             )
             return n_elev_bands, elevation_info
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to convert to elevation band GRUs: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -1352,7 +1352,7 @@ class MESHDrainageDatabase(ConfigMixin):
             )
             return n_bands, elevation_info
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to convert to multi-subbasin elevation bands: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

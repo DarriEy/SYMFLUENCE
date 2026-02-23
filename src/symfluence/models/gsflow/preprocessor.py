@@ -80,7 +80,7 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info(f"GSFLOW preprocessing complete: {self.setup_dir}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"GSFLOW preprocessing failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -119,7 +119,7 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Loading ERA5 forcing ({len(forcing_files)} files)")
         try:
             ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             datasets = [xr.open_dataset(f) for f in forcing_files]
             ds = xr.concat(datasets, dim='time')
 

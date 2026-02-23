@@ -23,5 +23,5 @@ def visualize_gr(reporting_manager: Any, config: Dict[str, Any], project_dir: Pa
         # GR results are consolidated into the main results file by the postprocessor.
         reporting_manager.visualize_timeseries_results()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — model execution resilience
         logger.error(f"Error during GR visualization: {str(e)}")

@@ -125,7 +125,7 @@ def _patch_meshflow_network_bug():
         logger = logging.getLogger(__name__)
         logger.debug("Applied runtime patch for meshflow network.py extract_rank_next bug")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — model execution resilience
         # If patching fails, log warning but don't prevent import
         logger = logging.getLogger(__name__)
         logger.warning(f"Failed to apply meshflow network.py patch: {e}")
@@ -138,7 +138,7 @@ try:
     _meshflow_import_error = None
     # Apply runtime patch for meshflow bug
     _patch_meshflow_network_bug()
-except Exception as e:
+except Exception as e:  # noqa: BLE001 — model execution resilience
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
     _meshflow_import_error = str(e)
@@ -227,7 +227,7 @@ class MESHFlowManager:
 
             self.logger.info("Meshflow preprocessing completed successfully")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Meshflow preprocessing failed: {e}")
             self.logger.debug(traceback.format_exc())
             from symfluence.core.exceptions import ModelExecutionError

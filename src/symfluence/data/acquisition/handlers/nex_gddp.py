@@ -100,7 +100,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
                                     all_nc_files_for_ens.append(str(out_nc))
                                 else:
                                     self.logger.warning(f"NCSS request failed with status {resp.status_code} for {var} {year}: {resp.text[:500]}")
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                                 self.logger.warning(f"NCSS failed for {var} {year}: {e}")
                     if all_nc_files_for_ens:
                         ds_ens = xr.open_mfdataset(all_nc_files_for_ens, engine="netcdf4", combine="by_coords", parallel=False, data_vars='minimal', coords='minimal', compat='override').chunk({"time": -1})

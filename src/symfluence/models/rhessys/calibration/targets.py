@@ -65,7 +65,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
 
             return obs_series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error loading observed data: {str(e)}")
             return None
 
@@ -257,9 +257,9 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
                                 area_val = float(stripped.split()[0])
                                 if area_val > 0:
                                     return area_val
-                            except Exception:
+                            except Exception:  # noqa: BLE001 — calibration resilience
                                 continue
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.debug(f"Failed to read basin area from {wf_path}: {e}")
 
         return None

@@ -209,7 +209,7 @@ class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
                     'total_pixels': int(total_valid),
                 })
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 failed += 1
                 self.logger.debug(f"Error processing {item.id}: {e}")
 

@@ -118,7 +118,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
 
         except DataAcquisitionError:
             raise
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, KeyError) as e:
             self.logger.error(f"Failed to download WSC data from GeoMet: {e}")
             raise DataAcquisitionError(f"Could not retrieve WSC data for station {station_id}") from e
 

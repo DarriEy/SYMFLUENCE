@@ -249,7 +249,7 @@ class CFUSEWorker(InMemoryModelWorker):
         if HAS_CFUSE_CORE:
             try:
                 self._n_states = cfuse_core.get_num_active_states(self._cfuse_config_dict)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.debug(f"Could not get state count: {e}")
 
     # =========================================================================
@@ -443,7 +443,7 @@ class CFUSEWorker(InMemoryModelWorker):
 
             return self.calculate_streamflow_metrics(sim, obs, skip_warmup=False)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating cFUSE metrics: {e}")
             return {'kge': self.penalty_score, 'error': str(e)}
 
@@ -479,7 +479,7 @@ class CFUSEWorker(InMemoryModelWorker):
             _, grad_dict = self.evaluate_with_gradient(params, metric)
             return grad_dict
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Gradient computation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -596,7 +596,7 @@ class CFUSEWorker(InMemoryModelWorker):
 
             return float(loss.item()), grad_dict
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Value and gradient computation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -710,7 +710,7 @@ class CFUSEWorker(InMemoryModelWorker):
                 return float(nse(obs_arr, sim, transfo=1))
             return float(kge(obs_arr, sim, transfo=1))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Parameter evaluation failed: {e}")
             return self.penalty_score
 

@@ -105,7 +105,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("VIC preprocessing complete.")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"VIC preprocessing failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -164,7 +164,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'area_m2': area_m2,
                     'elev': elev
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not read catchment properties: {e}")
 
         # Defaults
@@ -264,7 +264,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 'pfactors': pfactors,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Failed to compute elevation bands from DEM: {e}")
             props = self._get_catchment_properties()
             return {
@@ -423,7 +423,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             ds.to_netcdf(domain_path)
             logger.info(f"Created distributed domain: {mask.sum()} active cells")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Error creating distributed domain: {e}, falling back to lumped")
             self._generate_lumped_domain(domain_path, props)
 
@@ -732,7 +732,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         try:
             forcing_ds = self._load_forcing_data()
             self._write_forcing_files(forcing_ds, domain_ds, start_date, end_date)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load forcing data: {e}, using synthetic")
             self._generate_synthetic_forcing(start_date, end_date)
 
@@ -758,7 +758,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         except ValueError:
             try:
                 ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)
 

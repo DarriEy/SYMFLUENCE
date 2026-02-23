@@ -869,7 +869,7 @@ class VariableHandler:
                             source_units,
                             target_units
                         )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                         self.logger.error(f"Unit conversion failed for {dataset_var}: {str(e)}")
                         raise
 
@@ -987,7 +987,7 @@ class VariableHandler:
                 data = data.pint.quantify(from_units)
                 converted = data.pint.to(to_units)
                 return converted.pint.dequantify()
-            except Exception as pe:
+            except Exception as pe:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Pint conversion failed for {orig_from} -> {to_units}: {pe}. Trying manual fallback.")
                 # Manual fallbacks for common meteorological variables
                 f_low = from_units.lower()
@@ -1010,7 +1010,7 @@ class VariableHandler:
                     return data * 86400.0
 
                 raise pe
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Unit conversion failed: {orig_from} -> {to_units}: {str(e)}")
             raise
 
@@ -1026,7 +1026,7 @@ class VariableHandler:
             with open(filepath, 'w', encoding='utf-8') as f:
                 yaml.dump(mappings, f)
             self.logger.info("Variable mappings saved successfully")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Failed to save mappings: {str(e)}")
             raise
 
@@ -1041,6 +1041,6 @@ class VariableHandler:
             cls.DATASET_MAPPINGS = mappings['dataset_mappings']
             cls.MODEL_REQUIREMENTS = mappings['model_requirements']
             logger.info("Variable mappings loaded successfully")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             logger.error(f"Failed to load mappings: {str(e)}")
             raise

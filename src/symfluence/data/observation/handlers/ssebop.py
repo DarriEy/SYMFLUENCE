@@ -126,7 +126,7 @@ class SSEBopHandler(BaseObservationHandler):
         for nc_file in sorted(nc_files):
             try:
                 ds = self._open_dataset(nc_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to open {nc_file.name}: {e}")
                 continue
 
@@ -233,7 +233,7 @@ class SSEBopHandler(BaseObservationHandler):
                             'et_mm_day': mean_et
                         })
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Failed to process {tif_file.name}: {e}")
 
         if not results:

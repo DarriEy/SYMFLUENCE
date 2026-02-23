@@ -38,7 +38,7 @@ class GLDASHandler(BaseObservationHandler):
                 from symfluence.data.acquisition.handlers.gldas_tws import GLDASAcquirer
                 acquirer = GLDASAcquirer(self.config, self.logger)
                 acquirer.download(gldas_dir)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"GLDAS acquisition failed: {e}")
                 raise
         else:

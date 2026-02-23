@@ -266,7 +266,7 @@ class ETEvaluator(ModelEvaluator):
                 else:
                     # Default to ET if target not set correctly
                     return self._extract_et_data(ds)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting ET data from {sim_file}: {str(e)}")
             raise
 
@@ -395,7 +395,7 @@ class ETEvaluator(ModelEvaluator):
             sim_data = -sim_data
 
             return sim_data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error summing ET components: {str(e)}")
             raise
 
@@ -730,7 +730,7 @@ class ETEvaluator(ModelEvaluator):
             self.logger.info(f"Loaded {len(obs_daily)} ET observations from {obs_path.name}")
             return obs_daily.dropna()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error loading observed ET data: {str(e)}")
             return None
 
@@ -773,7 +773,7 @@ class ETEvaluator(ModelEvaluator):
             raw_dir = handler.acquire()
             handler.process(raw_dir)
             self.logger.info("MOD16 ET data acquisition completed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Could not acquire MOD16 data: {e}")
 
     def _try_acquire_fluxnet_data(self):
@@ -820,7 +820,7 @@ class ETEvaluator(ModelEvaluator):
             result_path = acquirer.download(output_dir)
             self.logger.info(f"FLUXNET ET data acquisition completed: {result_path}")
             return result_path
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Could not acquire FLUXNET data: {e}")
             return None
 
@@ -906,7 +906,7 @@ class ETEvaluator(ModelEvaluator):
                 return obs_data[quality_mask]
 
             return obs_data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error applying FluxNet QC: {str(e)}")
             return obs_data
 
@@ -971,7 +971,7 @@ class ETEvaluator(ModelEvaluator):
 
             return obs_data[quality_mask]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error applying MODIS QC: {str(e)}")
             return obs_data
 
@@ -1035,7 +1035,7 @@ class ETEvaluator(ModelEvaluator):
 
             return obs_data[quality_mask]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Error applying GLEAM QC: {str(e)}")
             return obs_data
 

@@ -138,7 +138,7 @@ class HYPEStreamflowTarget(StreamflowEvaluator):
             # HYPE timeCOUT.txt is already in m3/s - no unit conversion needed
             return streamflow
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting HYPE streamflow from {sim_file}: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

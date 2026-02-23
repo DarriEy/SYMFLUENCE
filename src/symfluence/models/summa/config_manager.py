@@ -278,7 +278,7 @@ class SummaConfigManager(PathResolverMixin):
         except PermissionError as e:
             self.logger.error(f"Permission error when copying files: {e}")
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error copying base settings: {e}")
             raise
 
@@ -356,7 +356,7 @@ class SummaConfigManager(PathResolverMixin):
         except IOError as io_err:
             self.logger.error(f"Error writing file manager configuration: {str(io_err)}")
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Unexpected error in create_file_manager: {str(e)}")
             raise
 
@@ -536,7 +536,7 @@ class SummaConfigManager(PathResolverMixin):
                 gru_ids = attr_ds['gruId'].values.astype(int)
                 num_gru = len(gru_ids)
                 self.logger.debug(f"Read {num_gru} GRU IDs from attributes file")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             # Fallback: use hruIds as gruIds (one GRU per HRU)
             self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.")
             gru_ids = forcing_hruIds

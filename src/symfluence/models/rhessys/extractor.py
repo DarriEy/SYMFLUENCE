@@ -235,7 +235,7 @@ class RHESSysResultExtractor(ModelResultExtractor):
                 f"Tried: {var_names}. Available: {df.columns.tolist()}"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(
                 f"Error reading RHESSys daily file {daily_file}: {str(e)}"
             ) from e
@@ -314,7 +314,7 @@ class RHESSysResultExtractor(ModelResultExtractor):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(f"Error extracting litter pools from {output_file}: {e}") from e
 
     def aggregate_litter_to_basin(

@@ -152,7 +152,7 @@ class CERRAHandler(BaseDatasetHandler):
             self.logger.info(f"Processing CERRA file: {f}")
             try:
                 ds = self.open_dataset(f)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error opening CERRA file {f}: {e}")
                 continue
 
@@ -161,7 +161,7 @@ class CERRAHandler(BaseDatasetHandler):
                 out_name = merged_forcing_path / f"{f.stem}_processed.nc"
                 ds_proc.to_netcdf(out_name)
                 self.logger.info(f"Saved processed CERRA forcing: {out_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error processing CERRA dataset from {f}: {e}")
             finally:
                 ds.close()
@@ -260,7 +260,7 @@ class CERRAHandler(BaseDatasetHandler):
                     self.logger.info("✓ Applying spatial filter based on HRU extent:")
                     self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
                     self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}")
                     self.logger.warning("Will create shapefile for full domain (may be slow)")
             else:
@@ -307,7 +307,7 @@ class CERRAHandler(BaseDatasetHandler):
                             geometries.append(Polygon(verts))
                             self.logger.info("Created polygon matching HRU extent for 1x1 forcing.")
                             poly_created = True
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 — preprocessing resilience
                             self.logger.warning(f"Failed to use HRU bounds for 1x1 forcing: {e}")
 
                     if not poly_created:
@@ -440,7 +440,7 @@ class CERRAHandler(BaseDatasetHandler):
 
             return output_shapefile
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in create_cerra_shapefile: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

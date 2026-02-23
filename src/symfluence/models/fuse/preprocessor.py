@@ -321,7 +321,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         except PermissionError as e:
             self.logger.error(f"Permission error when copying files: {e}")
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error copying base settings: {e}")
             raise
 
@@ -351,7 +351,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             self.logger.info(f"PERF: Total prepare_forcing_data took {time.time() - t0:.2f}s")
             return output_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
 
@@ -458,13 +458,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 self.actual_end_time = dates.max().to_pydatetime()
                 self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
             self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
 
         try:
             if hasattr(ds, "close"):
                 ds.close()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not close forcing dataset: {e}")
 
         self.logger.info("Materializing FUSE forcing dataset before write")
@@ -850,7 +850,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                         self.logger.info(f"Updated simulation dates from forcing file: {start_time} to {end_time}")
                     else:
                         self.logger.warning("Forcing file has no time values!")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
             else:
                 self.logger.warning(f"Forcing file not found at {forcing_file}, using config dates.")
@@ -915,7 +915,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             self.logger.info(f"FUSE file manager created at: {template_path}")
 
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error creating FUSE file manager: {str(e)}")
             raise
 

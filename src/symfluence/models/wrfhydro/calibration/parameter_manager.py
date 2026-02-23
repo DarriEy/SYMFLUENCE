@@ -124,7 +124,7 @@ class WRFHydroParameterManager(BaseParameterManager):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating WRF-Hydro namelists: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -172,7 +172,7 @@ class WRFHydroParameterManager(BaseParameterManager):
             namelist_path.write_text(content, encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating namelist {namelist_path}: {e}")
             return False
 
@@ -220,7 +220,7 @@ class WRFHydroParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -274,6 +274,6 @@ class WRFHydroParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying WRF-Hydro files to {worker_settings_dir}: {e}")
             return False

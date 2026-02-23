@@ -174,7 +174,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
                 streamflow = extractor.extract_variable(
                     output_dir, 'overland_flow', **common_kwargs
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 streamflow = pd.Series(dtype=float)
 
             if streamflow.empty:
@@ -196,7 +196,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
 
             try:
                 catchment_area_m2 = self._get_catchment_area()
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 catchment_area_m2 = domain_area_m2
 
             if catchment_area_m2 > domain_area_m2:
@@ -237,7 +237,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
 
             return streamflow_daily
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to extract ParFlow streamflow: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -251,7 +251,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
             if sidecar.exists():
                 try:
                     return json.loads(sidecar.read_text())
-                except Exception:
+                except Exception:  # noqa: BLE001 — calibration resilience
                     pass
 
         # Fallback: try project settings dir
@@ -259,7 +259,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
         if settings_path.exists():
             try:
                 return json.loads(settings_path.read_text())
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 pass
 
         return None

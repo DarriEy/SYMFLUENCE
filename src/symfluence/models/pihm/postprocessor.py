@@ -69,7 +69,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
                 output_dir, 'river_flux',
                 start_date=str(start_date),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Failed to extract PIHM river flux: {e}")
             return None
 
@@ -158,7 +158,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
 
             return total_streamflow, metadata
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.")
             return self._extract_standalone_baseflow(river_flux)
 
@@ -175,7 +175,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
             result = plotter.plot_coupling_results(experiment_id)
             if result:
                 logger.debug(f"PIHM coupling plot saved: {result}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.debug(f"Could not generate PIHM coupling plot: {e}")
 
     def _get_catchment_area(self) -> float:
@@ -195,6 +195,6 @@ class PIHMPostProcessor(StandardModelPostprocessor):
                 self.config_dict, self.project_dir, self.domain_name,
                 source='shapefile'
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             logger.warning("Could not determine catchment area, using default 2210 km2")
             return 2210.0

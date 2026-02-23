@@ -275,7 +275,7 @@ def prepare_for_netcdf_operation() -> None:
             for ds in list(nc4._active_datasets):
                 try:
                     ds.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 — must-not-raise contract
                     pass
     except (ImportError, AttributeError):
         pass

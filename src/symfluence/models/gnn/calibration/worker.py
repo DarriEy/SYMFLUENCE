@@ -46,7 +46,7 @@ class GNNWorker(BaseWorker):
                 params=task.params
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in GNN evaluation: {e}")
             import traceback
             return WorkerResult(

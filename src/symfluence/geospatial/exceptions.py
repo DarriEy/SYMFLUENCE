@@ -220,7 +220,7 @@ def geospatial_error_handler(
             logger.error(f"Error during {operation}", exc_info=True)
         if reraise:
             raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — error handler implementation
         # Convert to specified geospatial error type
         if logger:
             logger.error(f"Error during {operation}: {e}", exc_info=True)

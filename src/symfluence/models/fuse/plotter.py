@@ -112,7 +112,7 @@ class FUSEPlotter(BasePlotter):
             plt.tight_layout()
             return self._save_and_close(fig, plot_filename)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in FUSEPlotter.plot_streamflow: {str(e)}")
             return None
 

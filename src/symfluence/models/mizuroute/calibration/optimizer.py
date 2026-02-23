@@ -61,7 +61,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             with open(param_file, 'w', encoding='utf-8') as f:
                 f.write(content)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Failed to update MizuRoute parameters: {e}")
             raise
 
@@ -144,6 +144,6 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             ds.close()
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading MizuRoute results: {e}")
             return {}

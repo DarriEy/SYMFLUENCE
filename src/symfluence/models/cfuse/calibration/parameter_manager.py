@@ -226,7 +226,7 @@ class CFUSEParameterManager(BaseParameterManager):
                         k, v = pair.split('=')
                         param_dict[k.strip()] = float(v.strip())
                 return param_dict
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.warning(f"Could not parse CFUSE_INITIAL_PARAMS: {e}")
                 return {p: self.defaults.get(p, 0.0) for p in self.cfuse_params}
 

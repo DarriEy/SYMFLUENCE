@@ -92,7 +92,7 @@ class GSFLOWParameterManager(BaseParameterManager):
                 coupler.update_modflow_parameters(target, modflow_params)
 
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying GSFLOW parameters: {e}")
             return False
 

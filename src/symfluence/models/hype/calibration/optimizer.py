@@ -161,7 +161,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
 
             self.logger.info(f"Updated HYPE info.txt output path to: {output_dir}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to update HYPE info.txt output path: {e}")
 
     def _update_file_manager_for_final_run(self) -> None:
@@ -237,5 +237,5 @@ class HYPEModelOptimizer(BaseModelOptimizer):
 
             self.logger.info(f"Updated HYPE info.txt dates: {hype_start} to {hype_end}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Failed to update HYPE info.txt dates: {e}")

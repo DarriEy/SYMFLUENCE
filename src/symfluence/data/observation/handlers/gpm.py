@@ -118,7 +118,7 @@ class GPMIMERGHandler(BaseObservationHandler):
         for nc_file in sorted(nc_files):
             try:
                 ds = self._open_dataset(nc_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to open {nc_file.name}: {e}")
                 continue
 
@@ -274,7 +274,7 @@ class GPMIMERGHandler(BaseObservationHandler):
         if match:
             try:
                 return pd.to_datetime(match.group(1), format='%Y%m%d')
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Could not parse date from '{match.group(1)}' in filename '{filename}': {e}")
 
         return None

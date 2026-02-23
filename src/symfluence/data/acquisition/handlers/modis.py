@@ -77,7 +77,7 @@ class MODISSnowAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"Successfully downloaded MODIS snow data to {out_nc}")
             return out_nc
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"THREDDS download failed for MODIS: {e}")
             # Fallback or re-raise
             raise

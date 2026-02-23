@@ -162,7 +162,7 @@ class ProjectManager(ConfigurableMixin):
         except ValueError:
             self.logger.error("Invalid pour point coordinates format. Expected 'lat/lon'.")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — configuration resilience
             self.logger.error(f"Error creating pour point shapefile: {str(e)}")
             return None
 

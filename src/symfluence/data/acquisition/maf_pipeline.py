@@ -496,7 +496,7 @@ class datatoolRunner(ConfigMixin):
             if hasattr(e, 'stderr') and e.stderr:
                 self.logger.error(f"Command error output: {e.stderr}")
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Unexpected error during datatool execution: {e}")
             import traceback
             self.logger.error(traceback.format_exc())

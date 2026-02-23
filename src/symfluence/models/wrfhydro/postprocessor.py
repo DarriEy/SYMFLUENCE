@@ -111,7 +111,7 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
                                                 fpath.stem[:10])
                         try:
                             t = pd.Timestamp(time_val)
-                        except Exception:
+                        except Exception:  # noqa: BLE001 — model execution resilience
                             t = pd.Timestamp.now()
                         streamflow_series.append(
                             pd.Series([float(flow.values)], index=[t])
@@ -132,7 +132,7 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
                 model_column_name='WRFHYDRO_discharge_cms'
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
             self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}")
             self.logger.debug(traceback.format_exc())
@@ -177,7 +177,7 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
                 sfcrnoff = float(nc['SFCRNOFF'][:].mean()) if 'SFCRNOFF' in nc.variables else 0.0
                 ugdrnoff = float(nc['UGDRNOFF'][:].mean()) if 'UGDRNOFF' in nc.variables else 0.0
                 nc.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 continue
 
             if np.isnan(sfcrnoff) or sfcrnoff < -9000:

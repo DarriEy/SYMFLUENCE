@@ -139,7 +139,7 @@ class BaseManager(ConfigurableMixin, ABC):
 
         try:
             return viz_func(*args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.warning(f"Visualization failed: {e}")
             return None
 

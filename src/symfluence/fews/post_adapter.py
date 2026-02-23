@@ -144,7 +144,7 @@ class FEWSPostAdapter:
                     ds = xr.open_dataset(nc_files[0])
                     logger.info("Loaded model output from %s", nc_files[0])
                     return ds
-                except Exception:
+                except Exception:  # noqa: BLE001 — must-not-raise contract
                     continue
 
         raise FEWSAdapterError(

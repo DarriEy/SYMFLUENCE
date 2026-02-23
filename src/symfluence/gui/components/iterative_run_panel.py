@@ -93,7 +93,7 @@ class IterativeRunPanel(param.Parameterized):
         try:
             from ..utils.config_bridge import config_to_params
             return config_to_params(self.state.typed_config)
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return {}
 
     # ------------------------------------------------------------------
@@ -190,7 +190,7 @@ class IterativeRunPanel(param.Parameterized):
             current = self.state.typed_config.to_dict(flatten=True)
             current.update(overrides)
             self.state.typed_config = SymfluenceConfig(**current)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             self.state.append_log(f"Config update failed: {exc}\n")
             return
 
@@ -330,5 +330,5 @@ class IterativeRunPanel(param.Parameterized):
             if val is not None and key in w:
                 try:
                     w[key].value = val
-                except Exception:
+                except Exception:  # noqa: BLE001 — UI resilience
                     pass

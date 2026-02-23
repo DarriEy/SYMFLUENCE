@@ -187,7 +187,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
                 region_gdf = self._download_single_region(region_id, cache_dir)
                 if region_gdf is not None and len(region_gdf) > 0:
                     all_glaciers.append(region_gdf)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download RGI region {region_id}: {e}")
                 continue
 
@@ -259,7 +259,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             self.logger.warning(f"No shapefile found in {zip_path}")
             return self._download_from_alternative(region_id, cache_dir)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to download from NSIDC: {e}")
             return self._download_from_alternative(region_id, cache_dir)
 
@@ -287,7 +287,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         try:
             self.logger.info("Attempting GLIMS WFS download (may take several minutes)...")
             return self._download_from_glims_wfs()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"GLIMS WFS failed: {e}")
 
         return None
@@ -323,7 +323,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"Found {len(geojson_data['features'])} glaciers from GLIMS")
             return gpd.GeoDataFrame.from_features(geojson_data['features'], crs='EPSG:4326')
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"GLIMS WFS request failed: {e}")
             return None
 
@@ -526,7 +526,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
         try:
             catchment_gdf = gpd.read_file(catchment_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to read catchment shapefile: {e}")
             return
 

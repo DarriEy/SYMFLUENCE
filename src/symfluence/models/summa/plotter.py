@@ -88,7 +88,7 @@ class SUMMAPlotter(BasePlotter):
 
             ds.close()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error in SUMMAPlotter.plot_outputs: {str(e)}")
 
         return plot_paths

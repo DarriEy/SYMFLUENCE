@@ -54,7 +54,7 @@ class PIHMWorker(BaseWorker):
             pm = PIHMParameterManager(config, self.logger, settings_dir)
             return pm.update_model_files(params)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying PIHM parameters: {e}")
             return False
 
@@ -170,7 +170,7 @@ class PIHMWorker(BaseWorker):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"PIHM execution error: {e}")
             return False
 
@@ -233,7 +233,7 @@ class PIHMWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating PIHM metrics: {e}")
             return {'kge': self.penalty_score, 'error': str(e)}
 
@@ -252,7 +252,7 @@ def _evaluate_pihm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

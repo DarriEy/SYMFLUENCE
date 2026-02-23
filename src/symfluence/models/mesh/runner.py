@@ -231,7 +231,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                     for dim in ['subbasin', 'n', 'N']:
                         if dim in ds.sizes and ds.sizes[dim] == 1:
                             return True
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 pass
 
         # Fallback: check RUNMODE for noroute (legacy)
@@ -243,7 +243,7 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                     import re
                     if re.search(r'RUNMODE\s*[:=]?\s*noroute', content, re.IGNORECASE):
                         return True
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 pass
         return False
 

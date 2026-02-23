@@ -86,7 +86,7 @@ class WATFLOODRunner(BaseModelRunner):
         except subprocess.TimeoutExpired:
             logger.warning(f"WATFLOOD timed out after {timeout}s")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Error running WATFLOOD: {e}")
             return None
 

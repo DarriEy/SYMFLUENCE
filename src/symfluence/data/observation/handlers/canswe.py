@@ -500,7 +500,7 @@ class CanSWEHandler(BaseObservationHandler):
                             sid = sid.decode('utf-8')
                         elif hasattr(sid, 'item'):
                             sid = sid.item()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — preprocessing resilience
                         sid = f"station_{idx}"
                 else:
                     sid = f"station_{idx}"
@@ -515,7 +515,7 @@ class CanSWEHandler(BaseObservationHandler):
                             'station_idx': idx
                         })
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Failed to extract station {idx}: {e}")
                 continue
 
@@ -578,7 +578,7 @@ class CanSWEHandler(BaseObservationHandler):
                             record['lat'] = float(val[idx]) if idx < len(val) else np.nan
                         else:
                             record['lat'] = float(val)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — preprocessing resilience
                         pass
 
             for var in ['lon', 'longitude', 'Longitude']:
@@ -589,7 +589,7 @@ class CanSWEHandler(BaseObservationHandler):
                             record['lon'] = float(val[idx]) if idx < len(val) else np.nan
                         else:
                             record['lon'] = float(val)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — preprocessing resilience
                         pass
 
             for var in ['station_id', 'site_id', 'station_name', 'name']:
@@ -601,7 +601,7 @@ class CanSWEHandler(BaseObservationHandler):
                             if isinstance(sid, bytes):
                                 sid = sid.decode('utf-8')
                             record['station_id'] = str(sid)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — preprocessing resilience
                         pass
 
             for var in ['elevation', 'elev', 'alt', 'altitude']:
@@ -610,7 +610,7 @@ class CanSWEHandler(BaseObservationHandler):
                         val = ds[var].values
                         if val.ndim > 0 and idx < len(val):
                             record['elevation_m'] = float(val[idx])
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — preprocessing resilience
                         pass
 
             records.append(record)

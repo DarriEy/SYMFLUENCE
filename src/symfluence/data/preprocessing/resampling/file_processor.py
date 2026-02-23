@@ -142,7 +142,7 @@ class FileProcessor(ConfigMixin):
                     try:
                         output_file.unlink()
                         corrupted_files += 1
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(f"Error deleting corrupted file: {e}")
 
             remaining_files.append(file)
@@ -182,7 +182,7 @@ class FileProcessor(ConfigMixin):
                         success_count += 1
                     else:
                         self.logger.error(f"Failed to process {file.name}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.error(f"Error processing {file.name}: {str(e)}")
 
                 pbar.update(1)
@@ -236,7 +236,7 @@ class FileProcessor(ConfigMixin):
                     success_count += batch_success
                     pbar.update(len(batch_files))
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
                     pbar.update(len(batch_files))
 

@@ -350,7 +350,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
                 lambda: self.config.paths.catchment_gruid, default='GRU_ID'
             )
             return len(gdf[gru_col].unique())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error counting GRUs: {e}")
             raise
 
@@ -378,7 +378,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             self.logger.info("SUMMA output merging completed")
             return self.output_dir
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error merging outputs: {e}")
             return None
 
@@ -413,7 +413,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
                 ds.close()
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error processing {src_file}: {e}")
 
         if merged_ds is not None:

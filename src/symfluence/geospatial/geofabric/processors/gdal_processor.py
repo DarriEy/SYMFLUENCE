@@ -97,7 +97,7 @@ class GDALProcessor:
 
             self.logger.info("Completed GDAL polygonization using direct method")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Direct polygonization failed: {str(e)}, trying command line method...")
             try:
                 # Second attempt: Using command line tool without MPI
@@ -129,7 +129,7 @@ class GDALProcessor:
                     "gdal_polygonize.py not found. Ensure GDAL is installed and in PATH. "
                     "On macOS, try: brew install gdal"
                 ) from None
-            except Exception as fallback_err:
+            except Exception as fallback_err:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"All polygonization attempts failed: {str(fallback_err)}")
                 raise
 

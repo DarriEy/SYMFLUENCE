@@ -338,7 +338,7 @@ class NgenParameterManager(BaseParameterManager):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating ngen config files: {e}")
             return False
 
@@ -489,7 +489,7 @@ class NgenParameterManager(BaseParameterManager):
             self.logger.debug(f"Updated CFE BMI text ({path.name}) with {len(updated)} parameters")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating CFE config: {e}")
             return False
 
@@ -520,7 +520,7 @@ class NgenParameterManager(BaseParameterManager):
 
             return self._update_noah_tbl_parameters(params, input_file)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating NOAH config: {e}")
             return False
 
@@ -877,6 +877,6 @@ class NgenParameterManager(BaseParameterManager):
                 self.logger.debug(f"Updated PET BMI text ({path.name}) with {len(updated)} parameter(s)")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating PET config: {e}")
             return False

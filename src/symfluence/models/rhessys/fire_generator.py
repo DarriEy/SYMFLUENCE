@@ -68,7 +68,7 @@ class RHESSysFireGenerator:
                 catchment_gdf = gpd.read_file(catchment_path)
                 if len(catchment_gdf) > 0:
                     use_geospatial = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not load catchment for fire grids: {e}")
 
         if use_geospatial:
@@ -159,10 +159,10 @@ class RHESSysFireGenerator:
                     patch_grid.to_geotiff(fire_dir / "patch_grid.tif")
                     dem_grid.to_geotiff(fire_dir / "dem_grid.tif")
                     logger.info("GeoTIFF outputs written for visualization")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     logger.warning(f"Could not write GeoTIFF outputs: {e}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Geospatial grid generation failed: {e}, falling back to simple grid")
             import traceback
             logger.debug(traceback.format_exc())
@@ -343,7 +343,7 @@ class RHESSysFireGenerator:
 
         except ImportError:
             logger.debug("FireDefGenerator not available, using fallback")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"FireDefGenerator failed: {e}, using fallback")
 
         # Fallback: Generate fire.def manually

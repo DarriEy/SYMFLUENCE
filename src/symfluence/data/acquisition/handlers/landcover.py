@@ -266,7 +266,7 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
                         f"MODIS landcover read failed for {year} (attempt {attempt + 1}/2): {exc}"
                     )
                     local_tmp.unlink(missing_ok=True)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — must-not-raise contract
                     self.logger.warning(
                         f"MODIS landcover download failed for {year} (attempt {attempt + 1}/2): {exc}"
                     )
@@ -351,7 +351,7 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"✓ NLCD acquired: {out_path}")
             return out_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"NLCD acquisition failed: {e}")
             if out_path.exists():
                 out_path.unlink()

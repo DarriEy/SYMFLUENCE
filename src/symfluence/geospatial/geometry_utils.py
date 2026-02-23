@@ -80,7 +80,7 @@ def clean_geometry(
 
         return geometry if geometry.is_valid and not geometry.is_empty else None
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — geospatial resilience
         if logger:
             logger.debug(f"Error cleaning geometry: {str(e)}")
         return None
@@ -243,7 +243,7 @@ def calculate_feature_centroids(
         # Project to temporary CRS, calculate centroid, project back
         try:
             return gdf.to_crs(epsg=temp_epsg).geometry.centroid.to_crs(gdf.crs)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — geospatial resilience
             if logger:
                 logger.warning(f"Projection failed, using original CRS: {e}")
             return gdf.geometry.centroid

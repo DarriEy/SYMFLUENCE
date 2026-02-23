@@ -113,6 +113,6 @@ class WATFLOODForcingAdapter:
             self.logger.info(f"Wrote WATFLOOD .met file: {met_path}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error converting forcing: {e}")
             return False

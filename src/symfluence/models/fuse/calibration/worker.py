@@ -516,7 +516,7 @@ class FUSEWorker(BaseWorker):
         except FileNotFoundError as e:
             self.logger.error(f"Multi-gauge file not found: {e}")
             return {'kge': self.penalty_score}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in multi-gauge metrics calculation: {e}")
             return {'kge': self.penalty_score}
 

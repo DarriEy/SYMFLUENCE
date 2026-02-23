@@ -28,5 +28,5 @@ def visualize_hype(reporting_manager: Any, config: Dict[str, Any], project_dir: 
         # (This is what plot_hype_results does, but it requires explicit dataframes)
         # For now, timeseries_results covers the streamflow comparison which is the primary goal.
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — model execution resilience
         logger.error(f"Error during HYPE visualization: {str(e)}")

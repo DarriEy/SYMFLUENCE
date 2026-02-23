@@ -522,7 +522,7 @@ class OptimizationManager(BaseManager):
                         )
                     except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
                         self.logger.debug(f"Could not generate calibration diagnostics: {e}")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — must-not-raise contract
                         self.logger.exception(f"Unexpected calibration diagnostics failure: {e}")
 
                 return results_file

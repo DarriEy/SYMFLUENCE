@@ -69,7 +69,7 @@ class SUMMAProcessComponent(ProcessComponent):
         try:
             success = self._runner.run_summa()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"SUMMA execution failed: {e}")
             return 1
 
@@ -92,7 +92,7 @@ class SUMMAProcessComponent(ProcessComponent):
             )
             ds.close()
             return {"runoff": runoff, "soil_drainage": drainage}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read SUMMA outputs: {e}")
             return {
                 "runoff": torch.zeros(1),
@@ -145,7 +145,7 @@ class MizuRouteProcessComponent(ProcessComponent):
             self._runner.sync_control_file_dimensions()
             success = self._runner.run_mizuroute()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"mizuRoute execution failed: {e}")
             return 1
 
@@ -166,7 +166,7 @@ class MizuRouteProcessComponent(ProcessComponent):
             )
             ds.close()
             return {"discharge": discharge}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read mizuRoute outputs: {e}")
             return {"discharge": torch.zeros(1)}
 
@@ -223,7 +223,7 @@ class ParFlowProcessComponent(ProcessComponent):
         try:
             success = self._runner.run_parflow()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"ParFlow execution failed: {e}")
             return 1
 
@@ -249,7 +249,7 @@ class ParFlowProcessComponent(ProcessComponent):
             return {"baseflow": torch.tensor(
                 combined.values.astype(np.float32), dtype=torch.float32
             )}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read ParFlow outputs: {e}")
             return {"baseflow": torch.zeros(1)}
 
@@ -307,7 +307,7 @@ class MODFLOWProcessComponent(ProcessComponent):
         try:
             success = self._runner.run_modflow()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"MODFLOW execution failed: {e}")
             return 1
 
@@ -331,7 +331,7 @@ class MODFLOWProcessComponent(ProcessComponent):
             return {"drain_discharge": torch.tensor(
                 drain.values.astype(np.float32), dtype=torch.float32
             )}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read MODFLOW outputs: {e}")
             return {"drain_discharge": torch.zeros(1)}
 
@@ -376,7 +376,7 @@ class MESHProcessComponent(ProcessComponent):
         try:
             success = self._runner.run_mesh()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"MESH execution failed: {e}")
             return 1
 
@@ -405,7 +405,7 @@ class MESHProcessComponent(ProcessComponent):
             return {"discharge": torch.tensor(
                 discharge.values.astype(np.float32), dtype=torch.float32
             )}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read MESH outputs: {e}")
             return {"discharge": torch.zeros(1)}
 
@@ -453,7 +453,7 @@ class TRouteProcessComponent(ProcessComponent):
         try:
             success = self._runner.run_troute()
             return 0 if success else 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"t-route execution failed: {e}")
             return 1
 
@@ -483,7 +483,7 @@ class TRouteProcessComponent(ProcessComponent):
                     return {"discharge": discharge}
             ds.close()
             return {"discharge": torch.zeros(1)}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read t-route outputs: {e}")
             return {"discharge": torch.zeros(1)}
 
@@ -529,7 +529,7 @@ class CLMProcessComponent(ProcessComponent):
             try:
                 result = self._runner.run()
                 return 0 if result else 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 logger.error(f"CLM execution failed: {e}")
                 return 1
 
@@ -545,7 +545,7 @@ class CLMProcessComponent(ProcessComponent):
                 text=True,
             )
             return result.returncode
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"CLM execution failed: {e}")
             return 1
 
@@ -573,7 +573,7 @@ class CLMProcessComponent(ProcessComponent):
                     et.values.astype(np.float32), dtype=torch.float32
                 ),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read CLM outputs: {e}")
             return {
                 "runoff": torch.zeros(1),

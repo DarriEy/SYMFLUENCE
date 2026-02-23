@@ -107,7 +107,7 @@ class IGNACIOWorker(BaseWorker):
             self._current_params = params
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying IGNACIO params: {e}")
             return False
 
@@ -170,7 +170,7 @@ class IGNACIOWorker(BaseWorker):
                 )
                 return result.returncode == 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running IGNACIO: {e}")
             self.logger.debug(traceback.format_exc())
             return False
@@ -219,7 +219,7 @@ class IGNACIOWorker(BaseWorker):
                 'area_ratio': float(metrics.get('area_ratio', 0.0)),
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating IGNACIO metrics: {e}")
             return {'iou': self.penalty_score, 'error': str(e)}
 
@@ -287,6 +287,6 @@ class IGNACIOWorker(BaseWorker):
                 'area_ratio': sim_area / obs_area if obs_area > 0 else 0.0,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error computing spatial metrics: {e}")
             return {'iou': 0.0, 'dice': 0.0}

@@ -62,7 +62,7 @@ class DaymetHandler(BaseObservationHandler):
             except ImportError as e:
                 self.logger.warning(f"Daymet acquirer not available: {e}")
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Daymet acquisition failed: {e}")
                 raise
         else:
@@ -101,7 +101,7 @@ class DaymetHandler(BaseObservationHandler):
                 df = self._process_netcdf(nc_file, basin_gdf)
                 if df is not None and not df.empty:
                     all_data.append(df)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {nc_file.name}: {e}")
 
         # Process CSV files (single-pixel)
@@ -110,7 +110,7 @@ class DaymetHandler(BaseObservationHandler):
                 df = self._process_csv(csv_file)
                 if df is not None and not df.empty:
                     all_data.append(df)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {csv_file.name}: {e}")
 
         if not all_data:
@@ -217,7 +217,7 @@ class DaymetHandler(BaseObservationHandler):
                     series = da_mean.to_series()
                     results[std_name] = series
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process variable {var_name}: {e}")
 
         ds.close()
@@ -312,6 +312,6 @@ class DaymetHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error loading Daymet data: {e}")
             return None

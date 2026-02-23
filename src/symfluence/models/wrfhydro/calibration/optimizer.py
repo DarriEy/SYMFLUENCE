@@ -133,7 +133,7 @@ class WRFHydroModelOptimizer(BaseModelOptimizer):
             self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
             return final_result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in final evaluation: {e}")
             import traceback
             self.logger.error(traceback.format_exc())

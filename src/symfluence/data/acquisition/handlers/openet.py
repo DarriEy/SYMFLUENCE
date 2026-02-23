@@ -196,6 +196,6 @@ class OpenETAcquirer(BaseAcquisitionHandler):
                 self.logger.error(f"OpenET API error: {e}")
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"OpenET request failed: {e}")
             return None

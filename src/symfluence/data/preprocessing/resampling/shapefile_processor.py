@@ -70,7 +70,7 @@ class ShapefileProcessor(ConfigMixin):
                                     f"Using existing processed shapefile: {existing_path.name}"
                                 )
                                 return existing_path, hru_id_field
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.debug(f"Could not use existing {existing_path.name}: {e}")
 
             # Read the shapefile
@@ -103,7 +103,7 @@ class ShapefileProcessor(ConfigMixin):
                 # Distributed: create unique sequential IDs
                 return self._create_unique_ids(gdf, hru_id_field, shapefile_path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error ensuring unique HRU IDs: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -263,7 +263,7 @@ class ShapefileProcessor(ConfigMixin):
                         else:
                             self.logger.info(f"WGS84 version already exists: {wgs84_shapefile.name}")
                             return wgs84_shapefile
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Error reading existing WGS84 file: {e}. Recreating.")
 
             # Convert to WGS84
@@ -282,6 +282,6 @@ class ShapefileProcessor(ConfigMixin):
             else:
                 return wgs84_shapefile
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error ensuring WGS84 for {shapefile_path}: {str(e)}")
             raise

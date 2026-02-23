@@ -119,7 +119,7 @@ class HecHmsRunner(  # type: ignore[misc]
                     try:
                         area_km2 = calculate_catchment_area_km2(gdf, logger=self.logger)
                         return float(area_km2 * 1e6)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — model execution resilience
                         area_cols = [c for c in gdf.columns if 'area' in c.lower()]
                         if area_cols:
                             return float(gdf[area_cols[0]].sum() * 1e6)
@@ -242,7 +242,7 @@ class HecHmsRunner(  # type: ignore[misc]
         except FileNotFoundError as e:
             self.logger.error(f"Missing forcing data: {e}")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"HEC-HMS simulation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -279,7 +279,7 @@ class HecHmsRunner(  # type: ignore[misc]
                     if len(forcing) >= 3:
                         self.logger.info(f"Loaded forcing from {nc_file.name}: {len(forcing['precip'])} timesteps")
                         return forcing
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Error loading {nc_file}: {e}")
 
         # Try CSV fallback
@@ -297,7 +297,7 @@ class HecHmsRunner(  # type: ignore[misc]
                         'pet': df['pet'].values,
                         'time': pd.to_datetime(df['datetime']),
                     }
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Error loading {csv_file}: {e}")
 
         self.logger.error(f"No forcing file found in {forcing_dir}")

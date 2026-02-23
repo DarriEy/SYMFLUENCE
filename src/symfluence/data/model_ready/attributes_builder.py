@@ -179,7 +179,7 @@ class AttributesNetCDFBuilder:
                 if name in CF_STANDARD_NAMES:
                     for k, v in CF_STANDARD_NAMES[name].items():
                         var.setncattr(k, v)
-        except Exception:
+        except Exception:  # noqa: BLE001 — preprocessing resilience
             pass  # Geometry may not be available
 
         grp.setncattr('source_source', 'catchment shapefile')
@@ -341,7 +341,7 @@ class AttributesNetCDFBuilder:
             meta = SourceMetadata(source='climatological attributes')
             grp.setncatts(meta.to_netcdf_attrs())
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not build climate group: %s", e)
             return False
 
@@ -372,7 +372,7 @@ class AttributesNetCDFBuilder:
             meta = SourceMetadata(source='hydrogeological attributes')
             grp.setncatts(meta.to_netcdf_attrs())
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not build hydrogeology group: %s", e)
             return False
 
@@ -422,6 +422,6 @@ class AttributesNetCDFBuilder:
         try:
             import geopandas as gpd
             return gpd.read_file(path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not read %s: %s", path, e)
             return None

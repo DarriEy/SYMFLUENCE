@@ -188,7 +188,7 @@ class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
                                     "and set MERIT_HYDRO_USERNAME / MERIT_HYDRO_PASSWORD in config, "
                                     "or use Google Earth Engine (MERIT/Hydro/v1_0_1) as alternative."
                                 )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(f"Failed to download {tar_name}: {e}")
                         continue
 
@@ -236,7 +236,7 @@ class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
                                 self.logger.warning(
                                     f"Tile {tile_filename} not found in {tar_name}"
                                 )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Error processing tar {tar_name}: {e}")
                     continue
 

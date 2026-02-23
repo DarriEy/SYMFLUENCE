@@ -121,7 +121,7 @@ class SNODASAcquirer(BaseAcquisitionHandler):
                 out_file = self._download_date(session, date, variable, output_dir)
                 if out_file:
                     downloaded_files.append(out_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download SNODAS for {date.strftime('%Y-%m-%d')}: {e}")
 
         if not downloaded_files:
@@ -258,7 +258,7 @@ class SNODASAcquirer(BaseAcquisitionHandler):
                 )
                 datasets.append(da)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to process {tar_path.name}: {e}")
 
         if not datasets:
@@ -333,7 +333,7 @@ class SNODASAcquirer(BaseAcquisitionHandler):
 
                         return data_subset
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.debug(f"Error extracting from {tar_path.name}: {e}")
 
         return None

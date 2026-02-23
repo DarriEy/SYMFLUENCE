@@ -36,7 +36,7 @@ class DiagnosticsCollector:
         diag.info("Pre-adapter started")
         try:
             ...  # adapter logic
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — must-not-raise contract
             diag.fatal(str(exc))
         finally:
             diag.write()  # ALWAYS writes, never raises
@@ -102,6 +102,6 @@ class DiagnosticsCollector:
                 xml_declaration=True,
                 encoding="UTF-8",
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — must-not-raise contract
             # Contract: write() MUST NOT raise.
             logger.exception("Failed to write FEWS diagnostics to %s", self._output_path)

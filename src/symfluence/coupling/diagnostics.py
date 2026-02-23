@@ -132,6 +132,6 @@ class CouplingDiagnostics:
             plt.close(fig)
             return output_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.warning(f"Failed to generate conservation plot: {e}")
             return None

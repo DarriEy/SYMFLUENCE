@@ -95,9 +95,18 @@ class BoundingBox:
         if target_range == '0-360':
             lon_min = self.lon_min % 360
             lon_max = self.lon_max % 360
+            # Clamp: modulo of very small negatives can produce exactly 360.0
+            if lon_min == 360.0:
+                lon_min = 0.0
+            if lon_max == 360.0:
+                lon_max = 0.0
         elif target_range == '-180-180':
             lon_min = ((self.lon_min + 180) % 360) - 180
             lon_max = ((self.lon_max + 180) % 360) - 180
+            if lon_min == 180.0:
+                lon_min = -180.0
+            if lon_max == 180.0:
+                lon_max = -180.0
         else:
             raise ValueError(f"Unknown target_range: {target_range}")
 
@@ -259,9 +268,20 @@ def normalize_longitude(
     -120.0
     """
     if target_range == '0-360':
-        return lon % 360
+        result = lon % 360
+        # Clamp: modulo of very small negatives can produce exactly 360.0
+        if isinstance(result, np.ndarray):
+            result[result == 360.0] = 0.0
+        elif result == 360.0:
+            result = 0.0
+        return result
     elif target_range == '-180-180':
-        return ((lon + 180) % 360) - 180
+        result = ((lon + 180) % 360) - 180
+        if isinstance(result, np.ndarray):
+            result[result == 180.0] = -180.0
+        elif result == 180.0:
+            result = -180.0
+        return result
     else:
         raise ValueError(f"Unknown target_range: {target_range}")
 

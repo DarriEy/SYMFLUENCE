@@ -429,7 +429,7 @@ class MESHWorker(BaseWorker):
                 valid_log = np.isfinite(obs_log) & np.isfinite(sim_log)
                 if np.sum(valid_log) > 10:
                     kge_log_val = float(kge(obs_log[valid_log], sim_log[valid_log], transfo=1))
-            except Exception:
+            except Exception:  # noqa: BLE001 — calibration resilience
                 pass
 
             self.logger.debug(
@@ -547,7 +547,7 @@ class MESHWorker(BaseWorker):
                             return float(ds['GridArea'].values.sum())
                         elif 'DA' in ds:
                             return float(ds['DA'].values.sum())
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.debug(f"Could not read basin area from {db_path}: {e}")
 
         # Fallback: try config

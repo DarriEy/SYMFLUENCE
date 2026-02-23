@@ -66,7 +66,7 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
                 result = self._download_month_chunk(ym)
                 if result:
                     downloads.append(result)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to download SMOS {ym[0]}-{ym[1]:02d}: {exc}")
 
         # Extract all downloaded archives
@@ -74,7 +74,7 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
             if out_file and out_file.exists():
                 try:
                     shutil.unpack_archive(str(out_file), extract_dir)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Failed to extract SMOS archive {out_file.name}: {exc}"
                     )

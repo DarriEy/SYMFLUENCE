@@ -110,7 +110,7 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
                             variable_name=col,
                             stage='acquisition'
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — diagnostic plots are non-critical
             self.logger.warning(f"Failed to create diagnostic plots for {file_path}: {e}")
 
     # =========================================================================

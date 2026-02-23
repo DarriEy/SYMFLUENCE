@@ -138,7 +138,7 @@ class PRManager:
 
             return True, output
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error proposing code change: {str(e)}"
 
     def _normalize_code(self, code: str) -> str:
@@ -331,7 +331,7 @@ class PRManager:
 
             return True, output
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error showing staged changes: {str(e)}"
 
     def generate_pr_title(
@@ -487,7 +487,7 @@ class PRManager:
 
             return True, output
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error creating PR proposal: {str(e)}"
 
     def get_commit_log(self, max_commits: int = 10) -> Tuple[bool, str]:
@@ -514,7 +514,7 @@ class PRManager:
 
             return True, result.stdout or "No commits yet"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error getting commit log: {str(e)}"
 
     def get_current_branch(self) -> Tuple[bool, str]:
@@ -538,7 +538,7 @@ class PRManager:
 
             return True, result.stdout.strip()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error getting branch: {str(e)}"
 
     def create_pr(
@@ -638,7 +638,7 @@ class PRManager:
 
             return True, "\n".join(output_parts)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error creating PR: {str(e)}"
 
     def _create_branch(self, branch_name: str) -> Tuple[bool, str]:
@@ -706,7 +706,7 @@ class PRManager:
 
         except subprocess.TimeoutExpired:
             return False, "PR creation timed out"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, str(e)
 
     def _run_git(self, args: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
@@ -768,7 +768,7 @@ class PRManager:
             else:
                 return False, f"Not authenticated: {result.stderr}\nRun: gh auth login"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Auth check failed: {str(e)}"
 
     # Helper methods

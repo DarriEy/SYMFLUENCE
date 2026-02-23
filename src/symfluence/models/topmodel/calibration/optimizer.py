@@ -167,7 +167,7 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
                 'output_dir': str(final_output_dir),
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Final evaluation failed: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -253,7 +253,7 @@ class TopmodelModelOptimizer(BaseModelOptimizer):
 
             return prefixed_metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating {prefix} metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

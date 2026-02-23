@@ -116,7 +116,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
             river_network.to_file(river_network_path)
             self.logger.debug(f"Created river network shapefile at: {river_network_path}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error creating river network: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -178,7 +178,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
                 network_gdf.to_file(river_network_path)
                 self.logger.debug(f"Updated river network shapefile with required fields at: {river_network_path}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error ensuring required fields: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -260,7 +260,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
             return watershed_shp_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error during TauDEM watershed delineation: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

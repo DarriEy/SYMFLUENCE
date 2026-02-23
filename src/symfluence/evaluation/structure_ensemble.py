@@ -168,7 +168,7 @@ class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
                     f"NSE={metrics_res.get('nse', 0):.3f}"
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.error(
                     f"Error in combination {i} ({type(e).__name__}): {str(e)}"
                 )
@@ -230,7 +230,7 @@ class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
                     'score': float(best_row[metric]),
                     'combination': {decision: best_row[decision] for decision in decisions}
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Could not find best combination for {metric}: {str(e)}")
 
         # Save results summary
@@ -268,5 +268,5 @@ class BaseStructureEnsembleAnalyzer(ProjectContextMixin, ABC):
         if self.reporting_manager:
             try:
                 self.reporting_manager.visualize_decision_impacts(results_file, self.output_folder)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"Visualization failed: {str(e)}")

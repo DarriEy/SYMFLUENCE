@@ -69,7 +69,7 @@ class LSTMWorker(BaseWorker):
                 params=task.params
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in LSTM evaluation: {e}")
             import traceback
             return WorkerResult(
@@ -133,7 +133,7 @@ class LSTMWorker(BaseWorker):
 
             return metrics or {'KGE': self.penalty_score}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating LSTM metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

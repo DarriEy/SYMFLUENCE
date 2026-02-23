@@ -366,7 +366,7 @@ def run_scaling_comparison(
                 print(f"  ODE:      {comparison['ode_time']*1000:.1f} ms")
                 print(f"  Ratio:    {comparison['ode_time']/comparison['discrete_time']:.2f}x")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             if verbose:
                 print(f"  Error: {e}")
 

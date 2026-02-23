@@ -93,7 +93,7 @@ class HYPEParameterManager(BaseParameterManager):
             params = self._validate_and_fix_initial_parameters(params)
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -139,7 +139,7 @@ class HYPEParameterManager(BaseParameterManager):
             self.logger.debug(f"Updated {updated} parameters in par.txt")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating par.txt: {e}")
             return False
 

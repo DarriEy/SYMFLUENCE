@@ -137,7 +137,7 @@ class WRFHydroResultExtractor(ModelResultExtractor):
             ds.close()
             return series
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(
                 f"Error reading WRF-Hydro output file {output_file}: {str(e)}"
             ) from e
@@ -224,7 +224,7 @@ class WRFHydroResultExtractor(ModelResultExtractor):
         for fpath in sorted(files):
             try:
                 ds = xr.open_dataset(fpath)
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 continue
 
             sfcrnoff = 0.0

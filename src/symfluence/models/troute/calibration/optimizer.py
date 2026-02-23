@@ -75,7 +75,7 @@ class TRouteModelOptimizer(BaseModelOptimizer):
                 if not updated:
                     self.logger.warning("No T-Route parameters were updated.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Failed to update T-Route parameters: {e}")
             raise
 
@@ -124,6 +124,6 @@ class TRouteModelOptimizer(BaseModelOptimizer):
             ds.close()
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading T-Route results: {e}")
             return {}

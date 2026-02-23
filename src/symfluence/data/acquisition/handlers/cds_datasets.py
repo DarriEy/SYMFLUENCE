@@ -296,7 +296,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             try:
                 client.retrieve(dataset_name, request, target_path)
                 return  # Success
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 # cdsapi surfaces API failures as plain `Exception`, so this catch
                 # remains intentionally broad to preserve retry behavior.
                 error_msg = str(e)

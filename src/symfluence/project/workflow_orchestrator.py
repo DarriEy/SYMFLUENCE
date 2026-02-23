@@ -463,7 +463,7 @@ class WorkflowOrchestrator(ConfigMixin):
                     raise
                 else:
                     self.logger.warning("Continuing despite error (STOP_ON_ERROR=False)")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 if self.logging_manager:
                     self.logging_manager.log_completion(
                         success=False,
@@ -598,7 +598,7 @@ class WorkflowOrchestrator(ConfigMixin):
 
                 if not continue_on_error:
                     raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.exception(f"Unexpected failure in step '{cli_name}'")
 
                 if self.logging_manager:

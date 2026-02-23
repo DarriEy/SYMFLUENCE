@@ -154,7 +154,7 @@ class Benchmarker(ConfigMixin):
                 }
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error during benchmark calculation: {e}")
             raise
 
@@ -185,7 +185,7 @@ class Benchmarker(ConfigMixin):
             with open(self.evaluation_dir / "benchmark_metadata.json", 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error saving benchmark results: {str(e)}")
             raise
 

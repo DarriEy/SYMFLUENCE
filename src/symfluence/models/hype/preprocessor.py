@@ -167,7 +167,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     start_date, end_date = [pd.to_datetime(s.strip()) for s in spinup_period.split(',')]
                     self.spinup_days = (end_date - start_date).days
                     self.logger.debug(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}")
                     self.spinup_days = 0
             else:
@@ -318,7 +318,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             qobs_path = self.forcing_data_dir / 'Qobs.txt'
             qobs_df.to_csv(qobs_path, sep='\t', index=True, float_format='%.3f')
             self.logger.debug(f"Created Qobs.txt in {self.forcing_data_dir}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not create Qobs.txt: {e}")
 
     def _link_forcing_to_settings(self) -> None:

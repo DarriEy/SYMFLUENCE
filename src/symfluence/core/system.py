@@ -152,7 +152,7 @@ class SYMFLUENCE:
             self.logger.error(f"Workflow execution failed: {e}")
             # re-raise after summary so the CI can fail meaningfully if needed
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             status = "failed"
             errors.append({"where": "run_workflow", "error": str(e)})
             self.logger.exception(f"Unexpected workflow execution failure: {e}")
@@ -267,7 +267,7 @@ class SYMFLUENCE:
                 results.append(result)
         except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
             self.logger.error(f"Failed to generate diagnostic for {step_name}: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
 
         return results
@@ -298,7 +298,7 @@ class SYMFLUENCE:
                         self.logger.info(f"Generated diagnostic for {step_name}: {result}")
             except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 self.logger.debug(f"Skipping {step_name} diagnostic: {e}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.exception(f"Unexpected diagnostic failure for {step_name}: {e}")
 
         self.logger.info(f"Generated {len(results)} diagnostic plot(s)")

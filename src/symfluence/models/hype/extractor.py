@@ -103,7 +103,7 @@ class HYPEResultExtractor(ModelResultExtractor):
             else:
                 # Sum across all subbasins
                 return df.sum(axis=1)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(f"Failed to parse HYPE output file {output_file}: {e}") from e
 
     def requires_unit_conversion(self, variable_type: str) -> bool:

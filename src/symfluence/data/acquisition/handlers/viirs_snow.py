@@ -106,7 +106,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             self.logger.info("Using earthaccess/CMR mode (default)")
             try:
                 return self._download_via_earthaccess(output_dir, product_name, output_file)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"earthaccess failed: {e}, trying AppEEARS fallback")
                 return self._download_via_appeears(output_dir, product_name, username, password)
 
@@ -194,7 +194,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
 
                     records.append({'date': date, 'data': data})
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.debug(f"Error processing {h5_path.name}: {e}")
                 continue
 
@@ -287,7 +287,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"AppEEARS authentication failed: {e}")
             return None
 
@@ -342,7 +342,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             task_id = response.json().get('task_id')
             self.logger.info(f"AppEEARS task submitted: {task_id}")
             return task_id
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Failed to submit task: {e}")
             return None
 
@@ -408,5 +408,5 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
                     for chunk in dl_response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 self.logger.debug(f"Downloaded: {file_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Download failed: {file_name}: {e}")

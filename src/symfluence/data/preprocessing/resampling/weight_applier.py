@@ -154,7 +154,7 @@ class RemappingWeightApplier(ConfigMixin):
                 self.logger.error(f"{worker_str}Output file not created: {output_file}")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"{worker_str}Error processing {file.name}: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -259,7 +259,7 @@ class RemappingWeightApplier(ConfigMixin):
                 )
                 return available_vars
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"{worker_str}Error opening {file.name} for variable detection: {e}")
             return []
         finally:

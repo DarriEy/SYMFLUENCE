@@ -120,7 +120,7 @@ class CHIRPSAcquirer(BaseAcquisitionHandler):
                     self.logger.warning(f"CHIRPS file not found for {year} (may not be available yet)")
                 else:
                     self.logger.error(f"Failed to download CHIRPS for {year}: {e}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — data acquisition resilience
                 self.logger.error(f"Failed to download CHIRPS for {year}: {e}")
 
         if not downloaded_files:
@@ -183,7 +183,7 @@ class CHIRPSAcquirer(BaseAcquisitionHandler):
                     ds_sub = ds_sub.sel(time=slice(self.start_date, self.end_date))
 
                 datasets.append(ds_sub)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — data acquisition resilience
                 self.logger.warning(f"Failed to process {f.name}: {e}")
                 continue
 

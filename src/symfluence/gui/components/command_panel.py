@@ -311,7 +311,7 @@ class CommandPanel(param.Parameterized):
             # Run project setup steps (attribute acquisition is a separate card)
             self._wt.run_steps(['setup_project', 'create_pour_point'])
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — must-not-raise contract
             self.state.append_log(f"ERROR during initialization: {exc}\n")
             logger.exception("Initialize failed")
 
@@ -351,7 +351,7 @@ class CommandPanel(param.Parameterized):
             self._fill_fields_from_config()
             self._load_card.visible = False
             self._setup_card.visible = True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — must-not-raise contract
             self.state.append_log(f"ERROR loading config: {exc}\n")
             logger.exception("Config upload failed")
 
@@ -369,7 +369,7 @@ class CommandPanel(param.Parameterized):
             self._fill_fields_from_config()
             self._load_card.visible = False
             self._setup_card.visible = True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — must-not-raise contract
             self.state.append_log(f"ERROR loading config: {exc}\n")
             logger.exception("Config load failed")
 
@@ -385,7 +385,7 @@ class CommandPanel(param.Parameterized):
             self._bounding_box.value = cfg.domain.bounding_box_coords or ''
             self._time_start.value = str(cfg.domain.time_start or '')
             self._time_end.value = str(cfg.domain.time_end or '')
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.warning("Could not fill fields from config: %s", exc)
 
     # ------------------------------------------------------------------

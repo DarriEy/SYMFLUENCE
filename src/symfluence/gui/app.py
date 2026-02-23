@@ -94,7 +94,7 @@ class SymfluenceApp:
         if config_path:
             try:
                 self.state.load_config(config_path)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 self.state.append_log(f"Failed to load initial config: {exc}\n")
 
         # Reload map layers after steps complete

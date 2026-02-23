@@ -94,7 +94,7 @@ class TestRunner:
 
         except subprocess.TimeoutExpired:
             return False, "Tests timed out after 2 minutes"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error running tests: {str(e)}"
 
     def run_specific_test(self, test_path: str) -> Tuple[bool, str]:
@@ -130,7 +130,7 @@ class TestRunner:
 
         except subprocess.TimeoutExpired:
             return False, "Test timed out after 1 minute"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error running test: {str(e)}"
 
     def run_tests_for_files(self, modified_files: List[str]) -> Tuple[bool, str]:
@@ -157,7 +157,7 @@ class TestRunner:
             # Run tests
             return self.run_tests(files=test_files, verbose=True)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error finding test files: {str(e)}"
 
     def check_syntax(self, python_file: str) -> Tuple[bool, str]:
@@ -194,7 +194,7 @@ class TestRunner:
 
         except subprocess.TimeoutExpired:
             return False, "Syntax check timed out"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error checking syntax: {str(e)}"
 
     def get_test_coverage(self, source_path: str = "src") -> Tuple[bool, str]:
@@ -234,7 +234,7 @@ class TestRunner:
 
         except subprocess.TimeoutExpired:
             return False, "Coverage analysis timed out"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — agent resilience
             return False, f"Error getting coverage: {str(e)}"
 
     # Helper methods

@@ -382,7 +382,7 @@ class MESHParameterManager(BaseParameterManager):
                         mapping = {i: class_id for i, class_id in enumerate(class_ids)}
                         self.logger.debug(f"Block to NALCMS mapping: {mapping}")
                         return mapping
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.warning(f"Failed to read landcover mapping from {lc_path}: {e}")
 
         # Fallback: assume sequential mapping
@@ -666,7 +666,7 @@ class MESHParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -713,7 +713,7 @@ class MESHParameterManager(BaseParameterManager):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating MESH parameters: {e}")
             return False
 
@@ -877,7 +877,7 @@ class MESHParameterManager(BaseParameterManager):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating CLASS file {file_path.name}: {e}")
             return False
 
@@ -973,7 +973,7 @@ class MESHParameterManager(BaseParameterManager):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating {file_path.name}: {e}")
             return False
 
@@ -1031,7 +1031,7 @@ class MESHParameterManager(BaseParameterManager):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Error reading {param_name}: {e}")
             return None
 

@@ -171,7 +171,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 else:
                     self.logger.warning(f"FUSE failed for subcatchment {subcat_id}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Error running subcatchment {subcat_id}: {str(e)}")
                 continue
 
@@ -228,7 +228,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
             return subcat_settings_dir
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error creating subcatchment settings for {subcat_id}: {str(e)}")
             raise
 
@@ -294,7 +294,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 self.logger.error(f"FUSE failed for subcatchment {subcat_id} with return code {result.returncode}")
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error executing FUSE for subcatchment {subcat_id}: {str(e)}")
             return None
 
@@ -399,7 +399,7 @@ class SubcatchmentProcessor(ConfigMixin):
             self.logger.info(f"Created forcing file for subcatchment {subcat_id}: {subcat_forcing_file}")
             return subcat_forcing_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting forcing for subcatchment {subcat_id}: {str(e)}")
             ds.close()
             raise
@@ -432,7 +432,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
             return target_elev_file
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error creating elevation bands for subcatchment {subcat_id}: {str(e)}")
             raise
 
@@ -538,7 +538,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
                 ds.close()
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error loading output for subcatchment {subcat_id}: {str(e)}")
                 continue
 
@@ -607,7 +607,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
                         self.logger.debug(f"Combined {var_name} with shape: {combined_var.shape}")
 
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — model execution resilience
                         self.logger.error(f"Error combining variable {var_name}: {str(e)}")
                         continue
 
@@ -660,7 +660,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
             combined_ds.close()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error creating combined dataset: {str(e)}")
             raise
 

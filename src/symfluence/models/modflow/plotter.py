@@ -61,7 +61,7 @@ class MODFLOWPlotter(BasePlotter):
         """
         try:
             data = self._collect_coupling_data(experiment_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not collect MODFLOW coupling data: {e}")
             return None
 
@@ -279,7 +279,7 @@ class MODFLOWPlotter(BasePlotter):
                     for col in df.columns:
                         if 'obs' in col.lower():
                             return df[col].dropna()
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     continue
         return None
 

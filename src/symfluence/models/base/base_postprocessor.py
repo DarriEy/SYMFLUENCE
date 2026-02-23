@@ -346,7 +346,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
             try:
                 self.logger.info(f"Creating standardized streamflow plots for {self.model_name}...")
                 self.reporting_manager.visualize_timeseries_results()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Error creating streamflow plots: {str(e)}")
         else:
             self.logger.debug("Skipping visualization (manager not available or visualization disabled)")

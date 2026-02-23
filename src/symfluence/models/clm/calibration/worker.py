@@ -168,7 +168,7 @@ class CLMWorker(BaseWorker):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying CLM parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -397,7 +397,7 @@ class CLMWorker(BaseWorker):
                 ds.close()
                 return active if active else [1, 12]
             ds.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 — calibration resilience
             pass
         return [1, 12]
 
@@ -547,7 +547,7 @@ class CLMWorker(BaseWorker):
                         stderr=_sp.DEVNULL, timeout=5
                     )
                     return float(out.strip())
-                except Exception:
+                except Exception:  # noqa: BLE001 — calibration resilience
                     return 100.0  # assume running if check fails
 
             while proc.poll() is None and elapsed < timeout:
@@ -651,7 +651,7 @@ class CLMWorker(BaseWorker):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"CLM execution error: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -758,7 +758,7 @@ class CLMWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating CLM metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -852,7 +852,7 @@ def _evaluate_clm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

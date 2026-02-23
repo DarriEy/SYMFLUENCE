@@ -94,7 +94,7 @@ class RHESSysWorker(BaseWorker):
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying RHESSys parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -344,7 +344,7 @@ class RHESSysWorker(BaseWorker):
             if stderr_file.exists():
                 try:
                     result.stderr = stderr_file.read_text(encoding='utf-8')
-                except Exception:
+                except Exception:  # noqa: BLE001 — calibration resilience
                     pass
 
             # Log any stderr output (even on success) for debugging
@@ -376,7 +376,7 @@ class RHESSysWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running RHESSys: {e}")
             return False
@@ -402,7 +402,7 @@ class RHESSysWorker(BaseWorker):
                 self.logger.info("RHESSys binary supports -subsurfacegw (SYMFLUENCE-patched)")
             setattr(self, cache_key, supported)
             return supported
-        except Exception:
+        except Exception:  # noqa: BLE001 — calibration resilience
             setattr(self, cache_key, False)
             return False
 
@@ -874,7 +874,7 @@ class RHESSysWorker(BaseWorker):
                 self.logger.error(f"Alignment error: {e}")
                 return {'kge': self.penalty_score, 'error': str(e)}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating RHESSys metrics: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -940,7 +940,7 @@ def _evaluate_rhessys_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, 
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

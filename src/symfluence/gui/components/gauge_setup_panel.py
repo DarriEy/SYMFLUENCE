@@ -164,7 +164,7 @@ class GaugeSetupPanel(param.Parameterized):
                         f"Domain config created from gauge {sid}: {p}\n"
                     )
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — UI resilience
                 run_on_ui_thread(
                     lambda e=exc: setattr(self._status_pane, 'object', f"<span style='color:red'>Error: {e}</span>")
                 )

@@ -281,7 +281,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
                     return self._extract_esa_soil_moisture(ds)
                 else:
                     return self._extract_point_soil_moisture(ds)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting soil moisture data from {sim_file}: {str(e)}")
             raise
 
@@ -575,7 +575,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
                 obs_series = obs_series.resample('D').mean().dropna()
 
             return obs_series
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             self.logger.error(f"Error loading observed soil moisture data: {str(e)}")
             return None
 

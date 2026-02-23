@@ -216,7 +216,7 @@ def _try_dcoupler_coupled(
         )
         return runoff, SacSmaSnow17State(snow17=dummy_s17, sacsma=dummy_sac)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — model execution resilience
         logger.debug(f"dCoupler coupled path failed: {e}. Using native implementation.")
         return None
 

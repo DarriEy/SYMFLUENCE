@@ -250,7 +250,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error preparing lumped forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -354,7 +354,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error preparing distributed forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -374,7 +374,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
 
             return self._load_merged_forcing()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error loading forcing data: {e}")
             return None
 
@@ -538,7 +538,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
                     precip_hru[t, i] = np.ma.mean(precip_masked)
                     temp_hru[t, i] = np.ma.mean(temp_masked)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Error averaging HRU {i}: {e}. Using catchment mean.")
                 precip_hru[:, i] = np.nanmean(precip_grid, axis=(1, 2))
                 temp_hru[:, i] = np.nanmean(temp_grid, axis=(1, 2))

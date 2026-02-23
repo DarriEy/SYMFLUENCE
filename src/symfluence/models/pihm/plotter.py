@@ -41,7 +41,7 @@ class PIHMPlotter(BasePlotter):
         """Main entry: collect data, build figure, save PNG."""
         try:
             data = self._collect_coupling_data(experiment_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not collect PIHM coupling data: {e}")
             return None
 
@@ -120,7 +120,7 @@ class PIHMPlotter(BasePlotter):
             head = extractor.extract_variable(
                 pihm_dir, 'groundwater_head', start_date=start_date,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             head = pd.Series(dtype=float)
 
         coupler = SUMAToPIHMCoupler(self.config_dict, self.logger)
@@ -152,7 +152,7 @@ class PIHMPlotter(BasePlotter):
                     for col in df.columns:
                         if 'obs' in col.lower():
                             return df[col].dropna()
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     continue
         return None
 

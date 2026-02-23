@@ -58,7 +58,7 @@ def load_observations(
         try:
             df_obs.index = pd.to_datetime(df_obs.index)
             log.debug("Converted observation index to DatetimeIndex")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             log.error(f"Failed to convert observation time index to DatetimeIndex: {e}")
             return None
 
@@ -188,7 +188,7 @@ def read_routed_streamflow(
 
     try:
         ds = xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.error(
             f"Cannot open routed output file {sim_file_path.name}: {e}. "
             f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes"
@@ -256,7 +256,7 @@ def read_fuse_streamflow(
 
     try:
         ds = xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.error(
             f"Cannot open FUSE output file {sim_file_path.name}: {e}. "
             f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes. "
@@ -309,7 +309,7 @@ def read_fuse_streamflow(
         try:
             simulated_streamflow.index = pd.to_datetime(simulated_streamflow.index)
             log.debug("Converted simulated streamflow index to DatetimeIndex")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             log.error(f"Failed to convert time index to DatetimeIndex: {e}")
             return None
 
@@ -436,7 +436,7 @@ def align_and_filter(
             sim_aligned = sim_aligned[mask_sim]
 
             log.debug(f"Filtered to calibration period {calib_start} to {calib_end}: {len(obs_aligned)} points")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             log.warning(f"Could not parse calibration period '{calib_period}': {e}")
 
     common_index = obs_aligned.index.intersection(sim_aligned.index)

@@ -110,17 +110,17 @@ class CLMParFlowPostProcessor(StandardModelPostprocessor):
                 overland_m3s = extractor.extract_variable(
                     output_dir, 'overland_flow', **common_kwargs
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 overland_m3s = pd.Series(dtype=float, name='overland_flow_m3s')
 
             try:
                 subsurface_m3hr = extractor.extract_variable(
                     output_dir, 'subsurface_drainage', **common_kwargs
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — model execution resilience
                 subsurface_m3hr = pd.Series(dtype=float, name='subsurface_drainage_m3hr')
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Failed to extract CLMParFlow output: {e}")
             return None
 

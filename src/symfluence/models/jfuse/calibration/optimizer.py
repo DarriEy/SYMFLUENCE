@@ -146,7 +146,7 @@ class JFUSEModelOptimizer(BaseModelOptimizer):
             # Also update parameter files for record-keeping
             self.param_manager.update_model_files(best_params)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying jFUSE parameters for final evaluation: {e}")
             return False
 

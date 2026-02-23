@@ -227,7 +227,7 @@ class DRouteWorker(BaseWorker):
             self.logger.info(f"Loaded dRoute data: {len(self._runoff_data)} timesteps")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error loading dRoute data: {e}")
             self.logger.debug(traceback.format_exc())
             return False
@@ -305,7 +305,7 @@ class DRouteWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error running dRoute: {e}")
             self.logger.debug(traceback.format_exc())
             return False
@@ -469,7 +469,7 @@ class DRouteWorker(BaseWorker):
                 'n_points': len(sim)
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating dRoute metrics: {e}")
             return {'kge': self.penalty_score, 'error': str(e)}
 
@@ -512,7 +512,7 @@ class DRouteWorker(BaseWorker):
             )
             return gradients
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error computing dRoute gradient: {e}")
             return None
 
@@ -554,7 +554,7 @@ class DRouteWorker(BaseWorker):
             )
             return float(loss), gradients
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error in evaluate_with_gradient: {e}")
             return self.penalty_score, None
 
@@ -597,7 +597,7 @@ def _evaluate_droute_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, A
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

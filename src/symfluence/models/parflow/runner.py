@@ -80,7 +80,7 @@ class ParFlowRunner(BaseModelRunner):
         try:
             exe = self._get_parflow_executable()
             return str(exe.parent.parent)
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             return None
 
     def _get_runname(self) -> str:

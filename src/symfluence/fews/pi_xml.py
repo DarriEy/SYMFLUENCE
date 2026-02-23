@@ -240,5 +240,5 @@ def write_pi_xml_timeseries(
         ET.indent(tree, space="  ")
         tree.write(str(path), xml_declaration=True, encoding="UTF-8")
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
         raise PIXMLError(f"Failed to write PI-XML to {path}: {exc}") from exc

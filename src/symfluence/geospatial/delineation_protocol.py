@@ -248,7 +248,7 @@ class DelineationStrategyAdapter:
                     metadata={'method': self._method_name, 'raw_result': str(result)},
                     success=True,
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — geospatial resilience
             return DelineationResult(
                 metadata={'method': self._method_name},
                 success=False,

@@ -38,5 +38,5 @@ class SlurmJobTable(DataTable):
         try:
             row_data = self.get_row_at(row_key)
             return str(row_data[0]) if row_data else ""
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             return ""

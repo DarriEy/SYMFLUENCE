@@ -102,6 +102,6 @@ def read_tiff_for_bokeh(tiff_path, band=1, max_pixels=1000):
             'vmax': vmax,
         }
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — UI resilience
         logger.warning(f"Failed to read raster {tiff_path}: {exc}")
         return None

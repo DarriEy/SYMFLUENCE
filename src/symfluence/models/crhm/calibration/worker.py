@@ -100,7 +100,7 @@ class CRHMWorker(BaseWorker):
             # Update project file with new parameters
             return self._update_prj_file(prj_file, params)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying CRHM parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -169,7 +169,7 @@ class CRHMWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating CRHM project file: {e}")
             return False
 
@@ -273,7 +273,7 @@ class CRHMWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running CRHM: {e}")
             return False
@@ -416,7 +416,7 @@ class CRHMWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating CRHM metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -469,7 +469,7 @@ def _evaluate_crhm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

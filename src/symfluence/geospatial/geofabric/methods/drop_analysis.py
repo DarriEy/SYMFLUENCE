@@ -99,7 +99,7 @@ class DropAnalysisMethod(ConfigMixin):
                                         'num_sources': float(parts[1]),
                                         'mean_drop': float(parts[2])
                                     })
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Drop analysis failed for threshold {threshold}: {str(e)}")
                     continue
 
@@ -116,7 +116,7 @@ class DropAnalysisMethod(ConfigMixin):
 
             return optimal_threshold
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Error in drop analysis: {str(e)}")
             return None
 

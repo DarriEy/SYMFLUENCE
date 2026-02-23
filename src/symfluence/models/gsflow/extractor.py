@@ -61,7 +61,7 @@ class GSFLOWResultExtractor(ModelResultExtractor):
                     return result
         except ValueError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(f"Error extracting {variable_type}: {e}") from e
 
         raise ValueError(f"Variable '{variable_type}' not found in {output_file}")
@@ -85,7 +85,7 @@ class GSFLOWResultExtractor(ModelResultExtractor):
                         continue
             if dates:
                 return pd.Series(values, index=dates, name=f'GSFLOW_{variable_type}')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"Error parsing statvar: {e}")
         return None
 

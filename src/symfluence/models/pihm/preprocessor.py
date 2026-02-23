@@ -190,7 +190,7 @@ class PIHMPreProcessor:
             try:
                 ds = xr.open_dataset(f)
                 datasets.append(ds)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not read {f.name}: {e}")
 
         if not datasets:

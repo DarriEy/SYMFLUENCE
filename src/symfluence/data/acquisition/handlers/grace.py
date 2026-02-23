@@ -92,7 +92,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                             f.write(chunk)
                 self.logger.info(f"Successfully downloaded GRACE {center.upper()} data to {target_file}")
                 success_count += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Failed to download GRACE {center.upper()} data: {e}")
                 self.logger.warning(f"Please manually download the {center.upper()} Mascon NetCDF file and place it in the observation directory if automatic download fails.")
 
@@ -131,7 +131,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
 
         try:
             ds = xr.open_dataset(url)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to open JPL OPeNDAP dataset: {exc}")
             return False
 
@@ -139,7 +139,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             subset = self._subset_grace_dataset(ds)
             subset.to_netcdf(target_file)
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to subset JPL dataset: {exc}")
             return False
         finally:
@@ -224,7 +224,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 timeout=120,
             )
             resp.raise_for_status()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"CMR query failed: {exc}")
             return None
 
@@ -260,6 +260,6 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                         if chunk:
                             f.write(chunk)
             return target_file
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"CMR download failed: {exc}")
             return None

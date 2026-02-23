@@ -61,7 +61,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 num_nexuses = len(nexus_data.get('features', []))
                 if num_nexuses == 1:
                     is_lumped = True
-        except Exception:
+        except Exception:  # noqa: BLE001 — calibration resilience
             is_lumped = False
 
         # Check for t-route outputs first (NetCDF format)
@@ -210,7 +210,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     self.logger.info(f"Extracted routed flow from t-route: {len(flow_series)} timesteps")
                     return flow_series.sort_index()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading t-route outputs: {e}")
             self.logger.warning("Falling back to raw nexus outputs")
 
@@ -263,7 +263,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             self.logger.debug(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
             self._nexus_areas_cache = nexus_areas
             return nexus_areas
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Error loading catchment areas: {e}")
             self._nexus_areas_cache = {}
             return {}
@@ -363,7 +363,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     name=nexus_file.stem
                 )
                 all_streamflow.append(s)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"Error reading {nexus_file}: {e}")
                 continue
 
@@ -437,6 +437,6 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
             area_km2 = float(gdf.geometry.area.sum() / 1e6)
             return area_km2
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Error calculating catchment area from {shp_path}: {e}")
             return 100.0

@@ -110,7 +110,7 @@ class ShapefileManager(ConfigMixin):
 
             return wgs84_shapefile
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error ensuring WGS84 for {shapefile_path}: {str(e)}")
             raise
 
@@ -138,7 +138,7 @@ class ShapefileManager(ConfigMixin):
             self.logger.info(f"WGS84 version already exists: {wgs84_path.name}")
             return wgs84_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Error reading existing WGS84 file: {str(e)}. Recreating.")
             return None
 
@@ -209,7 +209,7 @@ class ShapefileManager(ConfigMixin):
             self.logger.info(f"Verification successful: All {actual_saved_field} values are unique")
             return output_path, actual_saved_field
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error ensuring unique HRU IDs: {str(e)}")
             raise
 
@@ -268,6 +268,6 @@ class ShapefileManager(ConfigMixin):
 
             return shifted_path, True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to align target longitudes: {e}")
             return target_shapefile, False

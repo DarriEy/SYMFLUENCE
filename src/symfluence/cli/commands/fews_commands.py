@@ -48,7 +48,7 @@ class FEWSCommands(BaseCommand):
             diag.info("Pre-adapter completed successfully")
             FEWSCommands._console.success("FEWS pre-adapter completed")
             return ExitCode.SUCCESS
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
             diag.fatal(str(exc))
             raise
         finally:
@@ -81,7 +81,7 @@ class FEWSCommands(BaseCommand):
             diag.info("Post-adapter completed successfully")
             FEWSCommands._console.success(f"FEWS post-adapter completed -> {output_dir}")
             return ExitCode.SUCCESS
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
             diag.fatal(str(exc))
             raise
         finally:
@@ -146,7 +146,7 @@ class FEWSCommands(BaseCommand):
             diag.info("Full FEWS adapter cycle completed")
             FEWSCommands._console.success(f"FEWS run completed -> {output_dir}")
             return ExitCode.SUCCESS
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
             diag.fatal(str(exc))
             raise
         finally:

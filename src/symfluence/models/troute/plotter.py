@@ -56,7 +56,7 @@ class TRoutePlotter(BasePlotter):
         """
         try:
             data = self._collect_routing_data(experiment_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not collect t-route routing data: {e}")
             return None
 
@@ -244,7 +244,7 @@ class TRoutePlotter(BasePlotter):
                             ds.close()
                             return series
                     ds.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     pass
 
         return None
@@ -268,7 +268,7 @@ class TRoutePlotter(BasePlotter):
                         for col in df.columns:
                             if 'obs' in col.lower():
                                 return df[col].dropna()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — model execution resilience
                         continue
         return None
 

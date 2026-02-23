@@ -141,7 +141,7 @@ class SWATParameterManager(BaseParameterManager):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating SWAT parameter files: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -191,7 +191,7 @@ class SWATParameterManager(BaseParameterManager):
 
                 self.logger.debug(f"Updated basin file: {bsn_file}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"Error updating {bsn_file}: {e}")
                 return False
 
@@ -244,7 +244,7 @@ class SWATParameterManager(BaseParameterManager):
                 with open(target_file, 'w', encoding='utf-8') as f:
                     f.writelines(new_lines)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — calibration resilience
                 self.logger.error(f"Error updating {target_file}: {e}")
                 success = False
 
@@ -360,7 +360,7 @@ class SWATParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -392,7 +392,7 @@ class SWATParameterManager(BaseParameterManager):
                         match = re.match(r'^\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', line)
                         if match:
                             return float(match.group(1))
-        except Exception:
+        except Exception:  # noqa: BLE001 — calibration resilience
             pass
 
         return None
@@ -430,6 +430,6 @@ class SWATParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying TxtInOut to {worker_txtinout_dir}: {e}")
             return False

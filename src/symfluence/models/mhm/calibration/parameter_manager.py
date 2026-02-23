@@ -225,7 +225,7 @@ class MHMParameterManager(BaseParameterManager):
             self.namelist_path.write_text(content, encoding='utf-8')
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating mHM namelist: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -313,7 +313,7 @@ class MHMParameterManager(BaseParameterManager):
 
             return params
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
 
@@ -351,6 +351,6 @@ class MHMParameterManager(BaseParameterManager):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error copying namelists to {worker_settings_dir}: {e}")
             return False

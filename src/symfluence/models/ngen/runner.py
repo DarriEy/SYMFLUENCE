@@ -414,7 +414,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 with open(realization_file, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
                 self.logger.debug("Patched absolute paths in realization config copy")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to patch realization libraries: {e}")
 
     def _move_ngen_outputs(self, build_dir: Path, output_dir: Path):
@@ -498,7 +498,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 if num_nexuses == 1:
                     is_lumped = True
                     self.logger.info("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Could not parse nexus file for lumped detection: {e}")
 
         # For lumped domains, we can skip routing and use nexus output directly
@@ -533,7 +533,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             self.logger.info(f"T-Route log: {troute_log}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"T-Route routing failed: {e}")
             if troute_log.exists():
                 self.logger.error(f"Check t-route log: {troute_log}")
@@ -637,7 +637,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                         topology_complete = True
                         use_netcdf = True
                         self.logger.info("Using NetCDF topology for T-Route NHDNetwork")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.")
 
             # Fall back to hydrofabric GeoPackage with HYFeaturesNetwork
@@ -671,7 +671,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                             topology_complete = True
                             use_gpkg = True
                             self.logger.debug("Using hydrofabric GeoPackage (legacy flowlines layer)")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.debug(f"GeoPackage check failed: {e}. Trying GeoJSON.")
 
             # Fall back to GeoJSON flowlines
@@ -689,7 +689,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     else:
                         missing = required_cols - available_cols
                         self.logger.warning(f"T-Route flowlines missing required columns: {missing}. Skipping routing.")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Failed to read T-Route flowlines: {e}. Skipping routing.")
 
             if not topology_complete and not troute_flowlines_src.exists() and not troute_topology_src.exists():
@@ -928,7 +928,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             except subprocess.TimeoutExpired:
                 self.logger.error("NGIAB Docker execution timed out")
                 return False
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"NGIAB Docker execution failed: {e}")
                 return False
 
@@ -1101,7 +1101,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     content
                 )
                 config_file.write_text(content, encoding='utf-8')
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
         self.logger.debug("Patched NOAH config files with container parameter paths")
 

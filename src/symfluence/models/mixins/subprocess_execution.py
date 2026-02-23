@@ -217,7 +217,7 @@ class SubprocessExecutionMixin:
                             self.logger.error("Last 20 lines from log file:")
                             for line in last_lines:
                                 self.logger.error(f"  {line.rstrip()}")
-                except Exception as read_error:
+                except Exception as read_error:  # noqa: BLE001 — model execution resilience
                     self.logger.error(f"Could not read log file: {read_error}")
 
             self.logger.error(f"Full log available at: {log_file}")

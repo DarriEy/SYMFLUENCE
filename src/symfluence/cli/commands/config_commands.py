@@ -233,7 +233,7 @@ class ConfigCommands(BaseCommand):
                     SYMFLUENCE_CODE_DIR=str(config.system.code_dir),
                 )
                 defaults = ref_config.to_dict(flatten=True)
-            except Exception:
+            except Exception:  # noqa: BLE001 — top-level fallback
                 # Fallback: empty defaults means everything is shown
                 defaults = {}
 

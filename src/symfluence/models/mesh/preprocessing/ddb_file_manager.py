@@ -46,7 +46,7 @@ class DDBFileManager:
                 for dim in ['subbasin', 'N']:
                     if dim in ds.sizes:
                         return int(ds.sizes[dim])
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             pass
         return 1
 
@@ -80,7 +80,7 @@ class DDBFileManager:
                     f"MESH will read {mesh_gru_count} GRU(s) (NGRU dimension = {ngru_dim})"
                 )
                 return mesh_gru_count
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not determine MESH active GRU count: {e}")
             return None
 
@@ -159,7 +159,7 @@ class DDBFileManager:
                     f"Trimmed DDB to {target_count} GRU column(s) and "
                     f"renormalized fractions to sum to 1.0"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to trim DDB to active GRUs: {e}")
 
     def trim_empty_gru_columns(self, min_total: float = 0.02) -> Optional[list]:
@@ -196,7 +196,7 @@ class DDBFileManager:
                         sum_per = ds_trim['GRU'].sum('NGRU')
                         sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
                         ds_trim['GRU'] = ds_trim['GRU'] / sum_safe
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 — model execution resilience
                         self.logger.debug(
                             f"Could not renormalize GRU fractions after trim: {e}"
                         )
@@ -208,7 +208,7 @@ class DDBFileManager:
 
                 return keep_mask
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to trim empty GRU columns: {e}")
             return None
 
@@ -267,7 +267,7 @@ class DDBFileManager:
                 os.replace(temp_path, self._path)
                 self.logger.debug(f"Renormalized GRU fractions: {gru}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to renormalize MESH active GRUs: {e}")
 
     def ensure_gru_normalization(self) -> None:
@@ -313,7 +313,7 @@ class DDBFileManager:
                 ds.to_netcdf(temp_path)
                 os.replace(temp_path, self._path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to normalize GRUs: {e}")
 
     # ------------------------------------------------------------------
@@ -399,7 +399,7 @@ class DDBFileManager:
 
                 return keep_mask
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to remove small GRUs from DDB: {e}")
             return None
 
@@ -469,5 +469,5 @@ class DDBFileManager:
                     f"Collapsed DDB from {ngru} to 2 GRU columns (MESH reads 1)"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to collapse DDB to single GRU: {e}")

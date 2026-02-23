@@ -144,7 +144,7 @@ class ToolValidator(BaseService):
                             tool_name, exe_path, test_cmd, tool_result, validation_results
                         )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — top-level fallback
                 tool_result["status"] = "error"
                 tool_result["errors"].append(f"Validation error: {str(e)}")
                 validation_results["failed_tools"].append(tool_name)
@@ -425,7 +425,7 @@ class ToolValidator(BaseService):
                 f"{tool_name}: test timed out"
             )
             self._console.warning(f"Found but test timed out: {exe_path}")
-        except Exception as test_error:
+        except Exception as test_error:  # noqa: BLE001 — top-level fallback
             tool_result["status"] = "test_error"
             tool_result["errors"].append(f"Test error: {str(test_error)}")
             validation_results["warnings"].append(

@@ -96,7 +96,7 @@ class CLMDomainGenerator:
             gdf_proj = gdf.to_crs(epsg=3857)
             area_m2 = gdf_proj.geometry.area.sum()
             return area_m2 / 1e6
-        except Exception:
+        except Exception:  # noqa: BLE001 — model execution resilience
             return 2210.0
 
     def get_mean_elevation(self) -> float:
@@ -112,7 +112,7 @@ class CLMDomainGenerator:
                             ds.close()
                             return val
                     ds.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 — model execution resilience
                     continue
         return float(self.pp._get_config_value(
             lambda: None, default=1500.0, dict_key='MEAN_ELEVATION'

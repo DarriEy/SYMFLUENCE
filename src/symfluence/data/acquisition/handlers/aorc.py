@@ -208,7 +208,7 @@ class AORCAcquirer(BaseAcquisitionHandler):
 
                 ds_subset = ds_subset.sel(time=slice(max(self.start_date, pd.Timestamp(f'{year}-01-01')), min(self.end_date, pd.Timestamp(f'{year}-12-31 23:59:59'))))
                 if len(ds_subset.time) > 0: datasets.append(ds_subset)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
                 self.logger.error(f"Error processing year {year}: {e}")
                 raise
         if not datasets: raise ValueError("No data extracted for the specified time period")

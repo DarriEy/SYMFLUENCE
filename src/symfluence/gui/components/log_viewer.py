@@ -57,7 +57,7 @@ class LogViewer(param.Parameterized):
         self._flushed_len = len(text)
         try:
             self._terminal.write(delta)
-        except Exception:
+        except Exception:  # noqa: BLE001 — UI resilience
             pass
 
     def panel(self):

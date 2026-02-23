@@ -176,7 +176,7 @@ class MESHForcingProcessor:
                             ds_renamed.to_netcdf(temp_path)
                             os.replace(temp_path, nc_file)
                             self.logger.info(f"Renamed dimension to 'subbasin' in {nc_file.name}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Failed to rename dimension in {nc_file.name}: {e}")
 
     def _rename_forcing_variables(self) -> None:
@@ -208,7 +208,7 @@ class MESHForcingProcessor:
                     os.replace(temp_path, forcing_nc)
                     self.logger.info("Renamed forcing variables for MESH 1.5")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to rename forcing variables: {e}")
 
     def create_split_forcing_files(self) -> None:
@@ -300,7 +300,7 @@ class MESHForcingProcessor:
 
                 self.logger.info("Created split forcing files for MESH distributed mode")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to create split forcing files: {e}")
 
     def apply_elevation_lapsing(
@@ -491,7 +491,7 @@ class MESHForcingProcessor:
             # Recreate split forcing files with expanded data
             self.create_split_forcing_files()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to apply elevation lapsing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())

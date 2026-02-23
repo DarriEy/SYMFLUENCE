@@ -78,7 +78,7 @@ def _run_easmore_with_suppressed_output(esmr, logger):
 
             return (True, stdout_text, stderr_text)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
         logger.error(f"Error running EASMORE: {str(e)}")
         raise
     finally:
@@ -249,7 +249,7 @@ class RemappingWeightGenerator(ConfigMixin):
                         disable_lon_correction = True
                         self.logger.debug("Shifted target shapefile longitudes to 0-360.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"Failed to align target longitudes: {e}")
 
         return target_shp_for_easymore, disable_lon_correction
@@ -381,7 +381,7 @@ class RemappingWeightGenerator(ConfigMixin):
                         f"setting resolution={source_nc_resolution}"
                     )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error detecting variables in {sample_file}: {e}")
             raise
         finally:
@@ -407,7 +407,7 @@ class RemappingWeightGenerator(ConfigMixin):
             try:
                 with xr.open_dataset(case_remap_nc, engine="h5netcdf") as ds:
                     ds.to_dataframe().to_csv(case_remap_csv)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}")
 
         candidate_paths = [case_remap_csv]

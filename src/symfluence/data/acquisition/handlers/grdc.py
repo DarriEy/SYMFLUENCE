@@ -96,7 +96,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
                 else:
                     self.logger.warning(f"No data retrieved for station {station_id}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Failed to download station {station_id}: {e}")
 
         if not downloaded_files:
@@ -147,7 +147,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
                 timeout=60
             )
             auth_response.raise_for_status()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"GRDC API authentication failed: {e}")
             return None
 
@@ -174,7 +174,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
 
             return self._standardize_dataframe(df)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"GRDC API download failed: {e}")
             return None
 
@@ -230,7 +230,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"GRDC public access failed: {e}")
             return None
 

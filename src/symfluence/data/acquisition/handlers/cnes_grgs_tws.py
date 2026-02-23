@@ -118,7 +118,7 @@ class CNESGRGSAcquirer(BaseAcquisitionHandler):
                 if (i + 1) % 12 == 0:
                     self.logger.info(f"  Processed {i + 1}/{len(grid_files)}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — data acquisition resilience
                 self.logger.warning(f"Failed {fname}: {e}")
 
         if all_data:

@@ -212,7 +212,7 @@ class RemappingWeightGenerator(ConfigMixin):
                     import xarray as xr
                     with xr.open_dataset(case_remap_nc) as ds:
                         ds.to_dataframe().to_csv(case_remap_csv)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(f"Could not convert NetCDF weights to CSV: {e}")
 
             if case_remap_csv.exists():
@@ -429,7 +429,7 @@ class RemappingWeightApplier(ConfigMixin):
             self.logger.error(f"{worker_str}Output file not created: {output_file}")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"{worker_str}Error processing {forcing_file.name}: {str(e)}")
             return False
 
@@ -555,7 +555,7 @@ class BatchProcessor(ConfigMixin):
                         success_count += 1
                     else:
                         self.logger.error(f"Failed to process {file.name}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.error(f"Error processing {file.name}: {str(e)}")
 
                 pbar.update(1)
@@ -609,7 +609,7 @@ class BatchProcessor(ConfigMixin):
                     success_count += batch_success
                     pbar.update(len(batch_files))
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
                     pbar.update(len(batch_files))
 
@@ -623,6 +623,6 @@ class BatchProcessor(ConfigMixin):
         """Worker function for parallel processing."""
         try:
             return self.applier.apply_weights(file, remap_file, worker_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"Worker {worker_id}: Error processing {file.name}: {str(e)}")
             return False

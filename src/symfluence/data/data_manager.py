@@ -285,7 +285,7 @@ class DataManager(BaseManager):
                         self.logger.warning(f"Observation type {obs_type} requested but no handler registered.")
                 except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
                     self.logger.warning(f"Failed to process additional observation {obs_type}: {e}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — must-not-raise contract
                     self.logger.exception(f"Unexpected failure processing additional observation {obs_type}: {e}")
 
             # Generate diagnostic plots for streamflow observations

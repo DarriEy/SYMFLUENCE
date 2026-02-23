@@ -360,7 +360,7 @@ class SummaAttributesManager(ConfigurableMixin):
 
             self.logger.info("Successfully inserted aspect data into attributes file")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error inserting aspect data: {str(e)}")
             # Set default values if calculation fails
             with nc4.Dataset(attribute_file, "r+") as att:
@@ -410,7 +410,7 @@ class SummaAttributesManager(ConfigurableMixin):
 
             self.logger.info("Successfully inserted tangent of slope data into attributes file")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error inserting tangent of slope data: {str(e)}")
             # Set default values if calculation fails
             with nc4.Dataset(attribute_file, "r+") as att:
@@ -497,7 +497,7 @@ class SummaAttributesManager(ConfigurableMixin):
                 else:
                     results[hru_id] = float(mean_aspect)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error calculating aspect from DEM: {str(e)}")
             # Return default values for all HRUs
             hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
@@ -592,7 +592,7 @@ class SummaAttributesManager(ConfigurableMixin):
                     # Ensure minimum slope value
                     results[hru_id] = max(float(mean_tan_slope), min_slope)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error calculating tan_slope from DEM: {str(e)}")
             # Return default values for all HRUs
             hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
@@ -658,7 +658,7 @@ class SummaAttributesManager(ConfigurableMixin):
 
                     att['soilTypeIndex'][idx] = tmp_sc
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error inserting soil class: {str(e)}")
             # If the process fails, set all soil types to a default value
             with nc4.Dataset(attribute_file, "r+") as att:
@@ -725,7 +725,7 @@ class SummaAttributesManager(ConfigurableMixin):
 
                 self.logger.info(f"{is_water} HRUs were identified as containing only open water. Note that SUMMA skips hydrologic calculations for such HRUs.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error inserting land class: {str(e)}")
             # If the process fails, set all vegetation types to a default value
             with nc4.Dataset(attribute_file, "r+") as att:

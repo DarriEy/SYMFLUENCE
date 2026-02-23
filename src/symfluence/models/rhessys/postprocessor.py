@@ -60,7 +60,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             # Compare fire perimeters if WMFire is enabled
             self._compare_fire_perimeters_if_enabled(results)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error extracting RHESSys results: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -93,7 +93,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
                     results['wmfire_perimeters'] = wmfire_pp.output_dir / "wmfire_perimeters.shp"
             except ImportError:
                 self.logger.debug("WMFirePostProcessor not available")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"WMFire perimeter generation failed: {e}")
 
             # Check if perimeter data is configured for comparison
@@ -113,7 +113,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
                                f"Dice={metrics.get('dice', 0):.3f}")
                 results['fire_perimeter_metrics'] = metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not compare fire perimeters: {e}")
 
     def extract_streamflow(self) -> Optional[Path]:
@@ -167,7 +167,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             self.logger.error(f"No RHESSys output files found in {self.sim_dir}")
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error extracting streamflow: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -218,7 +218,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             self.logger.info(f"Basin area: {total_area_m2/1e6:.2f} km²")
             return total_area_m2
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not calculate basin area: {e}, using default")
             return 2.2e9  # Default ~2200 km²
 
@@ -286,7 +286,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
 
             return q_cms
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading basin daily file: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -332,7 +332,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
                 return pd.DataFrame(wb_cols)
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error extracting water balance: {e}")
             return None
 
@@ -402,7 +402,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             self.logger.info(f"Litter pools saved to: {output_path}")
             return output_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error extracting litter pools: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -477,7 +477,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
 
             return output_path
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error generating fuel grids: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -603,7 +603,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
 
             return metrics
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error comparing fire perimeters: {e}")
             import traceback
             self.logger.error(traceback.format_exc())

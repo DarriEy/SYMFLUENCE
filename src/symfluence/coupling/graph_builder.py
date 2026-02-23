@@ -236,6 +236,6 @@ class CouplingGraphBuilder:
             )
             ds.close()
             return remapper
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.warning(f"Failed to build spatial remapper: {e}")
             return None

@@ -157,7 +157,7 @@ class HYPEConfigManager(ConfigMixin):
                 forcing_end = pd.to_datetime(
                     pd.read_csv(pobs_path, sep='\t', usecols=['time']).iloc[-1, 0]
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not read Pobs.txt for period: {e}")
 
         # Use experiment dates if provided, otherwise use forcing dates
@@ -357,7 +357,7 @@ timeoutput decimals\t3
                 # Extract land use IDs if not provided
                 if land_uses is None:
                     land_uses = geoclass_df.iloc[:, 1].unique()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.warning(f"Could not read GeoClass.txt for class counts: {e}")
 
         # Generate dynamic land use parameters

@@ -104,7 +104,7 @@ class VICWorker(BaseWorker):
             # Update parameter file
             return self._update_params_file(params_file, params)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error applying VIC parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -260,7 +260,7 @@ class VICWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error updating VIC parameters: {e}")
             return False
 
@@ -380,7 +380,7 @@ class VICWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
             self.logger.error(f"Error running VIC: {e}")
             return False
@@ -592,7 +592,7 @@ class VICWorker(BaseWorker):
             )
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating VIC metrics: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -646,7 +646,7 @@ def _evaluate_vic_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

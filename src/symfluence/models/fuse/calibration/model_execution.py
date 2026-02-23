@@ -211,7 +211,7 @@ def _ensure_config_files(
                 actual_decisions_file = decisions[0].name
                 config_files.append(actual_decisions_file)
                 log.warning(f"Using fallback decisions file: {actual_decisions_file}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             log.warning(f"Error searching for decisions files: {e}")
 
     for cfg_file in config_files:
@@ -498,7 +498,7 @@ def handle_fuse_output(
                 final_output_path.unlink()
             shutil.move(str(local_output_path), str(final_output_path))
             log.debug(f"Moved output from {local_output_path} to {final_output_path}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — calibration resilience
             log.error(f"Failed to move output file: {e}")
             return None
     else:
@@ -559,7 +559,7 @@ def _validate_fuse_output(
                 return False
             n_time = ds_check.sizes.get(time_dim, 0) if time_dim else -1
             log.debug(f"FUSE output validated: {n_time} time steps in {output_path.name}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.error(
             f"FUSE output file is not a readable NetCDF: {output_path.name} — {e}."
         )
@@ -606,14 +606,14 @@ def _log_fuse_diagnostics(
             elif f.is_file():
                 file_info.append(f"  {f.name} ({f.stat().st_size} bytes)")
         log.error("Files in execution dir:\n" + "\n".join(file_info[:20]))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.error(f"Could not list execution directory: {e}")
 
     # Log file manager content
     try:
         content = filemanager_path.read_text(encoding='utf-8', errors='replace')
         log.error(f"File manager content ({filemanager_path.name}):\n{content}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.error(f"Could not read file manager: {e}")
 
 
@@ -626,5 +626,5 @@ def log_execution_directory(execution_cwd: Path, log: logging.Logger) -> None:
                 log.debug(f"  {f.name} -> {f.resolve()}")
             else:
                 log.debug(f"  {f.name}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — calibration resilience
         log.debug(f"Could not list directory: {e}")

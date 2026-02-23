@@ -172,7 +172,7 @@ class CMCSnowAcquirer(BaseAcquisitionHandler):
                         break  # Try next filename pattern
                     self.logger.debug(f"HTTP error for {fn}: {e}")
                     time.sleep(2 ** attempt)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — retry resilience
                     self.logger.debug(f"Download error for {fn}: {e}")
                     time.sleep(2 ** attempt)
 
