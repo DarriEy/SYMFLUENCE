@@ -360,6 +360,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'PARAMETER_REGIONALIZATION': ('model', 'fuse', 'parameter_regionalization'),
     'USE_TRANSFER_FUNCTIONS': ('model', 'fuse', 'use_transfer_functions'),
     'TRANSFER_FUNCTION_COEFF_BOUNDS': ('model', 'fuse', 'transfer_function_coeff_bounds'),
+    'FUSE_SOLUTION_METHOD': ('model', 'fuse', 'solution_method'),
+    'FUSE_TIMESTEP_TYPE': ('model', 'fuse', 'timestep_type'),
 
     # Model > GR
     'GR_INSTALL_PATH': ('model', 'gr', 'install_path'),
