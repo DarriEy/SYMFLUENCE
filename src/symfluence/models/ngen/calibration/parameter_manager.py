@@ -503,222 +503,256 @@ class NgenParameterManager(BaseParameterManager):
         3) Optionally update TBL parameters in NOAH/parameters (if mappings supplied).
         """
         try:
-            # ---------- 1) JSON path ----------
             if self.noah_config.exists():
-                with open(self.noah_config, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                updated = 0
-                for k, v in params.items():
-                    if k in cfg:
-                        cfg[k] = v
-                        updated += 1
-                    else:
-                        self.logger.warning(f"NOAH parameter {k} not in JSON config")
-                with open(self.noah_config, 'w', encoding='utf-8') as f:
-                    json.dump(cfg, f, indent=2)
-                self.logger.debug(f"Updated NOAH JSON with {updated} parameters")
-                return True
+                return self._update_noah_json(params)
 
-            # ---------- 2) BMI input fallback ----------
-            # Select the right *.input (prefer the one matching the active id)
             if not self.noah_dir.exists():
                 self.logger.error(f"NOAH directory missing: {self.noah_dir}")
                 return False
 
-            input_candidates = []
-            if getattr(self, "hydro_id", None):
-                input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
-            if not input_candidates:
-                input_candidates = list(self.noah_dir.glob("*.input"))
-
-            if len(input_candidates) == 0:
-                self.logger.error(f"NOAH config not found: no JSON and no *.input under {self.noah_dir}")
-                return False
-            if len(input_candidates) > 1:
-                self.logger.error("Multiple NOAH *.input files; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
+            input_file = self._select_noah_input_file()
+            if input_file is None:
                 return False
 
-            ipath = input_candidates[0]
-            text = ipath.read_text(encoding='utf-8')
-
-            # Map DE param names -> (&section, key) within the NOAH input.
-            # Start with a small set; add more as you choose to calibrate them.
-            keymap = {
-                # de_name : (section, key)
-                "rain_snow_thresh": ("forcing", "rain_snow_thresh"),
-                "ZREF"            : ("forcing", "ZREF"),
-                "dt"              : ("timing", "dt"),  # careful: affects timestep!
-            }
-
-            import re
-            sec_re_template = r"(?s)&\s*{section}\b(.*?)/"
-            key_re_template = r"(^|\n)(\s*{key}\s*=\s*)([^,\n/]+)"
-
-            def replace_in_namelist(txt: str, section: str, key: str, new_val: float) -> tuple[str, bool]:
-                sec_re = re.compile(sec_re_template.format(section=re.escape(section)))
-                m_sec = sec_re.search(txt)
-                if not m_sec:
-                    return txt, False
-                block = m_sec.group(1)
-                key_re = re.compile(key_re_template.format(key=re.escape(key)), re.MULTILINE)
-
-                def _sub(mm):
-                    prefix = mm.group(2)
-                    rhs = mm.group(3).strip()
-                    # Preserve quotes if present (rare for numeric keys, but safe)
-                    if rhs.startswith('"') and rhs.endswith('"'):
-                        return f"{mm.group(1)}{prefix}\"{new_val:.8g}\""
-                    else:
-                        return f"{mm.group(1)}{prefix}{new_val:.8g}"
-
-                new_block, n = key_re.subn(_sub, block, count=1)
-                if n == 0:
-                    return txt, False
-                return txt[:m_sec.start(1)] + new_block + txt[m_sec.end(1):], True
-
-            updated_inputs = 0
-            for p, (sec, key) in keymap.items():
-                if p in params:
-                    text, ok = replace_in_namelist(text, sec, key, params[p])
-                    if ok:
-                        updated_inputs += 1
-                    else:
-                        self.logger.warning(f"NOAH param {p} ({sec}.{key}) not found in {ipath.name}")
-
-            if updated_inputs > 0:
-                ipath.write_text(text, encoding='utf-8')
-                self.logger.debug(f"Updated NOAH input ({ipath.name}) with {updated_inputs} parameter(s)")
+            if self._update_noah_input_namelist(input_file, params):
                 return True
 
-            # ---------- 3) Optional: TBL updates ----------
-            # If nothing changed in *.input, try TBL mappings if provided.
-            # Expect a structure like:
-            # self.noah_tbl_map = {
-            #   "REFKDT": ("MPTABLE.TBL", "REFKDT", 1),    # (file, variable, column_index or None)
-            #   "REFDK" : ("MPTABLE.TBL", "REFDK", 1),
-            #   "SLOPE" : ("SOILPARM.TBL", "SLOPE",  <col>),
-            # }
-            tbl_map: Dict[str, Tuple[str, str, Optional[int]]] = getattr(self, "noah_tbl_map", {})
-
-            if not tbl_map:
-                # Nothing to do is not an error; we may just not be calibrating NOAH today.
-                return True
-
-            # Stage per-run parameters dir (recommended)
-            params_dir = self.noah_dir / "parameters"
-            if not params_dir.exists():
-                self.logger.error(f"NOAH parameters directory missing: {params_dir}")
-                return False
-
-            # Determine isltyp from input file to target SOILPARM row
-            isltyp = 1 # Default
-            try:
-                input_candidates = []
-                if getattr(self, "hydro_id", None):
-                    input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
-                if not input_candidates:
-                    input_candidates = list(self.noah_dir.glob("*.input"))
-
-                if input_candidates:
-                    itxt = input_candidates[0].read_text(encoding='utf-8')
-                    m = re.search(r"isltyp\s*=\s*(\d+)", itxt)
-                    if m:
-                        isltyp = int(m.group(1))
-            except (OSError, IOError, ValueError) as e:
-                self.logger.debug(f"Could not read isltyp from input file, using default: {e}")
-
-            # Implement minimal editor: update numeric for a row that starts with var name or index.
-            def edit_tbl_value(tbl_path: Path, var: str, col: Optional[int], new_val: float) -> bool:
-                if not tbl_path.exists():
-                    return False
-                lines = tbl_path.read_text(encoding='utf-8').splitlines()
-                changed = False
-
-                is_soil_tbl = "SOILPARM" in tbl_path.name
-
-                for i, line in enumerate(lines):
-                    if not line.strip() or line.strip().startswith("#") or line.strip().startswith("'"):
-                        continue
-
-                    parts = line.split()
-                    if not parts: continue
-
-                    if is_soil_tbl:
-                        # Row-based match: first part is the integer index (isltyp)
-                        # We match the index, then replace the column
-                        try:
-                            # Strip trailing comma if present (e.g. "3,")
-                            idx_str = parts[0].rstrip(',')
-                            if int(idx_str) == isltyp:
-                                if col is not None and col < len(parts):
-                                    # Format nicely, scientific for small values
-                                    fmt_val = f"{new_val:.4E}" if new_val < 0.001 else f"{new_val:.6g}"
-                                    parts[col] = fmt_val
-                                    # Reassemble with spacing
-                                    if parts[0].endswith(','):
-                                        # Clean up parts to avoid double commas if re-joining with ', '
-                                        clean_parts = [p.rstrip(',') for p in parts]
-                                        # Keep comma on the index (first part)
-                                        lines[i] = f"{clean_parts[0] + ',':<4} {', '.join(clean_parts[1:])}"
-                                    else:
-                                        lines[i] = " ".join(parts)
-                                    changed = True
-                                    break
-                        except (ValueError, IndexError):
-                            continue
-                    else:
-                        # GENPARM style: match variable name at start
-                        if parts[0].startswith(var):
-                            if col is None:
-                                # Next line usually has the value for GENPARM
-                                if i + 1 < len(lines):
-                                    lines[i+1] = f"{new_val:.8g}"
-                                    changed = True
-                                    break
-                            else:
-                                # SLOPE_DATA format: first line after label is COUNT, then values
-                                # e.g., SLOPE_DATA / 9 / 0.1 / 0.6 / ...
-                                # col=1 means first slope value (skip count line)
-                                if var == "SLOPE_DATA":
-                                    # i+1 is the count line, i+2 onwards are values
-                                    # col is 1-indexed, so target line is i + 1 + col
-                                    target_line = i + 1 + col
-                                    if target_line < len(lines):
-                                        lines[target_line] = f"{new_val:.8g}"
-                                        changed = True
-                                else:
-                                    # Other GENPARM items with column indices
-                                    for j in range(i+1, min(i+10, len(lines))):
-                                        if lines[j].strip() and not lines[j].strip().startswith("'"):
-                                            lines[j] = f"{new_val:.8g}"
-                                            changed = True
-                                            break
-                                if changed: break
-
-                if changed:
-                    tbl_path.write_text("\n".join(lines) + "\n", encoding='utf-8')
-                return changed
-
-            updated_tbls = 0
-            for p, (fname, var, col) in self.noah_tbl_map.items():
-                if p not in params:
-                    continue
-                tbl_path = params_dir / fname
-                if edit_tbl_value(tbl_path, var, col, params[p]):
-                    updated_tbls += 1
-                else:
-                    self.logger.warning(f"NOAH TBL param {p} ({fname}:{var}[{col}]) not found/updated")
-
-            if updated_tbls > 0:
-                self.logger.debug(f"Updated NOAH TBLs with {updated_tbls} parameter(s)")
-                return True
-
-            # Nothing updated; not fatal (maybe NOAH not being calibrated this run)
-            return True
+            return self._update_noah_tbl_parameters(params, input_file)
 
         except Exception as e:
             self.logger.error(f"Error updating NOAH config: {e}")
             return False
+
+    def _update_noah_json(self, params: Dict[str, float]) -> bool:
+        with open(self.noah_config, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+
+        updated = 0
+        for key, value in params.items():
+            if key in cfg:
+                cfg[key] = value
+                updated += 1
+            else:
+                self.logger.warning(f"NOAH parameter {key} not in JSON config")
+
+        with open(self.noah_config, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2)
+
+        self.logger.debug(f"Updated NOAH JSON with {updated} parameters")
+        return True
+
+    def _select_noah_input_file(self) -> Optional[Path]:
+        input_candidates: List[Path] = []
+        if getattr(self, "hydro_id", None):
+            input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
+        if not input_candidates:
+            input_candidates = list(self.noah_dir.glob("*.input"))
+
+        if len(input_candidates) == 0:
+            self.logger.error(f"NOAH config not found: no JSON and no *.input under {self.noah_dir}")
+            return None
+        if len(input_candidates) > 1:
+            self.logger.error("Multiple NOAH *.input files; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
+            return None
+        return input_candidates[0]
+
+    def _replace_noah_namelist_value(
+        self,
+        text: str,
+        section: str,
+        key: str,
+        new_val: float,
+    ) -> Tuple[str, bool]:
+        section_pattern = re.compile(rf"(?s)&\s*{re.escape(section)}\b(.*?)/")
+        section_match = section_pattern.search(text)
+        if not section_match:
+            return text, False
+
+        section_body = section_match.group(1)
+        key_pattern = re.compile(rf"(^|\n)(\s*{re.escape(key)}\s*=\s*)([^,\n/]+)", re.MULTILINE)
+
+        def _render(match):
+            prefix = match.group(2)
+            rhs = match.group(3).strip()
+            if rhs.startswith('"') and rhs.endswith('"'):
+                return f'{match.group(1)}{prefix}"{new_val:.8g}"'
+            return f"{match.group(1)}{prefix}{new_val:.8g}"
+
+        updated_body, replacements = key_pattern.subn(_render, section_body, count=1)
+        if replacements == 0:
+            return text, False
+
+        updated_text = text[:section_match.start(1)] + updated_body + text[section_match.end(1):]
+        return updated_text, True
+
+    def _update_noah_input_namelist(self, input_file: Path, params: Dict[str, float]) -> bool:
+        text = input_file.read_text(encoding='utf-8')
+        keymap = {
+            "rain_snow_thresh": ("forcing", "rain_snow_thresh"),
+            "ZREF": ("forcing", "ZREF"),
+            "dt": ("timing", "dt"),
+        }
+
+        updated_inputs = 0
+        for param_name, (section, key) in keymap.items():
+            if param_name not in params:
+                continue
+
+            text, updated = self._replace_noah_namelist_value(
+                text, section, key, params[param_name]
+            )
+            if updated:
+                updated_inputs += 1
+            else:
+                self.logger.warning(
+                    f"NOAH param {param_name} ({section}.{key}) not found in {input_file.name}"
+                )
+
+        if updated_inputs > 0:
+            input_file.write_text(text, encoding='utf-8')
+            self.logger.debug(
+                f"Updated NOAH input ({input_file.name}) with {updated_inputs} parameter(s)"
+            )
+            return True
+        return False
+
+    def _detect_noah_isltyp(self, input_file: Path) -> int:
+        isltyp = 1
+        try:
+            input_text = input_file.read_text(encoding='utf-8')
+            match = re.search(r"isltyp\s*=\s*(\d+)", input_text)
+            if match:
+                isltyp = int(match.group(1))
+        except (OSError, IOError, ValueError) as e:
+            self.logger.debug(f"Could not read isltyp from input file, using default: {e}")
+        return isltyp
+
+    def _update_soil_table_line(
+        self,
+        lines: List[str],
+        line_idx: int,
+        parts: List[str],
+        col: Optional[int],
+        new_val: float,
+        isltyp: int,
+    ) -> bool:
+        try:
+            idx_str = parts[0].rstrip(',')
+            if int(idx_str) != isltyp or col is None or col >= len(parts):
+                return False
+
+            fmt_val = f"{new_val:.4E}" if new_val < 0.001 else f"{new_val:.6g}"
+            parts[col] = fmt_val
+
+            if parts[0].endswith(','):
+                clean_parts = [p.rstrip(',') for p in parts]
+                lines[line_idx] = f"{clean_parts[0] + ',':<4} {', '.join(clean_parts[1:])}"
+            else:
+                lines[line_idx] = " ".join(parts)
+            return True
+        except (ValueError, IndexError):
+            return False
+
+    def _update_genparm_table_line(
+        self,
+        lines: List[str],
+        line_idx: int,
+        parts: List[str],
+        variable: str,
+        col: Optional[int],
+        new_val: float,
+    ) -> bool:
+        if not parts[0].startswith(variable):
+            return False
+
+        if col is None:
+            target_line = line_idx + 1
+            if target_line < len(lines):
+                lines[target_line] = f"{new_val:.8g}"
+                return True
+            return False
+
+        if variable == "SLOPE_DATA":
+            target_line = line_idx + 1 + col
+            if target_line < len(lines):
+                lines[target_line] = f"{new_val:.8g}"
+                return True
+            return False
+
+        for candidate in range(line_idx + 1, min(line_idx + 10, len(lines))):
+            stripped = lines[candidate].strip()
+            if stripped and not stripped.startswith("'"):
+                lines[candidate] = f"{new_val:.8g}"
+                return True
+        return False
+
+    def _edit_noah_tbl_value(
+        self,
+        table_path: Path,
+        variable: str,
+        col: Optional[int],
+        new_val: float,
+        isltyp: int,
+    ) -> bool:
+        if not table_path.exists():
+            return False
+
+        lines = table_path.read_text(encoding='utf-8').splitlines()
+        is_soil_tbl = "SOILPARM" in table_path.name
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or stripped.startswith("'"):
+                continue
+
+            parts = line.split()
+            if not parts:
+                continue
+
+            changed = False
+            if is_soil_tbl:
+                changed = self._update_soil_table_line(
+                    lines, idx, parts, col, new_val, isltyp
+                )
+            else:
+                changed = self._update_genparm_table_line(
+                    lines, idx, parts, variable, col, new_val
+                )
+
+            if changed:
+                table_path.write_text("\n".join(lines) + "\n", encoding='utf-8')
+                return True
+
+        return False
+
+    def _update_noah_tbl_parameters(self, params: Dict[str, float], input_file: Path) -> bool:
+        tbl_map: Dict[str, Tuple[str, str, Optional[int]]] = getattr(self, "noah_tbl_map", {})
+        if not tbl_map:
+            return True
+
+        params_dir = self.noah_dir / "parameters"
+        if not params_dir.exists():
+            self.logger.error(f"NOAH parameters directory missing: {params_dir}")
+            return False
+
+        isltyp = self._detect_noah_isltyp(input_file)
+        updated_tbls = 0
+
+        for param_name, (fname, variable, col) in tbl_map.items():
+            if param_name not in params:
+                continue
+
+            table_path = params_dir / fname
+            if self._edit_noah_tbl_value(table_path, variable, col, params[param_name], isltyp):
+                updated_tbls += 1
+            else:
+                self.logger.warning(
+                    f"NOAH TBL param {param_name} ({fname}:{variable}[{col}]) not found/updated"
+                )
+
+        if updated_tbls > 0:
+            self.logger.debug(f"Updated NOAH TBLs with {updated_tbls} parameter(s)")
+        return True
 
 
     def _update_pet_config(self, params: Dict[str, float]) -> bool:

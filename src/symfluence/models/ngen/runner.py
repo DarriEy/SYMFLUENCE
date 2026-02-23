@@ -9,7 +9,7 @@ import logging
 import os
 import subprocess  # nosec B404 - Required for running Docker containers and model executables
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, cast
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
@@ -540,6 +540,14 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             return False
 
     def _run_ngen_docker(self, experiment_id: str = None) -> bool:
+        """Wrapper for NGIAB Docker execution implementation."""
+        return self._run_ngen_docker_impl(experiment_id)
+
+    def _run_ngen_docker_impl(self, experiment_id: str = None) -> bool:
+        """Execute NGIAB Docker workflow via the detailed pipeline helper."""
+        return self._run_ngen_docker_pipeline(experiment_id)
+
+    def _run_ngen_docker_pipeline(self, experiment_id: str = None) -> bool:
         """
         Execute NextGen model using NGIAB Docker container.
 
@@ -559,168 +567,41 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             self.logger,
             error_type=ModelExecutionError
         ):
-            # Get experiment info
-            if experiment_id is None:
-                experiment_id = self.experiment_id
+            (
+                experiment_id,
+                output_dir,
+                is_calibration_mode,
+                original_ngen_setup_dir,
+                base_setup_dir,
+                bmi_config_source,
+                domain_name,
+            ) = self._resolve_ngiab_context(experiment_id)
 
-            # Determine output directory
-            if getattr(self, '_ngen_output_dir_override', None):
-                output_dir = self._ngen_output_dir_override
-            else:
-                output_dir = self.get_experiment_output_dir(experiment_id)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Determine if we're in calibration mode (isolated directories)
-            is_calibration_mode = getattr(self, '_ngen_settings_dir_override', None) is not None
-            if is_calibration_mode:
-                # In calibration mode, ngen_setup_dir is the isolated directory with modified BMI configs
-                # But we need the original project's nexus, catchments, and realization files
-                original_ngen_setup_dir = self.project_dir / "settings" / "NGEN"
-                isolated_settings_dir = self._ngen_settings_dir_override
-                self.logger.debug(f"Calibration mode: isolated={isolated_settings_dir}, original={original_ngen_setup_dir}")
-            else:
-                original_ngen_setup_dir = self.ngen_setup_dir
-                isolated_settings_dir = None
-
-            # Get domain name
-            domain_name = self.domain_name
-
-            # NGIAB Docker image
-            ngiab_image = self._get_config_value(lambda: None, default='awiciroh/ciroh-ngen-image:latest', dict_key='NGIAB_IMAGE')
-
-            # Check if Docker is available
-            try:
-                result = subprocess.run(['docker', '--version'], capture_output=True, text=True)  # nosec B603 B607
-                if result.returncode != 0:
-                    self.logger.error("Docker is not available")
-                    return False
-            except FileNotFoundError:
-                self.logger.error("Docker is not installed")
+            ngiab_image = self._get_config_value(
+                lambda: None,
+                default='awiciroh/ciroh-ngen-image:latest',
+                dict_key='NGIAB_IMAGE'
+            )
+            if not self._ensure_ngiab_image(ngiab_image):
                 return False
 
-            # Pull image if not present
-            self.logger.info(f"Checking for NGIAB Docker image: {ngiab_image}")
-            pull_result = subprocess.run(  # nosec B603 B607
-                ['docker', 'image', 'inspect', ngiab_image],
-                capture_output=True
+            ngiab_run_dir, ngiab_config_dir, ngiab_forcings_dir, ngiab_outputs_dir = (
+                self._prepare_ngiab_run_directories(output_dir)
             )
-            if pull_result.returncode != 0:
-                self.logger.info(f"Pulling NGIAB Docker image: {ngiab_image}")
-                pull_result = subprocess.run(  # nosec B603 B607
-                    ['docker', 'pull', ngiab_image],
-                    capture_output=True,
-                    text=True
-                )
-                if pull_result.returncode != 0:
-                    self.logger.error(f"Failed to pull Docker image: {pull_result.stderr}")  # type: ignore[str-bytes-safe]
-                    return False
-
-            # Create NGIAB-compatible directory structure
-            # NGIAB expects: ngen-run/config/, ngen-run/forcings/, ngen-run/outputs/
-            ngiab_run_dir = output_dir / "ngiab_run"
-            ngiab_config_dir = ngiab_run_dir / "config"
-            ngiab_forcings_dir = ngiab_run_dir / "forcings"
-            ngiab_outputs_dir = ngiab_run_dir / "outputs"
-
-            # Clean and create directories
-            if ngiab_run_dir.exists():
-                shutil.rmtree(ngiab_run_dir)
-            ngiab_config_dir.mkdir(parents=True, exist_ok=True)
-            ngiab_forcings_dir.mkdir(parents=True, exist_ok=True)
-            ngiab_outputs_dir.mkdir(parents=True, exist_ok=True)
-
-            # Copy configuration files
             self.logger.info("Preparing NGIAB-compatible directory structure...")
 
-            # In calibration mode, use original_ngen_setup_dir for base files (realization, hydrofabric)
-            # and isolated_settings_dir for modified BMI configs
-            base_setup_dir = original_ngen_setup_dir
-            bmi_config_source = isolated_settings_dir if is_calibration_mode else original_ngen_setup_dir
-
-            # Copy realization config from base setup
-            realization_file = base_setup_dir / "realization_config.json"
-            if realization_file.exists():
-                # Patch realization for NGIAB paths
-                self._create_ngiab_realization(realization_file, ngiab_config_dir, domain_name)
-            else:
-                self.logger.error(f"Realization file not found: {realization_file}")
+            setup_files = self._prepare_ngiab_inputs(
+                base_setup_dir=base_setup_dir,
+                bmi_config_source=bmi_config_source,
+                original_ngen_setup_dir=original_ngen_setup_dir,
+                is_calibration_mode=is_calibration_mode,
+                domain_name=domain_name,
+                ngiab_config_dir=ngiab_config_dir,
+                ngiab_forcings_dir=ngiab_forcings_dir,
+            )
+            if setup_files is None:
                 return False
-
-            # Copy hydrofabric files (catchments and nexus) from base setup
-            catchment_file = base_setup_dir / f"{domain_name}_catchments.geojson"
-            nexus_file = base_setup_dir / "nexus.geojson"
-
-            # Try GeoPackage first, fallback to GeoJSON
-            gpkg_file = base_setup_dir / f"{domain_name}_catchments.gpkg"
-            if gpkg_file.exists():
-                shutil.copy(gpkg_file, ngiab_config_dir / gpkg_file.name)
-                self.logger.debug(f"Copied hydrofabric: {gpkg_file.name}")
-            elif catchment_file.exists():
-                shutil.copy(catchment_file, ngiab_config_dir / catchment_file.name)
-                self.logger.debug(f"Copied catchments: {catchment_file.name}")
-
-            if nexus_file.exists():
-                shutil.copy(nexus_file, ngiab_config_dir / nexus_file.name)
-                self.logger.debug(f"Copied nexus: {nexus_file.name}")
-
-            # Copy BMI config directories (CFE, PET, NOAH, SLOTH)
-            # In calibration mode, use isolated directory which has modified parameters
-            # Note: NGIAB uses NOAH-OWP-M as the directory name for NOAH configs
-            cat_config_dir = ngiab_config_dir / "cat-config"
-            cat_config_dir.mkdir(exist_ok=True)
-
-            # Map source directory names to NGIAB expected names
-            module_mapping = {
-                'CFE': 'CFE',
-                'PET': 'PET',
-                'NOAH': 'NOAH-OWP-M',  # NGIAB expects NOAH-OWP-M
-                'SLOTH': 'SLOTH'
-            }
-
-            for src_name, dst_name in module_mapping.items():
-                src_dir = bmi_config_source / src_name
-                if src_dir.exists():
-                    dst_dir = cat_config_dir / dst_name
-                    shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
-                    self.logger.debug(f"Copied {src_name} configs to {dst_name}")
-
-            # In calibration mode, the isolated directory may not have the NOAH parameters/ subdirectory
-            # Copy it from the original NGEN setup directory if needed
-            if is_calibration_mode:
-                noah_dst_dir = cat_config_dir / 'NOAH-OWP-M'
-                noah_params_src = original_ngen_setup_dir / 'NOAH' / 'parameters'
-                noah_params_dst = noah_dst_dir / 'parameters'
-                if noah_params_src.exists() and not noah_params_dst.exists():
-                    shutil.copytree(noah_params_src, noah_params_dst)
-                    self.logger.debug("Copied NOAH parameters directory from original setup")
-
-            # Patch NOAH config files to use container paths for parameter tables
-            noah_config_dir = cat_config_dir / 'NOAH-OWP-M'
-            if noah_config_dir.exists():
-                container_param_dir = "/ngen/ngen/data/config/cat-config/NOAH-OWP-M/parameters/"
-                for config_file in noah_config_dir.glob('*.input'):
-                    try:
-                        content = config_file.read_text(encoding='utf-8')
-                        # Replace the host parameter_dir path with container path
-                        import re
-                        content = re.sub(
-                            r'parameter_dir\s*=\s*"[^"]*"',
-                            f'parameter_dir      = "{container_param_dir}"',
-                            content
-                        )
-                        config_file.write_text(content, encoding='utf-8')
-                    except Exception as e:
-                        self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
-                self.logger.debug("Patched NOAH config files with container parameter paths")
-
-            # Copy forcing files - forcing is at project_dir/forcing, not settings/forcing
-            forcing_src = self.project_forcing_dir / 'NGEN_input' / 'csv'
-            if forcing_src.exists():
-                for f in forcing_src.glob('*.csv'):
-                    shutil.copy(f, ngiab_forcings_dir / f.name)
-                self.logger.debug(f"Copied forcing files to {ngiab_forcings_dir}")
-            else:
-                self.logger.warning(f"Forcing directory not found: {forcing_src}")
+            gpkg_file, catchment_file = setup_files
 
             # Copy and configure T-Route files for routing
             # Try NetCDF first (NHDNetwork - most reliable), then GeoPackage/GeoJSON (HYFeaturesNetwork)
@@ -1034,9 +915,9 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.info("NGIAB Docker execution completed successfully")
 
                 # Copy outputs from ngiab_outputs_dir to output_dir
-                for f in ngiab_outputs_dir.glob('*'):
-                    if f.is_file():
-                        shutil.copy(f, output_dir / f.name)
+                for output_file in ngiab_outputs_dir.glob('*'):
+                    if output_file.is_file():
+                        shutil.copy(output_file, output_dir / output_file.name)
 
                 # Count outputs
                 output_count = len(list(output_dir.glob('*.csv'))) + len(list(output_dir.glob('*.parquet')))
@@ -1050,6 +931,179 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             except Exception as e:
                 self.logger.error(f"NGIAB Docker execution failed: {e}")
                 return False
+
+    def _resolve_ngiab_context(
+        self,
+        experiment_id: Optional[str],
+    ) -> Tuple[str, Path, bool, Path, Path, Path, str]:
+        if experiment_id is None:
+            experiment_id = self.experiment_id
+
+        if self._ngen_output_dir_override is not None:
+            output_dir = self._ngen_output_dir_override
+        else:
+            output_dir = self.get_experiment_output_dir(experiment_id)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        is_calibration_mode = self._ngen_settings_dir_override is not None
+        if is_calibration_mode:
+            original_ngen_setup_dir = self.project_dir / "settings" / "NGEN"
+            isolated_settings_dir = self._ngen_settings_dir_override
+            if isolated_settings_dir is None:
+                isolated_settings_dir = original_ngen_setup_dir
+            self.logger.debug(
+                f"Calibration mode: isolated={isolated_settings_dir}, original={original_ngen_setup_dir}"
+            )
+        else:
+            original_ngen_setup_dir = cast(Path, self.ngen_setup_dir)
+            isolated_settings_dir = None
+
+        base_setup_dir = original_ngen_setup_dir
+        bmi_config_source: Path = isolated_settings_dir if is_calibration_mode else original_ngen_setup_dir
+        domain_name = str(self.domain_name)
+        return (
+            experiment_id,
+            output_dir,
+            is_calibration_mode,
+            original_ngen_setup_dir,
+            base_setup_dir,
+            bmi_config_source,
+            domain_name,
+        )
+
+    def _ensure_ngiab_image(self, ngiab_image: str) -> bool:
+        try:
+            result = subprocess.run(['docker', '--version'], capture_output=True, text=True)  # nosec B603 B607
+            if result.returncode != 0:
+                self.logger.error("Docker is not available")
+                return False
+        except FileNotFoundError:
+            self.logger.error("Docker is not installed")
+            return False
+
+        self.logger.info(f"Checking for NGIAB Docker image: {ngiab_image}")
+        pull_result = subprocess.run(  # nosec B603 B607
+            ['docker', 'image', 'inspect', ngiab_image],
+            capture_output=True
+        )
+        if pull_result.returncode == 0:
+            return True
+
+        self.logger.info(f"Pulling NGIAB Docker image: {ngiab_image}")
+        pull_result = subprocess.run(  # nosec B603 B607
+            ['docker', 'pull', ngiab_image],
+            capture_output=True,
+            text=True
+        )
+        if pull_result.returncode != 0:
+            self.logger.error(f"Failed to pull Docker image: {pull_result.stderr}")  # type: ignore[str-bytes-safe]
+            return False
+        return True
+
+    def _prepare_ngiab_run_directories(
+        self,
+        output_dir: Path,
+    ) -> Tuple[Path, Path, Path, Path]:
+        import shutil
+
+        ngiab_run_dir = output_dir / "ngiab_run"
+        ngiab_config_dir = ngiab_run_dir / "config"
+        ngiab_forcings_dir = ngiab_run_dir / "forcings"
+        ngiab_outputs_dir = ngiab_run_dir / "outputs"
+
+        if ngiab_run_dir.exists():
+            shutil.rmtree(ngiab_run_dir)
+        ngiab_config_dir.mkdir(parents=True, exist_ok=True)
+        ngiab_forcings_dir.mkdir(parents=True, exist_ok=True)
+        ngiab_outputs_dir.mkdir(parents=True, exist_ok=True)
+        return ngiab_run_dir, ngiab_config_dir, ngiab_forcings_dir, ngiab_outputs_dir
+
+    def _prepare_ngiab_inputs(
+        self,
+        base_setup_dir: Path,
+        bmi_config_source: Path,
+        original_ngen_setup_dir: Path,
+        is_calibration_mode: bool,
+        domain_name: str,
+        ngiab_config_dir: Path,
+        ngiab_forcings_dir: Path,
+    ) -> Optional[Tuple[Path, Path]]:
+        import shutil
+
+        realization_file = base_setup_dir / "realization_config.json"
+        if not realization_file.exists():
+            self.logger.error(f"Realization file not found: {realization_file}")
+            return None
+        self._create_ngiab_realization(realization_file, ngiab_config_dir, domain_name)
+
+        catchment_file = base_setup_dir / f"{domain_name}_catchments.geojson"
+        nexus_file = base_setup_dir / "nexus.geojson"
+        gpkg_file = base_setup_dir / f"{domain_name}_catchments.gpkg"
+
+        if gpkg_file.exists():
+            shutil.copy(gpkg_file, ngiab_config_dir / gpkg_file.name)
+            self.logger.debug(f"Copied hydrofabric: {gpkg_file.name}")
+        elif catchment_file.exists():
+            shutil.copy(catchment_file, ngiab_config_dir / catchment_file.name)
+            self.logger.debug(f"Copied catchments: {catchment_file.name}")
+
+        if nexus_file.exists():
+            shutil.copy(nexus_file, ngiab_config_dir / nexus_file.name)
+            self.logger.debug(f"Copied nexus: {nexus_file.name}")
+
+        cat_config_dir = ngiab_config_dir / "cat-config"
+        cat_config_dir.mkdir(exist_ok=True)
+        module_mapping = {
+            'CFE': 'CFE',
+            'PET': 'PET',
+            'NOAH': 'NOAH-OWP-M',
+            'SLOTH': 'SLOTH'
+        }
+        for src_name, dst_name in module_mapping.items():
+            src_dir = bmi_config_source / src_name
+            if src_dir.exists():
+                dst_dir = cat_config_dir / dst_name
+                shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+                self.logger.debug(f"Copied {src_name} configs to {dst_name}")
+
+        if is_calibration_mode:
+            noah_dst_dir = cat_config_dir / 'NOAH-OWP-M'
+            noah_params_src = original_ngen_setup_dir / 'NOAH' / 'parameters'
+            noah_params_dst = noah_dst_dir / 'parameters'
+            if noah_params_src.exists() and not noah_params_dst.exists():
+                shutil.copytree(noah_params_src, noah_params_dst)
+                self.logger.debug("Copied NOAH parameters directory from original setup")
+
+        self._patch_ngiab_noah_configs(cat_config_dir / 'NOAH-OWP-M')
+
+        forcing_src = self.project_forcing_dir / 'NGEN_input' / 'csv'
+        if forcing_src.exists():
+            for forcing_file in forcing_src.glob('*.csv'):
+                shutil.copy(forcing_file, ngiab_forcings_dir / forcing_file.name)
+            self.logger.debug(f"Copied forcing files to {ngiab_forcings_dir}")
+        else:
+            self.logger.warning(f"Forcing directory not found: {forcing_src}")
+
+        return gpkg_file, catchment_file
+
+    def _patch_ngiab_noah_configs(self, noah_config_dir: Path) -> None:
+        if not noah_config_dir.exists():
+            return
+
+        import re
+        container_param_dir = "/ngen/ngen/data/config/cat-config/NOAH-OWP-M/parameters/"
+        for config_file in noah_config_dir.glob('*.input'):
+            try:
+                content = config_file.read_text(encoding='utf-8')
+                content = re.sub(
+                    r'parameter_dir\s*=\s*"[^"]*"',
+                    f'parameter_dir      = "{container_param_dir}"',
+                    content
+                )
+                config_file.write_text(content, encoding='utf-8')
+            except Exception as e:
+                self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
+        self.logger.debug("Patched NOAH config files with container parameter paths")
 
     def _create_ngiab_realization(self, src_realization: Path, config_dir: Path, domain_name: str):
         """
