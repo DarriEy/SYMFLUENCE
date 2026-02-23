@@ -64,17 +64,17 @@ class TestMESHWorkerParameterApplication:
         params = {'ZSNL': 0.05, 'MANN': 0.15, 'RCHARG': 0.5}
         settings_dir = setup_mesh_directories['forcing_dir']
 
-        with patch('symfluence.optimization.registry.OptimizerRegistry.get_parameter_manager') as mock_get_pm:
+        with patch('symfluence.models.mesh.calibration.worker.R') as mock_R:
             mock_pm_class = MagicMock()
             mock_pm_instance = MagicMock()
             mock_pm_instance.update_model_files.return_value = True
             mock_pm_class.return_value = mock_pm_instance
-            mock_get_pm.return_value = mock_pm_class
+            mock_R.parameter_managers.get.return_value = mock_pm_class
 
             config_dict = mesh_config.model_dump()
             result = worker.apply_parameters(params, settings_dir, config=config_dict)
 
-            mock_get_pm.assert_called_once_with('MESH')
+            mock_R.parameter_managers.get.assert_called_once_with('MESH')
             mock_pm_instance.update_model_files.assert_called_once_with(params)
             assert result is True
 
@@ -87,8 +87,8 @@ class TestMESHWorkerParameterApplication:
         params = {'ZSNL': 0.05}
         settings_dir = setup_mesh_directories['forcing_dir']
 
-        with patch('symfluence.optimization.registry.OptimizerRegistry.get_parameter_manager') as mock_get_pm:
-            mock_get_pm.return_value = None
+        with patch('symfluence.models.mesh.calibration.worker.R') as mock_R:
+            mock_R.parameter_managers.get.return_value = None
 
             result = worker.apply_parameters(params, settings_dir)
 

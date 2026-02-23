@@ -28,12 +28,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Import build instructions to register with BuildInstructionsRegistry
-try:
-    from . import build_instructions
-except ImportError as e:
-    logger.debug(f"Could not import build_instructions: {e}")
-
 # Import SYMFLUENCE integration components
 try:
     from .config import IGNACIOConfig
@@ -68,10 +62,15 @@ __all__ = [
     "IGNACIOResultExtractor",
 ]
 
-# Register result extractor with ModelRegistry
+# Register all IGNACIO components via unified registry
 try:
-    from symfluence.models.registry import ModelRegistry
-    ModelRegistry.register_result_extractor('IGNACIO')(IGNACIOResultExtractor)
+    from symfluence.core.registry import model_manifest
+
+    model_manifest(
+        "IGNACIO",
+        result_extractor=IGNACIOResultExtractor,
+        build_instructions_module="symfluence.models.ignacio.build_instructions",
+    )
 except Exception:  # noqa: BLE001 — optional dependency
     pass
 

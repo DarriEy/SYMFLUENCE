@@ -163,13 +163,13 @@ class ModelOutputOrchestrator:
             except ImportError:
                 self.logger.debug(f"Model plotter module '{model}' not available")
 
-        from symfluence.reporting.plotter_registry import PlotterRegistry
+        from symfluence.core.registries import R
 
         model_upper = model_name.upper()
-        plotter_cls = PlotterRegistry.get_plotter(model_upper)
+        plotter_cls = R.plotters.get(model_upper)
 
         if plotter_cls is None:
-            available = PlotterRegistry.list_plotters()
+            available = R.plotters.keys()
             self.logger.warning(
                 f"No plotter registered for model '{model_name}'. "
                 f"Available plotters: {available}. Use a direct visualize_*_outputs method instead."

@@ -106,30 +106,22 @@ def __getattr__(name: str):
 
 def __dir__():
     """Return available attributes for tab completion."""
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Explicitly register TOPMODEL with the ModelRegistry.
+# Register all TOPMODEL components via unified registry
+_show_experimental_warning()
 
-    Call this function to register the TOPMODEL runner, preprocessor, config adapter,
-    and result extractor with the central ModelRegistry.
-    """
-    _show_experimental_warning()
+from symfluence.core.registry import model_manifest
 
-    from symfluence.models.registry import ModelRegistry
+from .config import TopmodelConfigAdapter
+from .extractor import TopmodelResultExtractor
 
-    from .config import TopmodelConfigAdapter
-    from .extractor import TopmodelResultExtractor
-    from .preprocessor import TopmodelPreProcessor  # Trigger @register_preprocessor decorator
-    from .runner import TopmodelRunner  # Trigger @register_runner decorator
-
-    ModelRegistry.register_config_adapter('TOPMODEL')(TopmodelConfigAdapter)
-    ModelRegistry.register_result_extractor('TOPMODEL')(TopmodelResultExtractor)
-
-
-# Eagerly register TOPMODEL components when module is imported
-register_with_model_registry()
+model_manifest(
+    "TOPMODEL",
+    config_adapter=TopmodelConfigAdapter,
+    result_extractor=TopmodelResultExtractor,
+)
 
 
 # Type hints for IDE support
@@ -208,6 +200,4 @@ __all__ = [
     'TopmodelParameterManager',
     'get_topmodel_calibration_bounds',
 
-    # Registration helper
-    'register_with_model_registry',
 ]

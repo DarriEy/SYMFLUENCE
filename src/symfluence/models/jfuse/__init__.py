@@ -75,30 +75,21 @@ def __getattr__(name: str):
 def __dir__():
     return list(_LAZY_IMPORTS.keys()) + [
         'HAS_JFUSE', 'HAS_JAX', 'JFUSE_VERSION', 'JAX_VERSION',
-        'check_jfuse_installation', 'register_with_model_registry',
+        'check_jfuse_installation',
     ]
 
 
-def register_with_model_registry():
-    """Register jFUSE components with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all jFUSE components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import JFUSEConfigAdapter
-    from .extractor import JFUSEResultExtractor
+from .config import JFUSEConfigAdapter
+from .extractor import JFUSEResultExtractor
 
-    ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
-    ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
-
-    # Import component modules to trigger their @ModelRegistry.register_* decorators
-    from . import (
-        postprocessor,  # noqa: F401 — registers JFUSEPostprocessor
-        preprocessor,  # noqa: F401 — registers JFUSEPreProcessor
-        runner,  # noqa: F401 — registers JFUSERunner
-    )
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "JFUSE",
+    config_adapter=JFUSEConfigAdapter,
+    result_extractor=JFUSEResultExtractor,
+)
 
 
 if TYPE_CHECKING:
@@ -117,5 +108,4 @@ __all__ = [
     'JFUSEWorker', 'JFUSEParameterManager', 'get_jfuse_calibration_bounds',
     'check_jfuse_installation',
     'HAS_JFUSE', 'HAS_JAX',
-    'register_with_model_registry',
 ]

@@ -12,8 +12,8 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base.protocols import ModelPostProcessor, ModelPreProcessor, ModelRunner
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities.routing_decider import RoutingDecider
 
 
@@ -285,7 +285,7 @@ class ModelManager(BaseManager):
                 model_input_dir.mkdir(parents=True, exist_ok=True)
 
                 # Select preprocessor for this model from registry
-                preprocessor_class = ModelRegistry.get_preprocessor(model)
+                preprocessor_class = R.preprocessors.get(model)
 
                 if preprocessor_class is None:
                     # Models that truly don't need preprocessing (e.g., LSTM)
@@ -443,13 +443,13 @@ class ModelManager(BaseManager):
                 error_type=ModelExecutionError
             ):
                 self.logger.info(f"Running model: {model}")
-                runner_class = ModelRegistry.get_runner(model)
+                runner_class = R.runners.get(model)
                 if runner_class is None:
                     self.logger.error(f"Unknown hydrological model or no runner registered: {model}")
                     continue
 
                 runner = runner_class(self.config, self.logger, reporting_manager=self.reporting_manager)
-                method_name = ModelRegistry.get_runner_method(model)
+                method_name = R.runners.meta(model).get("runner_method", "run")
                 if isinstance(runner, ModelRunner) and hasattr(runner, method_name):
                     getattr(runner, method_name)()
                 else:
@@ -500,7 +500,7 @@ class ModelManager(BaseManager):
                 error_type=ModelExecutionError
             ):
                 # Get postprocessor class from registry
-                postprocessor_class = ModelRegistry.get_postprocessor(model)
+                postprocessor_class = R.postprocessors.get(model)
 
                 if postprocessor_class is None:
                     continue
@@ -793,7 +793,7 @@ class ModelManager(BaseManager):
         models = [m.strip() for m in str(models_str).split(',') if m.strip()]
 
         for model in models:
-            visualizer = ModelRegistry.get_visualizer(model)
+            visualizer = R.visualizers.get(model)
             if visualizer:
                 with symfluence_error_handler(
                     f"{model} visualization",

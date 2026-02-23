@@ -1,4 +1,4 @@
-"""Component Registry
+"""Component Registry  (Phase 4 delegation shim)
 
 Registry for hydrological model execution components including preprocessors,
 runners, postprocessors, and visualizers. Implements the Registry Pattern to
@@ -26,10 +26,19 @@ Discovery and Instantiation:
     - Lookup by model name: ComponentRegistry.get_preprocessor('SUMMA')
     - Returns class (not instance) for flexible instantiation
     - Allows downstream code to customize initialization
+
+.. deprecated::
+    This registry is a thin delegation shim around
+    :pydata:`symfluence.core.registries.R`.  Prefer ``R.preprocessors``,
+    ``R.runners``, etc. directly.
 """
 
 import logging
+import warnings
 from typing import TYPE_CHECKING, Callable, Dict, Optional, Type
+
+from symfluence.core.registries import R
+from symfluence.core.registry import _RegistryProxy
 
 if TYPE_CHECKING:
     pass
@@ -76,27 +85,36 @@ class ComponentRegistry:
         if preprocessor_cls:
             preprocessor = preprocessor_cls(config, logger)
             preprocessor.run_preprocessing()
+
+    .. deprecated::
+        Use ``R.preprocessors``, ``R.runners``, ``R.postprocessors``,
+        ``R.visualizers`` from :mod:`symfluence.core.registries` instead.
     """
 
-    _preprocessors: Dict[str, Type] = {}
-    _runners: Dict[str, Type] = {}
-    _postprocessors: Dict[str, Type] = {}
-    _visualizers: Dict[str, Callable] = {}
+    # Backward-compat proxies: read-only views into R.* so that code
+    # accessing e.g. ``ComponentRegistry._preprocessors`` still works.
+    _preprocessors: Dict[str, Type] = _RegistryProxy(R.preprocessors)
+    _runners: Dict[str, Type] = _RegistryProxy(R.runners)
+    _postprocessors: Dict[str, Type] = _RegistryProxy(R.postprocessors)
+    _visualizers: Dict[str, Callable] = _RegistryProxy(R.visualizers)
     _runner_methods: Dict[str, str] = {}
 
-    # Mapping from component kind to (Protocol class, required attributes/methods)
+    # Mapping from component kind to (Protocol class, required attributes/methods).
+    # Only method contracts are checked; MODEL_NAME is a naming convention
+    # resolved at init time (via ModelComponentMixin or _get_model_name()) and
+    # need not be a class-level attribute.
     _PROTOCOL_CHECKS = {
         'preprocessor': (
             'symfluence.models.base.protocols', 'ModelPreProcessor',
-            ['MODEL_NAME', 'run_preprocessing'],
+            ['run_preprocessing'],
         ),
         'runner': (
             'symfluence.models.base.protocols', 'ModelRunner',
-            ['MODEL_NAME', 'run'],
+            ['run'],
         ),
         'postprocessor': (
             'symfluence.models.base.protocols', 'ModelPostProcessor',
-            ['MODEL_NAME', 'extract_streamflow'],
+            ['extract_streamflow'],
         ),
     }
 
@@ -106,7 +124,7 @@ class ComponentRegistry:
 
         Verifies the class has the expected attributes/methods via ``hasattr``
         on the class itself (instantiation-free). Logs a warning if the class
-        appears non-conformant but does **not** raise — registration still
+        appears non-conformant but does **not** raise -- registration still
         succeeds. This is advisory for the paper release, not a hard gate.
         """
         entry = cls._PROTOCOL_CHECKS.get(kind)
@@ -137,10 +155,19 @@ class ComponentRegistry:
             >>> @ComponentRegistry.register_preprocessor('MYMODEL')
             ... class MyPreprocessor:
             ...     def run_preprocessing(self): ...
+
+        .. deprecated::
+            Use ``R.preprocessors.add()`` or ``model_manifest()`` instead.
         """
         def decorator(preprocessor_cls: Type) -> Type:
+            warnings.warn(
+                "ComponentRegistry.register_preprocessor() is deprecated; "
+                "use R.preprocessors.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             cls._validate_protocol_conformance(preprocessor_cls, 'preprocessor', model_name)
-            cls._preprocessors[model_name.upper()] = preprocessor_cls
+            R.preprocessors.add(model_name, preprocessor_cls)
             return preprocessor_cls
         return decorator
 
@@ -161,11 +188,19 @@ class ComponentRegistry:
             >>> @ComponentRegistry.register_runner('MYMODEL', method_name='execute')
             ... class MyRunner:
             ...     def execute(self): ...
+
+        .. deprecated::
+            Use ``R.runners.add()`` or ``model_manifest()`` instead.
         """
         def decorator(runner_cls: Type) -> Type:
+            warnings.warn(
+                "ComponentRegistry.register_runner() is deprecated; "
+                "use R.runners.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             cls._validate_protocol_conformance(runner_cls, 'runner', model_name)
-            cls._runners[model_name.upper()] = runner_cls
-            cls._runner_methods[model_name.upper()] = method_name
+            R.runners.add(model_name, runner_cls, runner_method=method_name)
             return runner_cls
         return decorator
 
@@ -183,10 +218,19 @@ class ComponentRegistry:
             >>> @ComponentRegistry.register_postprocessor('MYMODEL')
             ... class MyPostprocessor:
             ...     def extract_streamflow(self): ...
+
+        .. deprecated::
+            Use ``R.postprocessors.add()`` or ``model_manifest()`` instead.
         """
         def decorator(postprocessor_cls: Type) -> Type:
+            warnings.warn(
+                "ComponentRegistry.register_postprocessor() is deprecated; "
+                "use R.postprocessors.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             cls._validate_protocol_conformance(postprocessor_cls, 'postprocessor', model_name)
-            cls._postprocessors[model_name.upper()] = postprocessor_cls
+            R.postprocessors.add(model_name, postprocessor_cls)
             return postprocessor_cls
         return decorator
 
@@ -207,9 +251,18 @@ class ComponentRegistry:
             >>> @ComponentRegistry.register_visualizer('MYMODEL')
             ... def visualize_mymodel(reporting_manager, config, project_dir, ...):
             ...     pass
+
+        .. deprecated::
+            Use ``R.visualizers.add()`` or ``model_manifest()`` instead.
         """
         def decorator(visualizer_func: Callable) -> Callable:
-            cls._visualizers[model_name.upper()] = visualizer_func
+            warnings.warn(
+                "ComponentRegistry.register_visualizer() is deprecated; "
+                "use R.visualizers.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.visualizers.add(model_name, visualizer_func)
             return visualizer_func
         return decorator
 
@@ -223,7 +276,7 @@ class ComponentRegistry:
         Returns:
             Preprocessor class or None if not registered
         """
-        return cls._preprocessors.get(model_name.upper())
+        return R.preprocessors.get(model_name.upper())
 
     @classmethod
     def get_runner(cls, model_name: str) -> Optional[Type]:
@@ -235,7 +288,7 @@ class ComponentRegistry:
         Returns:
             Runner class or None if not registered
         """
-        return cls._runners.get(model_name.upper())
+        return R.runners.get(model_name.upper())
 
     @classmethod
     def get_postprocessor(cls, model_name: str) -> Optional[Type]:
@@ -247,7 +300,7 @@ class ComponentRegistry:
         Returns:
             Postprocessor class or None if not registered
         """
-        return cls._postprocessors.get(model_name.upper())
+        return R.postprocessors.get(model_name.upper())
 
     @classmethod
     def get_visualizer(cls, model_name: str) -> Optional[Callable]:
@@ -259,7 +312,7 @@ class ComponentRegistry:
         Returns:
             Visualizer function or None if not registered
         """
-        return cls._visualizers.get(model_name.upper())
+        return R.visualizers.get(model_name.upper())
 
     @classmethod
     def get_runner_method(cls, model_name: str) -> str:
@@ -271,7 +324,7 @@ class ComponentRegistry:
         Returns:
             Method name string (defaults to 'run' if not specified)
         """
-        return cls._runner_methods.get(model_name.upper(), "run")
+        return R.runners.meta(model_name.upper()).get("runner_method", "run")
 
     @classmethod
     def list_models(cls) -> list[str]:
@@ -280,7 +333,7 @@ class ComponentRegistry:
         Returns:
             Sorted list of model names that have either a runner or preprocessor
         """
-        return sorted(list(set(cls._runners.keys()) | set(cls._preprocessors.keys())))
+        return sorted(set(R.runners.keys()) | set(R.preprocessors.keys()))
 
     @classmethod
     def get_model_components(cls, model_name: str) -> dict:
@@ -301,11 +354,11 @@ class ComponentRegistry:
         """
         model_name = model_name.upper()
         return {
-            'preprocessor': cls._preprocessors.get(model_name),
-            'runner': cls._runners.get(model_name),
-            'postprocessor': cls._postprocessors.get(model_name),
-            'visualizer': cls._visualizers.get(model_name),
-            'runner_method': cls._runner_methods.get(model_name, 'run'),
+            'preprocessor': R.preprocessors.get(model_name),
+            'runner': R.runners.get(model_name),
+            'postprocessor': R.postprocessors.get(model_name),
+            'visualizer': R.visualizers.get(model_name),
+            'runner_method': R.runners.meta(model_name).get('runner_method', 'run'),
         }
 
     @classmethod
@@ -337,10 +390,10 @@ class ComponentRegistry:
         """
         model_name = model_name.upper()
         components = {
-            'preprocessor': cls._preprocessors.get(model_name),
-            'runner': cls._runners.get(model_name),
-            'postprocessor': cls._postprocessors.get(model_name),
-            'visualizer': cls._visualizers.get(model_name),
+            'preprocessor': R.preprocessors.get(model_name),
+            'runner': R.runners.get(model_name),
+            'postprocessor': R.postprocessors.get(model_name),
+            'visualizer': R.visualizers.get(model_name),
         }
 
         required = ['preprocessor', 'runner', 'postprocessor']

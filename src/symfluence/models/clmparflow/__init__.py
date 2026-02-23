@@ -52,18 +52,14 @@ __all__ = [
     "CLMParFlowPlotter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register CLMParFlow config adapter via unified registry
+# Note: preprocessor, runner, extractor, postprocessor are registered via
+# decorators in their respective component modules.
+from symfluence.core.registry import model_manifest
 
-# Components are registered via decorators in their respective modules:
-# - CLMParFlowPreProcessor: @ModelRegistry.register_preprocessor("CLMPARFLOW")
-# - CLMParFlowRunner: @ModelRegistry.register_runner("CLMPARFLOW")
-# - CLMParFlowResultExtractor: @ModelRegistry.register_result_extractor("CLMPARFLOW")
-# - CLMParFlowPostProcessor: @ModelRegistry.register_postprocessor("CLMPARFLOW")
-# CLMParFlowConfigAdapter needs explicit registration (no decorator)
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_config_adapter('CLMPARFLOW')(CLMParFlowConfigAdapter)
+model_manifest(
+    "CLMPARFLOW",
+    config_adapter=CLMParFlowConfigAdapter,
+    plotter=CLMParFlowPlotter,
+    build_instructions_module="symfluence.models.clmparflow.build_instructions",
+)

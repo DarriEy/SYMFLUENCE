@@ -3,6 +3,8 @@ Acquisition Registry for SYMFLUENCE
 
 Provides a central registry for data acquisition handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
+
+Phase 4 delegation shim: all state lives in ``R.acquisition_handlers``.
 """
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Type, Union
@@ -44,6 +46,7 @@ class AcquisitionRegistry(BaseRegistry):
     All dataset names are normalized to lowercase for case-insensitive matching.
     """
 
+    _r_registry_name = "acquisition_handlers"
     _handlers: Dict[str, Type] = {}
 
     @classmethod

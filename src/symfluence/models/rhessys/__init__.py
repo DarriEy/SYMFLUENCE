@@ -77,21 +77,15 @@ from .runner import RHESSysRunner
 
 __all__ = ["RHESSysPreProcessor", "RHESSysRunner", "RHESSysPostProcessor"]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all RHESSys components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import RHESSysConfigAdapter
-
-ModelRegistry.register_config_adapter('RHESSYS')(RHESSysConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import RHESSysResultExtractor
 
-ModelRegistry.register_result_extractor('RHESSYS')(RHESSysResultExtractor)
+model_manifest(
+    "RHESSYS",
+    config_adapter=RHESSysConfigAdapter,
+    result_extractor=RHESSysResultExtractor,
+    build_instructions_module="symfluence.models.rhessys.build_instructions",
+)

@@ -12,7 +12,7 @@ Architecture:
     aggregating presets from both the registry and legacy definitions.
 """
 
-from symfluence.cli.preset_registry import PresetRegistry
+from symfluence.core.registries import R
 
 # Legacy preset definitions (kept for backward compatibility)
 # New presets should be defined in their model directories using PresetRegistry
@@ -218,8 +218,20 @@ _LEGACY_PRESETS = {
 # This allows existing code that accesses init_presets.PRESETS to continue working
 def _get_merged_presets():
     """Get all presets from both registry and legacy definitions."""
-    # Start with registry presets (from model directories)
-    merged = PresetRegistry.get_all_presets()
+    # Ensure model preset modules are imported to trigger registration
+    from symfluence.core.constants import SupportedModels
+    for model_name in SupportedModels.WITH_PRESETS:
+        try:
+            __import__(f'symfluence.models.{model_name}.init_preset', fromlist=['init_preset'])
+        except ImportError:
+            pass
+
+    # Start with registry presets (from unified registry)
+    merged = {}
+    for k in R.presets.keys():
+        val = R.presets.get(k)
+        # Handle both callable loaders and direct dict presets
+        merged[k] = val() if callable(val) else val
 
     # Add legacy presets that aren't in the registry (for backward compat)
     for name, preset in _LEGACY_PRESETS.items():

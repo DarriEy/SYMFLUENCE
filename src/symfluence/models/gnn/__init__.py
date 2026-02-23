@@ -25,28 +25,20 @@ def __getattr__(name: str):
 
 
 def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Register GNN components with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all GNN components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import GNNConfigAdapter
-    from .extractor import GNNResultExtractor
-    from .postprocessor import GNNPostprocessor
-    from .preprocessor import GNNPreProcessor
-    from .runner import GNNRunner
+from .config import GNNConfigAdapter
+from .extractor import GNNResultExtractor
 
-    ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
-    ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
-    ModelRegistry.register_preprocessor('GNN')(GNNPreProcessor)
-    ModelRegistry.register_runner('GNN', method_name='run_gnn')(GNNRunner)
-    ModelRegistry.register_postprocessor('GNN')(GNNPostprocessor)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "GNN",
+    config_adapter=GNNConfigAdapter,
+    result_extractor=GNNResultExtractor,
+)
 
 
 if TYPE_CHECKING:
@@ -55,4 +47,4 @@ if TYPE_CHECKING:
     from .runner import GNNRunner
 
 
-__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor', 'register_with_model_registry']
+__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor']

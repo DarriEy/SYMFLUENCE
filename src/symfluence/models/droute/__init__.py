@@ -52,8 +52,8 @@ warnings.warn(
 )
 
 # Import core components
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all dRoute components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import DRouteConfigAdapter
 from .extractor import DRouteResultExtractor
@@ -63,22 +63,15 @@ from .postprocessor import DRoutePostProcessor
 from .preprocessor import DRoutePreProcessor
 from .runner import DRouteRunner
 
-ModelRegistry.register_config_adapter('DROUTE')(DRouteConfigAdapter)
-
-# Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('DROUTE')(DRoutePreProcessor)
-
-# Register runner with ModelRegistry
-ModelRegistry.register_runner('DROUTE', method_name='run_droute')(DRouteRunner)
-
-# Register result extractor with ModelRegistry
-ModelRegistry.register_result_extractor('DROUTE')(DRouteResultExtractor)
-
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+model_manifest(
+    "DROUTE",
+    config_adapter=DRouteConfigAdapter,
+    preprocessor=DRoutePreProcessor,
+    runner=DRouteRunner,
+    runner_method="run_droute",
+    result_extractor=DRouteResultExtractor,
+    build_instructions_module="symfluence.models.droute.build_instructions",
+)
 
 __all__ = [
     # Main components

@@ -83,24 +83,17 @@ __all__ = [
     'visualize_ngen'
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all NGEN components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import NgenConfigAdapter
-
-ModelRegistry.register_config_adapter('NGEN')(NgenConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import NGENResultExtractor
+from .plotter import NGENPlotter
 
-ModelRegistry.register_result_extractor('NGEN')(NGENResultExtractor)
-
-# Register plotter with PlotterRegistry (import triggers registration via decorator)
-from .plotter import NGENPlotter  # noqa: F401
+model_manifest(
+    "NGEN",
+    config_adapter=NgenConfigAdapter,
+    result_extractor=NGENResultExtractor,
+    plotter=NGENPlotter,
+    build_instructions_module="symfluence.models.ngen.build_instructions",
+)

@@ -323,6 +323,7 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.modflow.build_instructions',
         'symfluence.models.gsflow.build_instructions',
         'symfluence.models.watflood.build_instructions',
+        'symfluence.models.wflow.build_instructions',
         'symfluence.models.parflow.build_instructions',
         'symfluence.models.clmparflow.build_instructions',
         'symfluence.models.wrfhydro.build_instructions',

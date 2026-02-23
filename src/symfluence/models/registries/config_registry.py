@@ -1,4 +1,4 @@
-"""Config Registry
+"""Config Registry  (Phase 4 delegation shim)
 
 Registry for model configuration management including config adapters, schemas,
 defaults, transformers, and validators. Enables model-specific configuration
@@ -23,10 +23,19 @@ Registration Pattern:
 
     >>> ConfigRegistry.register_config_schema('SUMMA', SUMMAConfig)
     >>> ConfigRegistry.register_config_defaults('SUMMA', {...})
+
+.. deprecated::
+    This registry is a thin delegation shim around
+    :pydata:`symfluence.core.registries.R`.  Prefer ``R.config_adapters``,
+    ``R.config_schemas``, etc. directly.
 """
 
 import logging
+import warnings
 from typing import Any, Callable, Dict, Optional, Tuple, Type
+
+from symfluence.core.registries import R
+from symfluence.core.registry import _RegistryProxy
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +69,20 @@ class ConfigRegistry:
 
         ConfigRegistry.register_config_schema('SUMMA', SUMMAConfig)
         ConfigRegistry.register_config_defaults('SUMMA', {'timestep': 3600})
+
+    .. deprecated::
+        Use ``R.config_adapters``, ``R.config_schemas``,
+        ``R.config_defaults``, ``R.config_transformers``,
+        ``R.config_validators`` from :mod:`symfluence.core.registries` instead.
     """
 
-    _config_adapters: Dict[str, Type] = {}
-    _config_schemas: Dict[str, Type] = {}
-    _config_defaults: Dict[str, Dict[str, Any]] = {}
-    _config_transformers: Dict[str, Dict[str, Tuple[str, ...]]] = {}
-    _config_validators: Dict[str, Callable] = {}
+    # Backward-compat proxies: read-only views into R.* so that code
+    # accessing e.g. ``ConfigRegistry._config_adapters`` still works.
+    _config_adapters: Dict[str, Type] = _RegistryProxy(R.config_adapters)
+    _config_schemas: Dict[str, Type] = _RegistryProxy(R.config_schemas)
+    _config_defaults: Dict[str, Dict[str, Any]] = _RegistryProxy(R.config_defaults)
+    _config_transformers: Dict[str, Dict[str, Tuple[str, ...]]] = _RegistryProxy(R.config_transformers)
+    _config_validators: Dict[str, Callable] = _RegistryProxy(R.config_validators)
 
     @classmethod
     def register_config_adapter(cls, model_name: str) -> Callable[[Type], Type]:
@@ -85,9 +101,18 @@ class ConfigRegistry:
             ... class SUMMAConfigAdapter(ModelConfigAdapter):
             ...     def get_config_schema(self):
             ...         return SUMMAConfig
+
+        .. deprecated::
+            Use ``R.config_adapters.add()`` or ``model_manifest()`` instead.
         """
         def decorator(adapter_cls: Type) -> Type:
-            cls._config_adapters[model_name.upper()] = adapter_cls
+            warnings.warn(
+                "ConfigRegistry.register_config_adapter() is deprecated; "
+                "use R.config_adapters.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.config_adapters.add(model_name, adapter_cls)
             return adapter_cls
         return decorator
 
@@ -101,8 +126,17 @@ class ConfigRegistry:
 
         Returns:
             The registered schema class
+
+        .. deprecated::
+            Use ``R.config_schemas.add()`` or ``model_manifest()`` instead.
         """
-        cls._config_schemas[model_name.upper()] = schema
+        warnings.warn(
+            "ConfigRegistry.register_config_schema() is deprecated; "
+            "use R.config_schemas.add() or model_manifest() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        R.config_schemas.add(model_name, schema)
         return schema
 
     @classmethod
@@ -117,8 +151,17 @@ class ConfigRegistry:
 
         Returns:
             The registered defaults dictionary
+
+        .. deprecated::
+            Use ``R.config_defaults.add()`` or ``model_manifest()`` instead.
         """
-        cls._config_defaults[model_name.upper()] = defaults
+        warnings.warn(
+            "ConfigRegistry.register_config_defaults() is deprecated; "
+            "use R.config_defaults.add() or model_manifest() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        R.config_defaults.add(model_name, defaults)
         return defaults
 
     @classmethod
@@ -133,8 +176,17 @@ class ConfigRegistry:
 
         Returns:
             The registered transformers dictionary
+
+        .. deprecated::
+            Use ``R.config_transformers.add()`` or ``model_manifest()`` instead.
         """
-        cls._config_transformers[model_name.upper()] = transformers
+        warnings.warn(
+            "ConfigRegistry.register_config_transformers() is deprecated; "
+            "use R.config_transformers.add() or model_manifest() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        R.config_transformers.add(model_name, transformers)
         return transformers
 
     @classmethod
@@ -149,8 +201,17 @@ class ConfigRegistry:
 
         Returns:
             The registered validator function
+
+        .. deprecated::
+            Use ``R.config_validators.add()`` or ``model_manifest()`` instead.
         """
-        cls._config_validators[model_name.upper()] = validator
+        warnings.warn(
+            "ConfigRegistry.register_config_validator() is deprecated; "
+            "use R.config_validators.add() or model_manifest() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        R.config_validators.add(model_name, validator)
         return validator
 
     @classmethod
@@ -163,7 +224,7 @@ class ConfigRegistry:
         Returns:
             Config adapter instance or None if not registered
         """
-        adapter_cls = cls._config_adapters.get(model_name.upper())
+        adapter_cls = R.config_adapters.get(model_name.upper())
         return adapter_cls(model_name) if adapter_cls else None
 
     @classmethod
@@ -182,7 +243,7 @@ class ConfigRegistry:
         adapter = cls.get_config_adapter(model_name)
         if adapter:
             return adapter.get_config_schema()
-        return cls._config_schemas.get(model_name.upper())
+        return R.config_schemas.get(model_name.upper())
 
     @classmethod
     def get_config_defaults(cls, model_name: str) -> Dict[str, Any]:
@@ -200,7 +261,7 @@ class ConfigRegistry:
         adapter = cls.get_config_adapter(model_name)
         if adapter:
             return adapter.get_defaults()
-        return cls._config_defaults.get(model_name.upper(), {})
+        return R.config_defaults.get(model_name.upper()) or {}
 
     @classmethod
     def get_config_transformers(
@@ -220,7 +281,7 @@ class ConfigRegistry:
         adapter = cls.get_config_adapter(model_name)
         if adapter:
             return adapter.get_field_transformers()
-        return cls._config_transformers.get(model_name.upper(), {})
+        return R.config_transformers.get(model_name.upper()) or {}
 
     @classmethod
     def get_config_validator(cls, model_name: str) -> Optional[Callable]:
@@ -238,7 +299,7 @@ class ConfigRegistry:
         adapter = cls.get_config_adapter(model_name)
         if adapter:
             return adapter.validate
-        return cls._config_validators.get(model_name.upper())
+        return R.config_validators.get(model_name.upper())
 
     @classmethod
     def validate_model_config(cls, model_name: str, config: Dict[str, Any]) -> None:
@@ -262,7 +323,7 @@ class ConfigRegistry:
         Returns:
             Sorted list of model names with config adapters
         """
-        return sorted(list(cls._config_adapters.keys()))
+        return sorted(R.config_adapters.keys())
 
     @classmethod
     def has_config_adapter(cls, model_name: str) -> bool:
@@ -274,4 +335,4 @@ class ConfigRegistry:
         Returns:
             True if adapter is registered
         """
-        return model_name.upper() in cls._config_adapters
+        return model_name.upper() in R.config_adapters

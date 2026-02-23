@@ -53,8 +53,8 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
         hydrological_model = getattr(config.model, 'hydrological_model', None)
         if hydrological_model:
             try:
-                from symfluence.models.registry import ModelRegistry
-                model_transformers = ModelRegistry.get_config_transformers(
+                from symfluence.models.registries.config_registry import ConfigRegistry
+                model_transformers = ConfigRegistry.get_config_transformers(
                     str(hydrological_model)
                 )
                 if model_transformers:

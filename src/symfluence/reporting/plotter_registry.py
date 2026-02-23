@@ -51,7 +51,10 @@ See Also:
     - AnalysisRegistry: Registry for analysis components
 """
 
+import warnings
 from typing import Any, Callable, Dict, List, Optional, Type
+
+from symfluence.core.registries import R
 
 
 class PlotterRegistry:
@@ -88,9 +91,6 @@ class PlotterRegistry:
         ...     plotter.plot_results(experiment_id='test')
     """
 
-    _plotters: Dict[str, Type] = {}
-    _visualization_funcs: Dict[str, Callable] = {}
-
     @classmethod
     def register_plotter(cls, model_name: str):
         """Decorator to register a plotter class for a model.
@@ -113,7 +113,13 @@ class PlotterRegistry:
                     ...
         """
         def decorator(plotter_cls: Type) -> Type:
-            cls._plotters[model_name.upper()] = plotter_cls
+            warnings.warn(
+                "PlotterRegistry.register_plotter() is deprecated; "
+                "use R.plotters.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.plotters.add(model_name, plotter_cls)
             return plotter_cls
         return decorator
 
@@ -137,8 +143,14 @@ class PlotterRegistry:
                 ...
         """
         def decorator(viz_func: Callable) -> Callable:
+            warnings.warn(
+                "PlotterRegistry.register_visualization() is deprecated; "
+                "use R.visualization_funcs.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             key = f"{model_name.upper()}_{viz_type.upper()}"
-            cls._visualization_funcs[key] = viz_func
+            R.visualization_funcs.add(key, viz_func)
             return viz_func
         return decorator
 
@@ -152,7 +164,7 @@ class PlotterRegistry:
         Returns:
             Plotter class if registered, None otherwise
         """
-        return cls._plotters.get(model_name.upper())
+        return R.plotters.get(model_name.upper())
 
     @classmethod
     def get_visualization(cls, model_name: str, viz_type: str) -> Optional[Callable]:
@@ -166,7 +178,7 @@ class PlotterRegistry:
             Visualization function if registered, None otherwise
         """
         key = f"{model_name.upper()}_{viz_type.upper()}"
-        return cls._visualization_funcs.get(key)
+        return R.visualization_funcs.get(key)
 
     @classmethod
     def list_plotters(cls) -> List[str]:
@@ -175,7 +187,7 @@ class PlotterRegistry:
         Returns:
             Sorted list of model names with plotters
         """
-        return sorted(list(cls._plotters.keys()))
+        return R.plotters.keys()
 
     @classmethod
     def list_visualizations(cls) -> List[str]:
@@ -184,7 +196,7 @@ class PlotterRegistry:
         Returns:
             Sorted list of 'MODEL_VIZTYPE' keys
         """
-        return sorted(list(cls._visualization_funcs.keys()))
+        return R.visualization_funcs.keys()
 
     @classmethod
     def has_plotter(cls, model_name: str) -> bool:
@@ -196,7 +208,7 @@ class PlotterRegistry:
         Returns:
             True if plotter is registered, False otherwise
         """
-        return model_name.upper() in cls._plotters
+        return model_name.upper() in R.plotters
 
     @classmethod
     def has_visualization(cls, model_name: str, viz_type: str) -> bool:
@@ -210,7 +222,7 @@ class PlotterRegistry:
             True if visualization is registered, False otherwise
         """
         key = f"{model_name.upper()}_{viz_type.upper()}"
-        return key in cls._visualization_funcs
+        return key in R.visualization_funcs
 
     @classmethod
     def summary(cls) -> Dict[str, Any]:
@@ -222,12 +234,12 @@ class PlotterRegistry:
         return {
             'plotters': cls.list_plotters(),
             'visualizations': cls.list_visualizations(),
-            'plotter_count': len(cls._plotters),
-            'visualization_count': len(cls._visualization_funcs)
+            'plotter_count': len(R.plotters),
+            'visualization_count': len(R.visualization_funcs)
         }
 
     @classmethod
     def clear(cls) -> None:
         """Clear all registrations. Primarily for testing."""
-        cls._plotters.clear()
-        cls._visualization_funcs.clear()
+        R.plotters.clear()
+        R.visualization_funcs.clear()

@@ -81,24 +81,17 @@ __all__ = [
     'HYPEGeoDataManager',
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all HYPE components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import HYPEConfigAdapter
-
-ModelRegistry.register_config_adapter('HYPE')(HYPEConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import HYPEResultExtractor
+from .plotter import HYPEPlotter
 
-ModelRegistry.register_result_extractor('HYPE')(HYPEResultExtractor)
-
-# Register plotter with PlotterRegistry (import triggers registration via decorator)
-from .plotter import HYPEPlotter  # noqa: F401
+model_manifest(
+    "HYPE",
+    config_adapter=HYPEConfigAdapter,
+    result_extractor=HYPEResultExtractor,
+    plotter=HYPEPlotter,
+    build_instructions_module="symfluence.models.hype.build_instructions",
+)

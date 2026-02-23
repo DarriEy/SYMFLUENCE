@@ -80,27 +80,17 @@ __all__ = [
     "MHMConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all MHM components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('MHM')(MHMPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('MHM')(MHMRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('MHM')(MHMResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('MHM')(MHMConfigAdapter)
+model_manifest(
+    "MHM",
+    preprocessor=MHMPreProcessor,
+    runner=MHMRunner,
+    result_extractor=MHMResultExtractor,
+    config_adapter=MHMConfigAdapter,
+    build_instructions_module="symfluence.models.mhm.build_instructions",
+)
 
 # Register calibration components with OptimizerRegistry
 try:

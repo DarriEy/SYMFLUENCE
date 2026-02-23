@@ -37,29 +37,22 @@ def __getattr__(name: str):
 
 
 def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + list(_LAZY_ALIASES.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys()) + list(_LAZY_ALIASES.keys())
 
 
-def register_with_model_registry():
-    """Register LSTM components with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all LSTM components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import LSTMConfigAdapter
-    from .extractor import LSTMResultExtractor
-    from .plotter import LSTMPlotter  # noqa: F401 — triggers decorator registration
-    from .postprocessor import LSTMPostprocessor
-    from .preprocessor import LSTMPreProcessor
-    from .runner import LSTMRunner
+from .config import LSTMConfigAdapter
+from .extractor import LSTMResultExtractor
+from .plotter import LSTMPlotter
 
-    ModelRegistry.register_config_adapter('LSTM')(LSTMConfigAdapter)
-    ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
-    ModelRegistry.register_preprocessor('LSTM')(LSTMPreProcessor)
-    ModelRegistry.register_runner('LSTM', method_name='run_lstm')(LSTMRunner)
-    ModelRegistry.register_postprocessor('LSTM')(LSTMPostprocessor)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "LSTM",
+    config_adapter=LSTMConfigAdapter,
+    result_extractor=LSTMResultExtractor,
+    plotter=LSTMPlotter,
+)
 
 
 if TYPE_CHECKING:
@@ -74,5 +67,4 @@ __all__ = [
     'LSTMRunner', 'LSTMPreProcessor', 'LSTMPostprocessor', 'LSTMModel',
     'visualize_lstm',
     'FLASH', 'FlashRunner', 'FlashPreProcessor', 'FlashPostprocessor',
-    'register_with_model_registry',
 ]

@@ -13,15 +13,14 @@ import pandas as pd
 
 from symfluence.core.exceptions import EvaluationError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.core.registries import R
 from symfluence.data.observation.paths import (
     first_existing_path,
     streamflow_observation_candidates,
     tws_default_observation_path,
     tws_observation_candidates,
 )
-from symfluence.evaluation.analysis_registry import AnalysisRegistry
 from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor
-from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer
 
 if TYPE_CHECKING:
@@ -408,7 +407,7 @@ class AnalysisManager(ConfigurableMixin):
                 model = model.strip().upper()
 
                 # Check registry for model-specific sensitivity analyzer
-                analyzer_cls = AnalysisRegistry.get_sensitivity_analyzer(model)
+                analyzer_cls = R.sensitivity_analyzers.get(model)
 
                 if analyzer_cls:
                     # Use registered model-specific analyzer
@@ -488,11 +487,11 @@ class AnalysisManager(ConfigurableMixin):
         except ImportError:
             pass
 
-        analyzer_cls = AnalysisRegistry.get_koopman_analyzer(analyzer_name)
+        analyzer_cls = R.koopman_analyzers.get(analyzer_name)
         if analyzer_cls is None:
             self.logger.error(
                 f"No Koopman analyzer registered as '{analyzer_name}'. "
-                f"Available: {AnalysisRegistry.list_koopman_analyzers()}"
+                f"Available: {R.koopman_analyzers.keys()}"
             )
             return None
 
@@ -563,7 +562,7 @@ class AnalysisManager(ConfigurableMixin):
                 model = model.strip().upper()
 
                 # Check registry for model-specific decision analyzer
-                analyzer_cls = AnalysisRegistry.get_decision_analyzer(model)
+                analyzer_cls = R.decision_analyzers.get(model)
 
                 if analyzer_cls:
                     self.logger.info(f"Running {model} structure ensemble analysis")
@@ -584,7 +583,7 @@ class AnalysisManager(ConfigurableMixin):
                         'best_combinations': best_combinations
                     }
                 else:
-                    available = AnalysisRegistry.list_decision_analyzers()
+                    available = R.decision_analyzers.keys()
                     self.logger.info(
                         f"No decision analyzer registered for model: {model}. "
                         f"Available analyzers: {available}"
@@ -677,9 +676,8 @@ class AnalysisManager(ConfigurableMixin):
             # For multivariate, the var_type might be SNOW, but we need to know if it's SWE or SCA
             # We can use the mapping from config if provided
             target = var_type
-            evaluator = EvaluationRegistry.get_evaluator(
-                var_type, self.config, self.logger, self.project_dir, target=target
-            )
+            evaluator_cls = R.evaluators.get(var_type.upper())
+            evaluator = evaluator_cls(self.config, self.project_dir, self.logger, target=target) if evaluator_cls else None
             if evaluator:
                 self.logger.info(f"Evaluating {var_type}")
                 # calculate_metrics now handles aligning and filtering

@@ -7,6 +7,8 @@ to self-register and be dynamically instantiated by type string. This decouples 
 implementations from the core acquisition system and enables easy addition of new
 data sources without modifying the registry code.
 
+Phase 4 delegation shim: all state lives in ``R.observation_handlers``.
+
 Example:
     Register a custom handler:
 
@@ -46,6 +48,7 @@ class ObservationRegistry(HandlerRegistry["BaseObservationHandler"]):
         _handlers (dict): Maps observation type strings (lowercase) to handler classes.
     """
 
+    _r_registry_name = "observation_handlers"
     _handlers = {}  # Separate dict for this registry subclass
 
     @classmethod

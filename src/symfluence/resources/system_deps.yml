@@ -353,6 +353,23 @@ dependencies:
       msys2: perl
       hpc_module: perl
 
+  julia:
+    display_name: Julia
+    category: optional
+    required: false
+    needed_for: [wflow]
+    check:
+      command: julia
+      version_flag: "--version"
+      version_regex: "julia version (\\d+\\.\\d+\\.\\d+)"
+    packages:
+      apt: julia
+      dnf: julia
+      brew: julia
+      conda: julia
+      hpc_module: julia
+    notes: "Required for Wflow (wflow_sbm). Install from https://julialang.org/downloads/"
+
 # ── Tool Requirements ──────────────────────────────────────────────────
 #
 # Maps each buildable tool to its system dependency requirements.
@@ -447,4 +464,8 @@ tool_requirements:
 
   enzyme:
     required: [cmake, gcc, llvm]
+    optional: []
+
+  wflow:
+    required: [julia]
     optional: []

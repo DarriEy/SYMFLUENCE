@@ -169,15 +169,15 @@ def generate_flat_to_nested_map(
     # Add model-specific transformer overrides if requested
     if include_model_overrides:
         try:
-            from symfluence.models.registry import ModelRegistry
+            from symfluence.models.registries.config_registry import ConfigRegistry
 
-            # Get all registered model names
-            model_names = ModelRegistry.list_models()
+            # Get all registered model names from config adapters
+            model_names = list(ConfigRegistry._config_adapters.keys())
 
             for model_name in model_names:
                 try:
-                    # Get model-specific transformers from config adapter
-                    model_transformers = ModelRegistry.get_config_transformers(model_name)
+                    # Get model-specific transformers via adapter fallback
+                    model_transformers = ConfigRegistry.get_config_transformers(model_name)
 
                     if model_transformers:
                         # Override base mappings with model-specific ones
@@ -190,8 +190,8 @@ def generate_flat_to_nested_map(
                     logger.debug(f"No custom transformers for {model_name}: {e}")
 
         except ImportError as e:
-            # ModelRegistry not available - this is fine during early initialization
-            logger.debug(f"ModelRegistry not available for override merging: {e}")
+            # ConfigRegistry not available - this is fine during early initialization
+            logger.debug(f"ConfigRegistry not available for override merging: {e}")
 
     return mapping
 

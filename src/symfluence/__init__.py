@@ -180,3 +180,12 @@ try:
     pyproj.transformer.Transformer.transform = _warnless_transform
 except ImportError:
     pass
+
+# ============================================================================
+# Unified registry bootstrap
+# Populate static registrations (delineation aliases, BMI lazy imports, etc.)
+# before model modules are imported.
+# ============================================================================
+from symfluence.core._bootstrap import bootstrap as _bootstrap_registries
+
+_bootstrap_registries()

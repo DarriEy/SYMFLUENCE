@@ -23,7 +23,10 @@ Example:
     >>> objective = ObjectiveRegistry.get_objective('CUSTOM_OBJECTIVE', config, logger)
     >>> score = objective.calculate(eval_results)
 """
-from typing import TYPE_CHECKING, Any, Dict, Optional, Type
+import warnings
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+from symfluence.core.registries import R
 
 if TYPE_CHECKING:
     from .base import BaseObjective
@@ -38,7 +41,6 @@ class ObjectiveRegistry:
     Class Attributes:
         _handlers (dict): Maps objective type strings (uppercase) to objective classes.
     """
-    _handlers: Dict[str, Type] = {}
 
     @classmethod
     def register(cls, objective_type: str):
@@ -61,7 +63,13 @@ class ObjectiveRegistry:
             ...     pass
         """
         def decorator(handler_class):
-            cls._handlers[objective_type.upper()] = handler_class
+            warnings.warn(
+                "ObjectiveRegistry.register() is deprecated; "
+                "use R.objectives.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.objectives.add(objective_type, handler_class)
             return handler_class
         return decorator
 
@@ -96,11 +104,9 @@ class ObjectiveRegistry:
             >>> if objective is None:
             ...     raise ValueError("Objective not found")
         """
-        obj_type_upper = objective_type.upper()
-        if obj_type_upper not in cls._handlers:
+        handler_class = R.objectives.get(objective_type.upper())
+        if handler_class is None:
             return None
-
-        handler_class = cls._handlers[obj_type_upper]
         return handler_class(config, logger)
 
     @classmethod
@@ -114,4 +120,4 @@ class ObjectiveRegistry:
             >>> ObjectiveRegistry.list_objectives()
             ['MULTIVARIATE', 'SINGLE_VARIABLE']
         """
-        return sorted(list(cls._handlers.keys()))
+        return R.objectives.keys()

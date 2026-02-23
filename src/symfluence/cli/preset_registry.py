@@ -4,10 +4,16 @@ Preset Registry for SYMFLUENCE initialization presets.
 This module provides a registry pattern for model-specific presets,
 enabling each model to register its own initialization presets without
 hardcoding them in the central init_presets.py file.
+
+Phase 4 delegation shim: resolved presets live in ``R.presets``.  The
+``_preset_loaders`` dict is kept locally for lazy loader execution.
 """
 
 import logging
+import warnings
 from typing import Any, Callable, Dict, List
+
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +35,8 @@ class PresetRegistry:
         ...     }
     """
 
-    _presets: Dict[str, Dict[str, Any]] = {}
+    # Keep loaders locally for lazy execution; resolved values live in
+    # R.presets.
     _preset_loaders: Dict[str, Callable[[], Dict[str, Any]]] = {}
 
     @classmethod
@@ -49,8 +56,15 @@ class PresetRegistry:
             ...     return {'description': '...', 'settings': {...}}
         """
         def decorator(loader_func: Callable[[], Dict[str, Any]]) -> Callable:
+            warnings.warn(
+                "PresetRegistry.register_preset() is deprecated; "
+                "use R.presets.add() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             cls._preset_loaders[name] = loader_func
             logger.debug(f"Registered preset: {name}")
+            R.presets.add(name, loader_func)
             return loader_func
         return decorator
 
@@ -63,8 +77,14 @@ class PresetRegistry:
             name: Preset name
             preset: Preset configuration dictionary
         """
-        cls._presets[name] = preset
+        warnings.warn(
+            "PresetRegistry.register_preset_dict() is deprecated; "
+            "use R.presets.add() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         logger.debug(f"Registered preset dict: {name}")
+        R.presets.add(name, preset)
 
     @classmethod
     def get_preset(cls, name: str) -> Dict[str, Any]:
@@ -83,13 +103,21 @@ class PresetRegistry:
         # Ensure presets are loaded
         cls._import_model_presets()
 
-        # Check directly registered presets first
-        if name in cls._presets:
-            return cls._presets[name].copy()
+        # Check unified registry
+        value = R.presets.get(name)
+        if value is not None:
+            # If stored value is a callable loader, execute it
+            if callable(value) and not isinstance(value, type):
+                result = value()
+                R.presets.add(name, result)
+                return result.copy() if isinstance(result, dict) else result
+            return value.copy() if isinstance(value, dict) else value
 
-        # Check loader functions
+        # Check local loaders
         if name in cls._preset_loaders:
-            return cls._preset_loaders[name]()
+            result = cls._preset_loaders[name]()
+            R.presets.add(name, result)
+            return result
 
         available = sorted(cls.list_presets())
         raise ValueError(
@@ -105,7 +133,9 @@ class PresetRegistry:
             List of preset names
         """
         cls._import_model_presets()
-        return sorted(set(cls._presets.keys()) | set(cls._preset_loaders.keys()))
+        all_names = set(R.presets.keys())
+        all_names |= set(cls._preset_loaders.keys())
+        return sorted(all_names)
 
     @classmethod
     def get_all_presets(cls) -> Dict[str, Dict[str, Any]]:
@@ -118,13 +148,29 @@ class PresetRegistry:
         cls._import_model_presets()
         result = {}
 
-        # Add directly registered presets
-        result.update(cls._presets)
-
-        # Add loader-based presets
+        # Resolve any local loaders not yet in R.presets
         for name, loader in cls._preset_loaders.items():
-            if name not in result:
-                result[name] = loader()
+            if R.presets.get(name) is None or (
+                callable(R.presets.get(name))
+                and not isinstance(R.presets.get(name), type)
+            ):
+                try:
+                    resolved = loader()
+                    R.presets.add(name, resolved)
+                except Exception:  # noqa: BLE001
+                    logger.debug(f"Failed to load preset: {name}")
+
+        # Build result from R.presets
+        for key, value in R.presets.items():
+            if callable(value) and not isinstance(value, type):
+                try:
+                    resolved = value()
+                    R.presets.add(key, resolved)
+                    result[key] = resolved
+                except Exception:  # noqa: BLE001
+                    logger.debug(f"Failed to load preset: {key}")
+            else:
+                result[key] = value
 
         return result
 

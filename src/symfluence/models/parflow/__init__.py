@@ -48,18 +48,14 @@ __all__ = [
     "ParFlowPlotter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register ParFlow config adapter via unified registry
+# Note: preprocessor, runner, extractor, postprocessor are registered via
+# decorators in their respective component modules.
+from symfluence.core.registry import model_manifest
 
-# Components are registered via decorators in their respective modules:
-# - ParFlowPreProcessor: @ModelRegistry.register_preprocessor("PARFLOW")
-# - ParFlowRunner: @ModelRegistry.register_runner("PARFLOW")
-# - ParFlowResultExtractor: @ModelRegistry.register_result_extractor("PARFLOW")
-# - ParFlowPostProcessor: @ModelRegistry.register_postprocessor("PARFLOW")
-# ParFlowConfigAdapter needs explicit registration (no decorator)
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_config_adapter('PARFLOW')(ParFlowConfigAdapter)
+model_manifest(
+    "PARFLOW",
+    config_adapter=ParFlowConfigAdapter,
+    plotter=ParFlowPlotter,
+    build_instructions_module="symfluence.models.parflow.build_instructions",
+)

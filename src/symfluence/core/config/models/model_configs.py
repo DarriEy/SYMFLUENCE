@@ -30,6 +30,7 @@ from .model_configs_hydrology import (
     TOPMODELConfig,
     VICConfig,
     WATFLOODConfig,
+    WflowConfig,
     WRFHydroConfig,
 )
 from .model_configs_integrated import (
@@ -73,6 +74,7 @@ HYDROLOGICAL_MODEL_REGISTRY: dict[str, ConfigRegistryEntry] = {
     'HYDROGEOSPHERE': ('hydrogeosphere', HydroGeoSphereConfig),
     'GSFLOW': ('gsflow', GSFLOWConfig),
     'WATFLOOD': ('watflood', WATFLOODConfig),
+    'WFLOW': ('wflow', WflowConfig),
 }
 
 ROUTING_MODEL_REGISTRY: dict[str, ConfigRegistryEntry] = {
@@ -136,6 +138,7 @@ class ModelConfig(BaseModel):
     hydrogeosphere: Optional[HydroGeoSphereConfig] = Field(default=None)
     gsflow: Optional[GSFLOWConfig] = Field(default=None)
     watflood: Optional[WATFLOODConfig] = Field(default=None)
+    wflow: Optional[WflowConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -235,4 +238,5 @@ __all__ = [
     'PRMSConfig',
     'GSFLOWConfig',
     'WATFLOODConfig',
+    'WflowConfig',
 ]

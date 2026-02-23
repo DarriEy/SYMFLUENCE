@@ -66,7 +66,7 @@ EXTERNAL_TOOLS = [
     'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials', 'openfews',
     'vic', 'clm', 'swat', 'mhm', 'crhm', 'prms', 'modflow', 'gsflow',
     'watflood', 'parflow', 'wrfhydro', 'pihm',
-    'cfuse', 'droute', 'troute', 'wmfire', 'ignacio',
+    'cfuse', 'droute', 'troute', 'wmfire', 'ignacio', 'wflow',
 ]
 
 # Hydrological models

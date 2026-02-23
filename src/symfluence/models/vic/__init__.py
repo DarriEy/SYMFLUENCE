@@ -77,27 +77,17 @@ __all__ = [
     "VICConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all VIC components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('VIC')(VICPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('VIC')(VICRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('VIC')(VICResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('VIC')(VICConfigAdapter)
+model_manifest(
+    "VIC",
+    preprocessor=VICPreProcessor,
+    runner=VICRunner,
+    result_extractor=VICResultExtractor,
+    config_adapter=VICConfigAdapter,
+    build_instructions_module="symfluence.models.vic.build_instructions",
+)
 
 # Register calibration components with OptimizerRegistry
 try:

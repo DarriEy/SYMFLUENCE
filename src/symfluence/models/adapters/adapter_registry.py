@@ -6,7 +6,10 @@ enabling dynamic discovery and instantiation without hardcoded model names.
 """
 
 import logging
+import warnings
 from typing import Any, Callable, Dict, Optional, Type
+
+from symfluence.core.registries import R
 
 from .base_adapter import ForcingAdapter
 
@@ -28,8 +31,6 @@ class ForcingAdapterRegistry:
         >>> adapter = ForcingAdapterRegistry.get_adapter('SUMMA', config)
     """
 
-    _adapters: Dict[str, Type[ForcingAdapter]] = {}
-
     @classmethod
     def register_adapter(cls, model_name: str) -> Callable[[Type[ForcingAdapter]], Type[ForcingAdapter]]:
         """
@@ -47,8 +48,13 @@ class ForcingAdapterRegistry:
             ...     pass
         """
         def decorator(adapter_cls: Type[ForcingAdapter]) -> Type[ForcingAdapter]:
-            key = model_name.upper()
-            cls._adapters[key] = adapter_cls
+            warnings.warn(
+                "ForcingAdapterRegistry.register_adapter() is deprecated; "
+                "use R.forcing_adapters.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.forcing_adapters.add(model_name, adapter_cls)
             logger.debug(f"Registered forcing adapter for model: {model_name}")
             return adapter_cls
         return decorator
@@ -78,10 +84,10 @@ class ForcingAdapterRegistry:
         cls._import_adapters()
 
         key = model_name.upper()
-        adapter_cls = cls._adapters.get(key)
+        adapter_cls = R.forcing_adapters.get(key)
 
         if adapter_cls is None:
-            available = sorted(cls._adapters.keys())
+            available = R.forcing_adapters.keys()
             raise ValueError(
                 f"No forcing adapter registered for model '{model_name}'. "
                 f"Available adapters: {available}"
@@ -101,7 +107,7 @@ class ForcingAdapterRegistry:
             Adapter class, or None if not registered
         """
         cls._import_adapters()
-        return cls._adapters.get(model_name.upper())
+        return R.forcing_adapters.get(model_name.upper())
 
     @classmethod
     def is_registered(cls, model_name: str) -> bool:
@@ -115,7 +121,7 @@ class ForcingAdapterRegistry:
             True if adapter is registered
         """
         cls._import_adapters()
-        return model_name.upper() in cls._adapters
+        return model_name.upper() in R.forcing_adapters
 
     @classmethod
     def get_registered_models(cls) -> list:
@@ -126,7 +132,7 @@ class ForcingAdapterRegistry:
             List of model names
         """
         cls._import_adapters()
-        return sorted(cls._adapters.keys())
+        return R.forcing_adapters.keys()
 
     @classmethod
     def _import_adapters(cls) -> None:
