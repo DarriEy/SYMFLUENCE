@@ -106,8 +106,8 @@ class ProjectContextMixin(ConfigMixin):
 
     @property
     def project_shapefiles_dir(self) -> Path:
-        """Directory for shapefiles: {project_dir}/shapefiles"""
-        return self.project_dir / 'shapefiles'
+        """Directory for shapefiles: {project_dir}/data/shapefiles (or legacy {project_dir}/shapefiles)"""
+        return resolve_data_subdir(self.project_dir, 'shapefiles')
 
     @property
     def project_attributes_dir(self) -> Path:
