@@ -5,6 +5,7 @@ Called once from ``symfluence/__init__.py`` to populate:
 * Delineation strategy aliases
 * BMI adapter lazy imports and aliases
 * Metric registry entries with aliases
+* External plugins discovered via ``importlib.metadata`` entry points
 
 This module should be kept lightweight — no heavy dependencies.
 """
@@ -16,6 +17,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 _bootstrapped = False
+
+#: Entry-point group that external packages use to register plugins.
+PLUGIN_ENTRY_POINT_GROUP = "symfluence.plugins"
 
 
 def bootstrap() -> None:
@@ -30,6 +34,7 @@ def bootstrap() -> None:
     _bootstrap_delineation_aliases(R)
     _bootstrap_bmi_adapters(R)
     _bootstrap_metrics(R)
+    _discover_plugins()
 
 
 def _bootstrap_delineation_aliases(R: type) -> None:  # noqa: N803
@@ -110,3 +115,61 @@ def _bootstrap_metrics(R: type) -> None:  # noqa: N803
     }
     for alias, canonical in _aliases.items():
         R.metrics.alias(alias, canonical)
+
+
+# ======================================================================
+# External plugin discovery via entry points
+# ======================================================================
+
+
+def _discover_plugins() -> None:
+    """Load external plugins registered under the ``symfluence.plugins`` group.
+
+    Each entry point should reference a callable (typically a function)
+    that performs its own registrations using ``R.*.add()``,
+    ``model_manifest()``, or any other registry API.  The callable is
+    invoked with no arguments.
+
+    A failing plugin is logged and skipped — it never takes down the
+    framework.
+
+    **How to write a plugin** (in the external package's ``pyproject.toml``)::
+
+        [project.entry-points."symfluence.plugins"]
+        my_model = "my_package:register"
+
+    Where ``my_package.register`` is a zero-arg function::
+
+        # my_package/__init__.py
+        def register():
+            from symfluence.core.registries import R
+            from .runner import MyRunner
+            R.runners.add("MY_MODEL", MyRunner)
+    """
+    import sys
+
+    if sys.version_info >= (3, 12):
+        from importlib.metadata import entry_points
+    else:
+        # Python 3.9-3.11: entry_points() accepts the *group* keyword
+        # starting from 3.9, but the return type changed in 3.12.
+        from importlib.metadata import entry_points
+
+    try:
+        eps = entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
+    except TypeError:
+        # Very old importlib_metadata fallback (shouldn't happen on 3.11+)
+        eps = entry_points().get(PLUGIN_ENTRY_POINT_GROUP, [])  # type: ignore[assignment]
+
+    for ep in eps:
+        try:
+            plugin_fn = ep.load()
+            plugin_fn()
+            logger.debug("Loaded plugin %r from %s", ep.name, ep.value)
+        except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
+            logger.warning(
+                "Failed to load symfluence plugin %r (%s); skipping.",
+                ep.name,
+                ep.value,
+                exc_info=True,
+            )
