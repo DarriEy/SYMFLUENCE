@@ -284,6 +284,42 @@ def get_earthdata_credentials(
     )
 
 
+def resolve_earthdata_token(
+    config: Dict[str, Any] = None
+) -> Optional[str]:
+    """
+    Resolve a NASA Earthdata Bearer token from environment or config.
+
+    NASA Earthdata supports token-based authentication as an alternative to
+    username/password credentials.  Tokens can be generated at
+    https://urs.earthdata.nasa.gov/users/<user>/user_tokens
+
+    Checks in order:
+    1. EARTHDATA_TOKEN environment variable
+    2. Config dictionary (EARTHDATA_TOKEN key)
+
+    Args:
+        config: Optional config dictionary to check
+
+    Returns:
+        Token string, or None if not found
+    """
+    # 1. Environment variable
+    token = os.environ.get('EARTHDATA_TOKEN')
+    if token:
+        logger.debug("Using Earthdata token from EARTHDATA_TOKEN env var")
+        return token
+
+    # 2. Config dictionary
+    if config:
+        token = config.get('EARTHDATA_TOKEN')
+        if token:
+            logger.debug("Using Earthdata token from config")
+            return token
+
+    return None
+
+
 def get_cds_credentials(
     config: Dict[str, Any] = None
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -322,5 +358,6 @@ __all__ = [
     'atomic_write',
     'resolve_credentials',
     'get_earthdata_credentials',
+    'resolve_earthdata_token',
     'get_cds_credentials',
 ]

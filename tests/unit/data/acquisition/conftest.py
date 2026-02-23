@@ -309,7 +309,7 @@ def clean_environment():
     # Save original values
     original_env = {}
     env_vars = [
-        "EARTHDATA_USERNAME", "EARTHDATA_PASSWORD",
+        "EARTHDATA_USERNAME", "EARTHDATA_PASSWORD", "EARTHDATA_TOKEN",
         "CDSAPI_URL", "CDSAPI_KEY",
     ]
 

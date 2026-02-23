@@ -482,6 +482,62 @@ class TestGetEarthdataCredentials:
 
 
 # =============================================================================
+# Resolve Earthdata Token Tests
+# =============================================================================
+
+@pytest.mark.acquisition
+class TestResolveEarthdataToken:
+    """Tests for resolve_earthdata_token function."""
+
+    def test_from_environment(self, clean_environment):
+        """Should get token from EARTHDATA_TOKEN env var."""
+        from symfluence.data.acquisition.utils import resolve_earthdata_token
+
+        os.environ['EARTHDATA_TOKEN'] = 'my-test-token-123'
+
+        try:
+            token = resolve_earthdata_token()
+            assert token == 'my-test-token-123'
+        finally:
+            os.environ.pop('EARTHDATA_TOKEN', None)
+
+    def test_from_config(self, clean_environment):
+        """Should get token from config dictionary."""
+        from symfluence.data.acquisition.utils import resolve_earthdata_token
+
+        config = {'EARTHDATA_TOKEN': 'config-token-456'}
+        token = resolve_earthdata_token(config=config)
+        assert token == 'config-token-456'
+
+    def test_env_takes_precedence_over_config(self, clean_environment):
+        """Environment variable should take precedence over config."""
+        from symfluence.data.acquisition.utils import resolve_earthdata_token
+
+        os.environ['EARTHDATA_TOKEN'] = 'env-token'
+        config = {'EARTHDATA_TOKEN': 'config-token'}
+
+        try:
+            token = resolve_earthdata_token(config=config)
+            assert token == 'env-token'
+        finally:
+            os.environ.pop('EARTHDATA_TOKEN', None)
+
+    def test_returns_none_when_not_found(self, clean_environment):
+        """Should return None when no token is available."""
+        from symfluence.data.acquisition.utils import resolve_earthdata_token
+
+        token = resolve_earthdata_token()
+        assert token is None
+
+    def test_returns_none_for_empty_config(self, clean_environment):
+        """Should return None when config has no token."""
+        from symfluence.data.acquisition.utils import resolve_earthdata_token
+
+        token = resolve_earthdata_token(config={'OTHER_KEY': 'value'})
+        assert token is None
+
+
+# =============================================================================
 # Get CDS Credentials Tests
 # =============================================================================
 
