@@ -6,18 +6,15 @@ postprocess/visualize steps, and delegates component lookups to
 ``docs/source/architecture`` and ``docs/source/models/*``).
 """
 
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional
 
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.models.base.protocols import ModelPreProcessor, ModelRunner, ModelPostProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities.routing_decider import RoutingDecider
-
-if TYPE_CHECKING:
-    pass
-
 
 class ModelManager(BaseManager):
     """Facade that turns a hydrological model list into an ordered workflow.
@@ -325,7 +322,7 @@ class ModelManager(BaseManager):
                 preprocessor = preprocessor_class(self.config, self.logger, **kwargs)
 
                 # Call appropriate preprocessing method
-                if hasattr(preprocessor, 'run_preprocessing'):
+                if isinstance(preprocessor, ModelPreProcessor):
                     preprocessor.run_preprocessing()
                 else:
                     # Some models like LSTM don't need preprocessing
@@ -423,9 +420,15 @@ class ModelManager(BaseManager):
 
             return True
 
-        except Exception as e:
+        except (ImportError, ModuleNotFoundError, AttributeError, KeyError, ValueError, TypeError, RuntimeError, OSError) as e:
             self.logger.warning(
                 f"dCoupler graph execution failed: {e}. "
+                "Falling back to sequential model execution."
+            )
+            return False
+        except Exception as e:
+            self.logger.exception(
+                f"Unexpected dCoupler graph execution failure: {e}. "
                 "Falling back to sequential model execution."
             )
             return False
@@ -446,7 +449,7 @@ class ModelManager(BaseManager):
 
                 runner = runner_class(self.config, self.logger, reporting_manager=self.reporting_manager)
                 method_name = ModelRegistry.get_runner_method(model)
-                if method_name and hasattr(runner, method_name):
+                if isinstance(runner, ModelRunner) and hasattr(runner, method_name):
                     getattr(runner, method_name)()
                 else:
                     self.logger.error(f"Runner method '{method_name}' not found for model: {model}")
@@ -507,10 +510,14 @@ class ModelManager(BaseManager):
 
                 # Run postprocessing
                 # Standardized interface: extract_streamflow is the main entry point
-                if hasattr(postprocessor, 'extract_streamflow'):
+                if isinstance(postprocessor, ModelPostProcessor):
                     postprocessor.extract_streamflow()
                 elif hasattr(postprocessor, 'extract_results'):
-                    # Legacy support for models that might still use extract_results (e.g. HYPE if not updated)
+                    # Legacy fallback — will be removed in a future release
+                    self.logger.warning(
+                        f"{model} postprocessor uses deprecated extract_results(); "
+                        "migrate to extract_streamflow() (ModelPostProcessor Protocol)"
+                    )
                     postprocessor.extract_results()
                 else:
                     self.logger.warning(f"No extraction method found for {model} postprocessor")
@@ -677,7 +684,7 @@ class ModelManager(BaseManager):
                             obs_series = obs_df.set_index(datetime_col)[discharge_col]
                             obs_series = obs_series.resample('D').mean()  # Resample to daily
                             self.logger.debug(f"Loaded observations from {obs_files[0].name}")
-                    except Exception as e:
+                    except (OSError, KeyError, ValueError, TypeError) as e:
                         self.logger.debug(f"Could not load observations: {e}")
 
                 if obs_series is None:
