@@ -80,7 +80,9 @@ class VICWorker(BaseWorker):
             if original_params_dir.exists():
                 params_dir.mkdir(parents=True, exist_ok=True)
                 for f in original_params_dir.glob('*.nc'):
-                    shutil.copy2(f, params_dir / f.name)
+                    dest = params_dir / f.name
+                    if f.resolve() != dest.resolve():
+                        shutil.copy2(f, dest)
                 self.logger.debug(f"Copied VIC parameters from {original_params_dir} to {params_dir}")
             elif not params_dir.exists():
                 self.logger.error(f"VIC parameters directory not found: {params_dir} "

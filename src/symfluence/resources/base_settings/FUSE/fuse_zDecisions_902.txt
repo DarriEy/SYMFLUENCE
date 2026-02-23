@@ -1,9 +1,9 @@
 (a10,1x,a5)          ! format code (model component, model decision)
 multiplc_e RFERR     ! (1) rainfall error
-onestate_1 ARCH1     ! (2) upper-layer architecture
+tension1_1 ARCH1     ! (2) upper-layer architecture
 fixedsiz_2 ARCH2     ! (3) lower-layer architecture and baseflow
 arno_x_vic QSURF     ! (4) surface runoff
-perc_w2sat QPERC     ! (5) percolation
+perc_lower QPERC     ! (5) percolation
 rootweight ESOIL     ! (6) evaporation
 intflwnone QINTF     ! (7) interflow
 rout_gamma Q_TDH     ! (8) time delay in runoff

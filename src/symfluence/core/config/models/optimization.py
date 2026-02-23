@@ -25,7 +25,8 @@ OptimizationAlgorithmType = Literal[
 
 # Supported optimization metrics (uppercase for case-insensitive validation)
 OptimizationMetricType = Literal[
-    'KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION'
+    'KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION',
+    'COMPOSITE'
 ]
 
 # Supported sampling methods
@@ -286,6 +287,14 @@ class OptimizationConfig(BaseModel):
         if isinstance(v, str):
             return v.upper()
         return v
+
+    # Composite metric settings (for OPTIMIZATION_METRIC: COMPOSITE)
+    composite_metric: Optional[Dict[str, float]] = Field(
+        default=None,
+        alias='COMPOSITE_METRIC',
+        description="Weighted combination of metrics for composite optimization. "
+                    "Example: {'KGE': 0.6, 'KGE_LOG': 0.4}"
+    )
 
     # Multivariate objective settings
     objective_weights: Optional[Dict[str, float]] = Field(

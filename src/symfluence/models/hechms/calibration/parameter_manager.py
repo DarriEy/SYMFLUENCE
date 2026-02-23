@@ -65,9 +65,25 @@ class HecHmsParameterManager(BaseParameterManager):
         return self.hechms_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return HEC-HMS parameter bounds from central registry."""
+        """Return HEC-HMS parameter bounds, preferring config values over registry defaults.
+
+        Priority:
+        1. HECHMS_PARAM_BOUNDS from config (user-specified overrides)
+        2. Registry defaults for any parameters not in config
+        """
         from symfluence.optimization.core.parameter_bounds_registry import get_hechms_bounds
-        return get_hechms_bounds()
+        bounds = get_hechms_bounds()
+
+        config_bounds = self._get_config_value(
+            lambda: self.config.model.hechms.param_bounds,
+            default=None,
+            dict_key='HECHMS_PARAM_BOUNDS'
+        )
+        if config_bounds:
+            self.logger.info("Using HECHMS_PARAM_BOUNDS from config (overriding registry defaults)")
+            self._apply_config_bounds_override(bounds, config_bounds)
+
+        return bounds
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """HEC-HMS runs in-memory; parameters passed directly to model."""
