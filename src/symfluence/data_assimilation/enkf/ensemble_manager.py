@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .perturbation import PerturbationStrategy, GaussianPerturbation
+from .perturbation import GaussianPerturbation, PerturbationStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +142,10 @@ class HBVEnsembleManager(EnsembleManager):
         t_start and t_end are interpreted as integer timestep indices.
         """
         from symfluence.models.hbv.model import (
-            step_jax, scale_params_for_timestep,
-            create_params_from_dict, HAS_JAX,
+            HAS_JAX,
+            create_params_from_dict,
+            scale_params_for_timestep,
+            step_jax,
         )
 
         t = int(t_start)
@@ -201,7 +203,7 @@ class HBVEnsembleManager(EnsembleManager):
 
     def inject_states(self, updated_states: np.ndarray) -> None:
         """Write updated state matrix back into member HBVState objects."""
-        from symfluence.models.hbv.model import HBVState, HAS_JAX
+        from symfluence.models.hbv.model import HAS_JAX, HBVState
 
         for i in range(self.n_members):
             sv = updated_states[i]
@@ -306,7 +308,7 @@ class SubprocessEnsembleManager(EnsembleManager):
 
     def inject_states(self, updated_states: np.ndarray) -> None:
         """Inject updated states back into member runners."""
-        from symfluence.models.state import StateCapableMixin, ModelState, StateMetadata
+        from symfluence.models.state import ModelState, StateCapableMixin, StateMetadata
 
         for i, runner in enumerate(self.member_runners):
             if not isinstance(runner, StateCapableMixin):

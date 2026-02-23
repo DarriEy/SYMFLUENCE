@@ -6,11 +6,13 @@ Handles batch evaluation of parameter populations with parallel execution.
 
 import logging
 import sys
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
+
 import numpy as np
 
-from .task_builder import TaskBuilder
 from symfluence.core.constants import ModelDefaults
+
+from .task_builder import TaskBuilder
 
 
 class PopulationEvaluator:

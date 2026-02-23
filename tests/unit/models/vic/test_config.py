@@ -17,8 +17,8 @@ class TestVICConfigAdapter:
         assert adapter.model_name == 'VIC'
 
     def test_adapter_returns_config_schema(self):
-        from symfluence.models.vic.config import VICConfigAdapter
         from symfluence.core.config.models.model_configs import VICConfig
+        from symfluence.models.vic.config import VICConfigAdapter
         adapter = VICConfigAdapter()
         schema = adapter.get_config_schema()
         assert schema == VICConfig

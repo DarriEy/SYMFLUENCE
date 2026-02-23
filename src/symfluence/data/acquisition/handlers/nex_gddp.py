@@ -7,14 +7,17 @@ outputs with support for multiple models, scenarios, and ensemble members.
 
 import datetime as dt
 import shutil
-from typing import Any
 from pathlib import Path
-import pandas as pd
-import xarray as xr
-import requests
+from typing import Any
+
 import numpy as np
+import pandas as pd
+import requests
+import xarray as xr
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
 
 @AcquisitionRegistry.register('NEX-GDDP-CMIP6')
 @AcquisitionRegistry.register('NEX-GDDP')

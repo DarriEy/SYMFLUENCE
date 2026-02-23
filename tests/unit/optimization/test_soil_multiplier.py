@@ -1,7 +1,8 @@
-import pytest
-import numpy as np
-import netCDF4 as nc
 import logging
+
+import netCDF4 as nc
+import numpy as np
+import pytest
 from symfluence.optimization.core.transformers import SoilDepthTransformer
 
 

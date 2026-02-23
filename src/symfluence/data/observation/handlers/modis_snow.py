@@ -5,12 +5,12 @@ Provides acquisition and preprocessing of MODIS Snow Cover Area data
 (MOD10A1/MYD10A1) for snowmelt model calibration and validation.
 """
 
+from importlib.util import find_spec
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-
-from importlib.util import find_spec
 
 HAS_GEO = find_spec("geopandas") is not None
 if HAS_GEO:
@@ -19,8 +19,8 @@ if HAS_GEO:
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 from .modis_utils import (
-    MODIS_FILL_VALUES,
     CLOUD_VALUE,
+    MODIS_FILL_VALUES,
     VALID_SNOW_RANGE,
 )
 

@@ -10,8 +10,8 @@ VIC 5.x uses Makefiles for building. The image driver is built by default,
 which supports NetCDF input/output for distributed simulations.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

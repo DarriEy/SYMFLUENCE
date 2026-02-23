@@ -38,10 +38,12 @@ References:
 """
 
 from pathlib import Path
-import requests
-import rasterio
-from rasterio.windows import from_bounds, Window
+
 import numpy as np
+import rasterio
+import requests
+from rasterio.windows import Window, from_bounds
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 

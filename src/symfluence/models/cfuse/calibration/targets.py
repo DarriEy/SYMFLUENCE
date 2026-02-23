@@ -7,6 +7,7 @@ preprocessor stores daily-resampled observations.
 """
 
 from pathlib import Path
+
 import pandas as pd
 
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator

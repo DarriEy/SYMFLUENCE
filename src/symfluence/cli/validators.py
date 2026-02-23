@@ -11,7 +11,6 @@ from typing import Tuple
 
 from symfluence.core.result import Result, ValidationError
 
-
 # Type aliases for validated values
 Coordinates = Tuple[float, float]
 BoundingBox = Tuple[float, float, float, float]

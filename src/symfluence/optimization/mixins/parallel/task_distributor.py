@@ -5,7 +5,7 @@ Handles distribution of optimization tasks across parallel processes.
 """
 
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class TaskDistributor:

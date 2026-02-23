@@ -36,12 +36,11 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from typing import Generator, Optional, Type
-import logging
 
 from symfluence.core.exceptions import GeospatialError, ShapefileError
-
 
 # =============================================================================
 # Delineation-Specific Exceptions

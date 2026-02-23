@@ -100,11 +100,12 @@ def __dir__():
 
 def register_with_model_registry():
     """Register SAC-SMA with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import SacSmaConfigAdapter
     from .extractor import SacSmaResultExtractor
     from .preprocessor import SacSmaPreProcessor  # noqa: F401 - triggers decorator
     from .runner import SacSmaRunner  # noqa: F401 - triggers decorator
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('SACSMA')(SacSmaConfigAdapter)
     ModelRegistry.register_result_extractor('SACSMA')(SacSmaResultExtractor)
@@ -115,23 +116,32 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
+    from symfluence.models.snow17.model import snow17_simulate, snow17_step
+    from symfluence.models.snow17.parameters import Snow17Params, Snow17State
+
+    from .calibration import SacSmaModelOptimizer, SacSmaParameterManager, SacSmaWorker
     from .config import SacSmaConfig, SacSmaConfigAdapter
+    from .extractor import SacSmaResultExtractor
+    from .model import SacSmaSnow17State, jit_simulate, simulate
+    from .parameters import (
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        SACSMA_PARAM_NAMES,
+        SacSmaParameters,
+        Snow17Parameters,
+        split_params,
+    )
+    from .postprocessor import SacSmaPostprocessor
     from .preprocessor import SacSmaPreProcessor
     from .runner import SacSmaRunner
-    from .postprocessor import SacSmaPostprocessor
-    from .extractor import SacSmaResultExtractor
-    from .parameters import (
-        PARAM_BOUNDS, DEFAULT_PARAMS, SACSMA_PARAM_NAMES,
-        Snow17Parameters, SacSmaParameters, split_params,
-    )
-    from .model import simulate, jit_simulate, SacSmaSnow17State
-    from symfluence.models.snow17.parameters import Snow17State, Snow17Params
-    from symfluence.models.snow17.model import snow17_step, snow17_simulate
     from .sacsma import (
-        SacSmaState, sacsma_step, sacsma_simulate,
-        sacsma_simulate_jax, sacsma_simulate_numpy, HAS_JAX,
+        HAS_JAX,
+        SacSmaState,
+        sacsma_simulate,
+        sacsma_simulate_jax,
+        sacsma_simulate_numpy,
+        sacsma_step,
     )
-    from .calibration import SacSmaWorker, SacSmaParameterManager, SacSmaModelOptimizer
 
 
 __all__ = [

@@ -64,9 +64,10 @@ class TRoutePostProcessor(StandardModelPostprocessor):
         TRoute outputs have segment/feature_id dimensions for multi-reach
         routing. This extracts the outlet reach flow.
         """
-        import xarray as xr
-        import pandas as pd
         from typing import cast
+
+        import pandas as pd
+        import xarray as xr
 
         try:
             ds = xr.open_dataset(file_path)

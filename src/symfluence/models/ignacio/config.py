@@ -5,7 +5,8 @@ Pydantic configuration model for IGNACIO fire simulation parameters.
 Maps SYMFLUENCE configuration to IGNACIO's YAML config format.
 """
 
-from typing import Dict, List, Literal, Optional, Any
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 # Import FROZEN_CONFIG from the base config module

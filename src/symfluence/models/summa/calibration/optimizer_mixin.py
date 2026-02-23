@@ -9,11 +9,11 @@ For new implementations, prefer using SUMMAModelOptimizer which extends
 BaseModelOptimizer with proper abstract method patterns.
 """
 
-import shutil
 import re
-from pathlib import Path
+import shutil
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass

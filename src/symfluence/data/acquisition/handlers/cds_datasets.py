@@ -6,18 +6,19 @@ from the Copernicus Climate Data Store, using a shared base class to eliminate
 code duplication.
 """
 
-import gc
-import sys
-import dask
-import xarray as xr
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-import logging
-from abc import ABC, abstractmethod
-import time
 import concurrent.futures
+import gc
+import logging
+import sys
+import time
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import dask
+import numpy as np
+import pandas as pd
+import xarray as xr
 
 try:
     import cdsapi
@@ -25,9 +26,9 @@ try:
 except ImportError:
     HAS_CDSAPI = False
 
+from ...utils import VariableStandardizer
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-from ...utils import VariableStandardizer
 
 
 class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):

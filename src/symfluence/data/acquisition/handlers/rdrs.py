@@ -11,14 +11,15 @@ Data sources:
   - Legacy:   PAVICS THREDDS OPeNDAP (RDRS v2.1, 1980-2018, hourly)
 """
 
-import xarray as xr
-import pandas as pd
-import numpy as np
-import requests
-from pathlib import Path
-from typing import Optional
 import concurrent.futures
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+import requests
+import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry

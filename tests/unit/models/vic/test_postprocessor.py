@@ -1,9 +1,10 @@
 """Tests for VIC postprocessor."""
 
-import pytest
-import numpy as np
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pytest
 
 
 class TestVICPostProcessorImport:
@@ -36,8 +37,8 @@ class TestVICStreamflowExtraction:
 
     def test_runoff_plus_baseflow_summation(self):
         """Test that VIC postprocessor sums OUT_RUNOFF + OUT_BASEFLOW."""
-        import xarray as xr
         import pandas as pd
+        import xarray as xr
 
         times = pd.date_range('2020-01-01', periods=10, freq='D')
         runoff = np.random.uniform(0, 5, 10)
@@ -57,8 +58,8 @@ class TestVICStreamflowExtraction:
 
     def test_spatial_aggregation(self):
         """Test that spatial dimensions are summed for runoff."""
-        import xarray as xr
         import pandas as pd
+        import xarray as xr
 
         times = pd.date_range('2020-01-01', periods=5, freq='D')
         runoff_2d = np.random.uniform(0, 5, (5, 3))

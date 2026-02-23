@@ -1,9 +1,10 @@
 """Tests for IGNACIO parameter manager."""
 
-import pytest
 import logging
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -35,8 +36,8 @@ class TestIGNACIOParameterManagerRegistration:
         assert 'IGNACIO' in OptimizerRegistry._parameter_managers
 
     def test_parameter_manager_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.ignacio.calibration.parameter_manager import IGNACIOParameterManager
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._parameter_managers.get('IGNACIO') == IGNACIOParameterManager
 
 

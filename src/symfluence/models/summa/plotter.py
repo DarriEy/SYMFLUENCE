@@ -5,12 +5,13 @@ Model-specific visualization for SUMMA outputs including spatial and temporal
 plots of hydrological variables.
 """
 
-import numpy as np
 from typing import Dict, Optional
 
-from symfluence.reporting.plotter_registry import PlotterRegistry
+import numpy as np
+
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
 @PlotterRegistry.register_plotter('SUMMA')
@@ -35,9 +36,9 @@ class SUMMAPlotter(BasePlotter):
             Dictionary mapping variable names to plot paths
         """
         plt, _ = self._setup_matplotlib()
-        from matplotlib import gridspec  # type: ignore
-        import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
+        import xarray as xr  # type: ignore
+        from matplotlib import gridspec  # type: ignore
 
         plot_paths: Dict[str, str] = {}
         try:

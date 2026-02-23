@@ -12,10 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
-
 
 PIHM_DEFAULT_BOUNDS = {
     'K_SAT': {

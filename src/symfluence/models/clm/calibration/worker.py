@@ -10,16 +10,17 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.core.constants import ModelDefaults
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('CLM')
@@ -216,6 +217,7 @@ class CLMWorker(BaseWorker):
            &section in lnd_in (e.g. baseflow_scalar, int_snow_max)
         """
         import re
+
         from .parameter_manager import CLM_PARAM_DEFS
 
         lnd_in_path = settings_dir / 'lnd_in'
@@ -291,6 +293,7 @@ class CLMWorker(BaseWorker):
         the original NETCDF3_CLASSIC format that CLM/PIO requires.
         """
         import netCDF4
+
         from .parameter_manager import CLM_PARAM_DEFS
 
         params_file = params_dir / 'clm5_params.nc'
@@ -344,6 +347,7 @@ class CLMWorker(BaseWorker):
         the exact binary format that CLM/PIO requires.
         """
         import netCDF4
+
         from .parameter_manager import CLM_PARAM_DEFS
 
         surfdata_file = params_dir / 'surfdata_clm.nc'
@@ -524,8 +528,8 @@ class CLMWorker(BaseWorker):
             # Strategy: monitor BOTH h0 file count AND CPU usage.
             #   - All h0 files written + short grace → finalization hang
             #   - 0% CPU for extended period → solver hang (kill early)
-            import time
             import subprocess as _sp
+            import time
             poll_interval = 10
             finalization_grace = 60   # seconds after all h0 files written
             cpu_idle_limit = 120      # seconds of 0% CPU before kill
@@ -820,8 +824,8 @@ def _evaluate_clm_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         Result dictionary
     """
     import os
-    import signal
     import random
+    import signal
     import time
     import traceback
 

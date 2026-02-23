@@ -37,10 +37,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import xarray as xr
 
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    GeospatialError
-)
+from symfluence.core.exceptions import GeospatialError, ModelExecutionError
 from symfluence.models.spatial_modes import SpatialMode
 
 

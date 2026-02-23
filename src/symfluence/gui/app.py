@@ -11,8 +11,8 @@ from .components.attributes_panel import AttributesPanel
 from .components.calibration_panel import CalibrationPanel
 from .components.command_panel import CommandPanel
 from .components.data_panel import DataPanel
-from .components.domain_browser import DomainBrowser
 from .components.discretization_panel import DiscretizationPanel
+from .components.domain_browser import DomainBrowser
 from .components.domain_panel import DomainPanel
 from .components.forcings_panel import ForcingsPanel
 from .components.log_viewer import LogViewer

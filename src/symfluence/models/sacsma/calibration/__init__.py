@@ -8,8 +8,8 @@ Provides calibration support for SAC-SMA + Snow-17 model including:
 """
 
 from .optimizer import SacSmaModelOptimizer
-from .worker import SacSmaWorker
 from .parameter_manager import SacSmaParameterManager
+from .worker import SacSmaWorker
 
 __all__ = [
     'SacSmaModelOptimizer',

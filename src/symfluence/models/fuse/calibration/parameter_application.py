@@ -9,7 +9,7 @@ Standalone functions for applying calibration parameters to FUSE files:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import numpy as np
 
@@ -276,9 +276,8 @@ def apply_regionalization(
     """
     import netCDF4 as nc
     import pandas as pd
-    from symfluence.models.fuse.calibration.parameter_regionalization import (
-        RegionalizationFactory
-    )
+
+    from symfluence.models.fuse.calibration.parameter_regionalization import RegionalizationFactory
 
     log = log or logger
     params_updated: set = set()
@@ -376,8 +375,9 @@ def _resize_para_def_if_needed(
     log: logging.Logger
 ) -> None:
     """Resize para_def.nc if par dimension doesn't match n_subcatchments."""
-    import netCDF4 as nc
     import shutil
+
+    import netCDF4 as nc
 
     with nc.Dataset(para_def_path, 'r') as ds:
         par_size = ds.dimensions['par'].size

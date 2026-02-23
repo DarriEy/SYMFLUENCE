@@ -2,7 +2,7 @@
 Reactive state models for the SYMFLUENCE GUI.
 """
 
-from .workflow_state import WorkflowState
 from .config_params import BasicConfigParams
+from .workflow_state import WorkflowState
 
 __all__ = ['WorkflowState', 'BasicConfigParams']

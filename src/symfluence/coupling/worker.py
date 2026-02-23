@@ -10,13 +10,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-import torch
 import numpy as np
+import torch
 
-from symfluence.optimization.workers.base_worker import BaseWorker
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.coupling.graph_builder import CouplingGraphBuilder
 from symfluence.coupling.bmi_registry import BMIRegistry
+from symfluence.coupling.graph_builder import CouplingGraphBuilder
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
 

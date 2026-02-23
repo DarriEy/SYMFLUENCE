@@ -22,8 +22,8 @@ References:
     The Xinanjiang model. Hydrological Forecasting, IAHS Publ. 129, 351-356.
 """
 
-from typing import Any, Dict, Optional, Tuple
 import warnings
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -602,12 +602,13 @@ def _try_dcoupler_coupled(
     logger = logging.getLogger(__name__)
 
     try:
-        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        from symfluence.coupling import INSTALL_SUGGESTION, is_dcoupler_available
         if not is_dcoupler_available():
             logger.debug(INSTALL_SUGGESTION)
             return None
 
         import torch
+
         from symfluence.coupling import CouplingGraphBuilder
 
         graph_config = {
@@ -781,9 +782,13 @@ def simulate_coupled_jax(
     """
     from symfluence.models.snow17.model import snow17_step as s17_step
     from symfluence.models.snow17.parameters import (
-        params_dict_to_namedtuple as s17_params_to_nt,
-        create_initial_state as s17_init,
         DEFAULT_ADC,
+    )
+    from symfluence.models.snow17.parameters import (
+        create_initial_state as s17_init,
+    )
+    from symfluence.models.snow17.parameters import (
+        params_dict_to_namedtuple as s17_params_to_nt,
     )
 
     if not HAS_JAX:
@@ -858,9 +863,13 @@ def simulate_coupled_numpy(
     """
     from symfluence.models.snow17.model import snow17_step as s17_step
     from symfluence.models.snow17.parameters import (
-        params_dict_to_namedtuple as s17_params_to_nt,
-        create_initial_state as s17_init,
         DEFAULT_ADC,
+    )
+    from symfluence.models.snow17.parameters import (
+        create_initial_state as s17_init,
+    )
+    from symfluence.models.snow17.parameters import (
+        params_dict_to_namedtuple as s17_params_to_nt,
     )
 
     xaj_params = params_dict_to_namedtuple(xaj_params_dict, use_jax=False)

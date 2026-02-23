@@ -9,8 +9,8 @@ This module defines how to build mizuRoute from source, including:
 mizuRoute is a river network routing model developed at NCAR.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

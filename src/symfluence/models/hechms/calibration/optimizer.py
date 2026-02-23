@@ -7,12 +7,13 @@ Supports DDS and other iterative optimization algorithms.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import HecHmsWorker  # noqa: F401 - Import to trigger worker registration
 
 

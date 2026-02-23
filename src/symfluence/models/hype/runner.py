@@ -5,10 +5,10 @@ Handles HYPE model execution and run-time management.
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
-from ..registry import ModelRegistry
 from ..base import BaseModelRunner
+from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_runner('HYPE')

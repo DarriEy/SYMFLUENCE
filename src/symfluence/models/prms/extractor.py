@@ -7,6 +7,7 @@ PRMS outputs are typically in statvar text or NetCDF format.
 
 from pathlib import Path
 from typing import Dict, List, Optional
+
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

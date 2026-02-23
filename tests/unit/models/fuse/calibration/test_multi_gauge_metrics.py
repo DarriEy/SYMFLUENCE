@@ -10,9 +10,9 @@ Tests multi-gauge calibration metrics:
 - Configuration helper
 """
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
-import logging
 
 import numpy as np
 import pandas as pd

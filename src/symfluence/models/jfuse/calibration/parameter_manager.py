@@ -5,9 +5,10 @@ Provides parameter bounds, transformations, and management for jFUSE calibration
 Uses jFUSE's native PARAM_BOUNDS when available, with fallback defaults.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
+
 import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager

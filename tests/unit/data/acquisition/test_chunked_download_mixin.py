@@ -9,16 +9,15 @@ Tests the chunked download functionality:
 - get_netcdf_encoding(): compression settings
 """
 
+import concurrent.futures
 from pathlib import Path
 from typing import List, Tuple
 from unittest.mock import MagicMock, Mock, patch
-import concurrent.futures
 
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
-
 
 # NOTE: macOS ARM HDF5/netCDF4 skip was removed as of Jan 2026.
 # The underlying HDF5 attribute issues have been resolved in recent library versions.

@@ -24,13 +24,13 @@ References:
 """
 
 from pathlib import Path
+
 import requests
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # GEOGLOWS V2 S3 base URL (us-west-2, public)
 _GEOGLOWS_S3_BASE = "https://geoglows-v2.s3.us-west-2.amazonaws.com"

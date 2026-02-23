@@ -12,21 +12,21 @@ Tests for the shared model runner infrastructure including:
 - Legacy path aliases
 """
 
-import os
-import warnings
-import pytest
-from unittest.mock import Mock, patch
-import subprocess
 import logging
+import os
+import subprocess
+import warnings
+from unittest.mock import Mock, patch
 
+import pytest
+from symfluence.core.config.models import SymfluenceConfig
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.execution.model_executor import (
-    augment_conda_library_paths,
-    ExecutionResult,
     ExecutionMode,
+    ExecutionResult,
     SlurmJobConfig,
+    augment_conda_library_paths,
 )
-from symfluence.core.config.models import SymfluenceConfig
 
 
 class ConcreteModelRunner(BaseModelRunner):

@@ -17,8 +17,8 @@ Usage:
 """
 
 from .base import BaseObjective
-from .registry import ObjectiveRegistry
 from .multivariate import MultivariateObjective
+from .registry import ObjectiveRegistry
 
 __all__ = [
     'BaseObjective',

@@ -29,10 +29,9 @@ import rasterio
 from rasterio.windows import from_bounds
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
-
 
 # Figshare direct file download URLs for GLWD v2.0
 # Use ndownloader.figshare.com with file IDs (article-level URLs blocked by WAF)

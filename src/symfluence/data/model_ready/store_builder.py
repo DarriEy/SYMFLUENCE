@@ -7,11 +7,11 @@ and ``AttributesNetCDFBuilder`` into a single ``build_all()`` entry point.
 
 import logging
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
+from .attributes_builder import AttributesNetCDFBuilder
 from .forcings_builder import ForcingsStoreBuilder
 from .observations_builder import ObservationsNetCDFBuilder
-from .attributes_builder import AttributesNetCDFBuilder
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

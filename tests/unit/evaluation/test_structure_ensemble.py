@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
-import pandas as pd
+from unittest.mock import MagicMock, mock_open, patch
 
+import pandas as pd
+import pytest
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
+
 
 class MockStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     """Concrete implementation for testing the base class."""

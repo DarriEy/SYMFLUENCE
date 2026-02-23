@@ -29,10 +29,9 @@ import rasterio
 from rasterio.windows import from_bounds
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # Global GeoTIFF URL (supports HTTP range requests for remote subsetting)
 _GLOBAL_URL = (

@@ -10,11 +10,11 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Dict, List, Optional, Union
 
 from symfluence.models.execution.model_executor import (
-    augment_conda_library_paths,
     ExecutionResult,
+    augment_conda_library_paths,
 )
 
 

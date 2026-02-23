@@ -14,8 +14,9 @@ where SFCRNOFF/UGDRNOFF are accumulated mm from simulation start.
 
 from pathlib import Path
 from typing import Dict, List, Optional
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
 

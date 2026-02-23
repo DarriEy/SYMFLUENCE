@@ -5,11 +5,12 @@ Provides functions for creating compressed archives of processed data
 directories to reduce storage footprint while preserving data integrity.
 """
 
-import tarfile
-import shutil
-from pathlib import Path
 import logging
+import shutil
+import tarfile
+from pathlib import Path
 from typing import Optional
+
 
 def tar_directory(source_dir: Path, archive_name: Optional[str] = None,
                  remove_original: bool = True, logger: Optional[logging.Logger] = None) -> bool:

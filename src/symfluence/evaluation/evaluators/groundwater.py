@@ -32,14 +32,16 @@ Configuration:
 """
 
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from typing import Any, cast, Dict, List, Optional, TYPE_CHECKING
 
-from symfluence.evaluation.registry import EvaluationRegistry
-from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.data.observation.paths import first_existing_path, groundwater_observation_candidates
+from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.evaluation.registry import EvaluationRegistry
+
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:

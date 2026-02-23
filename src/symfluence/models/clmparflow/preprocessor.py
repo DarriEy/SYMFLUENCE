@@ -27,8 +27,8 @@ from typing import Optional
 
 import numpy as np
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +194,7 @@ class CLMParFlowPreProcessor:
                           lapse_rate=None):
         """Apply elevation-band Snow-17 model to hourly forcing."""
         import pandas as pd
+
         from symfluence.models.snow17.bmi import Snow17BMI
 
         if lapse_rate is None:

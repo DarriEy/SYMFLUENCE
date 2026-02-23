@@ -51,7 +51,7 @@ See Also:
     - AnalysisRegistry: Registry for analysis components
 """
 
-from typing import Dict, Type, Optional, List, Callable, Any
+from typing import Any, Callable, Dict, List, Optional, Type
 
 
 class PlotterRegistry:

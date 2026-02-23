@@ -50,8 +50,8 @@ class TestCFUSEOptimizerRegistration:
         assert 'CFUSE' in OptimizerRegistry._optimizers
 
     def test_optimizer_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.cfuse.calibration.optimizer import CFUSEModelOptimizer
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._optimizers.get('CFUSE') == CFUSEModelOptimizer
 
 

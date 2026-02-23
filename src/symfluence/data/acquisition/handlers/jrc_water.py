@@ -27,10 +27,11 @@ URL Pattern:
     https://storage.googleapis.com/global-surface-water/downloads2021/
 """
 
-import requests
 from pathlib import Path
 from typing import List, Optional, Tuple
+
 import numpy as np
+import requests
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -244,8 +245,8 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
             Path to merged output file
         """
         import rasterio
-        from rasterio.merge import merge
         from rasterio.mask import mask
+        from rasterio.merge import merge
         from shapely.geometry import box
 
         out_file = output_dir / f"{self.domain_name}_JRC_{dataset}_merged.tif"

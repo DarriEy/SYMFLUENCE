@@ -16,10 +16,10 @@ Requirements:
     - CDS API key configured (~/.cdsapirc)
 """
 
+import calendar
+import shutil
 from pathlib import Path
 from typing import Optional
-import shutil
-import calendar
 
 try:
     import cdsapi
@@ -28,8 +28,8 @@ except ImportError:
     HAS_CDSAPI = False
 
 from ..base import BaseAcquisitionHandler
+from ..mixins import ChunkedDownloadMixin, RetryMixin
 from ..registry import AcquisitionRegistry
-from ..mixins import RetryMixin, ChunkedDownloadMixin
 
 
 @AcquisitionRegistry.register('ESA_CCI_SM')

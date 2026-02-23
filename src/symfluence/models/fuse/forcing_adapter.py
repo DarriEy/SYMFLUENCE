@@ -5,7 +5,8 @@ Converts CFIF (CF-Intermediate Format) forcing data to FUSE format.
 FUSE uses a simplified set of forcing variables.
 """
 
-from typing import Dict, List, Callable
+from typing import Callable, Dict, List
+
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry

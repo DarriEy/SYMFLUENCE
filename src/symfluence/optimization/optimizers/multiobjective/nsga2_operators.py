@@ -5,6 +5,7 @@ Provides genetic operators and selection mechanisms for NSGA-II.
 """
 
 from typing import List, Tuple
+
 import numpy as np
 
 

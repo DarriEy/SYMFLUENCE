@@ -7,9 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.console import Console
-
-from symfluence.cli.wizard import ProjectWizard, WizardState
 from symfluence.cli.exit_codes import ExitCode
+from symfluence.cli.wizard import ProjectWizard, WizardState
 
 
 @pytest.fixture
@@ -248,6 +247,7 @@ class TestCLIIntegration:
     def test_interactive_flag_routes_to_wizard(self, temp_dir):
         """Test that --interactive flag routes to wizard."""
         from argparse import Namespace
+
         from symfluence.cli.commands.project_commands import ProjectCommands
 
         args = Namespace(
@@ -271,6 +271,7 @@ class TestCLIIntegration:
     def test_non_interactive_uses_init_manager(self, temp_dir):
         """Test that non-interactive mode uses InitializationManager."""
         from argparse import Namespace
+
         from symfluence.cli.commands.project_commands import ProjectCommands
 
         args = Namespace(

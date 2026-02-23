@@ -8,18 +8,18 @@ Refactored from plan (2026-01-06)
 """
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
-import numpy as np
+from typing import Any, Dict, Optional, Tuple
+
 import geopandas as gpd
+import numpy as np
 import rasterio
 from shapely.geometry import box
 
-from ..base.base_delineator import BaseGeofabricDelineator
-from ....geospatial.raster_utils import _scipy_mode_compat
-from ..processors.taudem_executor import TauDEMExecutor
-from ..processors.gdal_processor import GDALProcessor
 from ....geospatial.delineation_registry import DelineationRegistry
-
+from ....geospatial.raster_utils import _scipy_mode_compat
+from ..base.base_delineator import BaseGeofabricDelineator
+from ..processors.gdal_processor import GDALProcessor
+from ..processors.taudem_executor import TauDEMExecutor
 
 # D8 flow direction encoding (TauDEM convention)
 # Maps direction code to (row_offset, col_offset) for downstream cell

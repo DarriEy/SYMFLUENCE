@@ -19,9 +19,9 @@ Usage:
     files = locator.find_rhessys_output(sim_dir)
 """
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Union
-import logging
 
 
 class OutputFileLocator:

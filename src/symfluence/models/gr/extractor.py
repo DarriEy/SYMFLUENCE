@@ -6,7 +6,8 @@ GR models (GR4J/GR5J/GR6J) can run in lumped (CSV) or distributed (NetCDF) modes
 """
 
 from pathlib import Path
-from typing import cast, List, Dict
+from typing import Dict, List, cast
+
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
@@ -99,8 +100,8 @@ class GRResultExtractor(ModelResultExtractor):
         Returns:
             Time series of streamflow
         """
-        import xarray as xr
         import numpy as np
+        import xarray as xr
 
         with xr.open_dataset(output_file) as ds:
             # Try mizuRoute variables first

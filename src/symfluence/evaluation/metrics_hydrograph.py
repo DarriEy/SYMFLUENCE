@@ -9,7 +9,6 @@ import pandas as pd
 
 from symfluence.evaluation.metrics_core import _clean_data
 
-
 __all__ = [
     "peak_timing_error",
     "recession_constant",

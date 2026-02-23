@@ -41,19 +41,18 @@ Migration from legacy code:
 """
 
 # New architecture - recommended
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-
 # Algorithm implementations (pure, model-agnostic)
 from symfluence.optimization.optimizers.algorithms import (
+    DDSAlgorithm,
+    DEAlgorithm,
+    NSGA2Algorithm,
+    OptimizationAlgorithm,
+    PSOAlgorithm,
+    SCEUAAlgorithm,
     get_algorithm,
     list_algorithms,
-    OptimizationAlgorithm,
-    DDSAlgorithm,
-    PSOAlgorithm,
-    DEAlgorithm,
-    SCEUAAlgorithm,
-    NSGA2Algorithm,
 )
+from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 __all__ = [
     # New architecture (recommended)

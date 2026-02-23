@@ -41,16 +41,16 @@ References:
     - FLUXCOM-X: https://www.icos-cp.eu/data-products/2G60-ZHAK
 """
 
-import numpy as np
-import xarray as xr
-import requests
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import List
+
+import numpy as np
+import requests
+import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-
 
 # Latent heat of vaporization (J/kg)
 LATENT_HEAT_VAPORIZATION = 2.45e6

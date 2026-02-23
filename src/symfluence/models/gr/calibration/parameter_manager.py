@@ -9,9 +9,9 @@ Since GR doesn't use parameter files but receives them via config/runner,
 this manager simply prepares the parameters for the GRRunner.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
-import logging
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds

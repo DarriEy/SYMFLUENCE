@@ -2,10 +2,11 @@
 Tests for MESH calibration worker.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
 import pandas as pd
+import pytest
 
 
 class TestMESHWorkerInitialization:
@@ -44,8 +45,8 @@ class TestMESHWorkerRegistry:
 
     def test_registered_worker_is_correct_class(self):
         """Test registered worker is MESHWorker."""
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.mesh.calibration.worker import MESHWorker
+        from symfluence.optimization.registry import OptimizerRegistry
 
         worker_class = OptimizerRegistry._workers.get('MESH')
         assert worker_class == MESHWorker

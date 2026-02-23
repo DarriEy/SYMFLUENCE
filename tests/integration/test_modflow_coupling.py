@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -238,8 +237,8 @@ class TestMODFLOWStandalone:
 
     def test_modflow_water_balance(self, mf6_exe, mock_config, modflow_config_dict, tmp_path):
         """Verify MODFLOW water balance: recharge ≈ drain + Δstorage."""
-        from symfluence.models.modflow.preprocessor import MODFLOWPreProcessor
         from symfluence.models.modflow.extractor import MODFLOWResultExtractor
+        from symfluence.models.modflow.preprocessor import MODFLOWPreProcessor
 
         logger = MagicMock()
         preprocessor = MODFLOWPreProcessor(mock_config, logger)
@@ -359,7 +358,6 @@ class TestSUMMAMODFLOWCoupling:
     def test_extract_recharge_from_summa(self, tmp_path):
         """Verify SUMMA recharge extraction with unit conversion."""
         import xarray as xr
-
         from symfluence.models.modflow.coupling import SUMMAToMODFLOWCoupler
 
         # Create fake SUMMA output

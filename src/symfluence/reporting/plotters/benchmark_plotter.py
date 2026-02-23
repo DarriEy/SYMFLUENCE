@@ -4,12 +4,13 @@ Benchmark visualization plotter.
 Handles plotting of hydrological benchmarks and performance comparisons.
 """
 
-import pandas as pd  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from symfluence.reporting.core.base_plotter import BasePlotter
+import pandas as pd  # type: ignore
+
 from symfluence.core.constants import ConfigKeys
+from symfluence.reporting.core.base_plotter import BasePlotter
 
 
 class BenchmarkPlotter(BasePlotter):

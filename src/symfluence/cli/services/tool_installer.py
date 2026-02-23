@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .base import BaseService
 from ..console import Console
+from .base import BaseService
 
 
 class ToolInstaller(BaseService):
@@ -816,7 +816,8 @@ class ToolInstaller(BaseService):
                         # Use a subprocess for the import check — the build
                         # ran in a child process so packages it installed via
                         # pip are not visible to our in-process importlib.
-                        import subprocess as _sp, sys as _sys
+                        import subprocess as _sp
+                        import sys as _sys
                         _r = _sp.run(
                             [_sys.executable, "-c", f"import {module_name}"],
                             capture_output=True, timeout=15,

@@ -15,7 +15,6 @@ from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
 
-
 # =============================================================================
 # STATE AND PARAMETER STRUCTURES
 # =============================================================================

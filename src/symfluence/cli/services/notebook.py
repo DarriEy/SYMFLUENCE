@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .base import BaseService
 from ..console import Console
+from .base import BaseService
 
 
 class NotebookService(BaseService):

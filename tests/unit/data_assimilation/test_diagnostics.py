@@ -2,13 +2,12 @@
 
 import numpy as np
 import pytest
-
 from symfluence.data_assimilation.diagnostics import (
-    rank_histogram,
     crps,
-    spread_error_ratio,
     innovation_consistency,
     open_loop_comparison,
+    rank_histogram,
+    spread_error_ratio,
 )
 
 

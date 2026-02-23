@@ -13,10 +13,10 @@ import numpy as np
 import pandas as pd
 
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.plotter_registry import PlotterRegistry
 from symfluence.reporting.core.plot_utils import (
     calculate_flow_duration_curve,
 )
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +90,8 @@ class PIHMPlotter(BasePlotter):
 
     def _collect_coupling_data(self, experiment_id: str) -> Dict[str, Any]:
         """Load coupling data from output directories."""
-        from symfluence.models.pihm.extractor import PIHMResultExtractor
         from symfluence.models.pihm.coupling import SUMAToPIHMCoupler
+        from symfluence.models.pihm.extractor import PIHMResultExtractor
 
         sim_base = self.project_dir / 'simulations' / experiment_id
         pihm_dir = sim_base / 'PIHM'

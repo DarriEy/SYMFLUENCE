@@ -6,9 +6,8 @@ variables and datasets, tracking data source, processing history,
 and acquisition details.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Dict, Optional
-
 
 # Prefix for all source metadata attributes in NetCDF files
 _ATTR_PREFIX = 'source_'

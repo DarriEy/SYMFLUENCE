@@ -8,13 +8,12 @@ using observational discharge data.
 
 import platform
 import shutil
+from pathlib import Path
 
 import pytest
 import yaml
-from pathlib import Path
 from symfluence import SYMFLUENCE
 from test_helpers.helpers import load_config_template
-
 
 # Skip tests on macOS ARM due to known HDF5/netCDF4 segfault issues with easymore
 _MACOS_ARM_SKIP = pytest.mark.skipif(

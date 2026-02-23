@@ -7,6 +7,7 @@ SWAT outputs are in fixed-width text format, primarily output.rch.
 
 from pathlib import Path
 from typing import Dict, List, Optional
+
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

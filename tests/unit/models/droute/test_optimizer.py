@@ -15,8 +15,8 @@ class TestDRouteOptimizerRegistration:
         assert 'DROUTE' in OptimizerRegistry._optimizers
 
     def test_optimizer_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.droute.calibration.optimizer import DRouteModelOptimizer
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._optimizers.get('DROUTE') == DRouteModelOptimizer
 
 
@@ -28,8 +28,8 @@ class TestDRouteWorkerRegistration:
         assert 'DROUTE' in OptimizerRegistry._workers
 
     def test_worker_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.droute.calibration.worker import DRouteWorker
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._workers.get('DROUTE') == DRouteWorker
 
 
@@ -44,7 +44,7 @@ class TestDRouteGradientSupport:
 
     def test_gradient_support_without_droute(self):
         """Without droute installed, gradients should not be available."""
-        from symfluence.models.droute.calibration.worker import DRouteWorker, HAS_DROUTE
+        from symfluence.models.droute.calibration.worker import HAS_DROUTE, DRouteWorker
         worker = DRouteWorker()
         if not HAS_DROUTE:
             assert worker.supports_native_gradients() is False

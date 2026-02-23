@@ -5,15 +5,15 @@ Generates validation-focused diagnostic plots at the end of each workflow step
 to help users verify data correctness for subsequent steps.
 """
 
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import traceback
 
 import numpy as np
 
-from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.core.constants import ConfigKeys
+from symfluence.reporting.core.base_plotter import BasePlotter
 
 
 class WorkflowDiagnosticPlotter(BasePlotter):

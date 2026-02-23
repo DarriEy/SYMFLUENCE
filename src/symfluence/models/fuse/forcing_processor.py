@@ -9,14 +9,16 @@ Uses shared utilities from symfluence.models.utilities for common operations.
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
+import geopandas as gpd
 import numpy as np
 import xarray as xr
-import geopandas as gpd
 
 from symfluence.data.utils.variable_utils import VariableHandler
+
 from ..spatial_modes import SpatialMode
-from ..utilities import ForcingDataProcessor, DataQualityHandler, BaseForcingProcessor
+from ..utilities import BaseForcingProcessor, DataQualityHandler, ForcingDataProcessor
 
 
 class FuseForcingProcessor(BaseForcingProcessor):

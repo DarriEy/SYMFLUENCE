@@ -9,40 +9,39 @@ model execution, metrics calculation, and file manager updates.
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.models.utilities.routing_decider import RoutingDecider
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.models.fuse.utilities import FuseToMizurouteConverter
-from symfluence.models.fuse.calibration.multi_gauge_metrics import MultiGaugeMetrics
-
-from symfluence.models.fuse.calibration.parameter_application import (
-    update_para_def_nc,
-    apply_regionalization,
-    update_constraints_file,
-)
-from symfluence.models.fuse.calibration.model_execution import (
-    detect_fuse_run_mode,
-    resolve_fuse_paths,
-    prepare_input_files,
-    validate_fuse_inputs,
-    execute_fuse,
-    handle_fuse_output,
-    log_execution_directory,
-)
 from symfluence.models.fuse.calibration.file_manager import (
     update_fuse_file_manager,
 )
 from symfluence.models.fuse.calibration.metrics_calculation import (
-    load_observations,
-    find_simulation_output,
-    read_routed_streamflow,
-    read_fuse_streamflow,
     align_and_filter,
     compute_metrics,
+    find_simulation_output,
+    load_observations,
+    read_fuse_streamflow,
+    read_routed_streamflow,
 )
+from symfluence.models.fuse.calibration.model_execution import (
+    detect_fuse_run_mode,
+    execute_fuse,
+    handle_fuse_output,
+    log_execution_directory,
+    prepare_input_files,
+    resolve_fuse_paths,
+    validate_fuse_inputs,
+)
+from symfluence.models.fuse.calibration.multi_gauge_metrics import MultiGaugeMetrics
+from symfluence.models.fuse.calibration.parameter_application import (
+    apply_regionalization,
+    update_constraints_file,
+    update_para_def_nc,
+)
+from symfluence.models.fuse.utilities import FuseToMizurouteConverter
+from symfluence.models.utilities.routing_decider import RoutingDecider
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 # Suppress xarray FutureWarning about timedelta64 decoding
 warnings.filterwarnings('ignore',

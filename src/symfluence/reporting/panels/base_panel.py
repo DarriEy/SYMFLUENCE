@@ -4,9 +4,9 @@ Base panel class for model comparison visualizations.
 Provides a common interface and shared utilities for all panel types.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 import numpy as np
 

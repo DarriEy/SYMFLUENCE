@@ -4,13 +4,13 @@ Unit tests for DataProcessor.
 Tests data loading and preparation functionality for visualization.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.processors.data_processor import DataProcessor
 
 

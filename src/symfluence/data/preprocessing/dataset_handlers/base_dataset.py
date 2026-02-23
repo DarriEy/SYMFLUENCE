@@ -15,7 +15,8 @@ New code should use CFIF names; legacy names are maintained for compatibility.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 import xarray as xr
 
 from symfluence.core.mixins.config import ConfigMixin

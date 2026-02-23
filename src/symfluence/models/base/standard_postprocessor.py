@@ -18,7 +18,8 @@ Usage:
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import cast, Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional, cast
+
 import pandas as pd
 import xarray as xr
 

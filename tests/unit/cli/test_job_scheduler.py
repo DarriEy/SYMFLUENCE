@@ -1,9 +1,9 @@
 """Unit tests for JobScheduler."""
 
-import pytest
 import subprocess
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import MagicMock, mock_open, patch
 
+import pytest
 from symfluence.cli.services import JobScheduler
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

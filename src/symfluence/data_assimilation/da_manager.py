@@ -13,13 +13,13 @@ from typing import List, Optional
 import numpy as np
 
 from symfluence.core.base_manager import BaseManager
+
 from .config import DataAssimilationConfig, EnKFConfig
 from .enkf.enkf_algorithm import EnKFAlgorithm
 from .enkf.ensemble_manager import HBVEnsembleManager
 from .enkf.observation_operator import StreamflowObservationOperator
 from .enkf.perturbation import GaussianPerturbation
-from .enkf.state_vector import StateVector, StateVariableSpec
-
+from .enkf.state_vector import StateVariableSpec, StateVector
 
 logger = logging.getLogger(__name__)
 

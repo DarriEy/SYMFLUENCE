@@ -5,13 +5,14 @@ Handles extraction and processing of GR (GR4J/CemaNeige) simulation results.
 Supports both lumped and distributed modes.
 """
 
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
 import pandas as pd
 import xarray as xr
 
-from ..registry import ModelRegistry
 from ..base import BaseModelPostProcessor
+from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models

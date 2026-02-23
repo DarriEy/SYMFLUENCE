@@ -52,7 +52,6 @@ from symfluence.evaluation.metrics_registry import (
 )
 from symfluence.evaluation.metrics_types import MetricInfo
 
-
 __all__ = [
     # Core metric functions
     "nse",

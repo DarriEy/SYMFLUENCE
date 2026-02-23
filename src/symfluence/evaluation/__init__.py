@@ -16,13 +16,13 @@ Example:
     >>> registry = EvaluationRegistry()
     >>> registry.register_evaluator('streamflow', streamflow_evaluator)
 """
-from .registry import EvaluationRegistry
-from .analysis_registry import AnalysisRegistry
 from . import evaluators
-from .structure_ensemble import BaseStructureEnsembleAnalyzer
-from .output_file_locator import OutputFileLocator, get_output_file_locator
-from .metric_transformer import MetricTransformer
+from .analysis_registry import AnalysisRegistry
 from .koopman_analysis import KoopmanAnalyzer
+from .metric_transformer import MetricTransformer
+from .output_file_locator import OutputFileLocator, get_output_file_locator
+from .registry import EvaluationRegistry
+from .structure_ensemble import BaseStructureEnsembleAnalyzer
 
 __all__ = [
     "EvaluationRegistry",

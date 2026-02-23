@@ -4,13 +4,16 @@ WSC Observation Handlers
 Provides handlers for Water Survey of Canada (WSC) streamflow data.
 Supports both local HYDAT SQLite database extraction and web API acquisition.
 """
-import requests
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
+import requests
+
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('wsc_streamflow')
 class WSCStreamflowHandler(BaseObservationHandler):

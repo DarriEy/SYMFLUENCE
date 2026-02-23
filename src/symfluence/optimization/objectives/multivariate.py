@@ -9,8 +9,10 @@ with user-defined weights to reflect relative importance.
 """
 
 from typing import Dict
+
 from .base import BaseObjective
 from .registry import ObjectiveRegistry
+
 
 @ObjectiveRegistry.register('MULTIVARIATE')
 class MultivariateObjective(BaseObjective):

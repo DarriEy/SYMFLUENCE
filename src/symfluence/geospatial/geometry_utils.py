@@ -9,9 +9,10 @@ Provides common geometry operations including:
 """
 
 import logging
-from typing import Tuple, Optional, Union
+from typing import Optional, Tuple, Union
 
-from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
+from shapely.geometry import GeometryCollection, MultiPolygon, Polygon
+
 from symfluence.core.mixins import LoggingMixin
 
 try:

@@ -11,9 +11,10 @@ Each factory handles the complexity of merging defaults, loading from sources,
 and transforming to the hierarchical structure required by Pydantic models.
 """
 
-from typing import Dict, Any, Optional, TYPE_CHECKING
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
 import yaml
 
 if TYPE_CHECKING:
@@ -158,14 +159,11 @@ def from_file_factory(
         ConfigurationError: If configuration is invalid
         FileNotFoundError: If config file is missing
     """
-    from symfluence.core.config.config_loader import (
-        _load_env_overrides,
-        _normalize_key,
-        _format_validation_error
-    )
+    from pydantic import ValidationError
+
+    from symfluence.core.config.config_loader import _format_validation_error, _load_env_overrides, _normalize_key
     from symfluence.core.config.transformers import transform_flat_to_nested
     from symfluence.core.exceptions import ConfigurationError
-    from pydantic import ValidationError
 
     # 1. Load from file first to detect format
     path = Path(path)
@@ -318,10 +316,11 @@ def from_preset_factory(
     Raises:
         ConfigurationError: If preset not found or configuration invalid
     """
+    from pydantic import ValidationError
+
     from symfluence.cli.init_presets import get_preset
     from symfluence.core.config.transformers import transform_flat_to_nested
     from symfluence.core.exceptions import ConfigurationError
-    from pydantic import ValidationError
 
     # 1. Load preset definition
     try:
@@ -468,10 +467,11 @@ def from_minimal_factory(
         ...     ROUTING_MODEL='mizuRoute'
         ... )
     """
-    from symfluence.core.config.defaults import ModelDefaults, ForcingDefaults
+    from pydantic import ValidationError
+
+    from symfluence.core.config.defaults import ForcingDefaults, ModelDefaults
     from symfluence.core.config.transformers import transform_flat_to_nested
     from symfluence.core.exceptions import ConfigurationError
-    from pydantic import ValidationError
 
     # 0. Normalize all override keys to uppercase format
     normalized_overrides = {_normalize_config_key(k): v for k, v in overrides.items()}

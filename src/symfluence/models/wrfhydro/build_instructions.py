@@ -12,8 +12,8 @@ wrf_hydro.exe executable with NoahMP LSM for distributed hydrological
 simulations.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

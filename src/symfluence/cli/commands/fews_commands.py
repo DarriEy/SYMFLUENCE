@@ -11,8 +11,8 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +92,8 @@ class FEWSCommands(BaseCommand):
     def run_full(args: Namespace) -> int:
         """Run the full FEWS adapter cycle: pre -> model -> post."""
         from symfluence.fews.pi_diagnostics import DiagnosticsCollector
-        from symfluence.fews.pre_adapter import FEWSPreAdapter
         from symfluence.fews.post_adapter import FEWSPostAdapter
+        from symfluence.fews.pre_adapter import FEWSPreAdapter
 
         run_info_path = Path(args.run_info)
         base_config = Path(args.config) if hasattr(args, 'config') and args.config else None

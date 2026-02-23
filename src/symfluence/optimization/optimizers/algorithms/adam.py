@@ -21,10 +21,11 @@ References:
     In Proceedings of the 3rd International Conference on Learning Representations (ICLR).
 """
 
-from typing import Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
+
 import numpy as np
 
-from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
+from .base_algorithm import NativeGradientCallback, OptimizationAlgorithm
 from .config_schema import AdamDefaults
 
 

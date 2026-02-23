@@ -53,7 +53,7 @@ See Also:
     - EvaluationRegistry: Registry for variable-type evaluators
 """
 
-from typing import Dict, Type, Optional, List
+from typing import Dict, List, Optional, Type
 
 
 class AnalysisRegistry:

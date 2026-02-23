@@ -1,10 +1,12 @@
-import pytest
-import xarray as xr
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from symfluence.data.preprocessing.dataset_handlers.rdrs_utils import RDRSHandler
+import pytest
+import xarray as xr
 from symfluence.core.constants import PhysicalConstants
+from symfluence.data.preprocessing.dataset_handlers.rdrs_utils import RDRSHandler
+
 
 @pytest.fixture
 def rdrs_handler():

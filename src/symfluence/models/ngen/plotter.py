@@ -5,12 +5,13 @@ Model-specific visualization for NGEN outputs including streamflow comparisons
 and flow duration curves.
 """
 
-import pandas as pd
 from pathlib import Path
 from typing import Optional
 
-from symfluence.reporting.plotter_registry import PlotterRegistry
+import pandas as pd
+
 from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
 @PlotterRegistry.register_plotter('NGEN')
@@ -43,7 +44,7 @@ class NGENPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
+        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve, calculate_metrics
 
         try:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.plot_config.FIGURE_SIZE_LARGE)

@@ -8,7 +8,7 @@ Meshflow is the single required pathway - no fallbacks.
 import logging
 import traceback
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def _patch_meshflow_network_bug():

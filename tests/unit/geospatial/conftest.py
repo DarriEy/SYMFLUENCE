@@ -14,14 +14,13 @@ import pytest
 
 # Import geospatial fixtures from fixtures module
 from fixtures.geospatial_fixtures import (
-    synthetic_watershed_gdf,
-    synthetic_river_network_gdf,
-    synthetic_pour_point_gdf,
-    synthetic_forcing_netcdf_with_grid,
-    synthetic_dem_raster,
     GEOPANDAS_AVAILABLE,
+    synthetic_dem_raster,
+    synthetic_forcing_netcdf_with_grid,
+    synthetic_pour_point_gdf,
+    synthetic_river_network_gdf,
+    synthetic_watershed_gdf,
 )
-
 
 # =============================================================================
 # Mock Logger Fixture

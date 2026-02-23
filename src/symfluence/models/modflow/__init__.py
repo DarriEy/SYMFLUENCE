@@ -28,12 +28,12 @@ References:
 
     https://github.com/MODFLOW-ORG/modflow6
 """
+from .config import MODFLOWConfigAdapter
+from .extractor import MODFLOWResultExtractor
+from .plotter import MODFLOWPlotter
+from .postprocessor import MODFLOWPostProcessor
 from .preprocessor import MODFLOWPreProcessor
 from .runner import MODFLOWRunner
-from .extractor import MODFLOWResultExtractor
-from .postprocessor import MODFLOWPostProcessor
-from .config import MODFLOWConfigAdapter
-from .plotter import MODFLOWPlotter
 
 __all__ = [
     "MODFLOWPreProcessor",
@@ -57,4 +57,5 @@ except ImportError:
 # - MODFLOWPostProcessor: @ModelRegistry.register_postprocessor("MODFLOW")
 # MODFLOWConfigAdapter needs explicit registration (no decorator)
 from symfluence.models.registry import ModelRegistry
+
 ModelRegistry.register_config_adapter('MODFLOW')(MODFLOWConfigAdapter)

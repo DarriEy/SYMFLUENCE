@@ -5,14 +5,17 @@ Provides acquisition and preprocessing of GRACE/GRACE-FO satellite data
 for total water storage anomaly validation with adaptive basin extraction.
 """
 
+from pathlib import Path
+from typing import Dict, Optional
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
-from pathlib import Path
-from typing import Dict, Optional
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('grace')
 class GRACEHandler(BaseObservationHandler):

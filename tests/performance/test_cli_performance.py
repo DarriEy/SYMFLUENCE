@@ -4,9 +4,9 @@ CLI Performance Tests
 Measures import time and CLI command execution time for performance tracking.
 """
 
-import time
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PYTHON = sys.executable  # Use current Python interpreter

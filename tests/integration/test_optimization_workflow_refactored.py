@@ -11,6 +11,7 @@ model-specific optimizers, workers, and parameter managers.
 """
 
 from pathlib import Path
+
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -122,9 +123,9 @@ class TestMigrationReadiness:
 
     def test_optimization_base_classes_available(self):
         """Test base classes for migration are available."""
+        from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
         from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
         from symfluence.optimization.workers.base_worker import BaseWorker
-        from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
         assert BaseModelOptimizer is not None
         assert BaseWorker is not None

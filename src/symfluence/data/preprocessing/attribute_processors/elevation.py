@@ -4,20 +4,22 @@ Elevation attribute processor.
 Handles DEM processing, slope/aspect generation, and elevation statistics calculation.
 """
 
-import numpy as np
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 import geopandas as gpd
+import numpy as np
 from rasterstats import zonal_stats
+
 try:
     from osgeo import gdal
 except ImportError:
     gdal = None
 from scipy.stats import circmean
 
-from .base import BaseAttributeProcessor
-
 from symfluence.core.mixins.project import resolve_data_subdir
+
+from .base import BaseAttributeProcessor
 
 
 class ElevationProcessor(BaseAttributeProcessor):

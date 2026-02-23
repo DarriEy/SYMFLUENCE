@@ -7,11 +7,11 @@ Handles drainage database topology fixes, completeness, and normalization.
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
+import geopandas as gpd
 import numpy as np
 import xarray as xr
-import geopandas as gpd
 
 from symfluence.core.mixins import ConfigMixin
 from symfluence.models.mesh.preprocessing.config_defaults import (
@@ -79,6 +79,7 @@ class MESHDrainageDatabase(ConfigMixin):
             List of integer class IDs, or None if not determinable
         """
         import re
+
         import pandas as pd
 
         # Look for landcover stats file in forcing directory or attributes

@@ -7,7 +7,7 @@ and path isolation.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.core.mixins.project import resolve_data_subdir
 
@@ -156,9 +156,9 @@ def _resolve_simulation_dates(
 
     if forcing_file.exists():
         try:
-            import xarray as xr
-            import pandas as pd
             import numpy as np
+            import pandas as pd
+            import xarray as xr
             with xr.open_dataset(forcing_file) as ds:
                 time_vals = ds['time'].values
                 if len(time_vals) > 0:

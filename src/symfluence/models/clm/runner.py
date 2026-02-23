@@ -8,7 +8,7 @@ the run directory where namelists are placed.
 
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

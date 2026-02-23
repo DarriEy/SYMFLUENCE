@@ -11,12 +11,13 @@ Tests will be skipped if the API is not accessible.
 
 These tests require internet access to the Hub'Eau API.
 """
-import pytest
-import pandas as pd
-from pathlib import Path
-from datetime import datetime
-import tempfile
 import shutil
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import pytest
 
 # Skip all tests if requests not available
 requests = pytest.importorskip("requests")
@@ -25,9 +26,7 @@ requests = pytest.importorskip("requests")
 def hubeau_api_accessible():
     """Check if Hub'Eau API is accessible (not geo-restricted)."""
     try:
-        from symfluence.data.observation.handlers.hubeau import (
-            _hubeau_request, HUBEAU_STATIONS_URL, HubEauAPIError
-        )
+        from symfluence.data.observation.handlers.hubeau import HUBEAU_STATIONS_URL, HubEauAPIError, _hubeau_request
         _hubeau_request(HUBEAU_STATIONS_URL, {'size': 1})
         return True
     except (HubEauAPIError, Exception):
@@ -279,24 +278,25 @@ class TestHubEauRegistration:
 
     def test_streamflow_handler_registered(self):
         """Test streamflow handler is in registry."""
-        from symfluence.data.observation.registry import ObservationRegistry
         from symfluence.data.observation.handlers import HubEauStreamflowHandler  # Trigger registration
+        from symfluence.data.observation.registry import ObservationRegistry
 
         assert ObservationRegistry.is_registered('hubeau_streamflow')
 
     def test_waterlevel_handler_registered(self):
         """Test water level handler is in registry."""
-        from symfluence.data.observation.registry import ObservationRegistry
         from symfluence.data.observation.handlers import HubEauWaterLevelHandler  # Trigger registration
+        from symfluence.data.observation.registry import ObservationRegistry
 
         assert ObservationRegistry.is_registered('hubeau_waterlevel')
 
     def test_get_handler_by_name(self):
         """Test handler can be retrieved by name."""
-        from symfluence.data.observation.registry import ObservationRegistry
-        from symfluence.data.observation.handlers import HubEauStreamflowHandler
         import logging
         import tempfile
+
+        from symfluence.data.observation.handlers import HubEauStreamflowHandler
+        from symfluence.data.observation.registry import ObservationRegistry
 
         logger = logging.getLogger("test")
 
@@ -326,9 +326,10 @@ class TestHubEauLiveAPI:
 
     def test_fetch_one_year_data(self):
         """Fetch one year of data from Seine at Paris."""
-        from symfluence.data.observation.handlers.hubeau import HubEauStreamflowHandler
         import logging
         import tempfile
+
+        from symfluence.data.observation.handlers.hubeau import HubEauStreamflowHandler
 
         logger = logging.getLogger("live_test")
         temp_dir = tempfile.mkdtemp()

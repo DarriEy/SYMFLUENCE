@@ -1,9 +1,10 @@
 """CLI test fixtures and mocking utilities."""
 
-import pytest
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import MagicMock, Mock
-from typing import Dict, Any
+
+import pytest
 
 
 @pytest.fixture

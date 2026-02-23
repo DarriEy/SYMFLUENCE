@@ -16,10 +16,11 @@ Output Format:
     CSV with columns: datetime, swe_m (or snow_depth_m, etc.)
 """
 
-import pandas as pd
-import xarray as xr
 from pathlib import Path
 from typing import List, Optional
+
+import pandas as pd
+import xarray as xr
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry

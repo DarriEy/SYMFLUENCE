@@ -11,6 +11,7 @@ import panel as pn
 import param
 
 from symfluence.workflow_steps import WORKFLOW_STEP_DESCRIPTION_MAP
+
 from ..utils.threading_utils import WorkflowThread
 
 logger = logging.getLogger(__name__)

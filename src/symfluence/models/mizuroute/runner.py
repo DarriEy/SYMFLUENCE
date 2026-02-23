@@ -8,14 +8,14 @@ Refactored to use the Unified Model Execution Framework.
 import logging
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelRunner
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
@@ -151,8 +151,9 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 return None
 
         try:
-            import xarray as xr
             import os
+
+            import xarray as xr
 
             self.logger.debug(f"Processing {runoff_filepath}")
 

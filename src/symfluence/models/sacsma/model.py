@@ -30,28 +30,39 @@ except ImportError:
     jax = None
     lax = None
 
+from symfluence.models.snow17.model import (
+    snow17_simulate_numpy,
+    snow17_step,
+)
+from symfluence.models.snow17.parameters import (
+    DEFAULT_ADC,
+    Snow17Params,
+    Snow17State,
+)
+from symfluence.models.snow17.parameters import (
+    create_initial_state as snow17_create_initial_state,
+)
+from symfluence.models.snow17.parameters import (
+    params_dict_to_namedtuple as snow17_params_dict_to_namedtuple,
+)
+
 from .parameters import (
     DEFAULT_PARAMS,
     split_params,
+)
+from .parameters import (
     params_dict_to_namedtuple as sacsma_params_dict_to_namedtuple,
-)
-from symfluence.models.snow17.parameters import (
-    Snow17State,
-    Snow17Params,
-    DEFAULT_ADC,
-    params_dict_to_namedtuple as snow17_params_dict_to_namedtuple,
-    create_initial_state as snow17_create_initial_state,
-)
-from symfluence.models.snow17.model import (
-    snow17_step,
-    snow17_simulate_numpy,
 )
 from .sacsma import (
     SacSmaState,
-    sacsma_step,
-    sacsma_simulate_jax as _sacsma_sim_jax,
-    sacsma_simulate_numpy as _sacsma_sim_numpy,
     _create_default_state,
+    sacsma_step,
+)
+from .sacsma import (
+    sacsma_simulate_jax as _sacsma_sim_jax,
+)
+from .sacsma import (
+    sacsma_simulate_numpy as _sacsma_sim_numpy,
 )
 
 
@@ -162,12 +173,13 @@ def _try_dcoupler_coupled(
     logger = logging.getLogger(__name__)
 
     try:
-        from symfluence.coupling import is_dcoupler_available, INSTALL_SUGGESTION
+        from symfluence.coupling import INSTALL_SUGGESTION, is_dcoupler_available
         if not is_dcoupler_available():
             logger.debug(INSTALL_SUGGESTION)
             return None
 
         import torch
+
         from symfluence.coupling import CouplingGraphBuilder
 
         graph_config = {

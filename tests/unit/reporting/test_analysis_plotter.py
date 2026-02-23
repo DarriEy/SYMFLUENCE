@@ -4,13 +4,13 @@ Unit tests for AnalysisPlotter.
 Tests sensitivity analysis, decision impacts, and threshold analysis visualizations.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
 
 

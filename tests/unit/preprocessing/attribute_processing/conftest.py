@@ -5,13 +5,14 @@ Provides mock data, test configurations, and utilities for testing
 the attributeProcessor class and its methods.
 """
 
-import pytest
+import logging
+from pathlib import Path
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from pathlib import Path
+import pytest
 from shapely.geometry import box
-import logging
 
 
 @pytest.fixture

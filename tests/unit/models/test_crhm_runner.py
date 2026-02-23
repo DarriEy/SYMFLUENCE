@@ -13,9 +13,9 @@ the model runs to completion with output.
 import os
 import shutil
 import subprocess
-import pytest
 from pathlib import Path
 
+import pytest
 
 CRHM_EXE = Path("/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/crhm/bin/crhm")
 ORIGINAL_PRJ = Path("/Users/darrieythorsson/compHydro/data/CONFLUENCE_data/domain_Bow_at_Banff_lumped_era5/CRHM_input/settings/model.prj")

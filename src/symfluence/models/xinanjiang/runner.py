@@ -4,21 +4,21 @@ Xinanjiang Model Runner.
 Handles Xinanjiang model execution and output processing. Lumped mode only.
 """
 
-from typing import Dict, Any, Optional
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import SpatialOrchestrator
-from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
-from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.execution import SpatialOrchestrator
+from symfluence.models.mixins import ObservationLoaderMixin, SpatialModeDetectionMixin
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_runner('XINANJIANG', method_name='run_xinanjiang')

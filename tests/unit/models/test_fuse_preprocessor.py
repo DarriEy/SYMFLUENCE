@@ -4,13 +4,12 @@ Unit tests for FUSE preprocessor.
 Tests FUSE-specific preprocessing functionality.
 """
 
-import pytest
 from unittest.mock import patch
-from symfluence.models.fuse import FUSEPreProcessor
-from symfluence.core.exceptions import ModelExecutionError
+
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
-
-
+from symfluence.core.exceptions import ModelExecutionError
+from symfluence.models.fuse import FUSEPreProcessor
 
 
 class TestFUSEPreProcessorInitialization:

@@ -7,8 +7,8 @@ This module implements handlers for configuration file management and validation
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class ConfigCommands(BaseCommand):
@@ -142,8 +142,8 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        import sys
         import platform
+        import sys
 
         BaseCommand._console.info("Validating system environment...")
         BaseCommand._console.rule()
@@ -189,6 +189,7 @@ class ConfigCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         import json
+
         import yaml
 
         flat_mode = BaseCommand.get_arg(args, 'flat', False)

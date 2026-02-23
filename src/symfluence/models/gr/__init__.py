@@ -63,9 +63,9 @@ Limitations and Considerations:
     - For distributed mode, subcatchment areas needed for routing
 """
 
+from .postprocessor import GRPostprocessor
 from .preprocessor import GRPreProcessor
 from .runner import GRRunner
-from .postprocessor import GRPostprocessor
 from .visualizer import visualize_gr
 
 __all__ = [
@@ -78,9 +78,12 @@ __all__ = [
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
+
 from .config import GRConfigAdapter
+
 ModelRegistry.register_config_adapter('GR')(GRConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import GRResultExtractor
+
 ModelRegistry.register_result_extractor('GR')(GRResultExtractor)

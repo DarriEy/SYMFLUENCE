@@ -16,9 +16,9 @@ Key Features:
 - Support for multiple outlets (disconnected subnetworks)
 """
 
-from typing import List, Optional, Tuple, NamedTuple, Any
-from pathlib import Path
 import warnings
+from pathlib import Path
+from typing import Any, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 

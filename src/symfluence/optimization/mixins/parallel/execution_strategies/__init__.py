@@ -5,9 +5,9 @@ Different strategies for parallel task execution.
 """
 
 from .base import ExecutionStrategy
-from .sequential import SequentialExecutionStrategy
-from .process_pool import ProcessPoolExecutionStrategy
 from .mpi import MPIExecutionStrategy
+from .process_pool import ProcessPoolExecutionStrategy
+from .sequential import SequentialExecutionStrategy
 
 __all__ = [
     'ExecutionStrategy',

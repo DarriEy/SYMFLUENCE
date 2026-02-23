@@ -9,7 +9,7 @@ Provides utilities for spatial subsetting of datasets:
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr

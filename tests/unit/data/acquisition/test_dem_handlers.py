@@ -7,13 +7,11 @@ All tests mock HTTP/network responses -- no real network calls.
 import gzip
 import io
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import numpy as np
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Helpers
@@ -238,8 +236,9 @@ class TestMapzenAcquirer:
 
     def test_gzip_import(self):
         """Module should import gzip at the top level."""
-        import symfluence.data.acquisition.handlers.dem as dem_module
         import gzip as gzip_mod
+
+        import symfluence.data.acquisition.handlers.dem as dem_module
         # gzip is used in MapzenAcquirer.download
         assert hasattr(gzip_mod, 'open')
 
@@ -351,7 +350,7 @@ class TestAllNewHandlersRegistered:
 
     @pytest.mark.parametrize("key", ['COPDEM90', 'SRTM', 'ETOPO2022', 'MAPZEN', 'ALOS'])
     def test_handler_inherits_base(self, key):
-        from symfluence.data.acquisition.registry import AcquisitionRegistry
         from symfluence.data.acquisition.base import BaseAcquisitionHandler
+        from symfluence.data.acquisition.registry import AcquisitionRegistry
         cls = AcquisitionRegistry._get_handler_class(key)
         assert issubclass(cls, BaseAcquisitionHandler)

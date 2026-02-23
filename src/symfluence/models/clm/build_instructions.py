@@ -11,8 +11,8 @@ I2000Clm50SpRs compset and f09_g17 resolution (build grid only).
 ESMF must be installed (mpiuni serial mode) for the NUOPC driver.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
+    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )

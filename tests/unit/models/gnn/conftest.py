@@ -2,12 +2,12 @@
 Shared fixtures for GNN model tests.
 """
 
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
 
 

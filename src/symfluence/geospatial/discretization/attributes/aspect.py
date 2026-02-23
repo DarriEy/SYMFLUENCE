@@ -7,7 +7,7 @@ directional classes (N, NE, E, SE, S, SW, W, NW or custom divisions).
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from symfluence.geospatial.raster_utils import calculate_aspect
 

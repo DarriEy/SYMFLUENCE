@@ -3,10 +3,13 @@ MODIS Data Acquisition Handler
 
 Provides cloud acquisition for MODIS products (Snow Cover, ET, etc.) via THREDDS/NCSS.
 """
-import requests
 from pathlib import Path
+
+import requests
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
 
 @AcquisitionRegistry.register('MODIS_SNOW')
 class MODISSnowAcquirer(BaseAcquisitionHandler):

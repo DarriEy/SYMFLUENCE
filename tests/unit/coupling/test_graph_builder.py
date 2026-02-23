@@ -2,9 +2,8 @@
 
 import pytest
 import torch
-
-from symfluence.coupling.graph_builder import CouplingGraphBuilder, UNIT_CONVERSIONS
 from symfluence.coupling.bmi_registry import BMIRegistry
+from symfluence.coupling.graph_builder import UNIT_CONVERSIONS, CouplingGraphBuilder
 
 
 class TestBMIRegistry:

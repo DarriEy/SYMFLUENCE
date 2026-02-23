@@ -24,19 +24,19 @@ Usage:
     report = profiler.generate_report()
 """
 
-import os
-import sys
-import time
 import json
 import logging
+import os
 import subprocess
+import sys
 import threading
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any
-from contextlib import contextmanager
+import time
 from collections import defaultdict
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from .platform_monitors import create_process_monitor, get_platform_capabilities
 

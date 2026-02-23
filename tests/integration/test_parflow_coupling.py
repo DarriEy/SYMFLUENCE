@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -347,7 +346,6 @@ class TestSUMMAParFlowCoupling:
     def test_extract_recharge_from_summa(self, tmp_path):
         """Verify SUMMA recharge extraction with unit conversion to m/hr."""
         import xarray as xr
-
         from symfluence.models.parflow.coupling import SUMMAToParFlowCoupler
 
         # Create fake SUMMA output

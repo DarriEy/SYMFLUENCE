@@ -1,12 +1,12 @@
 """Tests for StateManager operations."""
 
-import numpy as np
-import pytest
 from pathlib import Path
 
-from symfluence.models.state.manager import StateManager
-from symfluence.models.state.types import ModelState, StateMetadata, StateFormat
+import numpy as np
+import pytest
 from symfluence.models.state.exceptions import StateError
+from symfluence.models.state.manager import StateManager
+from symfluence.models.state.types import ModelState, StateFormat, StateMetadata
 
 
 class TestStateManagerSerialization:

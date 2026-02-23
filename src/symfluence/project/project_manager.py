@@ -5,12 +5,12 @@ Handles project directory structure creation, pour point generation,
 and project metadata management for hydrological model domains.
 """
 
-from pathlib import Path
 import logging
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
 import geopandas as gpd
 from shapely.geometry import Point
-
 
 from symfluence.core.mixins import ConfigurableMixin
 

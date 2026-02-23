@@ -35,7 +35,6 @@ from typing import List, Optional, Tuple
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
-
 GLEAM_HOST = 'hydras.ugent.be'
 GLEAM_PORT = 2225
 DEFAULT_VERSION = 'v4.2a'

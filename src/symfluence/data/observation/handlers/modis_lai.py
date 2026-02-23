@@ -15,16 +15,16 @@ LAI is critical for:
 - Vegetation phenology tracking
 - Carbon cycle modeling
 """
-import numpy as np
-import pandas as pd
-import xarray as xr
-import geopandas as gpd
 from pathlib import Path
 from typing import List, Optional
 
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-
 
 # Scale factors and valid ranges for MODIS LAI/FPAR
 LAI_SCALE_FACTOR = 0.1  # To get LAI in m²/m²

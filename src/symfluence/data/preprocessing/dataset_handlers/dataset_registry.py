@@ -5,7 +5,7 @@ Provides a central registry for dataset preprocessing handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
 
-from typing import Dict, Type, List
+from typing import Dict, List, Type
 
 from symfluence.data.base_registry import BaseRegistry
 

@@ -1,6 +1,8 @@
 
 import logging
+
 from symfluence.optimization.parameter_managers import NgenParameterManager
+
 
 def test_soil_depth_mapping(tmp_path):
     """Test that soil_depth is correctly mapped to soil_params.depth in CFE."""

@@ -6,10 +6,11 @@ This module provides shared utilities for MODIS observation handlers
 and interpolation functions.
 """
 
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from typing import Dict, List, Optional
 
 # MODIS fill and invalid values
 MODIS_FILL_VALUES = {200, 201, 211, 237, 239, 250, 254, 255}

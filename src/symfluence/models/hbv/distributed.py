@@ -38,13 +38,14 @@ Example:
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Tuple, NamedTuple, Any, Union, Callable, TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from .optimizers import CalibrationResult
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 import numpy as np
 
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 try:
     import jax
     import jax.numpy as jnp
-    from jax import lax, vmap, grad, jit
+    from jax import grad, jit, lax, vmap
     HAS_JAX = True
 except ImportError:
     HAS_JAX = False
@@ -65,19 +66,29 @@ except ImportError:
     jit = None
 
 from .model import (
-    HBVState, PARAM_BOUNDS, DEFAULT_PARAMS, HBVParameters,
-    create_params_from_dict, create_initial_state, scale_params_for_timestep,
-    simulate_jax, simulate_numpy
+    DEFAULT_PARAMS,
+    PARAM_BOUNDS,
+    HBVParameters,
+    HBVState,
+    create_initial_state,
+    create_params_from_dict,
+    scale_params_for_timestep,
+    simulate_jax,
+    simulate_numpy,
+)
+from .network import NetworkBuilder, RiverNetwork
+from .regionalization import TransferLayer, forward_transfer_function
+from .routing import (
+    RoutingParams,
+    RoutingState,
+    compute_muskingum_params,
+    create_initial_routing_state,
+    route_network_step_jax,
+    route_network_step_numpy,
+    runoff_mm_to_cms,
 )
 from .time_utils import warmup_timesteps as warmup_timesteps_from_days
-from .network import RiverNetwork, NetworkBuilder
-from .routing import (
-    RoutingParams, RoutingState,
-    compute_muskingum_params, create_initial_routing_state,
-    route_network_step_jax, route_network_step_numpy,
-    runoff_mm_to_cms
-)
-from .regionalization import forward_transfer_function, TransferLayer
+
 
 def _slice_hbv_params(params: HBVParameters, idx: int) -> HBVParameters:
     """Slice batched HBVParameters for a single GRU."""
@@ -1080,7 +1091,9 @@ def _calibrate_single_phase(
 ) -> 'CalibrationResult':
     """Single-phase calibration with composite loss."""
     import time
-    from symfluence.optimization.gradient import AdamW, CosineAnnealingWarmRestarts, EMA
+
+    from symfluence.optimization.gradient import EMA, AdamW, CosineAnnealingWarmRestarts
+
     from .optimizers import CalibrationResult
 
     start_time = time.time()
@@ -1221,7 +1234,9 @@ def _calibrate_two_phase(
     Phase 2: Lower LR with NSE-only loss to polish result
     """
     import time
-    from symfluence.optimization.gradient import AdamW, CosineAnnealingWarmRestarts, EMA
+
+    from symfluence.optimization.gradient import EMA, AdamW, CosineAnnealingWarmRestarts
+
     from .optimizers import CalibrationResult
 
     total_start = time.time()

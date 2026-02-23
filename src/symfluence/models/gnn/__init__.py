@@ -30,12 +30,13 @@ def __dir__():
 
 def register_with_model_registry():
     """Register GNN components with the ModelRegistry."""
+    from symfluence.models.registry import ModelRegistry
+
     from .config import GNNConfigAdapter
     from .extractor import GNNResultExtractor
+    from .postprocessor import GNNPostprocessor
     from .preprocessor import GNNPreProcessor
     from .runner import GNNRunner
-    from .postprocessor import GNNPostprocessor
-    from symfluence.models.registry import ModelRegistry
 
     ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
     ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
@@ -49,9 +50,9 @@ register_with_model_registry()
 
 
 if TYPE_CHECKING:
-    from .runner import GNNRunner
-    from .preprocessor import GNNPreProcessor
     from .postprocessor import GNNPostprocessor
+    from .preprocessor import GNNPreProcessor
+    from .runner import GNNRunner
 
 
 __all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor', 'register_with_model_registry']

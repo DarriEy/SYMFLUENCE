@@ -28,12 +28,12 @@ References:
 
     https://github.com/PSUmodeling/MM-PIHM
 """
+from .config import PIHMConfigAdapter
+from .extractor import PIHMResultExtractor
+from .plotter import PIHMPlotter
+from .postprocessor import PIHMPostProcessor
 from .preprocessor import PIHMPreProcessor
 from .runner import PIHMRunner
-from .extractor import PIHMResultExtractor
-from .postprocessor import PIHMPostProcessor
-from .config import PIHMConfigAdapter
-from .plotter import PIHMPlotter
 
 __all__ = [
     "PIHMPreProcessor",
@@ -57,4 +57,5 @@ except ImportError:
 # - PIHMPostProcessor: @ModelRegistry.register_postprocessor("PIHM")
 # PIHMConfigAdapter needs explicit registration (no decorator)
 from symfluence.models.registry import ModelRegistry
+
 ModelRegistry.register_config_adapter('PIHM')(PIHMConfigAdapter)

@@ -11,9 +11,9 @@ Tests the JAX transfer function framework:
 Note: Tests that require JAX/jFUSE are skipped if those packages are not installed.
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
 import logging
+from pathlib import Path
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,8 @@ import pytest
 
 # Check for jFUSE/JAX availability
 try:
-    from symfluence.models.jfuse import HAS_JFUSE as _HAS_JFUSE, HAS_JAX as _HAS_JAX
+    from symfluence.models.jfuse import HAS_JAX as _HAS_JAX
+    from symfluence.models.jfuse import HAS_JFUSE as _HAS_JFUSE
     HAS_JFUSE = _HAS_JFUSE and _HAS_JAX
 except ImportError:
     HAS_JFUSE = False
@@ -29,7 +30,7 @@ except ImportError:
 if HAS_JFUSE:
     try:
         import jax.numpy as jnp
-        from jfuse.fuse.state import PARAM_NAMES, PARAM_BOUNDS, NUM_PARAMETERS
+        from jfuse.fuse.state import NUM_PARAMETERS, PARAM_BOUNDS, PARAM_NAMES
     except ImportError:
         HAS_JFUSE = False
 
@@ -97,7 +98,8 @@ class TestModuleConstants:
     def test_param_attr_map_covers_default_params(self):
         """PARAM_ATTR_MAP should cover all default calibrated params."""
         from symfluence.models.jfuse.calibration.transfer_functions import (
-            PARAM_ATTR_MAP, DEFAULT_CALIBRATED_PARAMS,
+            DEFAULT_CALIBRATED_PARAMS,
+            PARAM_ATTR_MAP,
         )
 
         for param in DEFAULT_CALIBRATED_PARAMS:
@@ -420,7 +422,8 @@ class TestApplyTransferFunctions:
     def test_nonzero_b_creates_spatial_variation(self, tf_config):
         """Non-zero b should create spatial variation in calibrated params."""
         from symfluence.models.jfuse.calibration.transfer_functions import (
-            apply_transfer_functions, PARAM_ATTR_MAP,
+            PARAM_ATTR_MAP,
+            apply_transfer_functions,
         )
 
         coeffs_np = tf_config.get_default_coefficients()

@@ -2,8 +2,9 @@
 Tests for the AgentManager class.
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 
 class TestAgentManagerInitialization:

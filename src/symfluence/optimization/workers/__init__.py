@@ -22,8 +22,9 @@ symfluence.models/{model}/calibration/worker.py. Use the registry or direct
 import from the canonical location.
 """
 
-from .base_worker import BaseWorker, WorkerTask, WorkerResult
+from .base_worker import BaseWorker, WorkerResult, WorkerTask
 from .inmemory_worker import InMemoryModelWorker
+
 
 # Lazy import of worker classes from canonical locations to avoid circular dependencies
 def __getattr__(name):

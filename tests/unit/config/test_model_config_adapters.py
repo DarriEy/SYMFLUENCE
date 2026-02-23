@@ -10,11 +10,10 @@ Tests the new ModelRegistry-based config system to verify:
 """
 
 import pytest
-
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import ModelConfigAdapter, ConfigValidationError
 from symfluence.core.config.defaults import ModelDefaults
 from symfluence.core.config.transformers import transform_flat_to_nested
+from symfluence.models.base import ConfigValidationError, ModelConfigAdapter
+from symfluence.models.registry import ModelRegistry
 
 
 class TestModelRegistryRegistration:

@@ -89,6 +89,7 @@ del _os, _sys
 # concurrently with netCDF file operations (e.g., in easymore remapping).
 # ============================================================================
 from symfluence.core.hdf5_safety import configure_hdf5_safety
+
 configure_hdf5_safety(disable_tqdm_monitor=True)
 
 import logging
@@ -99,7 +100,7 @@ try:
     from .symfluence_version import __version__
 except ImportError:
     try:
-        from importlib.metadata import version, PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError, version
 
         __version__ = version("symfluence")
     except (ImportError, PackageNotFoundError):
@@ -109,17 +110,17 @@ except ImportError:
 from .core import SYMFLUENCE
 from .core.config.models import SymfluenceConfig
 from .core.exceptions import (
-    SYMFLUENCEError,
     ConfigurationError,
     ConfigValidationError,
-    ModelExecutionError,
     DataAcquisitionError,
-    OptimizationError,
-    GeospatialError,
-    ValidationError,
-    FileOperationError,
     EvaluationError,
+    FileOperationError,
+    GeospatialError,
+    ModelExecutionError,
+    OptimizationError,
     ReportingError,
+    SYMFLUENCEError,
+    ValidationError,
 )
 
 __all__ = [

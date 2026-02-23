@@ -7,16 +7,17 @@ Base Model Evaluator
 This module provides the abstract base class for different evaluation variables.
 """
 
+import logging
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-import logging
-from typing import cast, Any, Dict, List, Tuple, Optional, TYPE_CHECKING
-from abc import ABC, abstractmethod
 
-from symfluence.evaluation import metrics
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.evaluation import metrics
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

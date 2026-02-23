@@ -4,12 +4,12 @@ Unit tests for MetricsProcessor.
 Tests performance metrics calculation functionality.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.processors.metrics_processor import MetricsProcessor
 
 

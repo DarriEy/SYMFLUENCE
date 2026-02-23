@@ -8,8 +8,8 @@ Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.3).
 from pathlib import Path
 from typing import Optional
 
-from ..registry import ModelRegistry
 from ..base import StandardModelPostprocessor
+from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('MESH')

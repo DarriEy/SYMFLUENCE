@@ -1,7 +1,7 @@
 """Tests for dRoute postprocessor."""
 
-import pytest
 import numpy as np
+import pytest
 
 
 class TestDRoutePostProcessorImport:
@@ -16,8 +16,8 @@ class TestDRoutePostProcessorImport:
         assert 'DROUTE' in ModelRegistry._postprocessors
 
     def test_postprocessor_is_correct_class(self):
-        from symfluence.models.registry import ModelRegistry
         from symfluence.models.droute.postprocessor import DRoutePostProcessor
+        from symfluence.models.registry import ModelRegistry
         assert ModelRegistry._postprocessors.get('DROUTE') == DRoutePostProcessor
 
     def test_model_name(self):
@@ -39,8 +39,8 @@ class TestDRouteNetCDFExtraction:
 
     def test_outlet_streamflow_selection(self):
         """Test selecting outletStreamflow variable from NetCDF."""
-        import xarray as xr
         import pandas as pd
+        import xarray as xr
 
         times = pd.date_range('2020-01-01', periods=10, freq='D')
         outlet_flow = np.random.uniform(10, 100, 10)
@@ -57,8 +57,8 @@ class TestDRouteNetCDFExtraction:
 
     def test_routed_runoff_outlet_selection(self):
         """Test selecting outlet from routedRunoff using max mean discharge."""
-        import xarray as xr
         import pandas as pd
+        import xarray as xr
 
         times = pd.date_range('2020-01-01', periods=10, freq='D')
         routed = np.random.uniform(0, 10, (10, 5))

@@ -1,14 +1,14 @@
 """Unit tests for WMFire Ignition and Perimeter Validation classes."""
-import numpy as np
-import pytest
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
 from symfluence.models.wmfire.ignition import (
-    IgnitionPoint,
-    IgnitionManager,
     FirePerimeterValidator,
+    IgnitionManager,
+    IgnitionPoint,
 )
 
 

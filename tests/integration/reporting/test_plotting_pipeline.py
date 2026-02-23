@@ -5,14 +5,15 @@ These tests verify that the full plotting pipeline works correctly,
 generating actual plot files to disk using real matplotlib.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import tempfile
 import logging
+import tempfile
+from pathlib import Path
 
 import matplotlib
+import numpy as np
+import pandas as pd
+import pytest
+
 matplotlib.use('Agg')  # Non-interactive backend for testing
 
 
@@ -86,8 +87,8 @@ class TestPanelRendering:
     def test_timeseries_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test TimeSeriesPanel creates valid plot."""
         import matplotlib.pyplot as plt
-        from symfluence.reporting.panels import TimeSeriesPanel
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
+        from symfluence.reporting.panels import TimeSeriesPanel
 
         results_df, obs_series = sample_streamflow_data
         model_cols = ['SUMMA_discharge', 'FUSE_discharge']
@@ -110,8 +111,8 @@ class TestPanelRendering:
     def test_fdc_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test FDCPanel creates valid flow duration curve."""
         import matplotlib.pyplot as plt
-        from symfluence.reporting.panels import FDCPanel
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
+        from symfluence.reporting.panels import FDCPanel
 
         results_df, obs_series = sample_streamflow_data
         model_cols = ['SUMMA_discharge', 'FUSE_discharge']
@@ -133,8 +134,8 @@ class TestPanelRendering:
     def test_scatter_panel_creates_plot(self, sample_config, mock_logger, sample_streamflow_data):
         """Test ScatterPanel creates valid scatter plot."""
         import matplotlib.pyplot as plt
-        from symfluence.reporting.panels import ScatterPanel
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
+        from symfluence.reporting.panels import ScatterPanel
 
         results_df, obs_series = sample_streamflow_data
 
@@ -156,8 +157,8 @@ class TestPanelRendering:
     def test_metrics_table_panel(self, sample_config, mock_logger):
         """Test MetricsTablePanel renders metrics table."""
         import matplotlib.pyplot as plt
-        from symfluence.reporting.panels import MetricsTablePanel
         from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG
+        from symfluence.reporting.panels import MetricsTablePanel
 
         metrics_dict = {
             'SUMMA': {'KGE': 0.75, 'NSE': 0.70, 'RMSE': 2.5, 'Bias': -0.5},
@@ -186,8 +187,9 @@ class TestModelComparisonPipeline:
         self, sample_config, mock_logger, sample_streamflow_data
     ):
         """Test that model comparison overview creates actual PNG file."""
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         results_df, obs_series = sample_streamflow_data
 
@@ -216,8 +218,9 @@ class TestModelComparisonPipeline:
         self, sample_config, mock_logger, sample_streamflow_data
     ):
         """Test model comparison works with different contexts."""
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         results_df, obs_series = sample_streamflow_data
 
@@ -250,8 +253,9 @@ class TestEdgeCases:
         self, sample_config, mock_logger, sample_streamflow_data
     ):
         """Test that comparison works with a single model."""
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         results_df, obs_series = sample_streamflow_data
 
@@ -274,8 +278,9 @@ class TestEdgeCases:
 
     def test_short_time_series(self, sample_config, mock_logger):
         """Test handling of short time series."""
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         np.random.seed(42)
         dates = pd.date_range('2020-01-01', periods=30, freq='D')
@@ -302,8 +307,9 @@ class TestEdgeCases:
 
     def test_data_with_nan_values(self, sample_config, mock_logger, sample_streamflow_data):
         """Test that NaN values are handled gracefully."""
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         results_df, obs_series = sample_streamflow_data
 
@@ -342,8 +348,9 @@ class TestReportingManagerIntegration:
         Note: Full ReportingManager integration requires SymfluenceConfig object
         and complex domain setup. This test verifies the plotter component works.
         """
-        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         from unittest.mock import patch
+
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
         results_df, obs_series = sample_streamflow_data
 

@@ -17,11 +17,10 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-
-from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import PathResolverMixin
 
 
 class BaseGeofabricDelineator(ABC, PathResolverMixin):

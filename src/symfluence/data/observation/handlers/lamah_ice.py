@@ -3,12 +3,15 @@ LamaH-ICE Observation Handlers
 
 Provides handlers for LamaH-ICE (Iceland) streamflow data from local files.
 """
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
+
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('lamah_ice_streamflow')
 class LamahIceStreamflowHandler(BaseObservationHandler):

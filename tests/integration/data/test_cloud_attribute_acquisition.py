@@ -5,11 +5,10 @@ Validates cloud attribute acquisition for DEM, land cover, and soil classes.
 """
 
 from pathlib import Path
-import pytest
 
+import pytest
 from symfluence import SYMFLUENCE
 from test_helpers.helpers import load_config_template, write_config
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 

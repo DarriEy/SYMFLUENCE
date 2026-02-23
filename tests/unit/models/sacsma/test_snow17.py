@@ -4,25 +4,24 @@ These tests verify that the SAC-SMA package correctly imports Snow-17
 from the shared ``symfluence.models.snow17`` module.
 """
 
-import pytest
 import numpy as np
-
-from symfluence.models.snow17.parameters import (
-    Snow17State,
-    Snow17Params,
-    SNOW17_DEFAULTS,
-    DEFAULT_ADC,
-    params_dict_to_namedtuple,
+import pytest
+from symfluence.models.sacsma.parameters import (
+    Snow17Parameters,
+    create_snow17_params,
 )
 from symfluence.models.snow17.model import (
-    snow17_step,
-    snow17_simulate_numpy,
-    seasonal_melt_factor,
     areal_depletion,
+    seasonal_melt_factor,
+    snow17_simulate_numpy,
+    snow17_step,
 )
-from symfluence.models.sacsma.parameters import (
-    create_snow17_params,
-    Snow17Parameters,
+from symfluence.models.snow17.parameters import (
+    DEFAULT_ADC,
+    SNOW17_DEFAULTS,
+    Snow17Params,
+    Snow17State,
+    params_dict_to_namedtuple,
 )
 
 

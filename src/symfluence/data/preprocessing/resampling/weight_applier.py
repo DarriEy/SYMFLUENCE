@@ -9,15 +9,16 @@ import logging
 import shutil
 import time
 import uuid
-import xarray as xr
 from pathlib import Path
 from typing import Optional
 
-from .weight_generator import _create_easymore_instance, _run_easmore_with_suppressed_output
-from .file_validator import FileValidator
+import xarray as xr
 
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+
+from .file_validator import FileValidator
+from .weight_generator import _create_easymore_instance, _run_easmore_with_suppressed_output
 
 
 class RemappingWeightApplier(ConfigMixin):

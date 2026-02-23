@@ -1,11 +1,12 @@
 """Tests for process adapter read_outputs() wiring to real extractors."""
 
-import pytest
-import torch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+import torch
 
 
 class TestParFlowReadOutputs:

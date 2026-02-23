@@ -5,19 +5,19 @@ dispatch logic in ``visualize_calibration_results()`` and the model comparison
 overview generation.
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from symfluence.core.constants import ConfigKeys
 from symfluence.core.exceptions import ReportingError, symfluence_error_handler
 from symfluence.core.mixins import ConfigMixin
-from symfluence.core.constants import ConfigKeys
 from symfluence.reporting.core.decorators import skip_if_not_visualizing
 
 if TYPE_CHECKING:
-    from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
-    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
-    from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
     from symfluence.reporting.orchestrators.model_output_orchestrator import ModelOutputOrchestrator
+    from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
+    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+    from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
 
 
 class CalibrationOrchestrator(ConfigMixin):

@@ -12,9 +12,9 @@ For `smooth_frac` (numerical smoothing), no spatial variation is applied:
 the coefficient is a single `a` value broadcast uniformly.
 """
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
-import logging
 import numpy as np
 
 try:
@@ -24,8 +24,7 @@ try:
 except ImportError:
     HAS_JAX = False
 
-from jfuse.fuse.state import PARAM_NAMES, PARAM_BOUNDS, NUM_PARAMETERS
-
+from jfuse.fuse.state import NUM_PARAMETERS, PARAM_BOUNDS, PARAM_NAMES
 
 # ============================================================================
 # Parameter-to-attribute mapping

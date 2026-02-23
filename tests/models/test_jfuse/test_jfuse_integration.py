@@ -8,25 +8,25 @@ Tests cover:
 - Lumped and distributed mode simulation
 """
 
-import pytest
-import numpy as np
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import logging
+
+import numpy as np
+import pytest
+from symfluence.models.jfuse import HAS_JAX as _HAS_JAX
 
 # Check for jFUSE availability using symfluence's detection
-from symfluence.models.jfuse import HAS_JFUSE as _HAS_JFUSE, HAS_JAX as _HAS_JAX
+from symfluence.models.jfuse import HAS_JFUSE as _HAS_JFUSE
 from symfluence.models.spatial_modes import SpatialMode
+
 HAS_JFUSE = _HAS_JFUSE and _HAS_JAX
 
 if HAS_JFUSE:
     import jax
     import jax.numpy as jnp
     import jfuse
-    from jfuse import (
-        create_fuse_model, Parameters, PARAM_BOUNDS,
-        CoupledModel
-    )
+    from jfuse import PARAM_BOUNDS, CoupledModel, Parameters, create_fuse_model
 
     def kge_loss(sim, obs):
         """Compute KGE loss (1 - KGE) for use in optimization."""
@@ -52,16 +52,17 @@ else:
 from symfluence.models.jfuse import (
     JFUSEConfig,
     JFUSEConfigAdapter,
-    JFUSEWorker,
     JFUSEParameterManager,
+    JFUSEWorker,
     check_jfuse_installation,
 )
 from symfluence.models.jfuse.calibration.parameter_manager import (
-    PARAM_BOUNDS as SYMFLUENCE_PARAM_BOUNDS,
     DEFAULT_PARAMS,
     FALLBACK_PARAM_BOUNDS,
 )
-
+from symfluence.models.jfuse.calibration.parameter_manager import (
+    PARAM_BOUNDS as SYMFLUENCE_PARAM_BOUNDS,
+)
 
 # =============================================================================
 # Test Fixtures
@@ -603,8 +604,8 @@ class TestIntegration:
 
     def test_calibration_improves_kge(self, sample_forcing, sample_observations):
         """Test that gradient-based calibration improves KGE."""
-        import jax
         import equinox as eqx
+        import jax
 
         n_days = len(sample_forcing['precip'])
         warmup = 30

@@ -9,23 +9,25 @@ Refactored to use the Unified Model Execution Framework.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import xarray as xr
-import geopandas as gpd
 import rasterio
 import rasterio.mask
+import xarray as xr
 
-from ..registry import ModelRegistry
-from ..base import BaseModelRunner
-from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
-from ..spatial_modes import SpatialMode
-from ..execution import SpatialOrchestrator
-from ..mizuroute.mixins import MizuRouteConfigMixin
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+
+from ..base import BaseModelRunner
+from ..execution import SpatialOrchestrator
+from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
+from ..mizuroute.mixins import MizuRouteConfigMixin
+from ..registry import ModelRegistry
+from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -33,9 +35,9 @@ from symfluence.core.constants import UnitConversion
 # incompatible versions, etc.). We must catch all to provide graceful fallback.
 try:
     import rpy2.robjects as robjects
-    from rpy2.robjects.packages import importr
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
+    from rpy2.robjects.packages import importr
     HAS_RPY2 = True
 except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
     HAS_RPY2 = False

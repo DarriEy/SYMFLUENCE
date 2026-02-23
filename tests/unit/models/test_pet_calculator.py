@@ -4,11 +4,12 @@ Unit tests for PETCalculatorMixin.
 Tests the PET calculation methods provided by the mixin.
 """
 
-import pytest
+from unittest.mock import Mock
+
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
-from unittest.mock import Mock
 from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
 

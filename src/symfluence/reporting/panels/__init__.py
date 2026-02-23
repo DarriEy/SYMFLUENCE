@@ -27,15 +27,15 @@ Example:
 """
 
 from symfluence.reporting.panels.base_panel import BasePanel
-from symfluence.reporting.panels.timeseries_panel import TimeSeriesPanel
-from symfluence.reporting.panels.metrics_table_panel import MetricsTablePanel
 from symfluence.reporting.panels.fdc_panel import FDCPanel
-from symfluence.reporting.panels.scatter_panel import ScatterPanel, MultiScatterPanel
+from symfluence.reporting.panels.metrics_table_panel import MetricsTablePanel
 from symfluence.reporting.panels.monthly_boxplot_panel import MonthlyBoxplotPanel
 from symfluence.reporting.panels.residual_analysis_panel import (
     ResidualAnalysisPanel,
     ResidualHistogramPanel,
 )
+from symfluence.reporting.panels.scatter_panel import MultiScatterPanel, ScatterPanel
+from symfluence.reporting.panels.timeseries_panel import TimeSeriesPanel
 
 __all__ = [
     # Base class

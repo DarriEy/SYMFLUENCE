@@ -31,8 +31,9 @@ Example:
 from pathlib import Path
 from typing import Dict
 
-from symfluence.data.acquisition.registry import AcquisitionRegistry
 from symfluence.core.mixins import ConfigMixin
+from symfluence.data.acquisition.registry import AcquisitionRegistry
+
 
 class CloudForcingDownloader(ConfigMixin):
     """Main entry point for cloud data acquisition using the AcquisitionRegistry.

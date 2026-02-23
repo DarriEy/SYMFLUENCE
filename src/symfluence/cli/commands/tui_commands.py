@@ -6,8 +6,8 @@ This module implements the handler for launching the Textual-based terminal UI.
 
 from argparse import Namespace
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class TUICommands(BaseCommand):

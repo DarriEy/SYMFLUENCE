@@ -1,8 +1,9 @@
 """Tests for IGNACIO calibration worker."""
 
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 class TestIGNACIOWorkerRegistration:
@@ -17,8 +18,8 @@ class TestIGNACIOWorkerRegistration:
         assert 'IGNACIO' in OptimizerRegistry._workers
 
     def test_worker_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.ignacio.calibration.worker import IGNACIOWorker
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._workers.get('IGNACIO') == IGNACIOWorker
 
 

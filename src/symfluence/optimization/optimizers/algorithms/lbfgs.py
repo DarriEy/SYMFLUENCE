@@ -25,10 +25,11 @@ References:
     large scale optimization. Mathematical Programming, 45, 503-528.
 """
 
-from typing import Dict, Any, Callable, Optional, Tuple, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
-from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
+from .base_algorithm import NativeGradientCallback, OptimizationAlgorithm
 from .config_schema import LBFGSDefaults
 
 

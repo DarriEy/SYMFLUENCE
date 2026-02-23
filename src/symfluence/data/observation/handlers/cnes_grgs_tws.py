@@ -6,8 +6,10 @@ spherical harmonic GRACE solutions for TWS validation. Unlike mascon
 solutions, these are already stabilized and require no post-processing.
 """
 
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 

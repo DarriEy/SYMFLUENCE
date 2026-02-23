@@ -12,8 +12,8 @@ import yaml
 
 from symfluence.core.config.defaults import ForcingDefaults, ModelDefaults
 
-from .base import BaseService
 from ..console import Console
+from .base import BaseService
 
 
 class InitializationService(BaseService):

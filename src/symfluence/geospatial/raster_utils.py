@@ -5,16 +5,17 @@ Provides functions for land cover mode calculation, aspect and radiation
 derivation from DEMs, and raster value analysis for discretization.
 """
 
-import logging
-import numpy as np
-import rasterio # type: ignore
-from scipy import stats
 import glob
+import logging
+from logging import Logger
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
 import pandas as pd
 import pvlib
-from pathlib import Path
-from logging import Logger
-from typing import Optional
+import rasterio  # type: ignore
+from scipy import stats
 
 
 def _scipy_mode_compat(data: np.ndarray, axis: int = 0) -> np.ndarray:

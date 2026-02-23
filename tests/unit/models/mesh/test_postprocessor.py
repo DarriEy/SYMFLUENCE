@@ -2,10 +2,11 @@
 Tests for MESH postprocessor.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
 import pandas as pd
+import pytest
 
 
 class TestMESHPostProcessorInitialization:
@@ -119,8 +120,8 @@ class TestMESHPostProcessorRegistry:
 
     def test_postprocessor_is_correct_class(self):
         """Test registered postprocessor is MESHPostProcessor."""
-        from symfluence.models.registry import ModelRegistry
         from symfluence.models.mesh.postprocessor import MESHPostProcessor
+        from symfluence.models.registry import ModelRegistry
 
         postprocessor_class = ModelRegistry._postprocessors.get('MESH')
         assert postprocessor_class == MESHPostProcessor

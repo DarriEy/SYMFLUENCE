@@ -5,7 +5,8 @@ Converts CFIF (CF-Intermediate Format) forcing data to GR model format.
 GR models (GR4J, GR5J, etc.) use simple daily forcing variables.
 """
 
-from typing import Dict, List, Callable
+from typing import Callable, Dict, List
+
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry

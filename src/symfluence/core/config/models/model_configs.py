@@ -36,8 +36,8 @@ from .model_configs_integrated import (
     CLMParFlowConfig,
     HydroGeoSphereConfig,
     MODFLOWConfig,
-    PIHMConfig,
     ParFlowConfig,
+    PIHMConfig,
 )
 from .model_configs_ml_fire import GNNConfig, IGNACIOConfig, LSTMConfig, WMFireConfig
 from .model_configs_routing import DRouteConfig, MizuRouteConfig, TRouteConfig

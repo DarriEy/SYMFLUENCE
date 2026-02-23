@@ -7,7 +7,7 @@ Provides safe file I/O operations with caching, syntax validation, and git integ
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 
 class FileOperations:

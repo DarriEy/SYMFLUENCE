@@ -5,14 +5,15 @@ MESH-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with MESH.
 """
 
-import shutil
 import logging
+import shutil
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import safe_delete
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import MESHWorker  # noqa: F401 - Import to trigger worker registration
 
 

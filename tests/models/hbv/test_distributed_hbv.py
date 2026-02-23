@@ -9,8 +9,8 @@ Tests cover:
 5. End-to-end simulation accuracy
 """
 
-import pytest
 import numpy as np
+import pytest
 
 # Check JAX availability
 try:
@@ -178,8 +178,8 @@ class TestDistributedHBV:
 
     def test_model_initialization(self):
         """Test basic model initialization."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=5, topology='linear', use_jax=False)
         model = DistributedHBV(network, use_jax=False)
@@ -189,8 +189,8 @@ class TestDistributedHBV:
 
     def test_create_initial_state(self):
         """Test initial state creation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, use_jax=False)
@@ -209,8 +209,8 @@ class TestDistributedHBV:
 
     def test_create_uniform_params(self):
         """Test uniform parameter creation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, param_mode='uniform', use_jax=False)
@@ -222,8 +222,8 @@ class TestDistributedHBV:
 
     def test_simulate_basic(self):
         """Test basic simulation runs without error."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -246,8 +246,8 @@ class TestDistributedHBV:
 
     def test_simulate_with_gru_runoff(self):
         """Test simulation returns GRU runoff when requested."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -267,8 +267,8 @@ class TestDistributedHBV:
 
     def test_mass_balance(self):
         """Test approximate mass balance through the system."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -306,8 +306,8 @@ class TestDistributedHBVJAX:
 
     def test_simulate_jax(self):
         """Test simulation with JAX backend."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=True)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=True)
@@ -326,9 +326,9 @@ class TestDistributedHBVJAX:
 
     def test_gradient_computation(self):
         """Test that gradients can be computed."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
         from symfluence.models.hbv.model import DEFAULT_PARAMS
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=True)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=True)
@@ -361,9 +361,9 @@ class TestDistributedHBVJAX:
 
     def test_value_and_grad(self):
         """Test combined value and gradient computation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
         from symfluence.models.hbv.model import DEFAULT_PARAMS
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=True)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=True)
@@ -396,8 +396,8 @@ class TestCalibration:
 
     def test_compute_loss_nse(self):
         """Test NSE loss computation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -424,8 +424,8 @@ class TestCalibration:
 
     def test_compute_loss_kge(self):
         """Test KGE loss computation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -448,9 +448,9 @@ class TestCalibration:
 
     def test_get_loss_function(self):
         """Test loss function creation for scipy.optimize."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
         from symfluence.models.hbv.model import DEFAULT_PARAMS
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -488,8 +488,8 @@ class TestNetworkTopologies:
     ])
     def test_topology_simulation(self, topology, n_nodes):
         """Test simulation works for various topologies."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=n_nodes, topology=topology, use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -511,8 +511,8 @@ class TestEdgeCases:
 
     def test_single_node_network(self):
         """Test model with single node (no routing)."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         # Single node network
         network = create_synthetic_network(n_nodes=1, topology='linear', use_jax=False)
@@ -530,8 +530,8 @@ class TestEdgeCases:
 
     def test_zero_precipitation(self):
         """Test model with no precipitation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
@@ -549,8 +549,8 @@ class TestEdgeCases:
 
     def test_cold_conditions(self):
         """Test model with snow accumulation."""
-        from symfluence.models.hbv.network import create_synthetic_network
         from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
 
         network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
         model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)

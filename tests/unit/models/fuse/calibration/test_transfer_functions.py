@@ -8,9 +8,9 @@ Tests the MPR-style transfer function framework:
 - Spatial variation summary
 """
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import logging
 
 import numpy as np
 import pandas as pd

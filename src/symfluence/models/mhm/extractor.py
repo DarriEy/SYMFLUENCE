@@ -7,6 +7,7 @@ mHM outputs are in NetCDF format with discharge and fluxes/states.
 
 from pathlib import Path
 from typing import Dict, List, Optional
+
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

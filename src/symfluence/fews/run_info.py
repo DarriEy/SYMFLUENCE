@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional
 
 from .exceptions import RunInfoParseError
 
-
 # FEWS datetime format: "2023-01-15T00:00:00Z" or "2023-01-15 00:00:00"
 _FEWS_DT_FORMATS = [
     "%Y-%m-%dT%H:%M:%SZ",

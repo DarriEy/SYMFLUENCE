@@ -6,12 +6,14 @@ ensuring consistency across all catchment attributes.
 """
 
 from pathlib import Path
-from typing import Dict, Any
-import pandas as pd # type: ignore
-import numpy as np # type: ignore
+from typing import Any, Dict
+
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
 
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.core.mixins import ConfigMixin
+
 
 class DataCleanupProcessor(ConfigMixin):
     """

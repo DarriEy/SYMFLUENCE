@@ -7,9 +7,10 @@ Tests NextGen-specific parameter handling including:
 - Module.param naming convention
 """
 
-import pytest
-import numpy as np
 import logging
+
+import numpy as np
+import pytest
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -561,8 +562,8 @@ class TestNgenBaseClassIntegration:
 
     def test_inherits_from_base(self, ngen_config, test_logger, tmp_path):
         """Test that NgenParameterManager inherits from BaseParameterManager."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
         from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+        from symfluence.optimization.parameter_managers import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)

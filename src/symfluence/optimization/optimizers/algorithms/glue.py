@@ -24,7 +24,8 @@ Reference:
     Hydrology, 320(1-2), 18-36.
 """
 
-from typing import Dict, Any, Callable, Optional, List
+from typing import Any, Callable, Dict, List, Optional
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

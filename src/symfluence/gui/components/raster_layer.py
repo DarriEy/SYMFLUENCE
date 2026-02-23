@@ -27,7 +27,7 @@ def read_tiff_for_bokeh(tiff_path, band=1, max_pixels=1000):
     """
     try:
         import rasterio
-        from rasterio.warp import calculate_default_transform, reproject, Resampling
+        from rasterio.warp import Resampling, calculate_default_transform, reproject
     except ImportError:
         logger.warning("rasterio is required for raster overlays")
         return None

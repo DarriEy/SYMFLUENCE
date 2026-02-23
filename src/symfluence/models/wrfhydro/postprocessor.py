@@ -11,8 +11,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..registry import ModelRegistry
 from ..base import StandardModelPostprocessor
+from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('WRFHYDRO')

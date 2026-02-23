@@ -24,7 +24,6 @@ import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
-
 logger = logging.getLogger(__name__)
 
 

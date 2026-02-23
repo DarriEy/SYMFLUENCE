@@ -47,13 +47,12 @@ except ImportError:
 
 from .parameters import (
     DEFAULT_PARAMS,
-    HBVParameters,
     PARAM_BOUNDS,
+    HBVParameters,
     create_params_from_dict,
     get_routing_buffer_length,
 )
 from .time_utils import warmup_timesteps
-
 
 __all__ = [
     'HAS_DIFFRAX',
@@ -1001,7 +1000,7 @@ def compare_gradients(
     """
     import time
 
-    from .losses import nse_loss, get_nse_gradient_fn
+    from .losses import get_nse_gradient_fn, nse_loss
 
     if param_names is None:
         param_names = ['tt', 'cfmax', 'sfcf', 'cfr', 'cwh', 'fc', 'lp',

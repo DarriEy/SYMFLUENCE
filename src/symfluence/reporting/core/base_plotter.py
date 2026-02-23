@@ -5,14 +5,14 @@ This module provides common functionality shared across all plotting classes,
 eliminating code duplication and providing consistent behavior.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-import logging
 
-from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
-from symfluence.core.mixins import ConfigMixin
 from symfluence.core.constants import ConfigKeys
+from symfluence.core.mixins import ConfigMixin
+from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG, PlotConfig
 
 
 class BasePlotter(ConfigMixin, ABC):
@@ -67,8 +67,8 @@ class BasePlotter(ConfigMixin, ABC):
             improving startup time and allowing for headless operation.
         """
         if self._plt is None or self._mdates is None:
-            import matplotlib.pyplot as plt  # type: ignore
             import matplotlib.dates as mdates  # type: ignore
+            import matplotlib.pyplot as plt  # type: ignore
             self._plt = plt
             self._mdates = mdates
 

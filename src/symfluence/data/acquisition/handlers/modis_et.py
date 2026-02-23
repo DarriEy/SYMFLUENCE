@@ -26,13 +26,14 @@ Configuration:
 """
 import os
 import re
-import requests
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
+import requests
 import xarray as xr
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 
 from ..registry import AcquisitionRegistry
 from .earthaccess_base import BaseEarthaccessAcquirer

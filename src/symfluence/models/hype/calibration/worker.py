@@ -5,15 +5,16 @@ Worker implementation for HYPE model optimization.
 """
 
 import logging
-import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
+import pandas as pd
+
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
 from symfluence.models.hype.runner import HYPERunner
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @OptimizerRegistry.register_worker('HYPE')
@@ -448,9 +449,9 @@ def _evaluate_hype_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
         Result dictionary
     """
     import os
-    import sys
-    import signal
     import random
+    import signal
+    import sys
     import time
     import traceback
 

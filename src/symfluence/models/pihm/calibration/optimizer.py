@@ -12,8 +12,9 @@ from typing import Any, Dict, Optional
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from .worker import PIHMWorker  # noqa: F401 - triggers worker registration
+
 from .targets import PIHMStreamflowTarget  # noqa: F401 - triggers target registration
+from .worker import PIHMWorker  # noqa: F401 - triggers worker registration
 
 
 @OptimizerRegistry.register_optimizer('PIHM')

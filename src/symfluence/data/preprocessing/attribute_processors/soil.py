@@ -9,9 +9,11 @@ Handles soil properties including:
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple, Union
-import numpy as np
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import geopandas as gpd
+import numpy as np
+
 try:
     from osgeo import gdal
 except ImportError:

@@ -9,11 +9,11 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional, Union, List, Callable
+from typing import Callable, List, Optional, Union
 
 from symfluence.models.execution.model_executor import (
-    ExecutionResult,
     ExecutionMode,
+    ExecutionResult,
     SlurmJobConfig,
 )
 

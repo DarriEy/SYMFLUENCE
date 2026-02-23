@@ -1,10 +1,11 @@
+import json
+import logging
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
 import pytest
 import requests
-from pathlib import Path
-import pandas as pd
-import logging
-import json
-from unittest.mock import patch, MagicMock
 from symfluence.core import SYMFLUENCE
 from symfluence.data.data_manager import DataManager
 from symfluence.data.observation.registry import ObservationRegistry
@@ -305,8 +306,9 @@ def test_usgs_gw_full_e2e(tmp_path):
     """
     E2E test for USGS Groundwater data acquisition via API.
     """
-    import yaml
     import json
+
+    import yaml
 
     config_data = {
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -398,8 +400,8 @@ def test_usgs_gw_full_e2e(tmp_path):
 @pytest.mark.integration
 def test_grace_acquisition_and_processing(mock_config, tmp_path):
     """Test the GRACE acquisition and processing pathway with mocked NetCDF data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_grace")
 
@@ -461,8 +463,8 @@ def test_grace_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_modis_snow_acquisition_and_processing(mock_config, tmp_path):
     """Test the MODIS Snow acquisition and processing pathway with mocked NetCDF data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_modis")
 
@@ -501,8 +503,8 @@ def test_modis_snow_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_smap_acquisition_and_processing(mock_config, tmp_path):
     """Test the SMAP acquisition and processing pathway."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_smap")
 
@@ -532,8 +534,8 @@ def test_smap_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_esa_cci_sm_acquisition_and_processing(mock_config, tmp_path):
     """Test the ESA CCI SM acquisition and processing pathway."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_esa")
 
@@ -560,8 +562,8 @@ def test_esa_cci_sm_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_fluxcom_et_acquisition_and_processing(mock_config, tmp_path):
     """Test the FLUXCOM ET acquisition and processing pathway."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_fluxcom")
 
@@ -592,8 +594,8 @@ def test_fluxcom_et_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_gpm_imerg_acquisition_and_processing(mock_config, tmp_path):
     """Test the GPM IMERG precipitation acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_gpm")
 
@@ -661,6 +663,7 @@ def test_gpm_imerg_live_acquisition(tmp_path):
        machine urs.earthdata.nasa.gov login <username> password <password>
     """
     import os
+
     import yaml
 
     config_data = {
@@ -725,8 +728,8 @@ def test_gpm_imerg_live_acquisition(tmp_path):
 @pytest.mark.integration
 def test_chirps_acquisition_and_processing(mock_config, tmp_path):
     """Test the CHIRPS precipitation acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_chirps")
 
@@ -848,8 +851,8 @@ def test_chirps_live_acquisition(tmp_path):
 @pytest.mark.integration
 def test_snodas_acquisition_and_processing(mock_config, tmp_path):
     """Test the SNODAS snow acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_snodas")
 
@@ -1031,8 +1034,8 @@ def test_jrc_water_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_ssebop_acquisition_and_processing(mock_config, tmp_path):
     """Test the SSEBop ET acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_ssebop")
 
@@ -1092,8 +1095,8 @@ def test_ssebop_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_gleam_et_acquisition_and_processing(mock_config, tmp_path):
     """Test the GLEAM ET acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_gleam")
 
@@ -1141,8 +1144,8 @@ def test_gleam_et_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_modis_et_acquisition_and_processing(mock_config, tmp_path):
     """Test the MODIS ET (MOD16) acquisition and processing pathway with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_modis_et")
 
@@ -1191,8 +1194,8 @@ def test_modis_et_acquisition_and_processing(mock_config, tmp_path):
 @pytest.mark.integration
 def test_modis_sca_acquisition_and_processing(mock_config, tmp_path):
     """Test the MODIS SCA (Snow Cover Area) acquisition and processing with mocked data."""
-    import xarray as xr
     import numpy as np
+    import xarray as xr
 
     logger = logging.getLogger("test_modis_sca")
 

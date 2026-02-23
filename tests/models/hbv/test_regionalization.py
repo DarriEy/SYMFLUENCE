@@ -9,8 +9,8 @@ Verifies:
 5. All activation functions (tanh, relu, sigmoid)
 """
 
-import pytest
 import numpy as np
+import pytest
 
 try:
     import jax
@@ -26,10 +26,12 @@ class TestRegionalization:
 
     def test_transfer_function_forward(self):
         """Test simple forward pass of transfer function."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS, HBVParameters
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 5
         n_nodes = 10
@@ -64,9 +66,11 @@ class TestRegionalization:
     def test_distributed_hbv_integration(self):
         """Test integration with DistributedHBV runner."""
         from symfluence.models.hbv import (
-            DistributedHBV, create_synthetic_network,
-            initialize_weights, TransferFunctionConfig,
-            PARAM_BOUNDS
+            PARAM_BOUNDS,
+            DistributedHBV,
+            TransferFunctionConfig,
+            create_synthetic_network,
+            initialize_weights,
         )
 
         n_nodes = 5
@@ -110,9 +114,11 @@ class TestRegionalization:
     def test_differentiability(self):
         """Test that we can compute gradients w.r.t weights."""
         from symfluence.models.hbv import (
-            DistributedHBV, create_synthetic_network,
-            initialize_weights, TransferFunctionConfig,
-            nse_loss
+            DistributedHBV,
+            TransferFunctionConfig,
+            create_synthetic_network,
+            initialize_weights,
+            nse_loss,
         )
 
         n_nodes = 3
@@ -166,10 +172,12 @@ class TestRegionalizationEdgeCases:
 
     def test_mismatched_input_dimensions(self):
         """Test that mismatched input dimensions raise appropriate errors."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 5
         wrong_dim = 3
@@ -194,10 +202,12 @@ class TestRegionalizationEdgeCases:
 
     def test_single_node_input(self):
         """Test transfer function with single node (edge case)."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS, HBVParameters
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 4
         n_nodes = 1  # Single node
@@ -222,10 +232,12 @@ class TestRegionalizationEdgeCases:
 
     def test_nan_in_attributes(self):
         """Test that NaN in attributes propagates (does not silently fail)."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 3
         n_nodes = 5
@@ -251,10 +263,12 @@ class TestRegionalizationEdgeCases:
 
     def test_infinity_in_attributes(self):
         """Test handling of infinity values in attributes."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 3
         n_nodes = 5
@@ -281,10 +295,12 @@ class TestRegionalizationEdgeCases:
 
     def test_extreme_attribute_values(self):
         """Test with very large and very small attribute values."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS, HBVParameters
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 3
         n_nodes = 4
@@ -323,10 +339,12 @@ class TestActivationFunctions:
     @pytest.mark.parametrize("activation", ['tanh', 'relu', 'sigmoid'])
     def test_activation_function(self, activation):
         """Test transfer function with different activation functions."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS, HBVParameters
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 5
         n_nodes = 10
@@ -358,10 +376,12 @@ class TestActivationFunctions:
 
     def test_relu_gradient_flow(self):
         """Test that ReLU activation allows gradient flow."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, forward_transfer_function, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            forward_transfer_function,
+            initialize_weights,
+        )
 
         input_dim = 3
         n_nodes = 5
@@ -395,10 +415,12 @@ class TestRegularization:
 
     def test_regularization_positive(self):
         """Test that regularization term is always non-negative."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, compute_regularization, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            compute_regularization,
+            initialize_weights,
+        )
 
         key = jax.random.PRNGKey(42)
 
@@ -414,10 +436,12 @@ class TestRegularization:
 
     def test_regularization_scaling(self):
         """Test that regularization scales with lambda."""
-        from symfluence.models.hbv.regionalization import (
-            initialize_weights, compute_regularization, TransferFunctionConfig
-        )
         from symfluence.models.hbv.model import PARAM_BOUNDS
+        from symfluence.models.hbv.regionalization import (
+            TransferFunctionConfig,
+            compute_regularization,
+            initialize_weights,
+        )
 
         key = jax.random.PRNGKey(42)
 

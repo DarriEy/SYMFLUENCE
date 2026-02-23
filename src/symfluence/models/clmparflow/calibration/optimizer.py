@@ -13,8 +13,9 @@ from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from .worker import CLMParFlowWorker  # noqa: F401 - triggers worker registration
+
 from .targets import CLMParFlowStreamflowTarget  # noqa: F401 - triggers target registration
+from .worker import CLMParFlowWorker  # noqa: F401 - triggers worker registration
 
 
 @OptimizerRegistry.register_optimizer('CLMPARFLOW')

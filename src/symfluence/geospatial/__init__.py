@@ -12,23 +12,23 @@ Key Components:
 """
 
 from symfluence.geospatial.delineation import (
-    DomainDelineator,
     DelineationArtifacts,
+    DomainDelineator,
     create_point_domain_shapefile,
 )
-from symfluence.geospatial.delineation_registry import DelineationRegistry
 from symfluence.geospatial.delineation_protocol import (
     DelineationResult,
     DelineationStrategy,
 )
+from symfluence.geospatial.delineation_registry import DelineationRegistry
 from symfluence.geospatial.exceptions import (
-    GeospatialError,
     DelineationError,
-    TauDEMError,
+    GeospatialError,
     GridCreationError,
-    SubsettingError,
-    ShapefileError,
     RasterError,
+    ShapefileError,
+    SubsettingError,
+    TauDEMError,
     TopologyError,
     geospatial_error_handler,
 )

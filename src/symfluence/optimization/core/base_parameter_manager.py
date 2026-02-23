@@ -27,11 +27,13 @@ Usage:
             pass
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
-from pathlib import Path
-import numpy as np
 import logging
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+import numpy as np
+
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:

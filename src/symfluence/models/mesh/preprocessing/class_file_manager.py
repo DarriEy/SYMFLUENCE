@@ -9,7 +9,7 @@ conditions, and elevation band block creation.
 import logging
 import re
 from pathlib import Path
-from typing import Optional, Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 

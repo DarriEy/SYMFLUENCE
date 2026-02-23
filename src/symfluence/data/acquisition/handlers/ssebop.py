@@ -21,11 +21,12 @@ URL Patterns:
     Global: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/global/
 """
 
-import requests
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
+
 import numpy as np
+import requests
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -106,8 +107,8 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
         output_dir: Path
     ) -> Optional[Path]:
         """Download SSEBop CONUS for a single date."""
-        import zipfile
         import io
+        import zipfile
 
         year = date.strftime('%Y')
         doy = date.strftime('%j')

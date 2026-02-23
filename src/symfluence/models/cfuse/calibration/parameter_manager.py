@@ -5,9 +5,10 @@ Provides parameter bounds, transformations, and management for cFUSE calibration
 Uses cFUSE's native PARAM_BOUNDS when available, with fallback defaults.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
+
 import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
@@ -15,8 +16,8 @@ from symfluence.optimization.registry import OptimizerRegistry
 
 # Try to import cFUSE parameter bounds
 try:
-    from cfuse import PARAM_BOUNDS as CFUSE_PARAM_BOUNDS
     from cfuse import DEFAULT_PARAMS as CFUSE_DEFAULT_PARAMS
+    from cfuse import PARAM_BOUNDS as CFUSE_PARAM_BOUNDS
     from cfuse import PARAM_NAMES as CFUSE_PARAM_NAMES
     HAS_CFUSE = True
 except ImportError:

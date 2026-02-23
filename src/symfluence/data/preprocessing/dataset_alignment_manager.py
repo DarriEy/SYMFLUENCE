@@ -13,12 +13,11 @@ This module handles:
 """
 
 import logging
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import xarray as xr
-
 
 logger = logging.getLogger(__name__)
 

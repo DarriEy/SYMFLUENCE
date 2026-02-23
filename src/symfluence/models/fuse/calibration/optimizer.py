@@ -7,11 +7,12 @@ Provides unified interface for all optimization algorithms with FUSE.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+
 from .worker import FUSEWorker  # noqa: F401 - Import to trigger worker registration
 
 

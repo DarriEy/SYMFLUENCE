@@ -4,8 +4,8 @@ Inverse of ``transform_flat_to_nested`` — used for backward compatibility
 with legacy code that expects flat configs.
 """
 
-from typing import Any, Dict, Tuple, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 from symfluence.core.config.legacy_aliases import CANONICAL_KEYS
 

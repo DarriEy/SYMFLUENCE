@@ -7,11 +7,10 @@ previously duplicated across FUSE, GR, and other preprocessors.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
-
 
 logger = logging.getLogger(__name__)
 

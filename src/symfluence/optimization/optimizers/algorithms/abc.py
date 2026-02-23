@@ -33,7 +33,8 @@ Reference:
     Computing, 22(5), 1009-1020.
 """
 
-from typing import Dict, Any, Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

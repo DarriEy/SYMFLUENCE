@@ -8,13 +8,12 @@ Tests:
 - enhance_river_network_analysis() - Stream order, bifurcation
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
-from unittest.mock import patch, MagicMock
-
+import pytest
 from symfluence.data.preprocessing.attribute_processors.hydrology import HydrologyProcessor
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 

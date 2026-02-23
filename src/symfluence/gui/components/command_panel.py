@@ -264,8 +264,9 @@ class CommandPanel(param.Parameterized):
         )
 
         try:
-            from symfluence.core.config.models import SymfluenceConfig
             import yaml
+
+            from symfluence.core.config.models import SymfluenceConfig
 
             # Save config YAML to project root
             code_dir = os.environ.get('SYMFLUENCE_CODE_DIR')

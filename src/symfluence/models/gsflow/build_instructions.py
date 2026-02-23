@@ -14,8 +14,7 @@ The upstream GSFLOW Makefiles have several issues that require patching:
 Repository: https://github.com/rniswon/gsflow_v2
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
-from symfluence.cli.services import get_common_build_environment
+from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
 
 
 @BuildInstructionsRegistry.register('gsflow')

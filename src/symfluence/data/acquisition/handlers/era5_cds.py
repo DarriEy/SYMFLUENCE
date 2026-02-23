@@ -7,10 +7,11 @@ Uses mixins for:
 - SpatialSubsetMixin: Bbox format conversion for CDS
 """
 
-import xarray as xr
-import pandas as pd
 from pathlib import Path
 from typing import Optional
+
+import pandas as pd
+import xarray as xr
 
 try:
     import cdsapi
@@ -19,8 +20,8 @@ except ImportError:
     HAS_CDSAPI = False
 
 from ..base import BaseAcquisitionHandler
+from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
 from ..registry import AcquisitionRegistry
-from ..mixins import RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 from .era5_processing import era5_to_summa_schema
 
 

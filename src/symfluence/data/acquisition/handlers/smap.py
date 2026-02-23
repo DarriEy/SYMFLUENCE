@@ -23,13 +23,14 @@ Note:
 """
 
 import re
-from typing import Optional
-import requests
-import numpy as np
-import netCDF4 as nc
 from pathlib import Path
-import xarray as xr
+from typing import Optional
+
+import netCDF4 as nc
+import numpy as np
 import pandas as pd
+import requests
+import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -443,6 +444,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         """Download a spatial subset from OPeNDAP and write as NetCDF."""
         try:
             import netrc
+
             from pydap.cas.urs import setup_session
             from pydap.client import open_url
 

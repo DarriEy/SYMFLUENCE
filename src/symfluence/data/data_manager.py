@@ -6,16 +6,13 @@ lifting. See docs under ``docs/source/configuration`` and ``docs/source/data``
 for full workflows.
 """
 
-from typing import Dict, Any, Optional, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
-from symfluence.core.exceptions import (
-    DataAcquisitionError,
-    symfluence_error_handler
-)
+from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
 from symfluence.data.acquisition.acquisition_service import AcquisitionService
 from symfluence.data.acquisition.observed_processor import ObservedDataProcessor
 from symfluence.data.observation.registry import ObservationRegistry

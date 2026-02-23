@@ -9,13 +9,12 @@ callbacks (no JavaScript bridges needed).
 import logging
 import threading
 import time
-from math import log, tan, pi
+from math import log, pi, tan
 from pathlib import Path
 from typing import Any, cast
 
 import panel as pn
 import param
-
 from bokeh.models import (
     BoxEditTool,
     ColumnDataSource,
@@ -50,7 +49,7 @@ def _lonlat_to_mercator(lon, lat):
 
 
 def _mercator_to_lonlat(x, y):
-    from math import atan, exp, degrees
+    from math import atan, degrees, exp
     lon = degrees(x / _R)
     lat = degrees(2.0 * atan(exp(y / _R)) - pi / 2.0)
     return lon, lat

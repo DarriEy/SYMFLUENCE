@@ -5,12 +5,12 @@ Tests the shared normalization, denormalization, and validation logic
 that will be inherited by all model-specific parameter managers.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-from typing import Dict, List, Any
 import logging
+from pathlib import Path
+from typing import Any, Dict, List
 
+import numpy as np
+import pytest
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 

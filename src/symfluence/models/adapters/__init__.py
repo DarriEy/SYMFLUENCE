@@ -21,8 +21,8 @@ See Also:
     - ForcingAdapterRegistry: Registry for adapter discovery
 """
 
-from .base_adapter import ForcingAdapter
 from .adapter_registry import ForcingAdapterRegistry
+from .base_adapter import ForcingAdapter
 
 __all__ = [
     'ForcingAdapter',

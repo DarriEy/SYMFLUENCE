@@ -10,7 +10,7 @@ Environment Variables:
 """
 import os
 import warnings
-from typing import Any, Dict, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Union
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

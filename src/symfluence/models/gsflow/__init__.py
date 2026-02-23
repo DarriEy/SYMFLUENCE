@@ -13,11 +13,11 @@ References:
     Markstrom, S.L., et al. (2008): GSFLOW---Coupled Ground-Water and
     Surface-Water Flow Model. USGS Techniques and Methods 6-D1.
 """
-from .preprocessor import GSFLOWPreProcessor
-from .runner import GSFLOWRunner
+from .config import GSFLOWConfigAdapter
 from .extractor import GSFLOWResultExtractor
 from .postprocessor import GSFLOWPostProcessor
-from .config import GSFLOWConfigAdapter
+from .preprocessor import GSFLOWPreProcessor
+from .runner import GSFLOWRunner
 
 __all__ = [
     "GSFLOWPreProcessor",

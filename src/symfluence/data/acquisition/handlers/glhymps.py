@@ -32,7 +32,6 @@ from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
-
 # GLHYMPS 2.0 download URLs (Borealis Data)
 _GLHYMPS_URLS = {
     '2.0': 'https://borealisdata.ca/api/access/datafile/71909',  # GLHYMPS.zip (2.4 GB)

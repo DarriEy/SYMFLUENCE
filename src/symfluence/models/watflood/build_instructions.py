@@ -13,8 +13,7 @@ Tier 2: Check for existing binary in install directory.
 Tier 3: Manual installation guidance.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
-from symfluence.cli.services import get_common_build_environment
+from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
 
 
 @BuildInstructionsRegistry.register('watflood')

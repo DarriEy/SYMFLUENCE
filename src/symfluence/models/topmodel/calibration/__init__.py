@@ -8,8 +8,8 @@ Provides calibration support for TOPMODEL including:
 """
 
 from .optimizer import TopmodelModelOptimizer
-from .worker import TopmodelWorker
 from .parameter_manager import TopmodelParameterManager, get_topmodel_calibration_bounds
+from .worker import TopmodelWorker
 
 __all__ = [
     'TopmodelModelOptimizer',

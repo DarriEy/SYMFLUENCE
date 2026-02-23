@@ -7,8 +7,8 @@ This module implements handlers for launching and managing example Jupyter noteb
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class ExampleCommands(BaseCommand):

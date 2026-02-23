@@ -9,16 +9,15 @@ Handles preparation of WRF-Hydro model inputs including:
 - Forcing files (LDASIN NetCDF)
 """
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Tuple
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +296,8 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         Returns:
             Number of new LDASIN files created.
         """
-        from netCDF4 import Dataset as NC4Dataset, num2date
+        from netCDF4 import Dataset as NC4Dataset
+        from netCDF4 import num2date
 
         aggregated_dir = self.forcing_dir / 'aggregated'
         if not aggregated_dir.exists():

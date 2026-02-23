@@ -2,9 +2,10 @@
 Tests for MESH preprocessor.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 
 class TestMESHPreprocessorInitialization:
@@ -44,8 +45,8 @@ class TestMESHSpatialMode:
 
     def test_auto_mode_resolves_to_lumped(self, temp_dir, mock_logger):
         """Test auto mode resolves to lumped for lumped domains."""
-        from symfluence.models.mesh.preprocessor import MESHPreProcessor
         from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.models.mesh.preprocessor import MESHPreProcessor
 
         config_dict = {
             'SYMFLUENCE_DATA_DIR': str(temp_dir / 'data'),
@@ -75,8 +76,8 @@ class TestMESHSpatialMode:
 
     def test_auto_mode_resolves_to_distributed(self, mesh_config, mock_logger, setup_mesh_directories):
         """Test auto mode resolves to distributed for delineated domains."""
-        from symfluence.models.mesh.preprocessor import MESHPreProcessor
         from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.models.mesh.preprocessor import MESHPreProcessor
 
         # Create config with auto mode
         config_dict = {

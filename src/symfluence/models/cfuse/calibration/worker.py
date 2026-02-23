@@ -13,9 +13,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
-from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import WorkerTask
+from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
 
 # Lazy PyTorch imports
 try:
@@ -31,8 +31,14 @@ except ImportError:
 try:
     import cfuse
     from cfuse import (
-        PARAM_BOUNDS, DEFAULT_PARAMS, PARAM_NAMES,
-        VIC_CONFIG, TOPMODEL_CONFIG, PRMS_CONFIG, SACRAMENTO_CONFIG, ARNO_CONFIG
+        ARNO_CONFIG,
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        PARAM_NAMES,
+        PRMS_CONFIG,
+        SACRAMENTO_CONFIG,
+        TOPMODEL_CONFIG,
+        VIC_CONFIG,
     )
     HAS_CFUSE = True
 except ImportError:
@@ -106,8 +112,14 @@ def _build_config_from_decisions(decisions: dict) -> dict:
         Config dict with integer values for cfuse_core.
     """
     from cfuse.config import (
-        FUSEConfig, UpperLayerArch, LowerLayerArch, BaseflowType,
-        PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
+        BaseflowType,
+        EvaporationType,
+        FUSEConfig,
+        InterflowType,
+        LowerLayerArch,
+        PercolationType,
+        SurfaceRunoffType,
+        UpperLayerArch,
     )
 
     # Resolve list values (from YAML format) to single strings

@@ -7,9 +7,10 @@ routing variable names.
 """
 
 from pathlib import Path
-from typing import cast, List, Dict
-import pandas as pd
+from typing import Dict, List, cast
+
 import numpy as np
+import pandas as pd
 
 try:
     import xarray as xr

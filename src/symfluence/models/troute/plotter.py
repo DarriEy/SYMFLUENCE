@@ -13,11 +13,11 @@ import numpy as np
 import pandas as pd
 
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.plotter_registry import PlotterRegistry
 from symfluence.reporting.core.plot_utils import (
-    calculate_metrics,
     calculate_flow_duration_curve,
+    calculate_metrics,
 )
+from symfluence.reporting.plotter_registry import PlotterRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +142,7 @@ class TRoutePlotter(BasePlotter):
     def _load_routed_discharge(self, output_dir) -> pd.Series:
         """Load routed discharge from t-route output files."""
         from pathlib import Path
+
         import xarray as xr
 
         output_dir = Path(output_dir)
@@ -201,6 +202,7 @@ class TRoutePlotter(BasePlotter):
     def _load_lateral_inflow(self, output_dir) -> Optional[pd.Series]:
         """Load total lateral inflow from SUMMA output (sum across HRUs)."""
         from pathlib import Path
+
         import xarray as xr
 
         output_dir = Path(output_dir)

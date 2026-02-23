@@ -9,8 +9,8 @@ Provides calibration support for HBV-96 model including:
 """
 
 from .optimizer import HBVModelOptimizer
-from .worker import HBVWorker
 from .parameter_manager import HBVParameterManager, get_hbv_calibration_bounds
+from .worker import HBVWorker
 
 __all__ = [
     'HBVModelOptimizer',

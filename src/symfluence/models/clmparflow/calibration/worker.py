@@ -7,10 +7,10 @@ Handles .pfidb parameter updates, CLMParFlow execution, and metric extraction.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,13 @@ class CLMParFlowWorker(BaseWorker):
     ) -> bool:
         """Apply parameters by updating the .pfidb file in settings_dir."""
         import json
+
         from symfluence.models.parflow.calibration.parameter_manager import (
-            _read_pfidb, _write_pfidb, PARAM_TO_PFIDB_KEYS,
-            SNOW17_PARAM_NAMES, ROUTING_PARAM_NAMES,
+            PARAM_TO_PFIDB_KEYS,
+            ROUTING_PARAM_NAMES,
+            SNOW17_PARAM_NAMES,
+            _read_pfidb,
+            _write_pfidb,
         )
 
         pfidb_files = list(settings_dir.glob('*.pfidb'))

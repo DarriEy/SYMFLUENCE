@@ -9,11 +9,10 @@ duplicated in SUMMA, FUSE, NGEN, and GR preprocessors.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import pandas as pd
 import xarray as xr
-
 
 logger = logging.getLogger(__name__)
 

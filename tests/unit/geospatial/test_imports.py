@@ -8,10 +8,11 @@ This test file serves as a canary for import problems - if imports fail here,
 they will fail for users of the module.
 """
 
-import pytest
-import time
 import importlib
 import sys
+import time
+
+import pytest
 
 
 class TestTopLevelImports:
@@ -178,32 +179,32 @@ class TestRegistryRegistration:
     def test_point_delineator_registered(self):
         """Test that PointDelineator is registered as 'point'."""
         # Import to trigger registration
-        from symfluence.geospatial.geofabric.delineators.point_delineator import PointDelineator
         from symfluence.geospatial.delineation_registry import DelineationRegistry
+        from symfluence.geospatial.geofabric.delineators.point_delineator import PointDelineator
 
         strategy = DelineationRegistry.get_strategy('point')
         assert strategy is PointDelineator
 
     def test_lumped_delineator_registered(self):
         """Test that LumpedWatershedDelineator is registered as 'lumped'."""
-        from symfluence.geospatial.geofabric.delineators.lumped_delineator import LumpedWatershedDelineator
         from symfluence.geospatial.delineation_registry import DelineationRegistry
+        from symfluence.geospatial.geofabric.delineators.lumped_delineator import LumpedWatershedDelineator
 
         strategy = DelineationRegistry.get_strategy('lumped')
         assert strategy is LumpedWatershedDelineator
 
     def test_distributed_delineator_registered(self):
         """Test that GridDelineator is registered as 'distributed'."""
-        from symfluence.geospatial.geofabric.delineators.grid_delineator import GridDelineator
         from symfluence.geospatial.delineation_registry import DelineationRegistry
+        from symfluence.geospatial.geofabric.delineators.grid_delineator import GridDelineator
 
         strategy = DelineationRegistry.get_strategy('distributed')
         assert strategy is GridDelineator
 
     def test_semidistributed_delineator_registered(self):
         """Test that GeofabricDelineator is registered as 'semidistributed'."""
-        from symfluence.geospatial.geofabric.delineators.distributed_delineator import GeofabricDelineator
         from symfluence.geospatial.delineation_registry import DelineationRegistry
+        from symfluence.geospatial.geofabric.delineators.distributed_delineator import GeofabricDelineator
 
         strategy = DelineationRegistry.get_strategy('semidistributed')
         assert strategy is GeofabricDelineator
@@ -245,19 +246,19 @@ class TestExceptionHierarchy:
 
     def test_taudem_error_is_delineation_error(self):
         """Test that TauDEMError inherits from DelineationError."""
-        from symfluence.geospatial.exceptions import TauDEMError, DelineationError
+        from symfluence.geospatial.exceptions import DelineationError, TauDEMError
 
         assert issubclass(TauDEMError, DelineationError)
 
     def test_grid_creation_error_is_delineation_error(self):
         """Test that GridCreationError inherits from DelineationError."""
-        from symfluence.geospatial.exceptions import GridCreationError, DelineationError
+        from symfluence.geospatial.exceptions import DelineationError, GridCreationError
 
         assert issubclass(GridCreationError, DelineationError)
 
     def test_exception_can_be_raised_and_caught(self):
         """Test that custom exceptions can be raised and caught."""
-        from symfluence.geospatial.exceptions import TauDEMError, DelineationError, GeospatialError
+        from symfluence.geospatial.exceptions import DelineationError, GeospatialError, TauDEMError
 
         with pytest.raises(TauDEMError):
             raise TauDEMError("TauDEM failed")

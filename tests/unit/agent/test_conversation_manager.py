@@ -2,8 +2,9 @@
 Tests for the ConversationManager class.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestConversationManagerInitialization:

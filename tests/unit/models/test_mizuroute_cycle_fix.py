@@ -1,8 +1,10 @@
 
-import unittest
 import logging
+import unittest
+
 import numpy as np
 from symfluence.models.mizuroute.topology_generator import MizuRouteTopologyGenerator
+
 
 class TestMizuRouteCycleFix(unittest.TestCase):
     def setUp(self):

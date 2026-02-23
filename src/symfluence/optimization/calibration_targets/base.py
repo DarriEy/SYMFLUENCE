@@ -17,20 +17,18 @@ The classes here provide backward compatibility by aliasing evaluators as "Targe
 """
 
 import logging
-import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from symfluence.evaluation.evaluators import (
-    ModelEvaluator as CalibrationTarget,
-    ETEvaluator as ETTarget,
-    StreamflowEvaluator as StreamflowTarget,
-    SoilMoistureEvaluator as SoilMoistureTarget,
-    SnowEvaluator as SnowTarget,
-    GroundwaterEvaluator as GroundwaterTarget,
-    TWSEvaluator as TWSTarget
-)
+import pandas as pd
 
+from symfluence.evaluation.evaluators import ETEvaluator as ETTarget
+from symfluence.evaluation.evaluators import GroundwaterEvaluator as GroundwaterTarget
+from symfluence.evaluation.evaluators import ModelEvaluator as CalibrationTarget
+from symfluence.evaluation.evaluators import SnowEvaluator as SnowTarget
+from symfluence.evaluation.evaluators import SoilMoistureEvaluator as SoilMoistureTarget
+from symfluence.evaluation.evaluators import StreamflowEvaluator as StreamflowTarget
+from symfluence.evaluation.evaluators import TWSEvaluator as TWSTarget
 from symfluence.evaluation.registry import EvaluationRegistry
 
 
@@ -42,9 +40,10 @@ class MultivariateTarget(CalibrationTarget):
 
     def __init__(self, config: Dict, project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
-        from symfluence.evaluation.analysis_manager import AnalysisManager
-        from ..objectives import ObjectiveRegistry
         from symfluence.core.config.coercion import coerce_config
+        from symfluence.evaluation.analysis_manager import AnalysisManager
+
+        from ..objectives import ObjectiveRegistry
 
         # Convert config dict to SymfluenceConfig if needed (required by AnalysisManager)
         config = coerce_config(config, warn=False)

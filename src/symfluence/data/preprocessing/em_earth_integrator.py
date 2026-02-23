@@ -5,18 +5,21 @@ Handles EM-Earth reanalysis data processing including spatial remapping,
 basin-averaged value calculations, and temporal alignment.
 """
 
+import calendar
 import logging
-from pathlib import Path
-from typing import Dict, Any
 import multiprocessing as mp
 import time
 from datetime import datetime
-import calendar
-import pandas as pd
+from pathlib import Path
+from typing import Any, Dict
+
 import numpy as np
+import pandas as pd
+
 from symfluence.core.constants import PhysicalConstants, UnitConversion
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+
 
 # Logic moved from DataManager
 def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin_shapefile: Path, config: Dict[str, Any]) -> bool:
@@ -24,9 +27,9 @@ def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin
     Shared logic for remapping EM-Earth data to basin-averaged values.
     """
     try:
-        import xarray as xr
         import geopandas as gpd
         import rasterio
+        import xarray as xr
         from rasterstats import zonal_stats
 
         # Read EM-Earth data

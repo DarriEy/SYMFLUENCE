@@ -6,32 +6,28 @@ all other config models and provides validation, factory methods, and
 backward compatibility.
 """
 
-from typing import Dict, Any, Optional
-from pathlib import Path
-from pydantic import BaseModel, Field, model_validator, ConfigDict
-from functools import cached_property
-import pandas as pd
-import warnings
 import logging
+import warnings
+from functools import cached_property
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
-from .system import SystemConfig
-from .domain import DomainConfig
-from .data import DataConfig
-from .forcing import ForcingConfig
-from .model_configs import (
-    ModelConfig
-)
-from .optimization import (
-    OptimizationConfig
-)
-from .evaluation import (
-    EvaluationConfig
-)
-from .paths import PathsConfig
-from .state_config import StateConfig, DataAssimilationConfig
 from symfluence.fews.config import FEWSConfig
+
+from .data import DataConfig
+from .domain import DomainConfig
+from .evaluation import EvaluationConfig
+from .forcing import ForcingConfig
+from .model_configs import ModelConfig
+from .optimization import OptimizationConfig
+from .paths import PathsConfig
+from .state_config import DataAssimilationConfig, StateConfig
+from .system import SystemConfig
 
 
 def _sanitize_cwd() -> Path:
@@ -291,9 +287,9 @@ class SymfluenceConfig(BaseModel):
 
         Delegates to ModelRegistry for all model-specific validation.
         """
+        from symfluence.core.config.flattening import flatten_nested_config
         from symfluence.core.exceptions import ConfigurationError
         from symfluence.models.registry import ModelRegistry
-        from symfluence.core.config.flattening import flatten_nested_config
 
         models = self._parse_models()
         flat_config = flatten_nested_config(self)

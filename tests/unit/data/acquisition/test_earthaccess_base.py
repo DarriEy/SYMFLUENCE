@@ -8,14 +8,12 @@ Tests the shared NASA Earthdata Cloud functionality:
 - Granule counting utility
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, call
 import json
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Test Fixtures

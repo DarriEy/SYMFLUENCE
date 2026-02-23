@@ -7,10 +7,10 @@ including OpenAI, Anthropic (OpenAI mode), and local LLMs like Ollama.
 
 import os
 import sys
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 try:
-    from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, BadRequestError
+    from openai import APIConnectionError, AuthenticationError, BadRequestError, OpenAI, RateLimitError
 except ImportError:
     print("Error: openai package not installed. Install it with: pip install openai>=1.0.0", file=sys.stderr)
     sys.exit(1)
@@ -107,8 +107,8 @@ class APIClient:
             True if Ollama is available at http://localhost:11434, False otherwise
         """
         try:
-            import urllib.request
             import urllib.error
+            import urllib.request
             urllib.request.urlopen('http://localhost:11434/api/tags', timeout=2)  # nosec B310
             return True
         except (urllib.error.URLError, OSError, TimeoutError):

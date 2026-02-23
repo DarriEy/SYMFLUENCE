@@ -33,9 +33,9 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import kge, nse
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 # Optional dependencies
 try:

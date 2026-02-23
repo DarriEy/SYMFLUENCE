@@ -10,9 +10,10 @@ Handles geological and hydrogeological attributes including:
 
 import pickle  # nosec B403 - used for caching geology lookup tables, not untrusted data
 from pathlib import Path
-from typing import Dict, Any
-import numpy as np
+from typing import Any, Dict
+
 import geopandas as gpd
+import numpy as np
 
 from .base import BaseAttributeProcessor
 

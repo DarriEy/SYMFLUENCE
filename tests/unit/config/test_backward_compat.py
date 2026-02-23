@@ -6,9 +6,10 @@ to ensure the new hierarchical config system maintains compatibility with
 existing code expecting flat dictionaries.
 """
 
-import pytest
 from pathlib import Path
-from symfluence.core.config.models import SymfluenceConfig, SystemConfig, DomainConfig, ForcingConfig, ModelConfig
+
+import pytest
+from symfluence.core.config.models import DomainConfig, ForcingConfig, ModelConfig, SymfluenceConfig, SystemConfig
 
 
 class TestDictLikeAccess:

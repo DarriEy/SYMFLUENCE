@@ -37,10 +37,9 @@ import numpy as np
 import rasterio
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
-
 
 # WCS endpoint template
 _WCS_BASE = "https://maps.isric.org/mapserv"

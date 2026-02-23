@@ -1,9 +1,9 @@
 """Unit tests for WMFire FireDefGenerator class."""
-import numpy as np
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import numpy as np
+import pytest
 from symfluence.models.wmfire.fire_def_generator import (
     FireDefGenerator,
     FireDefParameters,

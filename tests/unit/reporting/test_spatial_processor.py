@@ -4,13 +4,13 @@ Unit tests for SpatialProcessor.
 Tests spatial operations for reporting and configuration.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock, mock_open
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
+import numpy as np
+import pandas as pd
+import pytest
 from symfluence.reporting.processors.spatial_processor import SpatialProcessor
 
 

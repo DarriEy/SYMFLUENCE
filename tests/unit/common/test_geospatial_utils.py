@@ -5,10 +5,11 @@ Tests centroid calculation with various CRS configurations,
 geometric shapes, and edge cases.
 """
 
-import pytest
-import geopandas as gpd
-from shapely.geometry import Polygon, Point
 from unittest.mock import Mock
+
+import geopandas as gpd
+import pytest
+from shapely.geometry import Point, Polygon
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 

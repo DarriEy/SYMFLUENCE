@@ -7,11 +7,11 @@ Tests that the MESH parameter manager can:
 3. Handle parameter initialization
 """
 
-import pytest
-from pathlib import Path
 import logging
 import tempfile
+from pathlib import Path
 
+import pytest
 from symfluence.optimization.parameter_managers import MESHParameterManager
 
 

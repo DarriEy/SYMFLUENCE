@@ -10,16 +10,15 @@ Manages two profilers:
 2. SystemIOProfiler: External tool I/O (SUMMA, mizuRoute, etc.)
 """
 
-import os
 import atexit
+import os
 import threading
-from pathlib import Path
-from typing import Optional, Iterator
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Iterator, Optional
 
 from .io_profiler import IOProfiler
 from .system_io_profiler import SystemIOProfiler
-
 
 # Thread-local storage for profiler context
 _profiler_context = threading.local()

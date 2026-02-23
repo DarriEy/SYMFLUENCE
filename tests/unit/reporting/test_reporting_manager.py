@@ -1,8 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
 from pathlib import Path
-from symfluence.reporting.reporting_manager import ReportingManager
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.reporting.reporting_manager import ReportingManager
+
 
 @pytest.fixture
 def mock_data_processor():

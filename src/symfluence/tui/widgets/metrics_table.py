@@ -10,7 +10,6 @@ from textual.widgets import DataTable
 from ..constants import METRIC_THRESHOLDS
 
 
-
 class MetricsTable(DataTable):
     """DataTable displaying performance metrics with color coding."""
 

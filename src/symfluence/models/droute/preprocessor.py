@@ -11,10 +11,10 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional
 
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.droute.mixins import DRouteConfigMixin
 from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
+from symfluence.models.registry import ModelRegistry
 
 
 @ModelRegistry.register_preprocessor('DROUTE')

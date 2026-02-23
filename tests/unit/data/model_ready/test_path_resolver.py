@@ -1,7 +1,8 @@
 """Tests for model-ready path resolver with fallback logic."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 from symfluence.data.model_ready.path_resolver import resolve_model_ready_path
 
 

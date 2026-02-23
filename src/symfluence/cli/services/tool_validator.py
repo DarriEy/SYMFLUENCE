@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from .base import BaseService
 from ..console import Console
+from .base import BaseService
 
 
 class ToolValidator(BaseService):

@@ -4,9 +4,10 @@ Unit tests for GR preprocessor.
 Tests GR-specific preprocessing functionality, including mode detection.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 from importlib.machinery import ModuleSpec
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
 
 # Pre-import jax at collection time to avoid abseil timezone conflict that

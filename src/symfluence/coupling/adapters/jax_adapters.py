@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-
 from dcoupler.core.component import (
     FluxDirection,
     FluxSpec,
@@ -91,10 +90,11 @@ class Snow17JAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
+
             from symfluence.models.snow17.parameters import (
-                params_dict_to_namedtuple,
-                Snow17State,
                 DEFAULT_ADC,
+                Snow17State,
+                params_dict_to_namedtuple,
             )
             snow17_params = params_dict_to_namedtuple(params, use_jax=True)
             adc = jnp.array(DEFAULT_ADC)
@@ -183,6 +183,7 @@ class XAJJAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
+
             from symfluence.models.xinanjiang.parameters import (
                 XinanjiangParams,
                 XinanjiangState,
@@ -269,6 +270,7 @@ class SacSmaJAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
+
             from symfluence.models.sacsma.parameters import SacSmaParameters
             from symfluence.models.sacsma.sacsma import SacSmaState
             # Unpack flat array → SacSmaState namedtuple

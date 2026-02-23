@@ -6,7 +6,6 @@ Default variable mappings, units, and parameter values for MESH model.
 
 from typing import Any, Dict, Union
 
-
 # ---------------------------------------------------------------------------
 # Shared spatial-mode predicates
 # ---------------------------------------------------------------------------

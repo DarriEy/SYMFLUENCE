@@ -13,6 +13,7 @@ Additional fixtures are loaded via pytest_plugins from tests/fixtures/.
 # ============================================================================
 import os
 import sys
+
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 os.environ['HDF5_DISABLE_VERSION_CHECK'] = '1'
 os.environ['NETCDF_DISABLE_LOCKING'] = '1'
@@ -37,8 +38,8 @@ if sys.platform == "win32":
     except (ImportError, OSError):
         pass
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 # ============================================================================
 # GDAL exception mode configuration
@@ -54,6 +55,7 @@ except ImportError:
 # Disable tqdm monitor thread to prevent segfaults with netCDF4/HDF5
 # This must be done before tqdm is imported anywhere
 import tqdm
+
 tqdm.tqdm.monitor_interval = 0
 # Also disable the existing monitor if already started
 if tqdm.tqdm.monitor is not None:
@@ -101,12 +103,13 @@ if str(TESTS_DIR) not in sys.path:
 # Import test utilities with robust fallback
 import importlib.util
 
+
 def _load_test_helpers():
     """Try to load test_helpers using various methods."""
     # Try standard import first
     try:
-        from test_helpers.helpers import load_config_template, write_config, has_cds_credentials
         from test_helpers import helpers
+        from test_helpers.helpers import has_cds_credentials, load_config_template, write_config
         return load_config_template, write_config, has_cds_credentials, helpers, True
     except (ImportError, ModuleNotFoundError):
         pass
@@ -334,8 +337,9 @@ def memory_monitor():
     to help identify memory leaks.
     """
     try:
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         start_memory = process.memory_info().rss / 1024 / 1024  # MB

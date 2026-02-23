@@ -4,17 +4,21 @@ Xinanjiang Parameter Manager.
 Provides parameter bounds, transformations, and management for Xinanjiang calibration.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
+
 import numpy as np
 
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_xinanjiang_bounds, get_snow17_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.models.xinanjiang.parameters import (
-    PARAM_BOUNDS, DEFAULT_PARAMS, LOG_TRANSFORM_PARAMS, enforce_ki_kg_constraint,
+    DEFAULT_PARAMS,
+    LOG_TRANSFORM_PARAMS,
+    PARAM_BOUNDS,
+    enforce_ki_kg_constraint,
 )
+from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.optimization.core.parameter_bounds_registry import get_snow17_bounds, get_xinanjiang_bounds
+from symfluence.optimization.registry import OptimizerRegistry
 
 
 @OptimizerRegistry.register_parameter_manager('XINANJIANG')
@@ -42,7 +46,7 @@ class XinanjiangParameterManager(BaseParameterManager):
         # Add Snow-17 parameters when snow module enabled
         self.snow_module = str(config.get('XINANJIANG_SNOW_MODULE', 'none'))
         if self.snow_module == 'snow17':
-            from symfluence.models.snow17.parameters import SNOW17_PARAM_BOUNDS, SNOW17_DEFAULTS
+            from symfluence.models.snow17.parameters import SNOW17_DEFAULTS, SNOW17_PARAM_BOUNDS
             self.all_bounds.update(SNOW17_PARAM_BOUNDS)
             self.defaults.update(SNOW17_DEFAULTS)
             self.xinanjiang_params = self.xinanjiang_params + list(SNOW17_PARAM_BOUNDS.keys())

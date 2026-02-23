@@ -28,18 +28,18 @@ Variables in NetCDF:
     - time: Observation timestamp
 """
 
-import requests
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import pandas as pd
+import requests
 import xarray as xr
 
 from symfluence.core.exceptions import DataAcquisitionError
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-
 
 # Zenodo record IDs for CanSWE versions
 CANSWE_ZENODO_RECORDS = {

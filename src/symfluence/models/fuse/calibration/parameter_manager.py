@@ -8,11 +8,12 @@ This version fixes the "Index exceeds dimension bound" error by ensuring
 proper parameter file structure and indexing.
 """
 
-import xarray as xr
-import netCDF4 as nc
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
-import logging
+
+import netCDF4 as nc
+import xarray as xr
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds

@@ -17,9 +17,10 @@ Usage:
     ds_subset = subset_xarray_to_bbox(ds, bbox, lat_dim='latitude', lon_dim='longitude')
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Union
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
+
 import numpy as np
 
 logger = logging.getLogger(__name__)

@@ -8,9 +8,9 @@ Phase 3 Addition: Centralizes spatial mode validation that was previously scatte
 across individual model runners.
 """
 
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, Set, Optional
+from enum import Enum
+from typing import Dict, Optional, Set
 
 
 class SpatialMode(Enum):

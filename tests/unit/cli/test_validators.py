@@ -1,13 +1,12 @@
 """Unit tests for CLI validators."""
 
 import pytest
-
 from symfluence.cli.validators import (
-    validate_coordinates,
     validate_bounding_box,
     validate_config_exists,
+    validate_coordinates,
+    validate_directory_exists,
     validate_file_exists,
-    validate_directory_exists
 )
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

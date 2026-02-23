@@ -33,10 +33,9 @@ import rasterio
 from rasterio.merge import merge as rio_merge
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..mixins import RetryMixin
+from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
-
 
 # Base URL for POLARIS v1.0
 _BASE_URL = "http://hydrology.cee.duke.edu/POLARIS/PROPERTIES/v1.0"

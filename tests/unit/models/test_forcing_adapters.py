@@ -7,8 +7,8 @@ data to model-specific formats.
 """
 
 import pytest
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.models.registry import ModelRegistry
 
 
 class TestForcingAdapterRegistration:

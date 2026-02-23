@@ -28,13 +28,13 @@ Usage:
     handler.create_shapefile(...)
 """
 
+import importlib as _importlib
 import logging as _logging
 import warnings as _warnings
-import importlib as _importlib
 
 from .base_dataset import (
-    BaseDatasetHandler,
     STANDARD_VARIABLE_ATTRIBUTES,
+    BaseDatasetHandler,
     apply_standard_variable_attributes,
 )
 from .dataset_registry import DatasetRegistry

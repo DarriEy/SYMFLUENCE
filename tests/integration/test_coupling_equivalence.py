@@ -9,9 +9,8 @@ be skipped in CI environments. Tests requiring dCoupler are skipped when
 it is not installed.
 """
 
-import pytest
 import numpy as np
-
+import pytest
 from symfluence.coupling import is_dcoupler_available
 
 dcoupler_available = is_dcoupler_available()
@@ -38,7 +37,7 @@ class TestSnow17XAJEquivalence:
             pytest.skip("JAX not installed")
         try:
             from symfluence.models.snow17.model import snow17_step  # noqa: F401
-            from symfluence.models.xinanjiang.model import step_jax, simulate_coupled_jax  # noqa: F401
+            from symfluence.models.xinanjiang.model import simulate_coupled_jax, step_jax  # noqa: F401
         except ImportError:
             pytest.skip("Snow-17 or XAJ model not available in SYMFLUENCE")
 
@@ -89,8 +88,8 @@ class TestSnow17SacSmaEquivalence:
         if not jax_available:
             pytest.skip("JAX not installed")
         try:
-            from symfluence.models.snow17.model import snow17_step  # noqa: F401
             from symfluence.models.sacsma.sacsma import sacsma_step  # noqa: F401
+            from symfluence.models.snow17.model import snow17_step  # noqa: F401
         except ImportError:
             pytest.skip("Snow-17 or SAC-SMA model not available")
 
@@ -98,8 +97,8 @@ class TestSnow17SacSmaEquivalence:
         """Verify the graph produces outputs with correct shapes."""
         from dcoupler.core.graph import CouplingGraph
         from symfluence.coupling.adapters.jax_adapters import (
-            Snow17JAXComponent,
             SacSmaJAXComponent,
+            Snow17JAXComponent,
         )
 
         try:
@@ -288,6 +287,7 @@ class TestTRouteMCCalibrationVerification:
     def test_mannings_n_changes_output(self, tmp_path):
         """Write two topologies with different n, verify routed output differs."""
         import logging
+
         import xarray as xr
         from symfluence.models.troute.runner import TRouteRunner
 
@@ -403,8 +403,8 @@ class TestSUMMATRouteEquivalence:
         if not troute_output.exists():
             pytest.skip("T-Route output not available (run tutorial 02b first)")
 
-        import xarray as xr
         import torch
+        import xarray as xr
 
         # 1. Direct xarray read (standalone path)
         ds = xr.open_dataset(troute_output)

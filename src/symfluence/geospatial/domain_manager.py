@@ -5,15 +5,18 @@ Coordinates domain definition, delineation, and discretization workflows
 with integrated visualization and artifact tracking.
 """
 
-from pathlib import Path
 import logging
-from typing import Dict, Any, Optional, Tuple, Union, TYPE_CHECKING
-
-from symfluence.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
-from symfluence.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 from symfluence.core.exceptions import GeospatialError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.geospatial.delineation import (  # type: ignore
+    DelineationArtifacts,
+    DomainDelineator,
+    create_point_domain_shapefile,
+)
+from symfluence.geospatial.discretization import DiscretizationArtifacts, DomainDiscretizationRunner  # type: ignore
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

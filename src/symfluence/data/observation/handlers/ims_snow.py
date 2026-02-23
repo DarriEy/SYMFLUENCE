@@ -17,10 +17,11 @@ Output Format:
     CSV with columns: datetime, sca_fraction
 """
 
-import pandas as pd
-import xarray as xr
 from pathlib import Path
 from typing import Optional
+
+import pandas as pd
+import xarray as xr
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry

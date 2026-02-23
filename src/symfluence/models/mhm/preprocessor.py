@@ -8,20 +8,19 @@ Handles preparation of mHM model inputs including:
 - Grid and morphological input preparation
 """
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
-from datetime import datetime
 
+import geopandas as gpd
+import netCDF4 as nc4
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
-import netCDF4 as nc4
 
+from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
-
 
 logger = logging.getLogger(__name__)
 

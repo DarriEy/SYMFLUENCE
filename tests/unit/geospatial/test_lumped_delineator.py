@@ -8,9 +8,10 @@ Tests lumped watershed delineation including:
 - Required field validation
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Import fixtures
 from .conftest import requires_geopandas

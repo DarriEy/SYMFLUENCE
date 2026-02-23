@@ -10,16 +10,14 @@ Tests IMS snow cover data acquisition:
 """
 
 import math
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pytest
-
 from fixtures.acquisition_fixtures import MockConfigFactory
-
 
 # =============================================================================
 # Test Fixtures

@@ -15,17 +15,15 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+
 from ..base import BaseModelRunner
-from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..execution import SpatialOrchestrator
+from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .subcatchment_processor import SubcatchmentProcessor
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    symfluence_error_handler
-)
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
@@ -927,8 +925,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                         f"para_def.nc has empty par dimension (0 records). "
                         f"Initializing with default values for {len(ds.data_vars)} variables."
                     )
-                    from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
                     from symfluence.models.fuse.calibration.parameter_application import parse_fuse_constraints_defaults
+                    from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
                     bounds = get_fuse_bounds()
 
                     # Read defaults from FUSE constraints file (authoritative source)

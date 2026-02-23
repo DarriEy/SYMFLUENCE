@@ -8,7 +8,6 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
-
 HELP_TEXT = """
 SYMFLUENCE TUI Help
 

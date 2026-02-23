@@ -36,7 +36,7 @@ class TestSparklineWidget:
 
     def test_increasing_values(self):
         """Increasing values produce non-decreasing block heights."""
-        from symfluence.tui.widgets.sparkline import SparklineWidget, SPARKLINE_CHARS
+        from symfluence.tui.widgets.sparkline import SPARKLINE_CHARS, SparklineWidget
 
         w = SparklineWidget()
         values = list(range(10))
@@ -134,8 +134,12 @@ class TestConstants:
     def test_status_icons_cover_all_statuses(self):
         """Every status has an icon."""
         from symfluence.tui.constants import (
-            STATUS_COMPLETED, STATUS_FAILED, STATUS_RUNNING,
-            STATUS_PARTIAL, STATUS_PENDING, STATUS_ICONS,
+            STATUS_COMPLETED,
+            STATUS_FAILED,
+            STATUS_ICONS,
+            STATUS_PARTIAL,
+            STATUS_PENDING,
+            STATUS_RUNNING,
         )
         for status in [STATUS_COMPLETED, STATUS_FAILED, STATUS_RUNNING,
                        STATUS_PARTIAL, STATUS_PENDING]:
@@ -144,8 +148,12 @@ class TestConstants:
     def test_status_colors_cover_all_statuses(self):
         """Every status has a color."""
         from symfluence.tui.constants import (
-            STATUS_COMPLETED, STATUS_FAILED, STATUS_RUNNING,
-            STATUS_PARTIAL, STATUS_PENDING, STATUS_COLORS,
+            STATUS_COLORS,
+            STATUS_COMPLETED,
+            STATUS_FAILED,
+            STATUS_PARTIAL,
+            STATUS_PENDING,
+            STATUS_RUNNING,
         )
         for status in [STATUS_COMPLETED, STATUS_FAILED, STATUS_RUNNING,
                        STATUS_PARTIAL, STATUS_PENDING]:

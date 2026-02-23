@@ -8,8 +8,8 @@ This module contains the DDS (Dynamically Dimensioned Search) algorithm
 implementation for running within worker processes.
 """
 
-import os
 import logging
+import os
 import traceback
 from pathlib import Path
 from typing import Dict
@@ -27,7 +27,7 @@ def _export_worker_profile_data(worker_id: int = None):
     (e.g., with ProcessPoolExecutor on macOS).
     """
     try:
-        from symfluence.core.profiling import get_profiler, get_profile_directory
+        from symfluence.core.profiling import get_profile_directory, get_profiler
 
         profiler = get_profiler()
         if not profiler.enabled or len(profiler._operations) == 0:

@@ -1,9 +1,10 @@
 """Tests for IGNACIO result extractor."""
 
-import pytest
 import json
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 class TestIGNACIOResultExtractorImport:

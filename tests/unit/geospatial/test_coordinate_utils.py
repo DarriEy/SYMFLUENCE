@@ -7,9 +7,10 @@ Tests coordinate transformation utilities including:
 - CRS transformations
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
 
 
 class TestBoundingBoxParsing:

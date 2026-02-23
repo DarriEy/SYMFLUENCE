@@ -23,12 +23,13 @@ References:
 """
 
 import os
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -103,8 +104,8 @@ class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
 
     def _search_scenes(self, start: pd.Timestamp, end: pd.Timestamp, max_cloud: int) -> List:
         """Search for Sentinel-2 L2A scenes via Planetary Computer STAC."""
-        from pystac_client import Client
         import planetary_computer as pc
+        from pystac_client import Client
 
         self.logger.info("Connecting to Microsoft Planetary Computer STAC...")
         client = Client.open(PC_STAC_URL, modifier=pc.sign_inplace)
@@ -137,8 +138,8 @@ class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
         """Extract snow cover from each scene."""
         import planetary_computer as pc
         import rasterio
-        from rasterio.windows import from_bounds
         from rasterio.crs import CRS
+        from rasterio.windows import from_bounds
 
         os.environ.setdefault('GDAL_DISABLE_READDIR_ON_OPEN', 'EMPTY_DIR')
         os.environ.setdefault('CPL_VSIL_CURL_ALLOWED_EXTENSIONS', '.tif,.tiff')

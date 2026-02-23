@@ -26,13 +26,14 @@ Usage:
     ds = handler.process_forcing_data(ds)
 """
 
-import pint_xarray # type: ignore
-import pint # type: ignore
-import xarray as xr # type: ignore
-import yaml # type: ignore
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Set, TYPE_CHECKING
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
+import pint  # type: ignore
+import pint_xarray  # type: ignore
+import xarray as xr  # type: ignore
+import yaml  # type: ignore
 
 # Lazy import CFIF mappings to avoid circular imports
 # These are imported in the methods that need them
@@ -43,9 +44,9 @@ if TYPE_CHECKING:
 def _get_cfif_mappings():
     """Lazy load CFIF mappings to avoid circular imports."""
     from symfluence.data.preprocessing.cfif.variables import (
-        SUMMA_TO_CFIF_MAPPING,
         CFIF_TO_SUMMA_MAPPING,
         CFIF_VARIABLES,
+        SUMMA_TO_CFIF_MAPPING,
     )
     return SUMMA_TO_CFIF_MAPPING, CFIF_TO_SUMMA_MAPPING, CFIF_VARIABLES
 

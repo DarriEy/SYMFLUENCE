@@ -8,7 +8,8 @@ Refactored from geofabric_utils.py (2026-01-01)
 """
 
 from typing import Any, Optional
-from shapely.geometry import Polygon, MultiPolygon
+
+from shapely.geometry import MultiPolygon, Polygon
 
 
 class GeometryProcessor:

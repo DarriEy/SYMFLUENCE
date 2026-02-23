@@ -8,13 +8,14 @@ ERA5 uses regular lat/lon grids and typically doesn't require merging operations
 import shutil
 from pathlib import Path
 from typing import Dict, Tuple
-import xarray as xr
+
 import geopandas as gpd
+import xarray as xr
 from shapely.geometry import Polygon
 
+from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from ...utils import VariableStandardizer
 
 
 @DatasetRegistry.register('era5')

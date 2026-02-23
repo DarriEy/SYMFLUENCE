@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 
+
 class LSTMConfig(BaseModel):
     """LSTM neural network emulator configuration"""
     model_config = FROZEN_CONFIG

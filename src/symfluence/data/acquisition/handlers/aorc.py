@@ -5,12 +5,15 @@ Provides automated download and processing of Analysis of Record for Calibration
 (AORC) forcing data with bounding box subsetting and multi-year support.
 """
 
-import xarray as xr
+from pathlib import Path
+
 import pandas as pd
 import s3fs
-from pathlib import Path
+import xarray as xr
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
 
 @AcquisitionRegistry.register('AORC')
 class AORCAcquirer(BaseAcquisitionHandler):

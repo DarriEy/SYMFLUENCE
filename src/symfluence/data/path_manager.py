@@ -24,8 +24,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 from symfluence.core import ConfigurableMixin
 

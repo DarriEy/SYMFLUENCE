@@ -14,7 +14,8 @@ Reference:
     Water Resources Research, 43(1).
 """
 
-from typing import Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

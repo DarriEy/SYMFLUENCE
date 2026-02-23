@@ -9,9 +9,10 @@ Handles HYPE output formats (timeCOUT.txt for direct, NetCDF for routed)
 with automatic outlet subbasin selection.
 """
 
-import pandas as pd
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
+
+import pandas as pd
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator

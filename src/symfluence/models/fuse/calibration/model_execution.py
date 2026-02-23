@@ -9,7 +9,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.mixins.project import resolve_data_subdir
 

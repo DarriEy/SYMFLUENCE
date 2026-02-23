@@ -4,8 +4,9 @@ Domain configuration models.
 Contains DelineationConfig and DomainConfig for spatial extent, timing, and discretization.
 """
 
-from typing import Optional, Literal
 import warnings
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG

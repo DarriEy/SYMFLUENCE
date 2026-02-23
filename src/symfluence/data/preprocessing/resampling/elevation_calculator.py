@@ -5,11 +5,12 @@ Calculates elevation statistics for geometries using DEM data.
 """
 
 import logging
+from pathlib import Path
+from typing import List
+
 import numpy as np
 import rasterio
 from rasterio.mask import mask
-from pathlib import Path
-from typing import List
 
 try:
     from tqdm import tqdm

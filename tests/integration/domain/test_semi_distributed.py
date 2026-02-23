@@ -5,14 +5,14 @@ Tests the semi-distributed basin workflow from notebook 02b for supported models
 Uses local test data from tests/data/ and runs the full workflow from raw data.
 """
 
-import pytest
 import shutil
 from pathlib import Path
+
+import pytest
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
 from test_helpers.helpers import load_config_template, write_config
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
 
@@ -271,8 +271,9 @@ def test_semi_distributed_basin_workflow(config_path, model, symfluence_data_roo
         assert results_file is not None, "Calibration should produce results"
 
         # Validate calibration results - ensure we actually ran with real data
-        import pandas as pd
         import math
+
+        import pandas as pd
 
         assert results_file.exists(), f"Results file should exist on disk: {results_file}"
 

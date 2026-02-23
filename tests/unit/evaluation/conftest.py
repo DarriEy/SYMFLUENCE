@@ -2,14 +2,15 @@
 Shared fixtures for evaluation suite tests.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import xarray as xr
+import logging
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import tempfile
-import logging
+
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
 
 
 @pytest.fixture

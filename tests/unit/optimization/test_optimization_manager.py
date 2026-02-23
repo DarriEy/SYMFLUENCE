@@ -8,13 +8,13 @@ Tests the main optimization workflow orchestration, including:
 - Error handling
 """
 
-import pytest
-import pandas as pd
 from pathlib import Path
 from unittest.mock import patch
 
-from symfluence.optimization.optimization_manager import OptimizationManager
+import pandas as pd
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.optimization.optimization_manager import OptimizationManager
 
 
 def create_config_with_overrides(base_config: SymfluenceConfig, **overrides) -> SymfluenceConfig:

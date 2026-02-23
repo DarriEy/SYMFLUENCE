@@ -8,19 +8,18 @@ Handles preparation of VIC model inputs including:
 - Global parameter file (model control settings)
 """
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
-from datetime import datetime
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.spatial_modes import SpatialMode
-
 
 logger = logging.getLogger(__name__)
 

@@ -13,8 +13,9 @@ import subprocess
 from pathlib import Path
 from typing import Dict
 
-from .netcdf_utilities import fix_summa_time_precision
 from symfluence.core.profiling import get_system_profiler
+
+from .netcdf_utilities import fix_summa_time_precision
 
 
 def _cleanup_stale_output_files(output_dir: Path, logger) -> None:

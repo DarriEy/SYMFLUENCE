@@ -14,7 +14,6 @@ import threading
 
 import panel as pn
 
-
 # Human-readable labels for step names
 STEP_LABELS = {
     'setup_project': 'Project Setup',

@@ -554,7 +554,6 @@ def _create_gnn_schema() -> ModelConfigSchema:
 
 from symfluence.models.rhessys.config import create_rhessys_schema
 
-
 # =============================================================================
 # Schema Registry
 # =============================================================================

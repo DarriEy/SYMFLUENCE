@@ -5,7 +5,7 @@ Executes the GSFLOW binary which internally couples PRMS and MODFLOW-NWT.
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry

@@ -5,12 +5,12 @@ Tests cover run options fixes, GRU count mismatch handling,
 DDB operations, CLASS file operations, and safe forcing creation.
 """
 
-import pytest
-import numpy as np
-import xarray as xr
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+import pytest
+import xarray as xr
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -435,8 +435,9 @@ class TestSafeForcing:
 
     def test_creates_trimmed_forcing(self, fixer):
         """Should create a safe forcing file trimmed to simulation period."""
-        import pandas as pd
         from datetime import datetime
+
+        import pandas as pd
 
         # Create minimal forcing file
         times = pd.date_range("2019-06-01", "2021-06-30", freq="h")

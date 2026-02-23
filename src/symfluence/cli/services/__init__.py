@@ -21,36 +21,36 @@ Build Configuration:
 
 from .base import BaseService
 
-# Binary management services
-from .tool_installer import ToolInstaller
-from .tool_validator import ToolValidator
-from .system_diagnostics import SystemDiagnostics
-from .system_deps import SystemDepsRegistry
-
-# Project management services
-from .initialization import InitializationService, InitializationManager
-from .job_scheduler import JobSchedulerService, JobScheduler
-from .notebook import NotebookService
-
 # Build configuration
 from .build_registry import BuildInstructionsRegistry
-from .build_snippets import (
-    get_common_build_environment,
-    get_netcdf_detection,
-    get_hdf5_detection,
-    get_netcdf_lib_detection,
-    get_geos_proj_detection,
-    get_udunits2_detection_and_build,
-    get_bison_detection_and_build,
-    get_flex_detection_and_build,
-    get_all_snippets,
-)
 from .build_schema import (
     BuildInstructionSchema,
     VerifyInstallSchema,
-    validate_build_instructions,
     validate_all_instructions,
+    validate_build_instructions,
 )
+from .build_snippets import (
+    get_all_snippets,
+    get_bison_detection_and_build,
+    get_common_build_environment,
+    get_flex_detection_and_build,
+    get_geos_proj_detection,
+    get_hdf5_detection,
+    get_netcdf_detection,
+    get_netcdf_lib_detection,
+    get_udunits2_detection_and_build,
+)
+
+# Project management services
+from .initialization import InitializationManager, InitializationService
+from .job_scheduler import JobScheduler, JobSchedulerService
+from .notebook import NotebookService
+from .system_deps import SystemDepsRegistry
+from .system_diagnostics import SystemDiagnostics
+
+# Binary management services
+from .tool_installer import ToolInstaller
+from .tool_validator import ToolValidator
 
 __all__ = [
     # Base

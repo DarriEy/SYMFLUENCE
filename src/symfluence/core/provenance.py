@@ -8,9 +8,9 @@ and per-step timing into a self-documenting run manifest (JSON).
 import json
 import platform
 import subprocess
-from importlib.metadata import PackageNotFoundError, version
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

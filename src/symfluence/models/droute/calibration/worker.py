@@ -5,24 +5,24 @@ Worker implementation for dRoute routing parameter optimization with support for
 both evolutionary and gradient-based calibration via automatic differentiation.
 """
 
+import logging
 import os
-import sys
-import signal
 import random
+import signal
+import sys
 import time
 import traceback
-import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.metrics import kge, nse
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.evaluation.metrics import kge, nse
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 # Try to import dRoute
 try:

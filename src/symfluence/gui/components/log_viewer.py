@@ -10,8 +10,8 @@ contexts -- it works regardless of whether log appends originate
 from the Tornado event loop, daemon threads, or direct calls.
 """
 
-import param
 import panel as pn
+import param
 
 
 class LogViewer(param.Parameterized):

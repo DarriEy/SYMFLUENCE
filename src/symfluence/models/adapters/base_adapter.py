@@ -6,10 +6,12 @@ Each hydrological model implements its own adapter to convert CFIF
 (CF-Intermediate Format) data to its specific format.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable, Any, Union, TYPE_CHECKING
-import xarray as xr
 import logging
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+
+import xarray as xr
+
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:

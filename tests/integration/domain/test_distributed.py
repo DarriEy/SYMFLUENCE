@@ -5,17 +5,18 @@ Tests the elevation-based distributed workflow from notebook 02c for SUMMA.
 Reuses data from the semi-distributed example when available.
 """
 
-import pytest
 import shutil
 from pathlib import Path
 
+import pytest
+
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template, write_config
 from test_helpers.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
+from test_helpers.helpers import load_config_template, write_config
 
 # GitHub release URL for example data
 EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip"
@@ -302,8 +303,9 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     assert results_file is not None, "Calibration should produce results"
 
     # Validate calibration results - ensure we actually ran with real data
-    import pandas as pd
     import math
+
+    import pandas as pd
 
     assert results_file.exists(), f"Results file should exist on disk: {results_file}"
 

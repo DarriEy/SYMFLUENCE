@@ -10,6 +10,7 @@ Refactored from geofabric_utils.py (2026-01-01)
 
 from pathlib import Path
 from typing import Any
+
 import geopandas as gpd
 
 

@@ -5,8 +5,8 @@ dispatch (``visualize_model_results``) and the individual
 ``visualize_*_outputs`` methods.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from symfluence.core.exceptions import ReportingError, symfluence_error_handler
 from symfluence.reporting.core.decorators import skip_if_not_visualizing

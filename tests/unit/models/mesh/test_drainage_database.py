@@ -5,11 +5,12 @@ Tests cover initialization, ensure_completeness, GRU normalization,
 reorder_by_rank, and elevation band conversion logic.
 """
 
-import pytest
-import numpy as np
-import xarray as xr
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import numpy as np
+import pytest
+import xarray as xr
 
 
 class TestInitialization:

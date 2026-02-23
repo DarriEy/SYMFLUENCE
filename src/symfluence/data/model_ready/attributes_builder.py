@@ -9,13 +9,14 @@ topology, terrain, soil, landcover, climate, and hydrogeology.
 
 import logging
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
-from symfluence.core.mixins.project import resolve_data_subdir
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

@@ -4,10 +4,10 @@ Unit tests for configuration validation.
 Tests the Pydantic validators in SymfluenceConfig model.
 """
 
-import pytest
-from pydantic import ValidationError
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import ConfigurationError
 

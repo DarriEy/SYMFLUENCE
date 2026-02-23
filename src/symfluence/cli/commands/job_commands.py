@@ -6,8 +6,8 @@ This module implements handlers for submitting workflows as SLURM jobs.
 
 from argparse import Namespace
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class JobCommands(BaseCommand):

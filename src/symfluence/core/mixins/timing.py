@@ -4,10 +4,10 @@ Timing mixin for SYMFLUENCE modules.
 Provides timing and profiling utilities for measuring code execution time.
 """
 
-import time
 import logging
-from typing import Iterator
+import time
 from contextlib import contextmanager
+from typing import Iterator
 
 
 class TimingMixin:

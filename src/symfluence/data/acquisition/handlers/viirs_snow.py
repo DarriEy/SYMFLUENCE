@@ -19,19 +19,18 @@ References:
 - VNP10A1F: https://nsidc.org/data/vnp10a1f
 - earthaccess: https://github.com/nsidc/earthaccess
 """
-import time
 import re
-import numpy as np
-import xarray as xr
-from pathlib import Path
+import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import requests
+import xarray as xr
 
-from .earthaccess_base import BaseEarthaccessAcquirer
 from ..registry import AcquisitionRegistry
-
+from .earthaccess_base import BaseEarthaccessAcquirer
 
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 

@@ -1,7 +1,7 @@
 """Central registry for model-specific optimizers, workers, and parameter managers."""
 
 import logging
-from typing import Dict, Type, Optional, List, Any
+from typing import Any, Dict, List, Optional, Type
 
 logger = logging.getLogger(__name__)
 

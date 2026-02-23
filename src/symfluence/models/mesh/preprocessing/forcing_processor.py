@@ -8,7 +8,7 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd

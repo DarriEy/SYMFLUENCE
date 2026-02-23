@@ -1,19 +1,18 @@
 """Tests for SAC-SMA soil moisture accounting model (dual-backend)."""
 
-import pytest
 import numpy as np
-
-from symfluence.models.sacsma.sacsma import (
-    SacSmaState,
-    sacsma_step,
-    sacsma_simulate,
-    sacsma_simulate_numpy,
-    _create_default_state,
-    HAS_JAX,
-)
+import pytest
 from symfluence.models.sacsma.parameters import (
     SACSMA_DEFAULTS,
     create_sacsma_params,
+)
+from symfluence.models.sacsma.sacsma import (
+    HAS_JAX,
+    SacSmaState,
+    _create_default_state,
+    sacsma_simulate,
+    sacsma_simulate_numpy,
+    sacsma_step,
 )
 
 
@@ -289,8 +288,8 @@ class TestDualBackend:
     def test_jax_numpy_consistency(self):
         """JAX and NumPy backends should produce similar results."""
         import jax.numpy as jnp
-        from symfluence.models.sacsma.sacsma import sacsma_simulate_jax
         from symfluence.models.sacsma.parameters import params_dict_to_namedtuple
+        from symfluence.models.sacsma.sacsma import sacsma_simulate_jax
 
         params_np = create_sacsma_params(SACSMA_DEFAULTS)
         params_jax = params_dict_to_namedtuple(SACSMA_DEFAULTS, use_jax=True)
@@ -309,8 +308,8 @@ class TestDualBackend:
         """JAX should compute non-zero gradients through SAC-SMA."""
         import jax
         import jax.numpy as jnp
-        from symfluence.models.sacsma.sacsma import sacsma_simulate_jax, _create_default_state
-        from symfluence.models.sacsma.parameters import SacSmaParameters, SACSMA_PARAM_NAMES
+        from symfluence.models.sacsma.parameters import SACSMA_PARAM_NAMES, SacSmaParameters
+        from symfluence.models.sacsma.sacsma import _create_default_state, sacsma_simulate_jax
 
         def loss_fn(uztwm_val):
             p_dict = {**SACSMA_DEFAULTS, 'UZTWM': uztwm_val}

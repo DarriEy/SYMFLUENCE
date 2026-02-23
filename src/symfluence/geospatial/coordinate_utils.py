@@ -11,8 +11,9 @@ This module provides standardized utilities for handling geographic coordinates 
 - Meridian wrapping detection
 """
 
+from typing import Dict, Optional, Tuple, Union
+
 import numpy as np
-from typing import Dict, Tuple, Union, Optional
 
 
 class BoundingBox:

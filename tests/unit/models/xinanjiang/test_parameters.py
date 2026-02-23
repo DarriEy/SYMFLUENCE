@@ -2,18 +2,17 @@
 
 import numpy as np
 import pytest
-
 from symfluence.models.xinanjiang.parameters import (
-    PARAM_NAMES,
-    PARAM_BOUNDS,
     DEFAULT_PARAMS,
     LOG_TRANSFORM_PARAMS,
+    PARAM_BOUNDS,
+    PARAM_NAMES,
     XinanjiangParams,
     XinanjiangState,
     enforce_ki_kg_constraint,
-    params_dict_to_namedtuple,
-    params_dict_to_array,
     params_array_to_dict,
+    params_dict_to_array,
+    params_dict_to_namedtuple,
 )
 
 

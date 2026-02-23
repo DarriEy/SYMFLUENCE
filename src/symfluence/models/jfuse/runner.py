@@ -8,33 +8,45 @@ jFUSE is a JAX-based implementation of the FUSE (Framework for Understanding Str
 Errors) model, enabling automatic differentiation for gradient-based calibration.
 """
 
-from typing import Dict, Any, Optional, Tuple, Callable
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import SpatialOrchestrator
-from symfluence.models.spatial_modes import SpatialMode
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.execution import SpatialOrchestrator
+from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
 
 # Lazy jFUSE and JAX import
 try:
-    import jfuse
     import equinox as eqx
-    from jfuse import FUSEModel, ModelConfig, PARAM_BOUNDS, create_fuse_model, Parameters
-    from jfuse import PRMS_CONFIG, SACRAMENTO_CONFIG, TOPMODEL_CONFIG, VIC_CONFIG
+    import jfuse
     from jfuse import (
-        BaseflowType, UpperLayerArch, LowerLayerArch,
-        PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
+        PARAM_BOUNDS,
+        PRMS_CONFIG,
+        SACRAMENTO_CONFIG,
+        TOPMODEL_CONFIG,
+        VIC_CONFIG,
+        BaseflowType,
+        EvaporationType,
+        FUSEModel,
+        InterflowType,
+        LowerLayerArch,
+        ModelConfig,
+        Parameters,
+        PercolationType,
+        SurfaceRunoffType,
+        UpperLayerArch,
+        create_fuse_model,
     )
-    from jfuse.fuse.config import SnowType, RoutingType, RainfallErrorType
+    from jfuse.fuse.config import RainfallErrorType, RoutingType, SnowType
     HAS_JFUSE = True
     HAS_EQUINOX = True
 
@@ -843,7 +855,7 @@ class JFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         if not HAS_JFUSE:
             raise ImportError("jFUSE not installed")
 
-        from jfuse import nse_loss, kge_loss
+        from jfuse import kge_loss, nse_loss
 
         if metric.lower() == 'nse':
             return nse_loss

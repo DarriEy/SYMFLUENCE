@@ -9,11 +9,11 @@ Worker implementation for GR model optimization.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.models.gr.runner import GRRunner
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,8 @@ Converts CFIF (CF-Intermediate Format) forcing data to NOAA NextGen format.
 NGen uses specific variable names from the BMI standard.
 """
 
-from typing import Dict, List, Callable
+from typing import Callable, Dict, List
+
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry

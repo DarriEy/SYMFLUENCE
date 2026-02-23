@@ -17,7 +17,6 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
-
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 

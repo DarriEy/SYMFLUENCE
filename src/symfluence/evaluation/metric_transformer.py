@@ -25,8 +25,9 @@ Usage
 ...     print("MAE is a minimization metric")
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 from .metrics import get_metric_info
 

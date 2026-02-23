@@ -36,12 +36,12 @@ References:
 
     https://github.com/parflow/parflow
 """
+from .config import CLMParFlowConfigAdapter
+from .extractor import CLMParFlowResultExtractor
+from .plotter import CLMParFlowPlotter
+from .postprocessor import CLMParFlowPostProcessor
 from .preprocessor import CLMParFlowPreProcessor
 from .runner import CLMParFlowRunner
-from .extractor import CLMParFlowResultExtractor
-from .postprocessor import CLMParFlowPostProcessor
-from .config import CLMParFlowConfigAdapter
-from .plotter import CLMParFlowPlotter
 
 __all__ = [
     "CLMParFlowPreProcessor",
@@ -65,4 +65,5 @@ except ImportError:
 # - CLMParFlowPostProcessor: @ModelRegistry.register_postprocessor("CLMPARFLOW")
 # CLMParFlowConfigAdapter needs explicit registration (no decorator)
 from symfluence.models.registry import ModelRegistry
+
 ModelRegistry.register_config_adapter('CLMPARFLOW')(CLMParFlowConfigAdapter)

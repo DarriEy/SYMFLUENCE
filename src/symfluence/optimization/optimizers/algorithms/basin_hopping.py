@@ -29,7 +29,8 @@ Reference:
     Academy of Sciences, 84(19), 6611-6615.
 """
 
-from typing import Dict, Any, Callable, Optional, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 from scipy.optimize import minimize
 

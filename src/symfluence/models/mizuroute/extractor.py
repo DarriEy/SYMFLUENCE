@@ -7,10 +7,11 @@ and routing variable names.
 """
 
 from pathlib import Path
-from typing import cast, List, Dict
+from typing import Dict, List, cast
+
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
 
 from symfluence.models.base import ModelResultExtractor
 

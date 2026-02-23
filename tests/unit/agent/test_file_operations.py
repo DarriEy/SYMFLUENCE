@@ -2,9 +2,10 @@
 Tests for the FileOperations class.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 
 class TestFileOperationsInitialization:
@@ -17,8 +18,9 @@ class TestFileOperationsInitialization:
 
     def test_initialization_default_repo_root(self):
         """Test initialization uses current directory by default."""
-        from symfluence.agent.file_operations import FileOperations
         import os
+
+        from symfluence.agent.file_operations import FileOperations
 
         ops = FileOperations()
         assert ops.repo_root == Path(os.getcwd()).resolve()

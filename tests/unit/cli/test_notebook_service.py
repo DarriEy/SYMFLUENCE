@@ -1,9 +1,9 @@
 """Unit tests for NotebookService."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import pytest
 from symfluence.cli.services import NotebookService
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
@@ -117,6 +117,7 @@ class TestNotebookDiscovery:
     def test_multiple_notebook_matches(self, mock_subprocess, mock_rglob, mock_exists, mock_isdir, capsys):
         """Test behavior when multiple notebooks match."""
         import sys
+
         from symfluence.cli.console import Console, ConsoleConfig
 
         # Use capture-friendly console

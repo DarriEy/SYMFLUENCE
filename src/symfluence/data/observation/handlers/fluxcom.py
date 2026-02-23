@@ -5,11 +5,14 @@ Provides acquisition and preprocessing of FLUXCOM machine learning-based
 evapotranspiration products for model validation and calibration.
 """
 
+from pathlib import Path
+
 import pandas as pd
 import xarray as xr
-from pathlib import Path
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+
 
 @ObservationRegistry.register('fluxcom_et')
 class FLUXCOMETHandler(BaseObservationHandler):

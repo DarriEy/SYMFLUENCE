@@ -78,12 +78,12 @@ class TestScreenSwitching:
 
     def test_switch_to_all_modes(self, mock_data_dir):
         """All 6 modes are reachable via action_switch_mode."""
-        from symfluence.tui.screens.dashboard import DashboardScreen
-        from symfluence.tui.screens.run_browser import RunBrowserScreen
-        from symfluence.tui.screens.workflow_launcher import WorkflowLauncherScreen
         from symfluence.tui.screens.calibration import CalibrationScreen
-        from symfluence.tui.screens.slurm_monitor import SlurmMonitorScreen
+        from symfluence.tui.screens.dashboard import DashboardScreen
         from symfluence.tui.screens.results_compare import ResultsCompareScreen
+        from symfluence.tui.screens.run_browser import RunBrowserScreen
+        from symfluence.tui.screens.slurm_monitor import SlurmMonitorScreen
+        from symfluence.tui.screens.workflow_launcher import WorkflowLauncherScreen
 
         expected = {
             "dashboard": DashboardScreen,
@@ -306,7 +306,7 @@ class TestWorkflowLauncherScreen:
                 await app.action_switch_mode("workflow")
                 await pilot.pause()
 
-                from textual.widgets import Input, Button
+                from textual.widgets import Button, Input
                 config_input = app.screen.query_one("#config-path", Input)
                 assert config_input is not None
 

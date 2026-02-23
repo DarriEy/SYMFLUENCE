@@ -8,12 +8,13 @@ duplication and provides a consistent interface.
 
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
+
 import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
-from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
 
 try:
     import geopandas as gpd

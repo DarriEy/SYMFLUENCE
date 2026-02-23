@@ -19,7 +19,6 @@ import xarray as xr
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
-
 # CLM5 parameter definitions:
 # (target_file, nc_variable_or_None, transform)
 # target_file: 'namelist' | 'params' | 'surfdata' | 'routing'

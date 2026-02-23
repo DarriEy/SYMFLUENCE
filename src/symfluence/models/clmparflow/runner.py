@@ -13,10 +13,10 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.base.base_runner import BaseModelRunner
+from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,11 @@
 """Tests for coupled Snow-17 + SAC-SMA model orchestrator (dual-backend)."""
 
-import pytest
 import numpy as np
-
-from symfluence.models.sacsma.model import simulate, SacSmaSnow17State, HAS_JAX
-from symfluence.models.snow17.parameters import Snow17State
-from symfluence.models.sacsma.sacsma import SacSmaState
+import pytest
+from symfluence.models.sacsma.model import HAS_JAX, SacSmaSnow17State, simulate
 from symfluence.models.sacsma.parameters import DEFAULT_PARAMS
+from symfluence.models.sacsma.sacsma import SacSmaState
+from symfluence.models.snow17.parameters import Snow17State
 
 
 class TestCoupledSimulation:

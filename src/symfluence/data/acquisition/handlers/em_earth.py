@@ -5,12 +5,15 @@ Provides automated download of EM-Earth reanalysis data with support for
 deterministic and probabilistic variants, multi-year coverage, and spatial subsetting.
 """
 
-import pandas as pd
-import xarray as xr
-import s3fs
 from pathlib import Path
+
+import pandas as pd
+import s3fs
+import xarray as xr
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
 
 @AcquisitionRegistry.register('EM-EARTH')
 @AcquisitionRegistry.register('EM_EARTH')

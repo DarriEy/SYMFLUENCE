@@ -4,11 +4,11 @@ Binary/tool management command handlers for SYMFLUENCE CLI.
 This module implements handlers for external tool installation and validation.
 """
 
-from argparse import Namespace
 import subprocess
+from argparse import Namespace
 
-from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
+from .base import BaseCommand, cli_exception_handler
 
 
 class BinaryCommands(BaseCommand):

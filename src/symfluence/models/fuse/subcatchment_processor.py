@@ -15,15 +15,15 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import xarray as xr
 
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.mixins.config import ConfigMixin
+from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

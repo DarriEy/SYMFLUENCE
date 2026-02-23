@@ -20,7 +20,6 @@ import requests
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
-
 # AppEEARS API endpoints
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 

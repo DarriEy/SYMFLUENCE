@@ -5,22 +5,25 @@ Uses the Paradise point-scale setup to validate cloud attribute acquisition
 and multiple cloud forcing datasets with short time windows.
 """
 
-import pytest
-import shutil
-import yaml
-from pathlib import Path
-import os
 import multiprocessing
+import os
+import shutil
 import traceback
+from pathlib import Path
+
+import pytest
+import yaml
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
 from test_helpers.helpers import (
-    has_cds_credentials, load_config_template, write_config,
-    is_rdrs_s3_available, is_em_earth_s3_available, is_cds_data_available
+    has_cds_credentials,
+    is_cds_data_available,
+    is_em_earth_s3_available,
+    is_rdrs_s3_available,
+    load_config_template,
+    write_config,
 )
-
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 

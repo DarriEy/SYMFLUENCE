@@ -2,21 +2,20 @@
 
 import numpy as np
 import pytest
-
 from symfluence.models.snow17.model import (
     HAS_JAX,
+    create_initial_state,
+    seasonal_melt_factor,
     snow17_simulate,
     snow17_simulate_numpy,
     snow17_step,
-    seasonal_melt_factor,
-    create_initial_state,
 )
 from symfluence.models.snow17.parameters import (
-    Snow17State,
-    Snow17Params,
+    DEFAULT_ADC,
     SNOW17_DEFAULTS,
     SNOW17_PARAM_BOUNDS,
-    DEFAULT_ADC,
+    Snow17Params,
+    Snow17State,
     params_dict_to_namedtuple,
 )
 

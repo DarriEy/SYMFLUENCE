@@ -2,14 +2,14 @@
 Tests for base ModelEvaluator class.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import xarray as xr
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import tempfile
 
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
 from symfluence.evaluation.evaluators.base import ModelEvaluator
 
 

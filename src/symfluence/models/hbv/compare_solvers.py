@@ -317,8 +317,8 @@ def run_scaling_comparison(
     Returns:
         Scaling results dictionary
     """
-    from .parameters import DEFAULT_PARAMS
     from .hbv_ode import compare_gradients
+    from .parameters import DEFAULT_PARAMS
 
     if verbose:
         print("\n" + "=" * 60)

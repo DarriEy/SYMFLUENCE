@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-
 # Canonical workflow steps (must stay in orchestrator execution order).
 WORKFLOW_STEP_ITEMS: List[Tuple[str, str]] = [
     ("setup_project", "Initialize project directory structure and shapefiles"),

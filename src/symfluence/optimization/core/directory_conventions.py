@@ -11,7 +11,7 @@ uses these conventions when setting up optimization directories.
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 
 @dataclass

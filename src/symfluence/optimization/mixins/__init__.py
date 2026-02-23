@@ -9,10 +9,10 @@ Reusable mixin classes that provide common functionality for optimizers:
 - SUMMAOptimizerMixin: SUMMA-specific functionality (extracted from legacy BaseOptimizer)
 """
 
+from .gradient_optimization import GradientOptimizationMixin
 from .parallel_execution import ParallelExecutionMixin
 from .results_tracking import ResultsTrackingMixin
 from .retry_execution import RetryExecutionMixin
-from .gradient_optimization import GradientOptimizationMixin
 from .summa_optimizer_mixin import SUMMAOptimizerMixin
 
 __all__ = [

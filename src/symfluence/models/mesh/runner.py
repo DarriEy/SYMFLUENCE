@@ -11,11 +11,12 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 from ..base import BaseModelRunner
 from ..registry import ModelRegistry
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MESH', method_name='run_mesh')

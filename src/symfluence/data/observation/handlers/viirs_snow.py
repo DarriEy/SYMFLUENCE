@@ -5,16 +5,16 @@ Processes VIIRS (Visible Infrared Imaging Radiometer Suite) snow cover
 data for hydrological modeling. VIIRS is the successor to MODIS with
 improved spatial resolution and cloud detection.
 """
-import numpy as np
-import pandas as pd
-import xarray as xr
-import geopandas as gpd
 from pathlib import Path
 from typing import List, Optional
 
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-
 
 # VIIRS NDSI snow cover valid ranges and QA flags
 NDSI_VALID_RANGE = (0, 100)  # 0-100% snow cover

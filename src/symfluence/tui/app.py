@@ -11,11 +11,11 @@ from typing import Optional
 from textual.app import App
 from textual.binding import Binding
 
+from .screens.calibration import CalibrationScreen
 from .screens.command_palette import CommandPaletteScreen
+from .screens.dashboard import DashboardScreen
 from .screens.help import HelpScreen
 from .screens.path_prompt import PathPromptScreen
-from .screens.calibration import CalibrationScreen
-from .screens.dashboard import DashboardScreen
 from .screens.results_compare import ResultsCompareScreen
 from .screens.run_browser import RunBrowserScreen
 from .screens.slurm_monitor import SlurmMonitorScreen

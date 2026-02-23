@@ -5,16 +5,16 @@ Provides retry logic with exponential backoff for model evaluations.
 Handles transient failures like stale file handles and I/O errors.
 """
 
-import os
-import signal
 import logging
-import time
+import os
 import random
-from typing import Any, Callable, Optional
+import signal
+import time
 from functools import wraps
+from typing import Any, Callable, Optional
 
-from symfluence.core.mixins import ConfigMixin
 from symfluence.core.exceptions import RetryExhaustedError
+from symfluence.core.mixins import ConfigMixin
 
 logger = logging.getLogger(__name__)
 

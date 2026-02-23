@@ -25,9 +25,10 @@ Variables:
 
 import gzip
 import tarfile
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
+
 import numpy as np
 import requests
 import xarray as xr
@@ -242,11 +243,11 @@ class SNODASAcquirer(BaseAcquisitionHandler):
                     continue
 
                 # Apply scale factor
-                data = data * scale
+                data = data * scale  # type: ignore[union-attr]
 
                 # Create DataArray
                 da = xr.DataArray(
-                    data[np.newaxis, :, :],
+                    data[np.newaxis, :, :],  # type: ignore[index]
                     dims=['time', 'lat', 'lon'],
                     coords={
                         'time': [date],

@@ -13,9 +13,9 @@ import os
 from typing import Dict
 
 from symfluence.core.hdf5_safety import (
-    get_worker_environment,
     HDF5_ENV_VARS,
     THREAD_ENV_VARS,
+    get_worker_environment,
 )
 
 

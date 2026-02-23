@@ -11,11 +11,7 @@ from abc import ABC
 from argparse import Namespace
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Optional, TYPE_CHECKING
-
-from ..console import Console, console as global_console
-from ..exit_codes import ExitCode
-from ..validators import validate_config_exists
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional
 
 # Import exceptions for the decorator
 from symfluence.core.exceptions import (
@@ -23,6 +19,11 @@ from symfluence.core.exceptions import (
     ModelExecutionError,
     SYMFLUENCEError,
 )
+
+from ..console import Console
+from ..console import console as global_console
+from ..exit_codes import ExitCode
+from ..validators import validate_config_exists
 
 # Default config path - can be overridden via SYMFLUENCE_DEFAULT_CONFIG environment variable
 DEFAULT_CONFIG_PATH = os.environ.get(

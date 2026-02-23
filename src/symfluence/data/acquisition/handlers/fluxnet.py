@@ -25,14 +25,16 @@ References:
 - FLUXNET2015: https://fluxnet.org/data/fluxnet2015-dataset/
 - ICOS: https://www.icos-cp.eu/
 """
-import requests
-import zipfile
 import os
 import time
+import zipfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+import requests
+
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from .fluxnet_constants import (

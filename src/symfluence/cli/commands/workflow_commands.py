@@ -6,15 +6,16 @@ This module implements handlers for the workflow command category.
 
 from argparse import Namespace
 
+from symfluence.workflow_steps import (
+    WORKFLOW_STEP_ALIAS_REVERSE,
+    WORKFLOW_STEP_DESCRIPTION_MAP,
+)
+
+from ..exit_codes import ExitCode
 from .base import (
     BaseCommand,
     cli_exception_handler,
     cli_exception_handler_with_profiling,
-)
-from ..exit_codes import ExitCode
-from symfluence.workflow_steps import (
-    WORKFLOW_STEP_ALIAS_REVERSE,
-    WORKFLOW_STEP_DESCRIPTION_MAP,
 )
 
 

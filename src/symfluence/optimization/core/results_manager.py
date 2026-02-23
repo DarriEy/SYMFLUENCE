@@ -5,14 +5,16 @@ Handles storage, retrieval, and plotting of optimization trial history
 for calibration experiments.
 """
 
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-import logging
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, List, Optional
 
 from symfluence.core.mixins import ConfigMixin
+
 
 class ResultsManager(ConfigMixin):
     """Handles optimization results, history tracking, and visualization"""

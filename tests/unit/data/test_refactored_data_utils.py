@@ -1,8 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
-from symfluence.data.data_manager import DataManager
+from unittest.mock import MagicMock, patch
+
+import pytest
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.data.data_manager import DataManager
+
 
 @pytest.fixture
 def mock_config(tmp_path):

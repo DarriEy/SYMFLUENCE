@@ -13,7 +13,8 @@ Reference:
     on Evolutionary Computation, 6(2), 182-197.
 """
 
-from typing import Dict, Any, Callable, Optional, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm

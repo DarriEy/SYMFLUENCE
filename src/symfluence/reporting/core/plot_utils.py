@@ -5,13 +5,12 @@ This module provides standalone functions for common plotting operations
 like metrics calculation, data alignment, and flow duration curves.
 """
 
+from typing import Any, Dict, Optional, Tuple, cast
+
 import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
-from typing import Dict, Tuple, Optional, Any, cast
 
-from symfluence.evaluation.metrics import (
-    kge, kge_prime, nse, mae, rmse, kge_np
-)
+from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 
 
 def calculate_metrics(obs: np.ndarray, sim: np.ndarray) -> Dict[str, float]:

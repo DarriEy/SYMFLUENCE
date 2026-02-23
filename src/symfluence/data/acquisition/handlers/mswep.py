@@ -15,8 +15,8 @@ MSWEP v2.8 features:
 Data access requires registration at:
 http://www.gloh2o.org/mswep/
 """
-import os
 import ftplib  # nosec B402 - FTP required for MSWEP data server access
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import List

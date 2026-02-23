@@ -25,8 +25,9 @@ from typing import Any, Dict, Optional
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
-from .worker import CoupledGWWorker  # noqa: F401 - triggers worker registration
+
 from .targets import CoupledGWStreamflowTarget  # noqa: F401 - triggers target registration
+from .worker import CoupledGWWorker  # noqa: F401 - triggers worker registration
 
 
 @OptimizerRegistry.register_optimizer('COUPLED_GW')

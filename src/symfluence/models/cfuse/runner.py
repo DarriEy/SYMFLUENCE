@@ -8,28 +8,34 @@ cFUSE is a PyTorch/Enzyme AD implementation of the FUSE (Framework for Understan
 Structural Errors) model, enabling automatic differentiation for gradient-based calibration.
 """
 
-from typing import Dict, Any, Optional, Tuple
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import SpatialOrchestrator
-from symfluence.models.spatial_modes import SpatialMode
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.execution import SpatialOrchestrator
+from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
 
 # Lazy cFUSE and PyTorch import
 try:
     import cfuse
     from cfuse import (
-        PARAM_BOUNDS, DEFAULT_PARAMS, PARAM_NAMES,
-        VIC_CONFIG, TOPMODEL_CONFIG, PRMS_CONFIG, SACRAMENTO_CONFIG, ARNO_CONFIG
+        ARNO_CONFIG,
+        DEFAULT_PARAMS,
+        PARAM_BOUNDS,
+        PARAM_NAMES,
+        PRMS_CONFIG,
+        SACRAMENTO_CONFIG,
+        TOPMODEL_CONFIG,
+        VIC_CONFIG,
     )
     HAS_CFUSE = True
 except ImportError:
@@ -779,7 +785,8 @@ class CFUSERunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             if len(sim) < 10:
                 return -999.0
 
-            from symfluence.evaluation.metrics import kge as calc_kge, nse as calc_nse
+            from symfluence.evaluation.metrics import kge as calc_kge
+            from symfluence.evaluation.metrics import nse as calc_nse
 
             if metric.lower() == 'nse':
                 return float(calc_nse(obs_arr, sim, transfo=1))

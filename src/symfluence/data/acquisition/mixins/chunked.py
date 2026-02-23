@@ -5,14 +5,13 @@ Provides utilities for temporal chunking, parallel downloads,
 and NetCDF file merging.
 """
 
-import logging
 import concurrent.futures
+import logging
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 import xarray as xr
-
 
 T = TypeVar('T')
 

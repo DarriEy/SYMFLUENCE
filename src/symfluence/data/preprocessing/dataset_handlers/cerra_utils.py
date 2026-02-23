@@ -7,13 +7,14 @@ CERRA (Copernicus European Regional Reanalysis) covers Europe at 5.5 km resoluti
 
 from pathlib import Path
 from typing import Dict, Tuple
+
+import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
-import numpy as np
 
+from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from ...utils import VariableStandardizer
 
 
 @DatasetRegistry.register('cerra')

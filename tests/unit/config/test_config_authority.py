@@ -11,9 +11,9 @@ These tests ensure that:
 
 import re
 from pathlib import Path
+
 import pytest
 import yaml
-
 
 # Project root: tests/unit/config/test_config_authority.py -> 4 parents to reach root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent

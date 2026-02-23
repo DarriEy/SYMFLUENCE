@@ -17,15 +17,15 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from .model import snow17_simulate_numpy, snow17_step
 from .parameters import (
-    Snow17State,
-    Snow17Params,
-    SNOW17_DEFAULTS,
     DEFAULT_ADC,
-    params_dict_to_namedtuple,
+    SNOW17_DEFAULTS,
+    Snow17Params,
+    Snow17State,
     create_initial_state,
+    params_dict_to_namedtuple,
 )
-from .model import snow17_step, snow17_simulate_numpy
 
 
 class Snow17BMI:

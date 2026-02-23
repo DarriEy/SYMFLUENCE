@@ -72,14 +72,14 @@ See Also
 - data.acquisition.mixins : RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 """
 
-from .logging import LoggingMixin
 from .config import ConfigMixin
-from .shapefile import ShapefileAccessMixin, ShapefileColumnProperty, shapefile_column
-from .project import ProjectContextMixin
-from .file_utils import FileUtilsMixin
-from .validation import ValidationMixin
-from .timing import TimingMixin
 from .configurable import ConfigurableMixin
+from .file_utils import FileUtilsMixin
+from .logging import LoggingMixin
+from .project import ProjectContextMixin
+from .shapefile import ShapefileAccessMixin, ShapefileColumnProperty, shapefile_column
+from .timing import TimingMixin
+from .validation import ValidationMixin
 
 __all__ = [
     # Base mixins (alphabetical)

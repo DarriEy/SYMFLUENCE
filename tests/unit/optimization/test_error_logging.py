@@ -19,14 +19,13 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-
 from symfluence.optimization.workers.summa.error_logging import (
     ErrorLogger,
-    log_worker_failure,
-    init_worker_error_logger,
-    get_worker_error_logger,
-    _serialize_params,
     _serialize_debug_info,
+    _serialize_params,
+    get_worker_error_logger,
+    init_worker_error_logger,
+    log_worker_failure,
 )
 
 

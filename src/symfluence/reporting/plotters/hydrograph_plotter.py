@@ -5,9 +5,10 @@ This module provides specialized plotting for hydrograph comparisons,
 flow duration curves, and streamflow analysis.
 """
 
-import pandas as pd  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd  # type: ignore
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 
@@ -163,8 +164,11 @@ class HydrographPlotter(BasePlotter):
         """
         plt, _ = self._setup_matplotlib()
         import xarray as xr  # type: ignore
+
         from symfluence.reporting.core.plot_utils import (
-            calculate_metrics, calculate_flow_duration_curve, align_timeseries
+            align_timeseries,
+            calculate_flow_duration_curve,
+            calculate_metrics,
         )
 
         spinup_percent = spinup_percent if spinup_percent is not None else self.plot_config.SPINUP_PERCENT_DEFAULT

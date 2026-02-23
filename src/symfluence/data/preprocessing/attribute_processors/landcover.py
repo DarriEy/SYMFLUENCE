@@ -11,9 +11,10 @@ Handles land cover and vegetation attributes including:
 
 import pickle  # nosec B403
 from pathlib import Path
-from typing import Dict, Any
-import numpy as np
+from typing import Any, Dict
+
 import geopandas as gpd
+import numpy as np
 from rasterstats import zonal_stats
 
 from .base import BaseAttributeProcessor

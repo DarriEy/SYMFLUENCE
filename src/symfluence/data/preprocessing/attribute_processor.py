@@ -7,20 +7,22 @@ has been split into specialized processors, but this wrapper maintains the
 original interface for existing code.
 """
 
-import pandas as pd
-from pathlib import Path
-from typing import Dict, Any
 import logging
+from pathlib import Path
+from typing import Any, Dict
+
+import pandas as pd
 
 from symfluence.core.config.coercion import coerce_config
 from symfluence.core.mixins import ConfigMixin
+
 from .attribute_processors import (
+    ClimateProcessor,
     ElevationProcessor,
     GeologyProcessor,
-    SoilProcessor,
+    HydrologyProcessor,
     LandCoverProcessor,
-    ClimateProcessor,
-    HydrologyProcessor
+    SoilProcessor,
 )
 
 

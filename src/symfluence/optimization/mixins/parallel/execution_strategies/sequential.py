@@ -5,7 +5,7 @@ Executes tasks one at a time in the current process.
 """
 
 import logging
-from typing import List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List
 
 from .base import ExecutionStrategy
 

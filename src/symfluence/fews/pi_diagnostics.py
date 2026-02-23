@@ -6,12 +6,12 @@ Implements the Delft-FEWS diagnostics contract: the adapter MUST write a
 failure. The ``write()`` method therefore catches all internal exceptions.
 """
 
+import logging
 import xml.etree.ElementTree as ET  # nosec B405 - writing trusted local diagnostics XML
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Literal
-import logging
 
 logger = logging.getLogger(__name__)
 

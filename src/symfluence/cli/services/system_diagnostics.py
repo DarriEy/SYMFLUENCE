@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .base import BaseService
 from ..console import Console
+from .base import BaseService
 
 
 class SystemDiagnostics(BaseService):

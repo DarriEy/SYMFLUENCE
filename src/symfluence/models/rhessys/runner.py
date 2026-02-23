@@ -6,7 +6,7 @@ Executes the RHESSys model using prepared input files.
 
 import sys
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 

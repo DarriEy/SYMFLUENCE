@@ -8,17 +8,16 @@ Provides common utilities for data acquisition handlers:
 - Credential resolution
 """
 
-import os
-import netrc
 import logging
-import requests
-from pathlib import Path
+import netrc
+import os
 from contextlib import contextmanager
-from typing import Dict, Any, List, Optional, Tuple, Generator
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
+import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
 
 logger = logging.getLogger(__name__)
 

@@ -7,12 +7,13 @@ and calibration targets using convention-over-configuration.
 
 import logging
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
+
     from ..workers.base_worker import BaseWorker
 
 

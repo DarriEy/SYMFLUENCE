@@ -5,25 +5,25 @@ Handles HBV-96 model execution, state management, and output processing.
 Supports both lumped and distributed spatial modes with optional mizuRoute routing.
 """
 
-from typing import Dict, Any, Optional, Tuple, Callable
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.execution import SpatialOrchestrator
-from symfluence.models.state import StateCapableMixin, StateFormat, StateMetadata, ModelState
-from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
-from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
-from symfluence.models.spatial_modes import SpatialMode
-from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
-from symfluence.models.hbv.time_utils import warmup_timesteps
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
+from symfluence.models.base import BaseModelRunner
+from symfluence.models.execution import SpatialOrchestrator
+from symfluence.models.hbv.time_utils import warmup_timesteps
+from symfluence.models.mixins import ObservationLoaderMixin, SpatialModeDetectionMixin
+from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
+from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
+from symfluence.models.state import ModelState, StateCapableMixin, StateFormat, StateMetadata
 
 # Lazy JAX import
 try:
@@ -332,10 +332,8 @@ class HBVRunner(  # type: ignore[misc]
 
         try:
             # Import model functions
-            from .model import (
-                simulate, create_initial_state,
-                HAS_JAX as MODEL_HAS_JAX
-            )
+            from .model import HAS_JAX as MODEL_HAS_JAX
+            from .model import create_initial_state, simulate
 
             # Load forcing data
             forcing, obs = self._load_forcing()
@@ -414,10 +412,8 @@ class HBVRunner(  # type: ignore[misc]
         self.logger.info("Running distributed HBV simulation")
 
         try:
-            from .model import (
-                simulate, create_initial_state,
-                HAS_JAX as MODEL_HAS_JAX
-            )
+            from .model import HAS_JAX as MODEL_HAS_JAX
+            from .model import create_initial_state, simulate
 
             # Load distributed forcing
             forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed_{self.timestep_hours}h.nc"
@@ -954,7 +950,7 @@ class HBVRunner(  # type: ignore[misc]
         Returns:
             Loss function that takes (params_dict, precip, temp, pet, obs) -> loss
         """
-        from .model import nse_loss, kge_loss
+        from .model import kge_loss, nse_loss
 
         if metric.lower() == 'nse':
             return nse_loss
@@ -974,7 +970,7 @@ class HBVRunner(  # type: ignore[misc]
             self.logger.warning("JAX not available for gradient computation")
             return None
 
-        from .model import get_nse_gradient_fn, get_kge_gradient_fn
+        from .model import get_kge_gradient_fn, get_nse_gradient_fn
 
         # Load forcing
         forcing, obs = self._load_forcing()

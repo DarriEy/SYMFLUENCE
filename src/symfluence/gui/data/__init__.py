@@ -8,10 +8,10 @@ a results loader for project output visualization.
 
 from .gauge_provider import (
     GaugeProvider,
-    WSCProvider,
-    USGSProvider,
-    SMHIProvider,
     LamaHICEProvider,
+    SMHIProvider,
+    USGSProvider,
+    WSCProvider,
 )
 from .gauge_store import GaugeStationStore
 from .results_loader import ResultsLoader

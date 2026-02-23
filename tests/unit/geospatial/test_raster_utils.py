@@ -8,10 +8,11 @@ Tests raster processing utilities including:
 - Scipy mode compatibility
 """
 
-import numpy as np
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
 
 # Import fixtures
 from .conftest import requires_rasterio

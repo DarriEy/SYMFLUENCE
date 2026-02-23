@@ -66,11 +66,11 @@ References:
 
     https://git.ufz.de/mhm/mhm
 """
-from .preprocessor import MHMPreProcessor
-from .runner import MHMRunner
+from .config import MHMConfigAdapter
 from .extractor import MHMResultExtractor
 from .postprocessor import MHMPostProcessor
-from .config import MHMConfigAdapter
+from .preprocessor import MHMPreProcessor
+from .runner import MHMRunner
 
 __all__ = [
     "MHMPreProcessor",

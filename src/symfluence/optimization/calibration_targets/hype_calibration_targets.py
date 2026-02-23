@@ -5,8 +5,6 @@ HYPE Calibration Targets (Backward Compatibility)
     Moved to symfluence.models.hype.calibration.targets
 """
 
-from symfluence.models.hype.calibration.targets import (
-    HYPEStreamflowTarget
-)
+from symfluence.models.hype.calibration.targets import HYPEStreamflowTarget
 
 __all__ = ['HYPEStreamflowTarget']

@@ -1,9 +1,10 @@
 """Tests for cFUSE parameter manager."""
 
-import pytest
 import logging
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -35,8 +36,8 @@ class TestCFUSEParameterManagerRegistration:
         assert 'CFUSE' in OptimizerRegistry._parameter_managers
 
     def test_parameter_manager_is_correct_class(self):
-        from symfluence.optimization.registry import OptimizerRegistry
         from symfluence.models.cfuse.calibration.parameter_manager import CFUSEParameterManager
+        from symfluence.optimization.registry import OptimizerRegistry
         assert OptimizerRegistry._parameter_managers.get('CFUSE') == CFUSEParameterManager
 
 

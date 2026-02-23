@@ -2,8 +2,8 @@
 Acquisition handlers for various datasets.
 """
 
-import logging as _logging
 import importlib as _importlib
+import logging as _logging
 
 _logger = _logging.getLogger(__name__)
 

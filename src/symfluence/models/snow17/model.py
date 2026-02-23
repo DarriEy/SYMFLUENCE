@@ -39,12 +39,12 @@ except ImportError:
     lax = None
 
 from .parameters import (
-    Snow17State,
-    Snow17Params,
-    SNOW17_DEFAULTS,
     DEFAULT_ADC,
-    params_dict_to_namedtuple,
+    SNOW17_DEFAULTS,
+    Snow17Params,
+    Snow17State,
     create_initial_state,
+    params_dict_to_namedtuple,
 )
 
 __all__ = [

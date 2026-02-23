@@ -11,9 +11,9 @@ from typing import Any, Dict, Optional
 
 import xarray as xr
 
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.models.mizuroute.runner import MizuRouteRunner
 from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
+from symfluence.models.mizuroute.runner import MizuRouteRunner
+from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 
 class MizuRouteModelOptimizer(BaseModelOptimizer):

@@ -32,9 +32,9 @@ __all__ = ["is_dcoupler_available", "INSTALL_SUGGESTION"]
 
 # Conditionally export dCoupler-dependent classes
 try:
+    from symfluence.coupling.bmi_registry import BMIRegistry
     from symfluence.coupling.graph_builder import CouplingGraphBuilder
     from symfluence.coupling.worker import DCouplerWorker
-    from symfluence.coupling.bmi_registry import BMIRegistry
 
     __all__.extend([
         "CouplingGraphBuilder",

@@ -7,6 +7,7 @@ This module contains the PyTorch model definition for LSTM.
 import torch
 import torch.nn as nn
 
+
 class LSTMModel(nn.Module):
     """
     LSTM-based model for hydrological predictions.
