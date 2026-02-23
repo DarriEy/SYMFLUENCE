@@ -246,6 +246,10 @@ jobs:
           source venv/bin/activate
           pip install -e ".[test]"
 
+          # Force wheel-based h5py/netCDF4 (bootstrap may have rebuilt from source
+          # against system libnetcdf which has PnetCDF — causes pfnc_inq_vardimid)
+          pip install --force-reinstall --only-binary :all: h5py netCDF4
+
       - name: Package installation for parallel jobs
         run: |
           set -e
