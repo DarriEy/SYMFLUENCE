@@ -62,7 +62,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
     # ORNL DAAC Daymet endpoints
     SINGLE_PIXEL_URL = "https://daymet.ornl.gov/single-pixel/api/data"
-    GRIDDED_URL = "https://thredds.daac.ornl.gov/thredds/ncss/ornldaac/2129"
+    GRIDDED_URL = "https://data.ornldaac.earthdata.nasa.gov/protected/daymet/Daymet_Daily_V4R1/data"
 
     AVAILABLE_VARIABLES = [
         'tmax',  # Maximum temperature (°C)
@@ -218,34 +218,18 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         return None, None
 
     def _get_earthdata_session(self) -> requests.Session:
-        """Build an authenticated requests session for ORNL DAAC / Earthdata.
-
-        ORNL DAAC THREDDS redirects to ``urs.earthdata.nasa.gov`` for OAuth.
-        A plain ``session.auth`` sends credentials to every host in the
-        redirect chain (including the OAuth callback on opendap.earthdata),
-        which breaks the flow.  :class:`_EarthdataSession` overrides
-        ``rebuild_auth`` so credentials are only sent to URS itself.
-
-        Returns:
-            A :class:`requests.Session` (authenticated when credentials exist).
-        """
+        session = requests.Session()
+        token = os.environ.get('EARTHDATA_TOKEN')
+        if token:
+            session.headers.update({'Authorization': f'Bearer {token}'})
+            self.logger.debug("Using Earthdata Bearer token from environment")
+            return session
+        # Fall back to existing username/password logic
         username, password = self._get_earthdata_credentials()
         if username and password:
             return _EarthdataSession(username, password)
-
-        self.logger.warning(
-            "No NASA Earthdata credentials found. ORNL DAAC requires "
-            "authentication for gridded Daymet downloads.\n"
-            "To set up credentials, create a ~/.netrc file with:\n"
-            "\n"
-            "  machine urs.earthdata.nasa.gov\n"
-            "  login <your_earthdata_username>\n"
-            "  password <your_earthdata_password>\n"
-            "\n"
-            "Register for a free account at https://urs.earthdata.nasa.gov/users/new\n"
-            "Alternatively set EARTHDATA_USERNAME and EARTHDATA_PASSWORD env vars."
-        )
-        return requests.Session()
+        self.logger.warning("No NASA Earthdata credentials found.")
+        return session
 
     def _download_gridded(self, output_file: Path, variables: List[str]):
         """Download gridded data using THREDDS subset service."""
