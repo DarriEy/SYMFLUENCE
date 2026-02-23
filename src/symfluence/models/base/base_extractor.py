@@ -115,3 +115,6 @@ class ModelResultExtractor(ABC):
             Aggregation method: 'mean', 'sum', 'weighted', or None
         """
         return None
+
+
+from symfluence.core.exceptions import ConfigValidationError  # noqa: F401, E402
