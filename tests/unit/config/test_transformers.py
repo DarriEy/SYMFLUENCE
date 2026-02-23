@@ -6,6 +6,8 @@ backward compatibility between the old flat config format and the new
 hierarchical format.
 """
 
+import pytest
+
 from symfluence.core.config.transformers import (
     transform_flat_to_nested,
     FLAT_TO_NESTED_MAP
@@ -14,6 +16,15 @@ from symfluence.core.config.transformers import (
 
 class TestTransformFlatToNested:
     """Test transformation from flat dict to nested structure"""
+
+    def test_deprecated_mpi_processes_warns_and_maps(self):
+        """MPI_PROCESSES should remain supported but emit deprecation warning."""
+        flat = {'MPI_PROCESSES': 2}
+
+        with pytest.warns(DeprecationWarning, match='MPI_PROCESSES'):
+            nested = transform_flat_to_nested(flat)
+
+        assert nested['system']['num_processes'] == 2
 
     def test_basic_system_config(self):
         """Test basic system configuration transformation"""

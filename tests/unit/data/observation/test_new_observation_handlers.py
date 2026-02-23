@@ -246,6 +246,34 @@ class TestHandlerInstantiation:
         assert handler.obs_type == "snow_cover"
         assert handler.source_name == "NASA_VIIRS"
 
+    def test_modis_et_default_dir_resolution(self, mock_config, logger):
+        """MOD16_ET_DIR='default' should resolve into the project observations tree."""
+        from symfluence.data.observation.handlers.modis_et import MODISETHandler
+
+        handler = MODISETHandler(mock_config, logger)
+        resolved = handler._resolve_mod16_dir()
+
+        expected = (
+            Path(mock_config['SYMFLUENCE_DATA_DIR'])
+            / "domain_test_domain"
+            / "data"
+            / "observations"
+            / "et"
+            / "modis"
+        )
+        assert resolved == expected
+        assert resolved != Path("default")
+
+    def test_modis_et_custom_dir_resolution(self, mock_config, logger, tmp_path):
+        """Custom MOD16_ET_DIR should be preserved verbatim."""
+        from symfluence.data.observation.handlers.modis_et import MODISETHandler
+
+        custom_dir = tmp_path / "custom_mod16"
+        mock_config['MOD16_ET_DIR'] = str(custom_dir)
+        handler = MODISETHandler(mock_config, logger)
+
+        assert handler._resolve_mod16_dir() == custom_dir
+
 
 # =============================================================================
 # Processing Tests with Mock Data

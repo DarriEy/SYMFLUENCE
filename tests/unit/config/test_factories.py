@@ -379,3 +379,19 @@ FORCING_DATASET: ERA5
             assert config.domain.delineation.drop_analysis_num_thresholds == 10  # was 20
         finally:
             config_path.unlink()
+
+
+class TestDefaultPathResolution:
+    """Test default path resolution edge cases."""
+
+    def test_relative_code_dir_resolves_to_parent_data_dir(self, monkeypatch, tmp_path):
+        """Relative code_dir values should not resolve to ./SYMFLUENCE_data."""
+        from symfluence.core.config.factories import _resolve_default_data_dir
+
+        monkeypatch.delenv('SYMFLUENCE_DATA_DIR', raising=False)
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        monkeypatch.chdir(repo_dir)
+
+        resolved = Path(_resolve_default_data_dir("."))
+        assert resolved == tmp_path / "SYMFLUENCE_data"

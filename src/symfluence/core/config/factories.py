@@ -67,7 +67,9 @@ def _resolve_default_data_dir(code_dir: Optional[str] = None) -> str:
     # Use sibling directory to code_dir
     if code_dir is None:
         code_dir = _resolve_default_code_dir()
-    code_path = Path(code_dir)
+    # Resolve relative code_dir values (e.g., ".") so parent lookup does not
+    # accidentally collapse to cwd and create ./SYMFLUENCE_data.
+    code_path = Path(code_dir).expanduser().resolve()
     # Guard against Jupyter checkpoint directories in code_dir
     parts = code_path.parts
     clean = [p for p in parts if p != '.ipynb_checkpoints']

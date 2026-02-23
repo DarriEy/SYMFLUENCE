@@ -125,6 +125,17 @@ class TestSUMMAConfigAdapter:
         assert 'SUMMA_EXE' in required, "SUMMA_EXE should be required"
         assert 'SETTINGS_SUMMA_PATH' in required, "SETTINGS_SUMMA_PATH should be required"
 
+    def test_summa_mizuroute_legacy_key_fallback(self, summa_adapter):
+        """SUMMA validation should accept legacy mizuRoute keys as fallback."""
+        config = {
+            'SUMMA_EXE': 'summa.exe',
+            'SETTINGS_SUMMA_PATH': '/path/to/settings',
+            'ROUTING_MODEL': 'MIZUROUTE',
+            'INSTALL_PATH_MIZUROUTE': '/legacy/install',
+            'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
+        }
+        summa_adapter.validate(config)  # Should not raise
+
 
 class TestFUSEConfigAdapter:
     """Test FUSE config adapter."""
@@ -170,6 +181,18 @@ class TestFUSEConfigAdapter:
         }
         with pytest.raises(ConfigValidationError):
             fuse_adapter.validate(invalid_config)
+
+    def test_fuse_mizuroute_legacy_key_fallback(self, fuse_adapter):
+        """FUSE validation should accept legacy mizuRoute keys as fallback."""
+        config = {
+            'FUSE_EXE': 'fuse.exe',
+            'SETTINGS_FUSE_PATH': '/path',
+            'FUSE_SPATIAL_MODE': 'lumped',
+            'ROUTING_MODEL': 'MIZUROUTE',
+            'INSTALL_PATH_MIZUROUTE': '/legacy/install',
+            'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
+        }
+        fuse_adapter.validate(config)  # Should not raise
 
 
 class TestNGENConfigAdapter:
