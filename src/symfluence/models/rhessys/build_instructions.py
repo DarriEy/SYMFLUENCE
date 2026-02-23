@@ -58,7 +58,8 @@ def _build_rhessys_definition(
             'file_paths': ['bin/rhessys', 'bin/rhessys.exe'],
             'check_type': 'exists_any'
         },
-        'order': 14
+        'order': 14,
+        'optional': True,
     }
 
 
