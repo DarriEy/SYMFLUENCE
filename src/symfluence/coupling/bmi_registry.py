@@ -2,12 +2,20 @@
 
 The BMIRegistry provides a single lookup table to instantiate the correct
 dCoupler component adapter for any SYMFLUENCE model.
+
+.. deprecated::
+    This registry is a thin delegation shim around
+    :pydata:`symfluence.core.registries.R`.  Prefer ``R.bmi_adapters``
+    directly.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Dict, Type
+import warnings
+from typing import Type
+
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +28,12 @@ class BMIRegistry:
         registry = BMIRegistry()
         component_cls = registry.get("SUMMA")
         component = component_cls(name="summa", config=config_dict)
+
+    .. deprecated::
+        Use ``R.bmi_adapters`` from :mod:`symfluence.core.registries` instead.
     """
 
+    # Classification metadata -- kept for is_jax_model / is_process_model queries.
     _PROCESS_MODELS = {
         "SUMMA": "symfluence.coupling.adapters.process_adapters.SUMMAProcessComponent",
         "MIZUROUTE": "symfluence.coupling.adapters.process_adapters.MizuRouteProcessComponent",
@@ -41,9 +53,11 @@ class BMIRegistry:
     }
 
     def __init__(self):
-        self._registry: Dict[str, str] = {}
-        self._registry.update(self._PROCESS_MODELS)
-        self._registry.update(self._JAX_MODELS)
+        # Seed R.bmi_adapters with the static classification metadata if not
+        # already populated (first instantiation path).
+        for name, path in {**self._PROCESS_MODELS, **self._JAX_MODELS}.items():
+            if name not in R.bmi_adapters:
+                R.bmi_adapters.add_lazy(name, path)
 
     def get(self, model_name: str) -> Type:
         """Resolve a model name to its component class.
@@ -58,19 +72,19 @@ class BMIRegistry:
             KeyError: If the model is not registered.
             ImportError: If the component class cannot be imported.
         """
-        key = model_name.upper().replace(" ", "").replace("-", "")
-        # Try exact match first, then normalized
-        class_path = self._registry.get(key) or self._registry.get(model_name.upper())
-        if class_path is None:
-            available = sorted(self._registry.keys())
+        # R.bmi_adapters normalizes to uppercase via its default normalize.
+        # Try the name as given first, then strip hyphens/spaces for compat.
+        key = model_name.upper()
+        result = R.bmi_adapters.get(key)
+        if result is None:
+            alt_key = key.replace(" ", "").replace("-", "")
+            result = R.bmi_adapters.get(alt_key)
+        if result is None:
+            available = sorted(R.bmi_adapters.keys())
             raise KeyError(
                 f"Unknown model '{model_name}'. Available: {available}"
             )
-
-        module_path, class_name = class_path.rsplit(".", 1)
-        import importlib
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
+        return result
 
     def register(self, model_name: str, class_path: str) -> None:
         """Register a custom model adapter.
@@ -79,8 +93,17 @@ class BMIRegistry:
             model_name: Model identifier (will be uppercased)
             class_path: Fully qualified class path, e.g.
                 "my_package.adapters.MyComponent"
+
+        .. deprecated::
+            Use ``R.bmi_adapters.add_lazy()`` instead.
         """
-        self._registry[model_name.upper()] = class_path
+        warnings.warn(
+            "BMIRegistry.register() is deprecated; "
+            "use R.bmi_adapters.add_lazy() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        R.bmi_adapters.add_lazy(model_name, class_path)
 
     def is_jax_model(self, model_name: str) -> bool:
         """Check if a model uses JAX (differentiable) backend."""
@@ -92,4 +115,4 @@ class BMIRegistry:
 
     def available_models(self) -> list:
         """Return sorted list of all registered model names."""
-        return sorted(self._registry.keys())
+        return sorted(R.bmi_adapters.keys())

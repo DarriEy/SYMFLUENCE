@@ -72,21 +72,15 @@ __all__ = [
     'visualize_mesh'
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all MESH components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import MESHConfigAdapter
-
-ModelRegistry.register_config_adapter('MESH')(MESHConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import MESHResultExtractor
 
-ModelRegistry.register_result_extractor('MESH')(MESHResultExtractor)
+model_manifest(
+    "MESH",
+    config_adapter=MESHConfigAdapter,
+    result_extractor=MESHResultExtractor,
+    build_instructions_module="symfluence.models.mesh.build_instructions",
+)

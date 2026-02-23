@@ -53,7 +53,10 @@ See Also:
     - EvaluationRegistry: Registry for variable-type evaluators
 """
 
+import warnings
 from typing import Dict, List, Optional, Type
+
+from symfluence.core.registries import R
 
 
 class AnalysisRegistry:
@@ -90,10 +93,6 @@ class AnalysisRegistry:
         ...     results = analyzer.run_full_analysis()
     """
 
-    _sensitivity_analyzers: Dict[str, Type] = {}
-    _decision_analyzers: Dict[str, Type] = {}
-    _koopman_analyzers: Dict[str, Type] = {}
-
     @classmethod
     def register_sensitivity_analyzer(cls, model_name: str):
         """Decorator to register a sensitivity analyzer for a model.
@@ -116,7 +115,13 @@ class AnalysisRegistry:
                     ...
         """
         def decorator(analyzer_cls: Type) -> Type:
-            cls._sensitivity_analyzers[model_name.upper()] = analyzer_cls
+            warnings.warn(
+                "AnalysisRegistry.register_sensitivity_analyzer() is deprecated; "
+                "use R.sensitivity_analyzers.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.sensitivity_analyzers.add(model_name, analyzer_cls)
             return analyzer_cls
         return decorator
 
@@ -141,7 +146,13 @@ class AnalysisRegistry:
                     return results_file, best_combinations
         """
         def decorator(analyzer_cls: Type) -> Type:
-            cls._decision_analyzers[model_name.upper()] = analyzer_cls
+            warnings.warn(
+                "AnalysisRegistry.register_decision_analyzer() is deprecated; "
+                "use R.decision_analyzers.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.decision_analyzers.add(model_name, analyzer_cls)
             return analyzer_cls
         return decorator
 
@@ -155,7 +166,7 @@ class AnalysisRegistry:
         Returns:
             Analyzer class if registered, None otherwise
         """
-        return cls._sensitivity_analyzers.get(model_name.upper())
+        return R.sensitivity_analyzers.get(model_name.upper())
 
     @classmethod
     def get_decision_analyzer(cls, model_name: str) -> Optional[Type]:
@@ -167,7 +178,7 @@ class AnalysisRegistry:
         Returns:
             Analyzer class if registered, None otherwise
         """
-        return cls._decision_analyzers.get(model_name.upper())
+        return R.decision_analyzers.get(model_name.upper())
 
     @classmethod
     def list_sensitivity_analyzers(cls) -> List[str]:
@@ -176,7 +187,7 @@ class AnalysisRegistry:
         Returns:
             Sorted list of model names with sensitivity analyzers
         """
-        return sorted(list(cls._sensitivity_analyzers.keys()))
+        return R.sensitivity_analyzers.keys()
 
     @classmethod
     def list_decision_analyzers(cls) -> List[str]:
@@ -185,7 +196,7 @@ class AnalysisRegistry:
         Returns:
             Sorted list of model names with decision analyzers
         """
-        return sorted(list(cls._decision_analyzers.keys()))
+        return R.decision_analyzers.keys()
 
     @classmethod
     def list_all_analyzers(cls) -> Dict[str, List[str]]:
@@ -211,7 +222,7 @@ class AnalysisRegistry:
         Returns:
             True if analyzer is registered, False otherwise
         """
-        return model_name.upper() in cls._sensitivity_analyzers
+        return model_name.upper() in R.sensitivity_analyzers
 
     @classmethod
     def has_decision_analyzer(cls, model_name: str) -> bool:
@@ -223,7 +234,7 @@ class AnalysisRegistry:
         Returns:
             True if analyzer is registered, False otherwise
         """
-        return model_name.upper() in cls._decision_analyzers
+        return model_name.upper() in R.decision_analyzers
 
     # ------------------------------------------------------------------
     # Koopman analyzers
@@ -252,7 +263,13 @@ class AnalysisRegistry:
                     ...
         """
         def decorator(analyzer_cls: Type) -> Type:
-            cls._koopman_analyzers[name.upper()] = analyzer_cls
+            warnings.warn(
+                "AnalysisRegistry.register_koopman_analyzer() is deprecated; "
+                "use R.koopman_analyzers.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.koopman_analyzers.add(name, analyzer_cls)
             return analyzer_cls
         return decorator
 
@@ -266,7 +283,7 @@ class AnalysisRegistry:
         Returns:
             Analyzer class if registered, None otherwise
         """
-        return cls._koopman_analyzers.get(name.upper())
+        return R.koopman_analyzers.get(name.upper())
 
     @classmethod
     def list_koopman_analyzers(cls) -> List[str]:
@@ -275,7 +292,7 @@ class AnalysisRegistry:
         Returns:
             Sorted list of registered Koopman analyzer names
         """
-        return sorted(list(cls._koopman_analyzers.keys()))
+        return R.koopman_analyzers.keys()
 
     @classmethod
     def has_koopman_analyzer(cls, name: str = "DEFAULT") -> bool:
@@ -287,4 +304,4 @@ class AnalysisRegistry:
         Returns:
             True if analyzer is registered, False otherwise
         """
-        return name.upper() in cls._koopman_analyzers
+        return name.upper() in R.koopman_analyzers

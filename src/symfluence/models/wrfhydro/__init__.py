@@ -82,27 +82,17 @@ __all__ = [
     "WRFHydroConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all WRF-Hydro components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('WRFHYDRO')(WRFHydroPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('WRFHYDRO')(WRFHydroRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('WRFHYDRO')(WRFHydroResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('WRFHYDRO')(WRFHydroConfigAdapter)
+model_manifest(
+    "WRFHYDRO",
+    preprocessor=WRFHydroPreProcessor,
+    runner=WRFHydroRunner,
+    result_extractor=WRFHydroResultExtractor,
+    config_adapter=WRFHydroConfigAdapter,
+    build_instructions_module="symfluence.models.wrfhydro.build_instructions",
+)
 
 # Register calibration components
 try:

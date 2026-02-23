@@ -86,27 +86,17 @@ __all__ = [
     "SWATConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all SWAT components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('SWAT')(SWATPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('SWAT')(SWATRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('SWAT')(SWATResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('SWAT')(SWATConfigAdapter)
+model_manifest(
+    "SWAT",
+    preprocessor=SWATPreProcessor,
+    runner=SWATRunner,
+    result_extractor=SWATResultExtractor,
+    config_adapter=SWATConfigAdapter,
+    build_instructions_module="symfluence.models.swat.build_instructions",
+)
 
 # Register calibration components with OptimizerRegistry
 try:

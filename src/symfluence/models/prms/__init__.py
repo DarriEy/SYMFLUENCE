@@ -84,27 +84,17 @@ __all__ = [
     "PRMSConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all PRMS components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('PRMS')(PRMSPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('PRMS')(PRMSRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('PRMS')(PRMSResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('PRMS')(PRMSConfigAdapter)
+model_manifest(
+    "PRMS",
+    preprocessor=PRMSPreProcessor,
+    runner=PRMSRunner,
+    result_extractor=PRMSResultExtractor,
+    config_adapter=PRMSConfigAdapter,
+    build_instructions_module="symfluence.models.prms.build_instructions",
+)
 
 # Register calibration components
 try:

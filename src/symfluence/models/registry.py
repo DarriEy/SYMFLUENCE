@@ -8,6 +8,7 @@ queries by model name to discover and instantiate components.
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
+from symfluence.core.registries import R
 from symfluence.models.registries.component_registry import ComponentRegistry
 from symfluence.models.registries.config_registry import ConfigRegistry
 from symfluence.models.registries.result_registry import ResultExtractorRegistry
@@ -42,8 +43,7 @@ class ModelRegistry:
     _config_transformers = ConfigRegistry._config_transformers
     _config_validators = ConfigRegistry._config_validators
 
-    # Result extractor registry attributes
-    _result_extractors = ResultExtractorRegistry._result_extractors
+    # Result extractor registry: state now lives in R.result_extractors
 
     # =========================================================================
     # Component Registration (Delegates to ComponentRegistry)
@@ -83,43 +83,43 @@ class ModelRegistry:
     def get_preprocessor(cls, model_name: str) -> Optional[Type]:
         """Get preprocessor class for a model.
         """
-        return ComponentRegistry.get_preprocessor(model_name)
+        return R.preprocessors.get(model_name.upper())
 
     @classmethod
     def get_runner(cls, model_name: str) -> Optional[Type]:
         """Get runner class for a model.
         """
-        return ComponentRegistry.get_runner(model_name)
+        return R.runners.get(model_name.upper())
 
     @classmethod
     def get_postprocessor(cls, model_name: str) -> Optional[Type]:
         """Get postprocessor class for a model.
         """
-        return ComponentRegistry.get_postprocessor(model_name)
+        return R.postprocessors.get(model_name.upper())
 
     @classmethod
     def get_visualizer(cls, model_name: str) -> Optional[Callable]:
         """Get visualizer function for a model.
         """
-        return ComponentRegistry.get_visualizer(model_name)
+        return R.visualizers.get(model_name.upper())
 
     @classmethod
     def get_runner_method(cls, model_name: str) -> str:
         """Get the runner method name for a model.
         """
-        return ComponentRegistry.get_runner_method(model_name)
+        return R.runners.meta(model_name.upper()).get("runner_method", "run")
 
     @classmethod
     def list_models(cls) -> list[str]:
         """List all models with registered components.
         """
-        return ComponentRegistry.list_models()
+        return R.registered_models()
 
     @classmethod
     def get_model_components(cls, model_name: str) -> Dict[str, Any]:
         """Get all registered component classes for a model.
         """
-        return ComponentRegistry.get_model_components(model_name)
+        return R.for_model(model_name)
 
     @classmethod
     def validate_model_registration(
@@ -129,7 +129,7 @@ class ModelRegistry:
     ) -> Dict[str, Any]:
         """Validate that a model has all required components registered.
         """
-        return ComponentRegistry.validate_model_registration(model_name, require_all)
+        return R.validate_model(model_name)
 
     @classmethod
     def validate_all_models(
@@ -187,7 +187,8 @@ class ModelRegistry:
     def get_config_adapter(cls, model_name: str) -> Optional[Any]:
         """Get config adapter instance for a model.
         """
-        return ConfigRegistry.get_config_adapter(model_name)
+        adapter_cls = R.config_adapters.get(model_name.upper())
+        return adapter_cls(model_name) if adapter_cls else None
 
     @classmethod
     def get_config_schema(cls, model_name: str) -> Optional[Type]:
@@ -235,29 +236,34 @@ class ModelRegistry:
     def get_result_extractor(cls, model_name: str) -> Optional[Any]:
         """Get result extractor instance for a model.
         """
-        return ResultExtractorRegistry.get_result_extractor(model_name)
+        extractor_cls = R.result_extractors.get(model_name.upper())
+        return extractor_cls(model_name) if extractor_cls else None
 
     @classmethod
     def has_result_extractor(cls, model_name: str) -> bool:
         """Check if a model has a registered result extractor.
         """
-        return ResultExtractorRegistry.has_result_extractor(model_name)
+        return model_name.upper() in R.result_extractors
 
     @classmethod
     def list_result_extractors(cls) -> list[str]:
         """List all models with registered result extractors.
         """
-        return ResultExtractorRegistry.list_result_extractors()
+        return R.result_extractors.keys()
 
     # =========================================================================
     # Forcing Adapter Registry Methods (Delegates to ForcingAdapterRegistry)
     # =========================================================================
 
     @classmethod
+    def _ensure_forcing_adapters_loaded(cls) -> None:
+        """Trigger lazy import of forcing adapter modules."""
+        from symfluence.models.adapters.adapter_registry import ForcingAdapterRegistry
+        ForcingAdapterRegistry._import_adapters()
+
+    @classmethod
     def get_forcing_adapter(cls, model_name: str, config: Dict, logger=None) -> Optional[Any]:
         """Get forcing adapter instance for a model.
-
-        This method delegates to ForcingAdapterRegistry for backward compatibility.
 
         Args:
             model_name: Model name
@@ -267,11 +273,9 @@ class ModelRegistry:
         Returns:
             ForcingAdapter instance or None if not registered
         """
-        try:
-            from symfluence.models.adapters import ForcingAdapterRegistry
-            return ForcingAdapterRegistry.get_adapter(model_name, config, logger)
-        except (ImportError, ValueError):
-            return None
+        cls._ensure_forcing_adapters_loaded()
+        adapter_cls = R.forcing_adapters.get(model_name.upper())
+        return adapter_cls(config, logger) if adapter_cls else None
 
     @classmethod
     def has_forcing_adapter(cls, model_name: str) -> bool:
@@ -283,11 +287,8 @@ class ModelRegistry:
         Returns:
             bool: True if adapter is registered
         """
-        try:
-            from symfluence.models.adapters import ForcingAdapterRegistry
-            return ForcingAdapterRegistry.is_registered(model_name)
-        except ImportError:
-            return False
+        cls._ensure_forcing_adapters_loaded()
+        return model_name.upper() in R.forcing_adapters
 
     @classmethod
     def list_forcing_adapters(cls) -> list[str]:
@@ -296,8 +297,5 @@ class ModelRegistry:
         Returns:
             List of model names with forcing adapters
         """
-        try:
-            from symfluence.models.adapters import ForcingAdapterRegistry
-            return ForcingAdapterRegistry.get_registered_models()
-        except ImportError:
-            return []
+        cls._ensure_forcing_adapters_loaded()
+        return R.forcing_adapters.keys()

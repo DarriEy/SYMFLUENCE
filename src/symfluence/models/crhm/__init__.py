@@ -77,27 +77,17 @@ __all__ = [
     "CRHMConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register all CRHM components via unified registry
+from symfluence.core.registry import model_manifest
 
-
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-# Register preprocessor
-ModelRegistry.register_preprocessor('CRHM')(CRHMPreProcessor)
-
-# Register runner
-ModelRegistry.register_runner('CRHM')(CRHMRunner)
-
-# Register result extractor
-ModelRegistry.register_result_extractor('CRHM')(CRHMResultExtractor)
-
-# Register config adapter
-ModelRegistry.register_config_adapter('CRHM')(CRHMConfigAdapter)
+model_manifest(
+    "CRHM",
+    preprocessor=CRHMPreProcessor,
+    runner=CRHMRunner,
+    result_extractor=CRHMResultExtractor,
+    config_adapter=CRHMConfigAdapter,
+    build_instructions_module="symfluence.models.crhm.build_instructions",
+)
 
 # Register calibration components with OptimizerRegistry
 try:

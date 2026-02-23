@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.mesh.runner import MESHRunner
 from symfluence.optimization.registry import OptimizerRegistry
@@ -55,8 +56,7 @@ class MESHWorker(BaseWorker):
             config = kwargs.get('config', self.config)
 
             # Use MESHParameterManager from registry
-            from symfluence.optimization.registry import OptimizerRegistry
-            param_manager_cls = OptimizerRegistry.get_parameter_manager('MESH')
+            param_manager_cls = R.parameter_managers.get('MESH')
 
             if param_manager_cls is None:
                 self.logger.error("MESHParameterManager not found in registry")

@@ -33,19 +33,17 @@ __all__ = [
     "WATFLOODConfigAdapter",
 ]
 
-# Register build instructions
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass
+# Register all WATFLOOD components via unified registry
+from symfluence.core.registry import model_manifest
 
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_preprocessor('WATFLOOD')(WATFLOODPreProcessor)
-ModelRegistry.register_runner('WATFLOOD')(WATFLOODRunner)
-ModelRegistry.register_result_extractor('WATFLOOD')(WATFLOODResultExtractor)
-ModelRegistry.register_config_adapter('WATFLOOD')(WATFLOODConfigAdapter)
+model_manifest(
+    "WATFLOOD",
+    preprocessor=WATFLOODPreProcessor,
+    runner=WATFLOODRunner,
+    result_extractor=WATFLOODResultExtractor,
+    config_adapter=WATFLOODConfigAdapter,
+    build_instructions_module="symfluence.models.watflood.build_instructions",
+)
 
 # Register calibration components
 try:

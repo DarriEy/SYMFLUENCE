@@ -154,13 +154,13 @@ def create_calibration_target(
         ...     logger=logger
         ... )
     """
-    from ..registry import OptimizerRegistry
+    from symfluence.core.registries import R
 
     model_key = model_name.upper()
     target_key = target_type.lower()
 
     # 1. Try registry first (for dynamically registered targets)
-    target_cls = OptimizerRegistry.get_calibration_target(model_key, target_key)
+    target_cls = R.calibration_targets.get(f"{model_key}_{target_key.upper()}")
 
     # 2. Try model-specific mapping
     if target_cls is None and model_key in _MODEL_SPECIFIC_TARGETS:

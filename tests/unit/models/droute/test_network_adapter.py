@@ -27,8 +27,9 @@ class TestDRouteResultExtractor:
         assert DRouteResultExtractor is not None
 
     def test_extractor_registered(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'DROUTE' in ModelRegistry._result_extractors
+        import symfluence.models.droute  # noqa: F401 — trigger registration
+        from symfluence.core.registries import R
+        assert 'DROUTE' in R.result_extractors
 
     def test_output_file_patterns(self):
         from symfluence.models.droute.extractor import DRouteResultExtractor

@@ -11,10 +11,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
+from symfluence.core.registries import R
 from symfluence.optimization.core import TransformationManager
-from symfluence.optimization.objectives import ObjectiveRegistry
 from symfluence.optimization.optimization_results_manager import OptimizationResultsManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     pass
@@ -368,11 +367,11 @@ class OptimizationManager(BaseManager):
         )
 
         # Get optimizer class from registry
-        optimizer_cls = OptimizerRegistry.get_optimizer(model_name)
+        optimizer_cls = R.optimizers.get(model_name)
 
         if optimizer_cls is None:
             self.logger.error(f"No optimizer registered for model: {model_name}")
-            self.logger.info(f"Registered models: {OptimizerRegistry.list_models()}")
+            self.logger.info(f"Registered models: {R.optimizers.keys()}")
             return None
 
         # Create optimization directory
@@ -622,7 +621,7 @@ class OptimizationManager(BaseManager):
         )
         models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
         model_supported = any(
-            OptimizerRegistry.get_optimizer(m) is not None for m in models
+            R.optimizers.get(m) is not None for m in models
         ) if models else False
         results['model_supported'] = model_supported
 
@@ -667,7 +666,8 @@ class OptimizationManager(BaseManager):
         Calculates a composite objective score from multivariate simulation results.
         """
         # 1. Get the multivariate objective handler
-        objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', self.config, self.logger)
+        obj_cls = R.objectives.get('MULTIVARIATE')
+        objective_handler = obj_cls(self.config, self.logger) if obj_cls else None
         if not objective_handler:
             return 1000.0
 

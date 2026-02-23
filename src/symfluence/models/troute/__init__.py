@@ -31,17 +31,16 @@ __all__ = [
     'TRoutePlotter',
 ]
 
-# Register with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all TRoute components via unified registry
+from symfluence.core.registry import model_manifest
 
-ModelRegistry.register_config_adapter('TROUTE')(TRouteConfigAdapter)
-ModelRegistry.register_result_extractor('TROUTE')(TRouteResultExtractor)
-
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+model_manifest(
+    "TROUTE",
+    config_adapter=TRouteConfigAdapter,
+    result_extractor=TRouteResultExtractor,
+    plotter=TRoutePlotter,
+    build_instructions_module="symfluence.models.troute.build_instructions",
+)
 
 # Register calibration components
 try:

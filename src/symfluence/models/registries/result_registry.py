@@ -20,7 +20,10 @@ Registration Pattern:
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional, Type
+import warnings
+from typing import Any, Callable, Optional, Type
+
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +53,6 @@ class ResultExtractorRegistry:
             streamflow = extractor.extract_variable(output_file, 'streamflow')
     """
 
-    _result_extractors: Dict[str, Type] = {}
-
     @classmethod
     def register_result_extractor(cls, model_name: str) -> Callable[[Type], Type]:
         """Register a result extractor for a model.
@@ -73,7 +74,13 @@ class ResultExtractorRegistry:
             ...         pass
         """
         def decorator(extractor_cls: Type) -> Type:
-            cls._result_extractors[model_name.upper()] = extractor_cls
+            warnings.warn(
+                "ResultExtractorRegistry.register_result_extractor() is deprecated; "
+                "use R.result_extractors.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.result_extractors.add(model_name, extractor_cls)
             return extractor_cls
         return decorator
 
@@ -87,7 +94,7 @@ class ResultExtractorRegistry:
         Returns:
             ModelResultExtractor instance or None if not registered
         """
-        extractor_cls = cls._result_extractors.get(model_name.upper())
+        extractor_cls = R.result_extractors.get(model_name.upper())
         return extractor_cls(model_name) if extractor_cls else None
 
     @classmethod
@@ -100,7 +107,7 @@ class ResultExtractorRegistry:
         Returns:
             True if extractor is registered
         """
-        return model_name.upper() in cls._result_extractors
+        return model_name.upper() in R.result_extractors
 
     @classmethod
     def list_result_extractors(cls) -> list[str]:
@@ -109,7 +116,7 @@ class ResultExtractorRegistry:
         Returns:
             Sorted list of model names with result extractors
         """
-        return sorted(list(cls._result_extractors.keys()))
+        return R.result_extractors.keys()
 
     @classmethod
     def get_extractor_class(cls, model_name: str) -> Optional[Type]:
@@ -123,4 +130,4 @@ class ResultExtractorRegistry:
         Returns:
             Extractor class or None if not registered
         """
-        return cls._result_extractors.get(model_name.upper())
+        return R.result_extractors.get(model_name.upper())

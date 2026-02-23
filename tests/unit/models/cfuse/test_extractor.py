@@ -11,8 +11,9 @@ class TestCFUSEResultExtractorImport:
         assert CFUSEResultExtractor is not None
 
     def test_extractor_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'CFUSE' in ModelRegistry._result_extractors
+        import symfluence.models.cfuse  # noqa: F401 — trigger registration
+        from symfluence.core.registries import R
+        assert 'CFUSE' in R.result_extractors
 
 
 class TestCFUSEOutputPatterns:

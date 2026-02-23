@@ -64,20 +64,18 @@ def __getattr__(name: str):
 
 
 def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Register Snow-17 with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all Snow-17 components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import Snow17ConfigAdapter
+from .config import Snow17ConfigAdapter
 
-    ModelRegistry.register_config_adapter('SNOW17')(Snow17ConfigAdapter)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "SNOW17",
+    config_adapter=Snow17ConfigAdapter,
+)
 
 
 if TYPE_CHECKING:
@@ -109,5 +107,4 @@ __all__ = [
     'SNOW17_PARAM_NAMES', 'SNOW17_PARAM_BOUNDS', 'SNOW17_DEFAULTS', 'DEFAULT_ADC',
     'snow17_step', 'snow17_simulate', 'snow17_simulate_jax', 'snow17_simulate_numpy',
     'seasonal_melt_factor', 'HAS_JAX', 'create_initial_state',
-    'register_with_model_registry',
 ]

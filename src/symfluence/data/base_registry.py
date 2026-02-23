@@ -7,11 +7,17 @@ This module provides a consistent registry pattern used across:
 - ObservationRegistry: Observation data handlers
 
 All registries use lowercase keys internally for consistency.
+
+Phase 4 delegation shim: internal ``_handlers`` dicts are retained only as
+a fallback for subclasses that have not yet set ``_r_registry_name``.
+Subclasses that *do* set the attribute delegate all state to
+``R.<_r_registry_name>``.
 """
 
 import logging
+import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Type, TypeVar
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 
 T = TypeVar('T')
 
@@ -27,9 +33,26 @@ class BaseRegistry(ABC, Generic[T]):
     - Checking handler availability
 
     All keys are normalized to lowercase internally.
+
+    Subclasses should set ``_r_registry_name`` to the corresponding attribute
+    name on ``R`` (e.g. ``"acquisition_handlers"``).  When set, all state is
+    delegated to the unified registry and the internal ``_handlers`` dict is
+    unused.
     """
 
     _handlers: Dict[str, Type[T]] = {}
+
+    # Subclasses set this to the R.* attribute name they delegate to.
+    # When ``None``, the base class falls back to ``_handlers``.
+    _r_registry_name: Optional[str] = None
+
+    @classmethod
+    def _get_r_registry(cls):
+        """Return the unified ``R.<name>`` Registry instance, or ``None``."""
+        if cls._r_registry_name is None:
+            return None
+        from symfluence.core.registries import R
+        return getattr(R, cls._r_registry_name)
 
     @classmethod
     def _normalize_key(cls, key: str) -> str:
@@ -53,8 +76,21 @@ class BaseRegistry(ABC, Generic[T]):
                 pass
         """
         def decorator(handler_class: Type[T]) -> Type[T]:
-            normalized_name = cls._normalize_key(name)
-            cls._handlers[normalized_name] = handler_class
+            r_reg = cls._get_r_registry()
+            if r_reg is not None:
+                warnings.warn(
+                    f"{cls.__name__}.register() is deprecated; "
+                    "use R.{}.add() or model_manifest() instead.".format(
+                        cls._r_registry_name
+                    ),
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                r_reg.add(name, handler_class)
+            else:
+                # Fallback for subclasses without _r_registry_name
+                normalized_name = cls._normalize_key(name)
+                cls._handlers[normalized_name] = handler_class
             return handler_class
         return decorator
 
@@ -92,7 +128,18 @@ class BaseRegistry(ABC, Generic[T]):
             ValueError: If handler not found
         """
         normalized_name = cls._normalize_key(name)
+        r_reg = cls._get_r_registry()
 
+        if r_reg is not None:
+            handler = r_reg.get(normalized_name)
+            if handler is None:
+                available = ', '.join(sorted(r_reg.keys()))
+                raise ValueError(
+                    f"Unknown handler: '{name}'. Available: {available}"
+                )
+            return handler
+
+        # Fallback for subclasses without _r_registry_name
         if normalized_name not in cls._handlers:
             available = ', '.join(sorted(cls._handlers.keys()))
             raise ValueError(
@@ -109,6 +156,9 @@ class BaseRegistry(ABC, Generic[T]):
         Returns:
             Sorted list of handler names
         """
+        r_reg = cls._get_r_registry()
+        if r_reg is not None:
+            return sorted(r_reg.keys())
         return sorted(cls._handlers.keys())
 
     @classmethod
@@ -122,11 +172,17 @@ class BaseRegistry(ABC, Generic[T]):
         Returns:
             True if registered, False otherwise
         """
+        r_reg = cls._get_r_registry()
+        if r_reg is not None:
+            return cls._normalize_key(name) in r_reg
         return cls._normalize_key(name) in cls._handlers
 
     @classmethod
     def clear(cls) -> None:
         """Clear all registered handlers (mainly for testing)."""
+        r_reg = cls._get_r_registry()
+        if r_reg is not None:
+            r_reg.clear()
         cls._handlers.clear()
 
 

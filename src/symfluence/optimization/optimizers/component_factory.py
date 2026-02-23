@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -51,7 +51,7 @@ class OptimizerComponentFactory:
         Raises:
             RuntimeError: If no parameter manager is registered for model
         """
-        param_manager_cls = OptimizerRegistry.get_parameter_manager(model_name)
+        param_manager_cls = R.parameter_managers.get(model_name)
 
         if param_manager_cls is None:
             raise RuntimeError(
@@ -81,7 +81,7 @@ class OptimizerComponentFactory:
         Raises:
             RuntimeError: If no worker is registered for model
         """
-        worker_cls = OptimizerRegistry.get_worker(model_name)
+        worker_cls = R.workers.get(model_name)
 
         if worker_cls is None:
             raise RuntimeError(

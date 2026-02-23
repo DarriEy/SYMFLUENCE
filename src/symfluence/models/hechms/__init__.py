@@ -99,30 +99,22 @@ def __getattr__(name: str):
 
 def __dir__():
     """Return available attributes for tab completion."""
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Explicitly register HEC-HMS with the ModelRegistry.
+# Register all HEC-HMS components via unified registry
+_show_experimental_warning()
 
-    Call this function to register the HEC-HMS runner, preprocessor, config adapter,
-    and result extractor with the central ModelRegistry.
-    """
-    _show_experimental_warning()
+from symfluence.core.registry import model_manifest
 
-    from symfluence.models.registry import ModelRegistry
+from .config import HecHmsConfigAdapter
+from .extractor import HecHmsResultExtractor
 
-    from .config import HecHmsConfigAdapter
-    from .extractor import HecHmsResultExtractor
-    from .preprocessor import HecHmsPreProcessor  # Trigger @register_preprocessor decorator
-    from .runner import HecHmsRunner  # Trigger @register_runner decorator
-
-    ModelRegistry.register_config_adapter('HECHMS')(HecHmsConfigAdapter)
-    ModelRegistry.register_result_extractor('HECHMS')(HecHmsResultExtractor)
-
-
-# Eagerly register HEC-HMS components when module is imported
-register_with_model_registry()
+model_manifest(
+    "HECHMS",
+    config_adapter=HecHmsConfigAdapter,
+    result_extractor=HecHmsResultExtractor,
+)
 
 
 # Type hints for IDE support
@@ -189,6 +181,4 @@ __all__ = [
     'HecHmsParameterManager',
     'get_hechms_calibration_bounds',
 
-    # Registration helper
-    'register_with_model_registry',
 ]

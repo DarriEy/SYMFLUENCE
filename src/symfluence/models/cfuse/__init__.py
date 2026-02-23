@@ -124,23 +124,22 @@ def __dir__():
         'HAS_CFUSE', 'HAS_CFUSE_CORE', 'HAS_TORCH', 'HAS_ENZYME',
         'CFUSE_VERSION', 'TORCH_VERSION',
         'check_cfuse_installation', 'get_available_model_structures',
-        'get_model_config', 'register_with_model_registry',
+        'get_model_config',
     ]
 
 
-def register_with_model_registry():
-    """Register cFUSE components with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all cFUSE components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import CFUSEConfigAdapter
-    from .extractor import CFUSEResultExtractor
+from .config import CFUSEConfigAdapter
+from .extractor import CFUSEResultExtractor
 
-    ModelRegistry.register_config_adapter('CFUSE')(CFUSEConfigAdapter)
-    ModelRegistry.register_result_extractor('CFUSE')(CFUSEResultExtractor)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "CFUSE",
+    config_adapter=CFUSEConfigAdapter,
+    result_extractor=CFUSEResultExtractor,
+    build_instructions_module="symfluence.models.cfuse.build_instructions",
+)
 
 
 if TYPE_CHECKING:
@@ -159,5 +158,4 @@ __all__ = [
     'CFUSEWorker', 'CFUSEParameterManager', 'get_cfuse_calibration_bounds',
     'check_cfuse_installation', 'get_available_model_structures', 'get_model_config',
     'HAS_CFUSE', 'HAS_CFUSE_CORE', 'HAS_TORCH', 'HAS_ENZYME',
-    'register_with_model_registry',
 ]

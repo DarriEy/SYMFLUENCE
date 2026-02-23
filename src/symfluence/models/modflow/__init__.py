@@ -44,18 +44,14 @@ __all__ = [
     "MODFLOWPlotter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register MODFLOW config adapter via unified registry
+# Note: preprocessor, runner, extractor, postprocessor are registered via
+# decorators in their respective component modules.
+from symfluence.core.registry import model_manifest
 
-# Components are registered via decorators in their respective modules:
-# - MODFLOWPreProcessor: @ModelRegistry.register_preprocessor("MODFLOW")
-# - MODFLOWRunner: @ModelRegistry.register_runner("MODFLOW")
-# - MODFLOWResultExtractor: @ModelRegistry.register_result_extractor("MODFLOW")
-# - MODFLOWPostProcessor: @ModelRegistry.register_postprocessor("MODFLOW")
-# MODFLOWConfigAdapter needs explicit registration (no decorator)
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_config_adapter('MODFLOW')(MODFLOWConfigAdapter)
+model_manifest(
+    "MODFLOW",
+    config_adapter=MODFLOWConfigAdapter,
+    plotter=MODFLOWPlotter,
+    build_instructions_module="symfluence.models.modflow.build_instructions",
+)

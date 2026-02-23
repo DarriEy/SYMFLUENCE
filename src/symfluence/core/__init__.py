@@ -19,6 +19,10 @@ from .path_resolver import PathResolverMixin, resolve_file_path, resolve_path
 
 # Profiling module for IOPS diagnostics
 from .profiling import IOProfiler, ProfilerContext, get_profiler, profiling_enabled
+
+# Unified component registry
+from .registries import R, Registries
+from .registry import Registry, model_manifest
 from .system import SYMFLUENCE
 from .validation import validate_config_keys, validate_directory_exists, validate_file_exists
 
@@ -46,6 +50,11 @@ __all__ = [
     'UnitConversion',
     'PhysicalConstants',
     'ModelDefaults',
+    # Unified registry
+    'Registry',
+    'Registries',
+    'R',
+    'model_manifest',
     # Profiling
     'IOProfiler',
     'ProfilerContext',

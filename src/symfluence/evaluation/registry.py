@@ -4,18 +4,26 @@ Evaluation Registry for SYMFLUENCE
 Provides a central registry for performance evaluation handlers.
 """
 import logging
+import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional
+
+from symfluence.core.registries import R
 
 
 class EvaluationRegistry:
-    _handlers: Dict[str, Type] = {}
 
     @classmethod
     def register(cls, variable_type: str):
         """Decorator to register an evaluation handler."""
         def decorator(handler_class):
-            cls._handlers[variable_type.upper()] = handler_class
+            warnings.warn(
+                "EvaluationRegistry.register() is deprecated; "
+                "use R.evaluators.add() or model_manifest() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.evaluators.add(variable_type, handler_class)
             return handler_class
         return decorator
 
@@ -29,15 +37,14 @@ class EvaluationRegistry:
         **kwargs
     ):
         """Get an instance of the appropriate evaluation handler."""
-        var_type_upper = variable_type.upper()
-        if var_type_upper not in cls._handlers:
+        handler_class = R.evaluators.get(variable_type.upper())
+        if handler_class is None:
             return None
 
-        handler_class = cls._handlers[var_type_upper]
         handler_logger = logger or logging.getLogger(handler_class.__name__)
         handler_project_dir = project_dir or Path(".")
         return handler_class(config, handler_project_dir, handler_logger, **kwargs)
 
     @classmethod
     def list_evaluators(cls) -> list:
-        return sorted(list(cls._handlers.keys()))
+        return R.evaluators.keys()

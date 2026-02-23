@@ -90,29 +90,18 @@ __all__ = [
     'SummaAttributesManager'
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all SUMMA components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import SUMMAConfigAdapter
-
-ModelRegistry.register_config_adapter('SUMMA')(SUMMAConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import SUMMAResultExtractor
+from .plotter import SUMMAPlotter
 
-ModelRegistry.register_result_extractor('SUMMA')(SUMMAResultExtractor)
-
-# Register analysis components with AnalysisRegistry
-from symfluence.evaluation.analysis_registry import AnalysisRegistry
-
-# Register SUMMA decision analyzer (structure ensemble analysis)
-AnalysisRegistry.register_decision_analyzer('SUMMA')(SummaStructureAnalyzer)
-
-# Register plotter with PlotterRegistry (import triggers registration via decorator)
-from .plotter import SUMMAPlotter  # noqa: F401
+model_manifest(
+    "SUMMA",
+    config_adapter=SUMMAConfigAdapter,
+    result_extractor=SUMMAResultExtractor,
+    decision_analyzer=SummaStructureAnalyzer,
+    plotter=SUMMAPlotter,
+    build_instructions_module="symfluence.models.summa.build_instructions",
+)

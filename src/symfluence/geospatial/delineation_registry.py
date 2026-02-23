@@ -1,5 +1,5 @@
 """
-Delineation Strategy Registry.
+Delineation Strategy Registry.  (Phase 4 delegation shim)
 
 Provides a registry for delineation strategies, enabling dynamic method
 registration and lookup. Used by DomainDelineator to route to appropriate
@@ -20,11 +20,19 @@ Usage:
     strategy_cls = DelineationRegistry.get_strategy('lumped')
     strategy = strategy_cls(config, logger)
     result = strategy.delineate()
+
+.. deprecated::
+    This registry is a thin delegation shim around
+    :pydata:`symfluence.core.registries.R`.  Prefer
+    ``R.delineation_strategies`` directly.
 """
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type
+
+from symfluence.core.registries import R
 
 if TYPE_CHECKING:
     pass
@@ -38,7 +46,6 @@ class DelineationRegistry:
     'semidistributed', 'distributed') to their implementing classes.
 
     Attributes:
-        _strategies: Dictionary mapping method names to strategy classes.
         _aliases: Dictionary mapping alternate names to canonical names.
 
     Example:
@@ -47,9 +54,12 @@ class DelineationRegistry:
         ...     pass
         >>> DelineationRegistry.get_strategy('lumped')
         <class 'LumpedDelineator'>
+
+    .. deprecated::
+        Use ``R.delineation_strategies`` from
+        :mod:`symfluence.core.registries` instead.
     """
 
-    _strategies: Dict[str, Type] = {}
     _aliases: Dict[str, str] = {
         # Backwards compatibility aliases
         'delineate': 'semidistributed',
@@ -75,9 +85,18 @@ class DelineationRegistry:
             ... class PointDelineator:
             ...     def delineate(self):
             ...         pass
+
+        .. deprecated::
+            Use ``R.delineation_strategies.add()`` or ``model_manifest()`` instead.
         """
         def decorator(strategy_cls: Type) -> Type:
-            cls._strategies[method_name] = strategy_cls
+            warnings.warn(
+                "DelineationRegistry.register() is deprecated; "
+                "use R.delineation_strategies.add() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            R.delineation_strategies.add(method_name, strategy_cls)
             return strategy_cls
         return decorator
 
@@ -102,14 +121,15 @@ class DelineationRegistry:
         # Normalize method name
         normalized = method_name.lower().strip()
 
-        # Check for direct match first
-        if normalized in cls._strategies:
-            return cls._strategies[normalized]
+        # Check for direct match in R.delineation_strategies first
+        result = R.delineation_strategies.get(normalized)
+        if result is not None:
+            return result
 
         # Check aliases
         canonical = cls._aliases.get(normalized)
-        if canonical and canonical in cls._strategies:
-            return cls._strategies[canonical]
+        if canonical:
+            return R.delineation_strategies.get(canonical)
 
         return None
 
@@ -126,7 +146,7 @@ class DelineationRegistry:
             >>> 'lumped' in methods
             True
         """
-        return list(cls._strategies.keys())
+        return list(R.delineation_strategies.keys())
 
     @classmethod
     def list_aliases(cls) -> Dict[str, str]:
@@ -150,7 +170,7 @@ class DelineationRegistry:
             True if method is registered or aliased.
         """
         normalized = method_name.lower().strip()
-        return normalized in cls._strategies or normalized in cls._aliases
+        return normalized in R.delineation_strategies or normalized in cls._aliases
 
     @classmethod
     def get_canonical_name(cls, method_name: str) -> Optional[str]:
@@ -169,7 +189,8 @@ class DelineationRegistry:
         """
         normalized = method_name.lower().strip()
 
-        if normalized in cls._strategies:
+        # Check canonical keys only (keys() excludes aliases)
+        if normalized in R.delineation_strategies.keys():
             return normalized
 
         return cls._aliases.get(normalized)
@@ -186,7 +207,7 @@ class DelineationRegistry:
         Raises:
             ValueError: If canonical name is not registered.
         """
-        if canonical not in cls._strategies:
+        if canonical not in R.delineation_strategies.keys():
             raise ValueError(
                 f"Cannot add alias '{alias}' for unregistered method '{canonical}'"
             )
@@ -199,7 +220,7 @@ class DelineationRegistry:
 
         Primarily for testing purposes.
         """
-        cls._strategies.clear()
+        R.delineation_strategies.clear()
         # Reset aliases to defaults
         cls._aliases = {
             'delineate': 'semidistributed',

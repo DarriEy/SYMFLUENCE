@@ -41,16 +41,16 @@ class MultivariateTarget(CalibrationTarget):
     def __init__(self, config: Dict, project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
         from symfluence.core.config.coercion import coerce_config
+        from symfluence.core.registries import R
         from symfluence.evaluation.analysis_manager import AnalysisManager
-
-        from ..objectives import ObjectiveRegistry
 
         # Convert config dict to SymfluenceConfig if needed (required by AnalysisManager)
         config = coerce_config(config, warn=False)
         self._config = config  # Update internal config as well
 
         self.analysis_manager = AnalysisManager(config, logger)
-        self.objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', config, logger)
+        obj_cls = R.objectives.get('MULTIVARIATE')
+        self.objective_handler = obj_cls(config, logger) if obj_cls else None
 
         # Get requested variables from weights/metrics config
         try:

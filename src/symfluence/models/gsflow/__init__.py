@@ -27,19 +27,17 @@ __all__ = [
     "GSFLOWConfigAdapter",
 ]
 
-# Register build instructions
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass
+# Register all GSFLOW components via unified registry
+from symfluence.core.registry import model_manifest
 
-# Register components with ModelRegistry
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_preprocessor('GSFLOW')(GSFLOWPreProcessor)
-ModelRegistry.register_runner('GSFLOW')(GSFLOWRunner)
-ModelRegistry.register_result_extractor('GSFLOW')(GSFLOWResultExtractor)
-ModelRegistry.register_config_adapter('GSFLOW')(GSFLOWConfigAdapter)
+model_manifest(
+    "GSFLOW",
+    preprocessor=GSFLOWPreProcessor,
+    runner=GSFLOWRunner,
+    result_extractor=GSFLOWResultExtractor,
+    config_adapter=GSFLOWConfigAdapter,
+    build_instructions_module="symfluence.models.gsflow.build_instructions",
+)
 
 # Register calibration components
 try:

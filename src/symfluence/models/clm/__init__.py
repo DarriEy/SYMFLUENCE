@@ -51,21 +51,16 @@ __all__ = [
     "CLMConfigAdapter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register CLM config adapter via unified registry
+# Note: preprocessor, runner, extractor, postprocessor are registered via
+# decorators in their respective component modules.
+from symfluence.core.registry import model_manifest
 
-# Components are registered via decorators in their respective modules:
-# - CLMPreProcessor: @ModelRegistry.register_preprocessor("CLM")
-# - CLMRunner: @ModelRegistry.register_runner("CLM")
-# - CLMResultExtractor: @ModelRegistry.register_result_extractor("CLM")
-# - CLMPostProcessor: @ModelRegistry.register_postprocessor("CLM")
-# CLMConfigAdapter needs explicit registration (no decorator)
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_config_adapter('CLM')(CLMConfigAdapter)
+model_manifest(
+    "CLM",
+    config_adapter=CLMConfigAdapter,
+    build_instructions_module="symfluence.models.clm.build_instructions",
+)
 
 # Register calibration components with OptimizerRegistry
 try:

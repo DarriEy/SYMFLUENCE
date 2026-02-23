@@ -21,6 +21,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
@@ -74,7 +75,7 @@ class CoupledGWWorker(BaseWorker):
     def land_worker(self) -> BaseWorker:
         """Lazy-load the land surface model's worker."""
         if self._land_worker is None:
-            worker_cls = OptimizerRegistry.get_worker(self.land_model_name)
+            worker_cls = R.workers.get(self.land_model_name)
             if worker_cls is None:
                 raise ValueError(
                     f"No worker registered for land surface model "

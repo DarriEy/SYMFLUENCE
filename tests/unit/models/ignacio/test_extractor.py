@@ -15,8 +15,9 @@ class TestIGNACIOResultExtractorImport:
         assert IGNACIOResultExtractor is not None
 
     def test_extractor_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'IGNACIO' in ModelRegistry._result_extractors
+        import symfluence.models.ignacio  # noqa: F401 — trigger registration
+        from symfluence.core.registries import R
+        assert 'IGNACIO' in R.result_extractors
 
 
 class TestIGNACIOOutputPatterns:

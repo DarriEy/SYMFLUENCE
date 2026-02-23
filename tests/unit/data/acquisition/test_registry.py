@@ -25,21 +25,30 @@ def isolated_registry():
     """
     Create an isolated registry for testing without affecting global state.
 
-    This fixture patches the registry's _handlers dict to isolate tests.
+    This fixture saves and restores R.acquisition_handlers entries so that
+    tests run in isolation from globally-registered handlers.
     """
+    from symfluence.core.registries import R
     from symfluence.data.acquisition.base import BaseAcquisitionHandler
     from symfluence.data.acquisition.registry import AcquisitionRegistry
 
-    # Save original handlers
-    original_handlers = AcquisitionRegistry._handlers.copy()
+    # Save original R.acquisition_handlers state
+    original_entries = dict(R.acquisition_handlers._entries)
+    original_meta = dict(R.acquisition_handlers._meta)
+    original_aliases = dict(R.acquisition_handlers._aliases)
 
     # Clear for isolated testing
-    AcquisitionRegistry._handlers = {}
+    R.acquisition_handlers.clear()
 
     yield AcquisitionRegistry
 
-    # Restore original handlers
-    AcquisitionRegistry._handlers = original_handlers
+    # Restore original state
+    R.acquisition_handlers._entries.clear()
+    R.acquisition_handlers._entries.update(original_entries)
+    R.acquisition_handlers._meta.clear()
+    R.acquisition_handlers._meta.update(original_meta)
+    R.acquisition_handlers._aliases.clear()
+    R.acquisition_handlers._aliases.update(original_aliases)
 
 
 @pytest.fixture
@@ -91,8 +100,8 @@ class TestHandlerRegistration:
         class TestHandler(mock_handler_class):
             pass
 
-        # Should be stored as lowercase
-        assert 'test_handler' in isolated_registry._handlers
+        # Should be retrievable via lowercase key
+        assert isolated_registry.is_registered('test_handler')
 
     def test_register_returns_class(self, isolated_registry, mock_handler_class):
         """Register decorator should return the class unchanged."""
@@ -153,7 +162,8 @@ class TestHandlerRetrieval:
                 received_config = config
                 super().__init__(config, logger)
 
-        isolated_registry._handlers['test_handler'] = CapturingHandler
+        from symfluence.core.registries import R
+        R.acquisition_handlers.add('test_handler', CapturingHandler)
 
         isolated_registry.get_handler('test_handler', mock_config, mock_logger)
 
@@ -171,7 +181,8 @@ class TestHandlerRetrieval:
                 received_logger = logger
                 super().__init__(config, logger)
 
-        isolated_registry._handlers['test_handler'] = CapturingHandler
+        from symfluence.core.registries import R
+        R.acquisition_handlers.add('test_handler', CapturingHandler)
 
         isolated_registry.get_handler('test_handler', mock_config, mock_logger)
 

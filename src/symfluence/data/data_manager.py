@@ -13,9 +13,9 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.data.acquisition.acquisition_service import AcquisitionService
 from symfluence.data.acquisition.observed_processor import ObservedDataProcessor
-from symfluence.data.observation.registry import ObservationRegistry
 from symfluence.data.preprocessing.em_earth_integrator import EMEarthIntegrator
 from symfluence.data.preprocessing.forcing_resampler import ForcingResampler
 from symfluence.data.preprocessing.geospatial_statistics import GeospatialStatistics
@@ -256,9 +256,10 @@ class DataManager(BaseManager):
 
             for obs_type in additional_obs:
                 try:
-                    if ObservationRegistry.is_registered(obs_type):
+                    if obs_type in R.observation_handlers:
                         self.logger.info(f"Processing registry-based observation: {obs_type}")
-                        handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                        handler_cls = R.observation_handlers.get(obs_type)
+                        handler = handler_cls(self.config, self.logger) if handler_cls else None
                         raw_path = handler.acquire()
                         processed_path = handler.process(raw_path)
 

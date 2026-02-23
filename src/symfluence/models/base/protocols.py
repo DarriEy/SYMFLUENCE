@@ -16,12 +16,14 @@ from typing import Optional, Protocol, runtime_checkable
 class ModelRunner(Protocol):
     """Protocol defining the contract for all SYMFLUENCE model runners.
 
-    Every model runner must expose a ``MODEL_NAME`` class attribute and a
-    ``run()`` method that executes the model and returns the path to the
-    primary output file (or ``None`` on failure).
+    Every model runner must expose a ``run()`` method that executes the model
+    and returns the path to the primary output file (or ``None`` on failure).
+
+    Model name is resolved at init time via ``MODEL_NAME`` class attribute
+    or ``_get_model_name()`` fallback (see ``ModelComponentMixin``).
     """
 
-    MODEL_NAME: str
+    model_name: str
 
     def run(self, **kwargs) -> Optional[Path]: ...
 
@@ -30,12 +32,14 @@ class ModelRunner(Protocol):
 class ModelPreProcessor(Protocol):
     """Protocol defining the contract for all model preprocessors.
 
-    Every preprocessor must expose a ``MODEL_NAME`` class attribute and a
-    ``run_preprocessing()`` method that prepares model inputs, returning
-    ``True`` on success.
+    Every preprocessor must expose a ``run_preprocessing()`` method that
+    prepares model inputs, returning ``True`` on success.
+
+    Model name is resolved at init time via ``MODEL_NAME`` class attribute
+    or ``_get_model_name()`` fallback (see ``ModelComponentMixin``).
     """
 
-    MODEL_NAME: str
+    model_name: str
 
     def run_preprocessing(self) -> bool: ...
 
@@ -44,11 +48,14 @@ class ModelPreProcessor(Protocol):
 class ModelPostProcessor(Protocol):
     """Protocol defining the contract for all model postprocessors.
 
-    Every postprocessor must expose a ``MODEL_NAME`` class attribute and an
-    ``extract_streamflow()`` method that produces processed output, returning
-    the path to the result file (or ``None`` on failure).
+    Every postprocessor must expose an ``extract_streamflow()`` method that
+    produces processed output, returning the path to the result file
+    (or ``None`` on failure).
+
+    Model name is resolved at init time via ``model_name`` class attribute
+    or ``_get_model_name()`` fallback (see ``ModelComponentMixin``).
     """
 
-    MODEL_NAME: str
+    model_name: str
 
     def extract_streamflow(self) -> Optional[Path]: ...

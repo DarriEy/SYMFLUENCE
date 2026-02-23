@@ -73,27 +73,18 @@ __all__ = [
     'MizuRouteConfigMixin',
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
-
-
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all mizuRoute components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import MizuRouteConfigAdapter
-
-ModelRegistry.register_config_adapter('MIZUROUTE')(MizuRouteConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import MizuRouteResultExtractor
 
-ModelRegistry.register_result_extractor('MIZUROUTE')(MizuRouteResultExtractor)
-
-# Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('MIZUROUTE')(MizuRoutePreProcessor)
-
-# Register runner with ModelRegistry
-ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')(MizuRouteRunner)
+model_manifest(
+    "MIZUROUTE",
+    config_adapter=MizuRouteConfigAdapter,
+    result_extractor=MizuRouteResultExtractor,
+    preprocessor=MizuRoutePreProcessor,
+    runner=MizuRouteRunner,
+    runner_method="run_mizuroute",
+    build_instructions_module="symfluence.models.mizuroute.build_instructions",
+)

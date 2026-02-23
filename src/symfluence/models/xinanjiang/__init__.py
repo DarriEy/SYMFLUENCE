@@ -79,24 +79,20 @@ def __getattr__(name: str):
 
 
 def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + ['register_with_model_registry']
+    return list(_LAZY_IMPORTS.keys())
 
 
-def register_with_model_registry():
-    """Register Xinanjiang with the ModelRegistry."""
-    from symfluence.models.registry import ModelRegistry
+# Register all Xinanjiang components via unified registry
+from symfluence.core.registry import model_manifest
 
-    from .config import XinanjiangConfigAdapter
-    from .extractor import XinanjiangResultExtractor
-    from .preprocessor import XinanjiangPreProcessor  # noqa: F401 - triggers decorator
-    from .runner import XinanjiangRunner  # noqa: F401 - triggers decorator
+from .config import XinanjiangConfigAdapter
+from .extractor import XinanjiangResultExtractor
 
-    ModelRegistry.register_config_adapter('XINANJIANG')(XinanjiangConfigAdapter)
-    ModelRegistry.register_result_extractor('XINANJIANG')(XinanjiangResultExtractor)
-
-
-# Eagerly register when module is imported
-register_with_model_registry()
+model_manifest(
+    "XINANJIANG",
+    config_adapter=XinanjiangConfigAdapter,
+    result_extractor=XinanjiangResultExtractor,
+)
 
 
 if TYPE_CHECKING:
@@ -124,5 +120,4 @@ __all__ = [
     'simulate', 'simulate_jax', 'simulate_numpy', 'HAS_JAX',
     'kge_loss', 'nse_loss', 'get_kge_gradient_fn', 'get_nse_gradient_fn',
     'XinanjiangWorker', 'XinanjiangParameterManager', 'XinanjiangModelOptimizer',
-    'register_with_model_registry',
 ]

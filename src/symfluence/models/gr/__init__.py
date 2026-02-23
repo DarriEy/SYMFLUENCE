@@ -76,14 +76,14 @@ __all__ = [
 ]
 
 
-# Register config adapter with ModelRegistry
-from symfluence.models.registry import ModelRegistry
+# Register all GR components via unified registry
+from symfluence.core.registry import model_manifest
 
 from .config import GRConfigAdapter
-
-ModelRegistry.register_config_adapter('GR')(GRConfigAdapter)
-
-# Register result extractor with ModelRegistry
 from .extractor import GRResultExtractor
 
-ModelRegistry.register_result_extractor('GR')(GRResultExtractor)
+model_manifest(
+    "GR",
+    config_adapter=GRConfigAdapter,
+    result_extractor=GRResultExtractor,
+)

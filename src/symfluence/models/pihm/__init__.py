@@ -44,18 +44,14 @@ __all__ = [
     "PIHMPlotter",
 ]
 
-# Register build instructions (lightweight, no heavy deps)
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass  # Build instructions optional
+# Register PIHM config adapter via unified registry
+# Note: preprocessor, runner, extractor, postprocessor are registered via
+# decorators in their respective component modules.
+from symfluence.core.registry import model_manifest
 
-# Components are registered via decorators in their respective modules:
-# - PIHMPreProcessor: @ModelRegistry.register_preprocessor("PIHM")
-# - PIHMRunner: @ModelRegistry.register_runner("PIHM")
-# - PIHMResultExtractor: @ModelRegistry.register_result_extractor("PIHM")
-# - PIHMPostProcessor: @ModelRegistry.register_postprocessor("PIHM")
-# PIHMConfigAdapter needs explicit registration (no decorator)
-from symfluence.models.registry import ModelRegistry
-
-ModelRegistry.register_config_adapter('PIHM')(PIHMConfigAdapter)
+model_manifest(
+    "PIHM",
+    config_adapter=PIHMConfigAdapter,
+    plotter=PIHMPlotter,
+    build_instructions_module="symfluence.models.pihm.build_instructions",
+)

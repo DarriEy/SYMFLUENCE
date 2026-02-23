@@ -11,8 +11,9 @@ class TestVICResultExtractor:
         assert VICResultExtractor is not None
 
     def test_extractor_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'VIC' in ModelRegistry._result_extractors
+        import symfluence.models.vic  # noqa: F401 — trigger registration
+        from symfluence.core.registries import R
+        assert 'VIC' in R.result_extractors
 
     def test_output_file_patterns(self):
         from symfluence.models.vic.extractor import VICResultExtractor

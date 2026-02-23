@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
@@ -92,12 +93,12 @@ class CoupledGWParameterManager(BaseParameterManager):
 
     def _create_land_parameter_manager(self) -> BaseParameterManager:
         """Dynamically instantiate the land surface model's parameter manager."""
-        pm_cls = OptimizerRegistry.get_parameter_manager(self.land_model_name)
+        pm_cls = R.parameter_managers.get(self.land_model_name)
         if pm_cls is None:
             raise ValueError(
                 f"No parameter manager registered for land surface model "
                 f"'{self.land_model_name}'. Available: "
-                f"{OptimizerRegistry.list_models()}"
+                f"{R.optimizers.keys()}"
             )
         return pm_cls(self.config_dict, self.logger, self.land_settings_dir)
 
