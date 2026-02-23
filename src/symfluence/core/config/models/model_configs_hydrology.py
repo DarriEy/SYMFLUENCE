@@ -90,6 +90,14 @@ class FUSEConfig(BaseModel):
     parameter_regionalization: str = Field(default='lumped', alias='PARAMETER_REGIONALIZATION')
     use_transfer_functions: bool = Field(default=False, alias='USE_TRANSFER_FUNCTIONS')
     transfer_function_coeff_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='TRANSFER_FUNCTION_COEFF_BOUNDS')
+    solution_method: Optional[int] = Field(
+        default=None, alias='FUSE_SOLUTION_METHOD',
+        description='Numerical solver: 0=explicit Euler (fast), 1=implicit Euler (stable). Default: 0'
+    )
+    timestep_type: Optional[int] = Field(
+        default=None, alias='FUSE_TIMESTEP_TYPE',
+        description='Timestep control: 0=fixed, 1=adaptive. Default: 0'
+    )
 
 
 class GRConfig(BaseModel):

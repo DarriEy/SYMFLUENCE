@@ -21,6 +21,16 @@ from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.models.fuse.runner import FUSERunner
 from symfluence.core.constants import UnitConversion
 
+# Known bad decision combinations that cause 100% failure in FUSE.
+# Each entry maps a decision key to {value: {other_key: set_of_incompatible_values}}.
+# These were identified empirically in Section 4.6 decision ensemble analysis.
+KNOWN_BAD_COMBINATIONS = [
+    # perc_f2sat + intflwsome: percolation from field-capacity-to-saturation
+    # is incompatible with interflow — causes water balance errors and crashes.
+    {'QPERC': 'perc_f2sat', 'QINTF': 'intflwsome'},
+]
+
+
 class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     """
     Structure Ensemble Analyzer for FUSE.
@@ -101,6 +111,32 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def _initialize_master_file(self) -> Path:
         """Initialize the master results file path for FUSE."""
         return self.project_dir / 'optimization' / f"{self.experiment_id}_fuse_decisions_comparison.csv"
+
+    def generate_combinations(self) -> List[Tuple[str, ...]]:
+        """Generate combinations, filtering out known bad decision pairs."""
+        all_combos = super().generate_combinations()
+        decision_keys = list(self.decision_options.keys())
+
+        filtered = []
+        for combo in all_combos:
+            combo_dict = dict(zip(decision_keys, combo))
+            if self._is_valid_combination(combo_dict):
+                filtered.append(combo)
+
+        n_removed = len(all_combos) - len(filtered)
+        if n_removed > 0:
+            self.logger.info(
+                f"Filtered {n_removed} known-bad combinations "
+                f"({len(filtered)} remaining from {len(all_combos)} total)"
+            )
+        return filtered
+
+    def _is_valid_combination(self, combo_dict: Dict[str, str]) -> bool:
+        """Check if a decision combination is valid (not in known-bad list)."""
+        for bad_combo in KNOWN_BAD_COMBINATIONS:
+            if all(combo_dict.get(key) == value for key, value in bad_combo.items()):
+                return False
+        return True
 
     def update_model_decisions(self, combination: Tuple[str, ...]):
         """

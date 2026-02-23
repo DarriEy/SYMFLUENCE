@@ -37,7 +37,7 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'SFTMP': {'min': -2.0, 'max': 2.0},            # snowfall temperature [deg C]
     'SMTMP': {'min': -1.0, 'max': 2.0},            # snowmelt base temperature [deg C]
     'SMFMX': {'min': 0.5, 'max': 10.0},            # max melt rate for snow [mm/deg C/day]
-    'SMFMN': {'min': 0.1, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
+    'SMFMN': {'min': 0.5, 'max': 10.0},            # min melt rate for snow [mm/deg C/day]
     'TIMP': {'min': 0.01, 'max': 1.0},             # snow pack temperature lag factor
     'CH_K2': {'min': 0.0, 'max': 30.0},            # channel hydraulic conductivity [mm/hr]
     'RCHRG_DP': {'min': 0.0, 'max': 0.3},          # deep aquifer percolation fraction
