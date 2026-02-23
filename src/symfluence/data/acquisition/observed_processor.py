@@ -331,7 +331,15 @@ class ObservedDataProcessor(ConfigMixin):
             else:
                 self.logger.error(f"Unsupported streamflow data provider: {self.data_provider}")
                 raise DataAcquisitionError(f"Unsupported streamflow data provider: {self.data_provider}")
-        except Exception as e:
+        except (
+            DataAcquisitionError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f'Issue in streamflow data preprocessing: {e}')
 
     def _process_vi_data(self):
@@ -370,7 +378,17 @@ class ObservedDataProcessor(ConfigMixin):
 
         except FileNotFoundError:
             self.logger.error(f"VI data file not found at {vi_file}")
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+        ) as e:
             self.logger.error(f"Error processing VI data: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -438,13 +456,20 @@ class ObservedDataProcessor(ConfigMixin):
                 try:
                     shutil.copy2(file_path, dest_file)
                     self.logger.info(f"Copied {file_path.name} to {dest_file}")
-                except Exception as copy_e:
+                except (OSError, shutil.Error, ValueError, TypeError) as copy_e:
                     self.logger.error(f"Failed to copy {file_path.name}: {copy_e}")
 
             self.logger.info(f"Successfully processed FLUXNET data for station {station_id}")
             return True
 
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as e:
             self.logger.error(f"Error processing FLUXNET data: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -545,15 +570,15 @@ class ObservedDataProcessor(ConfigMixin):
             try:
                 # Attempt to infer format first
                 processed_df['Date'] = pd.to_datetime(processed_df['Date'], errors='coerce')
-            except Exception as date_error:
+            except (ValueError, pd.errors.ParserError, OverflowError) as date_error:
                 self.logger.warning(f"Flexible date parsing failed: {str(date_error)}")
                 # Fallback to specific formats if inference fails
                 try:
                     processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%m/%d/%Y', errors='coerce') # MM/DD/YYYY
-                except (ValueError, TypeError):
+                except (ValueError, pd.errors.ParserError, OverflowError):
                     try:
                         processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%Y-%m-%d', errors='coerce') # YYYY-MM-DD
-                    except (ValueError, TypeError) as final_error:
+                    except (ValueError, pd.errors.ParserError, OverflowError) as final_error:
                         self.logger.error(f"Could not parse Date column with known formats: {final_error}")
                         return False
 
@@ -575,7 +600,17 @@ class ObservedDataProcessor(ConfigMixin):
         except FileNotFoundError:
             self.logger.error(f"SNOTEL file not found at {snotel_file}")
             return False
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+        ) as e:
             self.logger.error(f"Error processing SNOTEL data: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -614,12 +649,26 @@ class ObservedDataProcessor(ConfigMixin):
             try:
                 # Try reading with standard format
                 caravans_data = pd.read_csv(input_file, sep=',', header=0)
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                pd.errors.EmptyDataError,
+                pd.errors.ParserError,
+                UnicodeDecodeError,
+            ) as e:
                 self.logger.warning(f"Standard parsing failed: {e}. Trying alternative format...")
                 try:
                     # Try with flexible parsing (handles multiple delimiters)
                     caravans_data = pd.read_csv(input_file, sep=r'[,\s]+', engine='python', header=0)
-                except Exception as e2:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    pd.errors.EmptyDataError,
+                    pd.errors.ParserError,
+                    UnicodeDecodeError,
+                ) as e2:
                     self.logger.error(f"Alternative parsing also failed: {e2}")
                     raise DataAcquisitionError(f"Could not parse CARAVANS data file: {input_file}")
 
@@ -654,7 +703,7 @@ class ObservedDataProcessor(ConfigMixin):
             try:
                 # Try parsing with common formats, prioritizing European format if applicable
                 caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], dayfirst=True, errors='coerce')
-            except Exception as e:
+            except (ValueError, pd.errors.ParserError, OverflowError) as e:
                 self.logger.warning(f"Date parsing with dayfirst=True failed: {e}. Trying without.")
                 caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], errors='coerce')
 
@@ -776,7 +825,14 @@ class ObservedDataProcessor(ConfigMixin):
                 except FileNotFoundError as fnf_e:
                     self.logger.error(f"Shapefile not found: {fnf_e}. Cannot convert mm/d to m³/s.")
                     raise DataAcquisitionError("Shapefile not found for basin area calculation.") from fnf_e
-                except Exception as basin_error:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    RuntimeError,
+                ) as basin_error:
                     self.logger.error(f"Error determining basin area or converting units: {basin_error}")
                     self.logger.warning("Falling back to assuming discharge is already in m³/s.")
                     caravans_data['discharge_cms'] = caravans_data['discharge_value'] # Assume it's already m³/s
@@ -796,7 +852,7 @@ class ObservedDataProcessor(ConfigMixin):
                 # Try a last-resort conversion
                 try:
                     caravans_data.index = pd.to_datetime(caravans_data.index)
-                except Exception as idx_e:
+                except (ValueError, pd.errors.ParserError, OverflowError) as idx_e:
                     self.logger.error(f"Final attempt to convert index to datetime failed: {idx_e}")
                     raise DataAcquisitionError("Failed to create a valid DatetimeIndex.")
 
@@ -815,7 +871,17 @@ class ObservedDataProcessor(ConfigMixin):
             self.logger.error(f"CARAVANS input file not found at {input_file}")
         except DataAcquisitionError as dae:
             self.logger.error(f"Data Acquisition Error during CARAVANS processing: {dae}")
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+        ) as e:
             self.logger.error(f"Error processing CARAVANS data: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -889,7 +955,17 @@ class ObservedDataProcessor(ConfigMixin):
 
         except FileNotFoundError:
             self.logger.error(f"WSC raw data file not found at {file_path}")
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+        ) as e:
             self.logger.error(f"Error processing local WSC data: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -939,5 +1015,5 @@ class ObservedDataProcessor(ConfigMixin):
 
         except IOError as e:
             self.logger.error(f"Failed to write processed data to {output_file}: {e}")
-        except Exception as e:
+        except (csv.Error, ValueError, TypeError, AttributeError) as e:
             self.logger.error(f"An unexpected error occurred during file writing: {e}")

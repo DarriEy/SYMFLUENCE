@@ -105,7 +105,15 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                     )
                     if product_file and product_file.exists():
                         product_files[product] = product_file
-                except Exception as e:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    RuntimeError,
+                    requests.RequestException,
+                ) as e:
                     self.logger.warning(f"Failed to download {product} via AppEEARS: {e}")
         else:
             # Default: earthaccess/CMR mode (faster)
@@ -131,7 +139,15 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                         if product_file and product_file.exists():
                             product_files[product] = product_file
 
-                except Exception as e:
+                except (
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    AttributeError,
+                    RuntimeError,
+                    requests.RequestException,
+                ) as e:
                     self.logger.warning(f"Failed to download {product} via earthaccess: {e}")
                     # Try AppEEARS as fallback
                     self.logger.info(f"Trying AppEEARS fallback for {product}")
@@ -141,7 +157,15 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                         )
                         if product_file and product_file.exists():
                             product_files[product] = product_file
-                    except Exception as e2:
+                    except (
+                        OSError,
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        AttributeError,
+                        RuntimeError,
+                        requests.RequestException,
+                    ) as e2:
                         self.logger.warning(f"AppEEARS fallback also failed: {e2}")
 
         if not product_files:
@@ -212,7 +236,15 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
 
                 ds.close()
 
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 self.logger.debug(f"Error processing {hdf_path.name}: {e}")
                 continue
 
@@ -270,7 +302,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError) as e:
             self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
@@ -282,7 +314,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30
             )
-        except Exception:
+        except (requests.RequestException, OSError, ValueError, TypeError):
             pass
 
     def _wait_for_task(self, token: str, task_id: str, timeout_hours: float = 6) -> bool:
@@ -310,7 +342,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                     return False
 
                 time.sleep(30)
-            except Exception as e:
+            except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
                 self.logger.warning(f"Error checking task: {e}")
                 time.sleep(30)
 
@@ -350,7 +382,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                     for chunk in dl_response.iter_content(chunk_size=1024*1024):
                         f.write(chunk)
                 downloaded.append(out_path)
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
             self.logger.error(f"Download failed: {e}")
         return downloaded
 
@@ -369,7 +401,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
             merged.to_netcdf(output_file)
             for ds in datasets:
                 ds.close()
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
             self.logger.error(f"Consolidation failed: {e}")
             if nc_files:
                 shutil.copy(nc_files[0], output_file)
@@ -532,7 +564,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
             task_id = result.get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 self.logger.error(f"Response: {e.response.text[:500]}")
@@ -582,7 +614,7 @@ class MODISSCAAcquirer(BaseEarthaccessAcquirer):
                 if sca_var:
                     datasets[product] = ds
                     sca_vars[product] = sca_var
-            except Exception as e:
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
                 self.logger.warning(f"Failed to open {path}: {e}")
 
         if not datasets:

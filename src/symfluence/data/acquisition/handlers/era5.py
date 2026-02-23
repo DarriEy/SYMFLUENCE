@@ -124,7 +124,16 @@ class ERA5Acquirer(BaseAcquisitionHandler):
             self.logger.info("Using CDS pathway for ERA5")
             try:
                 return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
-            except Exception as e:
+            except (
+                ImportError,
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                RuntimeError,
+                PermissionError,
+                DataAcquisitionError,
+            ) as e:
                 self.logger.warning(f"CDS pathway failed: {e}. Falling back to ARCO if possible.")
 
         self.logger.info("Using ARCO (Google Cloud) pathway for ERA5")
@@ -494,9 +503,8 @@ def _process_era5_chunk_threadsafe(
         return idx, None, f"file I/O error: {e}"
     except MemoryError as e:
         return idx, None, f"memory error (chunk may be too large): {e}"
-    except Exception as e:
-        # Log unexpected errors with full type information for debugging
-        return idx, None, f"unexpected error ({type(e).__name__}): {e}"
+    except (TypeError, AttributeError, IndexError) as e:
+        return idx, None, f"chunk processing type/index error: {e}"
 
 
 def _prepare_bbox_for_era5(ds: xr.Dataset, bbox: Dict[str, float], logger: logging.Logger) -> Dict[str, float]:

@@ -81,7 +81,15 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
         # Create a thread-local CDS client
         try:
             c = cdsapi.Client()
-        except Exception as e:
+        except (
+            ImportError,
+            OSError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+            AttributeError,
+            PermissionError,
+        ) as e:
             self.logger.error(f"Failed to initialize CDS client: {e}")
             self.logger.error("Ensure ~/.cdsapirc exists or CDSAPI_URL/CDSAPI_KEY env vars are set.")
             raise

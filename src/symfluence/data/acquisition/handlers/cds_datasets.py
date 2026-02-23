@@ -96,28 +96,24 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
                 for future in concurrent.futures.as_completed(future_to_ym):
                     year, month = future_to_ym[future]
-                    try:
-                        chunk_path = future.result()
-                        if chunk_path:
-                            chunk_files.append(chunk_path)
-                            logging.info(f"Completed processing for {year}-{month:02d}")
-                    except Exception as exc:
-                        logging.error(f"Processing for {year}-{month:02d} generated an exception: {exc}")
+                    chunk_exc = future.exception()
+                    if chunk_exc is not None:
+                        logging.error(f"Processing for {year}-{month:02d} generated an exception: {chunk_exc}")
                         # Cancel remaining and raise
                         executor.shutdown(wait=False, cancel_futures=True)
-                        raise exc
+                        raise chunk_exc
+                    chunk_path = future.result()
+                    if chunk_path:
+                        chunk_files.append(chunk_path)
+                        logging.info(f"Completed processing for {year}-{month:02d}")
         else:
             # Serial processing for macOS to avoid HDF5/netCDF4 thread-safety issues
             logging.info(f"Starting serial download for {len(ym_range)} months (parallel disabled on macOS)...")
             for year, month in ym_range:
-                try:
-                    chunk_path = self._download_and_process_month(year, month, output_dir)
-                    if chunk_path:
-                        chunk_files.append(chunk_path)
-                        logging.info(f"Completed processing for {year}-{month:02d}")
-                except Exception as exc:
-                    logging.error(f"Processing for {year}-{month:02d} generated an exception: {exc}")
-                    raise exc
+                chunk_path = self._download_and_process_month(year, month, output_dir)
+                if chunk_path:
+                    chunk_files.append(chunk_path)
+                    logging.info(f"Completed processing for {year}-{month:02d}")
 
         # Merge all monthly chunks
         chunk_files.sort()
@@ -159,10 +155,6 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
             # Validate that all required variables are present
             self._validate_required_variables(final_f)
-
-        except Exception as e:
-            logging.error(f"Error during merge: {e}")
-            raise e
         finally:
             # Cleanup processed chunks (only if they still exist)
             for f in chunk_files:
@@ -304,6 +296,8 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                 client.retrieve(dataset_name, request, target_path)
                 return  # Success
             except Exception as e:
+                # cdsapi surfaces API failures as plain `Exception`, so this catch
+                # remains intentionally broad to preserve retry behavior.
                 error_msg = str(e)
 
                 # Check if it's a 403 error
@@ -572,7 +566,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                 if "time" not in ds:
                     return 0
                 return len(ds["time"])
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as exc:
             logging.warning(f"Failed to read time dimension from {dataset_path}: {exc}")
             return 0
 
@@ -764,7 +758,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             median_seconds = float(np.median(diffs) / np.timedelta64(1, 's'))
             logging.debug(f"Detected temporal resolution: {median_seconds} seconds ({median_seconds/3600:.1f} hours)")
             return median_seconds
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError, OSError) as e:
             logging.warning(f"Failed to detect temporal resolution: {e}")
             return None
 

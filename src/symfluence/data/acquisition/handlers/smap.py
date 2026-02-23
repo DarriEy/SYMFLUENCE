@@ -57,7 +57,16 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                 result = self._download_via_earthaccess_streaming(output_dir)
                 if result is not None:
                     return result
-            except Exception as e:
+            except (
+                ImportError,
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                RuntimeError,
+                PermissionError,
+                requests.RequestException,
+            ) as e:
                 self.logger.warning(f"earthaccess streaming failed: {e}, falling back to THREDDS")
 
         # Fall back to THREDDS NCSS
@@ -138,7 +147,15 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
                 self.logger.info(f"Successfully downloaded SMAP data to {out_nc}")
                 return out_nc
-            except Exception as e:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                RuntimeError,
+                PermissionError,
+                requests.RequestException,
+            ) as e:
                 last_error = e
 
         self.logger.warning(f"SMAP THREDDS acquisition failed: {last_error}")
@@ -164,7 +181,14 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         # Authenticate
         try:
             earthaccess.login()
-        except Exception as e:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+            PermissionError,
+            requests.RequestException,
+        ) as e:
             self.logger.warning(f"earthaccess authentication failed: {e}")
             return None
 
@@ -270,10 +294,19 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                     # Close file handle
                     try:
                         files[0].close()
-                    except Exception:
+                    except (AttributeError, OSError, ValueError):
                         pass
 
-            except Exception:
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+                AttributeError,
+                RuntimeError,
+                requests.RequestException,
+            ):
                 # Some granules may not cover our area
                 continue
 
@@ -424,7 +457,17 @@ class SMAPAcquirer(BaseAcquisitionHandler):
             session = setup_session(user, password, check_url=url)
             dap_url = url.replace("https://", "dap4://")
             dataset = open_url(dap_url, session=session)
-        except Exception as exc:
+        except (
+            ImportError,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+            PermissionError,
+            requests.RequestException,
+        ) as exc:
             if "Access denied" in str(exc):
                 self.logger.warning(
                     "OPeNDAP access denied; check ~/.netrc or Earthdata login"
@@ -493,7 +536,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                 if time_units:
                     try:
                         time_val = nc.num2date(time_val, time_units, calendar=time_calendar)
-                    except Exception as e:
+                    except (ValueError, TypeError, OverflowError, OSError) as e:
                         self.logger.debug(f"Could not convert time value {time_val} with units '{time_units}': {e}")
                 for sm_name, data in data_vars.items():
                     data_vars[sm_name] = np.expand_dims(data, axis=0)

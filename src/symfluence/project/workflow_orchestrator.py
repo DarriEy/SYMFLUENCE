@@ -12,6 +12,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from symfluence.core.config.coercion import ensure_config
+from symfluence.core.exceptions import SYMFLUENCEError
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.provenance import record_step
@@ -442,7 +443,7 @@ class WorkflowOrchestrator(ConfigMixin):
                     skipped_steps += 1
                     record_step(self.provenance, step_name, 0.0, status="skipped")
 
-            except Exception as e:
+            except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 # Log failure
                 if self.logging_manager:
                     self.logging_manager.log_completion(
@@ -462,6 +463,21 @@ class WorkflowOrchestrator(ConfigMixin):
                     raise
                 else:
                     self.logger.warning("Continuing despite error (STOP_ON_ERROR=False)")
+            except Exception as e:
+                if self.logging_manager:
+                    self.logging_manager.log_completion(
+                        success=False,
+                        message=f"{step.description}: Unexpected error: {str(e)}"
+                    )
+                self.logger.exception(f"Unexpected failure in workflow step '{step_name}'")
+
+                failed_steps += 1
+                record_step(self.provenance, step_name, 0.0, status="failed", error=str(e))
+
+                if self.config.system.stop_on_error:
+                    self.logger.error("Workflow stopped due to unexpected error (STOP_ON_ERROR=True)")
+                    raise
+                self.logger.warning("Continuing despite unexpected error (STOP_ON_ERROR=False)")
 
         # Summary report
         end_time = datetime.now()
@@ -571,11 +587,22 @@ class WorkflowOrchestrator(ConfigMixin):
                 results.append({"cli": cli_name, "fn": step.name, "success": True, "duration": duration})
                 record_step(self.provenance, step.name, duration)
 
-            except Exception as e:
+            except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 self.logger.error(f"Step '{cli_name}' failed: {e}")
 
                 if self.logging_manager:
                     self.logging_manager.log_completion(False, f"{step.description}: {str(e)}")
+
+                results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
+                record_step(self.provenance, step.name, 0.0, status="failed", error=str(e))
+
+                if not continue_on_error:
+                    raise
+            except Exception as e:
+                self.logger.exception(f"Unexpected failure in step '{cli_name}'")
+
+                if self.logging_manager:
+                    self.logging_manager.log_completion(False, f"{step.description}: Unexpected error: {str(e)}")
 
                 results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
                 record_step(self.provenance, step.name, 0.0, status="failed", error=str(e))

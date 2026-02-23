@@ -63,7 +63,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
                     if auth:
                         self.logger.debug(f"Using Earthdata credentials from ~/.netrc ({host})")
                         return auth[0], auth[2]
-        except Exception as e:
+        except (ImportError, OSError, ValueError, TypeError, AttributeError) as e:
             self.logger.debug(f"Could not read .netrc: {e}")
 
         # 2. Try environment variables
@@ -103,7 +103,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
             return response.json().get('token')
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError) as e:
             self.logger.error(f"AppEEARS login failed: {e}")
             return None
 
@@ -165,7 +165,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
 
                 time.sleep(poll_interval)
 
-            except Exception as e:
+            except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
                 self.logger.warning(f"Error checking task status: {e}")
                 time.sleep(poll_interval)
 
@@ -235,7 +235,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
 
                 downloaded_files.append(out_path)
 
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
             self.logger.error(f"Failed to download task results: {e}")
             raise
 
@@ -276,7 +276,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
                 ds.close()
 
             self.logger.info(f"Consolidated {len(nc_files)} files into {output_file}")
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
             self.logger.error(f"Failed to consolidate files: {e}")
             # Fall back to using first file
             if nc_files:
@@ -391,7 +391,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
             task_id = result.get('task_id')
             self.logger.info(f"Submitted AppEEARS task: {task_id}")
             return task_id
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
             self.logger.error(f"Failed to submit AppEEARS task: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 self.logger.error(f"Response: {e.response.text[:500]}")

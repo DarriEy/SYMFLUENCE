@@ -88,7 +88,17 @@ class MetricsProcessor:
         try:
             metrics = calculate_metrics(obs_aligned.values, sim_aligned.values)
             return metrics
-        except Exception as e:
+        except (
+            ValueError,
+            TypeError,
+            RuntimeError,
+            FloatingPointError,
+            ZeroDivisionError,
+            OverflowError,
+            KeyError,
+            IndexError,
+            AttributeError,
+        ) as e:
             self.logger.error(f"Error calculating metrics: {str(e)}")
             return self._empty_metrics()
 
@@ -184,7 +194,17 @@ class MetricsProcessor:
                     spinup_percent=spinup_percent
                 )
                 results[model_name] = metrics
-            except Exception as e:
+            except (
+                ValueError,
+                TypeError,
+                RuntimeError,
+                FloatingPointError,
+                ZeroDivisionError,
+                OverflowError,
+                KeyError,
+                IndexError,
+                AttributeError,
+            ) as e:
                 self.logger.error(f"Error calculating metrics for {model_name}: {str(e)}")
                 results[model_name] = self._empty_metrics()
 

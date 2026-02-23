@@ -87,7 +87,19 @@ class DataProcessor(ConfigMixin):
                 obs_data.append((obs_name, series))
                 self.logger.info(f"Loaded observation: {obs_name} ({len(series)} timesteps)")
 
-            except Exception as e:
+            except (
+                FileNotFoundError,
+                OSError,
+                KeyError,
+                ValueError,
+                TypeError,
+                pd.errors.EmptyDataError,
+                pd.errors.ParserError,
+                UnicodeDecodeError,
+                RuntimeError,
+                AttributeError,
+                IndexError,
+            ) as e:
                 self.logger.warning(f"Could not read observation file {obs_file}: {str(e)}")
                 continue
 
@@ -147,7 +159,16 @@ class DataProcessor(ConfigMixin):
                 sim_data.append((sim_name, runoff_series))
                 self.logger.info(f"Loaded simulation: {sim_name} ({len(runoff_series)} timesteps)")
 
-            except Exception as e:
+            except (
+                FileNotFoundError,
+                OSError,
+                KeyError,
+                ValueError,
+                TypeError,
+                RuntimeError,
+                AttributeError,
+                IndexError,
+            ) as e:
                 self.logger.warning(f"Could not read simulation file {sim_file}: {str(e)}")
                 continue
 
@@ -205,7 +226,16 @@ class DataProcessor(ConfigMixin):
             self.logger.info(f"Loaded distributed model output ({len(series)} timesteps)")
             return cast(pd.Series, series)
 
-        except Exception as e:
+        except (
+            FileNotFoundError,
+            OSError,
+            KeyError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+            AttributeError,
+            IndexError,
+        ) as e:
             self.logger.error(f"Could not read distributed model file {model_file}: {str(e)}")
             return None
 
@@ -248,7 +278,16 @@ class DataProcessor(ConfigMixin):
             self.logger.info(f"Loaded snow data ({len(series)} timesteps)")
             return cast(pd.Series, series)
 
-        except Exception as e:
+        except (
+            FileNotFoundError,
+            OSError,
+            KeyError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+            AttributeError,
+            IndexError,
+        ) as e:
             self.logger.error(f"Could not read snow file {snow_file}: {str(e)}")
             return None
 
@@ -372,7 +411,7 @@ class DataProcessor(ConfigMixin):
                 # Try to convert the unnamed index to datetime
                 try:
                     sim_df.index = pd.to_datetime(sim_df.index)
-                except (ValueError, TypeError):
+                except (ValueError, pd.errors.ParserError, OverflowError):
                     raise ValueError("Index cannot be converted to datetime format")
             else:
                 raise ValueError("No time or datetime column found in results file")
@@ -423,6 +462,18 @@ class DataProcessor(ConfigMixin):
             self.logger.info(f"Data period: {results_df.index[0]} to {results_df.index[-1]}")
             return results_df
 
-        except Exception as e:
+        except (
+            FileNotFoundError,
+            OSError,
+            KeyError,
+            ValueError,
+            TypeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+            RuntimeError,
+            AttributeError,
+            IndexError,
+        ) as e:
             self.logger.error(f"Error reading results: {str(e)}")
             raise

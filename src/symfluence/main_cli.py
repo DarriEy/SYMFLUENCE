@@ -22,6 +22,8 @@ def main():
     """
     import sys
 
+    from symfluence.core.exceptions import SYMFLUENCEError
+
     # Windows consoles default to cp1252 which cannot encode Rich's Unicode
     # box-drawing and emoji characters.  Reconfigure to UTF-8 so output
     # renders correctly in modern terminals (Windows Terminal, VS Code, etc.).
@@ -48,8 +50,11 @@ def main():
     except KeyboardInterrupt:
         print("\n⚠️  Interrupted by user", file=sys.stderr)
         return 130
-    except Exception as e:
+    except (SYMFLUENCEError, FileNotFoundError, ValueError) as e:
         print(f"❌ Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return 1
 
 if __name__ == "__main__":

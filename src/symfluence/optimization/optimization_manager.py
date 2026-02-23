@@ -518,8 +518,10 @@ class OptimizationManager(BaseManager):
                             obs_vs_sim=None,  # Would need to load from model outputs
                             model_name=model_name
                         )
-                    except Exception as e:
+                    except (OSError, FileNotFoundError, KeyError, ValueError, TypeError, RuntimeError) as e:
                         self.logger.debug(f"Could not generate calibration diagnostics: {e}")
+                    except Exception as e:
+                        self.logger.exception(f"Unexpected calibration diagnostics failure: {e}")
 
                 return results_file
             else:
