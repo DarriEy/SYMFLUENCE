@@ -16,6 +16,7 @@ from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor
 from symfluence.models.mixins import SpatialModeDetectionMixin
+from symfluence.models.spatial_modes import SpatialMode
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.constants import UnitConversion, UnitDetectionThresholds
 
@@ -104,7 +105,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
         self.create_directories()
 
         # Prepare forcing data (will raise exceptions on failure)
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             self._prepare_lumped_forcing()
         else:
             self._prepare_distributed_forcing()
@@ -907,7 +908,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type
             Tuple of (forcing_dict, observations)
             forcing_dict contains 'precip', 'temp', 'pet' arrays
         """
-        if self.spatial_mode == 'distributed':
+        if self.spatial_mode == SpatialMode.DISTRIBUTED:
             forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed_{self.timestep_hours}h.nc"
         else:
             forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.nc"

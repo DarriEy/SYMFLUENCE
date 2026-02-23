@@ -18,6 +18,7 @@ from symfluence.core.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
+from ..spatial_modes import SpatialMode
 from ..utilities import ForcingDataProcessor
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
@@ -172,14 +173,14 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             ds = ds_variable_handler
 
             # Handle spatial organization based on mode
-            if self.spatial_mode == 'lumped':
+            if self.spatial_mode == SpatialMode.LUMPED:
 
                 self.logger.info("Preparing lumped forcing data")
                 # Apply area-weighted aggregation if HRU dimension exists
                 if 'hru' in ds.dims:
                     ds = self._apply_area_weighted_aggregation(ds)
                 return self._prepare_lumped_forcing(ds)
-            elif self.spatial_mode == 'distributed':
+            elif self.spatial_mode == SpatialMode.DISTRIBUTED:
                 self.logger.info("Preparing distributed forcing data")
                 return self._prepare_distributed_forcing(ds)
             else:

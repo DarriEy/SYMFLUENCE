@@ -46,9 +46,7 @@ class MODFLOWPreProcessor:
             self.experiment_id = 'default'
 
         # PROJECT_DIR is a derived path — check dict sources first, then compute
-        _dict = getattr(config, '_config_dict', None)
-        if not _dict and hasattr(config, 'to_dict'):
-            _dict = config.to_dict()
+        _dict = config.to_dict(flatten=True) if hasattr(config, 'to_dict') else (config if isinstance(config, dict) else {})
         project_dir = (_dict or {}).get('PROJECT_DIR')
         if not project_dir or project_dir == '.':
             try:

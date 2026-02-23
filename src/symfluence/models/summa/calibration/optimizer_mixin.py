@@ -311,28 +311,22 @@ class SUMMAOptimizerMixin:
         )
         return sim_start, sim_end
 
+    # Map of legacy config dict keys to typed config accessor lambdas
+    _TYPED_CONFIG_MAP = {
+        'CALIBRATION_PERIOD': lambda c: c.domain.calibration_period,
+        'SPINUP_PERIOD': lambda c: c.domain.spinup_period,
+        'FORCING_TIME_STEP_SIZE': lambda c: c.forcing.time_step_size,
+        'EXPERIMENT_TIME_START': lambda c: str(c.domain.time_start) if c.domain.time_start else None,
+        'EXPERIMENT_TIME_END': lambda c: str(c.domain.time_end) if c.domain.time_end else None,
+        'SETTINGS_SUMMA_FILEMANAGER': lambda c: c.model.summa.filemanager,
+    }
+
     def _get_config_value_safe(self, key: str, default: Any) -> Any:
         """Safely get config value with fallback."""
-        if hasattr(self, '_config') and self._config is not None:
-            try:
-                # Try typed config access based on key
-                if key == 'CALIBRATION_PERIOD':
-                    return self._config.domain.calibration_period or default
-                elif key == 'SPINUP_PERIOD':
-                    return self._config.domain.spinup_period or default
-                elif key == 'FORCING_TIME_STEP_SIZE':
-                    return self._config.forcing.time_step_size or default
-                elif key == 'EXPERIMENT_TIME_START':
-                    return str(self._config.domain.time_start) if self._config.domain.time_start else default
-                elif key == 'EXPERIMENT_TIME_END':
-                    return str(self._config.domain.time_end) if self._config.domain.time_end else default
-                elif key == 'SETTINGS_SUMMA_FILEMANAGER':
-                    return self._config.model.summa.filemanager or default
-            except (AttributeError, TypeError):
-                pass
-        # Fallback to dict access
+        accessor_fn = self._TYPED_CONFIG_MAP.get(key)
+        typed_accessor = (lambda: accessor_fn(self._config)) if accessor_fn and hasattr(self, '_config') and self._config is not None else (lambda: None)
         if hasattr(self, '_get_config_value'):
-            return self._get_config_value(lambda: None, default=default, dict_key=key)
+            return self._get_config_value(typed_accessor, default=default, dict_key=key)
         return self.config_dict.get(key, default)
 
     def _adjust_end_time_for_forcing_internal(self, end_time_str: str) -> str:

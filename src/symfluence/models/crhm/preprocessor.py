@@ -17,6 +17,7 @@ import geopandas as gpd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
 
 
 logger = logging.getLogger(__name__)
@@ -611,7 +612,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # -- Header -----------------------------------------------------------
         lines.append(
             f"CRHM Project - {self.domain_name} "
-            f"{'lumped' if self.spatial_mode == 'lumped' else self.spatial_mode}"
+            f"{'lumped' if self.spatial_mode == SpatialMode.LUMPED else self.spatial_mode}"
             f" - SYMFLUENCE"
         )
         lines.append("###### Version NON DLL 4.02")

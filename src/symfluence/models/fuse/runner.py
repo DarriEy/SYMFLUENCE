@@ -20,6 +20,7 @@ from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..execution import SpatialOrchestrator
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..registry import ModelRegistry
+from ..spatial_modes import SpatialMode
 from .subcatchment_processor import SubcatchmentProcessor
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -310,13 +311,13 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 routing_integration = 'mizuRoute'
 
         if routing_integration == 'mizuRoute':
-            if self.spatial_mode in ['semi_distributed', 'distributed']:
+            if self.spatial_mode in (SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED):
                 return True
             routing_delineation = self._get_config_value(
                 lambda: self.config.domain.delineation.routing if self.config.domain and self.config.domain.delineation else None,
                 default=None
             )
-            if self.spatial_mode == 'lumped' and routing_delineation == 'river_network':
+            if self.spatial_mode == SpatialMode.LUMPED and routing_delineation == 'river_network':
                 return True
 
         return False
@@ -342,7 +343,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             )
             return False
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             # Original lumped workflow
             return self._run_lumped_fuse()
         else:

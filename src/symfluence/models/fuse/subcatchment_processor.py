@@ -23,6 +23,7 @@ import xarray as xr
 
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.config import ConfigMixin
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SubcatchmentProcessor:
+class SubcatchmentProcessor(ConfigMixin):
     """
     Processes FUSE subcatchments for distributed model execution.
 
@@ -77,8 +78,8 @@ class SubcatchmentProcessor:
         self.project_dir = project_dir
         self.domain_name = domain_name
         self.experiment_id = experiment_id
-        self.config_dict = config_dict
-        self._config = config  # Typed config (optional)
+        self._config = config
+        self._config_dict_override = config_dict
         self.setup_dir = setup_dir
         self.output_path = output_path
         self.fuse_exe = fuse_exe
@@ -86,26 +87,6 @@ class SubcatchmentProcessor:
 
         # Derived paths
         self.forcing_fuse_path = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
-
-    def _get_config_value(self, typed_accessor, dict_key: str, default: Any = None) -> Any:
-        """Get config value with typed config fallback to dict.
-
-        Args:
-            typed_accessor: Lambda that accesses the typed config value
-            dict_key: Key to use for dict fallback
-            default: Default value if not found
-
-        Returns:
-            Config value from typed config, dict, or default
-        """
-        if self._config is not None:
-            try:
-                value = typed_accessor()
-                if value is not None:
-                    return value
-            except (AttributeError, TypeError):
-                pass
-        return self.config_dict.get(dict_key, default)
 
     def load_subcatchment_info(self, catchment_name_col: str = 'default') -> np.ndarray:
         """
@@ -133,9 +114,9 @@ class SubcatchmentProcessor:
             # Use regular HRUs
             catchment_path = self._get_catchment_path()
             discretization = self._get_config_value(
-                lambda: self._config.domain.discretization if self._config else None,
-                'SUB_GRID_DISCRETIZATION',
-                'GRUs'
+                lambda: self.config.domain.discretization,
+                default='GRUs',
+                dict_key='SUB_GRID_DISCRETIZATION'
             )
 
             if catchment_name_col == 'default':
@@ -334,9 +315,9 @@ class SubcatchmentProcessor:
 
         # Extract data for this subcatchment based on coordinate system
         subcatchment_dim = self._get_config_value(
-            lambda: self._config.model.fuse.subcatchment_dim if self._config and self._config.model.fuse else None,
-            'FUSE_SUBCATCHMENT_DIM',
-            'longitude'
+            lambda: self.config.model.fuse.subcatchment_dim,
+            default='longitude',
+            dict_key='FUSE_SUBCATCHMENT_DIM'
         )
 
         try:
@@ -466,14 +447,14 @@ class SubcatchmentProcessor:
         # Get catchment centroid for coordinates
         catchment_path = self._get_catchment_path()
         discretization = self._get_config_value(
-            lambda: self._config.domain.discretization if self._config else None,
-            'SUB_GRID_DISCRETIZATION',
-            'GRUs'
+            lambda: self.config.domain.discretization,
+            default='GRUs',
+            dict_key='SUB_GRID_DISCRETIZATION'
         )
         catchment_name_col = self._get_config_value(
-            lambda: self._config.paths.catchment_name if self._config else None,
-            'CATCHMENT_SHP_NAME',
-            'default'
+            lambda: self.config.paths.catchment_name,
+            default='default',
+            dict_key='CATCHMENT_SHP_NAME'
         )
 
         if catchment_name_col == 'default':
@@ -694,9 +675,9 @@ class SubcatchmentProcessor:
             Path: Directory containing catchment shapefiles.
         """
         catchment_path = self._get_config_value(
-            lambda: self._config.paths.catchment if self._config else None,
-            'CATCHMENT_PATH',
-            'default'
+            lambda: self.config.paths.catchment,
+            default='default',
+            dict_key='CATCHMENT_PATH'
         )
         if catchment_path == 'default':
             return self.project_dir / 'shapefiles' / 'catchment'

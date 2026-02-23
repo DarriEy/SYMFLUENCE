@@ -334,6 +334,10 @@ class TimeWindowManager:
 
         # Try as dict key
         if isinstance(self.config, dict):
-            return self.config_dict.get(key, default)
+            return self.config.get(key, default)
+
+        # Try flattened typed config dict
+        if hasattr(self.config, 'to_dict'):
+            return self.config.to_dict(flatten=True).get(key, default)
 
         return default

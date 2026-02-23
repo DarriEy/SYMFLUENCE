@@ -19,6 +19,7 @@ from symfluence.models.execution import SpatialOrchestrator
 from symfluence.models.state import StateCapableMixin, StateFormat, StateMetadata, ModelState
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
+from symfluence.models.spatial_modes import SpatialMode
 from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
 from symfluence.models.hbv.time_utils import warmup_timesteps
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -250,12 +251,12 @@ class HBVRunner(  # type: ignore[misc]
         global_routing = self.routing_model
 
         if routing_integration and routing_integration.lower() == 'mizuroute':
-            if self.spatial_mode == 'distributed':
+            if self.spatial_mode == SpatialMode.DISTRIBUTED:
                 self.logger.info("HBV routing enabled via HBV_ROUTING_INTEGRATION: mizuRoute")
                 return True
 
         if global_routing and global_routing.lower() == 'mizuroute':
-            if self.spatial_mode == 'distributed':
+            if self.spatial_mode == SpatialMode.DISTRIBUTED:
                 self.logger.info("HBV routing auto-enabled: ROUTING_MODEL=mizuRoute with distributed mode")
                 return True
 
@@ -307,7 +308,7 @@ class HBVRunner(  # type: ignore[misc]
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
             # Execute model
-            if self.spatial_mode == 'lumped':
+            if self.spatial_mode == SpatialMode.LUMPED:
                 success = self._execute_lumped()
             else:
                 success = self._execute_distributed()

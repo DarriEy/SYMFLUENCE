@@ -16,6 +16,7 @@ import logging
 
 # Check for jFUSE availability using symfluence's detection
 from symfluence.models.jfuse import HAS_JFUSE as _HAS_JFUSE, HAS_JAX as _HAS_JAX
+from symfluence.models.spatial_modes import SpatialMode
 HAS_JFUSE = _HAS_JFUSE and _HAS_JAX
 
 if HAS_JFUSE:
@@ -291,7 +292,7 @@ class TestWorkerLumped:
 
         assert worker.model_config_name == 'prms'
         assert worker.warmup_days == 365
-        assert worker.spatial_mode == 'lumped'
+        assert worker.spatial_mode == SpatialMode.LUMPED
 
     def test_supports_native_gradients(self, sample_config, logger):
         """Test native gradient support detection."""
@@ -413,7 +414,7 @@ class TestWorkerDistributed:
         }
         worker = JFUSEWorker(config=config, logger=logging.getLogger('test'))
 
-        assert worker.spatial_mode == 'distributed'
+        assert worker.spatial_mode == SpatialMode.DISTRIBUTED
 
     def test_multi_hru_parameters(self):
         """Test multi-HRU parameter handling."""

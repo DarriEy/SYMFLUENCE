@@ -36,8 +36,8 @@ def _cfg_get(config: Union[Dict[str, Any], Any], key: str, default: Any = None) 
         except (AttributeError, KeyError, TypeError):
             pass
     # Fall back to config_dict if available
-    cd = getattr(config, '_config_dict', None) or getattr(config, 'config_dict', None)
-    if cd and isinstance(cd, dict):
+    cd = config.to_dict(flatten=True) if hasattr(config, 'to_dict') else (config if isinstance(config, dict) else {})
+    if cd:
         return cd.get(key, default)
     return default
 

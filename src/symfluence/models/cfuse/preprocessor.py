@@ -15,6 +15,7 @@ import xarray as xr
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor
+from symfluence.models.spatial_modes import SpatialMode
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.constants import UnitConversion
 
@@ -111,7 +112,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
         self.create_directories()
 
         # Prepare forcing data
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             success = self._prepare_lumped_forcing()
         else:
             success = self._prepare_distributed_forcing()
@@ -690,7 +691,7 @@ class CFUSEPreProcessor(BaseModelPreProcessor):
             Tuple of (forcing_dict, observations)
             forcing_dict contains 'precip', 'temp', 'pet' arrays
         """
-        if self.spatial_mode == 'distributed':
+        if self.spatial_mode == SpatialMode.DISTRIBUTED:
             forcing_file = self.cfuse_forcing_dir / f"{self.domain_name}_cfuse_forcing_distributed.nc"
         else:
             forcing_file = self.cfuse_forcing_dir / f"{self.domain_name}_cfuse_forcing.nc"

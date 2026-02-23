@@ -41,29 +41,7 @@ from symfluence.core.exceptions import (
     ModelExecutionError,
     GeospatialError
 )
-
-
-class SpatialMode(Enum):
-    """Spatial discretization modes for hydrological models."""
-    LUMPED = "lumped"
-    SEMI_DISTRIBUTED = "semi_distributed"
-    DISTRIBUTED = "distributed"
-
-    @classmethod
-    def from_string(cls, value: str) -> 'SpatialMode':
-        """Parse spatial mode from string, handling common variations."""
-        normalized = value.lower().replace('-', '_').replace(' ', '_')
-        mapping = {
-            'lumped': cls.LUMPED,
-            'point': cls.LUMPED,  # Treat point as lumped for model execution
-            'semi_distributed': cls.SEMI_DISTRIBUTED,
-            'semidistributed': cls.SEMI_DISTRIBUTED,
-            'distributed': cls.DISTRIBUTED,
-            'delineate': cls.DISTRIBUTED,
-        }
-        if normalized not in mapping:
-            raise ValueError(f"Unknown spatial mode: {value}. Valid: {list(mapping.keys())}")
-        return mapping[normalized]
+from symfluence.models.spatial_modes import SpatialMode
 
 
 class RoutingModel(Enum):
@@ -612,7 +590,7 @@ class SpatialOrchestrator(ABC):
                 self._create_mizuroute_control_file(model_name)
 
             runner = MizuRouteRunner(
-                self.config_dict,
+                self.config,
                 self.logger
             )
             result = runner.run_mizuroute()
@@ -643,9 +621,8 @@ class SpatialOrchestrator(ABC):
         try:
             from symfluence.models.mizuroute import MizuRoutePreProcessor
 
-            # Prefer config_dict as it likely contains runtime overrides (isolated paths)
             preprocessor = MizuRoutePreProcessor(
-                self.config_dict if hasattr(self, 'config_dict') and self.config_dict else self.config,
+                self.config,
                 self.logger
             )
 
@@ -683,7 +660,7 @@ class SpatialOrchestrator(ABC):
             from symfluence.models.troute import TrouteRunner
 
             runner = TrouteRunner(
-                self.config_dict,
+                self.config,
                 self.logger
             )
             result = runner.run_troute()
@@ -714,7 +691,7 @@ class SpatialOrchestrator(ABC):
             from symfluence.models.droute import DRouteRunner
 
             runner = DRouteRunner(
-                self.config_dict,
+                self.config,
                 self.logger
             )
             result = runner.run_droute()

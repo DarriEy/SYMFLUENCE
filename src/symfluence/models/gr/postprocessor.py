@@ -12,6 +12,7 @@ import xarray as xr
 
 from ..registry import ModelRegistry
 from ..base import BaseModelPostProcessor
+from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -66,7 +67,7 @@ class GRPostprocessor(BaseModelPostProcessor):
         try:
             self.logger.info(f"Extracting GR streamflow results ({self.spatial_mode} mode)")
 
-            if self.spatial_mode == 'lumped':
+            if self.spatial_mode == SpatialMode.LUMPED:
                 return self._extract_lumped_streamflow()
             else:  # distributed
                 return self._extract_distributed_streamflow()

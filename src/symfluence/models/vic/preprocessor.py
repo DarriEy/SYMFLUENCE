@@ -19,6 +19,7 @@ import geopandas as gpd
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
+from symfluence.models.spatial_modes import SpatialMode
 
 
 logger = logging.getLogger(__name__)
@@ -293,7 +294,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         props = self._get_catchment_properties()
 
-        if self.spatial_mode == 'lumped':
+        if self.spatial_mode == SpatialMode.LUMPED:
             # Single cell domain
             self._generate_lumped_domain(domain_path, props)
         else:
