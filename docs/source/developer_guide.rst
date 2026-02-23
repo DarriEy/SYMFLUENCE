@@ -54,7 +54,10 @@ SYMFLUENCE follows a modular, manager-based architecture with clear separation o
 Adding a New Hydrological Model
 --------------------------------
 
-SYMFLUENCE uses a registry-based plugin system that makes adding new models straightforward.
+SYMFLUENCE uses a unified registry system (``Registry[T]``) and a declarative
+``model_manifest()`` helper that makes adding new models straightforward.
+Models can be added **inside** the SYMFLUENCE source tree or as **external
+pip-installable plugins** — the registration API is the same.
 
 Step 1: Create Model Directory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -69,201 +72,111 @@ Create a new directory under ``src/symfluence/models/``:
    touch src/symfluence/models/mymodel/runner.py
    touch src/symfluence/models/mymodel/postprocessor.py
 
-Step 2: Implement Preprocessor
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 2: Implement Components
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create a preprocessor that inherits from ``BaseModelPreProcessor``:
+Create a preprocessor, runner, and postprocessor.  Each should inherit from
+the appropriate base class:
 
 .. code-block:: python
 
    # src/symfluence/models/mymodel/preprocessor.py
    from symfluence.models.base import BaseModelPreProcessor
-   from symfluence.models.registry import ModelRegistry
 
-   @ModelRegistry.register_preprocessor('MYMODEL')
    class MyModelPreProcessor(BaseModelPreProcessor):
-       \"\"\"
-       Preprocessor for MyModel.
-
-       Converts generic forcing data into MyModel-specific input format.
-       \"\"\"
 
        def _get_model_name(self) -> str:
            return "MYMODEL"
 
        def __init__(self, config, logger):
            super().__init__(config, logger)
-           # Initialize model-specific paths and settings
            self.model_input_dir = self.project_dir / 'forcing' / 'MYMODEL_input'
            self.model_input_dir.mkdir(parents=True, exist_ok=True)
 
        def run_preprocessing(self):
-           \"\"\"Main preprocessing entry point.\"\"\"
            self.logger.info("Starting MyModel preprocessing")
-
-           # 1. Load forcing data
            forcing_data = self.load_forcing_data()
-
-           # 2. Transform to model format
            model_input = self.transform_forcing(forcing_data)
-
-           # 3. Generate configuration files
            self.write_config_files()
-
-           # 4. Write model input files
            self.write_model_inputs(model_input)
-
-           self.logger.info("MyModel preprocessing complete")
-
-Step 3: Implement Runner
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Create a runner that executes the model:
 
 .. code-block:: python
 
    # src/symfluence/models/mymodel/runner.py
    from pathlib import Path
-   from symfluence.models.registry import ModelRegistry
 
-   @ModelRegistry.register_runner('MYMODEL', method_name='run_mymodel')
    class MyModelRunner:
-       \"\"\"Runner for MyModel execution.\"\"\"
 
        def __init__(self, config, logger, reporting_manager=None):
            self.config = config
            self.logger = logger
-           self.reporting_manager = reporting_manager
            self.project_dir = Path(config.root.data_dir) / "domain" / config.domain.name
 
        def run_mymodel(self):
-           \"\"\"Execute MyModel simulation.\"\"\"
-           self.logger.info("Running MyModel")
-
-           # Build command
+           import subprocess
            executable = self.get_executable_path()
            config_file = self.project_dir / 'settings' / 'MYMODEL' / 'config.txt'
-
-           cmd = [str(executable), str(config_file)]
-
-           # Execute
-           import subprocess
-           result = subprocess.run(cmd, capture_output=True, text=True)
-
+           result = subprocess.run(
+               [str(executable), str(config_file)],
+               capture_output=True, text=True,
+           )
            if result.returncode != 0:
-               self.logger.error(f"MyModel failed: {result.stderr}")
-               raise RuntimeError("MyModel execution failed")
+               raise RuntimeError(f"MyModel failed: {result.stderr}")
 
-           self.logger.info("MyModel execution complete")
+Step 3: Register with ``model_manifest()``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Step 4: Implement Postprocessor
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Create a postprocessor to extract results:
+In your model's ``__init__.py``, use the declarative ``model_manifest()`` to
+register all components in a single call:
 
 .. code-block:: python
 
-   # src/symfluence/models/mymodel/postprocessor.py
-   import pandas as pd
-   from pathlib import Path
-   from symfluence.models.registry import ModelRegistry
+   # src/symfluence/models/mymodel/__init__.py
+   from symfluence.core.registry import model_manifest
+   from .preprocessor import MyModelPreProcessor
+   from .runner import MyModelRunner
+   from .postprocessor import MyModelPostProcessor
 
-   @ModelRegistry.register_postprocessor('MYMODEL')
-   class MyModelPostProcessor:
-       \"\"\"Postprocessor for MyModel results extraction.\"\"\"
+   model_manifest(
+       "MYMODEL",
+       preprocessor=MyModelPreProcessor,
+       runner=MyModelRunner,
+       runner_method="run_mymodel",
+       postprocessor=MyModelPostProcessor,
+   )
 
-       def __init__(self, config, logger, reporting_manager=None):
-           self.config = config
-           self.logger = logger
-           self.reporting_manager = reporting_manager
-           self.project_dir = Path(config.root.data_dir) / "domain" / config.domain.name
+This single call registers the preprocessor, runner (with its method name),
+and postprocessor into ``R.preprocessors``, ``R.runners``, and
+``R.postprocessors`` respectively.  You can also pass ``config_adapter``,
+``result_extractor``, ``plotter``, ``optimizer``, and many more — see the
+``model_manifest()`` signature for the full list.
 
-       def extract_streamflow(self):
-           \"\"\"Extract streamflow from MyModel outputs.\"\"\"
-           self.logger.info("Extracting MyModel streamflow")
-
-           # Read model output
-           output_file = self.project_dir / 'simulations' / 'mymodel_output.csv'
-           df = pd.read_csv(output_file)
-
-           # Standardize format
-           results = pd.DataFrame({
-               'datetime': pd.to_datetime(df['time']),
-               'MYMODEL_discharge_cms': df['flow']
-           })
-           results.set_index('datetime', inplace=True)
-
-           # Save to standard location
-           results_file = self.project_dir / 'results' / f"{self.config.domain.experiment_id}_results.csv"
-           results.to_csv(results_file)
-
-           self.logger.info(f"Results saved to {results_file}")
-
-Step 5: Register Model
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Update ``src/symfluence/models/__init__.py`` to import your model:
+Alternatively, you can register components individually:
 
 .. code-block:: python
 
-   # Existing imports...
-   from . import summa
-   from . import fuse
-   from . import gr
-   from . import hype
-   from . import mymodel  # Add this line
+   from symfluence.core.registries import R
 
-   __all__ = ['summa', 'fuse', 'gr', 'hype', 'mymodel']
+   R.runners.add("MYMODEL", MyModelRunner, runner_method="run_mymodel")
 
-Step 6: Add Configuration Support
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Add model-specific configuration to ``src/symfluence/core/config/models.py``:
-
-.. code-block:: python
-
-   class MyModelConfig(BaseModel):
-       \"\"\"MyModel-specific configuration.\"\"\"
-       parameter_a: float = 1.0
-       parameter_b: float = 2.0
-       use_feature_x: bool = False
-
-   class ModelConfig(BaseModel):
-       \"\"\"Model configuration section.\"\"\"
-       hydrological_model: Optional[str] = None
-       summa: Optional[SummaConfig] = None
-       fuse: Optional[FuseConfig] = None
-       gr: Optional[GRConfig] = None
-       hype: Optional[HypeConfig] = None
-       mymodel: Optional[MyModelConfig] = None  # Add this
-
-Step 7: Test Your Model
+Step 4: Test Your Model
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create tests for your model:
-
-.. code-block:: bash
-
-   touch tests/unit/models/test_mymodel_preprocessor.py
-   touch tests/integration/models/test_mymodel_integration.py
-
-Example test:
-
 .. code-block:: python
 
-   # tests/unit/models/test_mymodel_preprocessor.py
-   import pytest
-   from symfluence.models.mymodel.preprocessor import MyModelPreProcessor
+   # tests/unit/models/test_mymodel.py
+   from symfluence.core.registries import R
 
-   def test_mymodel_preprocessor_initialization(mock_config, mock_logger):
-       preprocessor = MyModelPreProcessor(mock_config, mock_logger)
-       assert preprocessor._get_model_name() == "MYMODEL"
-       assert preprocessor.model_input_dir.exists()
+   def test_mymodel_registered():
+       assert "MYMODEL" in R.runners
+       assert "MYMODEL" in R.preprocessors
 
-Step 8: Documentation
+   def test_mymodel_validation():
+       result = R.validate_model("MYMODEL")
+       assert result["valid"] is True
+
+Step 5: Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
-
-Add your model to the documentation:
 
 1. Update ``docs/source/configuration.rst`` with model-specific parameters
 2. Add example configuration in ``src/symfluence/resources/config_templates/``
@@ -274,35 +187,39 @@ Add your model to the documentation:
 Extending Functionality
 -----------------------
 
+All extensions use the same ``R.*.add()`` API from the unified registry.
+
 Adding a New Optimization Algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Create algorithm class in ``src/symfluence/optimization/optimizers/``:
-
 .. code-block:: python
 
+   from symfluence.core.registries import R
    from .base_model_optimizer import BaseModelOptimizer
 
    class MyOptimizer(BaseModelOptimizer):
-       \"\"\"My custom optimization algorithm.\"\"\"
-
        def optimize(self):
-           \"\"\"Run optimization.\"\"\"
-           # Implementation
+           ...
 
-2. Register in ``src/symfluence/optimization/optimization_manager.py``
-
-3. Add configuration support
-
-4. Add tests
+   R.optimizers.add("MYMODEL", MyOptimizer)
 
 Adding a New Data Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Create handler in ``src/symfluence/data/acquisition/handlers/``
-2. Inherit from ``BaseDataHandler``
-3. Implement ``acquire()`` and ``validate()`` methods
-4. Register with ``AcquisitionService``
+.. code-block:: python
+
+   from symfluence.core.registries import R
+
+   R.acquisition_handlers.add("mydata", MyDataHandler)
+
+Adding a New Observation Handler
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from symfluence.core.registries import R
+
+   R.observation_handlers.add("my_sensor", MySensorHandler)
 
 Adding New Discretization Method
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -311,6 +228,136 @@ Adding New Discretization Method
 2. Follow existing patterns (elevation.py, radiation.py)
 3. Register in discretization core
 4. Add configuration parameters
+
+
+.. _plugins:
+
+External Plugins (pip-installable)
+-----------------------------------
+
+SYMFLUENCE supports **external plugins** that are discovered automatically
+via Python `entry points <https://packaging.python.org/en/latest/specifications/entry-points/>`_.
+This means anyone can publish a pip package that registers models, data
+handlers, calibration algorithms, or any other component — and it becomes
+available the moment the package is installed.  No changes to SYMFLUENCE
+itself are required.
+
+How it works
+~~~~~~~~~~~~
+
+At startup, SYMFLUENCE scans the ``symfluence.plugins`` entry-point group
+using ``importlib.metadata.entry_points()``.  Each entry point is expected
+to be a **zero-argument callable** (typically a function) that performs
+registrations using the standard ``R.*.add()`` or ``model_manifest()`` API.
+
+If a plugin raises an exception during loading, it is logged as a warning
+and skipped — it never crashes the framework.
+
+Writing a plugin
+~~~~~~~~~~~~~~~~
+
+1. **Create your package** with the component implementations:
+
+.. code-block:: text
+
+   symfluence-mymodel/
+   ├── pyproject.toml
+   └── symfluence_mymodel/
+       ├── __init__.py
+       ├── preprocessor.py
+       ├── runner.py
+       └── postprocessor.py
+
+2. **Write a ``register()`` function** that wires everything into the
+   registry:
+
+.. code-block:: python
+
+   # symfluence_mymodel/__init__.py
+   def register():
+       \"\"\"Called automatically by SYMFLUENCE on startup.\"\"\"
+       from symfluence.core.registry import model_manifest
+       from .preprocessor import MyModelPreProcessor
+       from .runner import MyModelRunner
+       from .postprocessor import MyModelPostProcessor
+
+       model_manifest(
+           "MYMODEL",
+           preprocessor=MyModelPreProcessor,
+           runner=MyModelRunner,
+           runner_method="run_mymodel",
+           postprocessor=MyModelPostProcessor,
+       )
+
+3. **Declare the entry point** in your ``pyproject.toml``:
+
+.. code-block:: toml
+
+   [project]
+   name = "symfluence-mymodel"
+   version = "0.1.0"
+   dependencies = ["symfluence"]
+
+   [project.entry-points."symfluence.plugins"]
+   mymodel = "symfluence_mymodel:register"
+
+4. **Install** the package:
+
+.. code-block:: bash
+
+   pip install symfluence-mymodel
+   # or during development:
+   pip install -e ./symfluence-mymodel
+
+That's it.  The next time SYMFLUENCE is imported, your model will be
+discovered and registered automatically:
+
+.. code-block:: python
+
+   from symfluence.core.registries import R
+
+   R.runners["MYMODEL"]       # your runner class
+   R.for_model("MYMODEL")     # all registered components
+   R.validate_model("MYMODEL")  # completeness check
+
+Plugin scope
+~~~~~~~~~~~~
+
+Plugins are not limited to models.  You can register **any** component type:
+
+.. code-block:: python
+
+   def register():
+       from symfluence.core.registries import R
+       from .handler import MyGRACEHandler
+       from .metric import my_custom_metric
+
+       # A new observation data handler
+       R.observation_handlers.add("grace_v2", MyGRACEHandler)
+
+       # A new evaluation metric
+       R.metrics.add("MyKGE", my_custom_metric)
+
+       # A new calibration objective
+       R.objectives.add("MULTI_OBJ", MyMultiObjective)
+
+Verifying a plugin
+~~~~~~~~~~~~~~~~~~
+
+After installation, verify that your components are discoverable:
+
+.. code-block:: python
+
+   from symfluence.core.registries import R
+
+   # List everything in a specific registry
+   print(R.runners.keys())
+
+   # Full model validation
+   print(R.validate_model("MYMODEL"))
+
+   # Summary of all registries
+   print(R.summary())
 
 ---
 

@@ -336,3 +336,97 @@ class TestEdgeCases:
         items = reg.items()
         import math
         assert items[0] == ("MATH_LOG", math.log)
+
+
+# ======================================================================
+# Plugin discovery (_discover_plugins)
+# ======================================================================
+
+
+class TestPluginDiscovery:
+    """Tests for entry-point–based plugin loading."""
+
+    def test_discover_calls_plugin(self, monkeypatch):
+        """A healthy plugin callable is invoked during discovery."""
+        from unittest.mock import MagicMock
+
+        from symfluence.core import _bootstrap
+
+        called = MagicMock()
+
+        # Fake entry point
+        class _FakeEP:
+            name = "fake_plugin"
+            value = "fake_package:register"
+
+            def load(self):
+                return called
+
+        monkeypatch.setattr(
+            _bootstrap,
+            "entry_points",
+            lambda group: [_FakeEP()],
+            raising=False,
+        )
+        # Patch at module level since _discover_plugins uses a local import
+        import importlib.metadata
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", lambda group: [_FakeEP()])
+        _bootstrap._discover_plugins()
+        called.assert_called_once()
+
+    def test_broken_plugin_does_not_raise(self, monkeypatch):
+        """A plugin that raises is logged and skipped, not propagated."""
+        from symfluence.core import _bootstrap
+
+        class _BrokenEP:
+            name = "broken_plugin"
+            value = "broken_package:register"
+
+            def load(self):
+                def boom():
+                    raise RuntimeError("plugin exploded")
+                return boom
+
+        import importlib.metadata
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", lambda group: [_BrokenEP()])
+        # Should not raise
+        _bootstrap._discover_plugins()
+
+    def test_no_plugins_is_fine(self, monkeypatch):
+        """No entry points registered — discovery is a no-op."""
+        import importlib.metadata
+
+        from symfluence.core import _bootstrap
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", lambda group: [])
+        _bootstrap._discover_plugins()  # should not raise
+
+    def test_plugin_can_register_into_R(self, monkeypatch):
+        """End-to-end: a plugin registers a class into R and it's discoverable."""
+        from symfluence.core import _bootstrap
+        from symfluence.core.registries import R
+
+        class _PluginRunner:
+            pass
+
+        def fake_register():
+            R.runners.add("PLUGIN_TEST_MODEL", _PluginRunner)
+
+        class _FakeEP:
+            name = "test_model_plugin"
+            value = "test_package:register"
+
+            def load(self):
+                return fake_register
+
+        import importlib.metadata
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", lambda group: [_FakeEP()])
+
+        _bootstrap._discover_plugins()
+
+        assert R.runners.get("PLUGIN_TEST_MODEL") is _PluginRunner
+        # Clean up
+        R.runners.remove("PLUGIN_TEST_MODEL")

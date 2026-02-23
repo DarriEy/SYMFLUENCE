@@ -189,61 +189,77 @@ Each major subsystem has a dedicated manager class that:
 Registry Pattern (Plugin System)
 --------------------------------
 
-The ``ModelRegistry`` enables extensible model architecture without modifying core code:
-
-**Registration via Decorators:**
-
-.. code-block:: python
-
-   from symfluence.models.registry import ModelRegistry
-
-   @ModelRegistry.register_preprocessor('MYMODEL')
-   class MyModelPreprocessor(BaseModelPreProcessor):
-       def run_preprocessing(self):
-           # Model-specific input preparation
-           pass
-
-   @ModelRegistry.register_runner('MYMODEL', method_name='run_mymodel')
-   class MyModelRunner(BaseModelRunner):
-       def run_mymodel(self):
-           # Execute model
-           pass
-
-   @ModelRegistry.register_postprocessor('MYMODEL')
-   class MyModelPostprocessor:
-       def extract_streamflow(self):
-           # Parse output files
-           pass
-
-**Component Discovery:**
+SYMFLUENCE uses a unified ``Registry[T]`` generic class as the single
+source of truth for all component registrations.  All registries are
+accessible through the ``Registries`` facade (aliased as ``R``):
 
 .. code-block:: python
 
-   # ModelManager queries registry
-   preprocessor_cls = ModelRegistry.get_preprocessor('SUMMA')
-   runner_cls = ModelRegistry.get_runner('SUMMA')
-   method_name = ModelRegistry.get_runner_method('SUMMA')  # 'run_summa'
+   from symfluence.core.registries import R
 
-   # Instantiate and execute
-   preprocessor = preprocessor_cls(config, logger)
-   preprocessor.run_preprocessing()
-
-**Registry Contents:**
+**Declarative model registration (``model_manifest``):**
 
 .. code-block:: python
 
-   ModelRegistry._preprocessors   # {model_name: class}
-   ModelRegistry._runners         # {model_name: class}
-   ModelRegistry._postprocessors  # {model_name: class}
-   ModelRegistry._visualizers     # {model_name: function}
-   ModelRegistry._runner_methods  # {model_name: 'run_method_name'}
+   # In a model's __init__.py
+   from symfluence.core.registry import model_manifest
+
+   model_manifest(
+       "MYMODEL",
+       preprocessor=MyModelPreprocessor,
+       runner=MyModelRunner,
+       runner_method="run_mymodel",
+       postprocessor=MyModelPostprocessor,
+       config_adapter=MyModelConfigAdapter,
+   )
+
+**Direct registration for individual components:**
+
+.. code-block:: python
+
+   R.observation_handlers.add("grace", GraceHandler)
+   R.objectives.add("NSE", NseObjective)
+   R.metrics.add("MyMetric", my_metric_fn)
+
+**Component discovery:**
+
+.. code-block:: python
+
+   runner_cls = R.runners["SUMMA"]
+   meta = R.runners.meta("SUMMA")        # e.g. {"runner_method": "run_summa"}
+   everything = R.for_model("SUMMA")     # all registries for one model
+   R.validate_model("SUMMA")             # completeness check
+
+**Registry features:**
+
+- UPPERCASE key normalization by default (lowercase for data registries)
+- Lazy imports via ``add_lazy()`` — class resolved on first access
+- Aliases via ``alias()`` — e.g. ``"SAC-SMA"`` → ``"SACSMA"``
+- Advisory protocol validation — warns on interface mismatch
+- Freeze/clear lifecycle for post-bootstrap safety
+- Decorator support: ``@R.runners.add("SUMMA")``
+
+**External plugin discovery via pip:**
+
+External packages can register components by declaring a
+``symfluence.plugins`` entry point.  SYMFLUENCE discovers these
+automatically at startup via ``importlib.metadata``:
+
+.. code-block:: toml
+
+   # In an external package's pyproject.toml
+   [project.entry-points."symfluence.plugins"]
+   my_model = "my_package:register"
+
+See :ref:`plugins` in the Developer Guide for full details.
 
 **Benefits:**
 
-- Loose coupling: Framework doesn't import model modules directly
-- Easy extension: Add models without framework changes
-- Third-party plugins: External packages can register components
-- Testing: Mock components replace production implementations
+- **Uniform API**: Every component type uses the same ``R.*.add()`` / ``R.*["KEY"]`` interface
+- **Loose coupling**: Framework discovers components; doesn't import them directly
+- **pip-installable plugins**: ``pip install symfluence-mymodel`` and it's registered
+- **Cross-domain queries**: ``R.for_model()``, ``R.registered_models()``, ``R.summary()``
+- **Testing**: Mock components via ``R.*.add()`` / ``R.*.remove()`` / ``R.*.clear()``
 
 Mixin Pattern
 -------------
@@ -476,22 +492,22 @@ Model Component Lifecycle
 
 .. code-block:: text
 
-   1. Registration (import time):
+   1. Registration (import time or plugin discovery):
       ┌─────────────────────────────────────────────────────┐
-      │  @ModelRegistry.register_runner('SUMMA', 'run_summa')│
-      │  class SUMMARunner: ...                              │
+      │  model_manifest("SUMMA",                            │
+      │      runner=SUMMARunner, runner_method="run_summa")  │
       │                                                      │
-      │  → ModelRegistry._runners['SUMMA'] = SUMMARunner     │
-      │  → ModelRegistry._runner_methods['SUMMA'] = 'run_summa'│
+      │  → R.runners["SUMMA"] = SUMMARunner                 │
+      │  → R.runners.meta("SUMMA") = {runner_method: ...}   │
       └─────────────────────────────────────────────────────┘
 
    2. Discovery (workflow time):
       ┌─────────────────────────────────────────────────────┐
-      │  runner_cls = ModelRegistry.get_runner('SUMMA')     │
-      │  method = ModelRegistry.get_runner_method('SUMMA')  │
+      │  runner_cls = R.runners["SUMMA"]                    │
+      │  method = R.runners.meta("SUMMA")["runner_method"]  │
       │                                                      │
       │  → runner_cls = SUMMARunner                         │
-      │  → method = 'run_summa'                              │
+      │  → method = "run_summa"                             │
       └─────────────────────────────────────────────────────┘
 
    3. Instantiation (per-execution):
@@ -499,7 +515,7 @@ Model Component Lifecycle
       │  runner = runner_cls(config, logger, reporting_mgr) │
       │                                                      │
       │  → runner.project_dir = /data/domain/my_basin       │
-      │  → runner.experiment_id = 'calibration_001'         │
+      │  → runner.experiment_id = "calibration_001"         │
       └─────────────────────────────────────────────────────┘
 
    4. Execution:
@@ -507,153 +523,53 @@ Model Component Lifecycle
       │  result = getattr(runner, method)()                 │
       │                                                      │
       │  → runner.run_summa()                               │
-      │  → subprocess.run(['summa.exe', config_file])       │
+      │  → subprocess.run(["summa.exe", config_file])       │
       │  → return output_directory                          │
       └─────────────────────────────────────────────────────┘
 
 Extending SYMFLUENCE
 ====================
 
+All extensions use the unified registry.  See :doc:`developer_guide` for
+full walkthroughs and :ref:`plugins` for external pip-installable plugins.
+
 Adding a New Model
 ------------------
 
-1. **Create model directory:**
+.. code-block:: python
 
-   .. code-block:: bash
+   # src/symfluence/models/mymodel/__init__.py
+   from symfluence.core.registry import model_manifest
+   from .preprocessor import MyModelPreprocessor
+   from .runner import MyModelRunner
+   from .postprocessor import MyModelPostprocessor
 
-      mkdir src/symfluence/models/mymodel
-      touch src/symfluence/models/mymodel/__init__.py
-      touch src/symfluence/models/mymodel/preprocessor.py
-      touch src/symfluence/models/mymodel/runner.py
-      touch src/symfluence/models/mymodel/postprocessor.py
-      touch src/symfluence/models/mymodel/config.py
-
-2. **Implement preprocessor:**
-
-   .. code-block:: python
-
-      # preprocessor.py
-      from symfluence.models.base import BaseModelPreProcessor
-      from symfluence.models.registry import ModelRegistry
-
-      @ModelRegistry.register_preprocessor('MYMODEL')
-      class MyModelPreprocessor(BaseModelPreProcessor):
-
-          def _get_model_name(self) -> str:
-              return "MYMODEL"
-
-          def run_preprocessing(self) -> bool:
-              self.logger.info("Preprocessing for MYMODEL")
-              # Load forcing, convert to model format, write files
-              self.create_directories()
-              forcing = self._load_forcing()
-              self._write_model_inputs(forcing)
-              return True
-
-3. **Implement runner:**
-
-   .. code-block:: python
-
-      # runner.py
-      from symfluence.models.base import BaseModelRunner
-      from symfluence.models.registry import ModelRegistry
-
-      @ModelRegistry.register_runner('MYMODEL', method_name='run_mymodel')
-      class MyModelRunner(BaseModelRunner):
-
-          def _get_model_name(self) -> str:
-              return "MYMODEL"
-
-          def run_mymodel(self):
-              self.logger.info("Running MYMODEL")
-              # Execute model (subprocess, library call, etc.)
-              result = subprocess.run([self.executable, self.config_file])
-              return self.output_dir if result.returncode == 0 else None
-
-4. **Implement postprocessor:**
-
-   .. code-block:: python
-
-      # postprocessor.py
-      from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-      from symfluence.models.registry import ModelRegistry
-
-      @ModelRegistry.register_postprocessor('MYMODEL')
-      class MyModelPostprocessor(StandardModelPostprocessor):
-          model_name = "MYMODEL"
-          output_file_pattern = "{domain}_mymodel_output.nc"
-          streamflow_variable = "discharge"
-          streamflow_unit = "cms"
-
-5. **Register in __init__.py:**
-
-   .. code-block:: python
-
-      # src/symfluence/models/__init__.py
-      from . import mymodel  # Add this line
-
-6. **Add configuration schema:**
-
-   .. code-block:: python
-
-      # config.py
-      from pydantic import BaseModel, Field
-
-      class MyModelConfig(BaseModel):
-          parameter_a: float = Field(default=1.0, ge=0.0)
-          parameter_b: str = Field(default='default')
-          spatial_mode: Literal['lumped', 'distributed'] = 'lumped'
+   model_manifest(
+       "MYMODEL",
+       preprocessor=MyModelPreprocessor,
+       runner=MyModelRunner,
+       runner_method="run_mymodel",
+       postprocessor=MyModelPostprocessor,
+   )
 
 Adding a New Optimization Algorithm
 -----------------------------------
 
 .. code-block:: python
 
-   # src/symfluence/optimization/optimizers/algorithms/myalgo.py
-   from .base_algorithm import BaseAlgorithm
+   from symfluence.core.registries import R
 
-   class MyAlgorithm(BaseAlgorithm):
-       """Custom optimization algorithm."""
-
-       def __init__(self, config, logger, **kwargs):
-           super().__init__(config, logger, **kwargs)
-           # Algorithm-specific initialization
-
-       def optimize(self, objective_function, bounds, **kwargs):
-           """Run optimization."""
-           # Implement optimization loop
-           for iteration in range(self.max_iterations):
-               # Propose new parameters
-               # Evaluate objective
-               # Update population
-               pass
-           return best_params, best_fitness
+   R.optimizers.add("MYMODEL", MyOptimizer)
 
 Adding a New Data Handler
 -------------------------
 
 .. code-block:: python
 
-   # src/symfluence/data/acquisition/handlers/mydata.py
-   from .base import BaseDataHandler
+   from symfluence.core.registries import R
 
-   class MyDataHandler(BaseDataHandler):
-       """Handler for MyData dataset."""
-
-       dataset_name = "MYDATA"
-       variables = ['precipitation', 'temperature']
-
-       def acquire(self, spatial_extent, time_range):
-           """Download data for domain and time range."""
-           # Connect to data source
-           # Download files
-           # Return path to downloaded data
-           pass
-
-       def preprocess(self, raw_data_path):
-           """Convert to standard format."""
-           # Regrid, unit conversion, variable renaming
-           pass
+   R.acquisition_handlers.add("mydata", MyDataHandler)
+   R.observation_handlers.add("my_sensor", MySensorHandler)
 
 Configuration System Details
 ============================
