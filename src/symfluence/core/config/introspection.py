@@ -73,13 +73,13 @@ def generate_flat_to_nested_map(
                 return non_none_args[0]
         return field_type
 
-    # Priority sections for duplicates - higher number = higher priority (last wins)
-    # This matches Python dict behavior where later definitions overwrite earlier ones
-    # In the manual FLAT_TO_NESTED_MAP, evaluation section comes after data section,
-    # so evaluation takes precedence for duplicate keys
-    section_priority = {'system': 1, 'domain': 2, 'data': 3, 'forcing': 4,
-                       'model': 5, 'optimization': 6, 'evaluation': 7, 'paths': 8,
-                       'fews': 9}
+    # For duplicate aliases across sections, prefer the first match (lower section
+    # order wins).  This matches the manual CANONICAL_FLAT_TO_NESTED_MAP where each
+    # key appeared exactly once — e.g., STREAMFLOW_DATA_PROVIDER was placed in
+    # 'data', not 'evaluation', even though both Pydantic models define it.
+    section_priority = {'system': 9, 'domain': 8, 'data': 7, 'forcing': 6,
+                       'model': 5, 'optimization': 4, 'evaluation': 3, 'paths': 2,
+                       'fews': 1}
 
     def walk_model(
         model_class: Type[BaseModel],
@@ -100,26 +100,47 @@ def generate_flat_to_nested_map(
             return
 
         for field_name, field_info in model_class.model_fields.items():
+            # Collect all uppercase aliases from both alias and validation_alias
+            aliases_to_register: list = []
+
             # Get flat key from alias
             alias = field_info.alias
-
-            # Only consider uppercase aliases (flat config keys)
-            # Skip lowercase aliases which are for nested model fields
             if alias and alias.isupper():
+                aliases_to_register.append(alias)
+
+            # Also check validation_alias (e.g., AliasChoices)
+            val_alias = field_info.validation_alias
+            if val_alias is not None and val_alias != alias:
+                try:
+                    from pydantic import AliasChoices, AliasPath
+                    if isinstance(val_alias, AliasChoices):
+                        for choice in val_alias.choices:
+                            if isinstance(choice, str) and choice.isupper():
+                                aliases_to_register.append(choice)
+                            elif isinstance(choice, AliasPath):
+                                # AliasPath elements — skip complex paths
+                                pass
+                    elif isinstance(val_alias, str) and val_alias.isupper():
+                        aliases_to_register.append(val_alias)
+                except ImportError:
+                    pass
+
+            # Register all discovered aliases
+            for discovered_alias in aliases_to_register:
                 current_path = prefix + (field_name,)
 
                 # Handle duplicates by preferring higher priority (last wins)
-                if alias in mapping:
-                    existing_section = mapping[alias][0] if mapping[alias] else ''
+                if discovered_alias in mapping:
+                    existing_section = mapping[discovered_alias][0] if mapping[discovered_alias] else ''
                     new_section = prefix[0] if prefix else ''
                     existing_priority = section_priority.get(existing_section, 0)
                     new_priority = section_priority.get(new_section, 0)
 
                     # Higher priority number wins (mimics dict behavior where later entry overwrites)
                     if new_priority > existing_priority:
-                        mapping[alias] = current_path
+                        mapping[discovered_alias] = current_path
                 else:
-                    mapping[alias] = current_path
+                    mapping[discovered_alias] = current_path
 
             # Get the field type
             field_type = field_info.annotation

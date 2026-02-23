@@ -21,16 +21,7 @@ import warnings
 from symfluence.core.config.legacy_aliases import (
     CANONICAL_KEYS,
     DEPRECATED_KEYS,
-)
-
-# Re-export from decomposed modules for backward compatibility
-from symfluence.core.config.canonical_mappings import (  # noqa: F401
-    CANONICAL_FLAT_TO_NESTED_MAP,
-    FLAT_TO_NESTED_MAP,
-)
-from symfluence.core.config.flattening import flatten_nested_config  # noqa: F401
-from symfluence.core.config.mapping_validation import (  # noqa: F401
-    validate_mapping_against_pydantic,
+    LEGACY_FLAT_TO_NESTED_ALIASES,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,15 +83,18 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
 
             _AUTO_GENERATED_MAP = generate_flat_to_nested_map(
                 SymfluenceConfig,
-                include_model_overrides=True,
+                include_model_overrides=False,
             )
+
+            # Merge legacy aliases (lower priority — only add missing keys)
+            for key, path in LEGACY_FLAT_TO_NESTED_ALIASES.items():
+                _AUTO_GENERATED_MAP.setdefault(key, path)
 
             logger.info(f"Auto-generated {len(_AUTO_GENERATED_MAP)} configuration mappings")
 
         except Exception as e:
-            logger.debug(f"Auto-generation failed: {e}, falling back to manual mapping")
-            # Fallback to manual mapping (Phase 1 only)
-            _AUTO_GENERATED_MAP = FLAT_TO_NESTED_MAP.copy()
+            logger.debug(f"Auto-generation failed: {e}, using legacy aliases only")
+            _AUTO_GENERATED_MAP = dict(LEGACY_FLAT_TO_NESTED_ALIASES)
 
     return _AUTO_GENERATED_MAP
 
@@ -135,11 +129,10 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     Maps uppercase keys like 'DOMAIN_NAME' to nested paths like
     {'domain': {'name': ...}}.
 
-    PHASE 1: Currently uses manual mapping for backward compatibility.
-    Auto-generated mapping is available via get_flat_to_nested_map() for validation.
-    In Phase 4, this will switch to use auto-generated mapping exclusively.
+    Uses auto-generated mapping from Pydantic model aliases via
+    get_flat_to_nested_map(), with the manual mapping as fallback.
 
-    PHASE 2 ADDITION: Emits deprecation warnings for legacy config keys
+    Emits deprecation warnings for legacy config keys
     (e.g., INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH).
 
     Args:
@@ -172,8 +165,8 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
         'fews': {},
     }
 
-    # Build combined mapping: base + model-specific transformers
-    combined_mapping = FLAT_TO_NESTED_MAP.copy()
+    # Build combined mapping: auto-generated from Pydantic aliases (with fallback)
+    combined_mapping = get_flat_to_nested_map().copy()
 
     # Try to get model-specific transformers from ModelRegistry
     hydrological_model = flat_config.get('HYDROLOGICAL_MODEL')

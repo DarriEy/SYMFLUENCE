@@ -109,7 +109,8 @@ class SymfluenceConfig(BaseModel):
         if not isinstance(values, dict):
             return values
 
-        from symfluence.core.config.transformers import FLAT_TO_NESTED_MAP, transform_flat_to_nested
+        from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
+        from symfluence.core.config.transformers import transform_flat_to_nested
 
         # Build combined mapping: base + model-specific transformers
         combined_map = dict(FLAT_TO_NESTED_MAP)
@@ -292,7 +293,7 @@ class SymfluenceConfig(BaseModel):
         """
         from symfluence.core.exceptions import ConfigurationError
         from symfluence.models.registry import ModelRegistry
-        from symfluence.core.config.transformers import flatten_nested_config
+        from symfluence.core.config.flattening import flatten_nested_config
 
         models = self._parse_models()
         flat_config = flatten_nested_config(self)
@@ -461,7 +462,7 @@ class SymfluenceConfig(BaseModel):
         Since the config is frozen (immutable), we can safely cache this.
         This significantly improves performance of get() and __getitem__() methods.
         """
-        from symfluence.core.config.transformers import flatten_nested_config
+        from symfluence.core.config.flattening import flatten_nested_config
         return flatten_nested_config(self)
 
     def to_dict(self, flatten: bool = True) -> Dict[str, Any]:
@@ -545,7 +546,7 @@ class SymfluenceConfig(BaseModel):
 
     def __getattr__(self, name: str) -> Any:
         """Provide attribute-style access for legacy flat keys."""
-        from symfluence.core.config.transformers import FLAT_TO_NESTED_MAP
+        from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 
         path = FLAT_TO_NESTED_MAP.get(name)
         if path:

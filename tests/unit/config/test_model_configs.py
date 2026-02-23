@@ -24,10 +24,8 @@ from symfluence.core.config.models import (
     NLCDConfig,
     NASADEMConfig,
 )
-from symfluence.core.config.transformers import (
-    transform_flat_to_nested,
-    FLAT_TO_NESTED_MAP,
-)
+from symfluence.core.config.transformers import transform_flat_to_nested
+from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 
 
 class TestRHESSysConfig:
