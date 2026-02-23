@@ -392,7 +392,7 @@ class TestFUSEInitialParameters:
                 if name in bounds:
                     assert bounds[name]['min'] <= value <= bounds[name]['max'], \
                         f"Initial {name}={value} outside bounds [{bounds[name]['min']}, {bounds[name]['max']}]"
-        except Exception:
+        except Exception:  # noqa: BLE001
             # get_initial_parameters may not be implemented or may require files
             pass
 

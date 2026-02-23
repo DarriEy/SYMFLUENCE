@@ -107,7 +107,7 @@ def test_ellioaar_calibration(ellioaar_domain, symfluence_code_dir):
     try:
         results_file = sym.managers['optimization'].calibrate_model()
         assert results_file is not None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.fail(f"Calibration failed: {e}")
 
 
@@ -188,7 +188,7 @@ def test_fyris_calibration(fyris_domain, symfluence_code_dir):
     try:
         results_file = sym.managers['optimization'].calibrate_model()
         assert results_file is not None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.fail(f"Calibration failed: {e}")
 
 

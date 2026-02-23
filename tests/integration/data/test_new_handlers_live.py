@@ -59,7 +59,7 @@ def has_earthdata_credentials():
         for host in ['urs.earthdata.nasa.gov', 'earthdata.nasa.gov']:
             if auth.authenticators(host):
                 return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     return False
 
@@ -138,7 +138,7 @@ def test_daymet_live_single_pixel(tmp_path):
             assert len(df) > 0, "Processed data should have records"
             logger.info(f"Daymet live test: {len(df)} records, columns: {list(df.columns)}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"Daymet API unavailable: {e}")
 
 
@@ -173,7 +173,7 @@ def test_grdc_station_metadata(tmp_path):
         else:
             pytest.skip(f"GRDC WFS not accessible: {response.status_code}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"GRDC WFS unavailable: {e}")
 
 
@@ -205,7 +205,7 @@ def test_grdc_live_acquisition(tmp_path):
             assert 'discharge_cms' in df.columns
             logger.info(f"GRDC live test: {len(df)} records")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"GRDC acquisition failed: {e}")
 
 
@@ -253,7 +253,7 @@ def test_era5_land_live_acquisition(tmp_path):
             assert len(df) > 0
             logger.info(f"ERA5-Land live test: {len(df)} records, columns: {list(df.columns)}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"ERA5-Land acquisition failed (CDS may be slow): {e}")
 
 
@@ -279,7 +279,7 @@ def test_modis_lst_appeears_auth(tmp_path):
             creds = auth.authenticators('urs.earthdata.nasa.gov')
             if creds:
                 username, _, password = creds
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     if not username or not password:
@@ -299,7 +299,7 @@ def test_modis_lst_appeears_auth(tmp_path):
         else:
             pytest.skip(f"AppEEARS auth failed: {response.status_code}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"AppEEARS unavailable: {e}")
 
 
@@ -427,7 +427,7 @@ def test_openet_live_acquisition(tmp_path):
             assert 'et_mm_day' in df.columns
             logger.info(f"OpenET live test: {len(df)} records")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"OpenET acquisition failed: {e}")
 
 
@@ -463,7 +463,7 @@ def test_mswep_live_acquisition(tmp_path):
         assert result.exists()
         logger.info("MSWEP live acquisition successful")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"MSWEP acquisition failed: {e}")
 
 
@@ -502,7 +502,7 @@ def test_sentinel1_catalog_search(tmp_path):
         products = acquirer._search_products(token)
         logger.info(f"Found {len(products)} Sentinel-1 products")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"Sentinel-1 search failed: {e}")
 
 
@@ -559,7 +559,7 @@ def test_api_connectivity():
         try:
             response = requests.get(url, timeout=15)
             results[name] = response.status_code
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             results[name] = str(e)
 
     logger.info(f"API connectivity: {results}")

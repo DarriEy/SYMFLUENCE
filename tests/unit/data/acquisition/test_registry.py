@@ -195,7 +195,7 @@ class TestHandlerRetrieval:
         try:
             isolated_registry.get_handler('missing_handler', mock_config, mock_logger)
             pytest.fail("Should have raised DataAcquisitionError")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             assert 'available_handler' in str(e).lower()
 
 

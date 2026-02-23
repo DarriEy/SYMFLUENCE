@@ -29,7 +29,7 @@ def hubeau_api_accessible():
         from symfluence.data.observation.handlers.hubeau import HUBEAU_STATIONS_URL, HubEauAPIError, _hubeau_request
         _hubeau_request(HUBEAU_STATIONS_URL, {'size': 1})
         return True
-    except (HubEauAPIError, Exception):
+    except (HubEauAPIError, Exception):  # noqa: BLE001
         return False
 
 

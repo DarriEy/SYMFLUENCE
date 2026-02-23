@@ -283,7 +283,7 @@ class TestDropAnalysisPlotting:
                             optimal_threshold=3000,
                             project_dir=project_dir
                         )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         pytest.fail(f"plot_drop_analysis raised: {e}")
 
     def test_plot_drop_analysis_empty_data(self, analysis_plotter):

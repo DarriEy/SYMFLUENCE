@@ -302,7 +302,7 @@ class TestCoreConfigIntegration:
         # Should not crash (validation might pass or fail depending on what's registered)
         try:
             ModelRegistry.validate_model_config('SUMMA', config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # If it raises, it should be a proper validation error, not a crash
             assert 'configuration' in str(e).lower() or 'required' in str(e).lower(), \
                 f"Should raise proper validation error, got: {e}"

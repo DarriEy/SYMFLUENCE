@@ -25,7 +25,7 @@ def is_wsc_api_available(station_id: str = '05BB001') -> bool:
         response.raise_for_status()
         data = response.json()
         return len(data.get('features', [])) > 0
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 @pytest.fixture
@@ -1391,7 +1391,7 @@ def test_ggmn_groundwater_acquisition_and_processing(mock_config, tmp_path):
         # Handler should run without error
         try:
             dm.process_observed_data()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # GGMN may fail gracefully if no stations found - that's OK for this test
             logger.warning(f"GGMN test completed with: {e}")
 

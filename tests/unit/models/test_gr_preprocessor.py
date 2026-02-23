@@ -17,7 +17,7 @@ from symfluence.core.config.models import SymfluenceConfig
 # transitively load jax through the optimization workers.
 try:
     import jax  # noqa: F401
-except Exception:
+except Exception:  # noqa: BLE001
     pass
 
 # Patch rpy2 imports before importing the module under test to handle optional
