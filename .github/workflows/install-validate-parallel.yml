@@ -85,6 +85,7 @@ jobs:
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
 
     steps:
       - name: Free up disk space (Linux)
@@ -393,6 +394,7 @@ jobs:
       - name: Restore installation
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -414,6 +416,7 @@ jobs:
       - name: Run binary validation
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running binary validation tests..."
@@ -462,6 +465,7 @@ jobs:
       - name: Restore installation
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
           rm venv.tar.gz  # Free up disk space immediately
@@ -486,6 +490,7 @@ jobs:
       - name: Run integration tests (serial)
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running integration tests..."
@@ -538,6 +543,7 @@ jobs:
       - name: Restore installation
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -575,6 +581,7 @@ jobs:
         env:
           SYMFLUENCE_CODE: ${{ github.workspace }}
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running quick E2E tests (3-hour SUMMA)..."
@@ -637,6 +644,7 @@ jobs:
       - name: Restore installation
         env:
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -674,6 +682,7 @@ jobs:
         env:
           SYMFLUENCE_CODE: ${{ github.workspace }}
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+          SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running full E2E tests (1-month + calibration)..."

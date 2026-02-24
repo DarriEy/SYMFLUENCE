@@ -38,6 +38,7 @@ jobs:
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
       FC: gfortran
 
     steps:
@@ -223,10 +224,16 @@ jobs:
           echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
           echo ""
           echo "SUMMA binary location:"
-          which summa_sundials.exe || echo "SUMMA not in PATH"
+          which summa.exe || which summa_sundials.exe || echo "SUMMA not in PATH"
+          echo ""
+          SUMMA_BIN_DIR="${{ env.SYMFLUENCE_DATA }}/installs/summa/bin"
+          echo "Contents of ${SUMMA_BIN_DIR}:"
+          ls -la "${SUMMA_BIN_DIR}/" 2>/dev/null || echo "SUMMA bin directory not found"
           echo ""
           echo "Running ldd on SUMMA binary:"
-          ldd ${{ env.SYMFLUENCE_DATA }}/installs/summa/bin/summa_sundials.exe || echo "ldd failed"
+          SUMMA_BIN="${SUMMA_BIN_DIR}/summa.exe"
+          [ ! -f "$SUMMA_BIN" ] && SUMMA_BIN="${SUMMA_BIN_DIR}/summa_sundials.exe"
+          ldd "$SUMMA_BIN" 2>/dev/null || echo "ldd failed (binary: $SUMMA_BIN)"
           echo ""
           echo "Checking SUNDIALS libraries:"
           ls -la ${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib/ || echo "SUNDIALS lib directory not found"
@@ -468,6 +475,7 @@ jobs:
       SYMFLUENCE_CODE: ${{ github.workspace }}
       # Put CI working data outside the repo tree
       SYMFLUENCE_DATA: ${{ github.workspace }}/.sym_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/.sym_data
       DOMAIN: Bow_at_Banff
       DOMAIN_DEF: delineate
     steps:
