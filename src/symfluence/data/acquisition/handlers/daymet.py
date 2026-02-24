@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+import pandas as pd
 import requests
 
 from ..base import BaseAcquisitionHandler
@@ -121,6 +122,10 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         self.logger.info("Starting Daymet climate data acquisition")
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Resolve config values that may be missing when the typed config
+        # could not be built (e.g. standalone ``data download`` CLI).
+        self._resolve_flat_config()
+
         # Get configuration
         variables = self._get_variables()
         force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
@@ -176,6 +181,29 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
         # Use single-pixel for areas smaller than ~0.1 degrees
         return lat_range < 0.1 and lon_range < 0.1
+
+    def _resolve_flat_config(self):
+        """Populate bbox / dates from a flat config dict if the typed config
+        coercion failed (e.g. standalone ``symfluence data download`` CLI).
+        """
+        cfg = self._config
+        if not isinstance(cfg, dict):
+            return
+
+        if not self.bbox:
+            raw = cfg.get('BOUNDING_BOX_COORDS')
+            if raw:
+                self.bbox = self._parse_bbox(raw)
+
+        if self.start_date is None or pd.isna(self.start_date):
+            raw = cfg.get('EXPERIMENT_TIME_START')
+            if raw:
+                self.start_date = pd.to_datetime(raw)
+
+        if self.end_date is None or pd.isna(self.end_date):
+            raw = cfg.get('EXPERIMENT_TIME_END')
+            if raw:
+                self.end_date = pd.to_datetime(raw)
 
     def _download_single_pixel(self, output_dir: Path, variables: List[str]):
         """Download using single-pixel API (for point locations)."""
