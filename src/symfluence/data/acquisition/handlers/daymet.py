@@ -375,7 +375,17 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                 f"Attempting OPeNDAP subsetting for Daymet {var} {year}"
             )
 
-            ds = xr.open_dataset(url, engine='netcdf4')
+            # Suppress C-library stderr noise from netCDF4 when it receives
+            # an HTML auth-denied page instead of DAP data.
+            _stderr_fd = os.dup(2)
+            _devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(_devnull, 2)
+            try:
+                ds = xr.open_dataset(url, engine='netcdf4')
+            finally:
+                os.dup2(_stderr_fd, 2)
+                os.close(_stderr_fd)
+                os.close(_devnull)
             ds_sub = ds.sel(
                 x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
                 y=slice(lcc_bbox['y_min'], lcc_bbox['y_max']),
@@ -504,3 +514,53 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                     self._download_full_and_subset(
                         var, year, var_file, lcc_bbox
                     )
+
+            # Merge per-variable files into a single year file
+            self._merge_year_files(output_file.parent, variables, year, year_file)
+
+    def _merge_year_files(
+        self, output_dir: Path, variables: List[str], year: int, year_file: Path
+    ):
+        """Merge per-variable Daymet files into a single per-year file.
+
+        Collects ``daymet_{var}_{year}.nc`` files, merges them with
+        ``xr.merge``, writes to ``daymet_{year}.nc``, and removes the
+        per-variable files.  Skips silently if no per-variable files exist
+        (e.g. all downloads failed).
+        """
+        import xarray as xr
+
+        var_files = [
+            output_dir / f"daymet_{var}_{year}.nc"
+            for var in variables
+            if (output_dir / f"daymet_{var}_{year}.nc").exists()
+        ]
+
+        if not var_files:
+            self.logger.warning(
+                f"No per-variable files found for Daymet {year}; "
+                "cannot create merged file"
+            )
+            return
+
+        try:
+            datasets = [xr.open_dataset(f) for f in var_files]
+            merged = xr.merge(datasets, compat='override')
+            merged.to_netcdf(year_file, engine='h5netcdf')
+
+            for ds in datasets:
+                ds.close()
+
+            # Remove per-variable files now that the merged file exists
+            for f in var_files:
+                f.unlink()
+
+            self.logger.info(
+                f"Merged {len(var_files)} variable files into {year_file.name}"
+            )
+
+        except Exception as e:  # noqa: BLE001 — merge is best-effort
+            self.logger.warning(
+                f"Failed to merge per-variable files for {year}: {e}. "
+                "Per-variable files retained."
+            )
