@@ -1172,7 +1172,7 @@ src/symfluence/models/wflow/calibration/worker.py:76:except Exception as e:  # n
 src/symfluence/models/wflow/extractor.py:57:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:62:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:97:except Exception as e:  # noqa: BLE001
-src/symfluence/models/wflow/preprocessor.py:235:except Exception:  # noqa: BLE001
+src/symfluence/models/wflow/preprocessor.py:200:except Exception:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:53:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:82:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wmfire/ignition.py:208:except Exception as e:  # noqa: BLE001 — model execution resilience
