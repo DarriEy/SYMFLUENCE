@@ -18,7 +18,7 @@ https://daymet.ornl.gov/
 import netrc
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import requests
@@ -84,6 +84,19 @@ class DaymetAcquirer(BaseAcquisitionHandler):
     # ORNL DAAC Daymet endpoints
     SINGLE_PIXEL_URL = "https://daymet.ornl.gov/single-pixel/api/data"
     GRIDDED_URL = "https://data.ornldaac.earthdata.nasa.gov/protected/daymet/Daymet_Daily_V4R1/data"
+
+    # Cloud OPeNDAP endpoint (NASA Hyrax) — supports server-side subsetting
+    OPENDAP_URL = (
+        "https://opendap.earthdata.nasa.gov/collections/"
+        "C2532426483-ORNL_CLOUD/granules/"
+        "Daymet_Daily_V4R1.daymet_v4_daily_na_{var}_{year}.nc"
+    )
+
+    # Daymet Lambert Conformal Conic projection (native grid CRS)
+    DAYMET_CRS = (
+        "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 "
+        "+lon_0=-100 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs"
+    )
 
     AVAILABLE_VARIABLES = [
         'tmax',  # Maximum temperature (°C)
@@ -281,17 +294,169 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         )
         return requests.Session()
 
-    def _download_gridded(self, output_file: Path, variables: List[str]):
-        """Download gridded Daymet NetCDF files from ORNL DAAC.
+    def _bbox_to_lcc(self) -> Dict[str, float]:
+        """Convert lat/lon bounding box to Daymet LCC x/y coordinates.
 
-        Downloads full continental files per variable/year from the direct
-        ORNL DAAC endpoint (no server-side subsetting).
+        Transforms all four corners of the geographic bounding box to
+        Lambert Conformal Conic projection and returns the enclosing
+        rectangle in LCC space, with a 1 km buffer (one grid cell).
+        """
+        from pyproj import Transformer
+
+        transformer = Transformer.from_crs(
+            "EPSG:4326", self.DAYMET_CRS, always_xy=True
+        )
+
+        corners_lon = [
+            self.bbox['lon_min'], self.bbox['lon_max'],
+            self.bbox['lon_min'], self.bbox['lon_max'],
+        ]
+        corners_lat = [
+            self.bbox['lat_min'], self.bbox['lat_min'],
+            self.bbox['lat_max'], self.bbox['lat_max'],
+        ]
+
+        x_coords, y_coords = transformer.transform(corners_lon, corners_lat)
+
+        buffer = 1000.0  # 1 km = 1 Daymet grid cell
+        return {
+            'x_min': min(x_coords) - buffer,
+            'x_max': max(x_coords) + buffer,
+            'y_min': min(y_coords) - buffer,
+            'y_max': max(y_coords) + buffer,
+        }
+
+    def _download_opendap_subset(
+        self, var: str, year: int, var_file: Path, lcc_bbox: Dict[str, float]
+    ) -> bool:
+        """Try OPeNDAP server-side subsetting via xarray.
+
+        Opens the Daymet granule lazily through the NASA Hyrax OPeNDAP
+        endpoint, subsets to the LCC bounding box, and writes the result.
+        Requires Earthdata credentials in ~/.netrc (or a configured
+        .dodsrc) so the netCDF4 C library can authenticate.
+
+        Returns True on success, False on failure (caller should fall back).
+        """
+        import xarray as xr
+
+        url = self.OPENDAP_URL.format(var=var, year=year)
+
+        try:
+            self.logger.info(
+                f"Attempting OPeNDAP subsetting for Daymet {var} {year}"
+            )
+
+            ds = xr.open_dataset(url, engine='netcdf4')
+            ds_sub = ds.sel(
+                x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
+                y=slice(lcc_bbox['y_min'], lcc_bbox['y_max']),
+            )
+
+            if any(s == 0 for s in ds_sub.sizes.values()):
+                self.logger.warning(
+                    f"OPeNDAP subset returned empty data for {var} {year}"
+                )
+                ds.close()
+                return False
+
+            ds_sub.load()
+            for v in ds_sub.data_vars:
+                ds_sub[v].encoding.clear()
+            for c in ds_sub.coords:
+                ds_sub[c].encoding.clear()
+            ds_sub.to_netcdf(var_file, engine='h5netcdf')
+            ds.close()
+
+            self.logger.info(
+                f"Downloaded subsetted Daymet {var} {year} via OPeNDAP: "
+                f"{var_file}"
+            )
+            return True
+
+        except Exception as e:  # noqa: BLE001 — OPeNDAP fallback resilience
+            self.logger.info(
+                f"OPeNDAP subsetting unavailable for {var} {year}: {e}. "
+                "Falling back to full download with client-side subsetting."
+            )
+            return False
+
+    def _download_full_and_subset(
+        self, var: str, year: int, var_file: Path, lcc_bbox: Dict[str, float]
+    ):
+        """Download full continental file and subset client-side.
+
+        Uses the authenticated requests session (supports Bearer token and
+        username/password) to download the complete NA file, subsets it to
+        the LCC bounding box with xarray, saves the subset, and removes
+        the full file.
+        """
+        import xarray as xr
+
+        session = self._get_earthdata_session()
+        url = f"{self.GRIDDED_URL}/daymet_v4_daily_na_{var}_{year}.nc"
+        full_file = var_file.parent / f"daymet_{var}_{year}_full.nc"
+
+        try:
+            self.logger.info(
+                f"Downloading full Daymet {var} for {year} "
+                "(will subset locally)"
+            )
+
+            response = session.get(url, stream=True, timeout=600)
+            response.raise_for_status()
+
+            with open(full_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            self.logger.info(f"Subsetting {var} {year} to bounding box")
+            ds = xr.open_dataset(full_file)
+            ds_sub = ds.sel(
+                x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
+                y=slice(lcc_bbox['y_min'], lcc_bbox['y_max']),
+            )
+            ds_sub.load()
+            for v in ds_sub.data_vars:
+                ds_sub[v].encoding.clear()
+            for c in ds_sub.coords:
+                ds_sub[c].encoding.clear()
+            ds_sub.to_netcdf(var_file, engine='h5netcdf')
+            ds.close()
+
+            full_file.unlink()
+
+            self.logger.info(
+                f"Downloaded and subsetted Daymet {var} {year}: {var_file}"
+            )
+
+        except Exception as e:  # noqa: BLE001 — data acquisition resilience
+            self.logger.warning(f"Failed to download Daymet {var} {year}: {e}")
+            if full_file.exists():
+                full_file.unlink()
+
+    def _download_gridded(self, output_file: Path, variables: List[str]):
+        """Download gridded Daymet data with spatial subsetting.
+
+        Converts the geographic bounding box to Daymet's native Lambert
+        Conformal Conic projection, then attempts two strategies:
+
+        1. **OPeNDAP** (primary): opens the granule lazily on NASA's Hyrax
+           server and transfers only the subsetted region.
+        2. **Full download + local subset** (fallback): downloads the
+           continental file via the authenticated HTTPS session, subsets
+           with xarray, saves the subset, and removes the full file.
         """
         if not self.bbox:
             self.logger.error("Bounding box required for Daymet download")
             return
 
-        session = self._get_earthdata_session()
+        lcc_bbox = self._bbox_to_lcc()
+        self.logger.info(
+            f"Daymet bbox in LCC: x=[{lcc_bbox['x_min']:.0f}, "
+            f"{lcc_bbox['x_max']:.0f}], "
+            f"y=[{lcc_bbox['y_min']:.0f}, {lcc_bbox['y_max']:.0f}]"
+        )
 
         for year in range(self.start_date.year, self.end_date.year + 1):
             year_file = output_file.parent / f"daymet_{year}.nc"
@@ -305,21 +470,9 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                 if var_file.exists():
                     continue
 
-                url = f"{self.GRIDDED_URL}/daymet_v4_daily_na_{var}_{year}.nc"
-
-                try:
-                    self.logger.info(f"Downloading Daymet {var} for {year}")
-
-                    response = session.get(
-                        url,
-                        stream=True,
-                        timeout=600
+                if not self._download_opendap_subset(
+                    var, year, var_file, lcc_bbox
+                ):
+                    self._download_full_and_subset(
+                        var, year, var_file, lcc_bbox
                     )
-                    response.raise_for_status()
-
-                    with open(var_file, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-
-                except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Failed to download Daymet {var} {year}: {e}")
