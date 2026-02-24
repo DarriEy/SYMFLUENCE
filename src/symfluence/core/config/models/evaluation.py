@@ -191,7 +191,7 @@ class ETEvalConfig(BaseModel):
     """ET (Evapotranspiration) evaluator settings"""
     model_config = FROZEN_CONFIG
 
-    obs_source: str = Field(default='mod16', alias='ET_OBS_SOURCE')
+    obs_source: str = Field(default='', alias='ET_OBS_SOURCE')
     temporal_aggregation: str = Field(default='daily_mean', alias='ET_TEMPORAL_AGGREGATION')
     use_quality_control: bool = Field(default=True, alias='ET_USE_QUALITY_CONTROL')
     max_quality_flag: int = Field(default=2, alias='ET_MAX_QUALITY_FLAG')
