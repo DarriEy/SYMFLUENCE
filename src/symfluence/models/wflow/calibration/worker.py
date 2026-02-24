@@ -41,8 +41,8 @@ class WflowWorker(BaseWorker):
     def run_model(self, config, settings_dir, output_dir, **kwargs):
         try:
             install_path = config.get('WFLOW_INSTALL_PATH', 'default')
-            code_dir = config.get('SYMFLUENCE_CODE_DIR', '.')
-            exe_path = Path(code_dir) / 'installs' / 'wflow' / 'bin' / 'wflow_cli' if install_path == 'default' else Path(install_path) / 'wflow_cli'
+            data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
+            exe_path = Path(data_dir) / 'installs' / 'wflow' / 'bin' / 'wflow_cli' if install_path == 'default' else Path(install_path) / 'wflow_cli'
             config_file = config.get('WFLOW_CONFIG_FILE', 'wflow_sbm.toml')
             timeout = int(config.get('WFLOW_TIMEOUT', 7200))
             if not exe_path.exists():
@@ -61,25 +61,9 @@ class WflowWorker(BaseWorker):
 
     def calculate_metrics(self, config, output_dir, **kwargs):
         try:
-            output_file = config.get('WFLOW_OUTPUT_FILE', 'output.nc')
-            output_path = Path(output_dir) / output_file
-            if not output_path.exists():
-                matches = list(Path(output_dir).glob('output*.nc'))
-                output_path = matches[0] if matches else output_path
-            if not output_path.exists():
+            sim = self._load_simulated_streamflow(Path(output_dir))
+            if sim is None:
                 return {'KGE': -999.0, 'NSE': -999.0}
-            ds = xr.open_dataset(output_path)
-            q_var = None
-            for var in ['Q', 'Q_av', 'q_av']:
-                if var in ds.data_vars:
-                    q_var = ds[var]
-                    break
-            if q_var is None:
-                ds.close()
-                return {'KGE': -999.0, 'NSE': -999.0}
-            spatial_dims = [d for d in q_var.dims if d not in ['time']]
-            sim = q_var.max(dim=spatial_dims).to_series() if spatial_dims else q_var.to_series()
-            ds.close()
             obs = self._load_observations(config)
             if obs is None:
                 return {'KGE': -999.0, 'NSE': -999.0}
@@ -92,6 +76,31 @@ class WflowWorker(BaseWorker):
         except Exception as e:  # noqa: BLE001
             self.logger.error(f"Metric calculation failed: {e}")
             return {'KGE': -999.0, 'NSE': -999.0}
+
+    def _load_simulated_streamflow(self, output_dir: Path):
+        """Load Q from Wflow CSV or netCDF output."""
+        # Try CSV first (primary format from [output.csv] TOML section)
+        csv_matches = list(output_dir.glob('output*.csv'))
+        if csv_matches:
+            df = pd.read_csv(csv_matches[0], parse_dates=[0], index_col=0)
+            for col in ['Q', 'Q_av', 'q_av']:
+                if col in df.columns:
+                    return df[col]
+            if len(df.columns) == 1:
+                return df.iloc[:, 0]
+        # Fallback: netCDF
+        nc_matches = list(output_dir.glob('output*.nc'))
+        if nc_matches:
+            ds = xr.open_dataset(nc_matches[0])
+            for var in ['Q', 'Q_av', 'q_av']:
+                if var in ds.data_vars:
+                    q_var = ds[var]
+                    spatial_dims = [d for d in q_var.dims if d not in ['time']]
+                    sim = q_var.max(dim=spatial_dims).to_series() if spatial_dims else q_var.to_series()
+                    ds.close()
+                    return sim
+            ds.close()
+        return None
 
     def _load_observations(self, config):
         try:
