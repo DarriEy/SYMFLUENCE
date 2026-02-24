@@ -128,6 +128,12 @@ class DataCommands(BaseCommand):
                 'FORCE_DOWNLOAD': args.force,
             }
 
+        # Apply --vars override
+        if getattr(args, 'vars', None):
+            config_dict['DAYMET_VARIABLES'] = [
+                v.strip() for v in args.vars.split(',')
+            ]
+
         # Apply --extra KEY=VALUE overrides
         for extra in (args.extra or []):
             if '=' not in extra:

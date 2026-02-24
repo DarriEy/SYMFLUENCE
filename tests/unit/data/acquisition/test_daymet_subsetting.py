@@ -60,9 +60,10 @@ def _make_daymet_dataset(lcc_bbox, n_time=10):
     """
     from pyproj import Transformer
 
-    # Build x/y grid that covers the LCC bbox
+    # Build x/y grid that covers the LCC bbox.
+    # y is descending (north→south) to match real Daymet data.
     x = np.arange(lcc_bbox['x_min'] - 2000, lcc_bbox['x_max'] + 2000, 1000.0)
-    y = np.arange(lcc_bbox['y_min'] - 2000, lcc_bbox['y_max'] + 2000, 1000.0)
+    y = np.arange(lcc_bbox['y_max'] + 2000, lcc_bbox['y_min'] - 2000, -1000.0)
     time = np.arange(n_time)
 
     rng = np.random.default_rng(42)
@@ -145,37 +146,68 @@ class TestBboxToLcc:
 # ---------------------------------------------------------------------------
 
 class TestOpendapSubset:
-    """Test the OPeNDAP server-side subsetting path."""
+    """Test the two-step OPeNDAP subsetting (coords then data)."""
 
     def test_success_writes_subsetted_file(self, tmp_path):
-        """When OPeNDAP succeeds, only the subsetted region is saved."""
+        """Coords fetched via OPeNDAP, data via session, subset saved."""
         acq = _make_acquirer(tmp_path=tmp_path)
         lcc_bbox = acq._bbox_to_lcc()
         ds_full = _make_daymet_dataset(lcc_bbox, n_time=5)
 
+        # Step 1 mock: coord-only dataset via OPeNDAP
+        ds_coords = xr.Dataset(coords={
+            'x': ds_full.coords['x'],
+            'y': ds_full.coords['y'],
+            'time': ds_full.coords['time'],
+        })
+
+        # Step 3 mock: session downloads subset as .nc4
+        nc_bytes_path = tmp_path / '_response.nc'
+        ds_full.to_netcdf(nc_bytes_path, engine='h5netcdf')
+        nc_bytes = nc_bytes_path.read_bytes()
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.content = nc_bytes
+
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+
         var_file = tmp_path / 'daymet_tmax_2020.nc'
 
-        with patch('xarray.open_dataset', return_value=ds_full):
+        # Mock only intercepts OPeNDAP URL; local file reads pass through
+        real_open = xr.open_dataset
+
+        def selective_mock(path_or_url, *args, **kwargs):
+            if isinstance(path_or_url, str) and path_or_url.startswith('http'):
+                return ds_coords
+            return real_open(path_or_url, *args, **kwargs)
+
+        with patch('xarray.open_dataset', side_effect=selective_mock), \
+             patch.object(acq, '_get_earthdata_session', return_value=mock_session), \
+             patch.object(DaymetAcquirer, '_ensure_dodsrc'):
             result = acq._download_opendap_subset(
                 'tmax', 2020, var_file, lcc_bbox
             )
 
         assert result is True
         assert var_file.exists()
+        assert mock_session.get.call_count == 1
 
-        # Verify the saved file is subsetted (smaller than full domain)
         ds_saved = xr.open_dataset(var_file)
-        assert ds_saved.sizes['x'] <= ds_full.sizes['x']
-        assert ds_saved.sizes['y'] <= ds_full.sizes['y']
+        assert ds_saved.sizes['x'] > 0
+        assert ds_saved.sizes['y'] > 0
         ds_saved.close()
 
     def test_returns_false_on_failure(self, tmp_path):
-        """When OPeNDAP fails, returns False for fallback."""
+        """When OPeNDAP fails, returns False."""
         acq = _make_acquirer(tmp_path=tmp_path)
         lcc_bbox = acq._bbox_to_lcc()
         var_file = tmp_path / 'daymet_tmax_2020.nc'
 
-        with patch('xarray.open_dataset', side_effect=OSError("auth failed")):
+        with patch('xarray.open_dataset', side_effect=OSError("auth failed")), \
+             patch('time.sleep'), \
+             patch.object(DaymetAcquirer, '_ensure_dodsrc'):
             result = acq._download_opendap_subset(
                 'tmax', 2020, var_file, lcc_bbox
             )
@@ -184,11 +216,11 @@ class TestOpendapSubset:
         assert not var_file.exists()
 
     def test_returns_false_on_empty_subset(self, tmp_path):
-        """When the subset is empty, returns False."""
+        """When no grid cells fall within the bbox, returns False."""
         acq = _make_acquirer(tmp_path=tmp_path)
         lcc_bbox = acq._bbox_to_lcc()
 
-        # Create dataset that does NOT overlap with the bbox
+        # Create a coordinate dataset with axes far from the bbox
         far_away_bbox = {
             'x_min': lcc_bbox['x_max'] + 100000,
             'x_max': lcc_bbox['x_max'] + 200000,
@@ -196,9 +228,13 @@ class TestOpendapSubset:
             'y_max': lcc_bbox['y_max'] + 200000,
         }
         ds = _make_daymet_dataset(far_away_bbox, n_time=5)
+        ds_coords = xr.Dataset(coords={
+            'x': ds.coords['x'], 'y': ds.coords['y'], 'time': ds.coords['time'],
+        })
         var_file = tmp_path / 'daymet_tmax_2020.nc'
 
-        with patch('xarray.open_dataset', return_value=ds):
+        with patch('xarray.open_dataset', return_value=ds_coords), \
+             patch.object(DaymetAcquirer, '_ensure_dodsrc'):
             result = acq._download_opendap_subset(
                 'tmax', 2020, var_file, lcc_bbox
             )
@@ -207,64 +243,70 @@ class TestOpendapSubset:
 
 
 # ---------------------------------------------------------------------------
-# Tests: Full download + client-side subsetting
+# Tests: OPeNDAP retry behaviour
 # ---------------------------------------------------------------------------
 
-class TestFullDownloadAndSubset:
-    """Test the fallback path (download full file, subset locally)."""
+class TestOpendapRetries:
+    """Test that OPeNDAP subsetting retries on transient failures."""
 
-    def test_subsets_and_removes_full_file(self, tmp_path):
-        """Fallback downloads, subsets, saves subset, and removes full file."""
+    def test_succeeds_on_second_attempt(self, tmp_path):
+        """Transient failure on first attempt, success on second."""
         acq = _make_acquirer(tmp_path=tmp_path)
         lcc_bbox = acq._bbox_to_lcc()
         ds_full = _make_daymet_dataset(lcc_bbox, n_time=5)
-
+        ds_coords = xr.Dataset(coords={
+            'x': ds_full.coords['x'], 'y': ds_full.coords['y'],
+            'time': ds_full.coords['time'],
+        })
         var_file = tmp_path / 'daymet_tmax_2020.nc'
-        full_file = tmp_path / 'daymet_tmax_2020_full.nc'
 
-        # Write a full file to disk (simulating the download)
-        ds_full.to_netcdf(full_file)
-
-        # Mock the session.get to write the full dataset to the _full.nc path
+        # Prepare mock session response
+        nc_bytes_path = tmp_path / '_resp.nc'
+        ds_full.to_netcdf(nc_bytes_path, engine='h5netcdf')
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
-        # Read the bytes we just wrote to simulate iter_content
-        full_bytes = full_file.read_bytes()
-        mock_response.iter_content.return_value = [full_bytes]
-
+        mock_response.content = nc_bytes_path.read_bytes()
         mock_session = MagicMock()
         mock_session.get.return_value = mock_response
 
-        # Remove the full file so the method can re-create it
-        full_file.unlink()
+        real_open = xr.open_dataset
+        call_count = {'n': 0}
 
-        with patch.object(acq, '_get_earthdata_session', return_value=mock_session):
-            acq._download_full_and_subset('tmax', 2020, var_file, lcc_bbox)
+        def flaky_open(path_or_url, *args, **kwargs):
+            if not isinstance(path_or_url, str) or not path_or_url.startswith('http'):
+                return real_open(path_or_url, *args, **kwargs)
+            call_count['n'] += 1
+            if call_count['n'] == 1:
+                raise OSError("transient server error")
+            return ds_coords
 
+        with patch('xarray.open_dataset', side_effect=flaky_open), \
+             patch('time.sleep'), \
+             patch.object(acq, '_get_earthdata_session', return_value=mock_session), \
+             patch.object(DaymetAcquirer, '_ensure_dodsrc'):
+            result = acq._download_opendap_subset(
+                'tmax', 2020, var_file, lcc_bbox, max_retries=3,
+            )
+
+        assert result is True
         assert var_file.exists()
-        assert not full_file.exists(), "Full continental file should be removed"
 
-        # Verify the saved file is subsetted
-        ds_saved = xr.open_dataset(var_file)
-        assert ds_saved.sizes['x'] <= ds_full.sizes['x']
-        assert ds_saved.sizes['y'] <= ds_full.sizes['y']
-        ds_saved.close()
-
-    def test_cleans_up_on_failure(self, tmp_path):
-        """On download failure, no partial full file remains."""
+    def test_fails_after_all_retries(self, tmp_path):
+        """Returns False after exhausting all retry attempts."""
         acq = _make_acquirer(tmp_path=tmp_path)
         lcc_bbox = acq._bbox_to_lcc()
         var_file = tmp_path / 'daymet_tmax_2020.nc'
 
-        mock_session = MagicMock()
-        mock_session.get.side_effect = ConnectionError("network error")
+        with patch('xarray.open_dataset', side_effect=OSError("persistent")), \
+             patch('time.sleep'), \
+             patch.object(DaymetAcquirer, '_ensure_dodsrc'):
+            result = acq._download_opendap_subset(
+                'tmax', 2020, var_file, lcc_bbox, max_retries=2,
+            )
 
-        with patch.object(acq, '_get_earthdata_session', return_value=mock_session):
-            acq._download_full_and_subset('tmax', 2020, var_file, lcc_bbox)
-
-        full_file = tmp_path / 'daymet_tmax_2020_full.nc'
-        assert not full_file.exists()
+        assert result is False
         assert not var_file.exists()
+        acq.logger.error.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -274,29 +316,27 @@ class TestFullDownloadAndSubset:
 class TestDownloadGridded:
     """Test the top-level _download_gridded orchestration."""
 
-    def test_tries_opendap_first(self, tmp_path):
-        """OPeNDAP is attempted before full download."""
+    def test_calls_opendap_subset(self, tmp_path):
+        """OPeNDAP is attempted for each variable."""
         acq = _make_acquirer(tmp_path=tmp_path)
         output_file = tmp_path / 'daymet_tmax_tmin_prcp_20200101_20201231.nc'
 
-        with patch.object(acq, '_download_opendap_subset', return_value=True) as mock_opendap, \
-             patch.object(acq, '_download_full_and_subset') as mock_full:
+        with patch.object(acq, '_download_opendap_subset', return_value=True) as mock_opendap:
             acq._download_gridded(output_file, ['tmax'])
 
         assert mock_opendap.call_count == 1
-        assert mock_full.call_count == 0
 
-    def test_falls_back_when_opendap_fails(self, tmp_path):
-        """When OPeNDAP fails, falls back to full download + subset."""
+    def test_logs_error_when_opendap_fails(self, tmp_path):
+        """When OPeNDAP fails, logs an error with credential guidance."""
         acq = _make_acquirer(tmp_path=tmp_path)
         output_file = tmp_path / 'daymet_tmax_tmin_prcp_20200101_20201231.nc'
 
-        with patch.object(acq, '_download_opendap_subset', return_value=False) as mock_opendap, \
-             patch.object(acq, '_download_full_and_subset') as mock_full:
+        with patch.object(acq, '_download_opendap_subset', return_value=False):
             acq._download_gridded(output_file, ['tmax'])
 
-        assert mock_opendap.call_count == 1
-        assert mock_full.call_count == 1
+        acq.logger.error.assert_called_once()
+        msg = acq.logger.error.call_args[0][0]
+        assert 'dodsrc' in msg
 
     def test_skips_existing_files(self, tmp_path):
         """Existing per-variable files are not re-downloaded."""
@@ -307,12 +347,10 @@ class TestDownloadGridded:
         existing = tmp_path / 'daymet_tmax_2020.nc'
         existing.touch()
 
-        with patch.object(acq, '_download_opendap_subset') as mock_opendap, \
-             patch.object(acq, '_download_full_and_subset') as mock_full:
+        with patch.object(acq, '_download_opendap_subset') as mock_opendap:
             acq._download_gridded(output_file, ['tmax'])
 
         assert mock_opendap.call_count == 0
-        assert mock_full.call_count == 0
 
     def test_no_bbox_logs_error(self, tmp_path):
         """Without a bounding box, logs an error and returns."""

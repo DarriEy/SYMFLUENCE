@@ -723,6 +723,9 @@ For more help on a specific command:
                                      help='Domain name for file naming (default: standalone)')
         download_parser.add_argument('--force', action='store_true', default=False,
                                      help='Force re-download existing data')
+        download_parser.add_argument('--vars', type=str, default=None,
+                                     metavar='VAR1,VAR2,...',
+                                     help='Comma-separated variables to download (e.g. tmax,tmin,prcp)')
         download_parser.add_argument('--extra', action='append', default=None,
                                      metavar='KEY=VALUE',
                                      help='Extra config keys (repeatable)')
