@@ -83,7 +83,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
     # ORNL DAAC Daymet endpoints
     SINGLE_PIXEL_URL = "https://daymet.ornl.gov/single-pixel/api/data"
-    GRIDDED_URL = "https://thredds.daac.ornl.gov/thredds/ncss/ornldaac/2129"
+    GRIDDED_URL = "https://data.ornldaac.earthdata.nasa.gov/protected/daymet/Daymet_Daily_V4R1/data"
 
     AVAILABLE_VARIABLES = [
         'tmax',  # Maximum temperature (°C)
@@ -282,14 +282,17 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         return requests.Session()
 
     def _download_gridded(self, output_file: Path, variables: List[str]):
-        """Download gridded data using THREDDS subset service."""
+        """Download gridded Daymet NetCDF files from ORNL DAAC.
+
+        Downloads full continental files per variable/year from the direct
+        ORNL DAAC endpoint (no server-side subsetting).
+        """
         if not self.bbox:
             self.logger.error("Bounding box required for Daymet download")
             return
 
         session = self._get_earthdata_session()
 
-        # Download each year separately (THREDDS limitation)
         for year in range(self.start_date.year, self.end_date.year + 1):
             year_file = output_file.parent / f"daymet_{year}.nc"
 
@@ -302,26 +305,13 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                 if var_file.exists():
                     continue
 
-                # Build THREDDS NCSS URL
                 url = f"{self.GRIDDED_URL}/daymet_v4_daily_na_{var}_{year}.nc"
-
-                params = {
-                    'var': var,
-                    'north': self.bbox['lat_max'],
-                    'south': self.bbox['lat_min'],
-                    'east': self.bbox['lon_max'],
-                    'west': self.bbox['lon_min'],
-                    'time_start': f"{year}-01-01T00:00:00Z",
-                    'time_end': f"{year}-12-31T23:59:59Z",
-                    'accept': 'netcdf4',
-                }
 
                 try:
                     self.logger.info(f"Downloading Daymet {var} for {year}")
 
                     response = session.get(
                         url,
-                        params=params,
                         stream=True,
                         timeout=600
                     )
