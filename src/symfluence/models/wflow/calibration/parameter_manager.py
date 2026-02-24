@@ -66,7 +66,7 @@ class WflowParameterManager(BaseParameterManager):
 
     def update_model_files(self, params: Dict[str, float], settings_dir: Optional[Path] = None, **kwargs) -> bool:
         try:
-            validated = self.validate_parameters(params)
+            self.validate_parameters(params)
             target_dir = settings_dir or self.settings_dir
             staticmaps_name = self._get_config_value(
                 lambda: self.config.model.wflow.staticmaps_file,
@@ -80,7 +80,7 @@ class WflowParameterManager(BaseParameterManager):
             coords = dict(ds.coords)
             attrs = dict(ds.attrs)
             ds.close()
-            for param_name, value in validated.items():
+            for param_name, value in params.items():
                 nc_var = self.PARAM_VAR_MAP.get(param_name)
                 if nc_var and nc_var in ds_dict:
                     ds_dict[nc_var].values[:] = value

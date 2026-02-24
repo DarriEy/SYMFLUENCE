@@ -357,8 +357,8 @@ class BaseModelOptimizer(
         )
 
         # Collect all valid candidates grouped by metric match
-        same_metric_best = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
-        other_metric_best = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
+        same_metric_best: Dict[str, Any] = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
+        other_metric_best: Dict[str, Any] = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
 
         for run_dir in parent_dir.iterdir():
             if not run_dir.is_dir() or run_dir == self.results_dir:
