@@ -331,17 +331,26 @@ class ParameterBoundsRegistry:
     # ========================================================================
     MESH_PARAMS: Dict[str, ParameterInfo] = {
         # CLASS.ini parameters - control runoff generation (most impactful)
-        'KSAT': ParameterInfo(0.1, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
-        'DRN': ParameterInfo(0.1, 10.0, '-', 'Drainage parameter', 'soil'),
-        'SDEP': ParameterInfo(0.5, 5.0, 'm', 'Soil depth', 'soil'),
-        'XSLP': ParameterInfo(0.005, 0.3, '-', 'Slope for overland flow', 'surface'),
+        # Bounds tightened Feb 2026: previous calibration found degenerate solutions
+        # (KSAT=0.6, DRN=0.24) that water-trapped the basin (60% flow underestimation).
+        # New lower bounds enforce physically reasonable values for a snowmelt-dominated
+        # mountain basin with permeable soils and steep slopes.
+        'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
+        'DRN': ParameterInfo(0.5, 10.0, '-', 'Drainage parameter', 'soil'),
+        'SDEP': ParameterInfo(0.5, 1.5, 'm', 'Soil depth', 'soil'),
+        'XSLP': ParameterInfo(0.01, 0.3, '-', 'Slope for overland flow', 'surface'),
         'XDRAINH': ParameterInfo(0.01, 1.0, '-', 'Horizontal drainage coefficient', 'soil'),
         'MANN_CLASS': ParameterInfo(0.01, 0.5, '-', 'Manning coefficient for overland flow', 'surface'),
 
         # CLASS.ini vegetation parameters (control ET partitioning)
         'LAMX': ParameterInfo(0.3, 6.0, 'm²/m²', 'Maximum LAI for primary vegetation class', 'et'),
+        'LAMN': ParameterInfo(0.1, 1.5, 'm²/m²', 'Minimum LAI for primary vegetation class (seasonal ET cycle)', 'et'),
         'ROOT': ParameterInfo(0.1, 2.0, 'm', 'Root depth for primary vegetation class', 'et'),
+        'CMAS': ParameterInfo(1.0, 10.0, 'kg/m²', 'Annual maximum canopy mass (controls interception)', 'et'),
         'RSMIN': ParameterInfo(100.0, 800.0, 's/m', 'Minimum stomatal resistance (controls max transpiration rate)', 'et'),
+        'QA50': ParameterInfo(10.0, 100.0, 'Pa', 'Reference VPD for half-maximum stomatal conductance', 'et'),
+        'VPDA': ParameterInfo(0.3, 1.5, '-', 'VPD slope parameter for stomatal conductance', 'et'),
+        'PSGA': ParameterInfo(0.3, 2.0, '-', 'Soil moisture stress parameter A for stomatal conductance', 'et'),
 
         # Hydrology.ini parameters (snow/ponding)
         'ZSNL': ParameterInfo(0.001, 0.1, 'm', 'Limiting snow depth', 'snow'),
@@ -353,7 +362,7 @@ class ParameterBoundsRegistry:
         'R1N': ParameterInfo(0.0, 2.0, '-', 'River routing parameter', 'routing'),
 
         # Baseflow parameters (hydrology.ini)
-        'FLZ': ParameterInfo(0.0001, 0.1, '-', 'Baseflow recession coefficient', 'baseflow', 'log'),
+        'FLZ': ParameterInfo(0.001, 0.1, '-', 'Baseflow recession coefficient', 'baseflow', 'log'),
         'PWR': ParameterInfo(1.0, 5.0, '-', 'Baseflow power exponent', 'baseflow'),
 
         # Legacy hydrology parameters
@@ -897,7 +906,8 @@ def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
         # CLASS.ini parameters (runoff generation)
         'KSAT', 'DRN', 'SDEP', 'XSLP', 'XDRAINH', 'MANN_CLASS',
         # CLASS.ini vegetation parameters (ET control)
-        'LAMX', 'ROOT', 'RSMIN',
+        'LAMX', 'LAMN', 'ROOT', 'CMAS', 'RSMIN',
+        'QA50', 'VPDA', 'PSGA',
         # Hydrology.ini parameters (snow/ponding)
         'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN', 'R2N', 'R1N',
         # Baseflow parameters

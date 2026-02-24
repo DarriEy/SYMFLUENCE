@@ -34,8 +34,12 @@ class MESHParameterManager(BaseParameterManager):
         'DRN/SDEP': (['DRN', 'SDEP', 'FARE', 'DD'], 4),
         'XSLP/XDRAINH/MANN/KSAT': (['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT'], 5),
         'FCAN': ([None, None, None, None, None, 'LAMX', None, None, None], 9),
+        '5xLNZ0/4xLAMN': ([None, None, None, None, None, 'LAMN', None, None, None], 9),
+        '5xALVC/4xCMAS': ([None, None, None, None, None, 'CMAS', None, None, None], 9),
         'ALIC': ([None, None, None, None, None, 'ROOT', None, None, None], 9),
-        'RSMN': (['RSMIN', None, None, None, None, None, None, None], 8),
+        'RSMN': (['RSMIN', None, None, None, 'QA50', None, None, None], 8),
+        '4xVPDA/4xVPDB': (['VPDA', None, None, None, None, None, None, None], 8),
+        '4xPSGA/4xPSGB': (['PSGA', None, None, None, None, None, None, None], 8),
     }
 
     # Default multipliers for landcover-specific parameter scaling
@@ -115,8 +119,13 @@ class MESHParameterManager(BaseParameterManager):
             'MANN_CLASS': 'CLASS', # Manning for overland flow - Line 13, pos 3
             # CLASS.ini vegetation parameters (control ET partitioning)
             'LAMX': 'CLASS',      # Max LAI for first veg class - Line 05, pos 5
+            'LAMN': 'CLASS',      # Min LAI for first veg class - Line 06, pos 5
             'ROOT': 'CLASS',      # Root depth (m) for first veg class - Line 08, pos 5
+            'CMAS': 'CLASS',      # Canopy mass (kg/m²) - Line 07, pos 5
             'RSMIN': 'CLASS',     # Minimum stomatal resistance (s/m) - Line 09, pos 0
+            'QA50': 'CLASS',      # VPD half-response (Pa) - Line 09, pos 4
+            'VPDA': 'CLASS',      # VPD slope param - Line 10, pos 0
+            'PSGA': 'CLASS',      # Soil moisture stress param A - Line 11, pos 0
             # Meshflow-generated parameters (MESH_parameters_hydrology.ini)
             'ZSNL': 'hydrology', 'ZPLG': 'hydrology', 'ZPLS': 'hydrology',
             'WF_R2': 'hydrology',  # Channel roughness coefficient
@@ -176,8 +185,13 @@ class MESHParameterManager(BaseParameterManager):
         # Standard meshflow defaults (0-indexed lines)
         defaults = {
             'LAMX': (5, 5, 9),    # Line 05: 5xFCAN + 4xLAMX, LAMX at pos 5
+            'LAMN': (6, 5, 9),    # Line 06: 5xLNZ0 + 4xLAMN, LAMN at pos 5
+            'CMAS': (7, 5, 9),    # Line 07: 5xALVC + 4xCMAS, CMAS at pos 5
             'ROOT': (8, 5, 9),    # Line 08: 5xALIC + 4xROOT, ROOT at pos 5
             'RSMIN': (9, 0, 8),   # Line 09: 4xRSMN + 4xQA50, RSMIN at pos 0
+            'QA50': (9, 4, 8),    # Line 09: 4xRSMN + 4xQA50, QA50 at pos 4
+            'VPDA': (10, 0, 8),   # Line 10: 4xVPDA + 4xVPDB, VPDA at pos 0
+            'PSGA': (11, 0, 8),   # Line 11: 4xPSGA + 4xPSGB, PSGA at pos 0
             'DRN': (12, 0, 4),
             'SDEP': (12, 1, 4),
             'XSLP': (13, 0, 5),
@@ -555,6 +569,16 @@ class MESHParameterManager(BaseParameterManager):
             self.logger.debug(
                 f"Feasibility: raised LAMX {float(lamx):.3f} -> 0.1 "
                 f"(minimum for CLASS stability)"
+            )
+            lamx = 0.1
+
+        # Constraint 11: LAMN <= LAMX (minimum LAI can't exceed maximum)
+        lamn = validated.get('LAMN')
+        if lamn is not None and lamx is not None and float(lamn) > float(lamx):
+            validated['LAMN'] = float(lamx) * 0.9
+            self.logger.debug(
+                f"Feasibility: capped LAMN {float(lamn):.3f} -> {validated['LAMN']:.3f} "
+                f"(must be <= LAMX={float(lamx):.3f})"
             )
 
         return validated

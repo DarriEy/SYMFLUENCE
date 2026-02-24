@@ -76,9 +76,32 @@ PIHM_DEFAULT_BOUNDS = {
         'transform': 'linear',
         'description': 'Rain/snow threshold temperature (C)',
     },
+    'SFCTMP': {
+        'min': -3.0, 'max': 3.0,
+        'transform': 'linear',
+        'description': 'Surface temperature offset (K) — rain/snow partition',
+    },
+    'PRCP': {
+        'min': 0.7, 'max': 1.5,
+        'transform': 'linear',
+        'description': 'Precipitation multiplier — ERA5 correction',
+    },
+    'CZIL': {
+        'min': 0.1, 'max': 10.0,
+        'transform': 'log',
+        'description': 'Zilitinkevich coefficient multiplier — surface exchange',
+    },
+    'RS': {
+        'min': 0.5, 'max': 5.0,
+        'transform': 'log',
+        'description': 'Min stomatal resistance multiplier — transpiration control',
+    },
 }
 
 SNOW17_PARAM_NAMES = {'SNOW17_SCF', 'SNOW17_MFMAX', 'SNOW17_PXTEMP'}
+LSM_CALIB_PARAM_NAMES = {'CZIL', 'RS'}
+SCENARIO_PARAM_NAMES = {'PRCP', 'SFCTMP'}
+CALIB_ONLY_PARAM_NAMES = SNOW17_PARAM_NAMES | LSM_CALIB_PARAM_NAMES | SCENARIO_PARAM_NAMES
 
 
 @OptimizerRegistry.register_parameter_manager('PIHM')
@@ -135,7 +158,9 @@ class PIHMParameterManager(BaseParameterManager):
         - .lc   (MANNINGS_N surface roughness)
         """
         try:
-            subsurface_params = {k: v for k, v in params.items() if k not in SNOW17_PARAM_NAMES}
+            subsurface_params = {k: v for k, v in params.items() if k not in CALIB_ONLY_PARAM_NAMES}
+            lsm_params = {k: v for k, v in params.items() if k in LSM_CALIB_PARAM_NAMES}
+            scenario_params = {k: v for k, v in params.items() if k in SCENARIO_PARAM_NAMES}
 
             # Update .soil file
             self._update_soil_file(subsurface_params)
@@ -156,8 +181,8 @@ class PIHMParameterManager(BaseParameterManager):
             if any(k in subsurface_params for k in ('SOIL_DEPTH', 'POROSITY', 'INIT_GW_DEPTH')):
                 self._update_ic_file(subsurface_params)
 
-            # Update .calib file (multipliers)
-            self._update_calib_file(subsurface_params)
+            # Update .calib file (subsurface multipliers reset + LSM/SCENARIO values)
+            self._update_calib_file(subsurface_params, lsm_params, scenario_params)
 
             # Update .lc file for Manning's n
             if 'MANNINGS_N' in subsurface_params:
@@ -252,28 +277,30 @@ class PIHMParameterManager(BaseParameterManager):
 
         soil_path.write_text('\n'.join(new_lines) + '\n')
 
-    def _update_calib_file(self, params: Dict[str, float]) -> None:
-        """Reset .calib multipliers to 1.0 for all calibrated parameters.
+    def _update_calib_file(
+        self,
+        subsurface_params: Dict[str, float],
+        lsm_params: Optional[Dict[str, float]] = None,
+        scenario_params: Optional[Dict[str, float]] = None,
+    ) -> None:
+        """Update .calib file with section-aware parameter handling.
 
-        Absolute parameter values are written directly to .soil, .geol,
-        .riv, and .mesh files. The .calib multipliers must therefore be
-        1.0 (identity) to avoid double-application: MM-PIHM computes
-        effective_value = base_value (from .soil) * multiplier (from .calib).
-
-        Each calibration parameter may affect multiple .calib keys:
-            K_SAT      -> KSATH, KSATV, KINF
-            MACROPORE_K -> KMACSATH, KMACSATV
-            POROSITY   -> POROSITY
-            VG_ALPHA   -> ALPHA
-            VG_N       -> BETA
-            MANNINGS_N -> ROUGH
-            SOIL_DEPTH -> DROOT
+        The .calib file has three sections:
+        - SUBSURFACE (implicit, before any section header): multipliers reset
+          to 1.0 because absolute values are written to .soil/.geol/.riv/.mesh.
+        - LSM_CALIBRATION: multipliers applied to base values from vegprmt.tbl
+          lookup table (not from any file we write), so calibrated values are
+          written directly.
+        - SCENARIO: PRCP as multiplier, SFCTMP as additive offset (K).
         """
         calib_files = list(self.settings_dir.glob('*.calib'))
         if not calib_files:
             return
 
-        # Map each .calib keyword to the parameter that controls it
+        lsm_params = lsm_params or {}
+        scenario_params = scenario_params or {}
+
+        # Map each subsurface .calib keyword to the calibration parameter
         calib_key_to_param = {
             'KSATH': 'K_SAT',
             'KSATV': 'K_SAT',
@@ -290,16 +317,48 @@ class PIHMParameterManager(BaseParameterManager):
         calib_path = calib_files[0]
         lines = calib_path.read_text().strip().split('\n')
         new_lines = []
+        current_section = 'SUBSURFACE'
 
         for line in lines:
-            parts = line.split()
-            if len(parts) >= 2:
-                key = parts[0]
+            stripped = line.strip()
+
+            # Detect section transitions
+            if stripped == 'LSM_CALIBRATION':
+                current_section = 'LSM_CALIBRATION'
+                new_lines.append(line)
+                continue
+            elif stripped == 'SCENARIO':
+                current_section = 'SCENARIO'
+                new_lines.append(line)
+                continue
+
+            parts = stripped.split()
+            if len(parts) < 2:
+                new_lines.append(line)
+                continue
+
+            key = parts[0]
+
+            if current_section == 'SUBSURFACE':
                 param_name = calib_key_to_param.get(key)
-                if param_name and param_name in params:
+                if param_name and param_name in subsurface_params:
                     # Reset to 1.0 — absolute values are already in the
                     # direct input files (.soil, .riv, .mesh, .geol).
                     line = f"{key}\t\t1.000000"
+
+            elif current_section == 'LSM_CALIBRATION':
+                if key in lsm_params:
+                    line = f"{key}\t\t{lsm_params[key]:.6f}"
+
+            elif current_section == 'SCENARIO':
+                if key in scenario_params:
+                    if key == 'SFCTMP':
+                        # Additive offset (K)
+                        line = f"{key}\t\t{scenario_params[key]:.6f}"
+                    else:
+                        # Multiplier (e.g. PRCP)
+                        line = f"{key}\t\t{scenario_params[key]:.6f}"
+
             new_lines.append(line)
 
         calib_path.write_text('\n'.join(new_lines) + '\n')
@@ -516,5 +575,9 @@ class PIHMParameterManager(BaseParameterManager):
             'SNOW17_SCF': 1.0,
             'SNOW17_MFMAX': 1.0,
             'SNOW17_PXTEMP': 0.0,
+            'SFCTMP': 0.0,
+            'PRCP': 1.0,
+            'CZIL': 1.0,
+            'RS': 1.0,
         }
         return {k: v for k, v in defaults.items() if k in self.pihm_params}
