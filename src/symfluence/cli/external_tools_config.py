@@ -290,15 +290,96 @@ def _register_infrastructure_tools() -> None:
     _register_enzyme()
 
 
-def _import_model_build_instructions() -> None:
-    """
-    Import model build instructions to trigger registration.
+def _load_build_module_directly(module_name: str, pkg_root: object) -> None:
+    """Load a build_instructions module without triggering parent __init__.py.
 
-    This is done lazily to avoid importing heavy model dependencies.
-    We only import the build_instructions modules, which are lightweight
-    (they only depend on build_snippets and build_registry).
+    When a model's ``__init__.py`` has broken imports (missing deps, protocol
+    errors, etc.), the normal ``importlib.import_module`` call fails because
+    Python must execute every parent ``__init__.py`` first.  This helper
+    bypasses that by injecting lightweight parent-package stubs into
+    ``sys.modules``, loading the target ``.py`` file directly via
+    ``importlib.util``, then cleaning up the stubs so that later real
+    imports of the parent package still work normally.
+    """
+    import importlib.util
+    import os
+    import sys
+    import types
+
+    parts = module_name.split('.')
+    # e.g. ['symfluence', 'models', 'summa', 'build_instructions']
+    rel_parts = parts[1:]  # ['models', 'summa', 'build_instructions']
+    file_path = pkg_root.joinpath(*rel_parts[:-1]) / (rel_parts[-1] + '.py')
+
+    if not file_path.exists():
+        raise ImportError(f"Cannot find {file_path}")
+
+    # Track which parent packages we replaced so we can restore them.
+    replaced: dict[str, types.ModuleType | None] = {}
+
+    try:
+        # Ensure every parent package exists in sys.modules with a valid
+        # __path__.  A previous failed import may have left a partially-
+        # initialised module whose __path__ points nowhere — replace it
+        # with a lightweight stub so that sibling imports (e.g.
+        # rhessys.build_script) still resolve during exec.
+        for i in range(1, len(parts)):
+            parent_name = '.'.join(parts[:i])
+            expected_dir = str(pkg_root.joinpath(*parts[1:i]))
+            existing = sys.modules.get(parent_name)
+
+            needs_stub = existing is None or not any(
+                os.path.isdir(p) for p in getattr(existing, '__path__', [])
+            )
+            if needs_stub:
+                replaced[parent_name] = existing  # save for restore
+                stub = types.ModuleType(parent_name)
+                stub.__path__ = [expected_dir]
+                stub.__package__ = parent_name
+                stub.__spec__ = None
+                sys.modules[parent_name] = stub
+
+        # Load and execute the target module.
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        spec.loader.exec_module(mod)
+        # The @BuildInstructionsRegistry.register decorator has now fired.
+
+    finally:
+        # Restore original sys.modules state for parent packages so that
+        # future imports of the real package still execute __init__.py.
+        for name, original in replaced.items():
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
+
+
+def _import_model_build_instructions() -> None:
+    """Import model build instructions to trigger registration.
+
+    Build-instruction modules are lightweight — they only depend on
+    ``symfluence.cli.services``.  However, ``importlib.import_module``
+    also executes the parent package's ``__init__.py`` (e.g.
+    ``symfluence/models/summa/__init__.py``), which eagerly loads heavy
+    model components.  If *any* of those components fail to import the
+    build instructions are silently lost and the tool disappears from
+    ``symfluence binary install``.
+
+    Strategy: try the normal import first (fast path).  If it fails for
+    any reason, fall back to loading the ``.py`` file directly via
+    ``_load_build_module_directly``, which bypasses ``__init__.py``.
     """
     import importlib
+    import logging
+    import sys
+    from pathlib import Path
+
+    logger = logging.getLogger(__name__)
+
+    # Resolve package root: this file is  src/symfluence/cli/external_tools_config.py
+    _pkg_root = Path(__file__).resolve().parent.parent  # -> src/symfluence/
 
     model_modules = [
         'symfluence.models.summa.build_instructions',
@@ -326,24 +407,24 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.parflow.build_instructions',
         'symfluence.models.clmparflow.build_instructions',
         'symfluence.models.wrfhydro.build_instructions',
-
         'symfluence.models.pihm.build_instructions',
     ]
 
     for module_name in model_modules:
+        if module_name in sys.modules:
+            continue
         try:
             importlib.import_module(module_name)
-        except ImportError:
-            # Model may not be installed or available
-            pass
-        except Exception as exc:  # noqa: BLE001 — intentional; catch all failures
-            # Catch non-ImportError failures (e.g. a dependency in the
-            # model's __init__.py raising AttributeError or TypeError).
-            # Log so the user can diagnose missing tools.
-            import logging
-            logging.getLogger(__name__).warning(
-                "Failed to load build instructions from %s: %s", module_name, exc
-            )
+        except Exception:  # noqa: BLE001
+            # Normal import failed — the model's __init__.py likely has a
+            # broken import chain.  Fall back to loading the file directly.
+            try:
+                _load_build_module_directly(module_name, _pkg_root)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to load build instructions from %s: %s",
+                    module_name, exc,
+                )
 
 
 # Register infrastructure tools on module load
