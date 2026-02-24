@@ -176,9 +176,10 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
             # Process and merge datasets (like CARRA/CERRA)
             ds_chunk = self._process_and_merge_datasets(analysis_file, forecast_file)
 
-            # Save chunk to disk
+            # Save chunk to disk (with HPC filesystem fallback)
+            from .era5 import _safe_to_netcdf
             chunk_file = output_dir / f"{self.domain_name}_era5_cds_processed_{year}{month:02d}_temp.nc"
-            ds_chunk.to_netcdf(chunk_file)
+            _safe_to_netcdf(ds_chunk, chunk_file, logger=self.logger)
 
             self.logger.info(f"✓ Processed ERA5 chunk for {year}-{month:02d}")
             return chunk_file

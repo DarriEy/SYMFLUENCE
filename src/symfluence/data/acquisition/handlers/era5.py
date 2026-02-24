@@ -23,6 +23,62 @@ from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
 
+# Patterns indicating HDF5/netCDF engine issues on parallel filesystems
+_HDF_ERROR_PATTERNS = (
+    "HDF error",
+    "HDF5 error",
+    "Errno -101",
+    "unable to lock file",
+    "Resource temporarily",
+    "unable to synchronously",
+)
+
+
+def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
+                     logger: logging.Logger = None) -> None:
+    """Write dataset to NetCDF with automatic engine fallback for HPC filesystems.
+
+    Loads data into memory first to avoid dask/HDF5 conflicts when writing
+    from cloud-backed (Zarr) datasets, clears cloud-store encoding, then
+    tries netcdf4 → h5netcdf → uncompressed h5netcdf as fallbacks.
+    """
+    # Materialise into memory so the write is a pure local operation
+    ds = ds.load()
+
+    # Clear cloud-store (Zarr) encoding that can confuse NetCDF writers
+    for var in ds.data_vars:
+        ds[var].encoding.clear()
+    for coord in ds.coords:
+        ds[coord].encoding.clear()
+
+    # --- Attempt 1: default netcdf4 engine with compression ----------------
+    try:
+        ds.to_netcdf(path, encoding=encoding, compute=True)
+        return
+    except (OSError, RuntimeError) as e:
+        msg = str(e).lower()
+        if not any(pat.lower() in msg for pat in _HDF_ERROR_PATTERNS):
+            raise
+        if logger:
+            logger.warning(
+                f"netcdf4 engine failed writing {path.name} "
+                f"({e!r}), retrying with h5netcdf engine"
+            )
+
+    # --- Attempt 2: h5netcdf engine (different HDF5 binding) ---------------
+    try:
+        ds.to_netcdf(path, engine="h5netcdf", encoding=encoding, compute=True)
+        return
+    except (OSError, RuntimeError) as e:
+        if logger:
+            logger.warning(
+                f"h5netcdf with compression also failed ({e!r}), "
+                f"retrying without compression"
+            )
+
+    # --- Attempt 3: h5netcdf without compression (last resort) -------------
+    ds.to_netcdf(path, engine="h5netcdf", compute=True)
+
 
 def has_cds_credentials() -> bool:
     """
@@ -352,7 +408,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1: continue
                 # chunk_file already defined at start of loop
                 encoding = {var: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for var in ds_chunk.data_vars}
-                ds_chunk.to_netcdf(chunk_file, encoding=encoding, compute=True)
+                _safe_to_netcdf(ds_chunk, chunk_file, encoding=encoding, logger=self.logger)
                 self.logger.info(f"✓ Successfully saved ERA5 chunk {i}/{len(chunks)} to {chunk_file.name}")
                 chunk_files.append(chunk_file)
         else:
@@ -494,13 +550,14 @@ def _process_era5_chunk_threadsafe(
         if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: return idx, None, "skipped"
         ds_chunk = era5_to_summa_schema(ds_ts[[v for v in vars if v in ds_ts.data_vars]], source='arco', logger=logger)
         cf = out_dir / f"domain_{dom}_ERA5_merged_{start.year}{start.month:02d}.nc"
-        ds_chunk.to_netcdf(cf, encoding={v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars})
+        encoding = {v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars}
+        _safe_to_netcdf(ds_chunk, cf, encoding=encoding, logger=logger)
         return idx, cf, "success"
     except KeyError as e:
         return idx, None, f"missing variable or dimension: {e}"
     except ValueError as e:
         return idx, None, f"data value error: {e}"
-    except (OSError, IOError) as e:
+    except (OSError, IOError, RuntimeError) as e:
         return idx, None, f"file I/O error: {e}"
     except MemoryError as e:
         return idx, None, f"memory error (chunk may be too large): {e}"
