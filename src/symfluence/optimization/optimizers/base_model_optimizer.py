@@ -333,7 +333,9 @@ class BaseModelOptimizer(
         """Load best parameters from previous optimization runs (warm-start).
 
         Scans sibling run directories for best_params.json files and returns
-        the parameters from the run with the highest score.  Accepts partial
+        the parameters from the run with the highest score.  Prefers runs
+        that used the same optimization metric to avoid comparing scores
+        across incompatible metrics (e.g. KGE vs COMPOSITE).  Accepts partial
         matches when at least 50% of expected parameters are present —
         missing parameters are filled with log-aware midpoints from the
         parameter manager.
@@ -347,10 +349,16 @@ class BaseModelOptimizer(
         expected_params = set(self.param_manager.all_param_names)
         min_overlap = max(1, len(expected_params) // 2)  # 50% threshold
 
-        best_score = -float('inf')
-        best_params = None
-        best_run = None
-        best_missing: set = set()
+        # Determine current metric for same-metric preference
+        current_metric = self._get_config_value(
+            lambda: self.config.optimization.metric,
+            default='KGE',
+            dict_key='OPTIMIZATION_METRIC'
+        )
+
+        # Collect all valid candidates grouped by metric match
+        same_metric_best = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
+        other_metric_best = {'score': -float('inf'), 'params': None, 'run': None, 'missing': set()}
 
         for run_dir in parent_dir.iterdir():
             if not run_dir.is_dir() or run_dir == self.results_dir:
@@ -361,23 +369,61 @@ class BaseModelOptimizer(
                         data = json.loads(f.read_text(encoding='utf-8'))
                         score = data.get('best_score', -float('inf'))
                         params = data.get('best_params')
-                        if score > best_score and params:
-                            loaded_keys = set(params.keys())
-                            overlap = expected_params & loaded_keys
-                            missing = expected_params - loaded_keys
-                            if len(overlap) < min_overlap:
-                                self.logger.debug(
-                                    f"Skipping {run_dir.name}: insufficient "
-                                    f"overlap ({len(overlap)}/{len(expected_params)}, "
-                                    f"need {min_overlap})"
-                                )
-                                continue
-                            best_score = score
-                            best_params = params
-                            best_run = run_dir.name
-                            best_missing = missing
+                        run_metric = data.get('metric')  # may be None for legacy runs
+                        if not params:
+                            continue
+                        loaded_keys = set(params.keys())
+                        overlap = expected_params & loaded_keys
+                        missing = expected_params - loaded_keys
+                        if len(overlap) < min_overlap:
+                            self.logger.debug(
+                                f"Skipping {run_dir.name}: insufficient "
+                                f"overlap ({len(overlap)}/{len(expected_params)}, "
+                                f"need {min_overlap})"
+                            )
+                            continue
+
+                        # Categorise by metric match
+                        metrics_match = (
+                            run_metric is not None
+                            and run_metric.upper() == current_metric.upper()
+                        )
+                        target = same_metric_best if metrics_match else other_metric_best
+                        if score > target['score']:
+                            target['score'] = score
+                            target['params'] = params
+                            target['run'] = run_dir.name
+                            target['missing'] = missing
                     except (json.JSONDecodeError, OSError):
                         continue
+
+        # Prefer same-metric runs; fall back to cross-metric only if none
+        if same_metric_best['params'] is not None:
+            best_score = same_metric_best['score']
+            best_params = same_metric_best['params']
+            best_run = same_metric_best['run']
+            best_missing = same_metric_best['missing']
+            if other_metric_best['params'] is not None and other_metric_best['score'] > best_score:
+                self.logger.info(
+                    f"Ignoring higher-scoring {other_metric_best['run']} "
+                    f"(score={other_metric_best['score']:.4f}, different metric) "
+                    f"in favour of same-metric run {best_run} "
+                    f"(score={best_score:.4f}, metric={current_metric})"
+                )
+        elif other_metric_best['params'] is not None:
+            best_score = other_metric_best['score']
+            best_params = other_metric_best['params']
+            best_run = other_metric_best['run']
+            best_missing = other_metric_best['missing']
+            self.logger.warning(
+                f"No same-metric ({current_metric}) runs found; "
+                f"warm-starting from {best_run} which used a different metric "
+                f"(score={best_score:.4f})"
+            )
+        else:
+            best_params = None
+            best_run = None
+            best_missing = set()
 
         if best_params is not None:
             # Fill missing parameters with raw file values (not midpoints).
@@ -415,13 +461,13 @@ class BaseModelOptimizer(
                         best_params[p] = mid
                         filled[p] = mid
                 self.logger.info(
-                    f"Warm-starting from {best_run} (KGE={best_score:.4f}); "
+                    f"Warm-starting from {best_run} ({current_metric}={best_score:.4f}); "
                     f"filled {len(filled)} missing params: "
                     + ", ".join(f"{k}={v:.4g}" for k, v in filled.items())
                 )
             else:
                 self.logger.info(
-                    f"Warm-starting from {best_run} (KGE={best_score:.4f})"
+                    f"Warm-starting from {best_run} ({current_metric}={best_score:.4f})"
                 )
             # Only return expected params (drop any extra from previous run)
             return {k: v for k, v in best_params.items() if k in expected_params}

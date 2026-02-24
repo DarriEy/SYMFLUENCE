@@ -181,6 +181,25 @@ class VICWorker(BaseWorker):
                     ds['elevation'].values[band][mask] += offset
                 self.logger.debug(f"Applied elev_offset = {offset:.0f}m to snow band elevations")
 
+                # Recalculate Pfactor to match shifted elevations
+                if 'Pfactor' in ds and 'AreaFract' in ds:
+                    config = self.config or {}
+                    pfactor_per_km = float(config.get('VIC_PFACTOR_PER_KM', 0.0005))
+                    elevs = ds['elevation'].values
+                    areas = ds['AreaFract'].values
+                    mean_elev = float(np.nansum(elevs * areas) / np.nansum(areas))
+                    for band in range(ds['Pfactor'].shape[0]):
+                        band_elev = ds['elevation'].values[band]
+                        mask = ~np.isnan(band_elev)
+                        ds['Pfactor'].values[band][mask] = np.clip(
+                            1.0 + pfactor_per_km * (band_elev[mask] - mean_elev),
+                            0.5, 2.0,
+                        )
+                    self.logger.debug(
+                        f"Recalculated Pfactor for shifted elevations "
+                        f"(pfactor_per_km={pfactor_per_km}, mean_elev={mean_elev:.0f}m)"
+                    )
+
             # Apply layer-specific Ksat with depth decay
             if 'Ksat' in params and 'Ksat' in ds:
                 base_ksat = params['Ksat']

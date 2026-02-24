@@ -240,10 +240,18 @@ class ResultsTrackingMixin(ConfigMixin):
             else:
                 return obj
 
+        # Determine the optimization metric used
+        metric_name = self._get_config_value(
+            lambda: self.config.optimization.metric,
+            default='KGE',
+            dict_key='OPTIMIZATION_METRIC'
+        )
+
         # Prepare output
         output = {
             'algorithm': algorithm,
             'experiment_id': experiment_id,
+            'metric': metric_name,
             'best_score': float(self._best_score) if self._best_score is not None else None,
             'best_iteration': int(self._best_iteration) if self._best_iteration is not None else None,
             'best_params': convert_to_serializable(self._best_params),
