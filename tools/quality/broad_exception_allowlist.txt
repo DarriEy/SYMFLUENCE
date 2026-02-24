@@ -818,12 +818,12 @@ src/symfluence/models/lstm/calibration/worker.py:72:except Exception as e:  # no
 src/symfluence/models/lstm/plotter.py:80:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/lstm/postprocessor.py:75:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/lstm/visualizer.py:26:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:1034:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:385:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:669:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:716:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:880:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/mesh/calibration/parameter_manager.py:976:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:1000:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:1058:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:399:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:693:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:740:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/mesh/calibration/parameter_manager.py:904:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mesh/calibration/worker.py:432:except Exception:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mesh/calibration/worker.py:550:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mesh/extractor.py:117:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -972,7 +972,7 @@ src/symfluence/models/parflow/postprocessor.py:287:except Exception:  # noqa: BL
 src/symfluence/models/parflow/preprocessor.py:107:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/preprocessor.py:303:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/runner.py:83:except Exception:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/pihm/calibration/parameter_manager.py:169:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/pihm/calibration/parameter_manager.py:194:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/targets.py:106:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/worker.py:173:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/worker.py:236:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1131,14 +1131,14 @@ src/symfluence/models/troute/plotter.py:271:except Exception:  # noqa: BLE001 �
 src/symfluence/models/troute/plotter.py:59:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/troute/postprocessor.py:128:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/utilities/forcing_data_processor.py:106:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/vic/calibration/parameter_manager.py:274:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/parameter_manager.py:335:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/parameter_manager.py:373:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/parameter_manager.py:295:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/parameter_manager.py:356:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/parameter_manager.py:394:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/vic/calibration/worker.py:107:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/worker.py:263:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/worker.py:383:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/worker.py:595:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/vic/calibration/worker.py:649:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/worker.py:282:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/worker.py:402:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/worker.py:614:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/vic/calibration/worker.py:668:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/vic/extractor.py:180:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/vic/postprocessor.py:126:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/vic/preprocessor.py:108:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -1172,7 +1172,7 @@ src/symfluence/models/wflow/calibration/worker.py:76:except Exception as e:  # n
 src/symfluence/models/wflow/extractor.py:57:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:62:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:97:except Exception as e:  # noqa: BLE001
-src/symfluence/models/wflow/preprocessor.py:200:except Exception:  # noqa: BLE001
+src/symfluence/models/wflow/preprocessor.py:235:except Exception:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:53:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:82:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wmfire/ignition.py:208:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -1217,7 +1217,7 @@ src/symfluence/models/xinanjiang/runner.py:324:except Exception as e:  # noqa: B
 src/symfluence/optimization/mixins/parallel_execution.py:644:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:651:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimization_manager.py:524:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/optimizers/base_model_optimizer.py:961:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/optimization/optimizers/base_model_optimizer.py:1007:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/project_manager.py:165:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/workflow_orchestrator.py:467:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/workflow_orchestrator.py:602:except Exception as e:  # noqa: BLE001 — must-not-raise contract
