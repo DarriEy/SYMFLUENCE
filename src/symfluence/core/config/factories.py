@@ -58,10 +58,11 @@ def _resolve_default_data_dir(code_dir: Optional[str] = None) -> str:
 
     Priority:
     1. SYMFLUENCE_DATA_DIR environment variable
-    2. Sibling directory to CODE_DIR named SYMFLUENCE_data
-    3. Current working directory / data
+    2. SYMFLUENCE_DATA environment variable (CI/workflow compat)
+    3. Sibling directory to CODE_DIR named SYMFLUENCE_data
+    4. Current working directory / data
     """
-    env_val = os.getenv('SYMFLUENCE_DATA_DIR')
+    env_val = os.getenv('SYMFLUENCE_DATA_DIR') or os.getenv('SYMFLUENCE_DATA')
     if env_val:
         return env_val
 
