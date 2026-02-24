@@ -311,6 +311,16 @@ class AcquisitionService(ConfigurableMixin):
         if data_access == 'CLOUD':
             self.logger.info(f"Cloud data access enabled for attributes (DEM_SOURCE: {dem_source})")
 
+            bbox_str = self._get_config_value(
+                lambda: self.config.domain.bounding_box_coords, default=None)
+            if not bbox_str:
+                raise ValueError(
+                    "BOUNDING_BOX_COORDS is required for cloud-based attribute "
+                    "acquisition (DATA_ACCESS: CLOUD) but was not set. Add "
+                    "BOUNDING_BOX_COORDS: 'north/west/south/east' to your "
+                    "configuration file (e.g. '44.5/-87.9/44.2/-87.5')."
+                )
+
             try:
                 downloader = CloudForcingDownloader(self.config, self.logger)
                 attr_tasks: List[Tuple[str, Callable]] = []
@@ -557,6 +567,15 @@ class AcquisitionService(ConfigurableMixin):
 
             if not check_cloud_access_availability(forcing_dataset, self.logger):
                 raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
+
+            if not self._get_config_value(
+                lambda: self.config.domain.bounding_box_coords, default=None):
+                raise ValueError(
+                    "BOUNDING_BOX_COORDS is required for cloud-based forcing "
+                    "acquisition (DATA_ACCESS: CLOUD) but was not set. Add "
+                    "BOUNDING_BOX_COORDS: 'north/west/south/east' to your "
+                    "configuration file."
+                )
 
             raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)

@@ -69,6 +69,14 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         self.end_date = pd.to_datetime(self._get_config_value(
             lambda: self.config.domain.time_end, default=None))
 
+        if not self.bbox:
+            self.logger.warning(
+                "No bounding box resolved for acquisition handler %s. "
+                "Set BOUNDING_BOX_COORDS ('north/west/south/east') in your "
+                "configuration file.",
+                type(self).__name__,
+            )
+
     @property
     def domain_dir(self) -> Path:
         """Alias for project_dir (backward compatibility)."""
