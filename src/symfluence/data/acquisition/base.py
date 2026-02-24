@@ -63,11 +63,14 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
 
         # Standard attributes via typed config access
         self.bbox = self._parse_bbox(self._get_config_value(
-            lambda: self.config.domain.bounding_box_coords, default=None))
+            lambda: self.config.domain.bounding_box_coords, default=None,
+            dict_key='BOUNDING_BOX_COORDS'))
         self.start_date = pd.to_datetime(self._get_config_value(
-            lambda: self.config.domain.time_start, default=None))
+            lambda: self.config.domain.time_start, default=None,
+            dict_key='EXPERIMENT_TIME_START'))
         self.end_date = pd.to_datetime(self._get_config_value(
-            lambda: self.config.domain.time_end, default=None))
+            lambda: self.config.domain.time_end, default=None,
+            dict_key='EXPERIMENT_TIME_END'))
 
         if not self.bbox:
             self.logger.warning(

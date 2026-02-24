@@ -76,15 +76,17 @@ class WflowParameterManager(BaseParameterManager):
             if not path.exists():
                 return False
             ds = xr.open_dataset(path)
-            ds_dict = {var: ds[var].copy() for var in ds.data_vars}
-            coords = dict(ds.coords)
-            attrs = dict(ds.attrs)
+            ds_new = ds.load()
             ds.close()
             for param_name, value in params.items():
                 nc_var = self.PARAM_VAR_MAP.get(param_name)
-                if nc_var and nc_var in ds_dict:
-                    ds_dict[nc_var].values[:] = value
-            xr.Dataset(ds_dict, coords=coords, attrs=attrs).to_netcdf(path)
+                if nc_var and nc_var in ds_new:
+                    ds_new[nc_var].values[:] = value
+            # Write to temp file then rename (avoids macOS HDF5 file lock)
+            tmp_path = path.parent / f'{path.stem}_tmp{path.suffix}'
+            ds_new.to_netcdf(tmp_path)
+            import shutil
+            shutil.move(str(tmp_path), str(path))
             return True
         except Exception as e:  # noqa: BLE001
             self.logger.error(f"Failed to update Wflow parameters: {e}")
