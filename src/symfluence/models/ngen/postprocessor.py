@@ -64,7 +64,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
             Path to ngen output directory within simulations folder
         """
         experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='run_1')
-        return self.project_dir / 'simulations' / experiment_id / 'ngen'
+        return self.project_dir / 'simulations' / experiment_id / self.model_name
 
     def extract_streamflow(self, experiment_id: str = None) -> Optional[Path]:
         """
@@ -89,7 +89,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
             experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='run_1')
 
         # Get output directory
-        output_dir = self.project_dir / 'simulations' / experiment_id / 'ngen'
+        output_dir = self.project_dir / 'simulations' / experiment_id / self.model_name
 
         # Find nexus output files
         nexus_files = list(output_dir.glob(self.output_file_glob))
