@@ -175,8 +175,13 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
     @staticmethod
     def _detect_mpi_launcher() -> str:
-        """Detect available MPI launcher (srun > mpirun > mpiexec)."""
-        for candidate in ("srun", "mpirun", "mpiexec"):
+        """Detect available MPI launcher (mpirun > mpiexec > srun).
+
+        mpirun is preferred because it handles PMI negotiation internally,
+        while srun requires matching PMI/PMIx versions between SLURM and
+        OpenMPI — a common source of failures on HPC systems (e.g., Anvil).
+        """
+        for candidate in ("mpirun", "mpiexec", "srun"):
             if shutil.which(candidate):
                 return candidate
         raise RuntimeError(
