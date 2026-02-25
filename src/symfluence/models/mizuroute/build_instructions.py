@@ -98,8 +98,9 @@ perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 if [ "${NETCDF_C}" != "${NETCDF_FORTRAN}" ]; then
     echo "Fixing LIBNETCDF for separate C/Fortran paths"
     perl -i -pe "s|^LIBNETCDF\s*=.*$|LIBNETCDF = -L${NETCDF_FORTRAN}/lib -lnetcdff -L${NETCDF_C}/lib -lnetcdf|" Makefile
-    # Remove the orphaned continuation line (starts with whitespace, contains -L and NCDF_PATH)
-    perl -i -ne "print unless /^\s+-L.*NCDF_PATH/" Makefile
+    # Remove the orphaned continuation line (starts with spaces, contains -L and NCDF_PATH)
+    # Use \t-aware pattern: only match lines starting with spaces (not tabs, which are make recipes)
+    perl -i -ne "print unless /^ +-L.*NCDF_PATH/" Makefile
 fi
 
 # Embed RPATH so the binary finds its libraries without LD_LIBRARY_PATH.
