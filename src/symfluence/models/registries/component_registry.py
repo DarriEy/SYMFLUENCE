@@ -97,22 +97,25 @@ class ComponentRegistry:
     _postprocessors: Dict[str, Type] = _RegistryProxy(R.postprocessors)
     _visualizers: Dict[str, Callable] = _RegistryProxy(R.visualizers)
 
-    # Mapping from component kind to (Protocol class, required attributes/methods).
+    # Mapping from component kind to (Protocol class, required attributes/methods, mode).
     # Only method contracts are checked; MODEL_NAME is a naming convention
     # resolved at init time (via ModelComponentMixin or _get_model_name()) and
     # need not be a class-level attribute.
+    # mode='all' means every attr is required; mode='any' means at least one.
+    # Postprocessors use 'any' because non-hydrological models (fire, etc.)
+    # provide run_postprocessing instead of extract_streamflow.
     _PROTOCOL_CHECKS = {
         'preprocessor': (
             'symfluence.models.base.protocols', 'ModelPreProcessor',
-            ['run_preprocessing'],
+            ['run_preprocessing'], 'all',
         ),
         'runner': (
             'symfluence.models.base.protocols', 'ModelRunner',
-            ['run'],
+            ['run'], 'all',
         ),
         'postprocessor': (
             'symfluence.models.base.protocols', 'ModelPostProcessor',
-            ['extract_streamflow'],
+            ['extract_streamflow', 'run_postprocessing'], 'any',
         ),
     }
 
@@ -129,15 +132,24 @@ class ComponentRegistry:
         if entry is None:
             return
 
-        _module, _cls_name, required_attrs = entry
+        _module, _cls_name, required_attrs, mode = entry
 
-        missing = [attr for attr in required_attrs if not hasattr(component_cls, attr)]
-        if missing:
-            logger.warning(
-                f"Registered {kind} '{component_cls.__name__}' for model "
-                f"'{model_name}' is missing expected attributes/methods: "
-                f"{missing}. It may not conform to the {_cls_name} Protocol."
-            )
+        if mode == 'any':
+            # At least one of the listed methods must be present
+            if not any(hasattr(component_cls, attr) for attr in required_attrs):
+                logger.warning(
+                    f"Registered {kind} '{component_cls.__name__}' for model "
+                    f"'{model_name}' has none of the expected methods: "
+                    f"{required_attrs}. It may not conform to the {_cls_name} Protocol."
+                )
+        else:
+            missing = [attr for attr in required_attrs if not hasattr(component_cls, attr)]
+            if missing:
+                logger.warning(
+                    f"Registered {kind} '{component_cls.__name__}' for model "
+                    f"'{model_name}' is missing expected attributes/methods: "
+                    f"{missing}. It may not conform to the {_cls_name} Protocol."
+                )
 
     @classmethod
     def register_preprocessor(cls, model_name: str) -> Callable[[Type], Type]:
