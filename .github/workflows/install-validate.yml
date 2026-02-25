@@ -85,6 +85,7 @@ jobs:
             gdal-bin libgdal-dev libproj-dev \
             libnetcdf-dev libnetcdff-dev libpnetcdf-dev \
             libhdf5-dev hdf5-tools libudunits2-dev \
+            libopenblas-dev liblapack-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
             python3-dev python3-pip python3-numpy cdo
@@ -149,9 +150,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}
-          key: symfluence-testdata-v0.6.0b-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
+          key: symfluence-testdata-v0.6.0c-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
           restore-keys: |
-            symfluence-testdata-v0.6.0b-
+            symfluence-testdata-v0.6.0c-
 
       - name: Full install (build venv + tools)
         env:
@@ -521,6 +522,7 @@ jobs:
             gdal-bin libgdal-dev libproj-dev \
             libnetcdf-dev libnetcdff-dev libpnetcdf-dev \
             libhdf5-dev hdf5-tools libudunits2-dev \
+            libopenblas-dev liblapack-dev \
             libfl-dev libbsd-dev \
             r-base libcurl4-openssl-dev \
             python3-dev python3-pip python3-numpy cdo
