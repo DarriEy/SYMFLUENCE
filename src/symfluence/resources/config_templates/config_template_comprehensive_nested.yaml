@@ -203,8 +203,8 @@ domain:
   # ---------------------------------------------------------------------------
   # Geospatial Data Sources
   # ---------------------------------------------------------------------------
-  # DEM source: fabdem, copernicus, nasadem, merit, srtm
-  dem_source: "fabdem"
+  # DEM source: copernicus, fabdem, nasadem, merit, srtm
+  dem_source: "copernicus"
   download_dem: true
 
   # Land cover source: modis, nlcd, esa_cci

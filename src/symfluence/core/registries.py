@@ -104,7 +104,7 @@ class Registries:
     build_instructions: Registry = Registry(
         "build_instructions", normalize=str.lower, doc="Model build instruction providers"
     )
-    presets: Registry = Registry("presets", doc="Initialization preset dicts/loaders")
+    presets: Registry = Registry("presets", normalize=str.lower, doc="Initialization preset dicts/loaders")
 
     # ==================================================================
     # Cross-cutting class methods
