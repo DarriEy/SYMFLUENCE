@@ -1,5 +1,6 @@
 """Wflow Parameter Manager."""
 import logging
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -19,29 +20,19 @@ class WflowParameterManager(BaseParameterManager):
         'InfiltCapPath': 'InfiltCapPath', 'RootingDepth': 'RootingDepth',
         'KsatHorFrac': 'KsatHorFrac', 'n_river': 'N_River',
         'PathFrac': 'PathFrac', 'thetaS': 'thetaS', 'thetaR': 'thetaR',
-        'Cfmax': 'Cfmax', 'TT': 'TT', 'TTI': 'TTI', 'TTM': 'TTM',
-        'WHC': 'WHC',
-        'CanopyGapFraction': 'CanopyGapFraction', 'Cmax': 'Cmax',
     }
 
-    DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
-        'KsatVer': {'min': 10.0, 'max': 3000.0, 'transform': 'log'},
+    DEFAULT_BOUNDS = {
+        'KsatVer': {'min': 10.0, 'max': 3000.0},
         'f': {'min': 0.5, 'max': 10.0},
-        'SoilThickness': {'min': 100.0, 'max': 8000.0},
+        'SoilThickness': {'min': 100.0, 'max': 5000.0},
         'InfiltCapPath': {'min': 10.0, 'max': 500.0},
-        'RootingDepth': {'min': 10.0, 'max': 2000.0},
+        'RootingDepth': {'min': 50.0, 'max': 2000.0},
         'KsatHorFrac': {'min': 0.0, 'max': 100.0},
         'n_river': {'min': 0.01, 'max': 0.1},
         'PathFrac': {'min': 0.0, 'max': 1.0},
-        'thetaS': {'min': 0.3, 'max': 0.8},
+        'thetaS': {'min': 0.3, 'max': 0.6},
         'thetaR': {'min': 0.01, 'max': 0.15},
-        'Cfmax': {'min': 0.5, 'max': 10.0},
-        'TT': {'min': -3.0, 'max': 3.0},
-        'TTI': {'min': 0.1, 'max': 10.0},
-        'TTM': {'min': -2.0, 'max': 2.0},
-        'WHC': {'min': 0.0, 'max': 0.4},
-        'CanopyGapFraction': {'min': 0.1, 'max': 0.95},
-        'Cmax': {'min': 0.5, 'max': 5.0},
     }
 
     def __init__(self, config: Dict, logger: logging.Logger, wflow_settings_dir: Path):
@@ -62,13 +53,7 @@ class WflowParameterManager(BaseParameterManager):
         return {p: self.DEFAULT_BOUNDS[p] for p in self.params_to_calibrate if p in self.DEFAULT_BOUNDS}
 
     def get_initial_parameters(self) -> Optional[Dict[str, Any]]:
-        initial = {}
-        for p, b in self._load_parameter_bounds().items():
-            if b.get('transform') == 'log' and b['min'] > 0 and b['max'] > 0:
-                initial[p] = float(np.sqrt(b['min'] * b['max']))
-            else:
-                initial[p] = (b['min'] + b['max']) / 2.0
-        return initial
+        return {p: (b['min'] + b['max']) / 2.0 for p, b in self._load_parameter_bounds().items()}
 
     def validate_parameters(self, params: Dict[str, float]) -> bool:
         if 'thetaR' in params and 'thetaS' in params:
@@ -101,7 +86,6 @@ class WflowParameterManager(BaseParameterManager):
             # Write to temp file then rename (avoids macOS HDF5 file lock)
             tmp_path = path.parent / f'{path.stem}_tmp{path.suffix}'
             ds_new.to_netcdf(tmp_path)
-            import shutil
             shutil.move(str(tmp_path), str(path))
             return True
         except Exception as e:  # noqa: BLE001

@@ -46,7 +46,7 @@ from .evaluation import (
 )
 
 # Forcing configs
-from .forcing import EMEarthConfig, ERA5Config, ForcingConfig, NexConfig
+from .forcing import EMEarthConfig, ERA5Config, ForcingConfig, LapseRateConfig, NexConfig
 
 # Model configs
 from .model_configs import (
@@ -101,6 +101,7 @@ __all__ = [
     "NASADEMConfig",
     # Forcing
     "ForcingConfig",
+    "LapseRateConfig",
     "NexConfig",
     "EMEarthConfig",
     "ERA5Config",

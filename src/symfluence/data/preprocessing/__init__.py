@@ -52,6 +52,12 @@ except ImportError as _e:
     BatchProcessor: Any = None  # type: ignore[no-redef]
     _logger.warning("Failed to import remapping_weights: %s", _e)
 
+try:
+    from .elevation_correction import ElevationCorrectionProcessor
+except ImportError as _e:
+    ElevationCorrectionProcessor: Any = None  # type: ignore[no-redef]
+    _logger.warning("Failed to import ElevationCorrectionProcessor: %s", _e)
+
 __all__ = [
     'ForcingResampler',
     'GeospatialStatistics',
@@ -61,4 +67,5 @@ __all__ = [
     'RemappingWeightGenerator',
     'RemappingWeightApplier',
     'BatchProcessor',
+    'ElevationCorrectionProcessor',
 ]

@@ -211,7 +211,14 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         return self.run_preprocessing_template()
 
     def _pre_setup(self) -> None:
-        """SUMMA-specific pre-setup: apply lapse rate corrections (template hook)."""
+        """SUMMA-specific pre-setup: apply lapse rate corrections (template hook).
+
+        If the model-agnostic ``ElevationCorrectionProcessor`` has already
+        corrected the basin-averaged files (``elevation_corrected`` NetCDF
+        attribute), the SUMMA forcing processor skips its own lapse rate
+        calculation while still performing SUMMA-specific fixes (time
+        coordinate format, NaN interpolation, data validation).
+        """
         self.apply_datastep_and_lapse_rate()
 
     def _prepare_forcing(self) -> None:

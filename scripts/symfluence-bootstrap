@@ -596,6 +596,13 @@ rebuild_hdf5_packages() {
         return 0
     fi
 
+    # If netCDF4 already imports cleanly, don't touch it. Source rebuilds can
+    # introduce new link-time deps (e.g. PnetCDF) that break a working wheel.
+    if python -c "import netCDF4" >/dev/null 2>&1; then
+        print_info "netCDF4 imports successfully — skipping HDF5 rebuild"
+        return 0
+    fi
+
     # Check if system HDF5 is on LD_LIBRARY_PATH
     if ! echo "${LD_LIBRARY_PATH:-}" | tr ':' '\n' | grep -qi hdf5; then
         return 0
@@ -606,28 +613,21 @@ rebuild_hdf5_packages() {
         return 0
     fi
 
-    # Check if the installed netCDF4 vendors its own HDF5 (pip wheel)
-    local vendors_hdf5
-    vendors_hdf5=$(python -c "
-import pathlib, netCDF4._netCDF4 as m
-p = pathlib.Path(m.__file__).parent.parent / 'netcdf4.libs'
-print('yes' if p.is_dir() and any(p.glob('libhdf5*')) else 'no')
-" 2>/dev/null || echo "unknown")
-
-    if [[ "$vendors_hdf5" != "yes" ]]; then
-        print_info "netCDF4 already uses system HDF5 — no rebuild needed"
-        return 0
-    fi
-
     local sys_hdf5_version
     sys_hdf5_version=$(h5cc -showconfig 2>/dev/null | grep "HDF5 Version:" | awk '{print $NF}' || echo "unknown")
     local vendored_version
     vendored_version=$(python -c "import netCDF4; print(netCDF4.__hdf5libversion__)" 2>/dev/null || echo "unknown")
 
-    print_warning "HDF5 library conflict detected:"
+    print_warning "HDF5 library conflict detected (netCDF4 import failed):"
     print_info "  System HDF5 (from loaded modules): $sys_hdf5_version"
     print_info "  Vendored HDF5 (pip wheel):         $vendored_version"
     print_info "Rebuilding h5py and netCDF4 from source against system HDF5..."
+
+    # Save current wheel versions so we can rollback if rebuild breaks things
+    local nc4_wheel_ver
+    nc4_wheel_ver=$(python -m pip show netCDF4 2>/dev/null | grep "^Version:" | awk '{print $2}' || true)
+    local h5py_wheel_ver
+    h5py_wheel_ver=$(python -m pip show h5py 2>/dev/null | grep "^Version:" | awk '{print $2}' || true)
 
     local hdf5_dir
     hdf5_dir=$(dirname "$(dirname "$(command -v h5cc)")" 2>/dev/null || true)
@@ -643,6 +643,21 @@ print('yes' if p.is_dir() and any(p.glob('libhdf5*')) else 'no')
     python -m pip install --no-binary netCDF4 --force-reinstall netCDF4 -q 2>&1 && \
         print_success "netCDF4 rebuilt against system HDF5 $sys_hdf5_version" || \
         print_warning "netCDF4 source build failed (continuing with vendored wheel)"
+
+    # Verify the rebuild didn't break the import (e.g. by pulling in PnetCDF deps)
+    if ! python -c "import netCDF4" >/dev/null 2>&1; then
+        print_warning "Source-built netCDF4 fails to import — rolling back to pip wheel"
+        python -m pip install --force-reinstall "netCDF4==${nc4_wheel_ver}" -q 2>&1 || \
+            python -m pip install --force-reinstall netCDF4 -q 2>&1 || true
+        python -m pip install --force-reinstall "h5py==${h5py_wheel_ver}" -q 2>&1 || \
+            python -m pip install --force-reinstall h5py -q 2>&1 || true
+        if python -c "import netCDF4" >/dev/null 2>&1; then
+            print_success "Rolled back to working pip wheel"
+        else
+            print_warning "netCDF4 still broken after rollback — check loaded modules"
+        fi
+        return 0
+    fi
 
     # Verify consistency
     local h5py_ver nc4_ver

@@ -4,9 +4,11 @@ Unit tests for SUMMA preprocessor.
 Tests SUMMA-specific preprocessing functionality.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
+import xarray as xr
 
 from symfluence.models.summa import SummaPreProcessor
 
@@ -180,6 +182,59 @@ class TestSummaRegistration:
 
         # SUMMA should be registered
         assert 'SUMMA' in ModelRegistry._preprocessors
+
+
+class TestSummaElevationCorrectionSkip:
+    """Test SUMMA skips lapse when model-agnostic correction already applied."""
+
+    def test_skips_lapse_when_already_corrected(self, summa_config, mock_logger, setup_test_directories):
+        """Verify topology is not loaded when elevation_corrected attribute is present."""
+        preprocessor = SummaPreProcessor(summa_config, mock_logger)
+        fp = preprocessor.forcing_processor
+
+        # Create a fake basin-averaged NetCDF with elevation_corrected=1
+        basin_dir = fp.forcing_basin_path
+        basin_dir.mkdir(parents=True, exist_ok=True)
+        ds = xr.Dataset({
+            'airtemp': (['time', 'hru'], np.full((2, 1), 280.0)),
+            'hruId': (['hru'], np.array([1001], dtype=np.int32)),
+        }, coords={'time': [0.0, 1.0], 'hru': [0]})
+        ds.attrs['elevation_corrected'] = 1
+        nc_path = basin_dir / f'{preprocessor.domain_name}_ERA5_2020-01-01.nc'
+        ds.to_netcdf(nc_path)
+
+        with patch.object(fp, '_load_topology_data') as mock_topo, \
+             patch.object(fp, '_process_forcing_batches'):
+            preprocessor.apply_datastep_and_lapse_rate()
+            # Topology should NOT have been loaded
+            mock_topo.assert_not_called()
+
+    def test_applies_lapse_when_not_corrected(self, summa_config, mock_logger, setup_test_directories):
+        """Verify existing behavior unchanged when attribute is absent."""
+        preprocessor = SummaPreProcessor(summa_config, mock_logger)
+        fp = preprocessor.forcing_processor
+
+        # Create a fake basin-averaged NetCDF WITHOUT elevation_corrected
+        basin_dir = fp.forcing_basin_path
+        basin_dir.mkdir(parents=True, exist_ok=True)
+        ds = xr.Dataset({
+            'airtemp': (['time', 'hru'], np.full((2, 1), 280.0)),
+            'hruId': (['hru'], np.array([1001], dtype=np.int32)),
+        }, coords={'time': [0.0, 1.0], 'hru': [0]})
+        nc_path = basin_dir / f'{preprocessor.domain_name}_ERA5_2020-01-01.nc'
+        ds.to_netcdf(nc_path)
+
+        with patch.object(fp, '_find_intersection_file') as mock_find, \
+             patch.object(fp, '_load_topology_data') as mock_topo, \
+             patch.object(fp, '_precalculate_lapse_corrections') as mock_lapse, \
+             patch.object(fp, '_process_forcing_batches'):
+            mock_find.return_value = MagicMock()
+            mock_topo.return_value = MagicMock()
+            mock_lapse.return_value = (MagicMock(), 0.0065)
+
+            preprocessor.apply_datastep_and_lapse_rate()
+            # Topology SHOULD have been loaded
+            mock_topo.assert_called_once()
 
 
 if __name__ == '__main__':

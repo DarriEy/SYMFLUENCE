@@ -122,17 +122,39 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         Orchestrates file discovery, topology loading, lapse-rate
         pre-calculation, and batch processing of forcing files.
+
+        If the model-agnostic :class:`ElevationCorrectionProcessor` has
+        already corrected the basin-averaged files (indicated by the
+        ``elevation_corrected`` NetCDF attribute), the expensive topology
+        loading and lapse pre-calculation are skipped.  Files are still
+        processed through ``_process_forcing_batches`` for SUMMA-specific
+        fixes (time coordinate format, NaN interpolation, data validation).
         """
         self.logger.info("Starting memory-efficient temperature lapse rate and data step application")
 
-        intersect_csv = self._find_intersection_file()
-        topo_data = self._load_topology_data(intersect_csv)
-        forcing_files = self._get_forcing_files()
-        self._prepare_forcing_output_dir()
-        lapse_values, lapse_rate = self._precalculate_lapse_corrections(topo_data)
-        del topo_data
-        gc.collect()
-        self._process_forcing_batches(forcing_files, lapse_values, lapse_rate)
+        # Check if model-agnostic elevation correction already applied
+        already_corrected = self._check_already_corrected()
+
+        if already_corrected:
+            self.logger.info(
+                "Basin-averaged files already elevation-corrected — "
+                "skipping topology loading and lapse pre-calculation"
+            )
+            forcing_files = self._get_forcing_files()
+            self._prepare_forcing_output_dir()
+            # Pass zero lapse values so SUMMA-specific processing still runs
+            lapse_values = pd.DataFrame({'lapse_values': []})
+            lapse_values.index.name = f'S_1_{self.hruId}'
+            self._process_forcing_batches(forcing_files, lapse_values, 0.0)
+        else:
+            intersect_csv = self._find_intersection_file()
+            topo_data = self._load_topology_data(intersect_csv)
+            forcing_files = self._get_forcing_files()
+            self._prepare_forcing_output_dir()
+            lapse_values, lapse_rate = self._precalculate_lapse_corrections(topo_data)
+            del topo_data
+            gc.collect()
+            self._process_forcing_batches(forcing_files, lapse_values, lapse_rate)
 
         del lapse_values
         gc.collect()
@@ -148,6 +170,17 @@ class SummaForcingProcessor(BaseForcingProcessor):
     # ------------------------------------------------------------------
     # Helpers for apply_datastep_and_lapse_rate
     # ------------------------------------------------------------------
+
+    def _check_already_corrected(self) -> bool:
+        """Check whether basin-averaged files carry the ``elevation_corrected`` attribute."""
+        nc_files = sorted(self.forcing_basin_path.glob("*.nc"))
+        if not nc_files:
+            return False
+        try:
+            with xr.open_dataset(nc_files[0]) as ds:
+                return bool(ds.attrs.get('elevation_corrected', False))
+        except Exception:  # noqa: BLE001
+            return False
 
     def _find_intersection_file(self):
         """Locate the intersection CSV (or shapefile) for topology weighting."""
@@ -463,7 +496,8 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 })
 
                 # Apply lapse rate correction efficiently if enabled
-            if self._get_config_value(lambda: self.config.forcing.apply_lapse_rate):
+            if (self._get_config_value(lambda: self.config.forcing.apply_lapse_rate)
+                    and not dat.attrs.get('elevation_corrected', False)):
                 # Get lapse values for the HRUs (vectorized operation)
                 hru_lapse_values = lapse_values.loc[dat['hruId'].values, 'lapse_values'].values
 
