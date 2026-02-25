@@ -139,6 +139,11 @@ alos = [
   "planetary-computer>=1.0.0",
   "pystac-client>=0.7.0",
 ]
+# HPC / distributed parallelism (mpi4py must be built against the site MPI;
+# on many HPC systems `module load py-mpi4py` is preferred over pip install)
+hpc = [
+  "mpi4py>=3.0.0,<4.0.0",
+]
 # All development dependencies
 all = [
   "symfluence[r,dev,test,docs,notebook,gui,tui,alos]",

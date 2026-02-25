@@ -799,10 +799,26 @@ install_python_requirements() {
         python -m pip install h5netcdf $pip_flags 2>/dev/null || true
     }
 
+    # Helper: install mpi4py from source against the system MPI.
+    # Pre-built wheels bundle their own OpenMPI without PMI/SLURM support,
+    # causing "OPAL ERROR: Unreachable in file pmix3x_client.c" on HPC.
+    _install_mpi4py() {
+        if ! command -v mpicc >/dev/null 2>&1; then return 0; fi
+        # Check if mpi4py already imports successfully (e.g., system module)
+        if python -c "import mpi4py" 2>/dev/null; then
+            print_info "mpi4py already available (system module or prior install)"
+            return 0
+        fi
+        print_info "System MPI detected ($(mpicc --version 2>&1 | head -1)) — building mpi4py from source..."
+        python -m pip install --no-binary mpi4py --no-cache-dir mpi4py $pip_flags || \
+            print_warning "mpi4py source build failed (install manually or load system mpi4py module)"
+    }
+
     if python -m pip install -r "$tmp" $pip_flags; then
         rm -f "$tmp"
         _install_torch
         _install_netcdf_from_source
+        _install_mpi4py
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install (RPY2_CFFI_MODE=$RPY2_CFFI_MODE)..."
@@ -820,6 +836,7 @@ install_python_requirements() {
         rm -f "$tmp"
         _install_torch
         _install_netcdf_from_source
+        _install_mpi4py
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install in ABI mode..."
