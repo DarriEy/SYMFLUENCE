@@ -3122,10 +3122,10 @@ MAX_ACQUISITION_WORKERS: 3
 
 # DEM_SOURCE
 #   Type:        str
-#   Default:     fabdem
+#   Default:     copernicus
 #   Source:      DomainConfig (domain.py)
 #   Usage:      8
-DEM_SOURCE: "fabdem"
+DEM_SOURCE: "copernicus"
 
 # DOWNLOAD_DEM
 #   Type:        bool

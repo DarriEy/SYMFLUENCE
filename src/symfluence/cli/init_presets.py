@@ -278,12 +278,16 @@ def get_preset(name):
         ValueError: If preset name is unknown
     """
     presets = _get_merged_presets()
-    if name not in presets:
-        available = ', '.join(sorted(presets.keys()))
-        raise ValueError(
-            f"Unknown preset: {name}. Available presets: {available}"
-        )
-    return presets[name]
+    # Normalize: lowercase, underscores to hyphens (e.g. bow_river -> bow-river)
+    normalized = name.lower().replace('_', '-')
+    if normalized in presets:
+        return presets[normalized]
+    if name in presets:
+        return presets[name]
+    available = ', '.join(sorted(presets.keys()))
+    raise ValueError(
+        f"Unknown preset: {name}. Available presets: {available}"
+    )
 
 
 def list_preset_names():
