@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.stage_marker import read_marker, write_marker
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator, WorkflowStep
 
 
@@ -179,3 +180,139 @@ class TestWorkflowOrchestrator:
 
         self._touch_streamflow_output(orchestrator.project_dir, orchestrator.domain_name)
         assert orchestrator._check_observed_data_exists() is True
+
+
+class TestWorkflowOrchestratorMarkers:
+    """Tests for configuration-hash stage invalidation in the orchestrator."""
+
+    @staticmethod
+    def _make_orchestrator(tmp_path, **extra_config):
+        managers = {
+            'project': MagicMock(),
+            'domain': MagicMock(),
+            'data': MagicMock(),
+            'model': MagicMock(),
+            'analysis': MagicMock(),
+            'optimization': MagicMock(),
+        }
+        config = SymfluenceConfig.from_minimal(
+            domain_name='marker_test',
+            model='SUMMA',
+            time_start='2010-01-01 00:00',
+            time_end='2010-12-31 23:00',
+            SYMFLUENCE_DATA_DIR=tmp_path,
+            **extra_config,
+        )
+        return WorkflowOrchestrator(managers, config, MagicMock())
+
+    def test_run_workflow_writes_markers(self, tmp_path):
+        """Markers are written after each successfully executed step."""
+        orch = self._make_orchestrator(tmp_path)
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            step = WorkflowStep(
+                "setup_project", "setup_project", MagicMock(),
+                lambda: False, "Setup"
+            )
+            mock_define.return_value = [step]
+
+            orch.run_workflow()
+
+        marker = read_marker(orch.project_dir, "setup_project")
+        assert marker is not None
+        assert marker.stage == "setup_project"
+        step.func.assert_called_once()
+
+    def test_run_workflow_skips_when_marker_valid(self, tmp_path):
+        """Step is skipped when output exists AND marker hash matches."""
+        orch = self._make_orchestrator(tmp_path)
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            func_mock = MagicMock()
+            step = WorkflowStep(
+                "setup_project", "setup_project", func_mock,
+                lambda: True, "Setup"  # output exists
+            )
+            mock_define.return_value = [step]
+
+            # Pre-write a marker with the correct hash
+            from symfluence.core.stage_marker import STAGE_CONFIG_SECTIONS, compute_config_hash
+            sections = STAGE_CONFIG_SECTIONS["setup_project"]
+            current_hash = compute_config_hash(orch._config, sections)
+            write_marker(orch.project_dir, "setup_project", current_hash)
+
+            orch.run_workflow()
+
+        func_mock.assert_not_called()
+
+    def test_run_workflow_reruns_when_marker_stale(self, tmp_path):
+        """Step re-executes when output exists but config hash changed."""
+        orch = self._make_orchestrator(tmp_path)
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            func_mock = MagicMock()
+            step = WorkflowStep(
+                "setup_project", "setup_project", func_mock,
+                lambda: True, "Setup"  # output exists
+            )
+            mock_define.return_value = [step]
+
+            # Pre-write a marker with a WRONG hash
+            write_marker(orch.project_dir, "setup_project", "stale_hash_value")
+
+            orch.run_workflow()
+
+        func_mock.assert_called_once()
+
+    def test_force_run_clears_markers(self, tmp_path):
+        """force_run=True clears all existing markers before execution."""
+        orch = self._make_orchestrator(tmp_path)
+
+        # Pre-write markers
+        write_marker(orch.project_dir, "setup_project", "old")
+        write_marker(orch.project_dir, "define_domain", "old")
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            mock_define.return_value = []
+            orch.run_workflow(force_run=True)
+
+        assert read_marker(orch.project_dir, "setup_project") is None
+        assert read_marker(orch.project_dir, "define_domain") is None
+
+    def test_get_workflow_status_includes_marker_fields(self, tmp_path):
+        """get_workflow_status() reports marker_valid and config_stale."""
+        orch = self._make_orchestrator(tmp_path)
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            step = WorkflowStep(
+                "setup_project", "setup_project", MagicMock(),
+                lambda: True, "Setup"  # output exists
+            )
+            mock_define.return_value = [step]
+
+            # No marker yet → stale
+            status = orch.get_workflow_status()
+
+        detail = status['step_details'][0]
+        assert detail['marker_valid'] is False
+        assert detail['config_stale'] is True
+        assert detail['complete'] is False
+        assert status['completed_steps'] == 0
+        assert status['pending_steps'] == 1
+
+    def test_run_individual_steps_writes_marker(self, tmp_path):
+        """run_individual_steps writes markers after successful execution."""
+        orch = self._make_orchestrator(tmp_path)
+
+        with patch.object(orch, 'define_workflow_steps') as mock_define:
+            step = WorkflowStep(
+                "define_domain", "define_domain", MagicMock(),
+                lambda: False, "Define domain"
+            )
+            mock_define.return_value = [step]
+
+            orch.run_individual_steps(["define_domain"])
+
+        marker = read_marker(orch.project_dir, "define_domain")
+        assert marker is not None
+        assert marker.stage == "define_domain"

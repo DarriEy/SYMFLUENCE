@@ -16,6 +16,13 @@ from symfluence.core.exceptions import SYMFLUENCEError
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.provenance import record_step
+from symfluence.core.stage_marker import (
+    STAGE_CONFIG_SECTIONS,
+    clear_markers,
+    compute_config_hash,
+    is_stage_current,
+    write_marker,
+)
 from symfluence.data.observation.paths import observation_output_candidates_by_family
 
 if TYPE_CHECKING:
@@ -400,6 +407,10 @@ class WorkflowOrchestrator(ConfigMixin):
         skipped_steps = 0
         failed_steps = 0
 
+        # Clear all markers when force-running the entire workflow
+        if force_run:
+            clear_markers(self.project_dir)
+
         # Execute each step
         for idx, step in enumerate(workflow_steps, 1):
             step_name = step.name
@@ -413,7 +424,26 @@ class WorkflowOrchestrator(ConfigMixin):
                 self.logger.info("=" * 40)
 
             try:
-                if force_run or not step.check_func():
+                # Determine whether the step needs to run
+                output_exists = step.check_func()
+                sections = STAGE_CONFIG_SECTIONS.get(step_name, [])
+                if sections:
+                    current_hash = compute_config_hash(self._config, sections)
+                    marker_current = is_stage_current(
+                        self.project_dir, step_name, current_hash
+                    )
+                else:
+                    current_hash = ""
+                    marker_current = True  # unknown stages fall back to output-only
+
+                needs_run = force_run or not output_exists or not marker_current
+
+                if needs_run:
+                    if output_exists and not marker_current and not force_run:
+                        self.logger.info(
+                            f"Configuration changed — re-executing: {step_name}"
+                        )
+
                     step_start_time = datetime.now()
                     self.logger.info(f"Executing: {step.description}")
 
@@ -421,6 +451,10 @@ class WorkflowOrchestrator(ConfigMixin):
 
                     step_end_time = datetime.now()
                     duration = (step_end_time - step_start_time).total_seconds()
+
+                    # Write marker after successful execution
+                    if sections:
+                        write_marker(self.project_dir, step_name, current_hash)
 
                     # FIXED: Use log_completion() instead of non-existent format_step_completion()
                     if self.logging_manager:
@@ -580,6 +614,12 @@ class WorkflowOrchestrator(ConfigMixin):
 
                 duration = (datetime.now() - step_start_time).total_seconds()
 
+                # Write marker after successful execution
+                sections = STAGE_CONFIG_SECTIONS.get(step.name, [])
+                if sections:
+                    current_hash = compute_config_hash(self._config, sections)
+                    write_marker(self.project_dir, step.name, current_hash)
+
                 if self.logging_manager:
                     self.logging_manager.log_completion(True, step.description, duration)
                 else:
@@ -647,7 +687,20 @@ class WorkflowOrchestrator(ConfigMixin):
 
         for step in workflow_steps:
             step_name = step.name
-            is_complete = step.check_func()
+            output_exists = step.check_func()
+
+            sections = STAGE_CONFIG_SECTIONS.get(step_name, [])
+            if sections:
+                current_hash = compute_config_hash(self._config, sections)
+                marker_valid = is_stage_current(
+                    self.project_dir, step_name, current_hash
+                )
+            else:
+                marker_valid = True
+                current_hash = ""
+
+            config_stale = output_exists and not marker_valid
+            is_complete = output_exists and marker_valid
 
             if is_complete:
                 status['completed_steps'] += 1
@@ -658,7 +711,9 @@ class WorkflowOrchestrator(ConfigMixin):
                 'name': step_name,
                 'cli_name': step.cli_name,
                 'description': step.description,
-                'complete': is_complete
+                'complete': is_complete,
+                'marker_valid': marker_valid,
+                'config_stale': config_stale,
             })
 
         return status
