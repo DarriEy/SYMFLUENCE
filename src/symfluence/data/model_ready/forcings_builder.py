@@ -44,6 +44,14 @@ class ForcingsStoreBuilder:
         forcing_dataset: str = 'ERA5',
         strategy: str = 'symlink',
     ) -> None:
+        """Initialise the forcings builder.
+
+        Args:
+            project_dir: Root of the SYMFLUENCE domain directory.
+            domain_name: Name of the hydrological domain.
+            forcing_dataset: Forcing dataset identifier (e.g. ``'ERA5'``).
+            strategy: ``'symlink'`` (default) or ``'copy'``.
+        """
         self.project_dir = project_dir
         self.domain_name = domain_name
         self.forcing_dataset = forcing_dataset

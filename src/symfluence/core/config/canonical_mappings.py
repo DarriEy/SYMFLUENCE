@@ -65,6 +65,7 @@ class _LazyMap(dict):
         self._loaded = False
 
     def _ensure_loaded(self) -> None:
+        """Populate the dict from auto-generated mappings on first access."""
         if self._loaded:
             return
         self._loaded = True
@@ -74,44 +75,49 @@ class _LazyMap(dict):
             for key, path in LEGACY_FLAT_TO_NESTED_ALIASES.items():
                 self.setdefault(key, path)
 
-    # Override all read methods to ensure data is loaded first
-    def __getitem__(self, key):
+    # Override all read methods to ensure data is loaded before access.
+    def __getitem__(self, key):  # noqa: D105
         self._ensure_loaded()
         return super().__getitem__(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key):  # noqa: D105
         self._ensure_loaded()
         return super().__contains__(key)
 
-    def __iter__(self):
+    def __iter__(self):  # noqa: D105
         self._ensure_loaded()
         return super().__iter__()
 
-    def __len__(self):
+    def __len__(self):  # noqa: D105
         self._ensure_loaded()
         return super().__len__()
 
     def keys(self):
+        """Return mapping keys, triggering lazy load if needed."""
         self._ensure_loaded()
         return super().keys()
 
     def values(self):
+        """Return mapping values, triggering lazy load if needed."""
         self._ensure_loaded()
         return super().values()
 
     def items(self):
+        """Return mapping items, triggering lazy load if needed."""
         self._ensure_loaded()
         return super().items()
 
     def get(self, key, default=None):
+        """Return value for *key*, triggering lazy load if needed."""
         self._ensure_loaded()
         return super().get(key, default)
 
     def copy(self):
+        """Return a plain dict copy of the fully loaded mapping."""
         self._ensure_loaded()
         return dict(self)
 
-    def __repr__(self):
+    def __repr__(self):  # noqa: D105
         self._ensure_loaded()
         return super().__repr__()
 

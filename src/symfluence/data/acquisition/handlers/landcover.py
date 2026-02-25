@@ -127,6 +127,15 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
         - Zenodo Archive: https://zenodo.org/records/8367523
     """
     def _download_with_size_check(self, url: str, dest_path: Path) -> None:
+        """Download a file with atomic rename and Content-Length verification.
+
+        Args:
+            url: Remote URL to download.
+            dest_path: Final destination path (a ``.part`` suffix is used during transfer).
+
+        Raises:
+            IOError: If the downloaded size does not match the Content-Length header.
+        """
         tmp_path = dest_path.with_suffix(dest_path.suffix + ".part")
         with requests.get(url, stream=True, timeout=60) as resp:
             resp.raise_for_status()
@@ -147,6 +156,18 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
         tmp_path.replace(dest_path)
 
     def download(self, output_dir: Path) -> Path:
+        """Download MODIS land cover data from a local file or Zenodo archive.
+
+        Supports single-year or multi-year mode averaging.  When multiple years
+        are requested the per-pixel mode (most frequent class) is computed to
+        produce a temporally robust classification.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the land cover GeoTIFF.
+        """
         lc_dir = self._attribute_dir("landclass")
         land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default="default")
         if land_name == "default":
@@ -295,9 +316,32 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
 
 @AcquisitionRegistry.register('USGS_NLCD')
 class USGSLandcoverAcquirer(BaseAcquisitionHandler):
-    """USGS National Land Cover Database acquisition handler."""
+    """USGS National Land Cover Database (NLCD) acquisition handler.
+
+    Downloads land cover data from the MRLC WCS endpoint for the conterminous
+    United States.  Coverage is limited to CONUS; requests outside this extent
+    will fail.
+
+    NLCD:
+        Resolution: 30m
+        Coverage: Conterminous US
+        Classification: Anderson Level II
+        Default year: 2019
+
+    Config Keys:
+        data.geospatial.nlcd.coverage_id: WCS coverage identifier
+            (default: ``'NLCD_2019_Land_Cover_L48'``).
+    """
 
     def download(self, output_dir: Path) -> Path:
+        """Download NLCD land cover via WCS and write as GeoTIFF.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the clipped land cover GeoTIFF.
+        """
         lc_dir = self._attribute_dir("landclass")
         land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default="default")
         if land_name == "default":

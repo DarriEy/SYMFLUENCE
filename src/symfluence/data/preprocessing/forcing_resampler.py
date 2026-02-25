@@ -350,15 +350,19 @@ class ForcingResampler(PathResolverMixin):
         self._point_scale_extractor = None
         self._shapefile_processor = None
 
-    # Lazy initialization properties
+    # Lazy initialization properties — each component is created on first
+    # access so that unused code paths incur no import/construction cost.
+
     @property
     def elevation_calculator(self) -> ElevationCalculator:
+        """DEM-based mean-elevation calculator, created on first access."""
         if self._elevation_calculator is None:
             self._elevation_calculator = ElevationCalculator(self.logger)
         return self._elevation_calculator
 
     @property
     def file_processor(self) -> FileProcessor:
+        """Parallel/serial file batch processor, created on first access."""
         if self._file_processor is None:
             self._file_processor = FileProcessor(
                 self.config,
@@ -369,6 +373,7 @@ class ForcingResampler(PathResolverMixin):
 
     @property
     def weight_generator(self) -> RemappingWeightGenerator:
+        """EASMORE remapping-weight generator, created on first access."""
         if self._weight_generator is None:
             self._weight_generator = RemappingWeightGenerator(
                 self.config,
@@ -380,6 +385,7 @@ class ForcingResampler(PathResolverMixin):
 
     @property
     def weight_applier(self) -> RemappingWeightApplier:
+        """Remapping-weight applier for per-file forcing regridding, created on first access."""
         if self._weight_applier is None:
             self._weight_applier = RemappingWeightApplier(
                 self.config,
@@ -392,6 +398,7 @@ class ForcingResampler(PathResolverMixin):
 
     @property
     def point_scale_extractor(self) -> PointScaleForcingExtractor:
+        """Simplified point-scale forcing extractor for small/single-cell grids, created on first access."""
         if self._point_scale_extractor is None:
             self._point_scale_extractor = PointScaleForcingExtractor(
                 self.config,
@@ -403,6 +410,7 @@ class ForcingResampler(PathResolverMixin):
 
     @property
     def shapefile_processor(self) -> ShapefileProcessor:
+        """CRS validation and HRU-ID assignment processor, created on first access."""
         if self._shapefile_processor is None:
             self._shapefile_processor = ShapefileProcessor(self.config, self.logger)
         return self._shapefile_processor
