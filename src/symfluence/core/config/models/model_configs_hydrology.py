@@ -693,6 +693,7 @@ class WflowConfig(BaseModel):
     spatial_mode: SpatialModeType = Field(default='lumped', alias='WFLOW_SPATIAL_MODE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_WFLOW')
     output_file: str = Field(default='output.nc', alias='WFLOW_OUTPUT_FILE')
+    pet_method: str = Field(default='oudin', alias='WFLOW_PET_METHOD')
     params_to_calibrate: str = Field(
         default='KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,KsatHorFrac,n_river,PathFrac,thetaS,thetaR,Cfmax,TT,TTI,TTM,WHC',
         alias='WFLOW_PARAMS_TO_CALIBRATE',

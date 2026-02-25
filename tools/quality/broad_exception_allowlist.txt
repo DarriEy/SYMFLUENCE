@@ -1166,15 +1166,15 @@ src/symfluence/models/watflood/preprocessor.py:111:except Exception:  # noqa: BL
 src/symfluence/models/watflood/preprocessor.py:643:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/preprocessor.py:75:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/runner.py:89:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/wflow/calibration/parameter_manager.py:98:except Exception as e:  # noqa: BLE001
+src/symfluence/models/wflow/calibration/parameter_manager.py:107:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/calibration/worker.py:101:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/calibration/worker.py:120:except Exception as e:  # noqa: BLE001
-src/symfluence/models/wflow/calibration/worker.py:161:except Exception:  # noqa: BLE001
+src/symfluence/models/wflow/calibration/worker.py:173:except Exception:  # noqa: BLE001
 src/symfluence/models/wflow/calibration/worker.py:49:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/extractor.py:57:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:62:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/postprocessor.py:97:except Exception as e:  # noqa: BLE001
-src/symfluence/models/wflow/preprocessor.py:248:except Exception:  # noqa: BLE001
+src/symfluence/models/wflow/preprocessor.py:279:except Exception:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:53:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wflow/preprocessor.py:82:except Exception as e:  # noqa: BLE001
 src/symfluence/models/wmfire/ignition.py:208:except Exception as e:  # noqa: BLE001 — model execution resilience

@@ -203,7 +203,38 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             temp = temp - 273.15
 
         times = pd.DatetimeIndex(ds_forcing.time.values)
-        pet = self._estimate_pet_hamon(temp, times, props['lat'])
+
+        # PET method dispatch — Oudin (radiation-aware) by default, Hamon as fallback
+        pet_method = self._get_config_value(
+            lambda: self.config.model.wflow.pet_method,
+            default='oudin', dict_key='WFLOW_PET_METHOD'
+        )
+        if pet_method == 'oudin':
+            from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+            # Oudin expects daily-mean temperature — aggregate sub-daily to daily,
+            # compute PET (mm/day), then distribute evenly across sub-daily timesteps.
+            temp_series = pd.Series(temp, index=times)
+            daily_temp = temp_series.resample('D').mean()
+            daily_doy = np.array([t.timetuple().tm_yday for t in daily_temp.index])
+            pet_mm_day = PETCalculatorMixin.oudin_pet_numpy(
+                daily_temp.values, daily_doy, props['lat']
+            )
+            annual_pet = pet_mm_day.mean() * 365
+            self.logger.info(f"Oudin PET: mean={pet_mm_day.mean():.2f} mm/day, annual≈{annual_pet:.0f} mm/yr")
+            # Broadcast daily PET back to sub-daily timesteps
+            pet_daily_series = pd.Series(pet_mm_day, index=daily_temp.index)
+            pet_sub = pet_daily_series.reindex(times, method='ffill').values
+            # Scale from mm/day to mm/timestep
+            timestep_hours = self._get_config_value(
+                lambda: self.config.data.forcing_time_step_size,
+                default=3600, dict_key='FORCING_TIME_STEP_SIZE'
+            )
+            if isinstance(timestep_hours, (int, float)) and timestep_hours > 100:
+                timestep_hours = timestep_hours / 3600
+            pet = pet_sub * (timestep_hours / 24.0)
+        else:
+            pet = self._estimate_pet_hamon(temp, times, props['lat'])
+            self.logger.info(f"Hamon PET: annual≈{pet.mean() * (24.0 / max(1, 1)) * 365:.0f} mm/yr")
 
         # Build 3×3 forcing grid matching staticmaps coordinates.
         # Only the centre cell carries data; outer cells are NaN.
@@ -365,6 +396,7 @@ land_surface__slope = "Slope"
 soil_layer__thickness = [100, 300, 800]
 type = "sbm"
 pit__flag = true
+snow__flag = true
 
 [state]
 path_input = "{state_dir}/instates.nc"

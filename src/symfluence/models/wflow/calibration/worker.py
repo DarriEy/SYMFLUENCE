@@ -122,29 +122,41 @@ class WflowWorker(BaseWorker):
             return {'KGE': -999.0, 'NSE': -999.0}
 
     def _load_simulated_streamflow(self, output_dir: Path):
-        """Load Q from Wflow CSV or netCDF output."""
+        """Load Q from Wflow CSV or netCDF output, resampled to daily mean."""
+        sim = None
         # Try CSV first (primary format from [output.csv] TOML section)
         csv_matches = list(output_dir.glob('output*.csv'))
         if csv_matches:
             df = pd.read_csv(csv_matches[0], parse_dates=[0], index_col=0)
             for col in ['Q', 'Q_av', 'q_av']:
                 if col in df.columns:
-                    return df[col]
-            if len(df.columns) == 1:
-                return df.iloc[:, 0]
+                    sim = df[col]
+                    break
+            if sim is None and len(df.columns) == 1:
+                sim = df.iloc[:, 0]
         # Fallback: netCDF
-        nc_matches = list(output_dir.glob('output*.nc'))
-        if nc_matches:
-            ds = xr.open_dataset(nc_matches[0])
-            for var in ['Q', 'Q_av', 'q_av']:
-                if var in ds.data_vars:
-                    q_var = ds[var]
-                    spatial_dims = [d for d in q_var.dims if d not in ['time']]
-                    sim = q_var.max(dim=spatial_dims).to_series() if spatial_dims else q_var.to_series()
-                    ds.close()
-                    return sim
-            ds.close()
-        return None
+        if sim is None:
+            nc_matches = list(output_dir.glob('output*.nc'))
+            if nc_matches:
+                ds = xr.open_dataset(nc_matches[0])
+                for var in ['Q', 'Q_av', 'q_av']:
+                    if var in ds.data_vars:
+                        q_var = ds[var]
+                        spatial_dims = [d for d in q_var.dims if d not in ['time']]
+                        sim = q_var.max(dim=spatial_dims).to_series() if spatial_dims else q_var.to_series()
+                        break
+                ds.close()
+        if sim is None:
+            return None
+        # Resample sub-daily output to daily mean for comparison with daily obs
+        if hasattr(sim.index, 'freq') and sim.index.freq is not None:
+            freq = sim.index.freq
+            is_subdaily = hasattr(freq, 'delta') and freq.delta < pd.Timedelta(days=1)
+        else:
+            is_subdaily = len(sim) > 1 and (sim.index[1] - sim.index[0]) < pd.Timedelta(days=1)
+        if is_subdaily:
+            sim = sim.resample('D').mean()
+        return sim
 
     def _load_observations(self, config):
         try:
