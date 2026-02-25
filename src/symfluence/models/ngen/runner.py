@@ -192,7 +192,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         )
 
         if install_path == 'default':
-            ngen_base = self.data_dir.parent / 'installs' / 'ngen'
+            ngen_base = self.data_dir / 'installs' / 'ngen'
         else:
             p = Path(install_path)
             ngen_base = p.parent if p.name == 'cmake_build' else p
@@ -326,7 +326,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             )
 
             if install_path == 'default':
-                ngen_base = self.data_dir.parent / 'installs' / 'ngen'
+                ngen_base = self.data_dir / 'installs' / 'ngen'
             else:
                 p = Path(install_path)
                 if p.name == 'cmake_build': ngen_base = p.parent

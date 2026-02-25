@@ -79,27 +79,30 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if not exists:
                 self.logger.warning(f"NGEN module library missing for {name}: {path}")
 
-        # Determine which modules to include based on config and available libraries
-        # Use typed NGEN config fields for module enable flags, falling back to library availability
-        self._include_sloth = self._get_config_value(
-            lambda: self.config.model.ngen.enable_sloth,
-            default=self._available_modules.get('SLOTH', True)
-        )
+        # Determine which modules to include based on config AND library availability.
+        # A module is only enabled when the config requests it AND the .so exists.
+        # Config flags act as an upper bound; missing libraries force-disable.
+        _module_flags = {
+            'SLOTH': (lambda: self.config.model.ngen.enable_sloth, True),
+            'PET':   (lambda: self.config.model.ngen.enable_pet, True),
+            'NOAH':  (lambda: self.config.model.ngen.enable_noah, False),
+            'CFE':   (lambda: self.config.model.ngen.enable_cfe, True),
+        }
+        _resolved = {}
+        for mod_name, (accessor, default_on) in _module_flags.items():
+            config_enabled = self._get_config_value(accessor, default=default_on)
+            lib_exists = self._available_modules.get(mod_name, False)
+            if config_enabled and not lib_exists:
+                self.logger.warning(
+                    f"{mod_name} is enabled in config but library not found — "
+                    f"disabling to prevent ngen runtime failure"
+                )
+            _resolved[mod_name] = config_enabled and lib_exists
 
-        self._include_pet = self._get_config_value(
-            lambda: self.config.model.ngen.enable_pet,
-            default=self._available_modules.get('PET', True)
-        )
-
-        self._include_noah = self._get_config_value(
-            lambda: self.config.model.ngen.enable_noah,
-            default=self._available_modules.get('NOAH', False)
-        )
-
-        self._include_cfe = self._get_config_value(
-            lambda: self.config.model.ngen.enable_cfe,
-            default=self._available_modules.get('CFE', True)
-        )
+        self._include_sloth = _resolved['SLOTH']
+        self._include_pet = _resolved['PET']
+        self._include_noah = _resolved['NOAH']
+        self._include_cfe = _resolved['CFE']
 
         # QINSUR-based coupling: NOAH and PET serve complementary roles.
         # NOAH handles snow physics, canopy interception, and surface energy balance,
@@ -148,7 +151,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
 
         if install_path == 'default':
-            ngen_base = self.data_dir.parent / 'installs' / 'ngen'
+            ngen_base = self.data_dir / 'installs' / 'ngen'
         else:
             p = Path(install_path)
             if p.name == 'cmake_build':

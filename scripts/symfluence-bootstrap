@@ -744,11 +744,26 @@ install_python_requirements() {
         pip_flags="--break-system-packages"
     fi
 
+    # When system HDF5 is available (HPC with `module load`), force netCDF4
+    # and h5py to build from source against it. Cached wheels from pip vendor
+    # their own HDF5 which conflicts with system libs at runtime — causing
+    # `import netCDF4` to fail with undefined-symbol errors.
+    local nc_pip_flags=""
+    if [[ -n "${HDF5_DIR:-}" ]] || command -v h5cc >/dev/null 2>&1; then
+        nc_pip_flags="--no-binary netCDF4 --no-binary h5py --no-cache-dir"
+        print_info "System HDF5 detected — will build netCDF4/h5py from source"
+    fi
+
     print_info "Installing Python dependencies from: $req"
     local tmp="${req}.tmp"
 
     # Filter out GDAL, rpy2, and torch from the main pass — handle separately
-    grep -v -iE "^(GDAL|rpy2|torch)([>=<~!]|$)" "$req" > "$tmp" 2>/dev/null || cp "$req" "$tmp"
+    # Also filter netCDF4/h5py when system HDF5 present (installed separately below)
+    local nc_filter=""
+    if [[ -n "$nc_pip_flags" ]]; then
+        nc_filter="|netCDF4|h5py|h5netcdf"
+    fi
+    grep -v -iE "^(GDAL|rpy2|torch${nc_filter})([>=<~!]|$)" "$req" > "$tmp" 2>/dev/null || cp "$req" "$tmp"
     local gdal_filtered=false rpy2_filtered=false torch_filtered=false
     grep -qiE "^GDAL([>=<~!]|$)" "$req" && gdal_filtered=true
     grep -qiE "^rpy2([>=<~!]|$)" "$req" && rpy2_filtered=true
@@ -773,9 +788,21 @@ install_python_requirements() {
         fi
     }
 
+    # Helper: install netCDF4/h5py from source against system HDF5
+    _install_netcdf_from_source() {
+        if [[ -z "$nc_pip_flags" ]]; then return 0; fi
+        print_info "Building netCDF4 and h5py from source against system HDF5..."
+        python -m pip install $nc_pip_flags h5py $pip_flags || \
+            print_warning "h5py source build failed (continuing with wheel)"
+        python -m pip install $nc_pip_flags netCDF4 $pip_flags || \
+            print_warning "netCDF4 source build failed (continuing with wheel)"
+        python -m pip install h5netcdf $pip_flags 2>/dev/null || true
+    }
+
     if python -m pip install -r "$tmp" $pip_flags; then
         rm -f "$tmp"
         _install_torch
+        _install_netcdf_from_source
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install (RPY2_CFFI_MODE=$RPY2_CFFI_MODE)..."
@@ -792,6 +819,7 @@ install_python_requirements() {
     if python -m pip install -r "$tmp" $pip_flags; then
         rm -f "$tmp"
         _install_torch
+        _install_netcdf_from_source
         [[ "$gdal_filtered" == "true" ]] && install_gdal_python || true
         if [[ "$rpy2_filtered" == "true" ]]; then
             print_info "Attempting rpy2 install in ABI mode..."
