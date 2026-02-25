@@ -455,15 +455,18 @@ class AnalysisManager(ConfigurableMixin):
         train_end: str = "2007-12-31",
         eval_start: str = "2008-01-01",
         rank: Optional[int] = None,
-        delay_lags: int = 7,
+        hankel_d: int = 1,
         svd_threshold: float = 0.99,
+        dmd_method: str = "fbdmd",
         analyzer_name: str = "DEFAULT",
     ) -> Optional[Dict]:
         """Run Koopman operator analysis of a multi-model hydrological ensemble.
 
         Uses EDMD with structurally diverse model outputs as lifting functions
-        to approximate the Koopman operator. Extracts dominant dynamical modes,
-        timescales, and mode loadings.
+        to approximate the Koopman operator. The dictionary contains only model
+        outputs (no observed streamflow), ensuring a fair comparison with the
+        ensemble mean. Observed streamflow is predicted via Ridge regression
+        from the Koopman eigenspace.
 
         Args:
             ensemble_df: (T, N) DataFrame of model outputs (m^3/s), aligned daily
@@ -471,8 +474,9 @@ class AnalysisManager(ConfigurableMixin):
             train_end: Last training date (default "2007-12-31")
             eval_start: First evaluation date (default "2008-01-01")
             rank: Explicit DMD rank (None = auto from SVD threshold)
-            delay_lags: Number of delay-embedding lags (default 7)
+            hankel_d: Hankel delay depth for model outputs (1 = no embedding)
             svd_threshold: Cumulative energy threshold for rank selection
+            dmd_method: 'standard' or 'fbdmd' (default 'fbdmd')
             analyzer_name: Registry key for the Koopman analyzer (default "DEFAULT")
 
         Returns:
@@ -503,7 +507,8 @@ class AnalysisManager(ConfigurableMixin):
         ):
             analyzer = analyzer_cls(
                 self.config, self.logger, self.reporting_manager,
-                delay_lags=delay_lags, svd_threshold=svd_threshold,
+                hankel_d=hankel_d, svd_threshold=svd_threshold,
+                dmd_method=dmd_method,
             )
             results = analyzer.run_koopman_analysis(
                 ensemble_df, obs_streamflow,

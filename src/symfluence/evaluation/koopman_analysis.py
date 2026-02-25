@@ -7,6 +7,11 @@ functions (dictionary). Extracts dominant dynamical modes, timescales, and
 mode loadings to reveal how different models capture different aspects of
 watershed dynamics.
 
+The dictionary uses only model ensemble outputs (no observed streamflow),
+ensuring a fair comparison with the ensemble mean. Observed streamflow is
+predicted via Ridge regression from the Koopman eigenspace, giving the
+Koopman predictor the same information as the ensemble mean.
+
 Architecture:
     This module follows the same pattern as SensitivityAnalyzer and Benchmarker:
     - Standalone class with __init__(config, logger, reporting_manager)
@@ -43,17 +48,17 @@ class KoopmanAnalyzer(ConfigMixin):
     as the dictionary (lifting functions). Extracts eigenvalues, modes,
     timescales, and mode loadings for physical interpretation.
 
-    The key insight is that structurally different hydrological models
-    act as nonlinear observables of the same underlying dynamical system.
-    EDMD finds the best-fit linear operator in this lifted space, revealing
-    dominant modes that no single model captures alone.
+    The dictionary contains only model outputs (no observed streamflow),
+    ensuring a fair comparison with the ensemble mean. Observed streamflow
+    is predicted via Ridge regression from the Koopman eigenspace.
 
     Attributes:
         config: SymfluenceConfig or dict
         logger: Logger instance
         reporting_manager: Optional ReportingManager
-        delay_lags: Number of delay-embedding lags for observed streamflow
+        hankel_d: Hankel delay depth for model outputs (1 = no embedding)
         svd_threshold: Cumulative energy threshold for SVD rank selection
+        dmd_method: 'standard' or 'fbdmd'
         output_dir: Directory for saving results
     """
 
@@ -62,15 +67,17 @@ class KoopmanAnalyzer(ConfigMixin):
         config: Any,
         logger: logging.Logger,
         reporting_manager: Optional[Any] = None,
-        delay_lags: int = 7,
+        hankel_d: int = 1,
         svd_threshold: float = 0.99,
+        dmd_method: str = "fbdmd",
     ):
         from symfluence.core.config.coercion import coerce_config
         self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.delay_lags = delay_lags
+        self.hankel_d = hankel_d
         self.svd_threshold = svd_threshold
+        self.dmd_method = dmd_method
 
         self.data_dir = Path(self._get_config_value(
             lambda: self.config.paths.symfluence_data_dir,
@@ -145,27 +152,217 @@ class KoopmanAnalyzer(ConfigMixin):
             "rank": r,
         }
 
+    def fbdmd(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        rank: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Forward-Backward DMD (fbDMD).
+
+        Averages the forward and backward DMD operators to cancel first-order
+        noise bias on eigenvalues. Standard DMD biases eigenvalues toward the
+        unit circle because noise in X inflates the pseudoinverse.
+
+        Reference: Dawson et al. (2016)
+        """
+        U, sigma, Vh = np.linalg.svd(X, full_matrices=False)
+        r = rank if rank is not None else self._select_rank(sigma, self.svd_threshold)
+        r = min(r, len(sigma))
+
+        Ur = U[:, :r]
+        Sr = sigma[:r]
+        Vr = Vh[:r, :].conj().T
+        Sr_inv = np.diag(1.0 / Sr)
+
+        X_r = Ur.conj().T @ X
+        Y_r = Ur.conj().T @ Y
+
+        K_f = Y_r @ Vr @ Sr_inv
+
+        U_yr, s_yr, Vh_yr = np.linalg.svd(Y_r, full_matrices=False)
+        tol = max(Y_r.shape) * s_yr[0] * np.finfo(float).eps
+        r_yr = np.sum(s_yr > tol)
+        s_yr_inv = np.zeros_like(s_yr)
+        s_yr_inv[:r_yr] = 1.0 / s_yr[:r_yr]
+        Y_r_pinv = Vh_yr.conj().T @ np.diag(s_yr_inv) @ U_yr.conj().T
+        K_b = X_r @ Y_r_pinv
+
+        K_tilde = 0.5 * (K_f + np.linalg.inv(K_b))
+
+        eigenvalues, W = np.linalg.eig(K_tilde)
+        modes = Y @ Vr @ Sr_inv @ W
+        amplitudes = np.linalg.lstsq(modes, X[:, 0], rcond=None)[0]
+
+        return {
+            "K_tilde": K_tilde,
+            "eigenvalues": eigenvalues,
+            "modes": modes,
+            "amplitudes": amplitudes,
+            "U": Ur,
+            "Sigma": Sr,
+            "rank": r,
+        }
+
+    def _run_dmd(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        rank: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Dispatch to the configured DMD method."""
+        if self.dmd_method == "fbdmd":
+            return self.fbdmd(X, Y, rank=rank)
+        return self.dmd(X, Y, rank=rank)
+
     # ------------------------------------------------------------------
-    # Dictionary construction
+    # Dictionary construction (models-only — fair comparison)
     # ------------------------------------------------------------------
 
-    def build_dictionary(
-        self,
-        obs_Q: np.ndarray,
+    @staticmethod
+    def build_models_only_dictionary(
         ensemble: np.ndarray,
         model_names: List[str],
     ) -> Tuple[np.ndarray, List[str]]:
-        """Build EDMD dictionary from delay-embedded obs + model outputs.
+        """Build dictionary from model outputs only (no observed streamflow).
 
-        Returns (dictionary array, feature_names list).
+        This gives the Koopman operator the same information as the ensemble
+        mean: model outputs at time t, with no access to observed streamflow.
         """
-        Q_embedded = self.delay_embed(obs_Q, self.delay_lags)
-        ens_truncated = ensemble[self.delay_lags - 1:, :]
-        dictionary = np.hstack([Q_embedded, ens_truncated])
+        return ensemble.copy(), list(model_names)
 
-        feature_names = [f"obs_Q(t-{self.delay_lags - 1 - j})" for j in range(self.delay_lags)]
-        feature_names += list(model_names)
+    def build_hankel_dictionary(
+        self,
+        ensemble: np.ndarray,
+        model_names: List[str],
+    ) -> Tuple[np.ndarray, List[str]]:
+        """Build Hankel (time-delay embedded) dictionary from model outputs.
+
+        Each model column is delay-embedded with hankel_d lags, giving the
+        Koopman operator memory of recent model behavior without requiring
+        observed streamflow.
+        """
+        d = self.hankel_d
+        if d <= 1:
+            return self.build_models_only_dictionary(ensemble, model_names)
+
+        T, N = ensemble.shape
+        embedded_cols = []
+        feature_names = []
+
+        for j in range(N):
+            H = self.delay_embed(ensemble[:, j], d)
+            H = H[:, ::-1]  # col 0 = t-0, col 1 = t-1, ...
+            embedded_cols.append(H)
+            for lag in range(d):
+                feature_names.append(f"{model_names[j]}(t-{lag})")
+
+        dictionary = np.hstack(embedded_cols)
         return dictionary, feature_names
+
+    def build_dictionary(
+        self,
+        ensemble: np.ndarray,
+        model_names: List[str],
+    ) -> Tuple[np.ndarray, List[str]]:
+        """Build the EDMD dictionary using the configured method.
+
+        Uses models-only or Hankel-embedded model outputs depending on
+        hankel_d. No observed streamflow is included in the dictionary.
+        """
+        if self.hankel_d > 1:
+            return self.build_hankel_dictionary(ensemble, model_names)
+        return self.build_models_only_dictionary(ensemble, model_names)
+
+    # ------------------------------------------------------------------
+    # Koopman eigenspace regression (fair prediction of Q_obs)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _koopman_project(
+        dmd_result: Dict, dictionary: np.ndarray
+    ) -> np.ndarray:
+        """Project dictionary into Koopman eigen-coordinates via DMD modes.
+
+        Complex Koopman coordinates are split into [Re(z), Im(z)] to
+        produce real-valued features for regression.
+
+        Returns (T, 2r) real-valued Koopman coordinates.
+        """
+        Phi = dmd_result["modes"]
+        Z_complex = np.linalg.lstsq(Phi, dictionary.T, rcond=None)[0].T
+        return np.column_stack([Z_complex.real, Z_complex.imag])
+
+    @staticmethod
+    def _fit_ridge(Z_aug: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Fit Ridge regression with leave-one-out cross-validation for alpha."""
+        y_mean = y.mean()
+        y_c = y - y_mean
+        Z = Z_aug[:, :-1]
+        Z_mean = Z.mean(axis=0)
+        Z_c = Z - Z_mean
+
+        U, s, Vt = np.linalg.svd(Z_c, full_matrices=False)
+        s2 = s ** 2
+
+        alphas = np.logspace(-2, 6, 50)
+        best_alpha = 1.0
+        best_cv_error = np.inf
+
+        for alpha in alphas:
+            d = s / (s2 + alpha)
+            w_ridge = Vt.T @ (d * (U.T @ y_c))
+            y_hat = Z_c @ w_ridge
+
+            h_diag = (U ** 2) @ (s2 / (s2 + alpha))
+            residuals = y_c - y_hat
+            loo_residuals = residuals / (1.0 - h_diag)
+            cv_error = np.mean(loo_residuals ** 2)
+
+            if cv_error < best_cv_error:
+                best_cv_error = cv_error
+                best_alpha = alpha
+
+        d = s / (s2 + best_alpha)
+        w_features = Vt.T @ (d * (U.T @ y_c))
+        intercept = y_mean - Z_mean @ w_features
+
+        return np.append(w_features, intercept)
+
+    def koopman_predict_obs(
+        self,
+        dmd_result: Dict,
+        dictionary: np.ndarray,
+        obs_Q: np.ndarray,
+    ) -> np.ndarray:
+        """Learn regression weights: Q_obs = w^T z + b from Koopman coordinates.
+
+        Parameters
+        ----------
+        dmd_result : DMD result dict
+        dictionary : (T, N) normalized model-only dictionary (training data)
+        obs_Q : (T,) observed streamflow for the training period
+
+        Returns
+        -------
+        weights : regression weights [w; bias]
+        """
+        Z = self._koopman_project(dmd_result, dictionary)
+        Z_aug = np.column_stack([Z, np.ones(Z.shape[0])])
+        return self._fit_ridge(Z_aug, obs_Q)
+
+    @staticmethod
+    def koopman_apply_regression(
+        dmd_result: Dict,
+        dictionary: np.ndarray,
+        weights: np.ndarray,
+    ) -> np.ndarray:
+        """Apply pre-fit regression weights to predict Q_obs."""
+        Phi = dmd_result["modes"]
+        Z_complex = np.linalg.lstsq(Phi, dictionary.T, rcond=None)[0].T
+        Z = np.column_stack([Z_complex.real, Z_complex.imag])
+        Z_aug = np.column_stack([Z, np.ones(Z.shape[0])])
+        return Z_aug @ weights
 
     # ------------------------------------------------------------------
     # Analysis
@@ -197,27 +394,22 @@ class KoopmanAnalyzer(ConfigMixin):
         abs_lam = np.abs(eigenvalues)
         abs_b = np.abs(amplitudes)
         with np.errstate(divide="ignore", invalid="ignore"):
+            safe_exp = np.minimum(
+                abs_lam ** np.minimum(
+                    n_steps, 700 / np.maximum(np.log(abs_lam + 1e-15), 1e-15)
+                ),
+                1e100,
+            )
             geo_sum = np.where(
                 np.abs(abs_lam - 1.0) > 1e-10,
-                (1.0 - abs_lam ** n_steps) / (1.0 - abs_lam),
+                np.abs(1.0 - safe_exp) / np.abs(1.0 - abs_lam),
                 float(n_steps),
             )
         return abs_b * geo_sum / n_steps
 
     # ------------------------------------------------------------------
-    # Validation
+    # Metrics
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def one_step_ahead(dmd_result: Dict, dictionary: np.ndarray) -> np.ndarray:
-        """One-step-ahead prediction: K_full @ x(k) for each state."""
-        Ur = dmd_result["U"]
-        K_tilde = dmd_result["K_tilde"]
-        X = dictionary[:-1, :].T
-        X_red = Ur.conj().T @ X
-        Y_red = K_tilde @ X_red
-        Y_full = Ur @ Y_red
-        return Y_full.real.T
 
     @staticmethod
     def compute_kge(sim: np.ndarray, obs: np.ndarray) -> Dict[str, float]:
@@ -250,6 +442,10 @@ class KoopmanAnalyzer(ConfigMixin):
     ) -> Dict[str, Any]:
         """Run the complete Koopman operator analysis pipeline.
 
+        Uses a models-only dictionary (no observed streamflow) to ensure
+        fair comparison with the ensemble mean. Predicts Q_obs via Ridge
+        regression from the Koopman eigenspace.
+
         Parameters
         ----------
         ensemble_df : (T, N) DataFrame of model outputs (m^3/s), aligned daily
@@ -267,14 +463,19 @@ class KoopmanAnalyzer(ConfigMixin):
         model_names = list(ensemble_df.columns)
         n_models = len(model_names)
 
-        # Build dictionary
+        # Build models-only dictionary (no observed streamflow)
         dictionary, feature_names = self.build_dictionary(
-            obs_streamflow.values, ensemble_df.values, model_names
+            ensemble_df.values, model_names
         )
-        dates = obs_streamflow.index[self.delay_lags - 1:]
+        if self.hankel_d > 1:
+            dates = obs_streamflow.index[self.hankel_d - 1:]
+        else:
+            dates = obs_streamflow.index
+
         self.logger.info(
             f"Dictionary: {dictionary.shape} "
-            f"({self.delay_lags} lags + {n_models} models)"
+            f"({n_models} models, hankel_d={self.hankel_d}, "
+            f"dmd={self.dmd_method})"
         )
 
         # Split train/eval
@@ -282,6 +483,9 @@ class KoopmanAnalyzer(ConfigMixin):
         eval_mask = dates >= pd.Timestamp(eval_start)
         train_raw = dictionary[train_mask]
         eval_raw = dictionary[eval_mask]
+
+        obs_train = obs_streamflow.loc[dates[train_mask]].values
+        obs_eval = obs_streamflow.loc[dates[eval_mask]].values
 
         # Normalize from training data only
         means = train_raw.mean(axis=0)
@@ -293,7 +497,7 @@ class KoopmanAnalyzer(ConfigMixin):
         # DMD on training data
         X_train = train[:-1, :].T
         Y_train = train[1:, :].T
-        result = self.dmd(X_train, Y_train, rank=rank)
+        result = self._run_dmd(X_train, Y_train, rank=rank)
         self.logger.info(f"DMD rank: {result['rank']}")
 
         # Eigenstructure analysis
@@ -309,17 +513,16 @@ class KoopmanAnalyzer(ConfigMixin):
         col_max[col_max < 1e-15] = 1.0
         loadings = abs_modes / col_max
 
-        # One-step-ahead validation
-        obs_col_idx = feature_names.index("obs_Q(t-0)")
-        pred_eval = self.one_step_ahead(result, eval_)
-        Q_pred = pred_eval[:, obs_col_idx] * stds[obs_col_idx] + means[obs_col_idx]
-        Q_obs = eval_[1:, obs_col_idx] * stds[obs_col_idx] + means[obs_col_idx]
-        eval_metrics = self.compute_kge(Q_pred, Q_obs)
+        # Koopman eigenspace regression: predict Q_obs from model outputs
+        weights = self.koopman_predict_obs(result, train, obs_train)
+        Q_koopman_eval = self.koopman_apply_regression(result, eval_, weights)
 
-        # Ensemble mean on eval for comparison
-        ens_eval = (eval_[1:] * stds + means)[:, self.delay_lags:]
-        ens_mean_eval = ens_eval.mean(axis=1)
-        ens_metrics = self.compute_kge(ens_mean_eval, Q_obs)
+        eval_metrics = self.compute_kge(Q_koopman_eval, obs_eval)
+
+        # Ensemble mean for comparison (denormalized)
+        ens_eval_denorm = eval_ * stds + means
+        ens_mean_eval = ens_eval_denorm.mean(axis=1)
+        ens_metrics = self.compute_kge(ens_mean_eval, obs_eval)
 
         self.logger.info(
             f"Koopman eval KGE={eval_metrics['KGE']:.3f}, "
@@ -330,7 +533,7 @@ class KoopmanAnalyzer(ConfigMixin):
             f"NSE={ens_metrics['NSE']:.3f}"
         )
 
-        # Save results
+        # Assemble results
         results = {
             "eigenvalues": result["eigenvalues"],
             "modes": result["modes"],
@@ -348,6 +551,9 @@ class KoopmanAnalyzer(ConfigMixin):
             "eval_metrics": eval_metrics,
             "ens_mean_metrics": ens_metrics,
             "normalization": {"means": means, "stds": stds},
+            "regression_weights": weights,
+            "dmd_method": self.dmd_method,
+            "hankel_d": self.hankel_d,
         }
 
         # Save to disk
@@ -374,6 +580,9 @@ class KoopmanAnalyzer(ConfigMixin):
             decay_days=results["decay_days"],
             period_days=results["period_days"],
             importance=results["importance"],
+            regression_weights=results["regression_weights"],
+            dmd_method=results["dmd_method"],
+            hankel_d=results["hankel_d"],
         )
         results["loadings"].to_csv(self.output_dir / "mode_loadings.csv")
 
