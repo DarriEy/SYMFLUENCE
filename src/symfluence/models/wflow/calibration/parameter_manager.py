@@ -19,6 +19,8 @@ class WflowParameterManager(BaseParameterManager):
         'InfiltCapPath': 'InfiltCapPath', 'RootingDepth': 'RootingDepth',
         'KsatHorFrac': 'KsatHorFrac', 'n_river': 'N_River',
         'PathFrac': 'PathFrac', 'thetaS': 'thetaS', 'thetaR': 'thetaR',
+        'Cfmax': 'Cfmax', 'TT': 'TT', 'TTI': 'TTI', 'TTM': 'TTM',
+        'WHC': 'WHC',
     }
 
     DEFAULT_BOUNDS = {
@@ -30,8 +32,13 @@ class WflowParameterManager(BaseParameterManager):
         'KsatHorFrac': {'min': 0.0, 'max': 100.0},
         'n_river': {'min': 0.01, 'max': 0.1},
         'PathFrac': {'min': 0.0, 'max': 1.0},
-        'thetaS': {'min': 0.3, 'max': 0.6},
+        'thetaS': {'min': 0.3, 'max': 0.8},
         'thetaR': {'min': 0.01, 'max': 0.15},
+        'Cfmax': {'min': 1.0, 'max': 10.0},
+        'TT': {'min': -3.0, 'max': 3.0},
+        'TTI': {'min': 0.5, 'max': 5.0},
+        'TTM': {'min': -2.0, 'max': 2.0},
+        'WHC': {'min': 0.0, 'max': 0.4},
     }
 
     def __init__(self, config: Dict, logger: logging.Logger, wflow_settings_dir: Path):

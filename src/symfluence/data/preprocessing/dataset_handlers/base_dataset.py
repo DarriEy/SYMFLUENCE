@@ -285,29 +285,86 @@ class BaseDatasetHandler(ABC, ConfigMixin):
             setattr(self, key, value)
 
     @abstractmethod
-    def get_variable_mapping(self) -> Dict[str, str]: pass
+    def get_variable_mapping(self) -> Dict[str, str]:
+        """Return mapping of dataset-native variable names to CFIF standard names.
+
+        Returns:
+            Dict mapping source names (e.g. ``'t2m'``) to standard names
+            (e.g. ``'air_temperature'``).
+        """
 
     @abstractmethod
-    def process_dataset(self, ds: xr.Dataset) -> xr.Dataset: pass
+    def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
+        """Apply dataset-specific transformations (unit conversion, renaming, etc.).
+
+        Args:
+            ds: Raw xarray Dataset loaded from a forcing file.
+
+        Returns:
+            Transformed Dataset with standardised variable names and units.
+        """
 
     @abstractmethod
-    def get_coordinate_names(self) -> Tuple[str, str]: pass
+    def get_coordinate_names(self) -> Tuple[str, str]:
+        """Return the latitude and longitude coordinate names used by this dataset.
+
+        Returns:
+            ``(lat_name, lon_name)`` tuple (e.g. ``('latitude', 'longitude')``).
+        """
 
     @abstractmethod
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
-                        dem_path: Path, elevation_calculator) -> Path: pass
+                        dem_path: Path, elevation_calculator) -> Path:
+        """Generate a forcing-grid shapefile for remapping weight computation.
+
+        Args:
+            shapefile_path: Directory to write the output shapefile.
+            merged_forcing_path: Path to a merged forcing file for grid extraction.
+            dem_path: Path to the DEM raster for elevation assignment.
+            elevation_calculator: Callable that computes mean elevation per polygon.
+
+        Returns:
+            Path to the created shapefile.
+        """
 
     @abstractmethod
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
-                      start_year: int, end_year: int) -> None: pass
+                      start_year: int, end_year: int) -> None:
+        """Merge or reorganise raw forcing files into a standardised layout.
+
+        Args:
+            raw_forcing_path: Directory containing downloaded raw files.
+            merged_forcing_path: Directory for merged output files.
+            start_year: First year to process (inclusive).
+            end_year: Last year to process (inclusive).
+        """
 
     @abstractmethod
-    def needs_merging(self) -> bool: pass
+    def needs_merging(self) -> bool:
+        """Whether this dataset requires a merge step before remapping.
+
+        Returns:
+            ``True`` if :meth:`merge_forcings` must be called.
+        """
 
     def get_file_pattern(self) -> str:
+        """Return the glob pattern for raw forcing files.
+
+        Returns:
+            Glob pattern string (e.g. ``'domain_test_*.nc'``).
+        """
         return f"domain_{self.domain_name}_*.nc"
 
     def get_merged_file_pattern(self, year: int, month: int) -> str:
+        """Return the filename pattern for a merged monthly output file.
+
+        Args:
+            year: Calendar year.
+            month: Calendar month (1-12).
+
+        Returns:
+            Filename string (e.g. ``'ERA5_monthly_200401.nc'``).
+        """
         dataset_name = self.__class__.__name__.replace('Handler', '').upper()
         return f"{dataset_name}_monthly_{year}{month:02d}.nc"
 

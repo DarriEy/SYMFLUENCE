@@ -186,6 +186,15 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     _PRODUCT_NAME = "Copernicus DEM GLO-30"
 
     def download(self, output_dir: Path) -> Path:
+        """Download Copernicus GLO-30 tiles covering the domain bbox and merge them.
+
+        Args:
+            output_dir: Base output directory (tiles are written to
+                ``attributes/elevation/dem/`` under the project directory).
+
+        Returns:
+            Path to the merged domain DEM GeoTIFF.
+        """
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'
         dem_dir.mkdir(parents=True, exist_ok=True)
@@ -306,6 +315,14 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
     """
 
     def download(self, output_dir: Path) -> Path:
+        """Download FABDEM tiles from Source Cooperative and merge into a domain DEM.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the merged bare-earth DEM GeoTIFF.
+        """
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'
         dem_dir.mkdir(parents=True, exist_ok=True)
@@ -394,6 +411,18 @@ class NASADEMLocalAcquirer(BaseAcquisitionHandler):
         - USGS NASADEM: https://lpdaac.usgs.gov/products/nasadem_hgt/
     """
     def download(self, output_dir: Path) -> Path:
+        """Discover local NASADEM tiles and merge them into a domain DEM.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the merged DEM GeoTIFF.
+
+        Raises:
+            ValueError: If ``NASADEM_LOCAL_DIR`` is not configured.
+            FileNotFoundError: If the local directory or matching tiles are missing.
+        """
         local_src_dir_cfg = self._get_config_value(
             lambda: self.config.data.geospatial.nasadem.local_dir
         )
@@ -478,6 +507,14 @@ class SRTMAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     _BASE_URL = "https://opentopography.s3.sdsc.edu/raster/SRTM_GL1/SRTM_GL1_srtm"
 
     def download(self, output_dir: Path) -> Path:
+        """Download SRTM GL1 tiles from OpenTopography S3 and merge into a domain DEM.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the merged DEM GeoTIFF.
+        """
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'
         dem_dir.mkdir(parents=True, exist_ok=True)
@@ -584,6 +621,14 @@ class ETOPO2022Acquirer(BaseAcquisitionHandler):
     )
 
     def download(self, output_dir: Path) -> Path:
+        """Download an ETOPO 2022 subset via OPeNDAP and write as GeoTIFF.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the domain DEM GeoTIFF.
+        """
         import xarray as xr
 
         elev_dir = self._attribute_dir("elevation")
@@ -705,6 +750,14 @@ class MapzenAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     _BASE_URL = "https://elevation-tiles-prod.s3.amazonaws.com/skadi"
 
     def download(self, output_dir: Path) -> Path:
+        """Download Mapzen/Skadi .hgt.gz tiles, decompress, and merge into a domain DEM.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the merged DEM GeoTIFF.
+        """
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'
         dem_dir.mkdir(parents=True, exist_ok=True)
@@ -820,6 +873,17 @@ class ALOSAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     _COLLECTION = "alos-dem"
 
     def download(self, output_dir: Path) -> Path:
+        """Download ALOS AW3D30 tiles via Planetary Computer STAC and merge into a domain DEM.
+
+        Args:
+            output_dir: Base output directory (unused; output written to project tree).
+
+        Returns:
+            Path to the merged DEM GeoTIFF.
+
+        Raises:
+            ImportError: If ``planetary-computer`` or ``pystac-client`` are not installed.
+        """
         try:
             import planetary_computer
             import pystac_client

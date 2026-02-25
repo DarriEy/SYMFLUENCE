@@ -57,6 +57,14 @@ class AttributesNetCDFBuilder:
         config: Optional[Union['SymfluenceConfig', dict]] = None,
         config_dict: Optional[dict] = None,
     ) -> None:
+        """Initialise the attributes builder.
+
+        Args:
+            project_dir: Root of the SYMFLUENCE domain directory.
+            domain_name: Name of the hydrological domain.
+            config: Typed config or legacy flat dict.
+            config_dict: Deprecated. Use *config* instead.
+        """
         self.project_dir = project_dir
         self.domain_name = domain_name
         self._config = config if config is not None else config_dict

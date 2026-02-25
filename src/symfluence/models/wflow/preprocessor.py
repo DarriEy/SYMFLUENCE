@@ -153,6 +153,7 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds['TTI'] = xr.DataArray(centre_only(1.0), dims=['y', 'x'])
         ds['TTM'] = xr.DataArray(centre_only(0.0), dims=['y', 'x'])
         ds['Cfmax'] = xr.DataArray(centre_only(3.75), dims=['y', 'x'])
+        ds['WHC'] = xr.DataArray(centre_only(0.1), dims=['y', 'x'])
         # Infiltration / leakage
         ds['cf_soil'] = xr.DataArray(centre_only(0.038), dims=['y', 'x'])
         ds['MaxLeakage'] = xr.DataArray(centre_only(0.0), dims=['y', 'x'])
@@ -330,6 +331,7 @@ atmosphere_air__snowfall_temperature_threshold = "TT"
 atmosphere_air__snowfall_temperature_interval = "TTI"
 snowpack__melting_temperature_threshold = "TTM"
 snowpack__degree_day_coefficient = "Cfmax"
+snowpack__liquid_water_holding_capacity = "WHC"
 
 # Soil parameters
 soil_layer_water__brooks_corey_exponent = "c"
@@ -346,6 +348,8 @@ soil_water_saturated_zone_bottom__max_leakage_volume_flux = "MaxLeakage"
 
 # Vegetation parameters
 vegetation_root__depth = "RootingDepth"
+vegetation_canopy__gap_fraction = "CanopyGapFraction"
+vegetation_water__storage_capacity = "Cmax"
 
 # River parameters
 river__length = "wflow_riverlength"
@@ -360,17 +364,28 @@ land_surface__slope = "Slope"
 [model]
 soil_layer__thickness = [100, 300, 800]
 type = "sbm"
+pit__flag = true
 
 [state]
 path_input = "{state_dir}/instates.nc"
 path_output = "{state_dir}/outstates.nc"
+
+[state.variables]
+vegetation_canopy_water__depth = "canopy_water"
+soil_water_saturated_zone__depth = "satwaterdepth"
+soil_layer_water_unsaturated_zone__depth = "ustorelayerdepth"
+subsurface_water__volume_flow_rate = "ssf"
+land_surface_water__instantaneous_volume_flow_rate = "q_land"
+land_surface_water__depth = "h_land"
+river_water__instantaneous_volume_flow_rate = "q_river"
+river_water__depth = "h_river"
 
 [output.csv]
 path = "{str(output_dir / 'output.csv')}"
 
 [[output.csv.column]]
 header = "Q"
-parameter = "river_water__volume_flow_rate"
+parameter = "{'land_surface_water__volume_flow_rate' if self.spatial_mode == 'lumped' else 'river_water__volume_flow_rate'}"
 reducer = "mean"
 '''
         (self.settings_dir / config_file).write_text(toml_content)

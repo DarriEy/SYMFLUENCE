@@ -56,6 +56,14 @@ class RawForcingCache:
         ttl_days: int = 30,
         enable_checksum: bool = True,
     ):
+        """Initialise the cache, creating the cache directory if needed.
+
+        Args:
+            cache_root: Root directory for cache storage.
+            max_size_gb: Maximum cache size in gigabytes before LRU eviction.
+            ttl_days: Time-to-live for cached files in days.
+            enable_checksum: Whether to verify SHA-256 checksums on read.
+        """
         self.cache_root = Path(cache_root)
         self.max_size_gb = max_size_gb
         self.ttl_days = ttl_days
