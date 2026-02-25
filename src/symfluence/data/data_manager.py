@@ -338,6 +338,12 @@ class DataManager(BaseManager):
             fr = ForcingResampler(self.config, self.logger)
             fr.run_resampling()
 
+            # Apply model-agnostic elevation corrections
+            from symfluence.data.preprocessing import ElevationCorrectionProcessor
+            if ElevationCorrectionProcessor is not None:
+                elev_proc = ElevationCorrectionProcessor(self.config, self.logger)
+                elev_proc.apply()
+
             # Visualize preprocessed forcing if available
             if self.reporting_manager:
                 with symfluence_error_handler(

@@ -167,6 +167,15 @@ class PhysicalConstants:
     EARTH_RADIUS_KM = 6371.0
     """Mean radius of Earth in kilometers."""
 
+    MOLAR_MASS_DRY_AIR = 0.0289644
+    """Molar mass of dry air in kg/mol."""
+
+    UNIVERSAL_GAS_CONSTANT = 8.31447
+    """Universal gas constant in J/(mol·K)."""
+
+    STANDARD_LAPSE_RATE = 0.0065
+    """Standard environmental lapse rate in K/m."""
+
 
 class ModelDefaults:
     """Default configuration values used across models."""

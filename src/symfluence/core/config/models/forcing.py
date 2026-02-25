@@ -79,6 +79,30 @@ class ERA5Config(BaseModel):
         return v
 
 
+class LapseRateConfig(BaseModel):
+    """Configuration for elevation-dependent variable corrections.
+
+    Per-variable toggles control which corrections are applied beyond
+    the master ``apply_lapse_rate`` / ``lapse_rate`` temperature toggle.
+    All optional corrections default to OFF.
+    """
+    model_config = FROZEN_CONFIG
+
+    # Per-variable toggles (all default OFF except temperature via master toggle)
+    pressure: bool = False
+    humidity: bool = False
+    longwave: bool = False
+    shortwave: bool = False
+    precipitation: bool = False
+    wind: bool = False
+
+    # Configurable gradient parameters
+    lw_gradient: float = -0.029       # W/m² per m elevation (-2.9 W/m² per 100m)
+    sw_gradient: float = 0.00002      # fractional per m (+2% per km)
+    precip_gradient: float = 0.00004  # fractional per m (+4% per 100m)
+    wind_gradient: float = 0.0        # disabled even when wind=True
+
+
 class ForcingConfig(BaseModel):
     """Meteorological forcing configuration"""
     model_config = FROZEN_CONFIG
@@ -100,6 +124,9 @@ class ForcingConfig(BaseModel):
 
     # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
+
+    # Elevation correction settings
+    lapse: Optional[LapseRateConfig] = Field(default=None)
 
     # Dataset-specific settings
     nex: Optional[NexConfig] = Field(default=None)

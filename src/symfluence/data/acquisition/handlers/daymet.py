@@ -354,71 +354,25 @@ class DaymetAcquirer(BaseAcquisitionHandler):
             'y_max': max(y_coords) + buffer,
         }
 
-    @staticmethod
-    def _ensure_dodsrc():
-        """Ensure ``~/.dodsrc`` exists so the netCDF4 C library can
-        authenticate with NASA Earthdata via OPeNDAP.
-
-        The C library does not read ``~/.netrc`` directly — it needs
-        ``.dodsrc`` to point it to the cookie jar and netrc file.
-        """
-        dodsrc = Path.home() / '.dodsrc'
-        if dodsrc.exists():
-            return
-
-        netrc_path = Path.home() / '.netrc'
-        cookie_path = Path.home() / '.urs_cookies'
-        if not netrc_path.exists():
-            return  # nothing to point to
-
-        dodsrc.write_text(
-            f"HTTP.COOKIEJAR={cookie_path}\n"
-            f"HTTP.NETRC={netrc_path}\n"
-        )
-        # Cookie jar must exist (even if empty) for the C library
-        cookie_path.touch(exist_ok=True)
-
-    def _suppress_stderr(self):
-        """Context-manager-like helper that silences the netCDF4 C library's
-        stderr output (HTML error pages, auth noise).
-
-        Returns *(saved_fd, devnull_fd)* — caller must restore with
-        ``_restore_stderr``.
-        """
-        saved = os.dup(2)
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, 2)
-        return saved, devnull
-
-    @staticmethod
-    def _restore_stderr(saved: int, devnull: int):
-        os.dup2(saved, 2)
-        os.close(saved)
-        os.close(devnull)
-
     def _download_opendap_subset(
         self, var: str, year: int, var_file: Path, lcc_bbox: Dict[str, float],
         max_retries: int = 3,
     ) -> bool:
         """Download a Daymet variable via OPeNDAP server-side subsetting.
 
-        Uses a two-step approach to avoid the DAP2 "variable too large"
-        error that occurs when opening the full continental dataset:
+        Opens the Daymet granule lazily through the NASA Hyrax OPeNDAP
+        endpoint, subsets to the LCC bounding box, and writes the result.
+        Retries up to *max_retries* times with exponential backoff to handle
+        intermittent server errors.
 
-        1. Fetch only the 1-D coordinate arrays (``x``, ``y``, ``time``)
-           via a DAP2 constraint expression — these are small (~100 KB).
-        2. Compute array index ranges for the LCC bounding box, then
-           request only that slice with a second constrained URL.
+        Requires Earthdata credentials in ~/.netrc (or a configured
+        .dodsrc) so the netCDF4 C library can authenticate.
 
-        Retries up to *max_retries* times with backoff for transient errors.
         Returns True on success, False on failure.
         """
         import time as _time
 
-        import numpy as np
         import xarray as xr
-
-        self._ensure_dodsrc()
 
         url = self.OPENDAP_URL.format(var=var, year=year)
         last_err: Optional[Exception] = None
@@ -430,64 +384,38 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                     var, year, attempt, max_retries,
                 )
 
-                # --- Step 1: fetch coordinate arrays only ---------------
-                coord_url = f"{url}?x,y,time"
-                s, d = self._suppress_stderr()
+                # Suppress C-library stderr noise from netCDF4 when it
+                # receives an HTML auth-denied page instead of DAP data.
+                _stderr_fd = os.dup(2)
+                _devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(_devnull, 2)
                 try:
-                    ds_coords = xr.open_dataset(coord_url, engine='netcdf4')
+                    ds = xr.open_dataset(url, engine='netcdf4')
                 finally:
-                    self._restore_stderr(s, d)
+                    os.dup2(_stderr_fd, 2)
+                    os.close(_stderr_fd)
+                    os.close(_devnull)
 
-                x_vals = ds_coords['x'].values
-                y_vals = ds_coords['y'].values
-                n_time = ds_coords.sizes['time']
-                ds_coords.close()
+                ds_sub = ds.sel(
+                    x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
+                    y=slice(lcc_bbox['y_min'], lcc_bbox['y_max']),
+                )
 
-                # --- Step 2: compute index ranges -----------------------
-                x_idx = np.where(
-                    (x_vals >= lcc_bbox['x_min']) & (x_vals <= lcc_bbox['x_max'])
-                )[0]
-                y_idx = np.where(
-                    (y_vals >= lcc_bbox['y_min']) & (y_vals <= lcc_bbox['y_max'])
-                )[0]
-
-                if len(x_idx) == 0 or len(y_idx) == 0:
+                if any(s == 0 for s in ds_sub.sizes.values()):
                     self.logger.warning(
                         "OPeNDAP subset returned empty data for %s %d",
                         var, year,
                     )
+                    ds.close()
                     return False
 
-                xi0, xi1 = int(x_idx[0]), int(x_idx[-1])
-                yi0, yi1 = int(y_idx[0]), int(y_idx[-1])
-
-                # --- Step 3: download subset as NetCDF4 via session -----
-                # The netCDF4 C library can't reuse auth cookies for
-                # constrained URLs, so download via the requests session
-                # using the .nc4 extension (returns native NetCDF4).
-                constraint = (
-                    f"{var}[0:1:{n_time - 1}][{yi0}:1:{yi1}][{xi0}:1:{xi1}],"
-                    f"x[{xi0}:1:{xi1}],"
-                    f"y[{yi0}:1:{yi1}],"
-                    f"time"
-                )
-                nc4_url = f"{url}.nc4?{constraint}"
-
-                session = self._get_earthdata_session()
-                response = session.get(nc4_url, timeout=120)
-                response.raise_for_status()
-
-                tmp_file = var_file.with_suffix('.tmp.nc')
-                tmp_file.write_bytes(response.content)
-                ds_sub = xr.open_dataset(tmp_file)
                 ds_sub.load()
                 for v in ds_sub.data_vars:
                     ds_sub[v].encoding.clear()
                 for c in ds_sub.coords:
                     ds_sub[c].encoding.clear()
                 ds_sub.to_netcdf(var_file, engine='h5netcdf')
-                ds_sub.close()
-                tmp_file.unlink(missing_ok=True)
+                ds.close()
 
                 self.logger.info(
                     "Downloaded subsetted Daymet %s %d via OPeNDAP: %s",
@@ -552,7 +480,7 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                 self.logger.error(
                     "Failed to download Daymet variables %s for %d. "
                     "Check that ~/.netrc has credentials for "
-                    "urs.earthdata.nasa.gov and that ~/.dodsrc exists.",
+                    "urs.earthdata.nasa.gov, or set EARTHDATA_TOKEN.",
                     failed, year,
                 )
 

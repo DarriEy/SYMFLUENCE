@@ -1,5 +1,4 @@
 """Wflow Model Preprocessor."""
-import logging
 import math
 from datetime import datetime
 from pathlib import Path
@@ -12,8 +11,6 @@ import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
-
-logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("WFLOW")
@@ -83,96 +80,98 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self.logger.warning(f"Could not read catchment properties: {e}")
         return {'lat': 51.17, 'lon': -115.57, 'area_m2': 2.21e9, 'elev': 1500.0}
 
-    def _compute_grid_spacing(self, lat_deg: float, area_m2: float) -> float:
-        """Compute grid spacing (degrees) so one cell has the given area.
-
-        Uses Wflow's lattometres formula to convert degrees to metres at the
-        given latitude, then solves for dx such that
-        ``longlen(lat) * dx * latlen(lat) * dx == area_m2``.
-        """
-        m1, m2, m3, m4 = 111132.92, -559.82, 1.175, -0.0023
-        p1, p2, p3 = 111412.84, -93.5, 0.118
-        lat = np.radians(lat_deg)
-        latlen = (m1 + m2 * np.cos(2 * lat) + m3 * np.cos(4 * lat)
-                  + m4 * np.cos(6 * lat))
-        longlen = (p1 * np.cos(lat) + p2 * np.cos(3 * lat)
-                   + p3 * np.cos(5 * lat))
-        return float(np.sqrt(area_m2 / (longlen * latlen)))
-
     def _generate_staticmaps(self) -> None:
+        """Generate Wflow static maps.
+
+        Wflow.jl requires grids with >1 cell per dimension (singleton dims get
+        squeezed), so lumped mode uses a 3x3 grid with only the centre cell
+        active (subcatchment=1).  Surrounding cells are masked out.
+        """
         self.logger.info("Generating Wflow static maps...")
         props = self._get_catchment_properties()
         staticmaps_name = self._get_config_value(
             lambda: self.config.model.wflow.staticmaps_file, default='wflow_staticmaps.nc',
         )
-        # Build a 3×3 grid centred on the catchment centroid.  Only the
-        # centre cell is active; the 8 surrounding cells are NaN padding
-        # required by Wflow's kinematic-wave stencil.  Grid spacing is
-        # chosen so that one cell has area equal to the catchment area
-        # (Wflow computes cell area from coordinate spacing, not from a
-        # netCDF variable).
-        dx = self._compute_grid_spacing(props['lat'], props['area_m2'])
-        x_coords = np.array([props['lon'] - dx, props['lon'], props['lon'] + dx])
-        y_coords = np.array([props['lat'] - dx, props['lat'], props['lat'] + dx])
-        nan3 = np.full((3, 3), np.nan)
 
-        def centre_only(val, dtype=None):
-            arr = nan3.copy()
+        # 3x3 grid centred on the catchment (dx ~ 0.01 degree ≈ 1 km)
+        dx = 0.01
+        lat = np.array([props['lat'] - dx, props['lat'], props['lat'] + dx])
+        lon = np.array([props['lon'] - dx, props['lon'], props['lon'] + dx])
+
+        def _full(val, dtype=np.float64):
+            """Return a 3x3 array filled with *val*."""
+            return np.full((3, 3), val, dtype=dtype)
+
+        def _centre_only(val, bg=np.nan, dtype=np.float64):
+            """Return a 3x3 array that is *bg* everywhere except *val* at centre."""
+            arr = np.full((3, 3), bg, dtype=dtype)
             arr[1, 1] = val
-            return arr if dtype is None else arr.astype(dtype)
+            return arr
 
         ds = xr.Dataset(coords={
-            'y': (['y'], y_coords),
-            'x': (['x'], x_coords),
+            'y': (['y'], lat, {'units': 'degrees_north'}),
+            'x': (['x'], lon, {'units': 'degrees_east'}),
         })
-        # Topography
-        ds['wflow_dem'] = xr.DataArray(centre_only(props['elev']), dims=['y', 'x'])
-        ds['wflow_subcatch'] = xr.DataArray(centre_only(1), dims=['y', 'x'])
-        ds['wflow_river'] = xr.DataArray(centre_only(1), dims=['y', 'x'])
-        ds['wflow_gauges'] = xr.DataArray(centre_only(1), dims=['y', 'x'])
-        ds['wflow_pits'] = xr.DataArray(centre_only(1), dims=['y', 'x'])
-        ds['wflow_riverwidth'] = xr.DataArray(centre_only(10.0), dims=['y', 'x'])
-        ds['wflow_riverlength'] = xr.DataArray(centre_only(1000.0), dims=['y', 'x'])
-        # Soil params
-        ds['KsatVer'] = xr.DataArray(centre_only(250.0), dims=['y', 'x'])
-        ds['f'] = xr.DataArray(centre_only(3.0), dims=['y', 'x'])
-        ds['SoilThickness'] = xr.DataArray(centre_only(2000.0), dims=['y', 'x'])
-        ds['InfiltCapPath'] = xr.DataArray(centre_only(50.0), dims=['y', 'x'])
-        ds['RootingDepth'] = xr.DataArray(centre_only(500.0), dims=['y', 'x'])
-        ds['KsatHorFrac'] = xr.DataArray(centre_only(50.0), dims=['y', 'x'])
-        ds['PathFrac'] = xr.DataArray(centre_only(0.01), dims=['y', 'x'])
-        ds['thetaS'] = xr.DataArray(centre_only(0.45), dims=['y', 'x'])
-        ds['thetaR'] = xr.DataArray(centre_only(0.05), dims=['y', 'x'])
-        # Brooks-Corey exponent — 4 layers (3 real + 1 sentinel for Wflow)
-        c_centre = np.full((4, 3, 3), np.nan)
-        c_centre[:, 1, 1] = 10.0
-        ds['c'] = xr.DataArray(c_centre, dims=['layer', 'y', 'x'],
-                               coords={'layer': np.arange(1.0, 5.0)})
+
+        # Wflow uses `missing` (NaN for floats) to mask inactive cells.
+        # Only the centre cell (1,1) is active; surrounding cells are NaN.
+        ds['wflow_dem'] = xr.DataArray(_centre_only(props['elev']), dims=['y', 'x'])
+        ds['wflow_subcatch'] = xr.DataArray(_centre_only(1.0), dims=['y', 'x'])
+        ds['wflow_river'] = xr.DataArray(_centre_only(1.0), dims=['y', 'x'])
+        ds['wflow_gauges'] = xr.DataArray(_centre_only(1.0), dims=['y', 'x'])
+        ds['wflow_riverwidth'] = xr.DataArray(_centre_only(10.0), dims=['y', 'x'])
+        ds['wflow_riverlength'] = xr.DataArray(_centre_only(1000.0), dims=['y', 'x'])
+
+        # Soil parameters — centre-only, NaN elsewhere
+        for name, val in [
+            ('KsatVer', 250.0), ('f', 3.0), ('SoilThickness', 2000.0),
+            ('InfiltCapPath', 50.0), ('RootingDepth', 500.0),
+            ('KsatHorFrac', 50.0), ('PathFrac', 0.01),
+            ('thetaS', 0.45), ('thetaR', 0.05),
+        ]:
+            ds[name] = xr.DataArray(_centre_only(val), dims=['y', 'x'])
+
+        # Brooks-Corey exponent needs a layer dimension.
+        # Wflow adds an extra sentinel layer internally (maxlayers = n_layers + 1),
+        # so the netCDF must have n_layers + 1 layers.
+        soil_layers = self._get_config_value(
+            lambda: self.config.model.wflow.soil_layer_thickness,
+            default=[100, 300, 800],
+        )
+        n_layers = len(soil_layers) + 1  # +1 for Wflow sentinel layer
+        c_val = 10.0
+        c_3d = np.full((n_layers, 3, 3), np.nan, dtype=np.float64)
+        c_3d[:, 1, 1] = c_val
+        ds = ds.assign_coords(layer=np.arange(1, n_layers + 1, dtype=np.float64))
+        ds['c'] = xr.DataArray(c_3d, dims=['layer', 'y', 'x'])
+
         # Snow parameters
-        ds['TT'] = xr.DataArray(centre_only(0.0), dims=['y', 'x'])
-        ds['TTI'] = xr.DataArray(centre_only(1.0), dims=['y', 'x'])
-        ds['TTM'] = xr.DataArray(centre_only(0.0), dims=['y', 'x'])
-        ds['Cfmax'] = xr.DataArray(centre_only(3.75), dims=['y', 'x'])
-        ds['WHC'] = xr.DataArray(centre_only(0.1), dims=['y', 'x'])
+        for name, val in [('TT', 0.0), ('TTI', 1.0), ('TTM', 0.0), ('Cfmax', 3.75)]:
+            ds[name] = xr.DataArray(_centre_only(val), dims=['y', 'x'])
+
         # Infiltration / leakage
-        ds['cf_soil'] = xr.DataArray(centre_only(0.038), dims=['y', 'x'])
-        ds['MaxLeakage'] = xr.DataArray(centre_only(0.0), dims=['y', 'x'])
+        ds['cf_soil'] = xr.DataArray(_centre_only(0.038), dims=['y', 'x'])
+        ds['MaxLeakage'] = xr.DataArray(_centre_only(0.0), dims=['y', 'x'])
+
         # Routing
-        ds['N_River'] = xr.DataArray(centre_only(0.036), dims=['y', 'x'])
-        ds['N'] = xr.DataArray(centre_only(0.072), dims=['y', 'x'])
-        ds['RiverSlope'] = xr.DataArray(centre_only(0.01), dims=['y', 'x'])
-        ds['Slope'] = xr.DataArray(centre_only(0.05), dims=['y', 'x'])
-        # LDD (5 = pit/outflow for lumped catchment)
-        ds['wflow_ldd'] = xr.DataArray(centre_only(5, dtype=np.int32), dims=['y', 'x'])
-        ds['wflow_cellarea'] = xr.DataArray(centre_only(props['area_m2']), dims=['y', 'x'])
+        for name, val in [('N_River', 0.036), ('N', 0.072), ('RiverSlope', 0.01), ('Slope', 0.05)]:
+            ds[name] = xr.DataArray(_centre_only(val), dims=['y', 'x'])
+
+        # LDD: centre = 5 (pit/outlet), NaN elsewhere
+        ds['wflow_ldd'] = xr.DataArray(_centre_only(5.0), dims=['y', 'x'])
+        # Pit mask (required when pit__flag = true): 1 at pit, NaN elsewhere
+        ds['wflow_pits'] = xr.DataArray(_centre_only(1.0), dims=['y', 'x'])
+        ds['wflow_cellarea'] = xr.DataArray(_centre_only(props['area_m2']), dims=['y', 'x'])
+
         # Vegetation
-        ds['LAI'] = xr.DataArray(centre_only(3.0), dims=['y', 'x'])
-        ds['CanopyGapFraction'] = xr.DataArray(centre_only(0.1), dims=['y', 'x'])
-        ds['Cmax'] = xr.DataArray(centre_only(1.0), dims=['y', 'x'])
+        ds['LAI'] = xr.DataArray(_centre_only(3.0), dims=['y', 'x'])
+        ds['CanopyGapFraction'] = xr.DataArray(_centre_only(0.1), dims=['y', 'x'])
+        ds['Cmax'] = xr.DataArray(_centre_only(1.0), dims=['y', 'x'])
+
         ds.attrs['title'] = 'Wflow static maps for SYMFLUENCE'
         output_path = self.settings_dir / staticmaps_name
         ds.to_netcdf(output_path)
-        self.logger.info(f"Written static maps to {output_path} (dx={dx:.4f}°, area={props['area_m2']/1e6:.0f} km²)")
+        self.logger.info(f"Written static maps to {output_path}")
 
     def _generate_forcing(self) -> None:
         self.logger.info("Generating Wflow forcing data...")
@@ -186,6 +185,10 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(f"No forcing files found in {forcing_path}")
         ds_forcing = xr.open_mfdataset(forcing_files, combine='by_coords')
         ds_forcing = ds_forcing.sel(time=slice(str(start_date), str(end_date)))
+
+        dx = 0.01
+        lat = np.array([props['lat'] - dx, props['lat'], props['lat'] + dx])
+        lon = np.array([props['lon'] - dx, props['lon'], props['lon'] + dx])
 
         precip = self._extract_forcing_var(
             ds_forcing, ['pptrate', 'mtpr', 'tp', 'precipitation', 'PREC', 'precip'],
@@ -203,63 +206,27 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             temp = temp - 273.15
 
         times = pd.DatetimeIndex(ds_forcing.time.values)
+        pet = self._estimate_pet_hamon(temp, times, props['lat'])
 
-        # PET method dispatch — Oudin (radiation-aware) by default, Hamon as fallback
-        pet_method = self._get_config_value(
-            lambda: self.config.model.wflow.pet_method,
-            default='oudin', dict_key='WFLOW_PET_METHOD'
-        )
-        if pet_method == 'oudin':
-            from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
-            # Oudin expects daily-mean temperature — aggregate sub-daily to daily,
-            # compute PET (mm/day), then distribute evenly across sub-daily timesteps.
-            temp_series = pd.Series(temp, index=times)
-            daily_temp = temp_series.resample('D').mean()
-            daily_doy = np.array([t.timetuple().tm_yday for t in daily_temp.index])
-            pet_mm_day = PETCalculatorMixin.oudin_pet_numpy(
-                daily_temp.values, daily_doy, props['lat']
-            )
-            annual_pet = pet_mm_day.mean() * 365
-            self.logger.info(f"Oudin PET: mean={pet_mm_day.mean():.2f} mm/day, annual≈{annual_pet:.0f} mm/yr")
-            # Broadcast daily PET back to sub-daily timesteps
-            pet_daily_series = pd.Series(pet_mm_day, index=daily_temp.index)
-            pet_sub = pet_daily_series.reindex(times, method='ffill').values
-            # Scale from mm/day to mm/timestep
-            timestep_hours = self._get_config_value(
-                lambda: self.config.data.forcing_time_step_size,
-                default=3600, dict_key='FORCING_TIME_STEP_SIZE'
-            )
-            if isinstance(timestep_hours, (int, float)) and timestep_hours > 100:
-                timestep_hours = timestep_hours / 3600
-            pet = pet_sub * (timestep_hours / 24.0)
-        else:
-            pet = self._estimate_pet_hamon(temp, times, props['lat'])
-            self.logger.info(f"Hamon PET: annual≈{pet.mean() * (24.0 / max(1, 1)) * 365:.0f} mm/yr")
-
-        # Build 3×3 forcing grid matching staticmaps coordinates.
-        # Only the centre cell carries data; outer cells are NaN.
-        dx = self._compute_grid_spacing(props['lat'], props['area_m2'])
-        x_coords = np.array([props['lon'] - dx, props['lon'], props['lon'] + dx])
-        y_coords = np.array([props['lat'] - dx, props['lat'], props['lat'] + dx])
+        # Broadcast 1D forcing to 3x3 grid (uniform, same value everywhere)
         nt = len(times)
-        nan_grid = np.full((nt, 3, 3), np.nan)
-
-        def centre_ts(data_1d):
-            arr = nan_grid.copy()
-            arr[:, 1, 1] = data_1d
-            return arr
-
         ds_out = xr.Dataset(coords={
             'time': times,
-            'y': (['y'], y_coords),
-            'x': (['x'], x_coords),
+            'y': (['y'], lat),
+            'x': (['x'], lon),
         })
-        ds_out['precip'] = xr.DataArray(centre_ts(precip), dims=['time', 'y', 'x'],
-                                        attrs={'units': 'mm/timestep'})
-        ds_out['temp'] = xr.DataArray(centre_ts(temp), dims=['time', 'y', 'x'],
-                                      attrs={'units': 'degC'})
-        ds_out['pet'] = xr.DataArray(centre_ts(pet), dims=['time', 'y', 'x'],
-                                     attrs={'units': 'mm/timestep'})
+        ds_out['precip'] = xr.DataArray(
+            np.broadcast_to(precip.reshape(nt, 1, 1), (nt, 3, 3)).copy(),
+            dims=['time', 'y', 'x'], attrs={'units': 'mm/timestep'},
+        )
+        ds_out['temp'] = xr.DataArray(
+            np.broadcast_to(temp.reshape(nt, 1, 1), (nt, 3, 3)).copy(),
+            dims=['time', 'y', 'x'], attrs={'units': 'degC'},
+        )
+        ds_out['pet'] = xr.DataArray(
+            np.broadcast_to(pet.reshape(nt, 1, 1), (nt, 3, 3)).copy(),
+            dims=['time', 'y', 'x'], attrs={'units': 'mm/timestep'},
+        )
         ds_forcing.close()
         output_path = self.forcing_out_dir / 'forcing.nc'
         ds_out.to_netcdf(output_path)
@@ -362,7 +329,6 @@ atmosphere_air__snowfall_temperature_threshold = "TT"
 atmosphere_air__snowfall_temperature_interval = "TTI"
 snowpack__melting_temperature_threshold = "TTM"
 snowpack__degree_day_coefficient = "Cfmax"
-snowpack__liquid_water_holding_capacity = "WHC"
 
 # Soil parameters
 soil_layer_water__brooks_corey_exponent = "c"
@@ -396,7 +362,6 @@ land_surface__slope = "Slope"
 soil_layer__thickness = [100, 300, 800]
 type = "sbm"
 pit__flag = true
-snow__flag = true
 
 [state]
 path_input = "{state_dir}/instates.nc"

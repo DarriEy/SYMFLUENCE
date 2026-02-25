@@ -182,6 +182,10 @@ class SymfluenceConfig(BaseModel):
                 continue
             nested[key] = value
 
+        # Route top-level 'lapse' into forcing section for LapseRateConfig
+        if 'lapse' in nested and isinstance(nested['lapse'], dict):
+            nested.setdefault('forcing', {})['lapse'] = nested.pop('lapse')
+
         return nested
 
     @model_validator(mode='after')
