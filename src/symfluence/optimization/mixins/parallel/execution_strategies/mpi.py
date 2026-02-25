@@ -105,36 +105,50 @@ class MPIExecutionStrategy(ExecutionStrategy):
             # Find Python executable
             python_exe = self._find_python_executable()
 
-            # Build MPI command
-            mpi_cmd = self._build_mpi_command(
-                python_exe, num_procs, worker_script, tasks_file, results_file
-            )
-
-            self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
-
             # Setup environment
             mpi_env = self._build_mpi_environment()
 
-            # Run MPI command
-            result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
+            # Try available launchers in preference order, falling back on failure
+            launchers = self._detect_mpi_launchers()
+            last_error = None
 
-            # Log output
-            self._log_mpi_output(result)
-
-            if result.returncode != 0:
-                cleanup_files = False
-                raise RuntimeError(
-                    f"MPI execution failed with returncode {result.returncode}"
+            for launcher in launchers:
+                mpi_cmd = self._build_mpi_command(
+                    python_exe, num_procs, worker_script, tasks_file, results_file,
+                    launcher=launcher,
                 )
 
-            if results_file.exists():
-                with open(results_file, 'rb') as f:
-                    results = pickle.load(f)  # nosec B301 - Loading trusted MPI results
-                self.logger.debug(f"MPI completed: {len(results)} results")
-                return results
-            else:
-                cleanup_files = False
-                raise RuntimeError("MPI results file not created")
+                self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
+
+                result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
+                self._log_mpi_output(result)
+
+                if result.returncode == 0 and results_file.exists():
+                    with open(results_file, 'rb') as f:
+                        results = pickle.load(f)  # nosec B301 - Loading trusted MPI results
+                    self.logger.debug(f"MPI completed: {len(results)} results")
+                    return results
+
+                # Record failure and try next launcher
+                last_error = (
+                    f"MPI launcher '{launcher}' failed (rc={result.returncode})"
+                )
+                self.logger.warning(
+                    f"{last_error}, stderr: {(result.stderr or '')[:200]}"
+                )
+                if len(launchers) > 1:
+                    self.logger.info(
+                        "Falling back to next available launcher..."
+                    )
+                # Clean stale results before retry
+                if results_file.exists():
+                    results_file.unlink()
+
+            # All launchers failed
+            cleanup_files = False
+            raise RuntimeError(
+                f"All MPI launchers failed. Last error: {last_error}"
+            )
 
         finally:
             if cleanup_files:
@@ -174,19 +188,19 @@ class MPIExecutionStrategy(ExecutionStrategy):
         return python_exe
 
     @staticmethod
-    def _detect_mpi_launcher() -> str:
-        """Detect available MPI launcher (mpirun > mpiexec > srun).
+    def _detect_mpi_launchers() -> list:
+        """Return available MPI launchers in preference order.
 
         mpirun is preferred because it handles PMI negotiation internally,
         while srun requires matching PMI/PMIx versions between SLURM and
         OpenMPI — a common source of failures on HPC systems (e.g., Anvil).
         """
-        for candidate in ("mpirun", "mpiexec", "srun"):
-            if shutil.which(candidate):
-                return candidate
-        raise RuntimeError(
-            "No MPI launcher found. Install OpenMPI, MS-MPI, or run under SLURM."
-        )
+        available = [c for c in ("mpirun", "mpiexec", "srun") if shutil.which(c)]
+        if not available:
+            raise RuntimeError(
+                "No MPI launcher found. Install OpenMPI, MS-MPI, or run under SLURM."
+            )
+        return available
 
     def _build_mpi_command(
         self,
@@ -194,10 +208,12 @@ class MPIExecutionStrategy(ExecutionStrategy):
         num_processes: int,
         worker_script: Path,
         tasks_file: Path,
-        results_file: Path
+        results_file: Path,
+        launcher: str = None,
     ) -> list:
         """Build the MPI launch command with platform-aware launcher detection."""
-        launcher = self._detect_mpi_launcher()
+        if launcher is None:
+            launcher = self._detect_mpi_launchers()[0]
         self.logger.debug(f"Using MPI launcher: {launcher}")
 
         cmd = [launcher]
