@@ -883,8 +883,8 @@ src/symfluence/models/mesh/preprocessing/run_options_builder.py:163:except Excep
 src/symfluence/models/mesh/preprocessing/run_options_builder.py:208:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/run_options_builder.py:230:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/run_options_builder.py:79:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/mesh/runner.py:238:except Exception:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/mesh/runner.py:250:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/runner.py:234:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/runner.py:246:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/visualizer.py:26:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mhm/calibration/optimizer.py:155:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mhm/calibration/parameter_manager.py:228:except Exception as e:  # noqa: BLE001 — calibration resilience
