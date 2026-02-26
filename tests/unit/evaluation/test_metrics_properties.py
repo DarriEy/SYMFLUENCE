@@ -14,9 +14,11 @@ Modules covered:
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings
-from hypothesis import strategies as st
-from hypothesis.extra.numpy import arrays
+
+hypothesis = pytest.importorskip("hypothesis", reason="hypothesis not installed")
+from hypothesis import assume, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+from hypothesis.extra.numpy import arrays  # noqa: E402
 
 from symfluence.evaluation.metric_transformer import MetricTransformer
 from symfluence.evaluation.metrics_core import (

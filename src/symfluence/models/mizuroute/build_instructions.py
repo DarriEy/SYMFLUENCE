@@ -128,7 +128,13 @@ if [ -n "$MIZU_RPATH" ]; then
     for _rp in "${_rps[@]}"; do
         RPATH_FLAGS="$RPATH_FLAGS -Wl,-rpath,$_rp"
     done
-    # Append rpath flags to LIBNETCDF in the Makefile
+    # Collapse multi-line LIBNETCDF into a single line first, then append RPATH.
+    # The upstream Makefile uses backslash continuation:
+    #   LIBNETCDF = ... \
+    #               -L... -lnetcdff -lnetcdf
+    # Appending to the first line would break the continuation (\ mid-line).
+    perl -i -0777 -pe 's/(LIBNETCDF\s*=.*?)\s*\\\n[ \t]*/$1 /g' Makefile
+    # Now safely append rpath flags to the single-line LIBNETCDF
     perl -i -pe "s|^(LIBNETCDF\s*=.*)$|\$1 $RPATH_FLAGS|" Makefile
     echo "RPATH: $MIZU_RPATH"
 fi
