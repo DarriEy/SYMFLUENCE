@@ -276,12 +276,25 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   echo "Using UDUNITS2 from: $_U2_DIR"
 fi
 
-# Add extra linker flags for conda GCC 14 and expat (needed by locally-built UDUNITS2)
+# Add extra linker flags for conda GCC 14 and expat (needed by UDUNITS2)
 # IMPORTANT: CMake does NOT use LDFLAGS for target linking. We must pass these
 # through CMAKE_EXE_LINKER_FLAGS. Build up all extra flags here.
 EXTRA_LINK_FLAGS="${EXTRA_LIBS:-}"
-if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "true" ]; then
-  # Only add expat for locally-built UDUNITS2 (not HPC modules which handle deps via rpath)
+
+# Detect UDUNITS2 from any source: explicit var, pkg-config, or system library
+_HAVE_UDUNITS2=false
+if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
+  _HAVE_UDUNITS2=true
+elif pkg-config --exists udunits2 2>/dev/null; then
+  _HAVE_UDUNITS2=true
+elif ldconfig -p 2>/dev/null | grep -q libudunits2; then
+  _HAVE_UDUNITS2=true
+fi
+
+if [ "$_HAVE_UDUNITS2" = "true" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "true" ]; then
+  # UDUNITS2 depends on libexpat for XML parsing.  CMake finds libudunits2 but
+  # may not propagate the transitive -lexpat dependency, causing undefined
+  # references to XML_GetErrorCode / XML_ErrorString at link time.
   if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
     EXTRA_LINK_FLAGS="$EXTRA_LINK_FLAGS -L${EXPAT_LIB_DIR} -lexpat"
     # Add to LIBRARY_PATH so the linker can find it during build
@@ -291,9 +304,9 @@ if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "
     export CMAKE_PREFIX_PATH="${EXPAT_LIB_DIR%/lib}:${CMAKE_PREFIX_PATH:-}"
     echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
   else
-    # Fallback for non-HPC: add -lexpat and hope it's in standard paths
+    # System expat: add -lexpat (standard on Linux, Homebrew on macOS)
     EXTRA_LINK_FLAGS="$EXTRA_LINK_FLAGS -lexpat"
-    echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
+    echo "Adding -lexpat for system UDUNITS2 (transitive dependency)"
   fi
 elif [ "${UDUNITS2_FROM_HPC_MODULE:-false}" = "true" ]; then
   echo "Using HPC module UDUNITS2 - expat dependency handled via module rpath"

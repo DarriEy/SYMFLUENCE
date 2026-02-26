@@ -40,8 +40,20 @@ def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
 
     Loads data into memory first to avoid dask/HDF5 conflicts when writing
     from cloud-backed (Zarr) datasets, clears cloud-store encoding, then
-    tries netcdf4 → h5netcdf → uncompressed h5netcdf as fallbacks.
+    tries netcdf4 → h5netcdf → uncompressed h5netcdf → local-tempfile as
+    fallbacks.
+
+    The final fallback writes to a local temp directory ($TMPDIR or /tmp)
+    where POSIX file locking is supported, then moves the file to the target
+    path.  This bypasses HDF5 fcntl() locking failures on parallel
+    filesystems (Lustre / GPFS / BeeGFS) even when the HDF5 C library was
+    compiled with forced locking or loaded before HDF5_USE_FILE_LOCKING was
+    set.
     """
+    # Belt-and-suspenders: re-enforce locking env var in case the HDF5 C
+    # library hasn't been loaded yet (it reads the var at dlopen time).
+    os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+
     # Materialise into memory so the write is a pure local operation
     ds = ds.load()
 
@@ -76,8 +88,45 @@ def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
                 f"retrying without compression"
             )
 
-    # --- Attempt 3: h5netcdf without compression (last resort) -------------
-    ds.to_netcdf(path, engine="h5netcdf", compute=True)
+    # --- Attempt 3: h5netcdf without compression ---------------------------
+    try:
+        ds.to_netcdf(path, engine="h5netcdf", compute=True)
+        return
+    except (OSError, RuntimeError) as e:
+        if logger:
+            logger.warning(
+                f"h5netcdf without compression also failed ({e!r}), "
+                f"retrying via local temp file to bypass filesystem locking"
+            )
+
+    # --- Attempt 4: write to local temp file, then move --------------------
+    # On parallel filesystems (Lustre/GPFS/BeeGFS) the HDF5 C library's
+    # fcntl() locking can fail even when HDF5_USE_FILE_LOCKING=FALSE, e.g.
+    # because the library was compiled with forced locking or was loaded
+    # before the env-var was set.  Writing to a local filesystem ($TMPDIR
+    # or /tmp) avoids the locking issue; a cross-device move is a plain
+    # copy+unlink that does not require HDF5 file locking.
+    import shutil
+    import tempfile
+
+    tmpdir = os.environ.get('TMPDIR') or '/tmp'
+    fd, tmp_path = tempfile.mkstemp(suffix='.nc', dir=tmpdir)
+    os.close(fd)
+    try:
+        ds.to_netcdf(tmp_path, engine="h5netcdf", encoding=encoding, compute=True)
+        shutil.move(tmp_path, str(path))
+        if logger:
+            logger.info(
+                f"Successfully wrote {Path(path).name} via local temp file "
+                f"(parallel filesystem locking workaround)"
+            )
+    except Exception:
+        # Clean up temp file on failure before re-raising
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def has_cds_credentials() -> bool:

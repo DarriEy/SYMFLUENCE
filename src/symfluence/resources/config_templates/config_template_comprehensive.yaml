@@ -6790,6 +6790,13 @@ EXPERIMENT_OUTPUT_WFLOW: default
 #   Usage:      3
 WFLOW_OUTPUT_FILE: "output.nc"
 
+# WFLOW_PET_METHOD
+#   Type:        str
+#   Default:     oudin
+#   Source:      WflowConfig (model_configs_hydrology.py)
+#   Usage:      3
+WFLOW_PET_METHOD: "oudin"
+
 # WFLOW_PARAMS_TO_CALIBRATE
 #   Type:        str
 #   Default:     KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,KsatHorFrac,n_river,PathFrac,thetaS,thetaR
