@@ -630,10 +630,9 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         if obs_ds is not None:
             var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
-            raise FileNotFoundError(
-                "Streamflow observations are required for FUSE forcing but could not be loaded. "
-                "Check that observation files exist and are non-empty in "
-                f"{self.project_observations_dir / 'streamflow' / 'preprocessed'}"
+            self.logger.warning(
+                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
+                "This is fine for run_def/run_pre but observations will be needed for calibration."
             )
 
         # Process and add to dataset
@@ -1088,10 +1087,9 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         if obs_ds_a is not None:
             var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
-            raise FileNotFoundError(
-                "Streamflow observations are required for FUSE forcing but could not be loaded. "
-                "Check that observation files exist and are non-empty in "
-                f"{self.project_observations_dir / 'streamflow' / 'preprocessed'}"
+            self.logger.warning(
+                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
+                "This is fine for run_def/run_pre but observations will be needed for calibration."
             )
 
         # Add variables with broadcasting
