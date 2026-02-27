@@ -8,7 +8,7 @@ parameter blocks.
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
@@ -28,7 +28,7 @@ class WATFLOODParameterManager(BaseParameterManager):
 
         params_str = (
             self._get_config_value(lambda: None, default='', dict_key='WATFLOOD_PARAMS_TO_CALIBRATE') or
-            'R2N,R1N,AK,AKF,REESSION,FLZCOEF,PWR,THETA,DS,MANNING_N'
+            'FLZCOEF,PWR,R2N,AK,AKF,REESSION,RETN,AK2,AK2FS,R3,DS,FPET,FTALL,FM,BASE,SUBLIM_FACTOR'
         )
         self.watflood_params = [p.strip() for p in params_str.split(',') if p.strip()]
 
@@ -38,7 +38,7 @@ class WATFLOODParameterManager(BaseParameterManager):
         """Get ordered list of parameter names to calibrate."""
         return list(self.watflood_params)
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Union[float, str]]]:
         """Load parameter bounds from WATFLOOD parameter definitions."""
         from ..parameters import PARAM_BOUNDS
         return {p: PARAM_BOUNDS.get(p, {'min': 0.001, 'max': 10.0})
@@ -88,20 +88,29 @@ class WATFLOODParameterManager(BaseParameterManager):
 
         WATFLOOD .par files use keyword-value format with per-land-class blocks.
         Parameters appear as: KEYWORD value(s)
+        Calibration names are mapped to par file keywords via PAR_KEYWORD_MAP.
         """
-        # Pattern matches the parameter keyword followed by numeric values
+        from ..parameters import PAR_KEYWORD_MAP
+
+        # Map calibration name to par file keyword (parser format)
+        par_keyword = PAR_KEYWORD_MAP.get(param_name, param_name)
+
+        # Parser-format lines: `:keyword, value,` or `:keyword, value`
         pattern = re.compile(
-            rf'^(\s*{re.escape(param_name)}\s+)([\d.eE+\-]+)',
+            rf'^(:{re.escape(par_keyword)},\s*)([-+]?[\d.eE+\-]+)',
             re.MULTILINE | re.IGNORECASE
         )
 
+        # Use scientific notation for values in the par file
         def replacer(m):
             prefix = m.group(1)
-            return f"{prefix}{value:.6f}"
+            return f"{prefix}{value:.3E}"
 
         new_content, count = pattern.subn(replacer, content)
         if count > 0:
-            self.logger.debug(f"Updated {param_name} = {value:.6f} ({count} occurrences)")
+            self.logger.debug(f"Updated {param_name} ({par_keyword}) = {value:.3E} ({count} occurrences)")
+        else:
+            self.logger.warning(f"Parameter {param_name} (keyword '{par_keyword}') not found in .par file")
         return new_content
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
