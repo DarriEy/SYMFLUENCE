@@ -643,16 +643,22 @@ class ParameterBoundsRegistry:
     # WATFLOOD PARAMETERS
     # ========================================================================
     WATFLOOD_PARAMS: Dict[str, ParameterInfo] = {
-        'watflood_R2N': ParameterInfo(0.01, 5.0, '-', 'Channel Manning roughness multiplier', 'routing'),
-        'watflood_R1N': ParameterInfo(0.01, 5.0, '-', 'Overland flow roughness multiplier', 'routing'),
-        'watflood_AK': ParameterInfo(0.001, 1.0, 'mm/h', 'Upper zone interflow coefficient', 'baseflow'),
-        'watflood_AKF': ParameterInfo(0.001, 1.0, 'mm/h', 'Interflow recession coefficient', 'baseflow'),
-        'watflood_REESSION': ParameterInfo(0.0, 1.0, '-', 'Baseflow recession coefficient', 'baseflow'),
-        'watflood_FLZCOEF': ParameterInfo(0.0, 0.1, '-', 'Lower zone function coefficient', 'baseflow'),
-        'watflood_PWR': ParameterInfo(1.0, 3.0, '-', 'Power on lower zone function', 'baseflow'),
-        'watflood_THETA': ParameterInfo(0.0, 1.0, '-', 'Soil moisture content parameter', 'soil'),
-        'watflood_DS': ParameterInfo(0.0, 1.0, '-', 'Surface depression storage fraction', 'soil'),
-        'watflood_MANNING_N': ParameterInfo(0.01, 0.5, 's/m^1/3', 'Channel Manning roughness', 'routing'),
+        'watflood_FLZCOEF': ParameterInfo(1e-6, 0.01, '-', 'Lower zone function coefficient', 'baseflow', transform='log'),
+        'watflood_PWR': ParameterInfo(0.5, 4.0, '-', 'Power on lower zone function', 'baseflow'),
+        'watflood_R2N': ParameterInfo(0.01, 0.30, '-', 'Channel Manning roughness multiplier', 'routing'),
+        'watflood_AK': ParameterInfo(1.0, 100.0, 'mm/h', 'Upper zone interflow coefficient', 'baseflow'),
+        'watflood_AKF': ParameterInfo(1.0, 100.0, 'mm/h', 'Interflow recession coefficient', 'baseflow'),
+        'watflood_REESSION': ParameterInfo(0.01, 1.0, '-', 'Baseflow recession coefficient', 'baseflow'),
+        'watflood_RETN': ParameterInfo(10.0, 500.0, 'h', 'Retention constant', 'routing'),
+        'watflood_AK2': ParameterInfo(0.001, 1.0, '-', 'Lower zone depletion coefficient', 'baseflow', transform='log'),
+        'watflood_AK2FS': ParameterInfo(0.001, 1.0, '-', 'Lower zone depletion (snow-covered)', 'baseflow', transform='log'),
+        'watflood_R3': ParameterInfo(1.0, 100.0, '-', 'Overbank roughness multiplier', 'routing'),
+        'watflood_DS': ParameterInfo(0.0, 20.0, 'mm', 'Surface depression storage', 'soil'),
+        'watflood_FPET': ParameterInfo(0.5, 5.0, '-', 'PET adjustment factor', 'et'),
+        'watflood_FTALL': ParameterInfo(0.01, 1.0, '-', 'Forest canopy adjustment', 'et'),
+        'watflood_FM': ParameterInfo(0.01, 0.50, 'mm/degC/h', 'Melt factor', 'snow'),
+        'watflood_BASE': ParameterInfo(-3.0, 2.0, 'degC', 'Base temperature for melt', 'snow'),
+        'watflood_SUBLIM_FACTOR': ParameterInfo(0.0, 0.5, '-', 'Sublimation fraction', 'snow'),
     }
 
     def __init__(self):
@@ -1135,9 +1141,12 @@ def get_watflood_bounds() -> Dict[str, Dict[str, float]]:
         Keys use unprefixed names matching WATFLOOD parameter conventions.
     """
     watflood_params = [
-        'watflood_R2N', 'watflood_R1N', 'watflood_AK', 'watflood_AKF',
-        'watflood_REESSION', 'watflood_FLZCOEF', 'watflood_PWR',
-        'watflood_THETA', 'watflood_DS', 'watflood_MANNING_N',
+        'watflood_FLZCOEF', 'watflood_PWR', 'watflood_R2N',
+        'watflood_AK', 'watflood_AKF', 'watflood_REESSION',
+        'watflood_RETN', 'watflood_AK2', 'watflood_AK2FS',
+        'watflood_R3', 'watflood_DS', 'watflood_FPET',
+        'watflood_FTALL', 'watflood_FM', 'watflood_BASE',
+        'watflood_SUBLIM_FACTOR',
     ]
     prefixed = get_registry().get_bounds_for_params(watflood_params)
     return {k.replace('watflood_', ''): v for k, v in prefixed.items()}
