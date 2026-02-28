@@ -64,27 +64,20 @@ class WATFLOODWorker(BaseWorker):
                     self.logger.error(f"No .par file found in {settings_dir}")
                     return False
 
+            from symfluence.models.watflood.parameters import PAR_KEYWORD_MAP
+
             content = par_path.read_text(encoding='utf-8')
             for param_name, value in params.items():
-                # Match WATFLOOD .par format: keyword  0.300E+02
-                # Try scientific notation format first
-                pattern_sci = re.compile(
-                    rf'^(\s*{re.escape(param_name)}\s+)([\d.]+E[+\-]\d+)',
+                # Map calibration name to par file keyword (parser format)
+                par_keyword = PAR_KEYWORD_MAP.get(param_name, param_name)
+                # Parser-format lines: `:keyword, value,` or `:keyword, value`
+                pattern = re.compile(
+                    rf'^(:{re.escape(par_keyword)},\s*)([-+]?[\d.eE+\-]+)',
                     re.MULTILINE | re.IGNORECASE
                 )
-                if pattern_sci.search(content):
-                    content = pattern_sci.sub(
-                        lambda m, _value=value: f"{m.group(1)}{_value:.3E}", content  # type: ignore[misc]
-                    )
-                else:
-                    # Try decimal format
-                    pattern_dec = re.compile(
-                        rf'^(\s*{re.escape(param_name)}\s+)([\d.eE+\-]+)',
-                        re.MULTILINE | re.IGNORECASE
-                    )
-                    content = pattern_dec.sub(
-                        lambda m, _value=value: f"{m.group(1)}{_value:.6f}", content  # type: ignore[misc]
-                    )
+                content = pattern.sub(
+                    lambda m, _value=value: f"{m.group(1)}{_value:.3E}", content  # type: ignore[misc]
+                )
 
             par_path.write_text(content, encoding='utf-8')
             return True
@@ -93,14 +86,14 @@ class WATFLOODWorker(BaseWorker):
             return False
 
     def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs) -> bool:
-        """Run WATFLOOD model via Wine."""
+        """Run WATFLOOD model (native binary or Wine for .exe)."""
         try:
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
             sim_dir.mkdir(parents=True, exist_ok=True)
 
             install_path = config.get('WATFLOOD_INSTALL_PATH', 'default')
-            exe_name = config.get('WATFLOOD_EXE', 'charm64x.exe')
+            exe_name = config.get('WATFLOOD_EXE', 'watflood')
             if install_path == 'default':
                 install_dir = data_dir / "installs" / "watflood" / "bin"
             else:
@@ -112,23 +105,33 @@ class WATFLOODWorker(BaseWorker):
                 self.logger.error(f"WATFLOOD executable not found: {watflood_exe}")
                 return False
 
-            # Copy exe + DLLs to working dir
-            for f in install_dir.iterdir():
-                if f.suffix.lower() in ('.exe', '.dll'):
-                    dest = settings_dir / f.name
-                    if not dest.exists():
-                        shutil.copy2(f, dest)
+            is_native = not exe_name.lower().endswith('.exe')
 
-            # Find Wine
-            wine_cmd = self._find_wine()
-            if wine_cmd is None:
-                self.logger.error("Wine not found")
-                return False
+            if is_native:
+                # Native binary — run directly
+                work_exe = settings_dir / exe_name
+                if not work_exe.exists():
+                    shutil.copy2(watflood_exe, work_exe)
+                    work_exe.chmod(0o755)
+                cmd = [str(work_exe)]
+            else:
+                # Windows binary — use Wine
+                for f in install_dir.iterdir():
+                    if f.suffix.lower() in ('.exe', '.dll'):
+                        dest = settings_dir / f.name
+                        if not dest.exists():
+                            shutil.copy2(f, dest)
 
-            cmd = [wine_cmd, exe_name]
+                wine_cmd = self._find_wine()
+                if wine_cmd is None:
+                    self.logger.error("Wine not found (needed for .exe binary)")
+                    return False
+                cmd = [wine_cmd, exe_name]
+
             env = os.environ.copy()
             env['MallocStackLogging'] = '0'
-            env['WINEDEBUG'] = '-all'
+            if not is_native:
+                env['WINEDEBUG'] = '-all'
             timeout = config.get('WATFLOOD_TIMEOUT', 3600)
 
             try:
@@ -189,10 +192,17 @@ class WATFLOODWorker(BaseWorker):
         try:
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
 
-            # Find output files — WATFLOOD writes spl*.tb0 for streamflow
-            tb0_files = list(sim_dir.glob('spl*.tb0')) + list(sim_dir.glob('resin*.tb0'))
-            csv_files = list(sim_dir.glob('*.csv'))
-            output_files = tb0_files + csv_files
+            # Prioritize CHARM daily CSV and numbered streamflow tb0 files
+            charm_csv = sim_dir / 'CHARM_dly.csv'
+            str_tb0 = sorted(sim_dir.glob('[0-9]*_str.tb0'))
+            if charm_csv.exists():
+                output_files = [charm_csv]
+            elif str_tb0:
+                output_files = str_tb0
+            else:
+                tb0_files = list(sim_dir.glob('spl*.tb0')) + list(sim_dir.glob('resin*.tb0'))
+                csv_files = list(sim_dir.glob('*.csv'))
+                output_files = tb0_files + csv_files
 
             if not output_files:
                 return {'kge': self.penalty_score, 'error': 'No output files'}
@@ -233,8 +243,10 @@ class WATFLOODWorker(BaseWorker):
         try:
             if output_file.suffix == '.csv':
                 df = pd.read_csv(output_file, parse_dates=[0], index_col=0)
+                # Drop unnamed empty columns from trailing commas
+                df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
                 for col in df.columns:
-                    if any(v in col.lower() for v in ['qo', 'qsim', 'flow']):
+                    if any(v in col.lower() for v in ['_sim', 'qsim', 'qo', 'flow']):
                         return df[col]
             elif output_file.suffix == '.tb0':
                 lines = output_file.read_text(encoding='utf-8').strip().split('\n')
