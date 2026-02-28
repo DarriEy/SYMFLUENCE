@@ -682,8 +682,8 @@ src/symfluence/models/fuse/preprocessor.py:324:except Exception as e:  # noqa: B
 src/symfluence/models/fuse/preprocessor.py:354:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/fuse/preprocessor.py:461:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/fuse/preprocessor.py:467:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/fuse/preprocessor.py:853:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/fuse/preprocessor.py:918:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/models/fuse/preprocessor.py:852:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/fuse/preprocessor.py:917:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/fuse/runner.py:1452:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/fuse/runner.py:776:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/fuse/structure_analyzer.py:169:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
