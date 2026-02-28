@@ -2,13 +2,20 @@
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 from ..base import StandardModelPostprocessor
 from ..registry import ModelRegistry
 
 
 @ModelRegistry.register_postprocessor('WFLOW')
 class WflowPostProcessor(StandardModelPostprocessor):
-    """Postprocessor for the Wflow model. Wflow outputs Q in m3/s."""
+    """Postprocessor for the Wflow model.
+
+    For lumped models, Wflow CSV output uses soil_surface_water__net_runoff_volume_flux
+    in mm/dt which must be converted to m³/s. For distributed models, output is already
+    in m³/s (river_water__volume_flow_rate).
+    """
 
     model_name = "WFLOW"
     output_file_pattern = "output*"
@@ -27,11 +34,53 @@ class WflowPostProcessor(StandardModelPostprocessor):
     def _get_output_dir(self) -> Path:
         return self.project_dir / 'simulations' / self.experiment_id / 'WFLOW'
 
+    def _needs_unit_conversion(self) -> bool:
+        """Check if the TOML output uses net_runoff_volume_flux (mm/dt units)."""
+        config_file = self._get_config_value(
+            lambda: None, 'wflow_sbm.toml', 'WFLOW_CONFIG_FILE',
+        )
+        settings_dir = self.project_dir / 'settings' / 'WFLOW'
+        toml_path = settings_dir / config_file
+        if toml_path.exists():
+            content = toml_path.read_text()
+            return 'net_runoff_volume_flux' in content
+        return False
+
+    def _convert_mm_dt_to_cms(self, series):
+        """Convert mm per timestep to m³/s using basin area from staticmaps."""
+        import xarray as xr
+        staticmaps_name = self._get_config_value(
+            lambda: None, 'wflow_staticmaps.nc', 'WFLOW_STATICMAPS_FILE',
+        )
+        staticmaps_path = self.project_dir / 'settings' / 'WFLOW' / staticmaps_name
+        area = 0.0
+        dt = 3600  # default hourly
+        if staticmaps_path.exists():
+            ds = xr.open_dataset(staticmaps_path)
+            if 'wflow_cellarea' in ds:
+                area = float(np.nansum(ds['wflow_cellarea'].values))
+            ds.close()
+        config_file = self._get_config_value(
+            lambda: None, 'wflow_sbm.toml', 'WFLOW_CONFIG_FILE',
+        )
+        toml_path = self.project_dir / 'settings' / 'WFLOW' / config_file
+        if toml_path.exists():
+            import re
+            content = toml_path.read_text()
+            m = re.search(r'timestepsecs\s*=\s*(\d+)', content)
+            if m:
+                dt = int(m.group(1))
+        if area > 0:
+            self.logger.info(f"Converting Wflow output from mm/dt to m³/s (area={area:.0f} m², dt={dt}s)")
+            return series * area / (dt * 1000.0)
+        return series
+
     def extract_streamflow(self) -> Optional[Path]:
         import pandas as pd
 
         self.logger.info("Extracting streamflow from Wflow outputs")
         output_dir = self._get_output_dir()
+        needs_conversion = self._needs_unit_conversion()
 
         # Try CSV first (primary output format from [output.csv] TOML section)
         csv_file = None
@@ -55,6 +104,8 @@ class WflowPostProcessor(StandardModelPostprocessor):
                     self.logger.error(f"No Q column found in {csv_file}. Columns: {list(df.columns)}")
                     return None
                 streamflow = df[q_col]
+                if needs_conversion:
+                    streamflow = self._convert_mm_dt_to_cms(streamflow)
                 streamflow.index.name = 'datetime'
                 if self.resample_frequency:
                     streamflow = streamflow.resample(self.resample_frequency).mean()
@@ -91,6 +142,8 @@ class WflowPostProcessor(StandardModelPostprocessor):
                 streamflow = q_var
             streamflow = streamflow.to_series()
             ds.close()
+            if needs_conversion:
+                streamflow = self._convert_mm_dt_to_cms(streamflow)
             if self.resample_frequency:
                 streamflow = streamflow.resample(self.resample_frequency).mean()
             return self.save_streamflow_to_results(streamflow, model_column_name='WFLOW_discharge_cms')

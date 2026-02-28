@@ -146,7 +146,7 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds['c'] = xr.DataArray(c_3d, dims=['layer', 'y', 'x'])
 
         # Snow parameters
-        for name, val in [('TT', 0.0), ('TTI', 1.0), ('TTM', 0.0), ('Cfmax', 3.75)]:
+        for name, val in [('TT', 0.0), ('TTI', 1.0), ('TTM', 0.0), ('Cfmax', 3.75), ('WHC', 0.1)]:
             ds[name] = xr.DataArray(_centre_only(val), dims=['y', 'x'])
 
         # Infiltration / leakage
@@ -206,7 +206,7 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             temp = temp - 273.15
 
         times = pd.DatetimeIndex(ds_forcing.time.values)
-        pet = self._estimate_pet_hamon(temp, times, props['lat'])
+        pet = self._estimate_pet(temp, times, props['lat'])
 
         # Broadcast 1D forcing to 3x3 grid (uniform, same value everywhere)
         nt = len(times)
@@ -247,6 +247,30 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                         data = data.isel(**{d: 0 for d in spatial_dims})
                 return data.values.flatten()
         raise ValueError(f"None of {var_names} found in forcing. Available: {list(ds.data_vars)}")
+
+    def _estimate_pet(self, temp_c, times, lat_deg):
+        """Estimate PET using configured method (default: Oudin)."""
+        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+
+        pet_method = self._get_config_value(
+            lambda: self.config.model.wflow.pet_method,
+            default='oudin', dict_key='WFLOW_PET_METHOD'
+        )
+        timestep_hours = self._get_config_value(
+            lambda: self.config.data.forcing_time_step_size,
+            default=3600, dict_key='FORCING_TIME_STEP_SIZE'
+        )
+        if isinstance(timestep_hours, (int, float)) and timestep_hours > 100:
+            timestep_hours = timestep_hours / 3600
+
+        if pet_method == 'oudin':
+            doy = np.array([t.timetuple().tm_yday for t in times])
+            pet_mm_day = PETCalculatorMixin.oudin_pet_numpy(temp_c, doy, lat_deg)
+            self.logger.info(f"Oudin PET: annual mean = {pet_mm_day.mean() * 365.25:.0f} mm/yr")
+            return pet_mm_day * (timestep_hours / 24.0)
+
+        self.logger.info(f"Using Hamon PET (method={pet_method})")
+        return self._estimate_pet_hamon(temp_c, times, lat_deg)
 
     def _estimate_pet_hamon(self, temp_c, times, lat_deg):
         doy = np.array([t.timetuple().tm_yday for t in times])
@@ -329,6 +353,7 @@ atmosphere_air__snowfall_temperature_threshold = "TT"
 atmosphere_air__snowfall_temperature_interval = "TTI"
 snowpack__melting_temperature_threshold = "TTM"
 snowpack__degree_day_coefficient = "Cfmax"
+snowpack__liquid_water_holding_capacity = "WHC"
 
 # Soil parameters
 soil_layer_water__brooks_corey_exponent = "c"
@@ -361,6 +386,7 @@ land_surface__slope = "Slope"
 [model]
 soil_layer__thickness = [100, 300, 800]
 type = "sbm"
+snow__flag = true
 pit__flag = true
 
 [state]
@@ -376,13 +402,16 @@ land_surface_water__instantaneous_volume_flow_rate = "q_land"
 land_surface_water__depth = "h_land"
 river_water__instantaneous_volume_flow_rate = "q_river"
 river_water__depth = "h_river"
+snowpack_dry_snow__leq_depth = "snow"
+snowpack_liquid_water__depth = "snow_water"
+soil_surface__temperature = "tsoil"
 
 [output.csv]
 path = "{str(output_dir / 'output.csv')}"
 
 [[output.csv.column]]
 header = "Q"
-parameter = "{'land_surface_water__volume_flow_rate' if self.spatial_mode == 'lumped' else 'river_water__volume_flow_rate'}"
+parameter = "{'soil_surface_water__net_runoff_volume_flux' if self.spatial_mode == 'lumped' else 'river_water__volume_flow_rate'}"
 reducer = "mean"
 '''
         (self.settings_dir / config_file).write_text(toml_content)

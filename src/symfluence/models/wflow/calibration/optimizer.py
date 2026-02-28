@@ -42,9 +42,6 @@ class WflowModelOptimizer(BaseModelOptimizer):
         return False
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
-        best_result = self.get_best_result()
-        best_params = best_result.get('params')
-        if not best_params:
-            return False
-        self.worker.apply_parameters(best_params, self.wflow_setup_dir)
-        return self.worker.run_model(self.config, self.wflow_setup_dir, output_dir)
+        # Base optimizer already applied best params via _apply_best_parameters_for_final;
+        # worker.run_model expects a flat dict, not a SymfluenceConfig object.
+        return self.worker.run_model(self.config_dict, self.wflow_setup_dir, output_dir)

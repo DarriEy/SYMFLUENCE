@@ -20,6 +20,7 @@ class WflowParameterManager(BaseParameterManager):
         'InfiltCapPath': 'InfiltCapPath', 'RootingDepth': 'RootingDepth',
         'KsatHorFrac': 'KsatHorFrac', 'n_river': 'N_River',
         'PathFrac': 'PathFrac', 'thetaS': 'thetaS', 'thetaR': 'thetaR',
+        'Cfmax': 'Cfmax', 'TT': 'TT', 'TTI': 'TTI', 'TTM': 'TTM', 'WHC': 'WHC',
     }
 
     DEFAULT_BOUNDS = {
@@ -33,7 +34,20 @@ class WflowParameterManager(BaseParameterManager):
         'PathFrac': {'min': 0.0, 'max': 1.0},
         'thetaS': {'min': 0.3, 'max': 0.6},
         'thetaR': {'min': 0.01, 'max': 0.15},
+        'Cfmax': {'min': 1.0, 'max': 10.0},
+        'TT': {'min': -3.0, 'max': 3.0},
+        'TTI': {'min': 0.1, 'max': 5.0},
+        'TTM': {'min': -3.0, 'max': 3.0},
+        'WHC': {'min': 0.0, 'max': 0.8},
+        # Post-hoc routing (smooths instantaneous net_runoff_volume_flux)
+        'ROUTE_ALPHA': {'min': 0.0, 'max': 0.95},    # fast reservoir retention
+        'ROUTE_BETA': {'min': 0.9, 'max': 0.9999},   # slow reservoir retention (half-life up to ~416 days)
+        'ROUTE_SPLIT': {'min': 0.1, 'max': 0.9},     # fast store fraction
+        'ROUTE_BASEFLOW': {'min': 0.0, 'max': 15.0},  # constant baseflow offset (m³/s)
     }
+
+    # Post-hoc routing params (not in staticmaps, applied by worker after Wflow run)
+    ROUTING_PARAMS = {'ROUTE_ALPHA', 'ROUTE_BETA', 'ROUTE_SPLIT', 'ROUTE_BASEFLOW'}
 
     def __init__(self, config: Dict, logger: logging.Logger, wflow_settings_dir: Path):
         super().__init__(config, logger, wflow_settings_dir)
@@ -43,8 +57,14 @@ class WflowParameterManager(BaseParameterManager):
             default=None, dict_key='WFLOW_PARAMS_TO_CALIBRATE'
         )
         if wflow_params_str is None:
-            wflow_params_str = ','.join(self.PARAM_VAR_MAP.keys())
-        self.params_to_calibrate = [p.strip() for p in wflow_params_str.split(',') if p.strip()]
+            wflow_params_str = ','.join(list(self.PARAM_VAR_MAP.keys()) + sorted(self.ROUTING_PARAMS))
+        params_list = [p.strip() for p in wflow_params_str.split(',') if p.strip()]
+        # Always include routing params for lumped mode (post-hoc smoothing of
+        # instantaneous net_runoff_volume_flux); they are no-ops for distributed.
+        for rp in sorted(self.ROUTING_PARAMS):
+            if rp not in params_list:
+                params_list.append(rp)
+        self.params_to_calibrate = params_list
 
     def _get_parameter_names(self) -> List[str]:
         return list(self.params_to_calibrate)
@@ -52,8 +72,26 @@ class WflowParameterManager(BaseParameterManager):
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         return {p: self.DEFAULT_BOUNDS[p] for p in self.params_to_calibrate if p in self.DEFAULT_BOUNDS}
 
+    # Physically-based defaults matching preprocessor output (baseline KGE ~0.04)
+    # Much better starting point than midpoints of bounds for DDS
+    PREPROCESSOR_DEFAULTS = {
+        'KsatVer': 250.0, 'f': 3.0, 'SoilThickness': 2000.0,
+        'InfiltCapPath': 50.0, 'RootingDepth': 500.0, 'KsatHorFrac': 50.0,
+        'n_river': 0.036, 'PathFrac': 0.01, 'thetaS': 0.45, 'thetaR': 0.05,
+        'Cfmax': 3.75, 'TT': 0.0, 'TTI': 1.0, 'TTM': 0.0, 'WHC': 0.1,
+        'ROUTE_ALPHA': 0.5, 'ROUTE_BETA': 0.98, 'ROUTE_SPLIT': 0.5, 'ROUTE_BASEFLOW': 0.0,
+    }
+
     def get_initial_parameters(self) -> Optional[Dict[str, Any]]:
-        return {p: (b['min'] + b['max']) / 2.0 for p, b in self._load_parameter_bounds().items()}
+        bounds = self._load_parameter_bounds()
+        initial = {}
+        for p, b in bounds.items():
+            default = self.PREPROCESSOR_DEFAULTS.get(p)
+            if default is not None and b['min'] <= default <= b['max']:
+                initial[p] = default
+            else:
+                initial[p] = (b['min'] + b['max']) / 2.0
+        return initial
 
     def validate_parameters(self, params: Dict[str, float]) -> bool:
         if 'thetaR' in params and 'thetaS' in params:
@@ -82,7 +120,8 @@ class WflowParameterManager(BaseParameterManager):
             for param_name, value in params.items():
                 nc_var = self.PARAM_VAR_MAP.get(param_name)
                 if nc_var and nc_var in ds_new:
-                    ds_new[nc_var].values[:] = value
+                    mask = ~np.isnan(ds_new[nc_var].values)
+                    ds_new[nc_var].values[mask] = value
             # Write to temp file then rename (avoids macOS HDF5 file lock)
             tmp_path = path.parent / f'{path.stem}_tmp{path.suffix}'
             ds_new.to_netcdf(tmp_path)

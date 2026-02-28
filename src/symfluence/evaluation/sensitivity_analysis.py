@@ -95,7 +95,9 @@ class SensitivityAnalyzer(ConfigMixin):
             pd.Series: Sensitivity indices for each parameter, or -999 if failed.
         """
         self.logger.info(f"Performing sensitivity analysis using {metric} metric")
-        parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'Calib_RMSE', 'Calib_KGE', 'Calib_KGEp', 'Calib_NSE', 'Calib_MAE']]
+        non_param_cols = {'Iteration', 'iteration', 'score', 'timestamp', 'crash_count', 'crash_rate',
+                          'Calib_RMSE', 'Calib_KGE', 'Calib_KGEp', 'Calib_KGEnp', 'Calib_NSE', 'Calib_MAE'}
+        parameter_columns = [col for col in samples.columns if col not in non_param_cols]
 
         if len(samples) < min_samples:
             self.logger.warning(f"Insufficient data for reliable sensitivity analysis. Have {len(samples)} samples, recommend at least {min_samples}.")
@@ -246,7 +248,16 @@ class SensitivityAnalyzer(ConfigMixin):
             self.logger.error("Error: Not enough data points for sensitivity analysis.")
             return
 
-        results_preprocessed = self.preprocess_data(results, metric='Calib_RMSE')
+        # Auto-detect metric column: prefer Calib_RMSE (MESH), fall back to score (generic DDS)
+        metric_col = 'Calib_RMSE'
+        if metric_col not in results.columns:
+            for candidate in ['score', 'Calib_KGE', 'Calib_KGEnp', 'Calib_NSE']:
+                if candidate in results.columns:
+                    metric_col = candidate
+                    break
+        self.logger.info(f"Using metric column: {metric_col}")
+
+        results_preprocessed = self.preprocess_data(results, metric=metric_col)
         self.logger.info("Data preprocessing completed")
 
         methods = {
@@ -258,7 +269,7 @@ class SensitivityAnalyzer(ConfigMixin):
 
         all_results = {}
         for name, method in methods.items():
-            sensitivity = method(results_preprocessed, metric='Calib_RMSE')
+            sensitivity = method(results_preprocessed, metric=metric_col)
             all_results[name] = sensitivity
             sensitivity.to_csv(self.output_folder / f'{name.lower()}_sensitivity.csv')
 

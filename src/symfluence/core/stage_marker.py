@@ -46,7 +46,7 @@ STAGE_CONFIG_SECTIONS: Dict[str, List[str]] = {
     "preprocess_models": ["model", "forcing", "domain"],
     "run_models": ["model", "domain"],
     "postprocess_results": ["model", "evaluation"],
-    "calibrate_model": ["optimization", "model", "evaluation"],
+    "calibrate_model": ["optimization", "model", "evaluation", "domain"],
     "run_benchmarking": ["evaluation"],
     "run_decision_analysis": ["evaluation", "model"],
     "run_sensitivity_analysis": ["evaluation", "optimization"],
