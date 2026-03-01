@@ -139,8 +139,8 @@ class WflowWorker(BaseWorker):
             if cal_period:
                 parts = [p.strip() for p in cal_period.split(',')]
                 if len(parts) == 2:
-                    sim = sim.loc[parts[0]:parts[1]]
-                    obs = obs.loc[parts[0]:parts[1]]
+                    sim = sim.loc[parts[0]:parts[1]]  # type: ignore[misc]
+                    obs = obs.loc[parts[0]:parts[1]]  # type: ignore[misc]
             sim, obs = sim.align(obs, join='inner')
             common_idx = sim.dropna().index.intersection(obs.dropna().index)
             sim, obs = sim.loc[common_idx], obs.loc[common_idx]
