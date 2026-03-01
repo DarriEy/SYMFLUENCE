@@ -32,8 +32,17 @@ print_success() { echo -e "${GREEN}✓${NC} $1"; }
 print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_info()    { echo -e "${BLUE}→${NC} $1"; }
 
+# Portable realpath fallback
+_realpath() {
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$1"
+    else
+        (cd "$(dirname "$1")" && echo "$(pwd)/$(basename "$1")")
+    fi
+}
+
 # Parse arguments
-BINARIES_DIR="$(realpath "${1:-}")"
+BINARIES_DIR="$(_realpath "${1:-}")"
 
 if [ -z "$BINARIES_DIR" ] || [ ! -d "$BINARIES_DIR" ]; then
     cat >&2 <<EOF
@@ -57,6 +66,9 @@ case "$OS_TYPE" in
     Darwin)
         PLATFORM="macOS"
         ;;
+    MSYS*|MINGW*|CYGWIN*)
+        PLATFORM="Windows"
+        ;;
     *)
         print_error "Unsupported platform: $OS_TYPE"
         exit 1
@@ -70,8 +82,8 @@ echo ""
 BINARIES=()
 for file in "$BINARIES_DIR"/*; do
     if [ -f "$file" ] && [ -x "$file" ]; then
-        # Check if it's an ELF/Mach-O binary (not a script)
-        if file "$file" | grep -qE "(ELF|Mach-O)"; then
+        # Check if it's an ELF/Mach-O/PE binary (not a script)
+        if file "$file" | grep -qE "(ELF|Mach-O|PE32|executable)"; then
             BINARIES+=("$file")
         fi
     fi
@@ -208,6 +220,47 @@ if [ "$PLATFORM" = "Linux" ]; then
 # ============================================================================
 # macOS Verification
 # ============================================================================
+elif [ "$PLATFORM" = "Windows" ]; then
+    print_info "Running Windows-specific checks (limited)..."
+    echo ""
+
+    for binary in "${BINARIES[@]}"; do
+        binary_name="$(basename "$binary")"
+        echo "--- Checking: $binary_name ---"
+
+        # Check 1: File exists and is executable
+        print_info "Checking file existence..."
+        TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+
+        if [ -f "$binary" ]; then
+            print_success "$binary_name exists"
+            PASSED_CHECKS=$((PASSED_CHECKS + 1))
+        else
+            print_error "$binary_name not found"
+            FAILED_CHECKS=$((FAILED_CHECKS + 1))
+        fi
+
+        # Check 2: PE format check (if file command available)
+        print_info "Checking binary format..."
+        TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+
+        if command -v file >/dev/null 2>&1; then
+            FILE_TYPE="$(file "$binary")"
+            if echo "$FILE_TYPE" | grep -qiE "(PE32|executable)"; then
+                print_success "Valid Windows executable"
+                PASSED_CHECKS=$((PASSED_CHECKS + 1))
+            else
+                print_warning "Unexpected file type: $FILE_TYPE"
+                WARNING_CHECKS=$((WARNING_CHECKS + 1))
+            fi
+        else
+            print_warning "file command not available, skipping format check"
+            WARNING_CHECKS=$((WARNING_CHECKS + 1))
+        fi
+
+        echo ""
+    done
+
 elif [ "$PLATFORM" = "macOS" ]; then
     print_info "Running macOS-specific checks..."
     echo ""

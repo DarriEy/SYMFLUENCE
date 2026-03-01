@@ -3,10 +3,11 @@
  */
 
 // Mapping from Node.js platform/arch to SYMFLUENCE release naming.
-// Only platforms with pre-built binaries in CI (linux-x86_64, macos-arm64).
+// Only platforms with pre-built binaries in CI (linux-x86_64, macos-arm64, windows-x86_64).
 const PLATFORM_MAP = {
   'darwin-arm64': 'macos-arm64',
   'linux-x64': 'linux-x86_64',
+  'win32-x64': 'windows-x86_64',
 };
 
 /**
@@ -23,7 +24,7 @@ function getPlatform() {
     const name = getPlatformName();
     throw new Error(
       `Unsupported platform: ${name} (${platform} ${arch})\n` +
-      `Pre-built binaries are available for: Linux x86_64, macOS Apple Silicon\n` +
+      `Pre-built binaries are available for: Linux x86_64, macOS Apple Silicon, Windows x86_64\n` +
       `You can build from source instead: symfluence binary install\n` +
       `See: https://github.com/DarriEy/SYMFLUENCE/blob/main/docs/SYSTEM_REQUIREMENTS.md`
     );
@@ -56,6 +57,7 @@ function getPlatformName() {
     'darwin-x64': 'macOS (Intel)',
     'linux-x64': 'Linux (x86_64)',
     'linux-arm64': 'Linux (ARM64)',
+    'win32-x64': 'Windows (x86_64)',
   };
 
   return names[`${platform}-${arch}`] || `${platform} ${arch}`;

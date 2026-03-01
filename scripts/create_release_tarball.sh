@@ -36,9 +36,18 @@ PLATFORM="${2:-}"
 STAGED_DIR="${3:-}"
 OUTPUT_DIR="${4:-}"
 
+# Portable realpath fallback
+_realpath() {
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$1"
+    else
+        (cd "$(dirname "$1")" && echo "$(pwd)/$(basename "$1")")
+    fi
+}
+
 # Resolve absolute paths
-STAGED_DIR="$(realpath "$STAGED_DIR")"
-OUTPUT_DIR="$(realpath "$OUTPUT_DIR")"
+STAGED_DIR="$(_realpath "$STAGED_DIR")"
+OUTPUT_DIR="$(_realpath "$OUTPUT_DIR")"
 
 if [ ! -d "$STAGED_DIR" ]; then
     print_error "Staged directory not found: $STAGED_DIR"
