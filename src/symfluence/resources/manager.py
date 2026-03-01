@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Package data resource access for SYMFLUENCE.
 
 Handles loading base_settings and config_templates from package data

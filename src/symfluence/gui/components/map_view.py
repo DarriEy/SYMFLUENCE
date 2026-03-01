@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """
 Bokeh tile-map component with click-to-set pour point, shapefile overlays,
 raster (GeoTIFF) overlays, and bounding-box draw tool.

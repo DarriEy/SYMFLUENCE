@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Common utilities and core system components."""
 
 # CoordinateUtilsMixin is in geospatial module but re-exported here for convenience

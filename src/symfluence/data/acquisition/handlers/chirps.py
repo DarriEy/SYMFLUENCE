@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """CHIRPS Precipitation Acquisition Handler
 
 Provides cloud acquisition for CHIRPS (Climate Hazards Group InfraRed Precipitation

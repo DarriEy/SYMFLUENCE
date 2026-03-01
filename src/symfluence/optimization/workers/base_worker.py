@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Base worker for model evaluation during optimization.
 
 Provides ``WorkerTask``, ``WorkerResult`` dataclasses and the ``BaseWorker``

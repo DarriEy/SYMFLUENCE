@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Land Cover Acquisition Handlers
 
 Cloud-based acquisition of global and regional land cover datasets:

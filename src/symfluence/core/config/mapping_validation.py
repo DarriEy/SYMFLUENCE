@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Mapping validation utility for development and testing.
 
 Compares the manual FLAT_TO_NESTED_MAP against the auto-generated mapping

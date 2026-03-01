@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """SMAP Soil Moisture Acquisition Handler
 
 Provides cloud acquisition for NASA SMAP (Soil Moisture Active Passive) data:

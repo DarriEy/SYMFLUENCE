@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """JAX-based adapters wrapping SYMFLUENCE's differentiable models.
 
 Each adapter wraps a SYMFLUENCE JAX model's step() function as a dCoupler

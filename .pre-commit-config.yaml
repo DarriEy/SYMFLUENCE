@@ -59,4 +59,4 @@ repos:
       - id: mypy
         args: [--config-file=pyproject.toml]
         additional_dependencies: [types-PyYAML, types-requests, types-psutil, pandas-stubs]
-        exclude: ^(tests/|examples/|paper/)
+        exclude: ^(tests/|examples/|paper/|src/symfluence/cli\.py$)

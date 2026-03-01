@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """One-time bootstrap for static registrations.
 
 Called once from ``symfluence/__init__.py`` to populate:

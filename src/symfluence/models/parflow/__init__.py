@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """ParFlow Integrated Hydrologic Model Integration.
 
 This module implements ParFlow support for SYMFLUENCE, including:

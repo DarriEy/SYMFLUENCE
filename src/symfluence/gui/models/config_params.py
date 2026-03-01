@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """
 Parameterized wrapper exposing the most common SYMFLUENCE config fields
 as typed, widget-ready params for the Panel config editor sidebar.

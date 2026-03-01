@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """NGEN (Next Generation Water Resources Modeling Framework).
 
 This module implements integration with NOAA's NextGen framework, a modular

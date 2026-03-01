@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """MODFLOW 6 (USGS Modular Groundwater Flow Model) Integration.
 
 This module implements MODFLOW 6 support for SYMFLUENCE, including:

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Legacy configuration aliases and canonical key preferences.
 
 This module isolates compatibility shims so core transformer logic can treat

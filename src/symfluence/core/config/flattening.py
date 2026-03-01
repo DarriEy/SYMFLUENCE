@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Flatten a SymfluenceConfig back to an uppercase flat dictionary.
 
 Inverse of ``transform_flat_to_nested`` — used for backward compatibility

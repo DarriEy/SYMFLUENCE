@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Shell command payloads for infrastructure external tools."""
 
 SUNDIALS_BUILD_COMMAND = r'''

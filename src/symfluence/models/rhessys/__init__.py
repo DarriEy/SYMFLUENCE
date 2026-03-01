@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """RHESSys (Regional Hydro-Ecologic Simulation System) Ecohydrological Model.
 
 This module implements RHESSys, a spatially distributed, process-based model

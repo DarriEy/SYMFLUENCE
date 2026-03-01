@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Unified component registry for SYMFLUENCE.
 
 Provides ``Registry[T]``, a single generic class that replaces all custom

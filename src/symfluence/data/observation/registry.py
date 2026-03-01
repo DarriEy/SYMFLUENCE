@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Observation Registry for SYMFLUENCE
 
 Provides a central registry for observational data handlers (GRACE, MODIS, etc.).
