@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Config Registry  (Phase 4 delegation shim)
 
 Registry for model configuration management including config adapters, schemas,

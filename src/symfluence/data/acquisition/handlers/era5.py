@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """
 ERA5 reanalysis data acquisition handlers.
 
@@ -109,7 +112,7 @@ def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
     import shutil
     import tempfile
 
-    tmpdir = os.environ.get('TMPDIR') or '/tmp'
+    tmpdir = os.environ.get('TMPDIR') or '/tmp'  # nosec B108 — respects $TMPDIR
     fd, tmp_path = tempfile.mkstemp(suffix='.nc', dir=tmpdir)
     os.close(fd)
     try:

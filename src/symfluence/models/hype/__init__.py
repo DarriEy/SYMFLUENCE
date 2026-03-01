@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """HYPE (HYdrological Predictions for the Environment) Model.
 
 This module implements the HYPE semi-distributed process-based hydrological model

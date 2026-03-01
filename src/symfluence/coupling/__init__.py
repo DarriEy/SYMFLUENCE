@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """SYMFLUENCE coupling integration layer.
 
 Provides adapters that wrap SYMFLUENCE models as dCoupler components,

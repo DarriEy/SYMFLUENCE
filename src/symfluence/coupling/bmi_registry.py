@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Registry mapping SYMFLUENCE model names to dCoupler component adapters.
 
 The BMIRegistry provides a single lookup table to instantiate the correct

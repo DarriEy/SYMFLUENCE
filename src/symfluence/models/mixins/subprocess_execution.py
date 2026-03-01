@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Subprocess execution mixin for model runners.
 
 Provides execute_subprocess (canonical), execute_model_subprocess (deprecated),

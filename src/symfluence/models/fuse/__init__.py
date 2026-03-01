@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """FUSE (Framework for Understanding Structural Errors) Hydrological Model.
 
 This module implements the FUSE modular modeling framework, which enables systematic

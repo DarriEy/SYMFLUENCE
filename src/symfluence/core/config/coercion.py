@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Centralized config coercion to replace 60+ duplicate patterns.
 
 This module provides a single, well-tested function for converting dict configs

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Graph Neural Network model for spatio-temporal hydrological prediction.
 
 Combines LSTM temporal processing with directed-graph spatial propagation

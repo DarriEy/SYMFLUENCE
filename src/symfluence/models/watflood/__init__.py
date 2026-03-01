@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """WATFLOOD (Kouwen) Distributed Flood Forecasting Model.
 
 WATFLOOD is a physically-based, distributed hydrological model using

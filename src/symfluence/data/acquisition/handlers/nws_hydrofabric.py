@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """NWS NextGen Hydrofabric Acquisition Handler
 
 Downloads CONUS river network and catchment data from the Lynker-Spatial

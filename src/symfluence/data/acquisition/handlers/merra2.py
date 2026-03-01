@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """MERRA-2 Reanalysis Acquisition Handler
 
 Cloud-based acquisition of NASA MERRA-2 (Modern-Era Retrospective analysis for

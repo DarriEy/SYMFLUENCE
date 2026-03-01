@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """WRF-Hydro (NCAR) Coupled Atmosphere-Hydrology Model.
 
 This module implements WRF-Hydro support for SYMFLUENCE, including:

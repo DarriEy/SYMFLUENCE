@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """SUMMA (Structure for Unifying Multiple Modeling Alternatives) Hydrological Model.
 
 This module implements SUMMA, a unified framework for process-based hydrological

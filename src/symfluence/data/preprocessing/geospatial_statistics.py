@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Geospatial statistics calculator for catchment attribute extraction from rasters.
 
 Computes zonal statistics (elevation, soil class, land cover) by extracting raster values

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Orchestrator for workflow-step diagnostic visualizations.
 
 Extracted from ``ReportingManager`` — each ``diagnostic_*`` method generates

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Canonical flat-to-nested configuration key mappings.
 
 The primary mapping is now auto-generated from Pydantic model aliases via

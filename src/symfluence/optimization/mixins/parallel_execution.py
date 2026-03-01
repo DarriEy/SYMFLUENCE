@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Parallel execution infrastructure mixin for distributed model evaluation during optimization.
 
 Provides extensible parallel processing framework supporting three execution paradigms: sequential

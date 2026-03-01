@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """DCouplerWorker: BaseWorker implementation that delegates to dCoupler CouplingGraph.
 
 Bridges dCoupler's PyTorch-based training loop with SYMFLUENCE's BaseWorker

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Zonal statistics processor for raster-to-catchment attribute extraction.
 
 Computes spatially-aggregated catchment attributes (elevation, soil class, land cover)

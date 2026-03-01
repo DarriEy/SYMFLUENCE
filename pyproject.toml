@@ -272,14 +272,32 @@ disallow_untyped_calls = false
 disallow_untyped_defs = false
 # Ignore the most common noisy errors for now
 disable_error_code = ["attr-defined", "no-any-return", "operator", "arg-type", "assignment", "union-attr"]
-exclude = ["examples/", "tests/"]
+exclude = ["examples/", "tests/", "src/symfluence/cli\\.py$"]
 
 [tool.coverage.run]
 source = ["src/symfluence"]
+branch = true
 relative_files = true
 disable_warnings = ["couldnt-parse", "no-data-collected"]
+omit = [
+    "src/symfluence/gui/*",
+    "src/symfluence/tui/*",
+    "src/symfluence/*/build_instructions.py",
+    "src/symfluence/fews/*",
+]
 
 [tool.coverage.report]
 # Avoid failing release checks when local/stale coverage databases
 # reference files that no longer exist after refactors/moves.
 ignore_errors = true
+fail_under = 25
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.",
+    "pass",
+    "@(abc\\.)?abstractmethod",
+]

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """VIC (Variable Infiltration Capacity) Hydrological Model.
 
 This module implements VIC 5.x support for SYMFLUENCE, including:

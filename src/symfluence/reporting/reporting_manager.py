@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
 """Central reporting facade for coordinating all SYMFLUENCE visualizations.
 
 Provides a unified interface for generating publication-ready visualizations
