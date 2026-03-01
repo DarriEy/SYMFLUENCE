@@ -36,6 +36,9 @@ jobs:
           - os: macos-latest  # ARM Mac (M1/M2)
             platform: macos-arm64
             python-version: '3.11'
+          - os: windows-latest
+            platform: windows-x86_64
+            python-version: '3.11'
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
@@ -117,6 +120,29 @@ jobs:
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
       # ========================================================================
+      # Windows System Dependencies
+      # ========================================================================
+      - name: Set up Miniconda (Windows)
+        if: runner.os == 'Windows'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: false
+          channels: conda-forge
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash -l {0}
+        run: |
+          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy
+
+          echo "CC=gcc" >> $GITHUB_ENV
+          echo "CXX=g++" >> $GITHUB_ENV
+          echo "FC=gfortran" >> $GITHUB_ENV
+          echo "SYMFLUENCE_NO_VENV=true" >> $GITHUB_ENV
+          echo "SYMFLUENCE_PYTHON=python" >> $GITHUB_ENV
+
+      # ========================================================================
       # Build Tools
       # ========================================================================
       - name: Free up disk space (Linux)
@@ -129,21 +155,27 @@ jobs:
           df -h
 
       - name: Build external tools
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
-          # Ensure we use Python from setup-python action
-          if [ -n "$Python3_ROOT_DIR" ]; then
+          # Ensure we use Python from setup-python action (or conda on Windows)
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            PYTHON_CMD="${SYMFLUENCE_PYTHON:-python}"
+          elif [ -n "$Python3_ROOT_DIR" ]; then
             export PATH="$Python3_ROOT_DIR/bin:$PATH"
             echo "Prepended Python3_ROOT_DIR to PATH: $Python3_ROOT_DIR/bin"
+            PYTHON_CMD="python3"
           elif [ -n "$pythonLocation" ]; then
             export PATH="$pythonLocation/bin:$PATH"
             echo "Prepended pythonLocation to PATH: $pythonLocation/bin"
+            PYTHON_CMD="python3"
+          else
+            PYTHON_CMD="python3"
           fi
 
           # Verify we're using the correct Python
-          PYTHON_CMD="python3"
-          echo "Python location: $(which python3)"
+          echo "Python location: $(which $PYTHON_CMD)"
           echo "Python version: $($PYTHON_CMD --version)"
 
           # Install GDAL Python bindings (needed when gdal-config is available)
@@ -158,9 +190,19 @@ jobs:
           # Install SYMFLUENCE package
           "$PYTHON_CMD" -m pip install -e .
 
-          # Build external tools using symfluence command
+          # Build default external tools using symfluence command
           echo "Running: symfluence binary install"
           ./scripts/symfluence-bootstrap binary install
+
+          echo "Default tools build completed"
+
+          # Install experimental models for release
+          RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire"
+          for tool in $RELEASE_EXTRAS; do
+            echo "::group::Installing $tool"
+            "$PYTHON_CMD" -m symfluence binary install "$tool" || echo "WARNING: $tool install failed (non-fatal)"
+            echo "::endgroup::"
+          done
 
           echo "Build external tools completed successfully"
 
@@ -173,6 +215,7 @@ jobs:
       # Generate Release Artifacts
       # ========================================================================
       - name: Generate toolchain metadata
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           set -e
           chmod +x ./scripts/generate_toolchain.sh
@@ -182,6 +225,7 @@ jobs:
             "${{ matrix.platform }}"
 
       - name: Stage release artifacts
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           set -e
           chmod +x ./scripts/stage_release_artifacts.sh
@@ -192,6 +236,7 @@ jobs:
             "./release"
 
       - name: Verify binary portability
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           set -e
           chmod +x ./scripts/verify_binary_portability.sh
@@ -202,6 +247,7 @@ jobs:
           }
 
       - name: Create release tarball
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           set -e
           chmod +x ./scripts/create_release_tarball.sh
@@ -220,27 +266,29 @@ jobs:
             "./release"
 
       - name: Test artifact relocatability
+        shell: ${{ runner.os == 'Windows' && 'bash -l {0}' || 'bash' }}
         run: |
           set -e
           echo "Testing relocated binaries..."
 
-          # Extract to temporary location
-          mkdir -p /tmp/symfluence-test
-          cd /tmp/symfluence-test
-          tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
+          # Extract to temporary location (use runner temp on Windows)
+          TEST_DIR="${RUNNER_TEMP:-/tmp}/symfluence-test"
+          mkdir -p "$TEST_DIR"
+          cd "$TEST_DIR"
+          tar -xzf "$GITHUB_WORKSPACE/release"/symfluence-tools-*.tar.gz
 
           # Test binaries run without original install directory
-          echo "→ Testing SUMMA..."
-          if [ -f "./symfluence-tools/bin/summa" ]; then
-            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
+          echo "-> Testing SUMMA..."
+          if [ -f "./symfluence-tools/bin/summa" ] || [ -f "./symfluence-tools/bin/summa.exe" ]; then
+            ./symfluence-tools/bin/summa* --version 2>&1 | head -5 || echo "  SUMMA version check completed"
           fi
 
-          echo "→ Testing NGEN..."
-          if [ -f "./symfluence-tools/bin/ngen" ]; then
-            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
+          echo "-> Testing NGEN..."
+          if [ -f "./symfluence-tools/bin/ngen" ] || [ -f "./symfluence-tools/bin/ngen.exe" ]; then
+            ./symfluence-tools/bin/ngen* --help 2>&1 | head -5 || echo "  NGEN help check completed"
           fi
 
-          echo "✓ Relocatability test complete"
+          echo "Relocatability test complete"
 
       # ========================================================================
       # Upload to GitHub Release
@@ -363,6 +411,8 @@ jobs:
             platform: linux-x86_64
           - os: macos-latest
             platform: macos-arm64
+          - os: windows-latest
+            platform: windows-x86_64
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -385,6 +435,7 @@ jobs:
           brew install netcdf netcdf-fortran hdf5 gdal
 
       - name: Install symfluence from npm
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag }}"
@@ -398,19 +449,21 @@ jobs:
           npm install -g symfluence@${VERSION}
 
       - name: Test CLI commands
+        shell: bash
         run: |
           echo "Testing symfluence CLI commands..."
 
           symfluence help
-          echo "✓ help command works"
+          echo "help command works"
 
           symfluence version
-          echo "✓ version command works"
+          echo "version command works"
 
           symfluence path
-          echo "✓ path command works"
+          echo "path command works"
 
       - name: Test info command and binary detection
+        shell: bash
         run: |
           echo "Testing symfluence info..."
           symfluence info
@@ -418,29 +471,32 @@ jobs:
           # Verify binaries directory exists
           BIN_DIR=$(symfluence path)
           if [ ! -d "$BIN_DIR" ]; then
-            echo "❌ Binary directory not found: $BIN_DIR"
+            echo "Binary directory not found: $BIN_DIR"
             exit 1
           fi
-          echo "✓ Binary directory exists: $BIN_DIR"
+          echo "Binary directory exists: $BIN_DIR"
 
       - name: Verify critical binaries exist
+        shell: bash
         run: |
           BIN_DIR=$(symfluence path)
           FOUND=0
           MISSING_REQUIRED=0
 
-          # Platform-specific requirements:
-          # macOS ARM Fortran builds may not produce all binaries
+          # Platform-specific requirements
           if [ "${{ runner.os }}" = "Linux" ]; then
             REQUIRED_BINS="summa mizuroute"
-            OPTIONAL_BINS="fuse ngen"
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            # Windows: fewer models expected to build; FUSE excluded
+            REQUIRED_BINS="summa"
           else
             REQUIRED_BINS="mizuroute"
-            OPTIONAL_BINS="summa fuse ngen"
           fi
 
+          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow pihm gsflow clm rhessys hype mesh"
+
           for binary in $REQUIRED_BINS; do
-            if [ -f "$BIN_DIR/$binary" ]; then
+            if [ -f "$BIN_DIR/$binary" ] || [ -f "$BIN_DIR/$binary.exe" ]; then
               echo "Found $binary"
               FOUND=$((FOUND + 1))
             else
@@ -450,7 +506,7 @@ jobs:
           done
 
           for binary in $OPTIONAL_BINS; do
-            if [ -f "$BIN_DIR/$binary" ]; then
+            if [ -f "$BIN_DIR/$binary" ] || [ -f "$BIN_DIR/$binary.exe" ]; then
               echo "Found $binary"
               FOUND=$((FOUND + 1))
             else
@@ -465,31 +521,33 @@ jobs:
           fi
 
       - name: Test binary execution
+        shell: bash
         run: |
           BIN_DIR=$(symfluence path)
 
           echo "Testing SUMMA..."
-          $BIN_DIR/summa --version 2>&1 | head -5 || echo "  SUMMA help displayed"
+          "$BIN_DIR/summa" --version 2>&1 | head -5 || echo "  SUMMA help displayed"
 
           echo "Testing mizuRoute..."
-          $BIN_DIR/mizuroute --help 2>&1 | head -5 || echo "  mizuRoute help displayed"
+          "$BIN_DIR/mizuroute" --help 2>&1 | head -5 || echo "  mizuRoute help displayed"
 
           echo "Testing NGEN..."
-          $BIN_DIR/ngen --version 2>&1 | head -5 || echo "  NGEN version displayed"
+          "$BIN_DIR/ngen" --version 2>&1 | head -5 || echo "  NGEN version displayed"
 
-          echo "✓ All critical binaries are executable"
+          echo "All critical binaries are executable"
 
       - name: Summary
         if: success()
+        shell: bash
         run: |
           echo "========================================="
           echo "npm Installation Test Summary"
           echo "========================================="
           echo "Platform: ${{ matrix.platform }}"
-          echo "✅ Package installed successfully"
-          echo "✅ CLI commands work"
-          echo "✅ Binaries downloaded and verified"
-          echo "✅ Critical tools are executable"
+          echo "Package installed successfully"
+          echo "CLI commands work"
+          echo "Binaries downloaded and verified"
+          echo "Critical tools are executable"
 
   # ===========================================================================
   # Release Summary
@@ -526,6 +584,7 @@ jobs:
             echo "Artifacts:"
             echo "  - symfluence-tools-${TAG}-linux-x86_64.tar.gz"
             echo "  - symfluence-tools-${TAG}-macos-arm64.tar.gz"
+            echo "  - symfluence-tools-${TAG}-windows-x86_64.tar.gz"
           else
             echo "❌ Release build failed"
             exit 1

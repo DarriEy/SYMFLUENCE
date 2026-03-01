@@ -56,9 +56,18 @@ EOF
     exit 1
 fi
 
+# Portable realpath fallback (realpath not available on all systems)
+_realpath() {
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$1"
+    else
+        (cd "$(dirname "$1")" && echo "$(pwd)/$(basename "$1")")
+    fi
+}
+
 # Resolve absolute paths
-INSTALLS_DIR="$(realpath "$INSTALLS_DIR")"
-OUTPUT_DIR="$(realpath "$OUTPUT_DIR")"
+INSTALLS_DIR="$(_realpath "$INSTALLS_DIR")"
+OUTPUT_DIR="$(_realpath "$OUTPUT_DIR")"
 
 if [ ! -d "$INSTALLS_DIR" ]; then
     print_error "Installation directory not found: $INSTALLS_DIR"
@@ -265,6 +274,8 @@ if [ -d "$WMFIRE_DIR" ]; then
     # WMFire is a shared library, but we'll stage it for completeness
     if [ "$(uname)" = "Darwin" ] && [ -f "$WMFIRE_DIR/lib/libwmfire.dylib" ]; then
         stage_binary "$WMFIRE_DIR/lib/libwmfire.dylib" "libwmfire.dylib" "WMFire"
+    elif [ -f "$WMFIRE_DIR/lib/libwmfire.dll" ]; then
+        stage_binary "$WMFIRE_DIR/lib/libwmfire.dll" "libwmfire.dll" "WMFire"
     elif [ -f "$WMFIRE_DIR/lib/libwmfire.so" ]; then
         stage_binary "$WMFIRE_DIR/lib/libwmfire.so" "libwmfire.so" "WMFire"
     else
@@ -290,6 +301,205 @@ if [ -d "$RHESSYS_DIR" ]; then
     stage_license "$RHESSYS_DIR" "RHESSys"
 else
     print_warning "RHESSys not installed"
+fi
+
+# ============================================================================
+# Stage VIC
+# ============================================================================
+print_info "Staging VIC..."
+
+VIC_DIR="$INSTALLS_DIR/vic"
+if [ -d "$VIC_DIR" ]; then
+    if stage_binary "$VIC_DIR/bin/vic_image.exe" "vic" "VIC"; then
+        :
+    elif stage_binary "$VIC_DIR/bin/vic_image" "vic" "VIC"; then
+        :
+    else
+        print_warning "VIC binary not found"
+    fi
+    stage_license "$VIC_DIR" "VIC"
+else
+    print_warning "VIC not installed"
+fi
+
+# ============================================================================
+# Stage SWAT
+# ============================================================================
+print_info "Staging SWAT..."
+
+SWAT_DIR="$INSTALLS_DIR/swat"
+if [ -d "$SWAT_DIR" ]; then
+    if stage_binary "$SWAT_DIR/bin/swat_rel.exe" "swat" "SWAT"; then
+        :
+    elif stage_binary "$SWAT_DIR/bin/swat" "swat" "SWAT"; then
+        :
+    else
+        print_warning "SWAT binary not found"
+    fi
+    stage_license "$SWAT_DIR" "SWAT"
+else
+    print_warning "SWAT not installed"
+fi
+
+# ============================================================================
+# Stage PRMS
+# ============================================================================
+print_info "Staging PRMS..."
+
+PRMS_DIR="$INSTALLS_DIR/prms"
+if [ -d "$PRMS_DIR" ]; then
+    stage_binary "$PRMS_DIR/bin/prms" "prms" "PRMS" || print_warning "PRMS binary not found"
+    stage_license "$PRMS_DIR" "PRMS"
+else
+    print_warning "PRMS not installed"
+fi
+
+# ============================================================================
+# Stage mHM
+# ============================================================================
+print_info "Staging mHM..."
+
+MHM_DIR="$INSTALLS_DIR/mhm"
+if [ -d "$MHM_DIR" ]; then
+    stage_binary "$MHM_DIR/bin/mhm" "mhm" "mHM" || print_warning "mHM binary not found"
+    stage_license "$MHM_DIR" "mHM"
+else
+    print_warning "mHM not installed"
+fi
+
+# ============================================================================
+# Stage CRHM
+# ============================================================================
+print_info "Staging CRHM..."
+
+CRHM_DIR="$INSTALLS_DIR/crhm"
+if [ -d "$CRHM_DIR" ]; then
+    stage_binary "$CRHM_DIR/bin/crhm" "crhm" "CRHM" || print_warning "CRHM binary not found"
+    stage_license "$CRHM_DIR" "CRHM"
+else
+    print_warning "CRHM not installed"
+fi
+
+# ============================================================================
+# Stage WRF-Hydro
+# ============================================================================
+print_info "Staging WRF-Hydro..."
+
+WRFHYDRO_DIR="$INSTALLS_DIR/wrfhydro"
+if [ -d "$WRFHYDRO_DIR" ]; then
+    if stage_binary "$WRFHYDRO_DIR/bin/wrf_hydro.exe" "wrfhydro" "WRF-Hydro"; then
+        :
+    elif stage_binary "$WRFHYDRO_DIR/bin/wrfhydro" "wrfhydro" "WRF-Hydro"; then
+        :
+    else
+        print_warning "WRF-Hydro binary not found"
+    fi
+    stage_license "$WRFHYDRO_DIR" "WRF-Hydro"
+else
+    print_warning "WRF-Hydro not installed"
+fi
+
+# ============================================================================
+# Stage WATFLOOD
+# ============================================================================
+print_info "Staging WATFLOOD..."
+
+WATFLOOD_DIR="$INSTALLS_DIR/watflood"
+if [ -d "$WATFLOOD_DIR" ]; then
+    if stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
+        :
+    elif stage_binary "$WATFLOOD_DIR/bin/charm" "watflood" "WATFLOOD"; then
+        :
+    else
+        print_warning "WATFLOOD binary not found"
+    fi
+    stage_license "$WATFLOOD_DIR" "WATFLOOD"
+else
+    print_warning "WATFLOOD not installed"
+fi
+
+# ============================================================================
+# Stage MODFLOW
+# ============================================================================
+print_info "Staging MODFLOW..."
+
+MODFLOW_DIR="$INSTALLS_DIR/modflow"
+if [ -d "$MODFLOW_DIR" ]; then
+    stage_binary "$MODFLOW_DIR/bin/mf6" "mf6" "MODFLOW" || print_warning "MODFLOW binary not found"
+    stage_license "$MODFLOW_DIR" "MODFLOW"
+else
+    print_warning "MODFLOW not installed"
+fi
+
+# ============================================================================
+# Stage ParFlow
+# ============================================================================
+print_info "Staging ParFlow..."
+
+PARFLOW_DIR="$INSTALLS_DIR/parflow"
+if [ -d "$PARFLOW_DIR" ]; then
+    stage_binary "$PARFLOW_DIR/bin/parflow" "parflow" "ParFlow" || print_warning "ParFlow binary not found"
+    stage_license "$PARFLOW_DIR" "ParFlow"
+else
+    print_warning "ParFlow not installed"
+fi
+
+# ============================================================================
+# Stage CLM-ParFlow
+# ============================================================================
+print_info "Staging CLM-ParFlow..."
+
+CLMPARFLOW_DIR="$INSTALLS_DIR/clmparflow"
+if [ -d "$CLMPARFLOW_DIR" ]; then
+    stage_binary "$CLMPARFLOW_DIR/bin/parflow" "parflow-clm" "CLM-ParFlow" || print_warning "CLM-ParFlow binary not found"
+    stage_license "$CLMPARFLOW_DIR" "CLM-ParFlow"
+else
+    print_warning "CLM-ParFlow not installed"
+fi
+
+# ============================================================================
+# Stage PIHM
+# ============================================================================
+print_info "Staging PIHM..."
+
+PIHM_DIR="$INSTALLS_DIR/pihm"
+if [ -d "$PIHM_DIR" ]; then
+    stage_binary "$PIHM_DIR/bin/pihm" "pihm" "PIHM" || print_warning "PIHM binary not found"
+    stage_license "$PIHM_DIR" "PIHM"
+else
+    print_warning "PIHM not installed"
+fi
+
+# ============================================================================
+# Stage GSFLOW
+# ============================================================================
+print_info "Staging GSFLOW..."
+
+GSFLOW_DIR="$INSTALLS_DIR/gsflow"
+if [ -d "$GSFLOW_DIR" ]; then
+    stage_binary "$GSFLOW_DIR/bin/gsflow" "gsflow" "GSFLOW" || print_warning "GSFLOW binary not found"
+    stage_license "$GSFLOW_DIR" "GSFLOW"
+else
+    print_warning "GSFLOW not installed"
+fi
+
+# ============================================================================
+# Stage CLM
+# ============================================================================
+print_info "Staging CLM..."
+
+CLM_DIR="$INSTALLS_DIR/clm"
+if [ -d "$CLM_DIR" ]; then
+    if stage_binary "$CLM_DIR/bin/cesm.exe" "clm" "CLM"; then
+        :
+    elif stage_binary "$CLM_DIR/bld/cesm.exe" "clm" "CLM"; then
+        :
+    else
+        print_warning "CLM binary not found"
+    fi
+    stage_license "$CLM_DIR" "CLM"
+else
+    print_warning "CLM not installed"
 fi
 
 # ============================================================================
@@ -345,7 +555,24 @@ This archive contains compiled binaries for:
 - **FUSE**: Framework for Understanding Structural Errors
 - **NGEN**: NextGen National Water Model Framework
 - **HYPE**: Hydrological Predictions for the Environment
+- **MESH**: Modelling Environmental changes of the Surface and Hydrology
 - **TauDEM**: Terrain Analysis Using Digital Elevation Models
+- **VIC**: Variable Infiltration Capacity model
+- **SWAT**: Soil and Water Assessment Tool
+- **PRMS**: Precipitation-Runoff Modeling System
+- **mHM**: mesoscale Hydrologic Model
+- **CRHM**: Cold Regions Hydrological Model
+- **WRF-Hydro**: Weather Research and Forecasting Hydrological model
+- **WATFLOOD**: Waterloo Flood forecasting model
+- **MODFLOW**: USGS Modular Groundwater Flow Model (mf6)
+- **ParFlow**: Parallel subsurface flow model
+- **PIHM**: Penn State Integrated Hydrologic Model
+- **GSFLOW**: Coupled Groundwater and Surface-water Flow model
+- **CLM**: Community Land Model
+- **RHESSys**: Regional Hydro-Ecologic Simulation System
+- **WMFire**: Wildfire Module (shared library)
+
+Not all models build on all platforms. Check the staging summary for availability.
 
 ## Installation
 

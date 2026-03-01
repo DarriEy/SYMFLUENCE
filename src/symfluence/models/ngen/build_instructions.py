@@ -55,6 +55,29 @@ set -e
 set -o pipefail  # Make pipelines return exit code of failed command, not just last command
 echo "Building ngen with full BMI support (C, C++, Fortran)..."
 
+# Detect venv Python BEFORE modifying PATH (setup-python Python must be found first)
+if [ -n "$VIRTUAL_ENV" ]; then
+  PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
+elif [ -n "$CONDA_PREFIX" ]; then
+  # On Windows conda, python3 might be at Scripts/python or just python
+  if [ -x "$CONDA_PREFIX/bin/python3" ]; then
+    PYTHON_EXE="$CONDA_PREFIX/bin/python3"
+  elif [ -x "$CONDA_PREFIX/python.exe" ]; then
+    PYTHON_EXE="$CONDA_PREFIX/python.exe"
+  else
+    PYTHON_EXE=$(which python3 || which python)
+  fi
+else
+  PYTHON_EXE=$(which python3 || which python)
+fi
+echo "Using Python: $PYTHON_EXE"
+NUMPY_VERSION=$($PYTHON_EXE -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "")
+if [ -n "$NUMPY_VERSION" ]; then
+  echo "Using NumPy: $NUMPY_VERSION"
+else
+  echo "WARNING: numpy not available in $PYTHON_EXE"
+fi
+
 # Ensure system tools are preferred (fix for 2i2c environments)
 export PATH="/usr/bin:$PATH"
 
@@ -89,24 +112,6 @@ case "$(uname -s 2>/dev/null)" in
         echo "Windows detected: using MSYS Makefiles generator"
         ;;
 esac
-
-# Detect venv Python - prefer VIRTUAL_ENV, otherwise use which python3
-if [ -n "$VIRTUAL_ENV" ]; then
-  PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
-elif [ -n "$CONDA_PREFIX" ]; then
-  # On Windows conda, python3 might be at Scripts/python or just python
-  if [ -x "$CONDA_PREFIX/bin/python3" ]; then
-    PYTHON_EXE="$CONDA_PREFIX/bin/python3"
-  elif [ -x "$CONDA_PREFIX/python.exe" ]; then
-    PYTHON_EXE="$CONDA_PREFIX/python.exe"
-  else
-    PYTHON_EXE=$(which python3 || which python)
-  fi
-else
-  PYTHON_EXE=$(which python3 || which python)
-fi
-echo "Using Python: $PYTHON_EXE"
-$PYTHON_EXE -c "import numpy as np; print('Using NumPy:', np.__version__)"
 
 # Boost (local)
 if [ ! -d "boost_1_79_0" ]; then
@@ -348,9 +353,13 @@ if [ "${NGEN_WITH_BMI_FORTRAN:-ON}" = "ON" ] && [ -n "$FC" ]; then
 fi
 
 # Check NumPy version - ngen doesn't support NumPy 2.x yet
-NUMPY_VERSION=$($PYTHON_EXE -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "0")
-NUMPY_MAJOR=$(echo "$NUMPY_VERSION" | cut -d. -f1)
-if [ "$NUMPY_MAJOR" -ge 2 ] 2>/dev/null; then
+# NUMPY_VERSION was detected earlier (before PATH modification)
+NUMPY_MAJOR=$(echo "${NUMPY_VERSION:-}" | cut -d. -f1)
+if [ -z "$NUMPY_VERSION" ]; then
+  echo "NumPy not available. Disabling Python and routing support."
+  CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_PYTHON=OFF"
+  CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=OFF"
+elif [ "$NUMPY_MAJOR" -ge 2 ] 2>/dev/null; then
   echo "NumPy $NUMPY_VERSION detected (>=2.0). Disabling Python and routing support (not yet compatible with ngen)."
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_PYTHON=OFF"
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=OFF"
