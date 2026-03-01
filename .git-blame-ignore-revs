@@ -6,3 +6,6 @@ e301991b
 
 # Configure known-first-party for isort and fix remaining import ordering
 a3f5a5d7
+
+# Add SPDX-License-Identifier headers to all source files
+ddcf7bd4
