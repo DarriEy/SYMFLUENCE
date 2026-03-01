@@ -72,7 +72,8 @@ cd "$(dirname "$STAGED_DIR")"
 STAGED_BASENAME="$(basename "$STAGED_DIR")"
 
 print_info "Compressing..."
-tar -czf "$TARBALL_PATH" "$STAGED_BASENAME"
+# --force-local: treat D: as filename, not remote host (Windows paths)
+tar --force-local -czf "$TARBALL_PATH" "$STAGED_BASENAME"
 
 TARBALL_SIZE="$(du -h "$TARBALL_PATH" | cut -f1)"
 print_success "Created tarball: $TARBALL_NAME ($TARBALL_SIZE)"

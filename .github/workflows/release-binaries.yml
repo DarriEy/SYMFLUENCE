@@ -264,21 +264,24 @@ jobs:
           set -e
           echo "Testing relocated binaries..."
 
-          # Extract to temporary location (use runner temp on Windows)
+          # Extract to temporary location
           TEST_DIR="${RUNNER_TEMP:-/tmp}/symfluence-test"
           mkdir -p "$TEST_DIR"
           cd "$TEST_DIR"
-          tar -xzf "$GITHUB_WORKSPACE/release"/symfluence-tools-*.tar.gz
+
+          # --force-local: treat D: as filename, not remote host (Windows)
+          TARBALL=$(ls "$GITHUB_WORKSPACE"/release/symfluence-tools-*.tar.gz 2>/dev/null | head -1)
+          tar --force-local -xzf "$TARBALL"
 
           # Test binaries run without original install directory
           echo "-> Testing SUMMA..."
           if [ -f "./symfluence-tools/bin/summa" ] || [ -f "./symfluence-tools/bin/summa.exe" ]; then
-            ./symfluence-tools/bin/summa* --version 2>&1 | head -5 || echo "  SUMMA version check completed"
+            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
           fi
 
           echo "-> Testing NGEN..."
           if [ -f "./symfluence-tools/bin/ngen" ] || [ -f "./symfluence-tools/bin/ngen.exe" ]; then
-            ./symfluence-tools/bin/ngen* --help 2>&1 | head -5 || echo "  NGEN help check completed"
+            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
           fi
 
           echo "Relocatability test complete"
