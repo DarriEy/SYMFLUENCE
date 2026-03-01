@@ -104,6 +104,11 @@ jobs:
             echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
             echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
             echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+            # Create unversioned gfortran symlink — Homebrew only installs
+            # versioned binaries (gfortran-13, etc.); the dependency checker
+            # looks for plain 'gfortran' via shutil.which().
+            ln -sf /opt/homebrew/bin/gfortran-${GCC_VER} /opt/homebrew/bin/gfortran
           fi
 
           # Help CMake find Homebrew packages (especially udunits)

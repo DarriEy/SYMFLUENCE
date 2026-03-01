@@ -60,6 +60,7 @@ dependencies:
       command: gfortran
       version_flag: "--version"
       version_regex: "GNU Fortran.*?(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: ["gfortran-14", "gfortran-13", "gfortran-12"]
     packages:
       apt: gfortran
       dnf: gcc-gfortran
