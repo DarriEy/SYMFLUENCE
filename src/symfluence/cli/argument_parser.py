@@ -371,8 +371,18 @@ For more help on a specific command:
 
         binary_parser = subparsers.add_parser(
             'binary',
-            help='External tool management',
-            description='Install, validate, and manage external tools'
+            help='External tool management and pass-through execution',
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=(
+                'Install, validate, and manage external tools.\n\n'
+                'Pass-through execution:\n'
+                '  symfluence binary <tool> [args...]   Run a bundled binary directly\n\n'
+                'Examples:\n'
+                '  symfluence binary summa --version     Run SUMMA with --version\n'
+                '  symfluence binary summa -m fm.txt     Run SUMMA with a file-manager\n'
+                '  symfluence binary fuse.exe --help     Show FUSE help\n'
+                '  symfluence binary pitremove ...       Run a TauDEM sub-tool'
+            ),
         )
         binary_subparsers = binary_parser.add_subparsers(
             dest='action',

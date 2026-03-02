@@ -37,6 +37,20 @@ def main():
 
     from symfluence.cli.argument_parser import CLIParser
 
+    # --- binary pass-through: symfluence binary <tool> [args...] ---
+    # Intercept before argparse so tool flags (e.g. -m, --help) are not
+    # consumed by symfluence's own parser.
+    _BINARY_ACTIONS = {'install', 'validate', 'doctor', 'install-sysdeps', 'info'}
+    argv = sys.argv[1:]
+    if (
+        len(argv) >= 2
+        and argv[0] == 'binary'
+        and argv[1] not in _BINARY_ACTIONS
+        and not argv[1].startswith('-')
+    ):
+        from symfluence.cli.commands.binary_commands import BinaryCommands
+        return BinaryCommands.exec_binary(argv[1], argv[2:])
+
     try:
         # Create parser and parse arguments
         parser = CLIParser()

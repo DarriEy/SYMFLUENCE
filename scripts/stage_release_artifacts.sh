@@ -776,6 +776,17 @@ if [ "$OS_TYPE" = "Darwin" ]; then
         fi
     done
 
+    # Step 4: Re-sign all Mach-O files after path rewriting
+    # install_name_tool invalidates existing code signatures. macOS Sequoia+
+    # kills any process that loads a dylib with an invalid signature (SIGKILL).
+    print_info "Re-signing Mach-O files (ad-hoc) after path rewriting..."
+    SIGNED=0
+    for macho in "${ALL_MACHO[@]}"; do
+        codesign --force --sign - "$macho" 2>/dev/null || true
+        SIGNED=$((SIGNED + 1))
+    done
+    print_success "Re-signed $SIGNED Mach-O files"
+
 elif [ "$OS_TYPE" = "Linux" ]; then
     # Linux: use patchelf to rewrite RPATHs
     if command -v patchelf >/dev/null 2>&1; then
