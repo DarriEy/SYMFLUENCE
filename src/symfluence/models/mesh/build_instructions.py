@@ -181,7 +181,7 @@ make veryclean 2>/dev/null || make clean 2>/dev/null || true
 # If NetCDF-C is in a separate prefix from NetCDF-Fortran, patch the Makefile
 # link line so the linker can find -lnetcdf. The Makefile sets LIBNCL from
 # nf-config --flibs which only has -L for the Fortran prefix.
-if [ -n "${NETCDF_C_LIBDIR}" ]; then
+if [ -n "${NETCDF_C_LIBDIR}" ] && [ -f Makefile ]; then
     echo "Patching Makefile to add NetCDF-C library path..."
     sed -i.bak "s|LIBNCL=\$(shell nf-config --flibs)|LIBNCL=-L${NETCDF_C_LIBDIR} \$(shell nf-config --flibs)|" Makefile
 fi
