@@ -232,10 +232,20 @@ else
   echo "Non-HPC environment detected; using NGIAB-CloudInfra"
 fi
 
-cd ..
-rm -rf ngiab
-git clone "$NGIAB_REPO" ngiab
-cd ngiab
+# Clone into a temp directory first, then move contents into the install dir.
+# We cannot do `cd .. && rm -rf ngiab` because _build.sh itself lives inside
+# the ngiab/ directory.  On HPC parallel filesystems (GPFS, Lustre) removing a
+# directory that still has an open file handle (the running script) fails with
+# "Directory not empty".
+TMPCLONE="$(mktemp -d "${TMPDIR:-/tmp}/ngiab_clone.XXXXXX")"
+git clone "$NGIAB_REPO" "$TMPCLONE/ngiab"
+
+# Wipe current contents (except _build.sh which is still running) and copy new
+# files in.  Using rsync-style approach: remove old files, copy new ones.
+find . -mindepth 1 -maxdepth 1 ! -name '_build.sh' -exec rm -rf {} + 2>/dev/null || true
+cp -a "$TMPCLONE/ngiab/." .
+rm -rf "$TMPCLONE"
+
 [ -f guide.sh ] && chmod +x guide.sh && bash -n guide.sh || true
             '''.strip()
         ],
