@@ -536,7 +536,7 @@ src/symfluence/gui/utils/threading_utils.py:253:except Exception:  # noqa: BLE00
 src/symfluence/gui/utils/threading_utils.py:49:except Exception:  # noqa: BLE001 — UI resilience
 src/symfluence/gui/utils/threading_utils.py:52:except Exception:  # noqa: BLE001 — UI resilience
 src/symfluence/gui/utils/threading_utils.py:73:except Exception:  # noqa: BLE001 — UI resilience
-src/symfluence/main_cli.py:59:except Exception as e:  # noqa: BLE001 — top-level fallback
+src/symfluence/main_cli.py:73:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/models/__init__.py:77:except Exception as _e:  # noqa: BLE001 — optional dependency
 src/symfluence/models/base/base_postprocessor.py:352:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/base/base_preprocessor.py:197:except Exception as e:  # noqa: BLE001 — model execution resilience
