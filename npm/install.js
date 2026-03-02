@@ -169,6 +169,43 @@ function extractTarball(tarball, destDir) {
 }
 
 /**
+ * Try to install the SYMFLUENCE Python package automatically.
+ * Tries uv, pip3, pip in order. Non-fatal: prints manual instructions on failure.
+ */
+function tryInstallPython() {
+  console.log('\n🐍 Installing SYMFLUENCE Python package...\n');
+
+  const strategies = [
+    { check: 'uv --version', install: 'uv pip install symfluence', label: 'uv' },
+    { check: 'pip3 --version', install: 'pip3 install symfluence', label: 'pip3' },
+    { check: 'pip --version', install: 'pip install symfluence', label: 'pip' },
+  ];
+
+  for (const { check, install, label } of strategies) {
+    try {
+      execSync(check, { stdio: 'ignore', timeout: 10000 });
+    } catch {
+      continue; // tool not available
+    }
+
+    try {
+      console.log(`   Using ${label}...`);
+      execSync(install, { stdio: 'inherit', timeout: 120000 });
+      console.log(`\n✅ Python package installed via ${label}`);
+      return;
+    } catch (err) {
+      console.warn(`\n⚠️  ${label} install failed: ${err.message}`);
+      // try next strategy
+    }
+  }
+
+  // All strategies failed — print manual instructions
+  console.warn('\n⚠️  Could not auto-install the Python package.');
+  console.warn('   Please install it manually:');
+  console.warn('     pip install symfluence\n');
+}
+
+/**
  * Main installation function
  */
 async function install() {
@@ -219,6 +256,9 @@ async function install() {
     // Cleanup tarball
     fs.unlinkSync(tarballPath);
 
+    // Try to install Python package (non-fatal)
+    tryInstallPython();
+
     // Display installation info
     console.log('\n╔════════════════════════════════════════════╗');
     console.log('║   🎉 Installation Complete!                ║');
@@ -236,8 +276,8 @@ async function install() {
 
     console.log('\n📖 Next Steps:');
     console.log('   1. Check installation: symfluence --help');
-    console.log('   2. View available tools: ls $(npm root -g)/symfluence/dist/bin');
-    console.log('   3. Install Python package: pip install symfluence\n');
+    console.log('   2. Run a bundled binary: symfluence binary summa --version');
+    console.log('   3. View available tools: ls $(npm root -g)/symfluence/dist/bin\n');
 
     console.log('📚 Documentation: https://github.com/DarriEy/SYMFLUENCE\n');
 

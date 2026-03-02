@@ -4,11 +4,15 @@
 """
 Binary/tool management command handlers for SYMFLUENCE CLI.
 
-This module implements handlers for external tool installation and validation.
+This module implements handlers for external tool installation and validation,
+plus a pass-through ``exec_binary()`` for running bundled binaries directly.
 """
 
 import subprocess
+import sys
 from argparse import Namespace
+from pathlib import Path
+from typing import List, Optional
 
 from ..exit_codes import ExitCode
 from .base import BaseCommand, cli_exception_handler
@@ -298,3 +302,102 @@ class BinaryCommands(BaseCommand):
         else:
             BaseCommand._console.error("Failed to retrieve tools information")
             return ExitCode.GENERAL_ERROR
+
+    # ------------------------------------------------------------------
+    # Pass-through: symfluence binary <tool_name> [args...]
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def exec_binary(tool_name: str, tool_args: List[str]) -> int:
+        """Run a bundled binary directly with full stdio pass-through.
+
+        Resolution order:
+          1. npm-installed binaries  (``$(npm root -g)/symfluence/dist/bin/<tool>``)
+          2. Source installs          (``$SYMFLUENCE_DATA_DIR/<path>/<exe>``)
+          3. Direct name match in npm bin directory (e.g. TauDEM sub-tools)
+
+        Args:
+            tool_name: Name of the binary to run (e.g. ``summa``, ``fuse.exe``).
+            tool_args: Arguments forwarded verbatim to the binary.
+
+        Returns:
+            The native binary's exit code, or 1 on error.
+        """
+        from symfluence.cli.binary_service import BinaryService
+        from symfluence.cli.external_tools_config import get_external_tools_definitions
+
+        binary_path: Optional[Path] = None
+        service = BinaryService()
+
+        # --- 1. npm-installed binaries ---
+        npm_bin_dir = service.detect_npm_binaries()
+        if npm_bin_dir is not None:
+            tools_defs = get_external_tools_definitions()
+            tool_def = tools_defs.get(tool_name)
+            if tool_def is not None:
+                exe_name = tool_def.get("default_exe", tool_name)
+                candidate = npm_bin_dir / exe_name
+                if candidate.is_file():
+                    binary_path = candidate
+
+        # --- 2. Source installs ($SYMFLUENCE_DATA_DIR/<suffix>/<exe>) ---
+        if binary_path is None:
+            tools_defs = get_external_tools_definitions()
+            tool_def = tools_defs.get(tool_name)
+            if tool_def is not None:
+                path_suffix = tool_def.get("default_path_suffix")
+                exe_name = tool_def.get("default_exe")
+                if path_suffix and exe_name:
+                    config = service._load_config()
+                    data_dir = service._get_data_dir(config)
+                    candidate = data_dir / path_suffix / exe_name
+                    if candidate.is_file():
+                        binary_path = candidate
+
+        # --- 3. Direct name match in npm bin/ (TauDEM sub-tools etc.) ---
+        if binary_path is None and npm_bin_dir is not None:
+            candidate = npm_bin_dir / tool_name
+            if candidate.is_file():
+                binary_path = candidate
+
+        if binary_path is None:
+            print(
+                f"Binary '{tool_name}' not found.\n\n"
+                f"Install it with:\n"
+                f"  symfluence binary install {tool_name}\n\n"
+                f"Or install pre-built binaries:\n"
+                f"  npm install -g symfluence",
+                file=sys.stderr,
+            )
+            return ExitCode.BINARY_ERROR
+
+        return BinaryCommands._run_binary(binary_path, tool_args)
+
+    @staticmethod
+    def _run_binary(binary_path: Path, args: List[str]) -> int:
+        """Execute a binary with full stdio pass-through.
+
+        Args:
+            binary_path: Absolute path to the executable.
+            args: Arguments forwarded to the binary.
+
+        Returns:
+            The process exit code.
+        """
+        cmd = [str(binary_path)] + args
+        try:
+            result = subprocess.run(
+                cmd,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+            return result.returncode
+        except FileNotFoundError:
+            print(f"Binary not found: {binary_path}", file=sys.stderr)
+            return ExitCode.BINARY_ERROR
+        except PermissionError:
+            print(f"Permission denied: {binary_path}", file=sys.stderr)
+            return ExitCode.PERMISSION_ERROR
+        except KeyboardInterrupt:
+            return ExitCode.USER_INTERRUPT
