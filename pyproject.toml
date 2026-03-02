@@ -74,6 +74,13 @@ dependencies = [
   "pydantic>=2.0.0,<3.0.0",
   # Differentiable coupling framework
   "dcoupler>=0.2.0",
+  # JAX-based model plugins
+  "jsnow17>=0.1.0",
+  "jsacsma>=0.1.0",
+  "jxaj>=0.1.0",
+  "jhbv>=0.1.0",
+  "jhechms>=0.1.0",
+  "jtopmodel>=0.1.0",
 ]
 
 [project.optional-dependencies]

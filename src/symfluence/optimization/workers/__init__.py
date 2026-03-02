@@ -38,7 +38,7 @@ def __getattr__(name):
         'JFUSEWorker': 'symfluence.models.jfuse.calibration.worker',
         'CFUSEWorker': 'symfluence.models.cfuse.calibration.worker',
         'GRWorker': 'symfluence.models.gr.calibration.worker',
-        'HBVWorker': 'symfluence.models.hbv.calibration.worker',
+        'HBVWorker': 'jhbv.calibration.worker',
         'HYPEWorker': 'symfluence.models.hype.calibration.worker',
         'MESHWorker': 'symfluence.models.mesh.calibration.worker',
         'NgenWorker': 'symfluence.models.ngen.calibration.worker',
@@ -46,8 +46,8 @@ def __getattr__(name):
         'SUMMAWorker': 'symfluence.models.summa.calibration.worker',
         'GNNWorker': 'symfluence.models.gnn.calibration.worker',
         'LSTMWorker': 'symfluence.models.lstm.calibration.worker',
-        'SacSmaWorker': 'symfluence.models.sacsma.calibration.worker',
-        'XinanjiangWorker': 'symfluence.models.xinanjiang.calibration.worker',
+        'SacSmaWorker': 'jsacsma.calibration.worker',
+        'XinanjiangWorker': 'jxaj.calibration.worker',
     }
 
     if name in worker_mapping:

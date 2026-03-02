@@ -61,9 +61,9 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 # RuntimeError on daemon threads (e.g. Panel's Tornado IO loop).
 _model_names = [
     'summa', 'fuse', 'ngen', 'mizuroute', 'troute', 'droute',
-    'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys', 'hbv',
-    'sacsma', 'jfuse', 'cfuse', 'ignacio', 'vic', 'clm', 'hechms',
-    'topmodel', 'modflow', 'parflow', 'clmparflow', 'xinanjiang', 'snow17',
+    'hype', 'mesh', 'lstm', 'gr', 'gnn', 'rhessys',
+    'jfuse', 'cfuse', 'ignacio', 'vic', 'clm',
+    'modflow', 'parflow', 'clmparflow',
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
     'pihm', 'wmfire',
     'gsflow', 'watflood', 'wflow',
