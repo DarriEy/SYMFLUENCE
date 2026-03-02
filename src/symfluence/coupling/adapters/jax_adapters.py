@@ -24,25 +24,25 @@ logger = logging.getLogger(__name__)
 
 def _get_snow17_step():
     """Import Snow-17 step function."""
-    from symfluence.models.snow17.model import snow17_step
+    from jsnow17.model import snow17_step
     return snow17_step
 
 
 def _get_snow17_params():
     """Import Snow-17 parameter bounds."""
-    from symfluence.models.snow17.parameters import SNOW17_PARAM_BOUNDS
+    from jsnow17.parameters import SNOW17_PARAM_BOUNDS
     return SNOW17_PARAM_BOUNDS
 
 
 def _get_xaj_step():
     """Import XAJ step function."""
-    from symfluence.models.xinanjiang.model import step_jax
+    from jxaj.model import step_jax
     return step_jax
 
 
 def _get_sacsma_step():
     """Import SAC-SMA step function."""
-    from symfluence.models.sacsma.sacsma import sacsma_step
+    from jsacsma.sacsma import sacsma_step
     return sacsma_step
 
 
@@ -94,7 +94,7 @@ class Snow17JAXComponent(JAXComponent):
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
 
-            from symfluence.models.snow17.parameters import (
+            from jsnow17.parameters import (
                 DEFAULT_ADC,
                 Snow17State,
                 params_dict_to_namedtuple,
@@ -187,7 +187,7 @@ class XAJJAXComponent(JAXComponent):
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
 
-            from symfluence.models.xinanjiang.parameters import (
+            from jxaj.parameters import (
                 XinanjiangParams,
                 XinanjiangState,
             )
@@ -274,8 +274,8 @@ class SacSmaJAXComponent(JAXComponent):
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
 
-            from symfluence.models.sacsma.parameters import SacSmaParameters
-            from symfluence.models.sacsma.sacsma import SacSmaState
+            from jsacsma.parameters import SacSmaParameters
+            from jsacsma.sacsma import SacSmaState
             # Unpack flat array → SacSmaState namedtuple
             sac_state = SacSmaState(
                 uztwc=state[0], uzfwc=state[1], lztwc=state[2],
