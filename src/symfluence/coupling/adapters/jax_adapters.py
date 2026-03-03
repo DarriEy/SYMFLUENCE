@@ -93,7 +93,6 @@ class Snow17JAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
-
             from jsnow17.parameters import (
                 DEFAULT_ADC,
                 Snow17State,
@@ -186,7 +185,6 @@ class XAJJAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
-
             from jxaj.parameters import (
                 XinanjiangParams,
                 XinanjiangState,
@@ -273,7 +271,6 @@ class SacSmaJAXComponent(JAXComponent):
 
         def step_wrapper(inputs, state, params, dt):
             import jax.numpy as jnp
-
             from jsacsma.parameters import SacSmaParameters
             from jsacsma.sacsma import SacSmaState
             # Unpack flat array → SacSmaState namedtuple
