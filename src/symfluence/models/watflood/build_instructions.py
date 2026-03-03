@@ -143,34 +143,37 @@ for f in "${SRC_DIR}/model/write_tb0.f" "${SRC_DIR}/model/write_diversion_tb0.f"
     fi
 done
 
-# Fix EF_Module.f: function placed outside module scope causes
-# "Expecting END MODULE" error.  The function CountDataLinesAfterHeader
-# was added after the implicit END MODULE.  Wrap it inside a CONTAINS block.
+# Fix EF_Module.f: CountDataLinesAfterHeader is placed after END MODULE
+# which confuses gfortran.  Extract it into a separate source file instead
+# of trying to squeeze it into CONTAINS (which causes host-association errors).
 EF_MOD="${SRC_DIR}/common/EF_Module.f"
 if [ -f "$EF_MOD" ]; then
     python3 -c "
 import re
 with open('$EF_MOD') as f:
     txt = f.read()
-# If CountDataLinesAfterHeader exists outside the module, move it inside
-if 'CountDataLinesAfterHeader' in txt and 'CONTAINS' not in txt:
-    # Insert CONTAINS before the function definition
-    txt = re.sub(
-        r'(^\s*END\s+MODULE)',
-        r'      CONTAINS\n\n      \1',
-        txt, count=1, flags=re.MULTILINE | re.IGNORECASE
-    )
-elif 'CountDataLinesAfterHeader' in txt:
-    # Function exists after END MODULE — remove END MODULE before it
-    # and add it after the function
-    txt = re.sub(
-        r'(\s*END\s+MODULE\s+\w+\s*\n)(.*?END\s+FUNCTION\s+CountDataLinesAfterHeader)',
-        r'      CONTAINS\n\2\n\1',
-        txt, flags=re.DOTALL | re.IGNORECASE
-    )
-with open('$EF_MOD', 'w') as f:
-    f.write(txt)
-print('  EF_Module.f patched (CountDataLinesAfterHeader)')
+if 'CountDataLinesAfterHeader' in txt:
+    # Find END MODULE and everything after it
+    m = re.search(r'^(\s*END\s+MODULE\s+\w+\s*\n)(.*)', txt, re.DOTALL | re.MULTILINE | re.IGNORECASE)
+    if m:
+        end_mod = m.group(1)
+        after = m.group(2).strip()
+        if after:
+            # Write the trailing function(s) to a separate file
+            with open('${SRC_DIR}/common/EF_Extra.f90', 'w') as ef:
+                ef.write('! Extracted from EF_Module.f for gfortran compatibility\n')
+                ef.write(after + '\n')
+            # Remove the trailing code from the original file
+            txt = txt[:m.start()] + end_mod
+            with open('$EF_MOD', 'w') as f:
+                f.write(txt)
+            print('  EF_Module.f: extracted trailing function to EF_Extra.f90')
+        else:
+            print('  EF_Module.f: no trailing code after END MODULE')
+    else:
+        print('  EF_Module.f: no END MODULE found')
+else:
+    print('  EF_Module.f: no CountDataLinesAfterHeader found')
 " 2>/dev/null || echo "  WARNING: EF_Module.f patch failed (non-fatal)"
 fi
 

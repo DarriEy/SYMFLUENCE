@@ -276,10 +276,14 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$_U2_DIR"
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$_U2_INC"
   # When UDUNITS2 is a static archive, GNU ld needs transitive dependencies
-  # (expat, dl, m) AFTER the archive on the link line.  Passing them as a
-  # CMake semicolon-list ensures correct ordering (single-pass linker).
+  # (expat, dl, m) AFTER the archive on the link line.  Shell quoting cannot
+  # reliably pass CMake semicolon-lists through bash variables, so write them
+  # to an initial-cache file that cmake processes directly.
   if echo "$_U2_LIB" | grep -q '\.a$'; then
-    CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY='$_U2_LIB;expat;dl;m'"
+    _U2_CACHE="/tmp/_ngen_u2_cache.cmake"
+    echo "set(UDUNITS2_LIBRARY \"$_U2_LIB;expat;dl;m\" CACHE STRING \"UDUNITS2 with transitive deps\" FORCE)" > "$_U2_CACHE"
+    CMAKE_ARGS="$CMAKE_ARGS -C $_U2_CACHE"
+    echo "Wrote UDUNITS2 cmake cache: $_U2_CACHE"
   else
     CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$_U2_LIB"
   fi
@@ -415,7 +419,9 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
     if echo "$UDUNITS2_LIBRARY" | grep -q '\.a$'; then
-      FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY='$UDUNITS2_LIBRARY;expat;dl;m'"
+      _U2_CACHE="/tmp/_ngen_u2_cache.cmake"
+      echo "set(UDUNITS2_LIBRARY \"$UDUNITS2_LIBRARY;expat;dl;m\" CACHE STRING \"UDUNITS2 with transitive deps\" FORCE)" > "$_U2_CACHE"
+      FALLBACK_ARGS="$FALLBACK_ARGS -C $_U2_CACHE"
     else
       FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
     fi
