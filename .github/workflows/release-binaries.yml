@@ -142,7 +142,10 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy mpi4py mpich gdal boost-cpp proj
+          # Core build dependencies
+          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
+          # MPI: mpich is not available on win-64; use msmpi instead (best-effort)
+          conda install -y msmpi mpi4py 2>/dev/null || echo "WARNING: MPI not available — MPI-dependent models will be skipped"
 
           echo "CC=gcc" >> $GITHUB_ENV
           echo "CXX=g++" >> $GITHUB_ENV
