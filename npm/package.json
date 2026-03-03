@@ -47,6 +47,7 @@
     "lib/",
     "dist/",
     "install.js",
+    "pixi.toml",
     "README.md"
   ]
 }

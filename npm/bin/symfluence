@@ -108,7 +108,24 @@ function handleBuiltin(args) {
  * @returns {{ exe: string, args: string[] } | null}
  */
 function findPythonCli() {
-  // 1. Try `python -m symfluence` and `python3 -m symfluence`
+  // 1. Try pixi-managed Python (preferred — guaranteed correct env, no HDF5 ABI conflicts)
+  const pixiEnvPaths = [
+    path.join(pkgRoot, 'dist', '.pixi', 'envs', 'default'),
+    path.join(pkgRoot, '.pixi', 'envs', 'default'),
+  ];
+  for (const envPath of pixiEnvPaths) {
+    const candidate = process.platform === 'win32'
+      ? path.join(envPath, 'python.exe')
+      : path.join(envPath, 'bin', 'python3');
+    if (fs.existsSync(candidate)) {
+      try {
+        execSync(`"${candidate}" -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });
+        return { exe: candidate, args: ['-m', 'symfluence'] };
+      } catch { /* pixi env exists but symfluence not installed — fall through */ }
+    }
+  }
+
+  // 2. Try `python -m symfluence` and `python3 -m symfluence`
   for (const py of ['python3', 'python']) {
     try {
       execSync(`${py} -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });
@@ -118,7 +135,7 @@ function findPythonCli() {
     }
   }
 
-  // 2. Try a bare `symfluence` on PATH that is NOT this wrapper
+  // 3. Try a bare `symfluence` on PATH that is NOT this wrapper
   const thisScript = fs.realpathSync(__filename);
   try {
     const resolved = execSync('which symfluence', { encoding: 'utf8', timeout: 5000 }).trim();

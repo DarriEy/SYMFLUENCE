@@ -124,7 +124,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-domains", Static)
-                assert "2" in str(stat.renderable)
+                assert "2" in stat.content
 
         asyncio.run(_test())
 
@@ -136,7 +136,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-runs", Static)
-                assert "2" in str(stat.renderable)
+                assert "2" in stat.content
 
         asyncio.run(_test())
 
@@ -148,7 +148,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-slurm", Static)
-                assert "N/A" in str(stat.renderable)
+                assert "N/A" in stat.content
 
         asyncio.run(_test())
 
@@ -195,7 +195,7 @@ class TestDashboardScreen:
                 from textual.widgets import Static
                 onboarding = app.screen.query_one("#onboarding-panel", Static)
                 assert onboarding.display is not False
-                assert "First run setup" in str(onboarding.renderable)
+                assert "First run setup" in onboarding.content
 
         asyncio.run(_test())
 
@@ -432,8 +432,8 @@ class TestSlurmMonitorScreen:
                 from textual.widgets import Static
                 status = app.screen.query_one("#slurm-status", Static)
                 # On non-HPC, should show "not available"
-                assert "not available" in str(status.renderable).lower() or \
-                       "0 job" in str(status.renderable).lower()
+                assert "not available" in status.content.lower() or \
+                       "0 job" in status.content.lower()
 
         asyncio.run(_test())
 
