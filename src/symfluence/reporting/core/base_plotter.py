@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.constants import ConfigKeys
-from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.project import ProjectContextMixin
 from symfluence.reporting.config.plot_config import DEFAULT_PLOT_CONFIG, PlotConfig
 
 
-class BasePlotter(ConfigMixin, ABC):
+class BasePlotter(ProjectContextMixin, ABC):
     """
     Abstract base class for all plot generators.
 
