@@ -159,8 +159,12 @@ function extractTarball(tarball, destDir) {
 
   // On Windows (MSYS/MinGW), tar interprets D: as a remote host.
   // --force-local fixes this but is not supported by BSD tar (macOS).
+  // Also convert backslash paths to forward slashes — MSYS tar cannot
+  // handle Windows-style backslash paths in -C arguments.
   const forceLocal = process.platform === 'win32' ? '--force-local ' : '';
-  const extractCmd = `tar ${forceLocal}-xzf "${tarball}" -C "${destDir}" --strip-components=1`;
+  const tarPath = process.platform === 'win32' ? tarball.replace(/\\/g, '/') : tarball;
+  const destPath = process.platform === 'win32' ? destDir.replace(/\\/g, '/') : destDir;
+  const extractCmd = `tar ${forceLocal}-xzf "${tarPath}" -C "${destPath}" --strip-components=1`;
 
   try {
     execSync(extractCmd, { stdio: 'inherit' });
