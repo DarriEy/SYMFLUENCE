@@ -191,6 +191,25 @@ fi
 # Return to source dir for compilation
 cd "$SRC_DIR"
 
+# Pre-compile MPP module — needed by Routing/Reservoirs but may not be ready
+# in time during a parallel make (race condition on macOS especially).
+echo "Pre-compiling MPP modules..."
+MPP_DIR="$SRC_DIR/MPP"
+if [ -d "$MPP_DIR" ]; then
+    cd "$MPP_DIR"
+    MPPFLAGS="-O2 -ffree-form -ffree-line-length-none -fallow-argument-mismatch"
+    for src in module_mpp_land.F CPL_WRF.F; do
+        if [ -f "$src" ]; then
+            echo "  Compiling $src..."
+            $MPIFORT -c $MPPFLAGS "$src" 2>&1 || true
+        fi
+    done
+    # Copy .mod files to where they're expected
+    cp -f *.mod "$SRC_DIR/mod/" 2>/dev/null || true
+    echo "MPP modules pre-compiled"
+    cd "$SRC_DIR"
+fi
+
 # Compile with compile_offline_NoahMP.sh (the standard WRF-Hydro build method)
 # WRF-Hydro's SURFEX modules have circular Makefile deps (ini_csts needs modd_csts,
 # mode_surf_coefs needs mode_thermos, module_snowcro needs mode_surf_coefs, etc.)

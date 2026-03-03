@@ -84,7 +84,8 @@ jobs:
             libnetcdf-dev libnetcdff-dev \
             libhdf5-dev libudunits2-dev \
             libopenblas-dev liblapack-dev \
-            patchelf
+            patchelf \
+            tcl-dev libxml2-utils libexpat1-dev
 
       - name: Configure compiler env (Linux)
         if: runner.os == 'Linux'
@@ -99,7 +100,7 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits
+          brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits m4 libxml2
 
           # Set up Fortran compiler paths
           GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
