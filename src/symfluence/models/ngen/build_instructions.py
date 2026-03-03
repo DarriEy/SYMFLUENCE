@@ -275,7 +275,14 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   _U2_LIB=$(echo "$UDUNITS2_LIBRARY" | sed 's/\\/\//g')
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$_U2_DIR"
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$_U2_INC"
-  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$_U2_LIB"
+  # When UDUNITS2 is a static archive, GNU ld needs transitive dependencies
+  # (expat, dl, m) AFTER the archive on the link line.  Passing them as a
+  # CMake semicolon-list ensures correct ordering (single-pass linker).
+  if echo "$_U2_LIB" | grep -q '\.a$'; then
+    CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY='$_U2_LIB;expat;dl;m'"
+  else
+    CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$_U2_LIB"
+  fi
 
   # Also add to compiler flags (use forward-slash path)
   export CXXFLAGS="${CXXFLAGS:-} -I${_U2_INC}"
@@ -407,7 +414,11 @@ else
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
-    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+    if echo "$UDUNITS2_LIBRARY" | grep -q '\.a$'; then
+      FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY='$UDUNITS2_LIBRARY;expat;dl;m'"
+    else
+      FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+    fi
   fi
   # Note: LIBRARY_PATH and CMAKE_PREFIX_PATH are already set in environment for expat
 

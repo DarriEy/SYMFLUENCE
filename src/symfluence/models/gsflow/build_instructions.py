@@ -196,18 +196,31 @@ rm -f /tmp/_gsflow_patch.py
 
 mkdir -p lib
 
+# Use absolute paths to avoid cd issues with make changing CWD
+_BUILD_BASE=$(pwd)
+
+# Verify expected subdirectories exist
+for subdir in modflow prms gsflow; do
+    if [ ! -d "$_BUILD_BASE/$subdir" ]; then
+        echo "WARNING: $subdir directory not found in $_BUILD_BASE"
+        ls -la "$_BUILD_BASE" || true
+        echo "ERROR: GSFLOW source directory layout does not match expected structure"
+        exit 1
+    fi
+done
+
 echo "Step 1/3: Building MODFLOW-NWT..."
-cd modflow && make -j1 FC=gfortran 2>&1 && cd ..
+cd "$_BUILD_BASE/modflow" && make -j1 FC=gfortran 2>&1
 
 echo "Step 2/3: Building PRMS..."
-cp modflow/*.mod prms/ 2>/dev/null || true
-cp gsflow/*.mod prms/ 2>/dev/null || true
-cd prms && make -j1 FC=gfortran 2>&1 && cd ..
+cp "$_BUILD_BASE"/modflow/*.mod "$_BUILD_BASE/prms/" 2>/dev/null || true
+cp "$_BUILD_BASE"/gsflow/*.mod "$_BUILD_BASE/prms/" 2>/dev/null || true
+cd "$_BUILD_BASE/prms" && make -j1 FC=gfortran 2>&1
 
 echo "Step 3/3: Building GSFLOW..."
-cp modflow/*.mod gsflow/ 2>/dev/null || true
-cp prms/*.mod gsflow/ 2>/dev/null || true
-cd gsflow && make -j1 FC=gfortran 2>&1 && cd ..
+cp "$_BUILD_BASE"/modflow/*.mod "$_BUILD_BASE/gsflow/" 2>/dev/null || true
+cp "$_BUILD_BASE"/prms/*.mod "$_BUILD_BASE/gsflow/" 2>/dev/null || true
+cd "$_BUILD_BASE/gsflow" && make -j1 FC=gfortran 2>&1
 
 cd "$GSFLOW_INSTALL_ROOT"
 
