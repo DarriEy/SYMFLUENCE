@@ -28,6 +28,9 @@ examples/*/data/
 mpi_*
 
 
+# Pixi
+.pixi/
+
 # Virtual Environment
 venv/
 ENV/

@@ -960,6 +960,70 @@ update_config_paths_in_yaml() {
 }
 
 # ----------------------------------------------------------------------
+# Pixi environment manager (preferred — single shared libhdf5)
+# ----------------------------------------------------------------------
+try_pixi_install() {
+    local project_dir="$1"
+
+    # Skip if user opts out
+    if [[ "${SYMFLUENCE_SKIP_PIXI:-}" == "1" ]]; then
+        print_info "Skipping pixi (SYMFLUENCE_SKIP_PIXI=1)"
+        return 1
+    fi
+
+    # Check for pixi.toml
+    if [[ ! -f "${project_dir}/pixi.toml" ]]; then
+        print_warning "pixi.toml not found in project directory"
+        return 1
+    fi
+
+    # Find or install pixi
+    local pixi_cmd=""
+    if command -v pixi >/dev/null 2>&1; then
+        pixi_cmd="pixi"
+        print_info "Found pixi: $(command -v pixi)"
+    elif [[ -x "${HOME}/.pixi/bin/pixi" ]]; then
+        pixi_cmd="${HOME}/.pixi/bin/pixi"
+        print_info "Found pixi at: ${pixi_cmd}"
+    else
+        print_info "pixi not found, attempting to install..."
+        if curl -fsSL https://pixi.sh/install.sh | bash 2>/dev/null; then
+            export PATH="${HOME}/.pixi/bin:${PATH}"
+            if command -v pixi >/dev/null 2>&1; then
+                pixi_cmd="pixi"
+            fi
+        fi
+    fi
+
+    [[ -z "$pixi_cmd" ]] && {
+        print_warning "pixi not available"
+        return 1
+    }
+
+    print_info "Using pixi for environment management (preferred)"
+
+    # Install environment
+    cd "$project_dir"
+    if ! $pixi_cmd install; then
+        print_warning "pixi install failed, falling back to pip/venv"
+        return 1
+    fi
+
+    # Install symfluence into pixi env
+    if ! $pixi_cmd run pip install -e . --no-deps; then
+        print_warning "pip install in pixi env failed, falling back"
+        return 1
+    fi
+
+    # Set python_cmd to pixi's Python for rest of script
+    PIXI_PYTHON="$($pixi_cmd run which python)"
+    PIXI_ACTIVE=true
+
+    print_success "pixi environment ready (shared libhdf5, no ABI conflicts)"
+    return 0
+}
+
+# ----------------------------------------------------------------------
 # Locate SYMFLUENCE project directory (looks for pyproject.toml)
 # ----------------------------------------------------------------------
 find_project_dir() {
@@ -1286,6 +1350,18 @@ main() {
         # Detect 2i2c/JupyterHub environment
         detect_2i2c_environment || true
 
+        # Try pixi first (preferred — single shared libhdf5, no ABI conflicts)
+        PIXI_ACTIVE=false
+        if [[ "$IS_2I2C_ENVIRONMENT" != "true" ]]; then
+            try_pixi_install "$symfluence_dir" || true
+        fi
+
+        if [[ "$PIXI_ACTIVE" == "true" ]]; then
+            # Pixi handled Python + native deps — set python_cmd and skip to tools
+            python_cmd="$PIXI_PYTHON"
+            VENV_BIN_PATH="$(dirname "$PIXI_PYTHON")"
+        else
+
         print_header "Environment"
 
         # Create venv if needed, unless in a conda env or explicitly disabled
@@ -1491,6 +1567,8 @@ else:
         $python_cmd -m pip install "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" --quiet 2>/dev/null && \
             print_success "MESH dependencies installed" || \
             print_warning "MESH dependency installation failed (MESH model will be unavailable)"
+
+        fi  # end of non-pixi (venv/conda) path
 
         print_header "Tools"
         # External tools - use installed symfluence command with full path

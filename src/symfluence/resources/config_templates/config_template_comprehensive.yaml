@@ -199,6 +199,24 @@ NGEN_ACTIVE_CATCHMENT_ID: null
 #   Usage:      3
 NGEN_CFE_PARAMS_TO_CALIBRATE: maxsmc,satdk,bb,slop,Cgw,max_gw_storage,K_nash,K_lf,soil_depth
 
+# NGEN_CFE_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_CFE_PARAM_BOUNDS: null
+
+# NGEN_NOAH_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_NOAH_PARAM_BOUNDS: null
+
+# NGEN_PET_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_PET_PARAM_BOUNDS: null
+
 # NGEN_EXE
 #   Type:        str
 #   Default:     ngen
@@ -234,33 +252,14 @@ NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat,bexp
 #   Usage:      3
 NGEN_PET_PARAMS_TO_CALIBRATE: ""
 
-# ENABLE_SLOTH
-#   Type:        bool
-#   Default:     True
+# NGEN_MODULES_SELECTED
+#   Description: Comma-separated list of NGEN modules to enable.
+#                Available modules: SLOTH, PET, NOAH, CFE.
+#                NGEN_MODULES_TO_CALIBRATE must be a subset of this list.
+#   Type:        str
+#   Default:     SLOTH,PET,CFE
 #   Source:      NGENConfig (model_configs.py)
-#   Description: Enable SLOTH module in NGEN
-ENABLE_SLOTH: true
-
-# ENABLE_PET
-#   Type:        bool
-#   Default:     True
-#   Source:      NGENConfig (model_configs.py)
-#   Description: Enable PET module in NGEN
-ENABLE_PET: true
-
-# ENABLE_NOAH
-#   Type:        bool
-#   Default:     False
-#   Source:      NGENConfig (model_configs.py)
-#   Description: Enable Noah-OWP module in NGEN
-ENABLE_NOAH: false
-
-# ENABLE_CFE
-#   Type:        bool
-#   Default:     True
-#   Source:      NGENConfig (model_configs.py)
-#   Description: Enable CFE module in NGEN
-ENABLE_CFE: true
+NGEN_MODULES_SELECTED: "SLOTH,PET,CFE"
 
 # NGEN_NOAH_ET_FALLBACK
 #   Type:        str
