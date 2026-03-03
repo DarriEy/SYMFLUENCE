@@ -380,6 +380,15 @@ else
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=ON"
 fi
 
+# Patch FindUDUNITS2.cmake: when UDUNITS2 is built as a static archive
+# (which ngen does internally), the IMPORTED target needs transitive deps
+# (expat, dl, m) — otherwise GNU ld single-pass linking fails.
+if [ -f cmake/FindUDUNITS2.cmake ]; then
+  sed -i '/set_target_properties.*udunits2.*IMPORTED_LOCATION/a\
+    set_target_properties(udunits2 PROPERTIES INTERFACE_LINK_LIBRARIES "expat;dl;m")' cmake/FindUDUNITS2.cmake
+  echo "Patched FindUDUNITS2.cmake with transitive deps for static linking"
+fi
+
 # Configure ngen
 echo "Running CMake with args: $CMAKE_ARGS $CMAKE_LINKER_ARGS"
 if eval cmake $CMAKE_ARGS $CMAKE_LINKER_ARGS -S . -B cmake_build 2>&1 | tee cmake_config.log; then
