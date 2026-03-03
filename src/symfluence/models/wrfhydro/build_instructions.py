@@ -231,14 +231,44 @@ if [ -f "$SRC_DIR/compile_offline_NoahMP.sh" ]; then
     if [ -f "$SRC_DIR/Run/wrf_hydro.exe" ] || [ -f "$SRC_DIR/Run/wrf_hydro_NoahMP.exe" ]; then
         echo "Build succeeded on first pass"
     else
+        # Pass 1's make clean wiped pre-compiled .mod files.
+        # Re-compile MPP and SURFEX modules before pass 2.
+        echo "=== Re-compiling MPP/SURFEX modules for pass 2 ==="
+        if [ -d "$MPP_DIR" ]; then
+            cd "$MPP_DIR"
+            for src in module_mpp_land.F CPL_WRF.F; do
+                [ -f "$src" ] && $MPIFORT -c $MPPFLAGS "$src" 2>&1 || true
+            done
+            cp -f *.mod "$SRC_DIR/mod/" 2>/dev/null || true
+            # Also copy to where Routing Makefiles expect them via relative path
+            for rdir in "$SRC_DIR/Routing/Reservoirs/Level_Pool" \
+                        "$SRC_DIR/Routing/Reservoirs/RFC_Forecasts" \
+                        "$SRC_DIR/Routing/Reservoirs"; do
+                [ -d "$rdir" ] && cp -f *.mod "$rdir/../../MPP/" 2>/dev/null || true
+            done
+            cd "$SRC_DIR"
+        fi
+        if [ -d "$SURFEX_DIR" ]; then
+            cd "$SURFEX_DIR"
+            for src in modd_csts.F modd_snow_par.F modd_snow_metamo.F modd_surf_atm.F \
+                       ini_csts.F mode_thermos.F mode_snow3l.F mode_surf_coefs.F \
+                       module_snowcro.F module_snowcro_intercept.F; do
+                [ -f "$src" ] && $MPIFORT -c $SFFLAGS "$src" 2>&1 || true
+            done
+            cp -f *.mod "$SRC_DIR/Land_models/NoahMP/phys/" 2>/dev/null || true
+            cp -f *.o "$SRC_DIR/Land_models/NoahMP/phys/" 2>/dev/null || true
+            cp -f *.mod "$SRC_DIR/mod/" 2>/dev/null || true
+            cd "$SRC_DIR"
+        fi
+
         # Pass 2: Create a patched compile script that skips `make clean`
-        # so that .mod files from pass 1 persist for dependency resolution
-        echo "=== Compile Pass 2 (with .mod files from pass 1) ==="
+        # so that .mod files from re-compilation persist
+        echo "=== Compile Pass 2 (with .mod files restored) ==="
         cd "$SRC_DIR"
         python3 -c "
 with open('compile_offline_NoahMP.sh') as f:
     content = f.read()
-# Remove make clean line to preserve .mod files from pass 1
+# Remove make clean line to preserve .mod files
 content = content.replace(
     'make clean; rm -f Run/wrf_hydro_NoahMP ; rm -f Run/*TBL ; rm -f Run/*namelist*',
     '# Skipping make clean to preserve .mod files')

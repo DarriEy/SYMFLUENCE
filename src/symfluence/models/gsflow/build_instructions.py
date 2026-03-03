@@ -54,8 +54,8 @@ echo "gfortran version: $(gfortran --version | head -1)"
 GFORT_VER=$(gfortran -dumpversion | cut -d. -f1)
 COMPAT_FLAGS=""
 if [ "$GFORT_VER" -ge 10 ] 2>/dev/null; then
-    COMPAT_FLAGS="-fallow-argument-mismatch"
-    echo "Adding -fallow-argument-mismatch for gfortran >= 10"
+    COMPAT_FLAGS="-fallow-argument-mismatch -ffree-line-length-none -ffixed-line-length-none -Wno-error=line-truncation"
+    echo "Adding gfortran >= 10 compat flags: $COMPAT_FLAGS"
 fi
 
 UNAME_S=$(uname -s)

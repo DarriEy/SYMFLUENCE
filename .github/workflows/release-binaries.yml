@@ -100,7 +100,14 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits m4 libxml2
+          brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits m4 libxml2 flex cpanminus
+
+          # flex needs gm4 (GNU m4) but macOS Sequoia removed /usr/bin/gm4.
+          # Homebrew flex uses the correct path; ensure it's found first.
+          echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
+
+          # CLM/CESM needs Perl XML::LibXML for namelist generation
+          cpanm --notest XML::LibXML 2>/dev/null || true
 
           # Set up Fortran compiler paths
           GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
@@ -135,7 +142,7 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy
+          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy mpi4py mpich gdal boost-cpp proj
 
           echo "CC=gcc" >> $GITHUB_ENV
           echo "CXX=g++" >> $GITHUB_ENV
