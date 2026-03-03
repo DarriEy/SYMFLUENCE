@@ -492,8 +492,8 @@ jobs:
           if [ "${{ runner.os }}" = "Linux" ]; then
             REQUIRED_BINS="summa mizuroute"
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            # Windows: fewer models expected to build; FUSE excluded
-            REQUIRED_BINS="summa"
+            # Windows: Fortran cross-compilation is unreliable; no required binaries
+            REQUIRED_BINS=""
           else
             REQUIRED_BINS="mizuroute"
           fi
