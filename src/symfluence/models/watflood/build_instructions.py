@@ -137,10 +137,9 @@ if [ -f "${SRC_DIR}/model/CHARM.f90" ]; then
 fi
 
 # Fix stray trailing quotes exposed by -ffixed-line-length-none
-for f in "${SRC_DIR}/model/write_tb0.f" "${SRC_DIR}/model/write_diversion_tb0.f" "${SRC_DIR}/model/lst.f"; do
-    if [ -f "$f" ]; then
-        perl -pi -e "s/^(.{72,})'\s*$/\$1 /" "$f"
-    fi
+# Files may be in model/ or common/ depending on repo version.
+find "${SRC_DIR}" \( -name "write_tb0.f" -o -name "write_diversion_tb0.f" -o -name "lst.f" \) | while read -r f; do
+    perl -pi -e "s/^(.{72,})'\s*$/\$1 /" "$f"
 done
 
 # Fix EF_Module.f: CountDataLinesAfterHeader is placed after END MODULE
@@ -188,10 +187,9 @@ done
 #   source_file_name   '   ->   source_file_name , '
 # write_diversion_tb0.f line 87 has: ,source_file_name   '
 # which is missing a comma before the trailing string literal.
-for f in "${SRC_DIR}/model/write_diversion_tb0.f" "${SRC_DIR}/model/write_tb0.f"; do
-    if [ -f "$f" ]; then
-        perl -pi -e "s/(source_file_name)\s+'/\$1, '/g" "$f"
-    fi
+# The file may be in model/ or common/ depending on the WATFLOOD version.
+find "${SRC_DIR}" -name "write_diversion_tb0.f" -o -name "write_tb0.f" | while read -r f; do
+    perl -pi -e "s/(source_file_name)\s+'/\$1, '/g" "$f"
 done
 
 # === Create compatibility source files ===
