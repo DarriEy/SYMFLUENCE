@@ -189,7 +189,8 @@ jobs:
           echo "Python version: $($PYTHON_CMD --version)"
 
           # Install GDAL Python bindings (needed when gdal-config is available)
-          if command -v gdal-config >/dev/null 2>&1; then
+          # Skip on Windows — conda's gdal-config is a batch file, not bash-compatible
+          if [ "${{ runner.os }}" != "Windows" ] && command -v gdal-config >/dev/null 2>&1; then
             echo "Installing GDAL Python bindings..."
             GDAL_VERSION=$(gdal-config --version)
             # Use strict version range to match system libgdal precisely
