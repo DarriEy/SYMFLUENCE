@@ -333,13 +333,13 @@ print_info "Staging WMFire..."
 
 WMFIRE_DIR="$INSTALLS_DIR/wmfire"
 if [ -d "$WMFIRE_DIR" ]; then
-    # WMFire is a shared library, but we'll stage it for completeness
+    # WMFire is a shared library — stage to lib/ so @rpath resolution works
     if [ "$(uname)" = "Darwin" ] && [ -f "$WMFIRE_DIR/lib/libwmfire.dylib" ]; then
-        stage_binary "$WMFIRE_DIR/lib/libwmfire.dylib" "libwmfire.dylib" "WMFire"
+        stage_library "$WMFIRE_DIR/lib/libwmfire.dylib" "libwmfire.dylib" "WMFire"
     elif [ -f "$WMFIRE_DIR/lib/libwmfire.dll" ]; then
-        stage_binary "$WMFIRE_DIR/lib/libwmfire.dll" "libwmfire.dll" "WMFire"
+        stage_library "$WMFIRE_DIR/lib/libwmfire.dll" "libwmfire.dll" "WMFire"
     elif [ -f "$WMFIRE_DIR/lib/libwmfire.so" ]; then
-        stage_binary "$WMFIRE_DIR/lib/libwmfire.so" "libwmfire.so" "WMFire"
+        stage_library "$WMFIRE_DIR/lib/libwmfire.so" "libwmfire.so" "WMFire"
     else
         print_warning "WMFire binary not found (may not be built yet)"
     fi
