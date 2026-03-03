@@ -5,11 +5,14 @@ on:
   push:
     tags:
       - 'v[0-9]*'
+  # Weekly rebuild to keep binaries fresh (Sundays at 04:00 UTC)
+  schedule:
+    - cron: '0 4 * * 0'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g., v0.7.0)'
-        required: true
+        description: 'Release tag (e.g., v0.7.0). Leave empty to rebuild latest release.'
+        required: false
         type: string
 
 defaults:
@@ -259,11 +262,13 @@ jobs:
           set -e
           chmod +x ./scripts/create_release_tarball.sh
 
-          # Get version from tag or input
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Get version from tag, manual input, or latest git tag
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
             VERSION="${{ github.event.inputs.tag }}"
-          else
+          elif [[ "${{ github.ref_name }}" == v* ]]; then
             VERSION="${{ github.ref_name }}"
+          else
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
           fi
 
           ./scripts/create_release_tarball.sh \
@@ -313,10 +318,22 @@ jobs:
       # ========================================================================
       # Upload to GitHub Release
       # ========================================================================
+      - name: Resolve release tag
+        id: resolve-tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload to Release
+        if: steps.resolve-tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ steps.resolve-tag.outputs.tag }}
           files: |
             release/symfluence-tools-*.tar.gz
             release/symfluence-tools-*.sha256
@@ -355,18 +372,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Verify package version matches release tag
+        if: github.event_name == 'push'
         working-directory: npm
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-
-          # Remove 'v' prefix from tag
+          TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-
-          # Get version from package.json
           PKG_VERSION=$(node -p "require('./package.json').version")
 
           echo "Release tag: $TAG"
@@ -374,24 +384,18 @@ jobs:
           echo "Package.json version: $PKG_VERSION"
 
           if [ "$VERSION" != "$PKG_VERSION" ]; then
-            echo "❌ Version mismatch!"
-            echo "   package.json has $PKG_VERSION but release tag is $TAG"
-            echo "   Update tools/npm/package.json to version $VERSION and try again"
+            echo "Version mismatch! package.json=$PKG_VERSION tag=$TAG"
+            echo "Update npm/package.json to version $VERSION and try again"
             exit 1
           fi
-
-          echo "✅ Version check passed: $VERSION"
+          echo "Version check passed: $VERSION"
 
       - name: Publish to npm (dry run)
         if: github.event_name == 'workflow_dispatch'
         working-directory: npm
         run: |
-          echo "🏃 Running npm publish in dry-run mode (workflow_dispatch)"
+          echo "Running npm publish in dry-run mode (workflow_dispatch)"
           npm publish --dry-run
-          echo ""
-          echo "ℹ️  This was a dry run. To actually publish:"
-          echo "   1. Ensure NPM_TOKEN is set in repository secrets"
-          echo "   2. Create a release (not workflow_dispatch)"
 
       - name: Check if version already published
         if: github.event_name == 'push'
@@ -415,6 +419,10 @@ jobs:
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Skip npm publish (scheduled rebuild)
+        if: github.event_name == 'schedule'
+        run: echo "Scheduled rebuild — skipping npm publish (binaries updated on GitHub Release only)"
 
   # ===========================================================================
   # Test npm Installation
@@ -456,16 +464,22 @@ jobs:
 
       - name: Install symfluence from npm
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
             TAG="${{ github.event.inputs.tag }}"
-          else
+          elif [[ "${{ github.ref_name }}" == v* ]]; then
             TAG="${{ github.ref_name }}"
+          else
+            TAG=""
           fi
 
-          VERSION="${TAG#v}"
-
-          echo "Installing symfluence@${VERSION} from npm..."
-          npm install -g symfluence@${VERSION}
+          if [ -n "$TAG" ]; then
+            VERSION="${TAG#v}"
+            echo "Installing symfluence@${VERSION} from npm..."
+            npm install -g "symfluence@${VERSION}"
+          else
+            echo "Installing latest symfluence from npm..."
+            npm install -g symfluence
+          fi
 
       - name: Test CLI commands
         run: |
@@ -587,10 +601,12 @@ jobs:
             echo ""
             echo "Release artifacts uploaded to:"
 
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.tag }}" ]; then
               TAG="${{ github.event.inputs.tag }}"
-            else
+            elif [[ "${{ github.ref_name }}" == v* ]]; then
               TAG="${{ github.ref_name }}"
+            else
+              TAG="latest"
             fi
 
             echo "https://github.com/${{ github.repository }}/releases/tag/${TAG}"
