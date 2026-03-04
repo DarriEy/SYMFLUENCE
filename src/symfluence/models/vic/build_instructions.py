@@ -229,13 +229,18 @@ if [ "$UNAME_S" = "Darwin" ]; then
 elif echo "$UNAME_S" | grep -qE "^(MSYS|MINGW|CYGWIN)"; then
     echo "Windows/MSYS2 detected - configuring for MinGW + MS-MPI..."
 
-    # mpicc wrapper for MS-MPI
+    # MS-MPI does not ship an mpicc wrapper.  If mpicc is available (e.g. from
+    # conda-forge openmpi), use it; otherwise fall back to gcc with MS-MPI flags.
     if command -v mpicc >/dev/null 2>&1; then
         export MPICC="mpicc"
         echo "Found MPI compiler: $MPICC"
     else
-        echo "ERROR: mpicc not found. MS-MPI must be installed."
-        exit 1
+        echo "No mpicc found — using gcc with MS-MPI flags..."
+        export MPICC="gcc"
+        _MSMPI_INC="${MSMPI_INC:-/c/Program Files (x86)/Microsoft SDKs/MPI/Include}"
+        _MSMPI_LIB="${MSMPI_LIB64:-/c/Program Files (x86)/Microsoft SDKs/MPI/Lib/x64}"
+        export CFLAGS="${CFLAGS:-} -I\"${_MSMPI_INC}\""
+        export LDFLAGS="${LDFLAGS:-} -L\"${_MSMPI_LIB}\" -lmsmpi"
     fi
 
     # nc-config is broken on Windows (MSVC paths in bash script), use direct paths
@@ -244,7 +249,7 @@ elif echo "$UNAME_S" | grep -qE "^(MSYS|MINGW|CYGWIN)"; then
 
     # Disable OpenMP on MinGW - MS-MPI already provides parallelism
     # and OpenMP with MPI on MinGW can cause issues
-    sed -i 's/-fopenmp//g' Makefile
+    sed -i.bak 's/-fopenmp//g' Makefile && rm -f Makefile.bak
 else
     # Linux - use mpicc if available
     if command -v mpicc >/dev/null 2>&1; then

@@ -86,6 +86,36 @@ pytest-cov = ">=4.0"
 pytest-timeout = ">=2.0"
 hypothesis = ">=6.0"
 
+# Build feature — CI uses this to compile external hydrological models.
+# Provides compilers, build tools, and libraries needed by the model
+# build_instructions.py scripts.
+[feature.build.dependencies]
+fortran-compiler = "*"
+c-compiler = "*"
+cxx-compiler = "*"
+cmake = "*"
+make = "*"
+netcdf-fortran = "*"
+hdf5 = ">=1.14"
+openblas = "*"
+udunits2 = "*"
+boost-cpp = "*"
+proj = "*"
+expat = "*"
+libxml2 = "*"
+m4 = "*"
+flex = "*"
+perl = "*"
+meson = "*"
+
+[feature.build.target.linux-64.dependencies]
+openmpi = "*"
+patchelf = "*"
+
+[feature.build.target.osx-arm64.dependencies]
+openmpi = "*"
+
 [environments]
 default = { features = [], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+build = { features = ["build"], solve-group = "default" }

@@ -516,6 +516,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Export NetCDF paths so PIO's CMake can find NetCDF C/Fortran libraries.
+# CIME injects these into XML but PIO's CMakeLists.txt needs them as env vars
+# or in CMAKE_PREFIX_PATH for find_package(NetCDF) to work.
+if [ -n "${NETCDF_C:-}" ]; then
+  export NetCDF_C_PATH="${NETCDF_C}"
+  export CMAKE_PREFIX_PATH="${NETCDF_C}:${NETCDF_FORTRAN:-$NETCDF_C}:${CMAKE_PREFIX_PATH:-}"
+  echo "Exported NetCDF_C_PATH=$NETCDF_C for PIO CMake discovery"
+fi
+
 # Build (CIME case.build uses GMAKE_J for parallelism, not --parallel)
 echo "Running case.build..."
 NCORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
