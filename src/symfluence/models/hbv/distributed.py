@@ -701,6 +701,11 @@ class DistributedHBV:
 
         sim = outlet_flow[warmup_timesteps:]
         obs_eval = obs[warmup_timesteps:]
+        valid_mask = xp.isfinite(sim) & xp.isfinite(obs_eval)
+        sim = sim[valid_mask]
+        obs_eval = obs_eval[valid_mask]
+        if sim.size < 2:
+            return float("inf")
 
         if metric.lower() == 'nse':
             ss_res = xp.sum((sim - obs_eval) ** 2)
@@ -1061,7 +1066,7 @@ def calibrate_distributed_hbv_adam(
         result = _calibrate_two_phase(
             model, precip_jax, temp_jax, pet_jax, obs_jax,
             param_names, bounds, warmup_timesteps, loss_weights,
-            grad_clip, patience, ema_decay, lr_max, lr_min, verbose
+            grad_clip, patience, ema_decay, lr_max, lr_min, n_iterations, verbose
         )
     else:
         result = _calibrate_single_phase(
@@ -1228,6 +1233,7 @@ def _calibrate_two_phase(
     ema_decay: float,
     lr_max: float,
     lr_min: float,
+    n_iterations: int,
     verbose: bool
 ) -> 'CalibrationResult':
     """
@@ -1286,7 +1292,7 @@ def _calibrate_two_phase(
     no_improve = 0
     patience_p1 = 80
 
-    n_iter_p1 = 200
+    n_iter_p1 = max(1, int(round(n_iterations * 0.4)))
 
     for i in range(n_iter_p1):
         lr = scheduler.get_lr(i)
@@ -1353,7 +1359,7 @@ def _calibrate_two_phase(
     no_improve = 0
     patience_p2 = patience
 
-    n_iter_p2 = 300
+    n_iter_p2 = max(1, n_iterations - n_iter_p1)
 
     for i in range(n_iter_p2):
         # Cosine decay (no restarts)
@@ -1462,20 +1468,21 @@ def _create_composite_loss(
         sim = outlet_flow[warmup_timesteps:]
         obs_eval = obs[warmup_timesteps:]
 
-        valid_mask = ~jnp.isnan(obs_eval)
+        valid_mask = jnp.isfinite(sim) & jnp.isfinite(obs_eval)
         n_valid = jnp.sum(valid_mask)
+        safe_n_valid = jnp.maximum(n_valid, 1)
 
         # NSE
         ss_res = jnp.sum(jnp.where(valid_mask, (sim - obs_eval) ** 2, 0.0))
-        obs_mean = jnp.sum(jnp.where(valid_mask, obs_eval, 0.0)) / n_valid
+        obs_mean = jnp.sum(jnp.where(valid_mask, obs_eval, 0.0)) / safe_n_valid
         ss_tot = jnp.sum(jnp.where(valid_mask, (obs_eval - obs_mean) ** 2, 0.0))
         nse = 1.0 - ss_res / (ss_tot + 1e-10)
 
         # Log-NSE
-        sim_log = jnp.log(sim + eps)
-        obs_log = jnp.log(obs_eval + eps)
+        sim_log = jnp.log(jnp.maximum(sim, eps))
+        obs_log = jnp.log(jnp.maximum(obs_eval, eps))
         ss_res_log = jnp.sum(jnp.where(valid_mask, (sim_log - obs_log) ** 2, 0.0))
-        obs_log_mean = jnp.sum(jnp.where(valid_mask, obs_log, 0.0)) / n_valid
+        obs_log_mean = jnp.sum(jnp.where(valid_mask, obs_log, 0.0)) / safe_n_valid
         ss_tot_log = jnp.sum(jnp.where(valid_mask, (obs_log - obs_log_mean) ** 2, 0.0))
         nse_log = 1.0 - ss_res_log / (ss_tot_log + 1e-10)
 
