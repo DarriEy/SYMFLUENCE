@@ -65,11 +65,8 @@ class TestParFlowReadOutputs:
             wraps=comp.read_outputs
         ):
             with patch.dict('sys.modules', {'symfluence.models.parflow.extractor': None}):
-                result = comp.read_outputs(tmp_path)
-
-        assert "baseflow" in result
-        # Should return zeros fallback on import error
-        assert result["baseflow"].shape == (1,)
+                with pytest.raises(RuntimeError, match="Failed to read ParFlow outputs"):
+                    comp.read_outputs(tmp_path)
 
 
 class TestMODFLOWReadOutputs:
@@ -107,10 +104,8 @@ class TestMODFLOWReadOutputs:
             'symfluence.models.modflow.extractor.MODFLOWResultExtractor',
             side_effect=Exception("No output files")
         ):
-            result = comp.read_outputs(tmp_path)
-
-        assert "drain_discharge" in result
-        assert result["drain_discharge"].shape == (1,)
+            with pytest.raises(RuntimeError, match="Failed to read MODFLOW outputs"):
+                comp.read_outputs(tmp_path)
 
 
 class TestMESHReadOutputs:
@@ -240,7 +235,25 @@ class TestCLMReadOutputs:
             'symfluence.models.clm.extractor.CLMResultExtractor',
             side_effect=Exception("No history files")
         ):
-            result = comp.read_outputs(tmp_path)
+            with pytest.raises(RuntimeError, match="Failed to read CLM outputs"):
+                comp.read_outputs(tmp_path)
 
-        assert result["runoff"].shape == (1,)
-        assert result["evapotranspiration"].shape == (1,)
+
+class TestTRouteReadOutputs:
+    """Test t-route adapter error handling for missing discharge variables."""
+
+    def test_read_outputs_raises_when_no_supported_discharge_variable(self, tmp_path):
+        from symfluence.coupling.adapters.process_adapters import TRouteProcessComponent
+
+        comp = TRouteProcessComponent("troute", config={
+            "EXPERIMENT_OUTPUT_TROUTE": str(tmp_path),
+        })
+        (tmp_path / "troute_output.nc").write_text("placeholder")
+
+        class _DummyDS(dict):
+            def close(self):
+                return None
+
+        with patch("xarray.open_dataset", return_value=_DummyDS({"unknown": np.array([1.0], dtype=np.float32)})):
+            with pytest.raises(RuntimeError, match="Failed to read t-route outputs"):
+                comp.read_outputs(tmp_path)

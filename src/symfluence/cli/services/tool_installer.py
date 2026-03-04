@@ -572,6 +572,7 @@ class ToolInstaller(BaseService):
                 # Check required tools
                 if tool_info.get("requires"):
                     required_tools = tool_info.get("requires", [])
+                    missing_required_tool = False
                     for req_tool in required_tools:
                         req_tool_info = self.external_tools.get(req_tool, {})
                         req_tool_dir = install_base_dir / req_tool_info.get(
@@ -584,7 +585,10 @@ class ToolInstaller(BaseService):
                             self._console.error(error_msg)
                             installation_results["errors"].append(error_msg)
                             installation_results["failed"].append(tool_name)
-                            continue
+                            missing_required_tool = True
+                            break
+                    if missing_required_tool:
+                        continue
 
                 # Run build commands
                 if tool_info.get("build_commands"):
@@ -601,7 +605,17 @@ class ToolInstaller(BaseService):
                     installation_results["successful"].append(tool_name)
 
                 # Verify installation
-                self._verify_installation(tool_name, tool_info, tool_install_dir)
+                verified = self._verify_installation(tool_name, tool_info, tool_install_dir)
+                if not verified:
+                    installation_results["errors"].append(
+                        f"{tool_name}: installation verification failed"
+                    )
+                    if tool_name in installation_results["successful"]:
+                        installation_results["successful"] = [
+                            t for t in installation_results["successful"] if t != tool_name
+                        ]
+                    if tool_name not in installation_results["failed"]:
+                        installation_results["failed"].append(tool_name)
 
             except subprocess.CalledProcessError as e:
                 if repository_url:
