@@ -97,10 +97,7 @@ class SUMMAProcessComponent(ProcessComponent):
             return {"runoff": runoff, "soil_drainage": drainage}
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read SUMMA outputs: {e}")
-            return {
-                "runoff": torch.zeros(1),
-                "soil_drainage": torch.zeros(1),
-            }
+            raise RuntimeError("Failed to read SUMMA outputs") from e
 
 
 class MizuRouteProcessComponent(ProcessComponent):
@@ -171,7 +168,7 @@ class MizuRouteProcessComponent(ProcessComponent):
             return {"discharge": discharge}
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read mizuRoute outputs: {e}")
-            return {"discharge": torch.zeros(1)}
+            raise RuntimeError("Failed to read mizuRoute outputs") from e
 
 
 class ParFlowProcessComponent(ProcessComponent):
@@ -254,7 +251,7 @@ class ParFlowProcessComponent(ProcessComponent):
             )}
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read ParFlow outputs: {e}")
-            return {"baseflow": torch.zeros(1)}
+            raise RuntimeError("Failed to read ParFlow outputs") from e
 
 
 class MODFLOWProcessComponent(ProcessComponent):
@@ -336,7 +333,7 @@ class MODFLOWProcessComponent(ProcessComponent):
             )}
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read MODFLOW outputs: {e}")
-            return {"drain_discharge": torch.zeros(1)}
+            raise RuntimeError("Failed to read MODFLOW outputs") from e
 
 
 class MESHProcessComponent(ProcessComponent):
@@ -410,7 +407,7 @@ class MESHProcessComponent(ProcessComponent):
             )}
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read MESH outputs: {e}")
-            return {"discharge": torch.zeros(1)}
+            raise RuntimeError("Failed to read MESH outputs") from e
 
 
 class TRouteProcessComponent(ProcessComponent):
@@ -485,10 +482,13 @@ class TRouteProcessComponent(ProcessComponent):
                     ds.close()
                     return {"discharge": discharge}
             ds.close()
-            return {"discharge": torch.zeros(1)}
+            raise KeyError(
+                "No supported discharge variable found in t-route output "
+                "(expected one of flow, streamflow, discharge, q_lateral)"
+            )
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read t-route outputs: {e}")
-            return {"discharge": torch.zeros(1)}
+            raise RuntimeError("Failed to read t-route outputs") from e
 
 
 class CLMProcessComponent(ProcessComponent):
@@ -578,7 +578,4 @@ class CLMProcessComponent(ProcessComponent):
             }
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Failed to read CLM outputs: {e}")
-            return {
-                "runoff": torch.zeros(1),
-                "evapotranspiration": torch.zeros(1),
-            }
+            raise RuntimeError("Failed to read CLM outputs") from e
