@@ -9,9 +9,10 @@ Tests cover:
 5. End-to-end simulation accuracy
 """
 
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch
 
 # Check JAX availability
 try:
