@@ -151,28 +151,32 @@ if [ -f "$EF_MOD" ]; then
 import re
 with open('$EF_MOD') as f:
     txt = f.read()
-if 'CountDataLinesAfterHeader' in txt:
-    # Find END MODULE and everything after it
+if 'CountDataLinesAfterHeader' not in txt:
+    print('  EF_Module.f: no CountDataLinesAfterHeader found')
+else:
+    # Case 1: function is after END MODULE -> extract to separate file
     m = re.search(r'^(\s*END\s+MODULE\s+\w+\s*\n)(.*)', txt, re.DOTALL | re.MULTILINE | re.IGNORECASE)
     if m:
         end_mod = m.group(1)
         after = m.group(2).strip()
-        if after:
-            # Write the trailing function(s) to a separate file
+        if after and 'CountDataLinesAfterHeader' in after:
             with open('${SRC_DIR}/common/EF_Extra.f90', 'w') as ef:
                 ef.write('! Extracted from EF_Module.f for gfortran compatibility\n')
                 ef.write(after + '\n')
-            # Remove the trailing code from the original file
             txt = txt[:m.start()] + end_mod
             with open('$EF_MOD', 'w') as f:
                 f.write(txt)
             print('  EF_Module.f: extracted trailing function to EF_Extra.f90')
+        elif 'CONTAINS' in txt.upper():
+            # Case 2: function is inside CONTAINS section — valid Fortran,
+            # no extraction needed.  It will see eof via host association.
+            print('  EF_Module.f: CountDataLinesAfterHeader is in CONTAINS (valid)')
         else:
             print('  EF_Module.f: no trailing code after END MODULE')
+    elif 'CONTAINS' in txt.upper():
+        print('  EF_Module.f: CountDataLinesAfterHeader is in CONTAINS (valid)')
     else:
         print('  EF_Module.f: no END MODULE found')
-else:
-    print('  EF_Module.f: no CountDataLinesAfterHeader found')
 " 2>/dev/null || echo "  WARNING: EF_Module.f patch failed (non-fatal)"
 fi
 
@@ -183,13 +187,11 @@ find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
     perl -pi -e "s/write\(([^)]+)\)'/write(\$1) '/gi" "$f"
 done
 
-# Fix missing comma in WRITE continuation:
-#   source_file_name   '   ->   source_file_name , '
-# write_diversion_tb0.f line 87 has: ,source_file_name   '
-# which is missing a comma before the trailing string literal.
-# The file may be in model/ or common/ depending on the WATFLOOD version.
+# Fix concatenated WRITE statements in write_diversion_tb0.f / write_tb0.f:
+# Two WRITE statements are run together on one line after source_file_name.
+# Split them so each WRITE is on its own line (continuation-safe).
 find "${SRC_DIR}" -name "write_diversion_tb0.f" -o -name "write_tb0.f" | while read -r f; do
-    perl -pi -e "s/(source_file_name)\s+'/\$1, '/g" "$f"
+    perl -pi -e 's/(source_file_name)\s+(write\s*\()/\1\n      \2/gi' "$f"
 done
 
 # === Create compatibility source files ===
@@ -246,8 +248,34 @@ if ! grep -q "eof_compat" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
 fi
 
 # === Add eof external declaration to EF_Module.f ===
-if ! grep -q "logical, external :: eof" "${SRC_DIR}/common/EF_Module.f" 2>/dev/null; then
-    perl -pi -e 's/(INTEGER FUNCTION CountDataLinesAfterHeader)/\1\n      logical, external :: eof/' "${SRC_DIR}/common/EF_Module.f"
+# Only inject 'logical, external :: eof' if CountDataLinesAfterHeader is
+# OUTSIDE the module (after END MODULE).  If it's inside a CONTAINS section,
+# eof is visible via host association from area_watflood and the external
+# declaration is invalid inside a module procedure.
+if [ -f "${SRC_DIR}/common/EF_Module.f" ] && ! grep -q "logical, external :: eof" "${SRC_DIR}/common/EF_Module.f" 2>/dev/null; then
+    python3 -c "
+import re
+with open('${SRC_DIR}/common/EF_Module.f') as f:
+    txt = f.read()
+# Check if CountDataLinesAfterHeader exists at all
+if 'CountDataLinesAfterHeader' not in txt:
+    exit(0)
+# Find END MODULE position and CountDataLinesAfterHeader position
+end_mod = re.search(r'END\s+MODULE', txt, re.IGNORECASE)
+func_pos = txt.find('CountDataLinesAfterHeader')
+if end_mod and func_pos > end_mod.start():
+    # Function is AFTER END MODULE (extracted to EF_Extra.f90 or standalone)
+    # Safe to inject external declaration
+    txt = txt.replace(
+        'INTEGER FUNCTION CountDataLinesAfterHeader',
+        'INTEGER FUNCTION CountDataLinesAfterHeader\n      logical, external :: eof'
+    )
+    with open('${SRC_DIR}/common/EF_Module.f', 'w') as f:
+        f.write(txt)
+    print('  Injected eof external declaration (function after END MODULE)')
+else:
+    print('  CountDataLinesAfterHeader is inside CONTAINS — skipping eof injection (host association)')
+" 2>/dev/null || echo "  WARNING: EF_Module.f eof injection failed (non-fatal)"
 fi
 
 # === Fix read_par_parser.f90 eof() usage ===

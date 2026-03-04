@@ -194,13 +194,13 @@ case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
         echo "Patching CMakeLists.txt for Windows/MSYS2 build..."
         # Allow Windows platform (upstream blocks WIN32)
-        sed -i 's/message(FATAL_ERROR "Windows platforms are not currently supported")/set(NGEN_SHARED_LIB_EXTENSION "dll")/' CMakeLists.txt
+        sed -i.bak 's/message(FATAL_ERROR "Windows platforms are not currently supported")/set(NGEN_SHARED_LIB_EXTENSION "dll")/' CMakeLists.txt && rm -f CMakeLists.txt.bak
         # Fix ngen_multiline_message: backslashes in Windows paths cause CMake
         # string parse errors. Replace with a simple message() call.
-        sed -i '/macro(ngen_multiline_message/,/endmacro/c\macro(ngen_multiline_message)\n    message(STATUS "NGen configuration complete")\nendmacro()' CMakeLists.txt
+        sed -i.bak '/macro(ngen_multiline_message/,/endmacro/c\macro(ngen_multiline_message)\n    message(STATUS "NGen configuration complete")\nendmacro()' CMakeLists.txt && rm -f CMakeLists.txt.bak
         # Fix FindUDUNITS2: on Windows, SHARED IMPORTED targets need IMPORTED_IMPLIB
         # The .lib file is the import library; set it as IMPLIB and use the DLL as LOCATION
-        sed -i 's/IMPORTED_LOCATION "${UDUNITS2_LIBRARY}"/IMPORTED_IMPLIB "${UDUNITS2_LIBRARY}"/' cmake/FindUDUNITS2.cmake
+        sed -i.bak 's/IMPORTED_LOCATION "${UDUNITS2_LIBRARY}"/IMPORTED_IMPLIB "${UDUNITS2_LIBRARY}"/' cmake/FindUDUNITS2.cmake && rm -f cmake/FindUDUNITS2.cmake.bak
         # Create a POSIX compat header for functions missing in MinGW (strsep, etc.)
         cat > mingw_posix_compat.h << 'COMPAT_EOF'
 #ifndef MINGW_POSIX_COMPAT_H
@@ -281,7 +281,14 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # CMAKE_EXE_LINKER_FLAGS because UDUNITS2_LIBRARY must be a single path
   # (ngen's FindUDUNITS2.cmake uses it in IMPORTED_LOCATION).
   if echo "$_U2_LIB" | grep -q '\.a$'; then
-    EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm"
+    # On Linux, GNU ld is single-pass: transitive deps (-lexpat -ldl -lm) must
+    # appear AFTER the udunits2 archive.  Use --start-group/--end-group to allow
+    # circular resolution regardless of link order.
+    if [ "$(uname -s)" = "Linux" ]; then
+      EXTRA_LIBS="${EXTRA_LIBS:-} -Wl,--start-group -lexpat -ldl -lm -Wl,--end-group"
+    else
+      EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm"
+    fi
     echo "Static UDUNITS2 detected — adding transitive deps to linker flags"
   fi
 
@@ -378,15 +385,6 @@ else
   CMAKE_ARGS="$CMAKE_ARGS -DPython_EXECUTABLE=$PYTHON_EXE"
   CMAKE_ARGS="$CMAKE_ARGS -DPython3_EXECUTABLE=$PYTHON_EXE"
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=ON"
-fi
-
-# Patch FindUDUNITS2.cmake: when UDUNITS2 is built as a static archive
-# (which ngen does internally), the IMPORTED target needs transitive deps
-# (expat, dl, m) — otherwise GNU ld single-pass linking fails.
-if [ -f cmake/FindUDUNITS2.cmake ]; then
-  sed -i '/set_target_properties.*udunits2.*IMPORTED_LOCATION/a\
-    set_target_properties(udunits2 PROPERTIES INTERFACE_LINK_LIBRARIES "expat;dl;m")' cmake/FindUDUNITS2.cmake
-  echo "Patched FindUDUNITS2.cmake with transitive deps for static linking"
 fi
 
 # Configure ngen
