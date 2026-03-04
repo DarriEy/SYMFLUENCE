@@ -11,6 +11,7 @@ Tests cover:
 
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 # Check JAX availability
 try:
@@ -446,6 +447,30 @@ class TestCalibration:
 
         assert loss < 0, "Loss should be negative (KGE > 0)"
 
+    def test_compute_loss_ignores_nan_observations(self):
+        """Loss computation should be robust to NaNs in observed series."""
+        from symfluence.models.hbv.distributed import DistributedHBV
+        from symfluence.models.hbv.network import create_synthetic_network
+
+        network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=False)
+        model = DistributedHBV(network, timestep_hours=24, warmup_days=0, use_jax=False)
+
+        n_days = 80
+        n_nodes = 3
+        precip = np.random.exponential(5, (n_days, n_nodes))
+        temp = np.full((n_days, n_nodes), 10.0)
+        pet = np.full((n_days, n_nodes), 3.0)
+
+        outlet_flow, _ = model.simulate(precip, temp, pet)
+        obs = outlet_flow.copy()
+        obs[10:15] = np.nan
+
+        loss = model.compute_loss(
+            {}, precip, temp, pet, obs, metric='nse', warmup_timesteps=0
+        )
+
+        assert np.isfinite(loss)
+
     def test_get_loss_function(self):
         """Test loss function creation for scipy.optimize."""
         from symfluence.models.hbv.distributed import DistributedHBV
@@ -565,6 +590,39 @@ class TestEdgeCases:
 
         # Flow should be minimal (precip stored as snow)
         assert np.mean(outlet_flow) < 1.0  # Low flow
+
+
+@pytest.mark.skipif(not HAS_JAX, reason="JAX not available")
+def test_calibrate_distributed_hbv_adam_passes_n_iterations_to_two_phase():
+    """Two-phase Adam calibration should honor the n_iterations argument."""
+    from symfluence.models.hbv import distributed as distributed_mod
+    from symfluence.models.hbv.network import create_synthetic_network
+
+    network = create_synthetic_network(n_nodes=3, topology='linear', use_jax=True)
+    model = distributed_mod.DistributedHBV(
+        network, timestep_hours=24, warmup_days=0, use_jax=True
+    )
+
+    n_days = 20
+    precip = np.ones((n_days, 3), dtype=np.float32)
+    temp = np.ones((n_days, 3), dtype=np.float32) * 10.0
+    pet = np.ones((n_days, 3), dtype=np.float32) * 3.0
+    obs = np.ones(n_days, dtype=np.float32)
+
+    with patch.object(distributed_mod, "_calibrate_two_phase", return_value="ok") as mock_two_phase:
+        result = distributed_mod.calibrate_distributed_hbv_adam(
+            model,
+            precip,
+            temp,
+            pet,
+            obs,
+            n_iterations=123,
+            two_phase=True,
+            verbose=False,
+        )
+
+    assert result == "ok"
+    assert mock_two_phase.call_args[0][14] == 123
 
 
 if __name__ == '__main__':
