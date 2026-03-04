@@ -83,6 +83,7 @@ jobs:
       TZ: UTC
       CI: "1"
       NONINTERACTIVE: "1"
+      SYMFLUENCE_SKIP_PIXI: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
       SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
