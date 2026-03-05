@@ -1356,6 +1356,13 @@ main() {
             try_pixi_install "$symfluence_dir" || true
         fi
 
+        # Clear PYTHONPATH early to isolate ANY managed environment (pixi or venv)
+        # from system packages (e.g. Spack modules injecting wrong-version numpy)
+        if [[ -n "${PYTHONPATH:-}" ]]; then
+            print_warning "Clearing PYTHONPATH to isolate environment (was: $PYTHONPATH)"
+            export PYTHONPATH=""
+        fi
+
         if [[ "$PIXI_ACTIVE" == "true" ]]; then
             # Pixi handled Python + native deps — set python_cmd and skip to tools
             python_cmd="$PIXI_PYTHON"
@@ -1403,11 +1410,7 @@ main() {
             VENV_BIN_PATH="${venv_path}/${VENV_BIN}"
         fi
 
-        # Clear PYTHONPATH to isolate environment
-        if [[ -n "$PYTHONPATH" ]]; then
-            print_warning "Clearing PYTHONPATH to isolate environment"
-            export PYTHONPATH=""
-        fi
+        # PYTHONPATH already cleared above (before pixi/venv branch)
 
         if [[ "$IS_2I2C_ENVIRONMENT" != "true" ]]; then
             # Make clearing persistent for future activations (pip venv only)
