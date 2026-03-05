@@ -12,7 +12,7 @@ def load_pyproject(path: Path) -> dict:
     try:
         import tomllib  # Python 3.11+
     except ModuleNotFoundError:  # pragma: no cover - fallback for older runtimes
-        import tomli as tomllib  # type: ignore
+        import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
     return tomllib.loads(path.read_text(encoding="utf-8"))
 
