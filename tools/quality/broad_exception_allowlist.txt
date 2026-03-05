@@ -601,7 +601,7 @@ src/symfluence/models/clmparflow/postprocessor.py:123:except Exception:  # noqa:
 src/symfluence/models/clmparflow/postprocessor.py:126:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/clmparflow/preprocessor.py:135:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/clmparflow/preprocessor.py:311:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/clmparflow/runner.py:84:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/clmparflow/runner.py:85:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/crhm/calibration/optimizer.py:156:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/crhm/calibration/parameter_manager.py:172:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/crhm/calibration/parameter_manager.py:222:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -944,8 +944,8 @@ src/symfluence/models/ngen/calibration/worker.py:441:except Exception as e:  # n
 src/symfluence/models/ngen/plotter.py:77:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/postprocessor.py:135:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/postprocessor.py:226:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/ngen/preprocessor.py:1152:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/ngen/preprocessor.py:993:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/ngen/preprocessor.py:1036:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/ngen/preprocessor.py:1195:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/runner.py:1107:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/runner.py:420:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/runner.py:504:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -975,7 +975,7 @@ src/symfluence/models/parflow/postprocessor.py:270:except Exception as e:  # noq
 src/symfluence/models/parflow/postprocessor.py:290:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/preprocessor.py:110:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/preprocessor.py:306:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/parflow/runner.py:86:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/parflow/runner.py:87:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/pihm/calibration/parameter_manager.py:197:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/targets.py:109:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/worker.py:176:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1202,11 +1202,11 @@ src/symfluence/models/wrfhydro/calibration/worker.py:206:except Exception as e: 
 src/symfluence/models/wrfhydro/calibration/worker.py:287:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/wrfhydro/calibration/worker.py:349:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/wrfhydro/calibration/worker.py:377:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/wrfhydro/calibration/worker.py:504:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/wrfhydro/calibration/worker.py:634:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/wrfhydro/calibration/worker.py:674:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/wrfhydro/calibration/worker.py:737:except Exception:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/wrfhydro/calibration/worker.py:811:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/wrfhydro/calibration/worker.py:505:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/wrfhydro/calibration/worker.py:635:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/wrfhydro/calibration/worker.py:675:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/wrfhydro/calibration/worker.py:738:except Exception:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/wrfhydro/calibration/worker.py:812:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/wrfhydro/extractor.py:143:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/wrfhydro/extractor.py:230:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/postprocessor.py:117:except Exception:  # noqa: BLE001 — model execution resilience
