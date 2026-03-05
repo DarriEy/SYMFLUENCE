@@ -396,8 +396,8 @@ class BinaryCommands(BaseCommand):
 
             if sys.platform != "win32":
                 try:
-                    import pty as _pty
                     import os as _os
+                    import pty as _pty
                     pty_master_fd, pty_slave_fd = _pty.openpty()
                     stdout_target = pty_slave_fd
                 except (OSError, ImportError):
