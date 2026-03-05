@@ -47,13 +47,13 @@ src/symfluence/cli/external_tools_config.py:431:except Exception:  # noqa: BLE00
 src/symfluence/cli/external_tools_config.py:436:except Exception as exc:  # noqa: BLE001
 src/symfluence/cli/preset_registry.py:163:except Exception:  # noqa: BLE001
 src/symfluence/cli/preset_registry.py:173:except Exception:  # noqa: BLE001
-src/symfluence/cli/services/tool_installer.py:1003:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:1030:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:1056:except Exception:  # noqa: BLE001 — top-level fallback
+src/symfluence/cli/services/tool_installer.py:1013:except Exception:  # noqa: BLE001 — top-level fallback
+src/symfluence/cli/services/tool_installer.py:1040:except Exception:  # noqa: BLE001 — top-level fallback
+src/symfluence/cli/services/tool_installer.py:1066:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_installer.py:214:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_installer.py:629:except Exception as e:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:843:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:882:except Exception as e:  # noqa: BLE001 — top-level fallback
+src/symfluence/cli/services/tool_installer.py:853:except Exception:  # noqa: BLE001 — top-level fallback
+src/symfluence/cli/services/tool_installer.py:892:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_validator.py:150:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_validator.py:431:except Exception as test_error:  # noqa: BLE001 — top-level fallback
 src/symfluence/core/_bootstrap.py:172:except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework

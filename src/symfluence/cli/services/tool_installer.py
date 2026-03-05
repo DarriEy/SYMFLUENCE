@@ -662,24 +662,34 @@ class ToolInstaller(BaseService):
         """
         if repository_url:
             self._console.indent(f"Cloning from: {repository_url}")
+            # Use shallow clone unless a specific commit hash is needed
+            shallow = git_hash is None
             if branch:
                 self._console.indent(f"Checking out branch: {branch}")
                 clone_cmd = [
                     "git",
                     "clone",
+                    *(["--depth", "1"] if shallow else []),
                     "-b",
                     branch,
                     repository_url,
                     str(target_dir),
                 ]
             else:
-                clone_cmd = ["git", "clone", repository_url, str(target_dir)]
+                clone_cmd = [
+                    "git",
+                    "clone",
+                    *(["--depth", "1"] if shallow else []),
+                    repository_url,
+                    str(target_dir),
+                ]
 
             subprocess.run(
                 clone_cmd,
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=600,  # 10-minute timeout to prevent hanging clones
                 env=self._get_clean_build_env(),
             )
             self._console.success("Clone successful")
