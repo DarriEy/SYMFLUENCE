@@ -14,10 +14,9 @@ does not fail CI, while any newly introduced occurrences do.
 from __future__ import annotations
 
 import argparse
-import sys
 import ast
+import sys
 from pathlib import Path
-
 
 DEFAULT_SCAN_ROOT = Path("src/symfluence")
 DEFAULT_ALLOWLIST = Path("tools/quality/broad_exception_allowlist.txt")

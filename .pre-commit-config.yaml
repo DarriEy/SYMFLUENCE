@@ -3,7 +3,7 @@
 # Run manually: pre-commit run --all-files
 
 default_language_version:
-  python: python3.11
+  python: python3
 
 repos:
   # General file hygiene
