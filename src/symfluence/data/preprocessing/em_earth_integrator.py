@@ -451,6 +451,7 @@ class EMEarthIntegrator(ConfigMixin):
                 return
 
             em_combined = xr.concat(em_datasets, dim='time')
+            em_combined = em_combined.sortby('time')
             em_combined = em_combined.sel(time=slice(start_time, end_time))
 
             updated_ds = forcing_ds.copy(deep=True)
@@ -466,7 +467,10 @@ class EMEarthIntegrator(ConfigMixin):
                         if forcing_var in updated_ds.data_vars:
                             self.logger.debug(f"Replacing {forcing_var} with EM-Earth {em_var}")
 
-                            em_data_interp = em_combined[em_var].interp(time=forcing_ds['time'])
+                            if em_var in ('prcp', 'prcp_corrected'):
+                                em_data_interp = em_combined[em_var].interp(time=forcing_ds['time'], method='nearest')
+                            else:
+                                em_data_interp = em_combined[em_var].interp(time=forcing_ds['time'])
 
                             if em_var in ['prcp', 'prcp_corrected']:
                                 current_units = str(updated_ds[forcing_var].attrs.get('units', ''))
