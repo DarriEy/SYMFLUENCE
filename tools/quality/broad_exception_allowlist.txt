@@ -745,6 +745,7 @@ src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable
 src/symfluence/models/gsflow/postprocessor.py:GSFLOWPostProcessor._extract_from_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._generate_data_file:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/hype/calibration/multi_gauge_metrics.py:HYPEMultiGaugeMetrics._load_cout:except Exception as e:  # noqa: BLE001
 src/symfluence/models/hype/calibration/optimizer.py:HYPEModelOptimizer._update_file_manager_for_final_run:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/optimizer.py:HYPEModelOptimizer._update_file_manager_output_path:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/parameter_manager.py:HYPEParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -766,6 +767,7 @@ src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager.sort_geodata:ex
 src/symfluence/models/hype/plotter.py:HYPEPlotter.plot_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/postprocessor.py:HYPEPostProcessor.extract_results:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exception:  # noqa: BLE001
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor._create_qobs_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/visualizer.py:visualize_hype:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/__init__.py:<module>:except Exception:  # noqa: BLE001 — optional dependency
