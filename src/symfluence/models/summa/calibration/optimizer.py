@@ -16,7 +16,8 @@ from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
 
-from .worker import SUMMAWorker  # noqa: F401 - Import to trigger worker registration
+from .parameter_manager import SUMMAParameterManager  # noqa: F401 - trigger param manager registration
+from .worker import SUMMAWorker  # noqa: F401 - trigger worker registration
 
 
 @OptimizerRegistry.register_optimizer('SUMMA')
@@ -72,7 +73,6 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create SUMMA parameter manager."""
-        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
         # SUMMA ParameterManager expects to find localParamInfo.txt and attributes.nc
         # These are located in settings/SUMMA, not optimization/
         summa_settings_dir = self.project_dir / 'settings' / 'SUMMA'
