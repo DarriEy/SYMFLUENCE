@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
+
 # Suppress xarray FutureWarning about timedelta64 decoding
 warnings.filterwarnings('ignore',
                        message='.*decode_timedelta.*',
@@ -64,7 +66,7 @@ class FuseToMizurouteConverter:
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')
-            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+            fuse_id = resolve_fuse_id(config, experiment_id)
 
             # Find FUSE output file (runs_def.nc for run_def mode)
             output_file = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"

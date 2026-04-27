@@ -226,6 +226,8 @@ src/symfluence/data/acquisition/zonal_stats_processor.py:DataPreProcessor.calcul
 src/symfluence/data/acquisition/zonal_stats_processor.py:DataPreProcessor.calculate_soil_stats:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/cache/forcing_cache.py:RawForcingCache._evict_if_needed:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/cache/forcing_cache.py:RawForcingCache.get_cache_stats:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/data_manager.py:DataManager._ensure_gauge_segment_mapping:except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
+src/symfluence/data/data_manager.py:DataManager._ensure_multi_gauge_dataset_present:except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
 src/symfluence/data/data_manager.py:DataManager.process_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_climate_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hru_identity_group:except Exception:  # noqa: BLE001 — preprocessing resilience
