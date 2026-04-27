@@ -189,9 +189,27 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         var_handler = VariableHandler(self.config_dict, self.logger, 'CFIF', 'HYPE')
         dataset_map = var_handler.DATASET_MAPPINGS['CFIF']
 
-        # Get input names for temperature and precipitation
-        temp_in = var_handler._find_matching_variable('air_temperature', dataset_map)
-        precip_in = var_handler._find_matching_variable('precipitation_flux', dataset_map)
+        # Get input names for temperature and precipitation.
+        # Probe the actual forcing file to determine which variable names exist,
+        # since the model-agnostic preprocessor may use either CF-standard or
+        # legacy SUMMA-style names depending on the pipeline version.
+        forcing_dir = self.forcing_input_dir
+        available_vars: set = set()
+        if forcing_dir and forcing_dir.exists():
+            sample_files = list(forcing_dir.glob('*.nc'))
+            if sample_files:
+                import xarray as xr
+                try:
+                    with xr.open_dataset(sample_files[0], engine='h5netcdf') as ds:
+                        available_vars = set(ds.data_vars) | set(ds.coords)
+                except Exception:  # noqa: BLE001
+                    pass
+        temp_in = var_handler._find_matching_variable(
+            'air_temperature', dataset_map, available_vars or None
+        )
+        precip_in = var_handler._find_matching_variable(
+            'precipitation_flux', dataset_map, available_vars or None
+        )
 
         self.forcing_units = {
             'temperature': {
