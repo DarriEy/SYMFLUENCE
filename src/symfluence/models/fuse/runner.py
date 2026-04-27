@@ -142,6 +142,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         return [
             output_dir / f"{self.domain_name}_{fuse_id}_runs_def.nc",
             output_dir / f"{self.domain_name}_{fuse_id}_runs_best.nc",
+            output_dir / f"{self.domain_name}_{fuse_id}_runs_pre.nc",
         ]
 
     def _convert_routing_units_for_mizuroute(self, dataset: xr.Dataset) -> bool:
