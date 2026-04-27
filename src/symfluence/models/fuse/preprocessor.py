@@ -630,13 +630,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'pet': (pet, 'pet', unit_str, f'Mean {time_label} pet')
         }
 
-        if obs_ds is not None:
+        if obs_ds is not None and 'q_obs' in obs_ds:
             var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             self.logger.warning(
-                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
-                "This is fine for run_def/run_pre but observations will be needed for calibration."
+                "Streamflow observations not found — writing dummy q_obs (-9999) to FUSE forcing file. "
+                "Observations will be needed for calibration."
             )
+            dummy_q = xr.full_like(ds['precip'], -9999.0)
+            dummy_q.name = 'q_obs'
+            var_map['q_obs'] = (dummy_q, 'streamflow', unit_str, 'Dummy observed discharge (missing)')
 
         # Process and add to dataset
         encoding = {}
@@ -1087,13 +1090,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'pet': (pet_a, 'pet', unit_str, f'Mean {time_label} pet')
         }
 
-        if obs_ds_a is not None:
+        if obs_ds_a is not None and 'q_obs' in obs_ds_a:
             var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             self.logger.warning(
-                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
-                "This is fine for run_def/run_pre but observations will be needed for calibration."
+                "Streamflow observations not found — writing dummy q_obs (-9999) to FUSE forcing file. "
+                "Observations will be needed for calibration."
             )
+            dummy_q = xr.full_like(ds_a['precip'], -9999.0)
+            dummy_q.name = 'q_obs'
+            var_map['q_obs'] = (dummy_q, 'streamflow', unit_str, 'Dummy observed discharge (missing)')
 
         # Add variables with broadcasting
         for var_name, (da, _, units, long_name) in var_map.items():
