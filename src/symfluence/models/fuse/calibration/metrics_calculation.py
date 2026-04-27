@@ -19,6 +19,7 @@ import pandas as pd
 from symfluence.core.constants import UnitConversion
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def _find_fuse_output(
     """Find FUSE output file."""
     domain_name = config.get('DOMAIN_NAME')
     experiment_id = config.get('EXPERIMENT_ID')
-    fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+    fuse_id = resolve_fuse_id(config, experiment_id)
     fuse_output_dir = Path(sim_dir) if sim_dir else output_dir
 
     candidates = [

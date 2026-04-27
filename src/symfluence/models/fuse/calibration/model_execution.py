@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def prepare_input_files(
     project_dir = data_dir / f"domain_{domain_name}"
     fuse_input_dir = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
     experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-    fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+    fuse_id = resolve_fuse_id(config, experiment_id)
 
     # Input files to symlink
     input_files = [
@@ -142,7 +143,7 @@ def prepare_input_files(
     # Ensure configuration files are present
     project_settings_dir = project_dir / 'settings' / 'FUSE'
     actual_decisions_file = _ensure_config_files(
-        execution_cwd, project_settings_dir, experiment_id, input_files, log
+        execution_cwd, project_settings_dir, fuse_id, input_files, log
     )
 
     # Create symlinks (but NOT para_def.nc which was copied above)
@@ -346,7 +347,7 @@ def execute_fuse(
         CompletedProcess result, or None if execution failed
     """
     log = log or logger
-    fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
+    fuse_id = resolve_fuse_id(config)
 
     cmd = [str(fuse_exe), str(filemanager_path.name), fuse_run_id, mode]
 
@@ -488,7 +489,7 @@ def handle_fuse_output(
     log = log or logger
 
     domain_name = config.get('DOMAIN_NAME')
-    fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
+    fuse_id = resolve_fuse_id(config)
 
     run_suffix = 'runs_def' if mode == 'run_def' else 'runs_pre'
     local_output_filename = f"{fuse_run_id}_{fuse_id}_{run_suffix}.nc"
