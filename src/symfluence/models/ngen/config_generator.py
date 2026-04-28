@@ -665,13 +665,51 @@ num_topodex_values={n_classes}
         }
         params.update(overrides)
 
-        lines = [f"{k}={v}" for k, v in params.items()]
-        config_text = "\n".join(lines) + "\n"
+        sacsma_dir = self.setup_dir / "SACSMA"
+        sacsma_dir.mkdir(parents=True, exist_ok=True)
+        cat_id = f"cat-{catchment_id}"
 
-        config_file = self.setup_dir / "SACSMA" / f"cat-{catchment_id}_sacsma_config.txt"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
+        # 1. Write parameter file (space-delimited, read by ioModule.f90)
+        param_file = sacsma_dir / f"{cat_id}_sacsma_params.txt"
+        param_lines = [
+            f"hru_id     {cat_id}",
+            "hru_area   1.0",
+        ]
+        for k, v in params.items():
+            param_lines.append(f"{k.lower():<11s}{v}")
+        with open(param_file, 'w', encoding='utf-8') as f:
+            f.write("\n".join(param_lines) + "\n")
+
+        # 2. Write Fortran namelist control file (read by namelistModule.f90)
+        sim_start = self._get_config_value(
+            lambda: self.config.domain.time_start, default='2000-01-01 00:00', dict_key='EXPERIMENT_TIME_START')
+        sim_end = self._get_config_value(
+            lambda: self.config.domain.time_end, default='2001-01-01 00:00', dict_key='EXPERIMENT_TIME_END')
+        start_dt = pd.to_datetime(sim_start)
+        end_dt = pd.to_datetime(sim_end)
+        timestep = int(self._get_config_value(
+            lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
+
+        config_file = sacsma_dir / f"{cat_id}_sacsma_config.txt"
+        namelist_text = (
+            f"&SAC_CONTROL\n"
+            f"  main_id               = \"{cat_id}\"\n"
+            f"  n_hrus                = 1\n"
+            f"  forcing_root          = \"\"\n"
+            f"  output_root           = \"\"\n"
+            f"  sac_param_file        = \"{param_file.resolve()}\"\n"
+            f"  output_hrus           = 0\n"
+            f"  start_datehr          = {start_dt.strftime('%Y%m%d%H')}\n"
+            f"  end_datehr            = {end_dt.strftime('%Y%m%d%H')}\n"
+            f"  model_timestep        = {timestep}\n"
+            f"  warm_start_run        = 0\n"
+            f"  write_states          = 0\n"
+            f"  sac_state_in_root     = \"\"\n"
+            f"  sac_state_out_root    = \"\"\n"
+            f"/\n"
+        )
         with open(config_file, 'w', encoding='utf-8') as f:
-            f.write(config_text)
+            f.write(namelist_text)
 
         return config_file
 
@@ -716,15 +754,57 @@ num_topodex_values={n_classes}
         }
         params.update(overrides)
 
-        lines = [f"{k}={v}" for k, v in params.items()]
-        lines.append(f"latitude={lat:.4f}")
-        lines.append(f"elevation={elevation:.1f}")
-        config_text = "\n".join(lines) + "\n"
+        snow17_dir = self.setup_dir / "SNOW17"
+        snow17_dir.mkdir(parents=True, exist_ok=True)
+        cat_id = f"cat-{catchment_id}"
 
-        config_file = self.setup_dir / "SNOW17" / f"cat-{catchment_id}_snow17_config.txt"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
+        # 1. Write parameter file (space-delimited, read by ioModule.f90)
+        param_file = snow17_dir / f"{cat_id}_snow17_params.txt"
+        param_lines = [
+            f"hru_id     {cat_id}",
+            "hru_area   1.0",
+            f"latitude   {lat:.4f}",
+            f"elev       {elevation:.1f}",
+        ]
+        for k, v in params.items():
+            param_lines.append(f"{k.lower():<11s}{v}")
+        param_lines.append(f"{'si':<11s}100.0")
+        adc_values = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        for i, v in enumerate(adc_values, 1):
+            param_lines.append(f"{'adc' + str(i):<11s}{v}")
+        with open(param_file, 'w', encoding='utf-8') as f:
+            f.write("\n".join(param_lines) + "\n")
+
+        # 2. Write Fortran namelist control file (read by namelistModule.f90)
+        sim_start = self._get_config_value(
+            lambda: self.config.domain.time_start, default='2000-01-01 00:00', dict_key='EXPERIMENT_TIME_START')
+        sim_end = self._get_config_value(
+            lambda: self.config.domain.time_end, default='2001-01-01 00:00', dict_key='EXPERIMENT_TIME_END')
+        start_dt = pd.to_datetime(sim_start)
+        end_dt = pd.to_datetime(sim_end)
+        timestep = int(self._get_config_value(
+            lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
+
+        config_file = snow17_dir / f"{cat_id}_snow17_config.txt"
+        namelist_text = (
+            f"&SNOW17_CONTROL\n"
+            f"  main_id             = \"{cat_id}\"\n"
+            f"  n_hrus              = 1\n"
+            f"  forcing_root        = \"\"\n"
+            f"  output_root         = \"\"\n"
+            f"  snow17_param_file   = \"{param_file.resolve()}\"\n"
+            f"  output_hrus         = 0\n"
+            f"  start_datehr        = {start_dt.strftime('%Y%m%d%H')}\n"
+            f"  end_datehr          = {end_dt.strftime('%Y%m%d%H')}\n"
+            f"  model_timestep      = {timestep}\n"
+            f"  warm_start_run      = 0\n"
+            f"  write_states        = 0\n"
+            f"  snow_state_in_root  = \"\"\n"
+            f"  snow_state_out_root = \"\"\n"
+            f"/\n"
+        )
         with open(config_file, 'w', encoding='utf-8') as f:
-            f.write(config_text)
+            f.write(namelist_text)
 
         return config_file
 
@@ -818,7 +898,7 @@ num_topodex_values={n_classes}
             main_output = "Qout"
         elif self._include_sacsma:
             model_type = "bmi_multi_sacsma"
-            main_output = "channel_inflow"
+            main_output = "tci"
         else:
             model_type = "bmi_multi_noahowp_cfe"
             main_output = "Q_OUT"
@@ -863,7 +943,7 @@ num_topodex_values={n_classes}
 
         Determines precipitation and ET sources based on which upstream
         modules are enabled:
-        - Precip: NOAH QINSUR > Snow-17 rain_plus_melt > raw forcing
+        - Precip: NOAH QINSUR > Snow-17 raim > raw forcing
         - ET: PET > NOAH fallback
         """
         variables_map = {}
@@ -872,7 +952,7 @@ num_topodex_values={n_classes}
         if self._include_noah:
             variables_map["atmosphere_water__liquid_equivalent_precipitation_rate"] = "QINSUR"
         elif self._include_snow17:
-            variables_map["atmosphere_water__liquid_equivalent_precipitation_rate"] = "rain_plus_melt"
+            variables_map["atmosphere_water__liquid_equivalent_precipitation_rate"] = "raim"
         else:
             variables_map["atmosphere_water__liquid_equivalent_precipitation_rate"] = (
                 "atmosphere_water__liquid_equivalent_precipitation_rate"
@@ -985,7 +1065,7 @@ num_topodex_values={n_classes}
         if self._include_snow17:
             lib_file = str(lib_paths.get("SNOW17", f"./extern/snow17/cmake_build/libsnow17_bmi{lib_ext}"))
             snow17_vars = {
-                "TAIR": "land_surface_air__temperature",
+                "tair": "land_surface_air__temperature",
                 "precip": "atmosphere_water__liquid_equivalent_precipitation_rate",
             }
             modules.append({
@@ -996,9 +1076,9 @@ num_topodex_values={n_classes}
                     "forcing_file": "",
                     "init_config": f"{snow17_base}/{{{{id}}}}_snow17_config.txt",
                     "allow_exceed_end_time": True,
-                    "main_output_variable": "rain_plus_melt",
+                    "main_output_variable": "raim",
                     "variables_names_map": snow17_vars,
-                    "output_variables": ["rain_plus_melt", "sneqv"]
+                    "output_variables": ["raim", "sneqv"]
                 }
             })
 
@@ -1048,7 +1128,18 @@ num_topodex_values={n_classes}
 
         if self._include_sacsma:
             lib_file = str(lib_paths.get("SACSMA", f"./extern/sac-sma/cmake_build/libsacbmi{lib_ext}"))
-            variables_map = self._build_runoff_variables_map()
+            # SAC-SMA Fortran BMI uses short variable names (tair, precip, pet),
+            # not CSDMS standard names like CFE/TOPMODEL.
+            sacsma_vars = {"tair": "land_surface_air__temperature"}
+            if self._include_snow17:
+                sacsma_vars["precip"] = "raim"
+            elif self._include_noah:
+                sacsma_vars["precip"] = "QINSUR"
+            if self._include_pet:
+                sacsma_vars["pet"] = "water_potential_evaporation_flux"
+            elif self._include_noah:
+                et_var = getattr(self, '_noah_et_fallback', 'EVAPOTRANS')
+                sacsma_vars["pet"] = et_var
 
             modules.append({
                 "name": "bmi_fortran",
@@ -1058,8 +1149,8 @@ num_topodex_values={n_classes}
                     "forcing_file": "",
                     "init_config": f"{sacsma_base}/{{{{id}}}}_sacsma_config.txt",
                     "allow_exceed_end_time": True,
-                    "main_output_variable": "channel_inflow",
-                    "variables_names_map": variables_map,
+                    "main_output_variable": "tci",
+                    "variables_names_map": sacsma_vars,
                     "output_variable_units": "m3/s"
                 }
             })
