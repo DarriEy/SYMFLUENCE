@@ -145,12 +145,23 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             output_dir / f"{self.domain_name}_{fuse_id}_runs_pre.nc",
         ]
 
+    @property
+    def mizu_routing_var(self) -> str:
+        """FUSE-specific override: default to q_routed instead of SUMMA's averageRoutedRunoff."""
+        var = self._get_config_value(
+            lambda: self.config.model.mizuroute.routing_var,
+            default='q_routed'
+        )
+        if var in ('default', None, ''):
+            return 'q_routed'
+        return var
+
     def _ensure_routing_variable(self, file_path: Path) -> None:
         """Rename FUSE runoff variable to match what the mizuRoute control file expects.
 
         FUSE run modes produce different variable names (q_routed vs q_instnt).
-        The control writer always uses mizu_routing_var (default: q_routed), so
-        the NetCDF must match.
+        The control writer uses the FUSE model default (q_routed) unless overridden,
+        so the NetCDF must match.
         """
         target_var = self.mizu_routing_var
         fuse_runoff_candidates = ['q_routed', 'q_instnt', 'total_discharge', 'runoff']
