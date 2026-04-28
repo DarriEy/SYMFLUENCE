@@ -4,7 +4,7 @@ Tests for FUSE model utilities.
 Tests FUSE-specific utility functions including mizuRoute conversion.
 """
 
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -39,6 +39,14 @@ class TestFuseToMizurouteConverter:
         assert callable(self.converter.convert)
 
 
+def _safe_get(getter, default):
+    try:
+        val = getter()
+        return default if val is None else val
+    except (AttributeError, KeyError, TypeError):
+        return default
+
+
 class TestEnsureRoutingVariable:
     """Test FUSERunner._ensure_routing_variable renames FUSE output vars."""
 
@@ -47,7 +55,11 @@ class TestEnsureRoutingVariable:
         from symfluence.models.fuse.runner import FUSERunner
         stub = object.__new__(FUSERunner)
         stub.logger = MagicMock()
-        type(stub).mizu_routing_var = PropertyMock(return_value=routing_var)
+        config = MagicMock()
+        config.model.mizuroute.routing_var = routing_var
+        stub._config = config
+        stub.config = config
+        stub._get_config_value = lambda getter, default=None, **kw: _safe_get(getter, default)
         return stub
 
     def _write_dataset(self, path, var_name='q_instnt'):
@@ -106,6 +118,47 @@ class TestEnsureRoutingVariable:
         ds = xr.open_dataset(nc)
         assert 'q_routed' in ds.data_vars
         assert 'total_discharge' not in ds.data_vars
+        ds.close()
+
+    def test_defaults_to_q_routed_not_summa_var(self, tmp_path):
+        """When routing_var is unset, rename to q_routed (not averageRoutedRunoff)."""
+        nc = tmp_path / 'test.nc'
+        self._write_dataset(nc, 'q_instnt')
+
+        from symfluence.models.fuse.runner import FUSERunner
+        stub = object.__new__(FUSERunner)
+        stub.logger = MagicMock()
+        config = MagicMock()
+        config.model.mizuroute.routing_var = None
+        stub._config = config
+        stub.config = config
+        stub._get_config_value = lambda getter, default=None, **kw: _safe_get(getter, default)
+
+        stub._ensure_routing_variable(nc)
+
+        ds = xr.open_dataset(nc)
+        assert 'q_routed' in ds.data_vars, "Should default to FUSE q_routed, not SUMMA averageRoutedRunoff"
+        assert 'averageRoutedRunoff' not in ds.data_vars
+        ds.close()
+
+    def test_defaults_to_q_routed_when_config_says_default(self, tmp_path):
+        """When routing_var is 'default', resolve to q_routed."""
+        nc = tmp_path / 'test.nc'
+        self._write_dataset(nc, 'q_instnt')
+
+        from symfluence.models.fuse.runner import FUSERunner
+        stub = object.__new__(FUSERunner)
+        stub.logger = MagicMock()
+        config = MagicMock()
+        config.model.mizuroute.routing_var = 'default'
+        stub._config = config
+        stub.config = config
+        stub._get_config_value = lambda getter, default=None, **kw: _safe_get(getter, default)
+
+        stub._ensure_routing_variable(nc)
+
+        ds = xr.open_dataset(nc)
+        assert 'q_routed' in ds.data_vars
         ds.close()
 
 
