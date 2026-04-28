@@ -145,6 +145,26 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             output_dir / f"{self.domain_name}_{fuse_id}_runs_pre.nc",
         ]
 
+    def _ensure_routing_variable(self, file_path: Path) -> None:
+        """Rename FUSE runoff variable to match what the mizuRoute control file expects.
+
+        FUSE run modes produce different variable names (q_routed vs q_instnt).
+        The control writer always uses mizu_routing_var (default: q_routed), so
+        the NetCDF must match.
+        """
+        target_var = self.mizu_routing_var
+        fuse_runoff_candidates = ['q_routed', 'q_instnt', 'total_discharge', 'runoff']
+
+        with xr.open_dataset(file_path) as ds:
+            actual_var = next((v for v in fuse_runoff_candidates if v in ds.data_vars), None)
+            if actual_var is None or actual_var == target_var:
+                return
+            ds_loaded = ds.load()
+
+        ds_renamed = ds_loaded.rename({actual_var: target_var})
+        ds_renamed.to_netcdf(file_path)
+        self.logger.info(f"Renamed FUSE variable {actual_var} → {target_var} for mizuRoute")
+
     def _convert_routing_units_for_mizuroute(self, dataset: xr.Dataset) -> bool:
         """Convert routed runoff units from mm/day to m/s when required."""
         routing_var = self.mizu_routing_var
@@ -198,6 +218,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             id_source_dim='gru',
             create_backup=True
         )
+
+        # FUSE run modes produce different variable names (q_instnt in run_pre,
+        # q_routed in run_def). Rename to match what the control file expects.
+        self._ensure_routing_variable(target)
 
         # Filter coastal GRUs using mapping file if available
         mapping_file = self.project_dir / 'settings' / 'mizuRoute' / 'fuse_to_routing_mapping.csv'
