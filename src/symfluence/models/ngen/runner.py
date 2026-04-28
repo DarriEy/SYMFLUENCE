@@ -393,13 +393,14 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                                 old_path = mod_params['init_config']
                                 if old_path and old_path != "/dev/null":
                                     mod_type_name = str(mod_params.get('model_type_name', '')).upper()
+                                    old_filename = Path(old_path).name.lower()
                                     target_mod = None
-                                    if 'PET' in mod_type_name or 'pet' in old_path.lower(): target_mod = 'PET'
-                                    elif 'CFE' in mod_type_name or 'cfe' in old_path.lower(): target_mod = 'CFE'
-                                    elif 'NOAH' in mod_type_name or 'noah' in old_path.lower() or '.input' in old_path.lower(): target_mod = 'NOAH'
-                                    elif 'TOPMODEL' in mod_type_name or 'topmodel' in old_path.lower(): target_mod = 'TOPMODEL'
-                                    elif 'SACSMA' in mod_type_name or 'sacsma' in old_path.lower(): target_mod = 'SACSMA'
-                                    elif 'SNOW17' in mod_type_name or 'snow17' in old_path.lower(): target_mod = 'SNOW17'
+                                    if 'PET' in mod_type_name or 'pet' in old_filename: target_mod = 'PET'
+                                    elif 'CFE' in mod_type_name or 'cfe' in old_filename: target_mod = 'CFE'
+                                    elif 'NOAH' in mod_type_name or 'noah' in old_filename or '.input' in old_filename: target_mod = 'NOAH'
+                                    elif 'TOPMODEL' in mod_type_name or 'topmodel' in old_filename: target_mod = 'TOPMODEL'
+                                    elif 'SNOW17' in mod_type_name or 'snow17' in old_filename: target_mod = 'SNOW17'
+                                    elif 'SACSMA' in mod_type_name or 'sacsma' in old_filename: target_mod = 'SACSMA'
 
                                     if target_mod:
                                         filename = Path(old_path).name
