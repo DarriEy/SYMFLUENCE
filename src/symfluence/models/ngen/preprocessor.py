@@ -88,7 +88,12 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             lambda: self.config.model.ngen.modules_selected,
             default='SLOTH,PET,CFE',
         )
-        _selected = {m.strip().upper() for m in modules_selected_str.split(',') if m.strip()}
+        _alias_map = {'SAC-SMA': 'SACSMA', 'SNOW-17': 'SNOW17', 'NOAH-OWP': 'NOAH'}
+        _selected = set()
+        for m in modules_selected_str.split(','):
+            name = m.strip().upper()
+            if name:
+                _selected.add(_alias_map.get(name, name))
 
         _all_modules = ['SLOTH', 'PET', 'NOAH', 'CFE', 'TOPMODEL', 'SACSMA', 'SNOW17']
         _resolved = {}
@@ -218,6 +223,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             "SACSMA": f"libsacbmi{lib_ext}",
             "SNOW17": f"libsnow17_bmi{lib_ext}",
         }
+        _snow17_alt = f"libsnow17bmi{lib_ext}"
 
         # --- 1. Try npm-bundled libraries first (when install_path is default) ---
         if install_path == 'default':
@@ -227,6 +233,8 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 all_found = True
                 for name, libname in module_libs.items():
                     candidate = npm_lib_dir / libname
+                    if not candidate.exists() and name == 'SNOW17':
+                        candidate = npm_lib_dir / _snow17_alt
                     if candidate.exists():
                         npm_paths[name] = candidate
                     else:
@@ -266,13 +274,19 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             p1 = ngen_base / subpath / libname
             # Try extern under cmake_build
             p2 = ngen_base / "cmake_build" / subpath / libname
+            # Snow-17 upstream renamed the target from snow17_bmi to snow17bmi
+            p3 = ngen_base / subpath / _snow17_alt if name == 'SNOW17' else None
+            p4 = ngen_base / "cmake_build" / subpath / _snow17_alt if name == 'SNOW17' else None
 
             if p1.exists():
                 paths[name] = p1
             elif p2.exists():
                 paths[name] = p2
+            elif p3 and p3.exists():
+                paths[name] = p3
+            elif p4 and p4.exists():
+                paths[name] = p4
             else:
-                # Fallback to p1 for consistent missing path reporting
                 paths[name] = p1
 
         return paths
