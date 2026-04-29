@@ -152,7 +152,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             lambda: self.config.model.mizuroute.routing_var,
             default='q_routed'
         )
-        if var in ('default', None, ''):
+        if var in ('default', None, '', 'averageRoutedRunoff'):
             return 'q_routed'
         return var
 
