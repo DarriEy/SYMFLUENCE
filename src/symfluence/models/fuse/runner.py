@@ -220,10 +220,12 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
         self.logger.debug(f"Converting FUSE spatial dimensions: {target}")
 
-        # Use generic mixin method with FUSE-specific parameters
+        # Use generic mixin method with FUSE-specific parameters.
+        # param_set is a singleton dimension from FUSE run_pre mode that
+        # mizuRoute cannot handle (expects 2D: time × gru).
         self.convert_to_mizuroute_format(
             input_path=target,
-            squeeze_dims=['latitude'],
+            squeeze_dims=['latitude', 'param_set'],
             rename_dims={'longitude': 'gru'},
             add_id_var='gruId',
             id_source_dim='gru',
@@ -708,6 +710,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         # --- Identify spatial axis (one of latitude/longitude must have length > 1)
         lat_len = fuse_ds.sizes.get('latitude', 0)
         lon_len = fuse_ds.sizes.get('longitude', 0)
+
+        # Squeeze singleton param_set from run_pre mode before spatial reshape
+        if 'param_set' in fuse_ds.sizes and fuse_ds.sizes['param_set'] == 1:
+            fuse_ds = fuse_ds.squeeze('param_set', drop=True)
 
         if lat_len > 1 and (lon_len in (0, 1)):
             # (time, latitude, 1)
