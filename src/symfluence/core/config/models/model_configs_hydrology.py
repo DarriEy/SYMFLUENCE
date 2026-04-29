@@ -180,6 +180,10 @@ class NGENConfig(BaseModel):
         default='wind_speed_measurement_height_m',
         alias='NGEN_PET_PARAMS_TO_CALIBRATE'
     )
+    sacsma_params_to_calibrate: str = Field(
+        default='UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE',
+        alias='NGEN_SACSMA_PARAMS_TO_CALIBRATE'
+    )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
     # Parameter bounds overrides (per-module)
     cfe_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_CFE_PARAM_BOUNDS')
@@ -244,8 +248,15 @@ class NGENConfig(BaseModel):
     @model_validator(mode='after')
     def _validate_calibrate_subset(self) -> 'NGENConfig':
         """Ensure modules_to_calibrate is a subset of modules_selected."""
-        selected = {m.strip().upper() for m in self.modules_selected.split(',') if m.strip()}
-        calibrate = {m.strip().upper() for m in self.modules_to_calibrate.split(',') if m.strip()}
+        def canonical_module_name(module: str) -> str:
+            raw = module.strip().upper()
+            collapsed = raw.replace('-', '').replace('_', '')
+            if collapsed == 'SACSMA':
+                return 'SACSMA'
+            return raw
+
+        selected = {canonical_module_name(m) for m in self.modules_selected.split(',') if m.strip()}
+        calibrate = {canonical_module_name(m) for m in self.modules_to_calibrate.split(',') if m.strip()}
         not_selected = calibrate - selected
         if not_selected:
             raise ValueError(
