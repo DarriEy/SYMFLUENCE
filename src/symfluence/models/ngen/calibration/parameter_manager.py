@@ -991,7 +991,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             candidates = []
             if getattr(self, "hydro_id", None):
-                candidates = list(self.sacsma_dir.glob(f"cat-{self.hydro_id}_sacsma_config.txt"))
+                candidates = list(self.sacsma_dir.glob(f"cat-{self.hydro_id}_sacsma_params.txt"))
             if not candidates:
                 candidates = list(self.sacsma_dir.glob("*.txt"))
             if not candidates:
@@ -1032,7 +1032,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             candidates = []
             if getattr(self, "hydro_id", None):
-                candidates = list(self.snow17_dir.glob(f"cat-{self.hydro_id}_snow17_config.txt"))
+                candidates = list(self.snow17_dir.glob(f"cat-{self.hydro_id}_snow17_params.txt"))
             if not candidates:
                 candidates = list(self.snow17_dir.glob("*.txt"))
             if not candidates:
