@@ -276,6 +276,8 @@ class ControlFileWriter(ConfigurableMixin):
         routing_var = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default=model_config.default_var)
         if routing_var in ('default', None, ''):
             routing_var = model_config.default_var
+        elif routing_var == 'averageRoutedRunoff' and model_config.default_var != 'averageRoutedRunoff':
+            routing_var = model_config.default_var
 
         routing_units = self._get_config_value(lambda: self.config.model.mizuroute.routing_units, default=model_config.default_units)
         if routing_units in ('default', None, ''):
