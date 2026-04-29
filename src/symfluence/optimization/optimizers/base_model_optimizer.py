@@ -23,9 +23,7 @@ Optional Overrides:
 """
 
 import logging
-import os
 import random
-import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -40,6 +38,7 @@ from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import OptimizationError, require_not_none
 
 from ..mixins import GradientOptimizationMixin, ParallelExecutionMixin, ResultsTrackingMixin, RetryExecutionMixin
+from ..mixins.parallel.local_scratch_manager import LocalScratchManager
 from ..workers.base_worker import BaseWorker
 from .algorithms import ALGORITHM_REGISTRY, get_algorithm
 from .component_factory import OptimizerComponentFactory
@@ -167,6 +166,8 @@ class BaseModelOptimizer(
         # Parallel processing state
         self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
+        self._scratch_manager: Optional[LocalScratchManager] = None
+        self._original_project_dir: Optional[Path] = None
         # Setup directories if NUM_PROCESSES is set, regardless of count (for isolation)
         num_processes = self._get_config_value(
             lambda: self.config.system.num_processes, default=1,
@@ -669,9 +670,10 @@ class BaseModelOptimizer(
         """Setup parallel processing directories.
 
         When USE_LOCAL_SCRATCH is enabled and SLURM_TMPDIR is available,
-        parallel directories are created on node-local storage to avoid
-        Lustre IOPS during SUMMA/mizuRoute execution.  Results are staged
-        back to the permanent filesystem during cleanup().
+        settings, forcing, and observation data are copied to node-local
+        storage via LocalScratchManager, and parallel directories are created
+        there.  This avoids Lustre IOPS during SUMMA/mizuRoute execution.
+        Results are staged back to the permanent filesystem during cleanup().
         """
         # Determine algorithm for directory naming
         algorithm = self._get_config_value(
@@ -686,25 +688,35 @@ class BaseModelOptimizer(
             lambda: self.config.system.use_local_scratch, default=False,
             dict_key='USE_LOCAL_SCRATCH',
         )
-        slurm_tmpdir = os.environ.get('SLURM_TMPDIR')
 
         self._scratch_base_dir = None  # set if scratch is active
         self._permanent_base_dir = permanent_base
 
-        if use_local_scratch and slurm_tmpdir and Path(slurm_tmpdir).exists():
-            base_dir = Path(slurm_tmpdir) / 'simulations' / f'run_{algorithm}'
-            base_dir.mkdir(parents=True, exist_ok=True)
-            self._scratch_base_dir = base_dir
-            self.logger.info(
-                f"USE_LOCAL_SCRATCH enabled — parallel dirs on node-local "
-                f"storage: {base_dir}"
+        if use_local_scratch:
+            mgr = LocalScratchManager(
+                config=self.config,
+                logger=self.logger,
+                project_dir=self.project_dir,
+                algorithm_name=algorithm,
             )
-        elif use_local_scratch:
-            self.logger.warning(
-                "USE_LOCAL_SCRATCH is True but SLURM_TMPDIR is not available. "
-                "Falling back to standard filesystem."
-            )
-            base_dir = permanent_base
+            if mgr.use_scratch and mgr.setup_scratch_space():
+                self._scratch_manager = mgr
+                scratch_project = mgr.get_effective_project_dir()
+                base_dir = scratch_project / 'simulations' / f'run_{algorithm}'
+                base_dir.mkdir(parents=True, exist_ok=True)
+                self._scratch_base_dir = base_dir
+                self._original_project_dir = self.project_dir
+                self.project_dir = scratch_project
+                self.logger.info(
+                    f"USE_LOCAL_SCRATCH enabled — project_dir redirected to "
+                    f"node-local storage: {self.project_dir}"
+                )
+            else:
+                self.logger.warning(
+                    "USE_LOCAL_SCRATCH requested but scratch setup failed or "
+                    "SLURM_TMPDIR unavailable. Using standard filesystem."
+                )
+                base_dir = permanent_base
         else:
             base_dir = permanent_base
 
@@ -1430,32 +1442,10 @@ class BaseModelOptimizer(
         self._shutdown_mpi_strategy()
 
         # Stage results from local scratch back to permanent storage
-        if getattr(self, '_scratch_base_dir', None) is not None:
-            permanent = getattr(self, '_permanent_base_dir', None)
-            if permanent is not None:
-                self.logger.info(
-                    f"Staging results from scratch ({self._scratch_base_dir}) "
-                    f"to permanent storage ({permanent})"
-                )
-                try:
-                    permanent.mkdir(parents=True, exist_ok=True)
-                    # rsync-style copy: merge scratch into permanent
-                    for item in self._scratch_base_dir.iterdir():
-                        dest = permanent / item.name
-                        if item.is_dir():
-                            if dest.exists():
-                                # Merge into existing directory
-                                shutil.copytree(item, dest, dirs_exist_ok=True)
-                            else:
-                                shutil.copytree(item, dest)
-                        else:
-                            shutil.copy2(item, dest)
-                    self.logger.info("Results staged successfully")
-                except (OSError, shutil.Error) as exc:
-                    self.logger.error(
-                        f"Failed to stage results from scratch: {exc}. "
-                        f"Results remain at: {self._scratch_base_dir}"
-                    )
+        if getattr(self, '_scratch_manager', None) is not None:
+            self._scratch_manager.stage_results_back()
+            if self._original_project_dir is not None:
+                self.project_dir = self._original_project_dir
 
         if self.parallel_dirs:
             self.cleanup_parallel_processing(self.parallel_dirs)
