@@ -1408,6 +1408,13 @@ CALIBRATION_VARIABLE: "streamflow"
 #   Usage:      1
 CLEANUP_PARALLEL_DIRS: true
 
+# CHECKPOINT_INTERVAL
+#   Type:        int
+#   Default:     10
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Save best_params.json and iteration results every N iterations during optimization
+CHECKPOINT_INTERVAL: 10
+
 # ERROR_LOG_DIR
 #   Type:        str
 #   Default:     error_logs
