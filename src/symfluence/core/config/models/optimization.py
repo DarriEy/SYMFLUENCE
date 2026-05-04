@@ -252,6 +252,7 @@ class OptimizationConfig(BaseModel):
     population_size: int = Field(default=50, alias='POPULATION_SIZE', ge=2, le=10000)
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
+    checkpoint_interval: int = Field(default=10, alias='CHECKPOINT_INTERVAL', ge=1)
 
     # Gradient-based optimization settings (Adam, L-BFGS)
     gradient_mode: Literal['auto', 'native', 'finite_difference'] = Field(

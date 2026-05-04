@@ -1014,13 +1014,21 @@ class BaseModelOptimizer(
             raise OptimizationError(f"Failed to save results for {algorithm_name} default evaluation")
         return results_path
 
-    def _build_algorithm_callbacks(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def _build_algorithm_callbacks(self, algorithm_name: str = 'optimization') -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Build callback functions and kwargs dict for algorithm.optimize().
+
+        Args:
+            algorithm_name: Algorithm name used for checkpoint file naming.
 
         Returns:
             Tuple of (callbacks_dict, kwargs_dict) where callbacks_dict contains
             the core function bindings and kwargs_dict contains additional settings.
         """
+        checkpoint_interval = self._get_config_value(
+            lambda: self.config.optimization.checkpoint_interval,
+            default=10, dict_key='CHECKPOINT_INTERVAL',
+        )
+
         def evaluate_solution(normalized_params, proc_id=0):
             return self._evaluate_solution(normalized_params, proc_id)
 
@@ -1030,6 +1038,14 @@ class BaseModelOptimizer(
         def denormalize_params(normalized):
             return self.param_manager.denormalize_parameters(normalized)
 
+        def save_checkpoint(iteration: int):
+            try:
+                self.save_results(algorithm_name, standard_filename=True)
+                self.save_best_params(algorithm_name)
+                self.logger.info(f"Checkpoint saved at iteration {iteration}")
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
+                self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
+
         def record_iteration(iteration, score, params, additional_metrics=None):
             crash_stats = self.get_crash_stats()
             merged = dict(additional_metrics or {}, **{
@@ -1037,6 +1053,8 @@ class BaseModelOptimizer(
                 'crash_rate': crash_stats['crash_rate'],
             })
             self.record_iteration(iteration, score, params, additional_metrics=merged)
+            if iteration > 0 and iteration % checkpoint_interval == 0:
+                save_checkpoint(iteration)
 
         def update_best(score, params, iteration):
             self.update_best(score, params, iteration)
@@ -1048,14 +1066,6 @@ class BaseModelOptimizer(
                 n_improved=n_improved, population_size=pop_size,
                 crash_stats=self.get_crash_stats()
             )
-
-        def save_checkpoint(algorithm_name: str, iteration: int):
-            try:
-                self.save_results(algorithm_name, standard_filename=True)
-                self.save_best_params(algorithm_name)
-                self.logger.debug(f"Checkpoint saved at iteration {iteration}")
-            except Exception as e:  # noqa: BLE001 — must-not-raise contract
-                self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
 
         callbacks = {
             'evaluate_solution': evaluate_solution,
@@ -1069,7 +1079,6 @@ class BaseModelOptimizer(
         kwargs = {
             'log_initial_population': self.log_initial_population,
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
-            'save_checkpoint': save_checkpoint,
         }
 
         return callbacks, kwargs
@@ -1095,7 +1104,7 @@ class BaseModelOptimizer(
         algorithm = get_algorithm(algorithm_name, self.config, self.logger)
 
         # Build callbacks and kwargs for the algorithm
-        callbacks, kwargs = self._build_algorithm_callbacks()
+        callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
         # Seed optimization with best previous result (warm-start) or def file defaults
         skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
