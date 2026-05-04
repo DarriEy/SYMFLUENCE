@@ -12,7 +12,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple
@@ -862,16 +862,27 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         cal_period = self._get_config_value(
             lambda: self.config.domain.calibration_period,
-            default='2000-01-01,2010-12-31'
+            default=None
         )
-        cal_start_time = datetime.strptime(cal_period.split(',')[0], '%Y-%m-%d')
-        cal_end_time = datetime.strptime(cal_period.split(',')[1].strip(), '%Y-%m-%d')
+        if cal_period:
+            cal_start_time = datetime.strptime(cal_period.split(',')[0], '%Y-%m-%d')
+            cal_end_time = datetime.strptime(cal_period.split(',')[1].strip(), '%Y-%m-%d')
+            cal_start_time = max(cal_start_time, start_time)
+            cal_end_time = min(cal_end_time, end_time)
+        else:
+            cal_start_time = start_time + timedelta(days=1)
+            cal_end_time = end_time
+            self.logger.info(
+                f"No calibration_period configured; defaulting eval period to "
+                f"{cal_start_time.strftime('%Y-%m-%d')} – {cal_end_time.strftime('%Y-%m-%d')} "
+                f"(sim window with 1-day spinup)"
+            )
 
         date_settings = {
             'date_start_sim': start_time.strftime('%Y-%m-%d'),
             'date_end_sim': end_time.strftime('%Y-%m-%d'),
-            'date_start_eval': cal_start_time.strftime('%Y-%m-%d'),  # Using same dates for evaluation period
-            'date_end_eval': cal_end_time.strftime('%Y-%m-%d')       # Can be modified if needed
+            'date_start_eval': cal_start_time.strftime('%Y-%m-%d'),
+            'date_end_eval': cal_end_time.strftime('%Y-%m-%d')
         }
 
         try:
