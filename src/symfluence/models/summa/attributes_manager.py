@@ -528,10 +528,14 @@ class SummaAttributesManager(ConfigurableMixin):
         self.logger.info("Calculating tangent of slope from DEM for each HRU")
 
         results = {}
+        min_slope = 1e-6
+        # Guard against DEM artifacts (e.g., nodata edges) producing unrealistically large values.
+        max_tan_slope = float(np.tan(np.radians(80.0)))
 
         try:
             with rasterio.open(self.dem_path) as src:
-                dem = src.read(1)
+                # Read as masked array so nodata does not contaminate gradients.
+                dem = src.read(1, masked=True).astype(np.float64).filled(np.nan)
                 transform = src.transform
 
                 # Get cell sizes
@@ -539,7 +543,7 @@ class SummaAttributesManager(ConfigurableMixin):
                 cell_size_y = abs(transform[4])  # dy
 
                 # Convert cell sizes from degrees to meters if CRS is geographic
-                if src.crs.is_geographic:
+                if src.crs is not None and src.crs.is_geographic:
                     # Get center latitude for conversion
                     bounds = src.bounds
                     center_lat = (bounds.bottom + bounds.top) / 2
@@ -564,16 +568,28 @@ class SummaAttributesManager(ConfigurableMixin):
                 tan_slope = slope_magnitude
 
                 # Set minimum slope to avoid zero values (SUMMA may have issues with zero slope)
-                min_slope = 1e-6
                 tan_slope = np.maximum(tan_slope, min_slope)
+                tan_slope = np.minimum(tan_slope, max_tan_slope)
+
+                # rasterstats expects a scalar nodata value; use sentinel for invalid cells.
+                slope_nodata = -9999.0
+                tan_slope_for_stats = np.where(np.isfinite(tan_slope), tan_slope, slope_nodata)
+
+                n_clipped = int(np.sum((tan_slope_for_stats != slope_nodata) & (tan_slope_for_stats >= max_tan_slope)))
+                if n_clipped > 0:
+                    self.logger.debug(
+                        "Clipped %s DEM cells to max tan_slope %.3f to suppress artifacts",
+                        n_clipped,
+                        max_tan_slope,
+                    )
 
                 # Use zonal_stats to get mean tan_slope for all HRUs at once
                 mean_tan_slopes = rasterstats.zonal_stats(
                     shp.geometry,
-                    tan_slope,
+                    tan_slope_for_stats,
                     affine=transform,
                     stats=['mean'],
-                    nodata=src.nodata
+                    nodata=slope_nodata
                 )
 
             # Create results dictionary
