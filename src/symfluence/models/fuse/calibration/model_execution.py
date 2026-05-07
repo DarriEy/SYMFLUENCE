@@ -9,6 +9,7 @@ managing input file symlinks, and validating output.
 """
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -322,6 +323,40 @@ def validate_fuse_inputs(
     return True
 
 
+def _build_fuse_library_env(fuse_exe: Path) -> Dict[str, str]:
+    """Build subprocess environment with HDF5/NetCDF library paths for FUSE."""
+    env = os.environ.copy()
+
+    lib_paths = []
+
+    exe_lib = Path(fuse_exe).parent.parent / 'lib'
+    if exe_lib.is_dir():
+        lib_paths.append(str(exe_lib))
+
+    conda_prefix = os.environ.get('CONDA_PREFIX')
+    if conda_prefix:
+        conda_lib = Path(conda_prefix) / 'lib'
+        if conda_lib.is_dir():
+            lib_paths.append(str(conda_lib))
+
+    for prefix in ['/opt/homebrew', '/usr/local']:
+        for pkg in ['hdf5', 'netcdf', 'netcdf-fortran']:
+            pkg_lib = Path(prefix) / 'opt' / pkg / 'lib'
+            if pkg_lib.is_dir():
+                lib_paths.append(str(pkg_lib))
+        general_lib = Path(prefix) / 'lib'
+        if general_lib.is_dir():
+            lib_paths.append(str(general_lib))
+
+    if lib_paths:
+        lib_path_str = os.pathsep.join(lib_paths)
+        for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
+            existing = env.get(var, '')
+            env[var] = f"{lib_path_str}{os.pathsep}{existing}" if existing else lib_path_str
+
+    return env
+
+
 def execute_fuse(
     fuse_exe: Path,
     filemanager_path: Path,
@@ -392,6 +427,8 @@ def execute_fuse(
         except OSError as e:
             log.warning(f"Could not remove stale para_def {expected_para_def.name}: {e}")
 
+    env = _build_fuse_library_env(fuse_exe)
+
     result = subprocess.run(
         cmd,
         cwd=str(execution_cwd),
@@ -399,7 +436,8 @@ def execute_fuse(
         text=True,
         encoding='utf-8',
         errors='replace',
-        timeout=config.get('FUSE_TIMEOUT', 3600)
+        timeout=config.get('FUSE_TIMEOUT', 3600),
+        env=env
     )
 
     if result.returncode != 0:
