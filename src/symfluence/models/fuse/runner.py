@@ -9,11 +9,12 @@ Refactored to use the model execution framework:
 """
 
 import logging
+import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -132,6 +133,40 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         # FUSE-specific: result_dir is an alias for output_dir (backward compatibility)
         self.output_dir = self.get_experiment_output_dir()
         self.setup_path_aliases({'result_dir': 'output_dir'})
+
+    def _build_fuse_env(self) -> Dict[str, str]:
+        """Build subprocess environment with HDF5/NetCDF library paths for FUSE."""
+        env = os.environ.copy()
+
+        lib_paths = []
+
+        exe_lib = self.fuse_exe.parent.parent / 'lib'
+        if exe_lib.is_dir():
+            lib_paths.append(str(exe_lib))
+
+        conda_prefix = os.environ.get('CONDA_PREFIX')
+        if conda_prefix:
+            conda_lib = Path(conda_prefix) / 'lib'
+            if conda_lib.is_dir():
+                lib_paths.append(str(conda_lib))
+
+        for prefix in ['/opt/homebrew', '/usr/local']:
+            for pkg in ['hdf5', 'netcdf', 'netcdf-fortran']:
+                pkg_lib = Path(prefix) / 'opt' / pkg / 'lib'
+                if pkg_lib.is_dir():
+                    lib_paths.append(str(pkg_lib))
+            general_lib = Path(prefix) / 'lib'
+            if general_lib.is_dir():
+                lib_paths.append(str(general_lib))
+
+        if lib_paths:
+            lib_path_str = os.pathsep.join(lib_paths)
+            for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
+                existing = env.get(var, '')
+                env[var] = f"{lib_path_str}{os.pathsep}{existing}" if existing else lib_path_str
+            self.logger.debug(f"FUSE library paths: {lib_path_str}")
+
+        return env
 
     def _get_output_dir(self) -> Path:
         """FUSE uses custom result_dir naming."""
@@ -469,6 +504,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
             self.logger.debug(f"Executing distributed FUSE ({mode}): {' '.join(command)}")
 
+            env = self._build_fuse_env()
+
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
@@ -478,7 +515,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                     text=True,
                     encoding='utf-8',
                     errors='replace',
-                    cwd=str(self.setup_dir)
+                    cwd=str(self.setup_dir),
+                    env=env
                 )
 
             if result.returncode == 0:
