@@ -784,6 +784,8 @@ src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor._convert_era5_
 src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor._convert_era5_to_weather_csv:except Exception as exc:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor._get_season_from_date:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/ignacio/runner.py:IGNACIORunner._generate_fwi_plots:except Exception as e:  # noqa: BLE001
+src/symfluence/models/ignacio/runner.py:IGNACIORunner._run_fwi_only:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/runner.py:IGNACIORunner._run_via_api:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/runner.py:IGNACIORunner._run_via_cli:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/lstm/calibration/worker.py:LSTMWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
