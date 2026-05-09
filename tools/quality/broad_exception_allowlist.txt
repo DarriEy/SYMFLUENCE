@@ -786,6 +786,18 @@ src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor._get_season_fr
 src/symfluence/models/ignacio/preprocessor.py:IGNACIOPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/runner.py:IGNACIORunner._run_via_api:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ignacio/runner.py:IGNACIORunner._run_via_cli:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/lisflood/calibration/optimizer.py:LisfloodModelOptimizer.run_final_evaluation:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/calibration/parameter_manager.py:LisfloodParameterManager.update_model_files:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/calibration/worker.py:LisfloodWorker._load_observations:except Exception:  # noqa: BLE001
+src/symfluence/models/lisflood/calibration/worker.py:LisfloodWorker.apply_parameters:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/calibration/worker.py:LisfloodWorker.calculate_metrics:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/calibration/worker.py:LisfloodWorker.run_model:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/extractor.py:LisfloodResultExtractor.extract_variable:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/postprocessor.py:LisfloodPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/postprocessor.py:LisfloodPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/preprocessor.py:LisfloodPreProcessor._extract_forcing_var:except Exception:  # noqa: BLE001
+src/symfluence/models/lisflood/preprocessor.py:LisfloodPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001
+src/symfluence/models/lisflood/preprocessor.py:LisfloodPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001
 src/symfluence/models/lstm/calibration/worker.py:LSTMWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/lstm/calibration/worker.py:LSTMWorker.evaluate:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/lstm/plotter.py:LSTMPlotter.plot_results:except Exception as e:  # noqa: BLE001 — model execution resilience
