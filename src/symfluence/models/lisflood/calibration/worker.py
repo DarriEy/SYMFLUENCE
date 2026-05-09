@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
+"""LISFLOOD Worker."""
+
+import shutil
+import subprocess
+from pathlib import Path
+
+import pandas as pd
+import xarray as xr
+
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker
+
+
+@OptimizerRegistry.register_worker("LISFLOOD")
+class LisfloodWorker(BaseWorker):
+    """Worker for LISFLOOD model calibration."""
+
+    _streamflow_metrics = StreamflowMetrics()
+
+    def apply_parameters(self, params, settings_dir, **kwargs):
+        try:
+            config = kwargs.get("config", self.config) or {}
+            domain_name = config.get("DOMAIN_NAME", "")
+            data_dir = Path(config.get("SYMFLUENCE_DATA_DIR", "."))
+            original_settings = data_dir / f"domain_{domain_name}" / "settings" / "LISFLOOD"
+            settings_dir = Path(settings_dir)
+
+            # Copy maps from original to process-specific directory
+            original_maps = original_settings / "maps"
+            target_maps = settings_dir / "maps"
+            if original_maps.exists() and original_maps != target_maps:
+                if target_maps.exists():
+                    shutil.rmtree(target_maps)
+                shutil.copytree(original_maps, target_maps)
+
+            # Copy and patch settings XML
+            settings_file = config.get("LISFLOOD_SETTINGS_FILE", "settings.xml")
+            original_xml = original_settings / settings_file
+            target_xml = settings_dir / settings_file
+            if original_xml.exists() and original_xml != target_xml:
+                self._patch_settings_xml(
+                    original_xml, target_xml, settings_dir, kwargs.get("output_dir") or kwargs.get("proc_output_dir")
+                )
+
+            from .parameter_manager import LisfloodParameterManager
+
+            pm = LisfloodParameterManager(config, self.logger, settings_dir)
+            return pm.update_model_files(params, settings_dir)
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"Failed to apply LISFLOOD parameters: {e}")
+            return False
+
+    def _patch_settings_xml(self, source_xml, target_xml, settings_dir, output_dir):
+        """Copy settings XML and patch paths for process isolation."""
+        from xml.etree import ElementTree as ET  # nosec B405
+
+        tree = ET.parse(source_xml)  # nosec B314
+        root = tree.getroot()
+        for textvar in root.iter("textvar"):
+            name = textvar.get("name", "")
+            if name == "PathMaps":
+                textvar.set("value", str(settings_dir / "maps"))
+            elif name == "PathOut" and output_dir:
+                Path(output_dir).mkdir(parents=True, exist_ok=True)
+                textvar.set("value", str(output_dir))
+        tree.write(target_xml, encoding="unicode", xml_declaration=True)
+
+    def run_model(self, config, settings_dir, output_dir, **kwargs):
+        try:
+            import os
+            import sys
+
+            override = kwargs.get("settings_file_override")
+            if override:
+                settings_path = Path(override)
+            else:
+                settings_file = config.get("LISFLOOD_SETTINGS_FILE", "settings.xml")
+                settings_path = Path(settings_dir) / settings_file
+            timeout = int(config.get("LISFLOOD_TIMEOUT", 7200))
+
+            env = dict(os.environ)
+            from symfluence.models.lisflood.runner import _find_pcraster_site_packages
+
+            pcraster_site = _find_pcraster_site_packages()
+            if pcraster_site:
+                existing = env.get("PYTHONPATH", "")
+                env["PYTHONPATH"] = f"{pcraster_site}:{existing}" if existing else pcraster_site
+                pcraster_prefix = str(Path(pcraster_site).parent.parent.parent)
+                env["CONDA_PREFIX"] = pcraster_prefix
+            env.pop("PCRASTER_NR_WORKER_THREADS", None)
+
+            result = subprocess.run(
+                [sys.executable, "-c", f'from lisflood.main import main; main("{settings_path}")'],
+                cwd=str(settings_dir),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+            if result.returncode != 0 and result.stderr:
+                self.logger.warning(f"LISFLOOD stderr: {result.stderr[-500:]}")
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"LISFLOOD execution failed: {e}")
+            return False
+
+    def calculate_metrics(self, output_dir, config, **kwargs):
+        try:
+            sim = self._load_simulated_streamflow(Path(output_dir))
+            if sim is None:
+                self.logger.warning(f"No sim data found in {output_dir}")
+                return {"KGE": -999.0, "NSE": -999.0}
+            obs = self._load_observations(config)
+            if obs is None:
+                self.logger.warning("No observation data found")
+                return {"KGE": -999.0, "NSE": -999.0}
+            if not isinstance(sim.index, pd.DatetimeIndex):
+                sim.index = pd.to_datetime(sim.index)
+            if not isinstance(obs.index, pd.DatetimeIndex):
+                obs.index = pd.to_datetime(obs.index)
+            if len(sim) > 1:
+                median_dt = pd.Series(sim.index).diff().median()
+                if median_dt < pd.Timedelta(days=1):
+                    sim = sim.resample("D").mean()
+            cal_period = config.get("CALIBRATION_PERIOD", "") if isinstance(config, dict) else ""
+            if cal_period:
+                parts = [p.strip() for p in cal_period.split(",")]
+                if len(parts) == 2:
+                    sim = sim.loc[parts[0] : parts[1]]
+                    obs = obs.loc[parts[0] : parts[1]]
+            sim, obs = sim.align(obs, join="inner")
+            common_idx = sim.dropna().index.intersection(obs.dropna().index)
+            sim, obs = sim.loc[common_idx], obs.loc[common_idx]
+            if len(sim) < 30:
+                self.logger.warning(f"Insufficient data: n={len(sim)} < 30")
+                return {"KGE": -999.0, "NSE": -999.0}
+            metrics = self._streamflow_metrics.calculate_metrics(obs.values, sim.values)
+            self.logger.info(f"Computed metrics: {metrics}")
+            return metrics
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"Metric calculation failed: {e}")
+            return {"KGE": -999.0, "NSE": -999.0}
+
+    def _load_simulated_streamflow(self, output_dir: Path):
+        # Try NetCDF discharge output
+        for pattern in ["dis*.nc", "*discharge*.nc"]:
+            matches = list(output_dir.glob(pattern))
+            if matches:
+                ds = xr.open_dataset(matches[0])
+                for var in ["dis", "discharge", "Qsim", "chanq"]:
+                    if var in ds.data_vars:
+                        q_var = ds[var]
+                        spatial_dims = [d for d in q_var.dims if d not in ["time"]]
+                        q = q_var.max(dim=spatial_dims).to_series() if spatial_dims else q_var.to_series()
+                        ds.close()
+                        return q
+                ds.close()
+        # Fallback: TSS file
+        for pattern in ["dis*.tss", "*discharge*.tss"]:
+            matches = list(output_dir.glob(pattern))
+            if matches:
+                return self._read_tss_file(matches[0])
+        return None
+
+    @staticmethod
+    def _read_tss_file(tss_path: Path):
+        lines = tss_path.read_text().strip().split("\n")
+        header_lines = 0
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line and not line.replace(".", "").replace("-", "").replace(" ", "").isdigit():
+                header_lines = i + 1
+            else:
+                break
+        data_lines = lines[header_lines:]
+        records = []
+        for line in data_lines:
+            parts = line.split()
+            if len(parts) >= 2:
+                records.append(float(parts[-1]))
+        return pd.Series(records, name="discharge_cms")
+
+    def _load_observations(self, config):
+        try:
+            domain_name = config.get("DOMAIN_NAME", "")
+            data_dir = Path(config.get("SYMFLUENCE_DATA_DIR", "."))
+            obs_dir = data_dir / f"domain_{domain_name}" / "observations" / "streamflow" / "preprocessed"
+            if not obs_dir.exists():
+                return None
+            obs_files = list(obs_dir.glob("*.csv"))
+            if not obs_files:
+                return None
+            df = pd.read_csv(obs_files[0], parse_dates=True, index_col=0)
+            return df["discharge_cms"] if "discharge_cms" in df.columns else df.iloc[:, 0]
+        except Exception:  # noqa: BLE001
+            return None
