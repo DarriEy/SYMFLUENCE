@@ -3589,6 +3589,20 @@ SUPPLEMENT_FORCING: false
 #   Usage:      1
 KEEP_RAW_FORCING: true
 
+# FORCING_MISSING_DATA_STRATEGY
+#   Type:        Literal['error', 'warn', 'interpolate', 'fill_forward']
+#   Default:     error
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MISSING_DATA_STRATEGY: "error"
+
+# FORCING_MAX_GAP_HOURS
+#   Type:        int
+#   Default:     24
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MAX_GAP_HOURS: 24
+
 # EM_PRCP
 #   Type:        str
 #   Default:     prcp
