@@ -149,22 +149,18 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
         # Try default DEM locations
         if terrain_paths['dem_path'] is None:
-            # Try RHESSys fire DEM first (most likely for fire simulations)
-            fire_dem = self.project_dir / 'settings' / 'RHESSys' / 'fire' / 'dem_grid.tif'
-            if fire_dem.exists():
-                terrain_paths['dem_path'] = fire_dem
-                self.logger.info(f"Using RHESSys fire DEM: {fire_dem}")
-            else:
-                # Try standard attribute location
-                default_dem = self.project_attributes_dir / 'dem' / f"{self.config.domain.name}_dem.tif"
-                if default_dem.exists():
-                    terrain_paths['dem_path'] = default_dem
-                    self.logger.info(f"Using default DEM: {default_dem}")
-                else:
-                    # Try alternative location
-                    alt_dem = self.project_dir / 'shapefiles' / 'dem' / 'dem.tif'
-                    if alt_dem.exists():
-                        terrain_paths['dem_path'] = alt_dem
+            default_dem_paths = [
+                self.project_attributes_dir / 'elevation' / 'dem' / f"domain_{self.config.domain.name}_elv.tif",
+                self.project_attributes_dir / 'elevation' / 'dem' / f"{self.config.domain.name}_elv.tif",
+                self.project_attributes_dir / 'dem' / f"{self.config.domain.name}_dem.tif",
+                self.project_dir / 'settings' / 'RHESSys' / 'fire' / 'dem_grid.tif',
+                self.project_dir / 'shapefiles' / 'dem' / 'dem.tif',
+            ]
+            for candidate in default_dem_paths:
+                if candidate.exists():
+                    terrain_paths['dem_path'] = candidate
+                    self.logger.info(f"Using DEM: {candidate}")
+                    break
 
         # Check for pre-computed slope/aspect
         slope_path = ignacio_config.get('slope_path')
@@ -259,7 +255,8 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             import pandas as pd
             import xarray as xr
 
-            # Find ERA5 forcing files
+            # Find forcing files — prefer basin-averaged (1-D) over
+            # multi-HRU files that require spatial averaging.
             forcing_dirs = [
                 self.project_forcing_dir / 'basin_averaged_data',
                 self.project_forcing_dir / 'merged_path',
@@ -269,92 +266,77 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             nc_files = []
             for forcing_dir in forcing_dirs:
                 if forcing_dir.exists():
-                    nc_files.extend(list(forcing_dir.glob('*.nc')))
+                    found = list(forcing_dir.glob('*.nc'))
+                    if found:
+                        nc_files = found
+                        self.logger.info(f"Using forcing from: {forcing_dir.name}")
+                        break
 
             if not nc_files:
-                self.logger.warning("No ERA5 forcing files found")
+                self.logger.warning("No forcing files found")
                 return None
 
-            self.logger.info(f"Found {len(nc_files)} ERA5 forcing files")
+            self.logger.info(f"Found {len(nc_files)} forcing files")
 
-            # Load and concatenate if multiple files
-            datasets = []
-            for nc_file in sorted(nc_files)[:12]:  # Limit to 12 files for memory
+            chunks = []
+            for nc_file in sorted(nc_files):
                 try:
                     ds = xr.open_dataset(nc_file)
-                    datasets.append(ds)
+
+                    if 'hru' in ds.dims:
+                        ds = ds.mean(dim='hru')
+
+                    times = pd.to_datetime(ds.time.values)
+                    n = len(times)
+
+                    temp_c = (ds['air_temperature'].values - 273.15
+                              if 'air_temperature' in ds
+                              else np.full(n, 20.0))
+
+                    if 'specific_humidity' in ds and 'surface_air_pressure' in ds:
+                        q = ds['specific_humidity'].values
+                        p = ds['surface_air_pressure'].values
+                        e = q * p / (0.622 + 0.378 * q)
+                        es = 611.2 * np.exp(17.67 * temp_c / (temp_c + 243.5))
+                        rh = np.clip(100.0 * e / es, 0, 100)
+                    else:
+                        rh = np.full(n, 50.0)
+
+                    ws_kmh = (ds['wind_speed'].values * 3.6
+                              if 'wind_speed' in ds
+                              else np.full(n, 10.0))
+
+                    wd = np.random.uniform(0, 360, n)
+
+                    precip_mm = (ds['precipitation_flux'].values * 3600
+                                 if 'precipitation_flux' in ds
+                                 else np.zeros(n))
+
+                    chunks.append(pd.DataFrame({
+                        'HOURLY': times.strftime('%d/%m/%Y %H:%M'),
+                        'TEMP': temp_c,
+                        'RH': rh,
+                        'WS': ws_kmh,
+                        'WD': wd,
+                        'PRECIP': precip_mm,
+                    }))
+
+                    ds.close()
                 except Exception as exc:  # noqa: BLE001 — model execution resilience
                     self.logger.warning(f"Could not load {nc_file}: {exc}")
 
-            if not datasets:
+            if not chunks:
                 return None
 
-            # Concatenate datasets
-            if len(datasets) > 1:
-                ds = xr.concat(datasets, dim='time')
-            else:
-                ds = datasets[0]
-
-            # Average across HRUs if spatial data
-            if 'hru' in ds.dims:
-                ds = ds.mean(dim='hru')
-
-            # Extract variables
-            times = pd.to_datetime(ds.time.values)
-
-            # Temperature: Convert K to C
-            if 'air_temperature' in ds:
-                temp_c = ds['air_temperature'].values - 273.15
-            else:
-                temp_c = np.full(len(times), 20.0)  # Default
-
-            # Relative Humidity: Calculate from specific humidity and pressure
-            if 'specific_humidity' in ds and 'surface_air_pressure' in ds:
-                spechum = ds['specific_humidity'].values
-                airpres = ds['surface_air_pressure'].values
-                # Convert specific humidity to relative humidity
-                # e = q * P / (0.622 + 0.378 * q)
-                # es = 611.2 * exp(17.67 * T / (T + 243.5))
-                # RH = 100 * e / es
-                e = spechum * airpres / (0.622 + 0.378 * spechum)
-                es = 611.2 * np.exp(17.67 * temp_c / (temp_c + 243.5))
-                rh = 100.0 * e / es
-                rh = np.clip(rh, 0, 100)
-            else:
-                rh = np.full(len(times), 50.0)  # Default
-
-            # Wind speed: m/s to km/h
-            if 'wind_speed' in ds:
-                ws_kmh = ds['wind_speed'].values * 3.6
-            else:
-                ws_kmh = np.full(len(times), 10.0)  # Default
-
-            # Wind direction: Not in ERA5, use random or constant
-            # Could derive from u10/v10 if available
-            wd = np.random.uniform(0, 360, len(times))
-
-            # Precipitation: mm/s to mm (hourly accumulation)
-            if 'precipitation_flux' in ds:
-                precip_mm = ds['precipitation_flux'].values * 3600  # mm/s to mm/hour
-            else:
-                precip_mm = np.zeros(len(times))
-
-            # Create DataFrame
-            weather_df = pd.DataFrame({
-                'HOURLY': times.strftime('%d/%m/%Y %H:%M'),
-                'TEMP': temp_c,
-                'RH': rh,
-                'WS': ws_kmh,
-                'WD': wd,
-                'PRECIP': precip_mm,
-            })
+            weather_df = pd.concat(chunks, ignore_index=True)
 
             # Save to CSV
             weather_csv = self.ignacio_input_dir / 'era5_weather_stations.csv'
             weather_df.to_csv(weather_csv, index=False)
 
-            self.logger.info(f"Converted ERA5 to weather CSV: {weather_csv}")
-            self.logger.info(f"  Time range: {times[0]} to {times[-1]}")
+            all_times = pd.to_datetime(weather_df['HOURLY'], dayfirst=True)
+            self.logger.info(f"Converted forcing to weather CSV: {weather_csv}")
+            self.logger.info(f"  Time range: {all_times.iloc[0]} to {all_times.iloc[-1]}")
             self.logger.info(f"  Records: {len(weather_df)}")
 
             return weather_csv
@@ -599,8 +581,8 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
                 },
             },
             'ignition': {
-                'source_type': 'shapefile' if ignition_path else 'point',
-                'point_path': str(ignition_path) if ignition_path else None,
+                'source_type': 'shapefile' if ignition_path else 'fwi_only',
+                **(  {'point_path': str(ignition_path)} if ignition_path else {}),
                 'cause': ignacio_config.get('ignition_cause', 'Lightning'),
                 'season': self._get_season_from_date(ignacio_config.get('ignition_date')),
                 'n_iterations': ignacio_config.get('n_iterations', 1),
@@ -651,13 +633,16 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
                 'store_every': ignacio_config.get('store_every', 30),
                 'min_ros': ignacio_config.get('min_ros', 0.01),
                 'time_varying_weather': ignacio_config.get('time_varying_weather', True),
-                'start_datetime': ignacio_config.get('ignition_date', '2014-08-15 12:00:00'),
+                'start_datetime': ignacio_config.get('ignition_date'),
                 'default_start_hour': 12,
             },
             'output': {
                 'save_perimeters': ignacio_config.get('save_perimeters', True),
                 'save_ros_grids': ignacio_config.get('save_ros_grids', True),
-                'perimeter_format': ignacio_config.get('perimeter_format', 'shapefile'),
+                'perimeter_format': {
+                    'gpkg': 'geopackage',
+                }.get(ignacio_config.get('perimeter_format', 'shapefile'),
+                      ignacio_config.get('perimeter_format', 'shapefile')),
                 'generate_plots': ignacio_config.get('generate_plots', True),
                 'log_level': 'INFO',
             },
