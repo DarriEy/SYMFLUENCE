@@ -654,6 +654,26 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         forcing_data = fdp.load_forcing_data(self.forcing_basin_path)
         forcing_data = forcing_data.sortby('time')
 
+        # Validate temporal completeness before any transformation
+        strategy = self._get_config_value(
+            lambda: self.config.forcing.missing_data_strategy,
+            default='error'
+        )
+        max_gap = self._get_config_value(
+            lambda: self.config.forcing.max_gap_hours,
+            default=24
+        )
+        forcing_data, gap_report = fdp.validate_temporal_completeness(
+            forcing_data,
+            strategy=strategy,
+            max_gap_hours=max_gap,
+        )
+        if not gap_report.get('valid', True):
+            self.logger.warning(
+                f"Forcing gap report: {gap_report['missing_timesteps']} missing timesteps, "
+                f"{gap_report['coverage_pct']:.1f}% coverage"
+            )
+
         # Normalize legacy SUMMA-style names to CFIF standard at the boundary
         from symfluence.data.preprocessing.cfif.variables import normalize_to_cfif
         forcing_data = normalize_to_cfif(forcing_data)

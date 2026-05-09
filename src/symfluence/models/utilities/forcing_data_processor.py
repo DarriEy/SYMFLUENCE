@@ -11,8 +11,9 @@ NGEN, GR, and SUMMA preprocessors.
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -154,6 +155,164 @@ class ForcingDataProcessor:
 
         return ds
 
+    def validate_temporal_completeness(
+        self,
+        ds: xr.Dataset,
+        expected_freq_seconds: Optional[int] = None,
+        strategy: str = 'error',
+        max_gap_hours: int = 24,
+        time_var: str = 'time'
+    ) -> Tuple[xr.Dataset, Dict[str, Any]]:
+        """
+        Check forcing data for missing timesteps and act based on strategy.
+
+        Args:
+            ds: Dataset to validate
+            expected_freq_seconds: Expected timestep in seconds.
+                If None, inferred from data.
+            strategy: How to handle gaps:
+                - 'error': Raise ValueError on any gap
+                - 'warn': Log warnings but continue
+                - 'interpolate': Fill gaps with linear interpolation
+                - 'fill_forward': Fill gaps with last known value
+            max_gap_hours: Gaps exceeding this escalate to error regardless
+                of strategy (safety limit)
+            time_var: Name of time coordinate
+
+        Returns:
+            Tuple of (dataset, report) where report contains gap details
+
+        Raises:
+            ValueError: When gaps are found and strategy is 'error', or when
+                any gap exceeds max_gap_hours
+        """
+        if time_var not in ds.coords and time_var not in ds.dims:
+            return ds, {'valid': True, 'message': 'No time coordinate found, skipping validation'}
+
+        times = pd.to_datetime(ds[time_var].values)
+        if len(times) < 2:
+            return ds, {'valid': True, 'message': 'Fewer than 2 timesteps, skipping validation'}
+
+        times_sorted = times.sort_values()
+
+        if expected_freq_seconds is None:
+            deltas = np.diff(times_sorted).astype('timedelta64[s]').astype(int)
+            expected_freq_seconds = int(np.median(deltas))
+
+        expected_freq = pd.Timedelta(seconds=expected_freq_seconds)
+        expected_index = pd.date_range(
+            start=times_sorted[0], end=times_sorted[-1], freq=expected_freq
+        )
+        actual_set = set(times_sorted)
+        missing = sorted(expected_index.difference(actual_set))
+
+        report: Dict[str, Any] = {
+            'valid': len(missing) == 0,
+            'expected_timesteps': len(expected_index),
+            'actual_timesteps': len(times_sorted),
+            'missing_timesteps': len(missing),
+            'expected_freq_seconds': expected_freq_seconds,
+            'coverage_pct': len(times_sorted) / len(expected_index) * 100 if len(expected_index) > 0 else 100.0,
+        }
+
+        if not missing:
+            self.logger.info(
+                f"Forcing temporal completeness OK: {len(times_sorted)} timesteps, "
+                f"{expected_freq_seconds}s interval, 100% coverage"
+            )
+            return ds, report
+
+        gap_runs = self._identify_gap_runs(missing, expected_freq)
+        report['gaps'] = gap_runs
+        max_gap_found_hours = max(g['duration_hours'] for g in gap_runs) if gap_runs else 0
+        report['max_gap_hours'] = max_gap_found_hours
+
+        gap_summary = "; ".join(
+            f"{g['start']} to {g['end']} ({g['missing_count']} steps, {g['duration_hours']:.1f}h)"
+            for g in gap_runs[:5]
+        )
+        if len(gap_runs) > 5:
+            gap_summary += f"; ... and {len(gap_runs) - 5} more gaps"
+
+        msg = (
+            f"Forcing data has {len(missing)} missing timesteps across {len(gap_runs)} gap(s) "
+            f"(expected {expected_freq_seconds}s interval, {report['coverage_pct']:.1f}% coverage). "
+            f"Gaps: {gap_summary}"
+        )
+
+        if max_gap_found_hours > max_gap_hours:
+            raise ValueError(
+                f"{msg}\nLargest gap ({max_gap_found_hours:.1f}h) exceeds FORCING_MAX_GAP_HOURS "
+                f"({max_gap_hours}h). This gap is too large to safely fill — please fix the source data."
+            )
+
+        if strategy == 'error':
+            raise ValueError(
+                f"{msg}\nSet FORCING_MISSING_DATA_STRATEGY to 'warn', 'interpolate', or "
+                f"'fill_forward' to handle gaps, or fix the source data."
+            )
+        elif strategy == 'warn':
+            self.logger.warning(msg)
+        elif strategy in ('interpolate', 'fill_forward'):
+            self.logger.warning(f"{msg} — filling with strategy='{strategy}'")
+            ds = self._fill_temporal_gaps(
+                ds, expected_freq, times_sorted[0], times_sorted[-1],
+                method=strategy, time_var=time_var
+            )
+            report['filled'] = True
+        else:
+            raise ValueError(f"Unknown missing data strategy: {strategy}")
+
+        return ds, report
+
+    def _identify_gap_runs(
+        self, missing: List[pd.Timestamp], expected_freq: pd.Timedelta
+    ) -> List[Dict[str, Any]]:
+        """Group consecutive missing timesteps into gap runs."""
+        if not missing:
+            return []
+
+        runs: List[Dict[str, Any]] = []
+        run_start = missing[0]
+        prev = missing[0]
+
+        for ts in missing[1:]:
+            if ts - prev > expected_freq * 1.5:
+                runs.append({
+                    'start': str(run_start),
+                    'end': str(prev),
+                    'missing_count': int((prev - run_start) / expected_freq) + 1,
+                    'duration_hours': (prev - run_start + expected_freq).total_seconds() / 3600,
+                })
+                run_start = ts
+            prev = ts
+
+        runs.append({
+            'start': str(run_start),
+            'end': str(prev),
+            'missing_count': int((prev - run_start) / expected_freq) + 1,
+            'duration_hours': (prev - run_start + expected_freq).total_seconds() / 3600,
+        })
+        return runs
+
+    def _fill_temporal_gaps(
+        self,
+        ds: xr.Dataset,
+        freq: pd.Timedelta,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        method: str = 'interpolate',
+        time_var: str = 'time'
+    ) -> xr.Dataset:
+        """Reindex to complete time axis and fill gaps."""
+        complete_index = pd.date_range(start=start, end=end, freq=freq)
+        ds = ds.reindex({time_var: complete_index})
+        if method == 'interpolate':
+            ds = ds.interpolate_na(dim=time_var, method='linear')
+        elif method == 'fill_forward':
+            ds = ds.ffill(dim=time_var)
+        return ds
+
     def resample_to_frequency(
         self,
         ds: xr.Dataset,
@@ -280,12 +439,16 @@ class ForcingDataProcessor:
         end_time: pd.Timestamp,
         target_freq: str = 'D',
         variable_mapping: Optional[Dict[str, str]] = None,
-        unit_conversions: Optional[Dict[str, str]] = None
+        unit_conversions: Optional[Dict[str, str]] = None,
+        missing_data_strategy: Optional[str] = None,
+        max_gap_hours: Optional[int] = None,
+        expected_freq_seconds: Optional[int] = None
     ) -> xr.Dataset:
         """
         Complete forcing preparation pipeline.
 
-        Combines loading, subsetting, resampling, and variable mapping.
+        Combines loading, subsetting, temporal validation, resampling,
+        and variable mapping.
 
         Args:
             forcing_path: Path to forcing files
@@ -294,6 +457,11 @@ class ForcingDataProcessor:
             target_freq: Target temporal frequency
             variable_mapping: Variable name mapping dict
             unit_conversions: Dict mapping variable names to conversion keys
+            missing_data_strategy: Gap handling ('error', 'warn',
+                'interpolate', 'fill_forward'). Falls back to config then 'error'.
+            max_gap_hours: Maximum gap before forced error. Falls back to
+                config then 24.
+            expected_freq_seconds: Expected timestep. If None, inferred.
 
         Returns:
             Prepared forcing dataset
@@ -303,6 +471,20 @@ class ForcingDataProcessor:
 
         # Subset
         ds = self.subset_to_time_window(ds, start_time, end_time)
+
+        # Validate temporal completeness before resampling
+        strategy = missing_data_strategy or self._get_config_str(
+            'FORCING_MISSING_DATA_STRATEGY', 'error'
+        )
+        gap_limit = max_gap_hours or self._get_config_int(
+            'FORCING_MAX_GAP_HOURS', 24
+        )
+        ds, _report = self.validate_temporal_completeness(
+            ds,
+            expected_freq_seconds=expected_freq_seconds,
+            strategy=strategy,
+            max_gap_hours=gap_limit,
+        )
 
         # Resample
         ds = self.resample_to_frequency(ds, target_freq)
@@ -316,6 +498,30 @@ class ForcingDataProcessor:
                 ds = self.apply_unit_conversion(ds, var, conversion)
 
         return ds
+
+    def _get_config_str(self, key: str, default: str) -> str:
+        """Extract a string config value from config dict or typed config."""
+        if isinstance(self.config, dict):
+            return str(self.config.get(key, default))
+        # Typed config: try forcing subsection
+        forcing = getattr(self.config, 'forcing', None)
+        if forcing is not None:
+            field_map = {
+                'FORCING_MISSING_DATA_STRATEGY': 'missing_data_strategy',
+                'FORCING_MAX_GAP_HOURS': 'max_gap_hours',
+            }
+            attr = field_map.get(key)
+            if attr and hasattr(forcing, attr):
+                return str(getattr(forcing, attr))
+        return default
+
+    def _get_config_int(self, key: str, default: int) -> int:
+        """Extract an int config value from config dict or typed config."""
+        val = self._get_config_str(key, str(default))
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return default
 
     def get_spatial_mean(
         self,
