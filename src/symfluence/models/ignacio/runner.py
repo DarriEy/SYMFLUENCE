@@ -50,12 +50,23 @@ class IGNACIORunner(BaseModelRunner):
         self.ignacio_input_dir = self.project_dir / "IGNACIO_input"
         self.ignacio_config_path = self.ignacio_input_dir / "ignacio_config.yaml"
 
+    def _is_fwi_only(self) -> bool:
+        """Check if this is an FWI-only run (no ignition configured)."""
+        import yaml
+        if not self.ignacio_config_path.exists():
+            return False
+        with open(self.ignacio_config_path, encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
+        ignition = cfg.get('ignition', {})
+        return ignition.get('source_type') == 'fwi_only'
+
     def run_ignacio(self, **kwargs) -> Optional[Path]:
         """
-        Execute the IGNACIO fire spread simulation.
+        Execute the IGNACIO fire spread simulation or FWI-only analysis.
 
-        Attempts to run IGNACIO via its Python API first, falling back
-        to CLI if the API is unavailable.
+        For FWI-only mode (no ignition), calculates FWI components from
+        weather data without running fire spread.  Otherwise attempts
+        the full simulation via Python API, falling back to CLI.
 
         Returns:
             Path to output directory on success, None on failure
@@ -81,19 +92,134 @@ class IGNACIORunner(BaseModelRunner):
                     f"Run preprocessing first: symfluence workflow step preprocessing"
                 )
 
-            # Try Python API first
-            success = self._run_via_api()
-
-            if not success:
-                # Fall back to CLI
-                self.logger.info("Falling back to IGNACIO CLI...")
-                success = self._run_via_cli()
+            if self._is_fwi_only():
+                success = self._run_fwi_only()
+            else:
+                # Try Python API first
+                success = self._run_via_api()
+                if not success:
+                    self.logger.info("Falling back to IGNACIO CLI...")
+                    success = self._run_via_cli()
 
             if success:
-                self.logger.info(f"IGNACIO simulation completed. Output: {self.output_dir}")
+                self.logger.info(f"IGNACIO completed. Output: {self.output_dir}")
                 return self.output_dir
             else:
                 raise ModelExecutionError("IGNACIO simulation failed")
+
+    def _run_fwi_only(self) -> bool:
+        """
+        Calculate FWI components from weather data without fire spread.
+
+        Reads the preprocessed weather CSV and computes daily FWI
+        components (FFMC, DMC, DC, ISI, BUI, FWI, DSR).
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import pandas as pd
+            import yaml
+            from ignacio.fwi import calculate_fwi_from_weather
+
+            with open(self.ignacio_config_path, encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+
+            weather_path = cfg.get('weather', {}).get('station_path')
+            if not weather_path or not Path(weather_path).exists():
+                self.logger.error(f"Weather CSV not found: {weather_path}")
+                return False
+
+            latitude = cfg.get('weather', {}).get('fwi_latitude', 65.0)
+
+            self.logger.info(f"FWI-only mode: calculating from {weather_path}")
+            self.logger.info(f"  Latitude for day-length adjustment: {latitude}")
+
+            weather_df = pd.read_csv(weather_path)
+            self.logger.info(f"  Weather records: {len(weather_df)}")
+
+            fwi_df = calculate_fwi_from_weather(
+                weather_df,
+                latitude=latitude,
+            )
+
+            fwi_csv = self.output_dir / 'fwi_results.csv'
+            fwi_df.to_csv(fwi_csv, index=False)
+            self.logger.info(f"  FWI results: {len(fwi_df)} days → {fwi_csv}")
+
+            if len(fwi_df) > 0:
+                self.logger.info(
+                    f"  FFMC range: {fwi_df['FFMC'].min():.1f} – {fwi_df['FFMC'].max():.1f}"
+                )
+                self.logger.info(
+                    f"  DMC  range: {fwi_df['DMC'].min():.1f} – {fwi_df['DMC'].max():.1f}"
+                )
+                self.logger.info(
+                    f"  DC   range: {fwi_df['DC'].min():.1f} – {fwi_df['DC'].max():.1f}"
+                )
+                self.logger.info(
+                    f"  ISI  range: {fwi_df['ISI'].min():.2f} – {fwi_df['ISI'].max():.2f}"
+                )
+                self.logger.info(
+                    f"  BUI  range: {fwi_df['BUI'].min():.1f} – {fwi_df['BUI'].max():.1f}"
+                )
+                self.logger.info(
+                    f"  FWI  range: {fwi_df['FWI'].min():.2f} – {fwi_df['FWI'].max():.2f}"
+                )
+
+                if cfg.get('output', {}).get('generate_plots', True):
+                    self._generate_fwi_plots(fwi_df)
+
+            return True
+
+        except ImportError as e:
+            self.logger.warning(f"IGNACIO FWI package not available: {e}")
+            return False
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.error(f"FWI calculation failed: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+
+    def _generate_fwi_plots(self, fwi_df) -> None:
+        """Generate FWI time series plots."""
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.dates as mdates
+            import matplotlib.pyplot as plt
+            import pandas as pd
+
+            dates = pd.to_datetime(fwi_df['DATE'])
+
+            fig, axes = plt.subplots(3, 2, figsize=(14, 10), sharex=True)
+            fig.suptitle(f'Fire Weather Index — {self.config.domain.name}', fontsize=14)
+
+            components = [
+                ('FFMC', 'Fine Fuel Moisture Code', 'tab:orange'),
+                ('DMC', 'Duff Moisture Code', 'tab:brown'),
+                ('DC', 'Drought Code', 'tab:red'),
+                ('ISI', 'Initial Spread Index', 'tab:purple'),
+                ('BUI', 'Buildup Index', 'tab:green'),
+                ('FWI', 'Fire Weather Index', 'tab:blue'),
+            ]
+
+            for ax, (col, title, color) in zip(axes.flat, components):
+                ax.plot(dates, fwi_df[col], color=color, linewidth=0.5)
+                ax.set_ylabel(col)
+                ax.set_title(title)
+                ax.grid(True, alpha=0.3)
+                ax.xaxis.set_major_locator(mdates.YearLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+
+            plt.tight_layout()
+            plot_path = self.output_dir / 'fwi_timeseries.png'
+            fig.savefig(plot_path, dpi=150)
+            plt.close(fig)
+            self.logger.info(f"  FWI plot saved: {plot_path}")
+
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"Could not generate FWI plots: {e}")
 
     def _run_via_api(self) -> bool:
         """
