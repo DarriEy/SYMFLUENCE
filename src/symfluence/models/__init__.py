@@ -66,7 +66,7 @@ _model_names = [
     'modflow', 'parflow', 'clmparflow',
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
     'pihm', 'wmfire',
-    'gsflow', 'watflood', 'wflow',
+    'gsflow', 'watflood', 'wflow', 'lisflood',
 ]
 
 import importlib as _importlib
