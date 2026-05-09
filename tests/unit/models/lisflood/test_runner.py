@@ -81,7 +81,8 @@ class TestLisfloodRunnerEnvironment:
                 # Check the env passed to execute_subprocess
                 call_kwargs = mock_exec.call_args
                 env = call_kwargs.kwargs.get("env") or call_kwargs[1].get("env", {})
-                assert env.get("CONDA_PREFIX") == "/opt/conda/envs/pcraster312"
+                expected_prefix = str(Path("/opt/conda/envs/pcraster312"))
+                assert env.get("CONDA_PREFIX") == expected_prefix
 
     def test_removes_pcraster_threads_when_num_threads_1(
         self, lisflood_config, mock_logger, setup_lisflood_directories
