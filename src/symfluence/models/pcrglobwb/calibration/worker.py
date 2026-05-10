@@ -1,0 +1,242 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
+"""PCR-GLOBWB calibration worker."""
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, Optional
+
+import numpy as np
+import pandas as pd
+
+from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.models.lisflood.runner import _find_pcraster_site_packages
+from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.workers.base_worker import BaseWorker
+
+from .parameter_manager import PCRGLOBWBParameterManager
+
+
+@OptimizerRegistry.register_worker('PCRGLOBWB')
+class PCRGLOBWBWorker(BaseWorker):
+    """Calibration worker for PCR-GLOBWB."""
+
+    _streamflow_metrics = StreamflowMetrics()
+
+    def apply_parameters(self, params: Dict[str, float], settings_dir: Path, **kwargs) -> bool:
+        routing_params = {k: v for k, v in params.items() if k.startswith('ROUTE_')}
+        model_params = {k: v for k, v in params.items() if not k.startswith('ROUTE_')}
+        self._routing_params = routing_params
+
+        # Copy original parameter files to process-specific dir
+        original_params = self._get_original_settings_dir() / 'parameters'
+        target_params = settings_dir / 'parameters'
+        if original_params.exists() and original_params != target_params:
+            if target_params.exists():
+                shutil.rmtree(target_params)
+            shutil.copytree(original_params, target_params)
+
+        # Copy INI and clone map
+        original_dir = self._get_original_settings_dir()
+        for fname in ['setup.ini', 'clone.map']:
+            src = original_dir / fname
+            dst = settings_dir / fname
+            if src.exists() and src != dst:
+                shutil.copy2(src, dst)
+
+        # Copy forcing
+        original_forcing = original_dir / 'forcing'
+        target_forcing = settings_dir / 'forcing'
+        if original_forcing.exists() and not target_forcing.exists():
+            shutil.copytree(original_forcing, target_forcing)
+
+        # Patch INI output dir to process-specific location
+        output_dir = kwargs.get('output_dir', settings_dir / 'output')
+        self._patch_ini_output(settings_dir, output_dir)
+
+        # Update parameters
+        pm = PCRGLOBWBParameterManager(self.config, self.logger, settings_dir)
+        return pm.update_model_files(model_params, settings_dir)
+
+    def run_model(self, config: Dict, settings_dir: Path, output_dir: Path, **kwargs) -> bool:
+        ini_path = settings_dir / 'setup.ini'
+        if not ini_path.exists():
+            self.logger.error(f"INI not found: {ini_path}")
+            return False
+
+        env = dict(os.environ)
+
+        # PCR-GLOBWB install path
+        install_path = config.get('PCRGLOBWB_INSTALL_PATH', 'default')
+        data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
+        if install_path == 'default' or not install_path:
+            pcrglobwb_dir = Path(data_dir) / 'installs' / 'pcrglobwb'
+        else:
+            pcrglobwb_dir = Path(install_path)
+
+        env['PYTHONPATH'] = str(pcrglobwb_dir)
+
+        # Discover PCRaster
+        pcraster_site = _find_pcraster_site_packages()
+        if pcraster_site:
+            env['PYTHONPATH'] = f"{pcraster_site}:{env['PYTHONPATH']}"
+            pcraster_prefix = str(Path(pcraster_site).parent.parent.parent)
+            env['CONDA_PREFIX'] = pcraster_prefix
+            env['PATH'] = f"{pcraster_prefix}/bin:{env.get('PATH', '')}"
+
+        exe_name = config.get('PCRGLOBWB_EXE', 'deterministic_runner.py')
+        runner_script = pcrglobwb_dir / exe_name
+        cmd = [sys.executable, str(runner_script), str(ini_path)]
+
+        timeout = int(config.get('PCRGLOBWB_TIMEOUT', 14400))
+        try:
+            result = subprocess.run(
+                cmd, cwd=str(settings_dir), env=env,
+                capture_output=True, text=True, timeout=timeout,
+            )
+            if result.returncode != 0:
+                self.logger.warning(f"PCR-GLOBWB failed (rc={result.returncode})")
+                if result.stderr:
+                    self.logger.debug(result.stderr[-500:])
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            self.logger.warning(f"PCR-GLOBWB timed out after {timeout}s")
+            return False
+
+    def calculate_metrics(self, output_dir: Path, config: Dict, **kwargs) -> Dict[str, float]:
+        try:
+            sim = self._load_simulated_streamflow(output_dir, config)
+            obs = self._load_observations(config)
+
+            if sim is None or obs is None or len(sim) == 0 or len(obs) == 0:
+                return {'KGE': -999.0, 'NSE': -999.0}
+
+            # Resample sub-daily to daily if needed
+            if hasattr(sim.index, 'freq') and sim.index.freq and sim.index.freq.n < 86400:
+                sim = sim.resample('D').mean()
+
+            # Filter to calibration period
+            cal_period = config.get('CALIBRATION_PERIOD', '')
+            if cal_period:
+                parts = cal_period.split(',')
+                if len(parts) == 2:
+                    sim = sim[parts[0].strip():parts[1].strip()]
+                    obs = obs[parts[0].strip():parts[1].strip()]
+
+            # Align
+            combined = pd.concat([sim.rename('sim'), obs.rename('obs')], axis=1).dropna()
+            if len(combined) < 30:
+                self.logger.warning(f"Only {len(combined)} aligned data points")
+                return {'KGE': -999.0, 'NSE': -999.0}
+
+            metrics = self._streamflow_metrics.calculate_metrics(
+                combined['obs'].values, combined['sim'].values
+            )
+            return metrics
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"Metric calculation failed: {e}")
+            return {'KGE': -999.0, 'NSE': -999.0}
+
+    def _load_simulated_streamflow(self, output_dir: Path, config: Dict) -> Optional[pd.Series]:
+        """Load discharge from PCR-GLOBWB NetCDF output."""
+        import xarray as xr
+
+        # Search in netcdf/ subdirectory (PCR-GLOBWB convention)
+        for search_dir in [output_dir / 'netcdf', output_dir]:
+            if not search_dir.exists():
+                continue
+            for pattern in ['discharge_dailyTot_output.nc', 'discharge_*_output.nc']:
+                matches = list(search_dir.glob(pattern))
+                if matches:
+                    ds = xr.open_dataset(matches[0])
+                    q_var = None
+                    for v in ['discharge', 'Qsim', 'Q']:
+                        if v in ds.data_vars:
+                            q_var = ds[v]
+                            break
+                    if q_var is None:
+                        ds.close()
+                        continue
+
+                    spatial_dims = [d for d in q_var.dims if d not in ['time']]
+                    if spatial_dims:
+                        streamflow = q_var.max(dim=spatial_dims)
+                    else:
+                        streamflow = q_var
+                    series = streamflow.to_series()
+                    ds.close()
+
+                    # Apply post-hoc routing if available
+                    if hasattr(self, '_routing_params') and self._routing_params:
+                        series = self._apply_routing(series, self._routing_params)
+
+                    return series
+
+        self.logger.error(f"No discharge output found in {output_dir}")
+        return None
+
+    def _load_observations(self, config: Dict) -> Optional[pd.Series]:
+        """Load observed streamflow."""
+        data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
+        domain = config.get('DOMAIN_NAME', '')
+        obs_dir = Path(data_dir) / f'domain_{domain}' / 'observations' / 'streamflow' / 'preprocessed'
+        if not obs_dir.exists():
+            self.logger.error(f"Observations not found: {obs_dir}")
+            return None
+
+        csv_files = sorted(obs_dir.glob('*.csv'))
+        if not csv_files:
+            self.logger.error(f"No observation CSV files in {obs_dir}")
+            return None
+
+        df = pd.read_csv(csv_files[0], parse_dates=[0], index_col=0)
+        col = 'discharge_cms' if 'discharge_cms' in df.columns else df.columns[0]
+        return df[col].dropna()
+
+    @staticmethod
+    def _apply_routing(q: pd.Series, params: Dict[str, float]) -> pd.Series:
+        """Two-store linear reservoir routing for lumped mode smoothing."""
+        alpha = params.get('ROUTE_ALPHA', 0.5)
+        beta = params.get('ROUTE_BETA', 0.98)
+        split = params.get('ROUTE_SPLIT', 0.5)
+        baseflow = params.get('ROUTE_BASEFLOW', 0.0)
+
+        q_in = q.values
+        n = len(q_in)
+        s_fast = np.zeros(n)
+        s_slow = np.zeros(n)
+
+        for i in range(1, n):
+            s_fast[i] = alpha * s_fast[i - 1] + split * q_in[i]
+            s_slow[i] = beta * s_slow[i - 1] + (1.0 - split) * q_in[i]
+
+        q_out = (1.0 - alpha) * s_fast + (1.0 - beta) * s_slow + baseflow
+        return pd.Series(np.maximum(q_out, 0.0), index=q.index, name=q.name)
+
+    def _get_original_settings_dir(self) -> Path:
+        data_dir = self.config.get('SYMFLUENCE_DATA_DIR', '.')
+        domain = self.config.get('DOMAIN_NAME', '')
+        return Path(data_dir) / f'domain_{domain}' / 'settings' / 'PCRGLOBWB'
+
+    def _patch_ini_output(self, settings_dir: Path, output_dir: Path) -> None:
+        """Redirect output to process-specific directory."""
+        import configparser
+        ini_path = settings_dir / 'setup.ini'
+        if not ini_path.exists():
+            return
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        ini = configparser.ConfigParser()
+        ini.optionxform = str
+        ini.read(ini_path)
+
+        if 'globalOptions' in ini:
+            ini['globalOptions']['outputDir'] = str(output_dir)
+
+        with open(ini_path, 'w') as f:
+            ini.write(f)

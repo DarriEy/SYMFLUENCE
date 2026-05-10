@@ -6963,6 +6963,134 @@ LISFLOOD_PARAMS_TO_CALIBRATE: ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,
 #   Usage:      3
 LISFLOOD_TIMEOUT: 7200
 
+# --- PCR-GLOBWB (Utrecht University Global Water Balance Model) ---
+
+# PCRGLOBWB_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to the cloned PCR-GLOBWB repository
+PCRGLOBWB_INSTALL_PATH: default
+
+# PCRGLOBWB_EXE
+#   Type:        str
+#   Default:     deterministic_runner.py
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the PCR-GLOBWB runner script
+PCRGLOBWB_EXE: "deterministic_runner.py"
+
+# PCRGLOBWB_PYTHON_EXE
+#   Type:        str
+#   Default:     python
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Python executable with PCRaster installed (e.g., conda env)
+PCRGLOBWB_PYTHON_EXE: "python"
+
+# SETTINGS_PCRGLOBWB_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB settings directory
+SETTINGS_PCRGLOBWB_PATH: default
+
+# PCRGLOBWB_CONFIG_FILE
+#   Type:        str
+#   Default:     setup.ini
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the INI configuration file
+PCRGLOBWB_CONFIG_FILE: "setup.ini"
+
+# PCRGLOBWB_CLONE_MAP
+#   Type:        str
+#   Default:     clone.map
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PCRaster clone map defining the grid domain
+PCRGLOBWB_CLONE_MAP: "clone.map"
+
+# PCRGLOBWB_RESOLUTION
+#   Type:        str
+#   Default:     05min
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial resolution: '05min' (~10km) or '30min' (~50km)
+PCRGLOBWB_RESOLUTION: "05min"
+
+# PCRGLOBWB_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial mode for the model run
+PCRGLOBWB_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_PCRGLOBWB
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Experiment output directory for PCR-GLOBWB
+EXPERIMENT_OUTPUT_PCRGLOBWB: default
+
+# PCRGLOBWB_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Output directory for PCR-GLOBWB results
+PCRGLOBWB_OUTPUT_DIR: default
+
+# PCRGLOBWB_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Number of spin-up years (0 = no spin-up)
+PCRGLOBWB_SPINUP_YEARS: 0
+
+# PCRGLOBWB_SPINUP_CONVERGENCE
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Enable convergence checking during spin-up
+PCRGLOBWB_SPINUP_CONVERGENCE: False
+
+# PCRGLOBWB_USE_OPENDAP
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Read global inputs from 4TU OPeNDAP server
+PCRGLOBWB_USE_OPENDAP: False
+
+# PCRGLOBWB_INPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB input data directory
+PCRGLOBWB_INPUT_DIR: default
+
+# PCRGLOBWB_MET_FORCING_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to meteorological forcing data
+PCRGLOBWB_MET_FORCING_DIR: default
+
+# PCRGLOBWB_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PET estimation method: 'hamon' or 'oudin'
+PCRGLOBWB_PET_METHOD: "hamon"
+
+# PCRGLOBWB_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Comma-separated list of parameters for calibration
+PCRGLOBWB_PARAMS_TO_CALIBRATE: KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+
+# PCRGLOBWB_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Maximum runtime in seconds (default 4 hours)
+PCRGLOBWB_TIMEOUT: 14400
+
 
 # 18. State Management
 # ================================================================================
