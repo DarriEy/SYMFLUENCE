@@ -339,30 +339,33 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.logger.warning(f"Could not generate {label}")
         return False
 
-    def _generate_ldd_map(self) -> None:
+    def _generate_ldd_map(self, dem_grid: np.ndarray = None) -> None:
         """Generate LDD from resampled DEM using PCRaster's lddcreate.
 
         For distributed grids, derives flow directions from the DEM.
         Falls back to uniform pit (value 5) if DEM is unavailable.
         """
         target = self.params_dir / 'ldd.map'
-        dem_nc = self.params_dir / 'topography_parameters.nc'
 
-        # Try DEM-based LDD creation
-        if dem_nc.exists():
-            script = (
-                f"import pcraster as pcr; import numpy as np; import xarray as xr; "
-                f"pcr.setclone({self.nrows}, {self.ncols}, {self.cellsize}, "
-                f"{self.grid_west}, {self.grid_north}); "
-                f"ds = xr.open_dataset('{dem_nc}'); "
-                f"dem = ds['dem_average'].values.copy(); ds.close(); "
-                f"dem = np.where(np.isnan(dem), -9999.0, dem); "
-                f"dem_pcr = pcr.numpy2pcr(pcr.Scalar, dem, -9999.0); "
-                f"ldd = pcr.lddcreate(dem_pcr, 1e31, 1e31, 1e31, 1e31); "
-                f"pcr.report(ldd, '{target}')"
-            )
-            if self._run_pcraster_script(script, target, "LDD from DEM", timeout=120):
-                return
+        if dem_grid is not None and np.isfinite(dem_grid).any():
+            # Write DEM to temporary .map, run lddcreate, clean up
+            dem_safe = np.where(np.isfinite(dem_grid), dem_grid, -9999.0)
+            dem_tmp = self.params_dir / '_dem_for_ldd.map'
+            self._write_map('_dem_for_ldd.map', dem_safe)
+
+            if dem_tmp.exists():
+                script = (
+                    f"import pcraster as pcr; "
+                    f"pcr.setclone('{dem_tmp}'); "
+                    f"dem = pcr.readmap('{dem_tmp}'); "
+                    f"dem = pcr.cover(dem, pcr.scalar(0)); "
+                    f"ldd = pcr.lddcreate(dem, 1e31, 1e31, 1e31, 1e31); "
+                    f"pcr.report(ldd, '{target}')"
+                )
+                if self._run_pcraster_script(script, target, "LDD from DEM", timeout=120):
+                    dem_tmp.unlink(missing_ok=True)
+                    return
+                dem_tmp.unlink(missing_ok=True)
 
         # Fallback: uniform pit
         script = (
@@ -771,7 +774,7 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self._write_map('thickness.map', 100.0)
 
         # ── LDD from DEM ─────────────────────────────────────────────
-        self._generate_ldd_map()
+        self._generate_ldd_map(dem_grid)
 
         # ── Cell area (varies with latitude) — as .map for readPCRmapClone ──
         cell_areas = np.zeros((self.nrows, self.ncols))
