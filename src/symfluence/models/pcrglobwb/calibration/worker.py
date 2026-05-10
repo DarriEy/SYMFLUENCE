@@ -32,35 +32,73 @@ class PCRGLOBWBWorker(BaseWorker):
         model_params = {k: v for k, v in params.items() if not k.startswith('ROUTE_')}
         self._routing_params = routing_params
 
-        # Copy original parameter files to process-specific dir
-        original_params = self._get_original_settings_dir() / 'parameters'
-        target_params = settings_dir / 'parameters'
-        if original_params.exists() and original_params != target_params:
-            if target_params.exists():
-                shutil.rmtree(target_params)
-            shutil.copytree(original_params, target_params)
-
-        # Copy INI and clone map
         original_dir = self._get_original_settings_dir()
-        for fname in ['setup.ini', 'clone.map']:
-            src = original_dir / fname
-            dst = settings_dir / fname
-            if src.exists() and src != dst:
-                shutil.copy2(src, dst)
 
-        # Copy forcing
-        original_forcing = original_dir / 'forcing'
-        target_forcing = settings_dir / 'forcing'
-        if original_forcing.exists() and not target_forcing.exists():
-            shutil.copytree(original_forcing, target_forcing)
+        # First call: set up process dir with symlinks (fast, ~0s)
+        # Subsequent calls: only update the calibrated .map files
+        self._setup_process_dir(original_dir, settings_dir)
 
         # Patch INI output dir to process-specific location
         output_dir = kwargs.get('output_dir', settings_dir / 'output')
         self._patch_ini_output(settings_dir, output_dir)
 
-        # Update parameters
+        # Update only the calibrated parameters
         pm = PCRGLOBWBParameterManager(self.config, self.logger, settings_dir)
         return pm.update_model_files(model_params, settings_dir)
+
+    def _setup_process_dir(self, original_dir: Path, settings_dir: Path) -> None:
+        """Set up process isolation directory using symlinks for speed.
+
+        Static files (forcing, clone map, non-calibrated .map files) are
+        symlinked to the original. Only the INI and calibrated .map files
+        are real copies that get modified each iteration.
+        """
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        target_params = settings_dir / 'parameters'
+
+        # Clone map: symlink (never changes)
+        clone_dst = settings_dir / 'clone.map'
+        clone_src = original_dir / 'clone.map'
+        if not clone_dst.exists() and clone_src.exists():
+            clone_dst.symlink_to(clone_src)
+
+        # Forcing: symlink entire directory (never changes)
+        forcing_dst = settings_dir / 'forcing'
+        forcing_src = original_dir / 'forcing'
+        if not forcing_dst.exists() and forcing_src.exists():
+            forcing_dst.symlink_to(forcing_src)
+
+        # INI: always copy fresh (gets patched each iteration)
+        ini_src = original_dir / 'setup.ini'
+        ini_dst = settings_dir / 'setup.ini'
+        if ini_src.exists():
+            shutil.copy2(ini_src, ini_dst)
+
+        # Parameters directory: symlink static files, copy calibrated ones
+        original_params = original_dir / 'parameters'
+        if not original_params.exists():
+            return
+
+        target_params.mkdir(parents=True, exist_ok=True)
+
+        calibrated_files = {f'{p}.map' for p in PCRGLOBWBParameterManager.MAP_FILE_PARAMS}
+
+        for src_file in original_params.iterdir():
+            dst_file = target_params / src_file.name
+            if dst_file.exists():
+                if src_file.name in calibrated_files:
+                    # Re-copy calibrated files (will be overwritten by parameter manager)
+                    if dst_file.is_symlink():
+                        dst_file.unlink()
+                    else:
+                        continue  # already a real file from previous iteration
+                else:
+                    continue  # static symlink already exists
+
+            if src_file.name in calibrated_files:
+                shutil.copy2(src_file, dst_file)
+            else:
+                dst_file.symlink_to(src_file)
 
     def run_model(self, config: Dict, settings_dir: Path, output_dir: Path, **kwargs) -> bool:
         ini_path = settings_dir / 'setup.ini'
