@@ -175,9 +175,13 @@ class CWatMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f"PET={pet.mean()*1000:.2f} mm/day"
         )
 
-        # Write forcing as single-cell NetCDFs (CWatM reads nearest grid cell)
+        # Write forcing on 3x3 grid (CWatM needs >=2 lat/lon for cell size calc)
         lat, lon = props['lat'], props['lon']
-        coords = {'time': daily_times, 'lat': [lat], 'lon': [lon]}
+        cs = 0.5  # 30min grid spacing
+        lats = np.array([lat + cs, lat, lat - cs])
+        lons = np.array([lon - cs, lon, lon + cs])
+        nt = len(daily_times)
+        coords = {'time': daily_times, 'lat': lats, 'lon': lons}
 
         for varname, data, units in [
             ('precipitation', precip, 'm/day'),
@@ -186,7 +190,7 @@ class CWatMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             ('ETRef', pet, 'm/day'),
         ]:
             da = xr.DataArray(
-                data.reshape(len(daily_times), 1, 1),
+                np.broadcast_to(data.reshape(nt, 1, 1), (nt, 3, 3)).copy(),
                 dims=['time', 'lat', 'lon'],
                 coords=coords,
                 attrs={'units': units},
@@ -354,6 +358,10 @@ class CWatMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         _sub('ETMaps', f'{self.forcing_out_dir}/ETRef*')
         _sub('load_initial', 'False')
         _sub('save_initial', 'False')
+        _sub('calc_evaporation', 'False')
+        _sub('includeIrrigation', 'False')
+        _sub('includeWaterDemand', 'False')
+        _sub('TemperatureInKelvin', 'False')
         _sub('OUT_Dir', str(sim_output_dir))
         _sub('title', f'CWatM output - {domain_name} (SYMFLUENCE)')
 
