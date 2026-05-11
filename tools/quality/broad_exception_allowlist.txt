@@ -960,6 +960,14 @@ src/symfluence/models/parflow/postprocessor.py:ParFlowPostProcessor.extract_stre
 src/symfluence/models/parflow/preprocessor.py:ParFlowPreProcessor._get_latitude:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/preprocessor.py:ParFlowPreProcessor._prepare_daily_rainfall:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/runner.py:ParFlowRunner._get_parflow_dir:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/pcrglobwb/calibration/worker.py:PCRGLOBWBWorker.calculate_metrics:except Exception as e:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/extractor.py:PCRGLOBWBResultExtractor.extract_variable:except Exception as e:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/postprocessor.py:PCRGLOBWBPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/preprocessor.py:PCRGLOBWBPreProcessor._build_domain_grid:except Exception:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/preprocessor.py:PCRGLOBWBPreProcessor._estimate_initial_conditions:except Exception:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/preprocessor.py:PCRGLOBWBPreProcessor._extract_forcing_var:except Exception:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/preprocessor.py:PCRGLOBWBPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001
+src/symfluence/models/pcrglobwb/preprocessor.py:PCRGLOBWBPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001
 src/symfluence/models/pihm/calibration/parameter_manager.py:PIHMParameterManager.update_model_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/targets.py:PIHMStreamflowTarget._extract_pihm_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/pihm/calibration/worker.py:PIHMWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
