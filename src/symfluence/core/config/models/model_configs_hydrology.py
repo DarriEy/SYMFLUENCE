@@ -192,6 +192,7 @@ class NGENConfig(BaseModel):
     # Module selection (replaces individual ENABLE_* flags)
     modules_selected: str = Field(default='SLOTH,PET,CFE', alias='NGEN_MODULES_SELECTED')
     noah_et_fallback: str = Field(default='ETRAN', alias='NGEN_NOAH_ET_FALLBACK')
+    csv_output_is_flow: bool = Field(default=False, alias='NGEN_CSV_OUTPUT_IS_FLOW')
 
     @model_validator(mode='before')
     @classmethod
