@@ -67,6 +67,7 @@ _model_names = [
     'swat', 'mhm', 'crhm', 'wrfhydro', 'prms',
     'pihm', 'wmfire',
     'gsflow', 'watflood', 'wflow', 'lisflood',
+    'pcrglobwb',
 ]
 
 import importlib as _importlib
