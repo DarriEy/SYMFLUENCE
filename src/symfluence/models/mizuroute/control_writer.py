@@ -276,6 +276,8 @@ class ControlFileWriter(ConfigurableMixin):
         routing_var = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default=model_config.default_var)
         if routing_var in ('default', None, ''):
             routing_var = model_config.default_var
+        elif routing_var == 'averageRoutedRunoff' and model_config.default_var != 'averageRoutedRunoff':
+            routing_var = model_config.default_var
 
         routing_units = self._get_config_value(lambda: self.config.model.mizuroute.routing_units, default=model_config.default_units)
         if routing_units in ('default', None, ''):
@@ -292,9 +294,15 @@ class ControlFileWriter(ConfigurableMixin):
         if model_config.comment_name == 'FUSE':
             routing_dt = model_config.default_dt  # 86400 (daily)
 
-        # Generate output file name from pattern
+        # Generate output file name from pattern.
+        # FUSE truncates FMODEL_ID to 6 chars, hashing if longer — the
+        # mizuRoute control file must match the actual FUSE output name.
+        eid = self.experiment_id
+        if model_config.comment_name == 'FUSE' and len(eid) > 6:
+            import hashlib
+            eid = hashlib.md5(eid.encode(), usedforsecurity=False).hexdigest()[:6]
         output_file = model_config.output_file_pattern.format(
-            experiment_id=self.experiment_id,
+            experiment_id=eid,
             domain_name=self.domain_name
         )
 

@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import (
+    resolve_fuse_id,
     update_fuse_file_manager,
 )
 from symfluence.models.fuse.calibration.metrics_calculation import (
@@ -164,7 +165,7 @@ class FUSEWorker(BaseWorker):
         """Update para_def.nc file using appropriate strategy."""
         domain_name = config.get('DOMAIN_NAME', '')
         experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-        fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+        fuse_id = resolve_fuse_id(config, experiment_id)
         para_def_path = fuse_settings_dir / f"{domain_name}_{fuse_id}_para_def.nc"
 
         if regionalization_method != 'lumped' and para_def_path.exists():
@@ -351,11 +352,6 @@ class FUSEWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
 
-            # Load observations
-            observed = load_observations(config, project_dir, self.logger)
-            if observed is None:
-                return {'kge': self.penalty_score}
-
             # Find simulation output
             mizuroute_dir = kwargs.get('mizuroute_dir')
             proc_id = kwargs.get('proc_id', 0)
@@ -368,7 +364,8 @@ class FUSEWorker(BaseWorker):
             if sim_file_path is None:
                 return {'kge': self.penalty_score}
 
-            # Check multi-gauge mode
+            # Multi-gauge sources its own observations from MULTI_GAUGE_OBS_DIR,
+            # so skip the single-gauge load_observations gate when enabled.
             multi_gauge_enabled = config.get('MULTI_GAUGE_CALIBRATION', False)
             if multi_gauge_enabled and use_routed:
                 kwargs_clean = {k: v for k, v in kwargs.items() if k != 'project_dir'}
@@ -378,6 +375,11 @@ class FUSEWorker(BaseWorker):
                     project_dir=project_dir,
                     **kwargs_clean
                 )
+
+            # Single-gauge path needs preprocessed observations on disk.
+            observed = load_observations(config, project_dir, self.logger)
+            if observed is None:
+                return {'kge': self.penalty_score}
 
             # Read simulated streamflow
             if use_routed:
@@ -456,6 +458,24 @@ class FUSEWorker(BaseWorker):
 
             gauge_mapping_path = Path(gauge_mapping_path)
             obs_dir = Path(obs_dir)
+
+            # Auto-download LaMAH-Ice daily streamflow if the user pointed
+            # at a LaMAH-Ice D_gauges directory that isn't there yet.
+            if 'D_gauges' in obs_dir.parts and not obs_dir.exists():
+                try:
+                    from symfluence.data.observation.handlers.lamah_ice import (
+                        ensure_lamah_ice_streamflow,
+                    )
+                    # Trim to the dataset root (parent of D_gauges/...)
+                    lamah_root = obs_dir
+                    while lamah_root.name != 'D_gauges' and lamah_root.parent != lamah_root:
+                        lamah_root = lamah_root.parent
+                    lamah_root = lamah_root.parent
+                    ensure_lamah_ice_streamflow(lamah_root, self.logger)
+                except Exception as exc:  # noqa: BLE001 — let the existence check below surface the real failure
+                    self.logger.warning(
+                        f"LaMAH-Ice auto-download skipped: {exc}"
+                    )
 
             # Get topology file
             topology_path = self._find_topology_path(kwargs.get('settings_dir'))

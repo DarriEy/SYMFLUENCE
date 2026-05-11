@@ -120,7 +120,9 @@ class TestFUSEParameterManagerInitialization:
 
         assert manager.domain_name == 'test_catchment'
         assert manager.experiment_id == 'test_fuse_exp'
-        assert manager.fuse_id == 'test_fuse'
+        # FUSE Fortran uses CHARACTER(LEN=6) for FMODEL_ID; longer IDs hash.
+        import hashlib
+        assert manager.fuse_id == hashlib.md5(b'test_fuse', usedforsecurity=False).hexdigest()[:6]
 
     def test_init_handles_empty_params(self, fuse_config, test_logger, tmp_path):
         """Test initialization with empty string uses default parameters.

@@ -21,9 +21,11 @@ from .model_configs_hydrology import (
     GRConfig,
     GSFLOWConfig,
     HYPEConfig,
+    LisfloodConfig,
     MESHConfig,
     MHMConfig,
     NGENConfig,
+    PCRGLOBWBConfig,
     PRMSConfig,
     RHESSysConfig,
     SUMMAConfig,
@@ -72,6 +74,8 @@ HYDROLOGICAL_MODEL_REGISTRY: dict[str, ConfigRegistryEntry] = {
     'GSFLOW': ('gsflow', GSFLOWConfig),
     'WATFLOOD': ('watflood', WATFLOODConfig),
     'WFLOW': ('wflow', WflowConfig),
+    'LISFLOOD': ('lisflood', LisfloodConfig),
+    'PCRGLOBWB': ('pcrglobwb', PCRGLOBWBConfig),
 }
 
 ROUTING_MODEL_REGISTRY: dict[str, ConfigRegistryEntry] = {
@@ -133,6 +137,8 @@ class ModelConfig(BaseModel):
     gsflow: Optional[GSFLOWConfig] = Field(default=None)
     watflood: Optional[WATFLOODConfig] = Field(default=None)
     wflow: Optional[WflowConfig] = Field(default=None)
+    lisflood: Optional[LisfloodConfig] = Field(default=None)
+    pcrglobwb: Optional[PCRGLOBWBConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod

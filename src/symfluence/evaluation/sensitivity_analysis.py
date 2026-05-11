@@ -19,6 +19,65 @@ from tqdm import tqdm
 
 from symfluence.core.mixins import ConfigMixin
 
+# Hoist pyviscous to module scope so the VISCOUS path is patchable from
+# tests (see test_sa_viscous_nan_handling). Leaving the import inside
+# perform_sensitivity_analysis kept viscous un-patchable because
+# ``from pyviscous import viscous`` re-binds the real attribute inside
+# the function's local scope on every call.
+try:
+    from pyviscous import viscous as _pyviscous
+except ImportError:  # pragma: no cover — pyviscous is an optional dep
+    _pyviscous = None
+
+# Columns in the calibration-results CSV that are NOT calibration
+# parameters and must be excluded from sensitivity analysis.
+#
+# Gradient-based optimisers (ADAM, L-BFGS) write extra diagnostic
+# columns — grad_norm, lr, current_params — that co-author SH's
+# iter-3 feedback called out (04.SH.3): "Sensitivity analysis step
+# fails entirely for gradient-based algorithms — all parameters
+# throw a type error caused by ADAM-specific columns that the
+# sensitivity analyzer cannot handle." current_params in particular
+# is a Python list that pandas writes as a string literal.
+#
+# We also filter any non-numeric column up front in
+# ``_parameter_columns_for_sa`` as a belt-and-suspenders guard so
+# future optimisers that add their own diagnostic columns don't
+# regress this path.
+_NON_PARAM_COLS = frozenset({
+    # Bookkeeping
+    'Iteration', 'iteration', 'step', 'timestamp', 'crash_count', 'crash_rate',
+    # Objective scores (various conventions)
+    'score', 'objective', 'Objective', 'fitness',
+    'RMSE', 'KGE', 'KGEp', 'KGEnp', 'NSE', 'MAE',
+    'Calib_RMSE', 'Calib_KGE', 'Calib_KGEp', 'Calib_KGEnp', 'Calib_NSE', 'Calib_MAE',
+    'Eval_RMSE', 'Eval_KGE', 'Eval_KGEp', 'Eval_KGEnp', 'Eval_NSE', 'Eval_MAE',
+    # Gradient-optimiser internals (ADAM / L-BFGS)
+    'grad_norm', 'lr', 'current_params', 'step_size',
+    'f_calls', 'n_iter', 'fun', 'gtol', 'ftol', 'xtol',
+})
+
+
+def _parameter_columns_for_sa(samples) -> list:
+    """Return the subset of columns that should be treated as
+    calibration parameters.
+
+    Drops:
+      1. Anything in ``_NON_PARAM_COLS`` (known bookkeeping / score /
+         optimiser-internal columns).
+      2. Non-numeric columns (string literals like ``"[0.1, 0.5]"``
+         from list-valued optimiser diagnostics, or bracketed
+         stringified arrays from older calibration runs that PR
+         #54 fixes at source but that still exist in on-disk
+         historical CSVs).
+    """
+    numeric_cols = [
+        c for c in samples.columns
+        if c not in _NON_PARAM_COLS
+        and pd.api.types.is_numeric_dtype(samples[c])
+    ]
+    return numeric_cols
+
 
 class SensitivityAnalyzer(ConfigMixin):
     """
@@ -70,16 +129,56 @@ class SensitivityAnalyzer(ConfigMixin):
 
     def preprocess_data(self, samples, metric='RMSE'):
         """
-        Preprocess calibration samples by removing duplicates.
+        Preprocess calibration samples for sensitivity analysis.
+
+        Steps:
+          1. Drop rows whose metric value is non-finite (NaN from crashed
+             iterations, inf from degenerate metric maths).
+          2. Drop rows whose metric value is a known SYMFLUENCE failure
+             sentinel (``<= -900``). These are the "score is invalid"
+             markers several optimisers write when a model run crashed —
+             their raw values aren't meaningful response values and
+             poison copula-based estimators (VISCOUS) with synthetic
+             low-tail mass. Co-author PW reported VISCOUS producing NaN
+             on a calibration where the crash-regime score had leaked
+             into the response vector.
+          3. De-duplicate on parameter columns — DDS produces repeated
+             rows when it restarts from the best-so-far, which biases
+             sensitivity estimators toward whichever parameters happened
+             to be held constant during those restarts.
 
         Args:
             samples: DataFrame of calibration samples with parameter values.
-            metric: Metric column name (unused, kept for API compatibility).
+            metric: Metric column name used for failure-sentinel filtering.
 
         Returns:
-            pd.DataFrame: Deduplicated samples based on parameter columns.
+            pd.DataFrame: Cleaned, deduplicated samples.
         """
-        samples_unique = samples.drop_duplicates(subset=[col for col in samples.columns if col != 'Iteration'])
+        n_in = len(samples)
+
+        if metric in samples.columns:
+            metric_values = pd.to_numeric(samples[metric], errors='coerce')
+            finite_mask = np.isfinite(metric_values)
+            sentinel_mask = metric_values > -900
+            clean = samples[finite_mask & sentinel_mask].copy()
+            n_dropped = n_in - len(clean)
+            if n_dropped > 0:
+                self.logger.info(
+                    f"Sensitivity preprocessing dropped {n_dropped}/{n_in} rows "
+                    f"with non-finite or failure-sentinel {metric} values "
+                    f"(NaN / <=-900). Keeping {len(clean)} usable rows."
+                )
+        else:
+            clean = samples
+
+        samples_unique = clean.drop_duplicates(
+            subset=[col for col in clean.columns if col != 'Iteration']
+        )
+        if len(samples_unique) < len(clean):
+            self.logger.info(
+                f"Sensitivity preprocessing dropped "
+                f"{len(clean) - len(samples_unique)} duplicate rows."
+            )
         return samples_unique
 
     def perform_sensitivity_analysis(self, samples, metric='Calib_KGEnp', min_samples=60):
@@ -98,37 +197,60 @@ class SensitivityAnalyzer(ConfigMixin):
             pd.Series: Sensitivity indices for each parameter, or -999 if failed.
         """
         self.logger.info(f"Performing sensitivity analysis using {metric} metric")
-        non_param_cols = {'Iteration', 'iteration', 'score', 'timestamp', 'crash_count', 'crash_rate',
-                          'Calib_RMSE', 'Calib_KGE', 'Calib_KGEp', 'Calib_KGEnp', 'Calib_NSE', 'Calib_MAE'}
-        parameter_columns = [col for col in samples.columns if col not in non_param_cols]
+        parameter_columns = _parameter_columns_for_sa(samples)
 
         if len(samples) < min_samples:
             self.logger.warning(f"Insufficient data for reliable sensitivity analysis. Have {len(samples)} samples, recommend at least {min_samples}.")
             return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
 
-        x = samples[parameter_columns].values
-        y = samples[metric].values.reshape(-1, 1)
+        x = samples[parameter_columns].values.astype(float, copy=False)
+        y = samples[metric].values.astype(float, copy=False).reshape(-1, 1)
 
         sensitivities = []
+
+        if _pyviscous is None:
+            self.logger.warning("pyviscous not installed, skipping.")
+            return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
 
         for i, param in tqdm(enumerate(parameter_columns), total=len(parameter_columns), desc="Calculating sensitivities"):
             try:
                 try:
-                    from pyviscous import viscous
-                    sensitivity_result = viscous(x, y, i, sensType='total')
-                except ImportError:
-                    self.logger.warning("pyviscous not installed, skipping.")
-                    return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
+                    sensitivity_result = _pyviscous(x, y, i, sensType='total')
                 except ValueError:
-                    sensitivity_result = viscous(x, y, i, sensType='single')
+                    sensitivity_result = _pyviscous(x, y, i, sensType='single')
 
                 if isinstance(sensitivity_result, tuple):
                     sensitivity = sensitivity_result[0]
                 else:
                     sensitivity = sensitivity_result
 
-                sensitivities.append(sensitivity)
-                self.logger.info(f"Successfully calculated sensitivity for {param}")
+                # pyviscous returns a numeric scalar on success. If the
+                # GMCM fit didn't converge for any component count the
+                # sensitivity can come back as NaN — previously this
+                # flowed straight through to the CSV and the user saw
+                # an unlabelled NaN cell with no explanation. Convert
+                # NaN to the -999 failure sentinel and log specifically
+                # so a co-author reading the log knows it was VISCOUS
+                # non-convergence, not a missing-data error.
+                try:
+                    s_float = float(sensitivity)
+                except (TypeError, ValueError):
+                    s_float = float('nan')
+                if not np.isfinite(s_float):
+                    self.logger.warning(
+                        f"VISCOUS returned a non-finite index for {param} "
+                        f"(result={sensitivity!r}) — the GMCM copula fit "
+                        "likely did not converge for any component count. "
+                        "This is common when calibration samples are "
+                        "highly clustered (e.g. DDS near the optimum); "
+                        "cross-check with Sobol / RBD-FAST results or run "
+                        "VISCOUS on a dedicated LHS/Sobol sampling pass. "
+                        "Recording -999."
+                    )
+                    sensitivities.append(-999)
+                else:
+                    sensitivities.append(s_float)
+                    self.logger.info(f"Successfully calculated sensitivity for {param}")
             except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.error(f"Error in sensitivity analysis for parameter {param}: {str(e)}")
                 sensitivities.append(-999)
@@ -151,12 +273,44 @@ class SensitivityAnalyzer(ConfigMixin):
             pd.Series: Total-order Sobol indices for each parameter.
         """
         self.logger.info(f"Performing Sobol analysis using {metric} metric")
-        parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'RMSE', 'KGE', 'KGEp', 'NSE', 'MAE']]
+        parameter_columns = _parameter_columns_for_sa(samples)
+
+        # SALib's sobol.analyze raises a generic "Bounds are not legal"
+        # ValueError when the bounds aren't numeric (e.g. a YAML pass
+        # serialized `[0.1, 2.0]` as `["0.1", "2.0"]`) or when min==max
+        # for any parameter (constant column, nothing to analyse).
+        # Both failures currently get swallowed upstream as a warning,
+        # so co-authors see "SA complete" with no output and no clue
+        # what went wrong. Validate here and raise a message that names
+        # the offending parameter and value.
+        bounds = []
+        for col in parameter_columns:
+            lo = samples[col].min()
+            hi = samples[col].max()
+            if not (isinstance(lo, (int, float, np.integer, np.floating)) and
+                    isinstance(hi, (int, float, np.integer, np.floating))):
+                raise ValueError(
+                    f"Sobol analysis cannot run: parameter '{col}' has "
+                    f"non-numeric bounds ({lo!r}, {hi!r}; types "
+                    f"{type(lo).__name__}/{type(hi).__name__}). This "
+                    "usually means the optimization results CSV has "
+                    "stringified numbers — check that the calibration "
+                    "writer serializes floats, not YAML-quoted strings."
+                )
+            if float(hi) <= float(lo):
+                raise ValueError(
+                    f"Sobol analysis cannot run: parameter '{col}' has "
+                    f"degenerate bounds (min={lo}, max={hi}). Every "
+                    "sample produced the same value, so there is no "
+                    "variance to attribute. Drop constant parameters "
+                    "from the calibration, or widen the search range."
+                )
+            bounds.append([float(lo), float(hi)])
 
         problem = {
             'num_vars': len(parameter_columns),
             'names': parameter_columns,
-            'bounds': [[samples[col].min(), samples[col].max()] for col in parameter_columns]
+            'bounds': bounds,
         }
 
         param_values = sobol_sample.sample(problem, 1024)
@@ -190,7 +344,7 @@ class SensitivityAnalyzer(ConfigMixin):
             pd.Series: First-order sensitivity indices (S1) for each parameter.
         """
         self.logger.info(f"Performing RBD-FAST analysis using {metric} metric")
-        parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'RMSE', 'KGE', 'KGEp', 'NSE', 'MAE']]
+        parameter_columns = _parameter_columns_for_sa(samples)
 
         problem = {
             'num_vars': len(parameter_columns),
@@ -220,7 +374,7 @@ class SensitivityAnalyzer(ConfigMixin):
             pd.Series: Spearman correlation coefficients for each parameter.
         """
         self.logger.info(f"Performing correlation analysis using {metric} metric")
-        parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'RMSE', 'KGE', 'KGEp', 'NSE', 'MAE']]
+        parameter_columns = _parameter_columns_for_sa(samples)
         correlations = []
         for param in parameter_columns:
             corr, _ = spearmanr(samples[param], samples[metric])
