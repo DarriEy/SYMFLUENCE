@@ -41,6 +41,18 @@ python -c "import numpy, scipy, netCDF4; print('Dependencies OK')" 2>/dev/null |
     pip install numpy scipy netCDF4 2>/dev/null || true
 }
 
+# Compile kinematic wave routing C library for current architecture
+# (CWatM ships x86_64 binaries; ARM Macs need recompilation)
+T5_DIR="cwatm/hydrological_modules/routing_reservoirs"
+if [ -f "$T5_DIR/t5.cpp" ]; then
+    echo "Compiling kinematic wave routing library..."
+    if [ "$(uname)" = "Darwin" ]; then
+        c++ -shared -fPIC -O2 -o "$T5_DIR/t5_mac.so" "$T5_DIR/t5.cpp" 2>/dev/null && echo "Compiled t5_mac.so" || echo "WARNING: Could not compile t5.cpp"
+    else
+        c++ -shared -fPIC -O2 -o "$T5_DIR/t5_linux.so" "$T5_DIR/t5.cpp" 2>/dev/null && echo "Compiled t5_linux.so" || echo "WARNING: Could not compile t5.cpp"
+    fi
+fi
+
 echo "=== CWatM Installation Complete ==="
 echo "Runner: run_cwatm.py"
 echo "Usage: python run_cwatm.py <settings.ini>"

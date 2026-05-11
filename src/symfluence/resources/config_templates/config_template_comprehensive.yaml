@@ -7091,6 +7091,239 @@ PCRGLOBWB_PARAMS_TO_CALIBRATE: KSat1,KSat2,recessionCoeff,degreeDayFactor,freezi
 #   Usage:      Maximum runtime in seconds (default 4 hours)
 PCRGLOBWB_TIMEOUT: 14400
 
+# --- CWatM (IIASA Community Water Model) ---
+
+# CWATM_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_INSTALL_PATH: default
+
+# CWATM_EXE
+#   Type:        str
+#   Default:     run_cwatm.py
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_EXE: "run_cwatm.py"
+
+# SETTINGS_CWATM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+SETTINGS_CWATM_PATH: default
+
+# CWATM_CONFIG_FILE
+#   Type:        str
+#   Default:     settings.ini
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CONFIG_FILE: "settings.ini"
+
+# CWATM_RESOLUTION
+#   Type:        str
+#   Default:     30min
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_RESOLUTION: "30min"
+
+# CWATM_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_CWATM
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+EXPERIMENT_OUTPUT_CWATM: default
+
+# CWATM_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_OUTPUT_DIR: default
+
+# CWATM_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPINUP_YEARS: 0
+
+# CWATM_CALC_EVAPORATION
+#   Type:        bool
+#   Default:     False
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CALC_EVAPORATION: False
+
+# CWATM_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PET_METHOD: "hamon"
+
+# CWATM_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PARAMS_TO_CALIBRATE: SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+
+# CWATM_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_TIMEOUT: 14400
+
+# --- Noah-MP Standalone (NOAA-OWP noah-owp-modular) ---
+
+# NOAHMP_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_INSTALL_PATH: default
+
+# NOAHMP_EXE
+#   Type:        str
+#   Default:     noah_owp_modular.exe
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_EXE: "noah_owp_modular.exe"
+
+# SETTINGS_NOAHMP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+SETTINGS_NOAHMP_PATH: default
+
+# NOAHMP_NAMELIST_FILE
+#   Type:        str
+#   Default:     namelist.input
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NAMELIST_FILE: "namelist.input"
+
+# NOAHMP_FORCING_FILE
+#   Type:        str
+#   Default:     forcing.txt
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_FORCING_FILE: "forcing.txt"
+
+# NOAHMP_OUTPUT_FILE
+#   Type:        str
+#   Default:     output.nc
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_OUTPUT_FILE: "output.nc"
+
+# NOAHMP_PARAMETER_DIR
+#   Type:        str
+#   Default:     parameters
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PARAMETER_DIR: "parameters"
+
+# NOAHMP_TIMESTEP
+#   Type:        int
+#   Default:     3600
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+#   Usage:       Model timestep in seconds (900, 1800, or 3600)
+NOAHMP_TIMESTEP: 3600
+
+# NOAHMP_NSOIL
+#   Type:        int
+#   Default:     4
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NSOIL: 4
+
+# NOAHMP_NSNOW
+#   Type:        int
+#   Default:     3
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NSNOW: 3
+
+# NOAHMP_DYNAMIC_VEG_OPTION
+#   Type:        int
+#   Default:     4
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_DYNAMIC_VEG_OPTION: 4
+
+# NOAHMP_CANOPY_STOMATAL_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_CANOPY_STOMATAL_OPTION: 1
+
+# NOAHMP_SOIL_MOISTURE_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SOIL_MOISTURE_OPTION: 1
+
+# NOAHMP_RUNOFF_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_RUNOFF_OPTION: 1
+
+# NOAHMP_SFC_DRAG_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SFC_DRAG_OPTION: 1
+
+# NOAHMP_SUPERCOOLED_WATER_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SUPERCOOLED_WATER_OPTION: 1
+
+# NOAHMP_FROZEN_SOIL_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_FROZEN_SOIL_OPTION: 1
+
+# NOAHMP_RADIATIVE_TRANSFER_OPTION
+#   Type:        int
+#   Default:     3
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_RADIATIVE_TRANSFER_OPTION: 3
+
+# NOAHMP_SNOW_ALBEDO_OPTION
+#   Type:        int
+#   Default:     2
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SNOW_ALBEDO_OPTION: 2
+
+# NOAHMP_PRECIP_PHASE_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PRECIP_PHASE_OPTION: 1
+
+# EXPERIMENT_OUTPUT_NOAHMP
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+EXPERIMENT_OUTPUT_NOAHMP: default
+
+# NOAHMP_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_OUTPUT_DIR: default
+
+# NOAHMP_SPINUP_LOOPS
+#   Type:        int
+#   Default:     0
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SPINUP_LOOPS: 0
+
+# NOAHMP_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     refkdt,dksat,bexp,smcmax,slope,noah_czil
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PARAMS_TO_CALIBRATE: refkdt,dksat,bexp,smcmax,slope,noah_czil
+
+# NOAHMP_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_TIMEOUT: 7200
+
 
 # 18. State Management
 # ================================================================================
