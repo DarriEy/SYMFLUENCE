@@ -71,7 +71,7 @@ class TestNoahMPConfigDefaults:
     def test_config_default_nsoil(self):
         from symfluence.core.config.models.model_configs import NoahMPConfig
         config = NoahMPConfig()
-        assert config.nsoil == 1
+        assert config.nsoil == 4
 
     def test_config_default_nsnow(self):
         from symfluence.core.config.models.model_configs import NoahMPConfig
