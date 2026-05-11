@@ -261,7 +261,7 @@ class PCRGLOBWBWorker(BaseWorker):
         return Path(data_dir) / f'domain_{domain}' / 'settings' / 'PCRGLOBWB'
 
     def _patch_ini_output(self, settings_dir: Path, output_dir: Path) -> None:
-        """Redirect output to process-specific directory."""
+        """Redirect output and parameter paths to process-specific directory."""
         import configparser
         ini_path = settings_dir / 'setup.ini'
         if not ini_path.exists():
@@ -269,12 +269,21 @@ class PCRGLOBWBWorker(BaseWorker):
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        original_params = str(self._get_original_settings_dir() / 'parameters')
+        process_params = str(settings_dir / 'parameters')
+
         ini = configparser.ConfigParser()
         ini.optionxform = str
         ini.read(ini_path)
 
         if 'globalOptions' in ini:
             ini['globalOptions']['outputDir'] = str(output_dir)
+
+        # Rewrite all parameter paths from original → process-specific
+        for section in ini.sections():
+            for key, val in ini[section].items():
+                if original_params in val:
+                    ini[section][key] = val.replace(original_params, process_params)
 
         with open(ini_path, 'w') as f:
             ini.write(f)
