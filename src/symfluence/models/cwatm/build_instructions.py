@@ -53,6 +53,23 @@ if [ -f "$T5_DIR/t5.cpp" ]; then
     fi
 fi
 
+# Patch netCDF4 compatibility: modern netCDF4 rejects _FillValue as
+# post-creation attribute. CWatM sets metadata attrs via exec() loops
+# that include _FillValue from metaNetcdf.xml — skip it.
+DH="cwatm/management_modules/data_handling.py"
+if [ -f "$DH" ]; then
+    echo "Patching netCDF4 compatibility..."
+    python -c "
+import re
+with open('$DH') as f: c = f.read()
+c = re.sub(
+    r'(\\s+)(exec\\(\\'%s=\\\\\"%s\\\\\"\\'\\s*%\\s*\\(\\\"\\w+\\.\\\" \\+ i)',
+    r\"\\1if i != '_FillValue':\\n\\1    \\2\",
+    c)
+with open('$DH','w') as f: f.write(c)
+" 2>/dev/null && echo "Patched data_handling.py" || echo "WARNING: Could not patch data_handling.py"
+fi
+
 echo "=== CWatM Installation Complete ==="
 echo "Runner: run_cwatm.py"
 echo "Usage: python run_cwatm.py <settings.ini>"
