@@ -9,11 +9,12 @@ Refactored to use the model execution framework:
 """
 
 import logging
+import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -133,6 +134,40 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         self.output_dir = self.get_experiment_output_dir()
         self.setup_path_aliases({'result_dir': 'output_dir'})
 
+    def _build_fuse_env(self) -> Dict[str, str]:
+        """Build subprocess environment with HDF5/NetCDF library paths for FUSE."""
+        env = os.environ.copy()
+
+        lib_paths = []
+
+        exe_lib = self.fuse_exe.parent.parent / 'lib'
+        if exe_lib.is_dir():
+            lib_paths.append(str(exe_lib))
+
+        conda_prefix = os.environ.get('CONDA_PREFIX')
+        if conda_prefix:
+            conda_lib = Path(conda_prefix) / 'lib'
+            if conda_lib.is_dir():
+                lib_paths.append(str(conda_lib))
+
+        for prefix in ['/opt/homebrew', '/usr/local']:
+            for pkg in ['hdf5', 'netcdf', 'netcdf-fortran']:
+                pkg_lib = Path(prefix) / 'opt' / pkg / 'lib'
+                if pkg_lib.is_dir():
+                    lib_paths.append(str(pkg_lib))
+            general_lib = Path(prefix) / 'lib'
+            if general_lib.is_dir():
+                lib_paths.append(str(general_lib))
+
+        if lib_paths:
+            lib_path_str = os.pathsep.join(lib_paths)
+            for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
+                existing = env.get(var, '')
+                env[var] = f"{lib_path_str}{os.pathsep}{existing}" if existing else lib_path_str
+            self.logger.debug(f"FUSE library paths: {lib_path_str}")
+
+        return env
+
     def _get_output_dir(self) -> Path:
         """FUSE uses custom result_dir naming."""
         return self.get_experiment_output_dir()
@@ -142,7 +177,39 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         return [
             output_dir / f"{self.domain_name}_{fuse_id}_runs_def.nc",
             output_dir / f"{self.domain_name}_{fuse_id}_runs_best.nc",
+            output_dir / f"{self.domain_name}_{fuse_id}_runs_pre.nc",
         ]
+
+    @property
+    def mizu_routing_var(self) -> str:
+        """FUSE-specific override: default to q_routed instead of SUMMA's averageRoutedRunoff."""
+        var = self._get_config_value(
+            lambda: self.config.model.mizuroute.routing_var,
+            default='q_routed'
+        )
+        if var in ('default', None, '', 'averageRoutedRunoff'):
+            return 'q_routed'
+        return var
+
+    def _ensure_routing_variable(self, file_path: Path) -> None:
+        """Rename FUSE runoff variable to match what the mizuRoute control file expects.
+
+        FUSE run modes produce different variable names (q_routed vs q_instnt).
+        The control writer uses the FUSE model default (q_routed) unless overridden,
+        so the NetCDF must match.
+        """
+        target_var = self.mizu_routing_var
+        fuse_runoff_candidates = ['q_routed', 'q_instnt', 'total_discharge', 'runoff']
+
+        with xr.open_dataset(file_path) as ds:
+            actual_var = next((v for v in fuse_runoff_candidates if v in ds.data_vars), None)
+            if actual_var is None or actual_var == target_var:
+                return
+            ds_loaded = ds.load()
+
+        ds_renamed = ds_loaded.rename({actual_var: target_var})
+        ds_renamed.to_netcdf(file_path)
+        self.logger.info(f"Renamed FUSE variable {actual_var} → {target_var} for mizuRoute")
 
     def _convert_routing_units_for_mizuroute(self, dataset: xr.Dataset) -> bool:
         """Convert routed runoff units from mm/day to m/s when required."""
@@ -188,15 +255,21 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
         self.logger.debug(f"Converting FUSE spatial dimensions: {target}")
 
-        # Use generic mixin method with FUSE-specific parameters
+        # Use generic mixin method with FUSE-specific parameters.
+        # param_set is a singleton dimension from FUSE run_pre mode that
+        # mizuRoute cannot handle (expects 2D: time × gru).
         self.convert_to_mizuroute_format(
             input_path=target,
-            squeeze_dims=['latitude'],
+            squeeze_dims=['latitude', 'param_set'],
             rename_dims={'longitude': 'gru'},
             add_id_var='gruId',
             id_source_dim='gru',
             create_backup=True
         )
+
+        # FUSE run modes produce different variable names (q_instnt in run_pre,
+        # q_routed in run_def). Rename to match what the control file expects.
+        self._ensure_routing_variable(target)
 
         # Filter coastal GRUs using mapping file if available
         mapping_file = self.project_dir / 'settings' / 'mizuRoute' / 'fuse_to_routing_mapping.csv'
@@ -431,6 +504,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
             self.logger.debug(f"Executing distributed FUSE ({mode}): {' '.join(command)}")
 
+            env = self._build_fuse_env()
+
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
@@ -440,7 +515,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                     text=True,
                     encoding='utf-8',
                     errors='replace',
-                    cwd=str(self.setup_dir)
+                    cwd=str(self.setup_dir),
+                    env=env
                 )
 
             if result.returncode == 0:
@@ -672,6 +748,10 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         # --- Identify spatial axis (one of latitude/longitude must have length > 1)
         lat_len = fuse_ds.sizes.get('latitude', 0)
         lon_len = fuse_ds.sizes.get('longitude', 0)
+
+        # Squeeze singleton param_set from run_pre mode before spatial reshape
+        if 'param_set' in fuse_ds.sizes and fuse_ds.sizes['param_set'] == 1:
+            fuse_ds = fuse_ds.squeeze('param_set', drop=True)
 
         if lat_len > 1 and (lon_len in (0, 1)):
             # (time, latitude, 1)

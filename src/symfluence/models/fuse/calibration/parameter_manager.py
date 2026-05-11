@@ -81,7 +81,9 @@ class FUSEParameterManager(BaseParameterManager):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.fuse_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
-        self.fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, default=self.experiment_id, dict_key='FUSE_FILE_ID')
+        from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
+        raw_fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, default=self.experiment_id, dict_key='FUSE_FILE_ID')
+        self.fuse_id = resolve_fuse_id({'FUSE_FILE_ID': raw_fuse_id, 'EXPERIMENT_ID': self.experiment_id})
 
         # Parameter file paths
         self.para_def_path = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"

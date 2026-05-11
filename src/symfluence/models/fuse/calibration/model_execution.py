@@ -9,12 +9,14 @@ managing input file symlinks, and validating output.
 """
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +130,7 @@ def prepare_input_files(
     project_dir = data_dir / f"domain_{domain_name}"
     fuse_input_dir = resolve_data_subdir(project_dir, 'forcing') / 'FUSE_input'
     experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-    fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+    fuse_id = resolve_fuse_id(config, experiment_id)
 
     # Input files to symlink
     input_files = [
@@ -142,7 +144,7 @@ def prepare_input_files(
     # Ensure configuration files are present
     project_settings_dir = project_dir / 'settings' / 'FUSE'
     actual_decisions_file = _ensure_config_files(
-        execution_cwd, project_settings_dir, experiment_id, input_files, log
+        execution_cwd, project_settings_dir, fuse_id, input_files, log
     )
 
     # Create symlinks (but NOT para_def.nc which was copied above)
@@ -321,6 +323,40 @@ def validate_fuse_inputs(
     return True
 
 
+def _build_fuse_library_env(fuse_exe: Path) -> Dict[str, str]:
+    """Build subprocess environment with HDF5/NetCDF library paths for FUSE."""
+    env = os.environ.copy()
+
+    lib_paths = []
+
+    exe_lib = Path(fuse_exe).parent.parent / 'lib'
+    if exe_lib.is_dir():
+        lib_paths.append(str(exe_lib))
+
+    conda_prefix = os.environ.get('CONDA_PREFIX')
+    if conda_prefix:
+        conda_lib = Path(conda_prefix) / 'lib'
+        if conda_lib.is_dir():
+            lib_paths.append(str(conda_lib))
+
+    for prefix in ['/opt/homebrew', '/usr/local']:
+        for pkg in ['hdf5', 'netcdf', 'netcdf-fortran']:
+            pkg_lib = Path(prefix) / 'opt' / pkg / 'lib'
+            if pkg_lib.is_dir():
+                lib_paths.append(str(pkg_lib))
+        general_lib = Path(prefix) / 'lib'
+        if general_lib.is_dir():
+            lib_paths.append(str(general_lib))
+
+    if lib_paths:
+        lib_path_str = os.pathsep.join(lib_paths)
+        for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
+            existing = env.get(var, '')
+            env[var] = f"{lib_path_str}{os.pathsep}{existing}" if existing else lib_path_str
+
+    return env
+
+
 def execute_fuse(
     fuse_exe: Path,
     filemanager_path: Path,
@@ -346,7 +382,7 @@ def execute_fuse(
         CompletedProcess result, or None if execution failed
     """
     log = log or logger
-    fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
+    fuse_id = resolve_fuse_id(config)
 
     cmd = [str(fuse_exe), str(filemanager_path.name), fuse_run_id, mode]
 
@@ -391,6 +427,8 @@ def execute_fuse(
         except OSError as e:
             log.warning(f"Could not remove stale para_def {expected_para_def.name}: {e}")
 
+    env = _build_fuse_library_env(fuse_exe)
+
     result = subprocess.run(
         cmd,
         cwd=str(execution_cwd),
@@ -398,7 +436,8 @@ def execute_fuse(
         text=True,
         encoding='utf-8',
         errors='replace',
-        timeout=config.get('FUSE_TIMEOUT', 3600)
+        timeout=config.get('FUSE_TIMEOUT', 3600),
+        env=env
     )
 
     if result.returncode != 0:
@@ -488,7 +527,7 @@ def handle_fuse_output(
     log = log or logger
 
     domain_name = config.get('DOMAIN_NAME')
-    fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
+    fuse_id = resolve_fuse_id(config)
 
     run_suffix = 'runs_def' if mode == 'run_def' else 'runs_pre'
     local_output_filename = f"{fuse_run_id}_{fuse_id}_{run_suffix}.nc"

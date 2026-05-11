@@ -1408,6 +1408,13 @@ CALIBRATION_VARIABLE: "streamflow"
 #   Usage:      1
 CLEANUP_PARALLEL_DIRS: true
 
+# CHECKPOINT_INTERVAL
+#   Type:        int
+#   Default:     10
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Save best_params.json and iteration results every N iterations during optimization
+CHECKPOINT_INTERVAL: 10
+
 # ERROR_LOG_DIR
 #   Type:        str
 #   Default:     error_logs
@@ -2022,6 +2029,13 @@ LAMAH_ICE_PATH: null
 #   Source:      LAMAHICEConfig (evaluation.py)
 #   Usage:      LamaH-Ice station identifier for Iceland basins
 LAMAH_ICE_STATION_ID: null
+
+# LAMAH_ICE_DOMAIN_ID
+#   Type:        str | int
+#   Default:     None
+#   Source:      LAMAHICEConfig (evaluation.py)
+#   Usage:      LamaH-Ice basin identifier (matches ID_<n>.csv naming); preferred over STATION_ID
+LAMAH_ICE_DOMAIN_ID: null
 
 # ========================================
 # SMHI (Swedish Meteorological and Hydrological Institute)
@@ -2731,11 +2745,15 @@ SIMULATIONS_PATH: default
 # ================================================================================
 
 # CALIBRATION_PERIOD
+# The default below mirrors the paper Figure 4 calibration window for
+# the Bow at Banff case study (Eythorsson et al. 2026b). Replace with
+# your own domain's window when adapting this template. The calibration
+# window must lie inside EXPERIMENT_TIME_START..EXPERIMENT_TIME_END.
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      14
-CALIBRATION_PERIOD: null
+CALIBRATION_PERIOD: "2004-01-01, 2007-12-31"
 
 # CALIBRATION_START_DATE
 #   Type:        str
@@ -2798,11 +2816,14 @@ DOMAIN_NAME: "example_basin"
 BOUNDING_BOX_COORDS: null
 
 # EVALUATION_PERIOD
+# Mirrors the paper Figure 4 evaluation window for the Bow at Banff
+# case study. Must lie inside EXPERIMENT_TIME_START..EXPERIMENT_TIME_END
+# and must not overlap CALIBRATION_PERIOD.
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      7
-EVALUATION_PERIOD: null
+EVALUATION_PERIOD: "2008-01-01, 2009-12-31"
 
 # EXPERIMENT_ID
 #   Type:        str
@@ -2812,18 +2833,22 @@ EVALUATION_PERIOD: null
 EXPERIMENT_ID: "run_1"
 
 # EXPERIMENT_TIME_END
+# The default below mirrors the paper Figure 4 simulation window for
+# the Bow at Banff case study (2002-01-01 through 2009-12-31, with a
+# 2002–2003 spin-up, 2004–2007 calibration, 2008–2009 evaluation).
+# Replace with your own simulation window when adapting this template.
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      54
-EXPERIMENT_TIME_END: "2020-12-31 23:00"
+EXPERIMENT_TIME_END: "2009-12-31 23:00"
 
 # EXPERIMENT_TIME_START
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      59
-EXPERIMENT_TIME_START: "2010-01-01 01:00"
+EXPERIMENT_TIME_START: "2002-01-01 01:00"
 
 # SPINUP_PERIOD
 #   Type:        str
@@ -3563,6 +3588,20 @@ SUPPLEMENT_FORCING: false
 #   Source:      ForcingConfig (forcing.py)
 #   Usage:      1
 KEEP_RAW_FORCING: true
+
+# FORCING_MISSING_DATA_STRATEGY
+#   Type:        Literal['error', 'warn', 'interpolate', 'fill_forward']
+#   Default:     error
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MISSING_DATA_STRATEGY: "error"
+
+# FORCING_MAX_GAP_HOURS
+#   Type:        int
+#   Default:     24
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MAX_GAP_HOURS: 24
 
 # EM_PRCP
 #   Type:        str
@@ -6830,6 +6869,227 @@ WFLOW_PARAMS_TO_CALIBRATE: KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,Ks
 #   Source:      WflowConfig (model_configs_hydrology.py)
 #   Usage:      3
 WFLOW_TIMEOUT: 7200
+
+# --- LISFLOOD (JRC/Deltares Distributed Model) ---
+
+# LISFLOOD_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_INSTALL_PATH: default
+
+# LISFLOOD_EXE
+#   Type:        str
+#   Default:     lisflood
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_EXE: "lisflood"
+
+# SETTINGS_LISFLOOD_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+SETTINGS_LISFLOOD_PATH: default
+
+# LISFLOOD_SETTINGS_FILE
+#   Type:        str
+#   Default:     settings.xml
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      3
+LISFLOOD_SETTINGS_FILE: "settings.xml"
+
+# LISFLOOD_SPATIAL_MODE
+#   Type:        SpatialModeType
+#   Default:     lumped
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_SPATIAL_MODE: "lumped"
+
+# EXPERIMENT_OUTPUT_LISFLOOD
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+EXPERIMENT_OUTPUT_LISFLOOD: default
+
+# LISFLOOD_PCRASTER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_PCRASTER_PATH: default
+
+# LISFLOOD_NUM_THREADS
+#   Type:        int
+#   Default:     1
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_NUM_THREADS: 1
+
+# LISFLOOD_PET_METHOD
+#   Type:        str
+#   Default:     oudin
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_PET_METHOD: "oudin"
+
+# LISFLOOD_FOREST_FRACTION
+#   Type:        float
+#   Default:     0.3
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_FOREST_FRACTION: 0.3
+
+# LISFLOOD_FORCING_TIMESTEP
+#   Type:        int
+#   Default:     86400 (daily). Set to 3600 for hourly.
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_FORCING_TIMESTEP: 86400
+
+# LISFLOOD_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,thetas2,thetas3,chanman,mannings,cropcoef,snow_melt_coef,temp_melt,temp_snow,GwPercValue
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_PARAMS_TO_CALIBRATE: ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,thetas2,thetas3,chanman,mannings,cropcoef,snow_melt_coef,temp_melt,temp_snow,GwPercValue
+
+# LISFLOOD_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      3
+LISFLOOD_TIMEOUT: 7200
+
+# --- PCR-GLOBWB (Utrecht University Global Water Balance Model) ---
+
+# PCRGLOBWB_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to the cloned PCR-GLOBWB repository
+PCRGLOBWB_INSTALL_PATH: default
+
+# PCRGLOBWB_EXE
+#   Type:        str
+#   Default:     deterministic_runner.py
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the PCR-GLOBWB runner script
+PCRGLOBWB_EXE: "deterministic_runner.py"
+
+# PCRGLOBWB_PYTHON_EXE
+#   Type:        str
+#   Default:     python
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Python executable with PCRaster installed (e.g., conda env)
+PCRGLOBWB_PYTHON_EXE: "python"
+
+# SETTINGS_PCRGLOBWB_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB settings directory
+SETTINGS_PCRGLOBWB_PATH: default
+
+# PCRGLOBWB_CONFIG_FILE
+#   Type:        str
+#   Default:     setup.ini
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the INI configuration file
+PCRGLOBWB_CONFIG_FILE: "setup.ini"
+
+# PCRGLOBWB_CLONE_MAP
+#   Type:        str
+#   Default:     clone.map
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PCRaster clone map defining the grid domain
+PCRGLOBWB_CLONE_MAP: "clone.map"
+
+# PCRGLOBWB_RESOLUTION
+#   Type:        str
+#   Default:     05min
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial resolution: '05min' (~10km) or '30min' (~50km)
+PCRGLOBWB_RESOLUTION: "05min"
+
+# PCRGLOBWB_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial mode for the model run
+PCRGLOBWB_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_PCRGLOBWB
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Experiment output directory for PCR-GLOBWB
+EXPERIMENT_OUTPUT_PCRGLOBWB: default
+
+# PCRGLOBWB_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Output directory for PCR-GLOBWB results
+PCRGLOBWB_OUTPUT_DIR: default
+
+# PCRGLOBWB_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Number of spin-up years (0 = no spin-up)
+PCRGLOBWB_SPINUP_YEARS: 0
+
+# PCRGLOBWB_SPINUP_CONVERGENCE
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Enable convergence checking during spin-up
+PCRGLOBWB_SPINUP_CONVERGENCE: False
+
+# PCRGLOBWB_USE_OPENDAP
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Read global inputs from 4TU OPeNDAP server
+PCRGLOBWB_USE_OPENDAP: False
+
+# PCRGLOBWB_INPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB input data directory
+PCRGLOBWB_INPUT_DIR: default
+
+# PCRGLOBWB_MET_FORCING_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to meteorological forcing data
+PCRGLOBWB_MET_FORCING_DIR: default
+
+# PCRGLOBWB_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PET estimation method: 'hamon' or 'oudin'
+PCRGLOBWB_PET_METHOD: "hamon"
+
+# PCRGLOBWB_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Comma-separated list of parameters for calibration
+PCRGLOBWB_PARAMS_TO_CALIBRATE: KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+
+# PCRGLOBWB_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Maximum runtime in seconds (default 4 hours)
+PCRGLOBWB_TIMEOUT: 14400
 
 
 # 18. State Management

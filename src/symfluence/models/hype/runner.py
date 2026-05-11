@@ -34,9 +34,22 @@ class HYPERunner(BaseModelRunner):  # type: ignore[misc]
         )
 
     def _get_output_dir(self) -> Path:
-        """HYPE uses custom output path resolution."""
-        experiment_id = self.config.domain.experiment_id
-        return self.get_config_path('EXPERIMENT_OUTPUT_HYPE', f"simulations/{experiment_id}/HYPE")
+        """HYPE uses custom output path resolution.
+
+        During calibration the worker pre-sets ``output_dir`` to the
+        per-iteration directory.  Honour that override instead of
+        re-deriving the path from config (which may be a flat dict).
+        """
+        if hasattr(self, '_output_dir_override') and self._output_dir_override is not None:
+            return self._output_dir_override
+        try:
+            experiment_id = self.config.domain.experiment_id
+            return self.get_config_path('EXPERIMENT_OUTPUT_HYPE', f"simulations/{experiment_id}/HYPE")
+        except (AttributeError, KeyError):
+            if self.output_dir is not None:
+                return self.output_dir
+            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default')
+            return self.project_dir / 'simulations' / experiment_id / 'HYPE'
 
     def _build_run_command(self) -> Optional[List[str]]:
         """Build HYPE execution command."""

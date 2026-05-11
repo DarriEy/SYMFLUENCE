@@ -12,6 +12,7 @@ system:
 domain:
   name: '67'
   bounding_box_coords: 65.10757879457087/-21.757806709351954/64.60982559818538/-20.78651422050288
+  pour_point_coords: 64.710717/-21.603373
   experiment_id: run_gr_v2
   time_start: 2000-01-01 03:00
   time_end: 2008-12-31 21:00
@@ -38,8 +39,6 @@ domain:
   data_access: CLOUD
 data:
   streamflow_data_provider: LAMAH_ICE
-  lamah_ice:
-    domain_id: 67
 forcing:
   dataset: CARRA
   variables: default
@@ -99,6 +98,7 @@ optimization:
 evaluation:
   sim_reach_id: 1
   lamah_ice:
+    domain_id: 67
     path: ./data/
     download: true
   streamflow:
