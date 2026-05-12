@@ -359,6 +359,21 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _prepare_forcing(self) -> None:
         """NGEN-specific forcing data preparation."""
+        forcing_nc = self.forcing_dir / "forcing.nc"
+        csv_dir = self.forcing_dir / "csv"
+
+        if forcing_nc.exists() and csv_dir.exists():
+            catchment_gdf = gpd.read_file(self.get_catchment_path())
+            expected_ids = [f"cat-{x}" for x in catchment_gdf[self.hru_id_col].astype(str).tolist()]
+            existing_csvs = list(csv_dir.glob("cat-*_forcing.csv"))
+            if len(existing_csvs) >= len(expected_ids):
+                self.logger.info(
+                    f"Forcing files already exist ({len(existing_csvs)} CSVs, forcing.nc) — skipping regeneration. "
+                    f"Delete {self.forcing_dir} to force rebuild."
+                )
+                self._forcing_file = forcing_nc
+                return
+
         self._forcing_file = self.prepare_forcing_data()
 
     def _create_model_configs(self) -> None:
