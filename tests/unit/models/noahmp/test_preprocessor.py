@@ -1,50 +1,97 @@
 """Tests for Noah-MP preprocessor."""
+
 import numpy as np
 import pytest
 
 
-class TestNoahMPPreProcessor:
+class TestNoahMPPreProcessorImport:
+    """Tests for Noah-MP preprocessor import and registration."""
+
     def test_preprocessor_can_be_imported(self):
+        """Test that NoahMPPreProcessor can be imported."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
         assert NoahMPPreProcessor is not None
 
     def test_preprocessor_registered(self):
-        import symfluence.models.noahmp  # noqa: F401
+        """Test that preprocessor is registered in ModelRegistry."""
+        from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor  # noqa: F401
         from symfluence.models.registry import ModelRegistry
         assert 'NOAHMP' in ModelRegistry._preprocessors
 
     def test_model_name(self):
+        """Test MODEL_NAME class attribute."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        assert NoahMPPreProcessor.MODEL_NAME == "NOAHMP"
+        assert NoahMPPreProcessor.MODEL_NAME == 'NOAHMP'
 
 
-class TestSpechumToRh:
+class TestSpechum2RH:
+    """Tests for specific humidity to relative humidity conversion."""
+
     def test_zero_humidity(self):
+        """Zero specific humidity should give 0% RH."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        assert NoahMPPreProcessor._spechum_to_rh(np.array([0.0]), np.array([273.15]), np.array([101325.0]))[0] == pytest.approx(0.0, abs=0.01)
+
+        q = np.array([0.0])
+        t_k = np.array([293.15])  # 20 degC
+        p_pa = np.array([101325.0])
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert rh[0] == pytest.approx(0.0, abs=1e-10)
 
     def test_saturated(self):
+        """Check a known near-saturation condition."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        t = np.array([293.15]); p = np.array([101325.0])
-        es = 611.2 * np.exp(17.67 * 20.0 / (20.0 + 243.5))
-        qs = 0.622 * es / (p[0] - 0.378 * es)
-        assert NoahMPPreProcessor._spechum_to_rh(np.array([qs]), t, p)[0] == pytest.approx(100.0, abs=1.0)
 
-    def test_clipped_to_100(self):
-        from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        assert NoahMPPreProcessor._spechum_to_rh(np.array([1.0]), np.array([273.15]), np.array([101325.0]))[0] <= 100.0
+        # At 20C and 101325 Pa, saturation specific humidity ~ 0.0147 kg/kg
+        # es(20C) = 611.2 * exp(17.67*20/263.5) ~ 2338 Pa
+        # q_sat = 0.622 * es / (P - 0.378*es) ~ 0.622*2338/(101325 - 0.378*2338) ~ 0.01445
+        q = np.array([0.01445])
+        t_k = np.array([293.15])
+        p_pa = np.array([101325.0])
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert 95.0 < rh[0] <= 100.0
 
-    def test_clipped_to_0(self):
+    def test_clipped_100(self):
+        """RH should be clipped at 100%."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        assert NoahMPPreProcessor._spechum_to_rh(np.array([-0.001]), np.array([273.15]), np.array([101325.0]))[0] >= 0.0
 
-    def test_typical_winter(self):
+        # Extremely high specific humidity
+        q = np.array([0.05])
+        t_k = np.array([293.15])
+        p_pa = np.array([101325.0])
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert rh[0] == pytest.approx(100.0)
+
+    def test_clipped_0(self):
+        """RH should be clipped at 0%."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        rh = NoahMPPreProcessor._spechum_to_rh(np.array([0.001]), np.array([263.15]), np.array([101325.0]))[0]
-        assert 20.0 < rh < 100.0
+
+        # Negative specific humidity (physically impossible but test clipping)
+        q = np.array([-0.001])
+        t_k = np.array([293.15])
+        p_pa = np.array([101325.0])
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert rh[0] == pytest.approx(0.0)
+
+    def test_winter_conditions(self):
+        """Winter conditions: q=0.001, T=263.15K (-10C), P=101325 Pa."""
+        from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
+
+        q = np.array([0.001])
+        t_k = np.array([263.15])
+        p_pa = np.array([101325.0])
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert 20.0 < rh[0] < 100.0
 
     def test_vectorized(self):
+        """Test with array of 100 values."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor
-        rh = NoahMPPreProcessor._spechum_to_rh(np.full(100, 0.005), np.full(100, 280.0), np.full(100, 101325.0))
-        assert rh.shape == (100,)
-        assert np.all((rh >= 0) & (rh <= 100))
+
+        n = 100
+        rng = np.random.default_rng(42)
+        q = rng.uniform(0.0, 0.02, n)
+        t_k = rng.uniform(250.0, 310.0, n)
+        p_pa = rng.uniform(80000.0, 105000.0, n)
+        rh = NoahMPPreProcessor._spechum_to_rh(q, t_k, p_pa)
+        assert rh.shape == (n,)
+        assert np.all(rh >= 0.0)
+        assert np.all(rh <= 100.0)
