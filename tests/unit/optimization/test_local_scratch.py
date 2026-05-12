@@ -133,7 +133,16 @@ class TestLocalScratchSetup:
         """SLURM_TMPDIR points somewhere we can't mkdir -> warn + disabled."""
         mock_logger = MagicMock()
 
-        with patch.dict(os.environ, {'SLURM_TMPDIR': '/proc/fake_scratch'}):
+        fake_dir = str(tmp_path / 'uncreatable_scratch')
+        _real_mkdir = Path.mkdir
+
+        def _mkdir_that_blocks_slurm(self_path, *args, **kwargs):
+            if str(self_path) == fake_dir:
+                raise OSError("permission denied")
+            return _real_mkdir(self_path, *args, **kwargs)
+
+        with patch.dict(os.environ, {'SLURM_TMPDIR': fake_dir}), \
+             patch('pathlib.Path.mkdir', _mkdir_that_blocks_slurm):
             mgr = _make_scratch_manager(tmp_path, scratch_config, mock_logger)
 
         assert mgr.use_scratch is False
