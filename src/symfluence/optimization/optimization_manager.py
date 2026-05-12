@@ -295,8 +295,11 @@ class OptimizationManager(BaseManager):
             # Multi-gauge calibration always needs the external worker because
             # FUSE-internal SCE is single-basin only.
             if 'FUSE' in hydrological_models:
-                fuse_cfg = self.config.model.fuse if self.config.model else None
-                use_internal = fuse_cfg.run_internal_calibration if fuse_cfg else True
+                use_internal = self._get_config_value(
+                    lambda: self.config.model.fuse.run_internal_calibration,
+                    default=True,
+                    dict_key='FUSE_RUN_INTERNAL_CALIBRATION'
+                )
                 multi_gauge = self._get_config_value(
                     lambda: self.config.calibration.multi_gauge,
                     default=False,
