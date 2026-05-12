@@ -24,14 +24,14 @@ from jsnow17.parameters import Snow17Params
 class TestParameterBounds:
     """Test parameter bound definitions."""
 
-    def test_snow17_has_10_params(self):
-        assert len(SNOW17_PARAM_BOUNDS) == 10
+    def test_snow17_has_11_params(self):
+        assert len(SNOW17_PARAM_BOUNDS) == 11
 
     def test_sacsma_has_16_params(self):
         assert len(SACSMA_PARAM_BOUNDS) == 16
 
-    def test_combined_has_26_params(self):
-        assert len(PARAM_BOUNDS) == 26
+    def test_combined_has_27_params(self):
+        assert len(PARAM_BOUNDS) == 27
 
     def test_all_bounds_min_lt_max(self):
         for name, (lo, hi) in PARAM_BOUNDS.items():
@@ -91,7 +91,7 @@ class TestNamedTuples:
         snow17_d, sacsma_d = split_params(DEFAULT_PARAMS)
         assert 'SCF' in snow17_d
         assert 'UZTWM' in sacsma_d
-        assert len(snow17_d) == 10
+        assert len(snow17_d) == 11
         assert len(sacsma_d) == 16
 
     def test_split_params_fills_defaults(self):
