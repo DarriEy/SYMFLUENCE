@@ -131,10 +131,12 @@ class LocalScratchManager(ConfigMixin):
             )
             return False
 
-        if not Path(slurm_tmpdir).exists():
+        try:
+            Path(slurm_tmpdir).mkdir(parents=True, exist_ok=True)
+        except OSError as e:
             self.logger.warning(
                 f"Rank {self.mpi_rank}: USE_LOCAL_SCRATCH is True but SLURM_TMPDIR ({slurm_tmpdir}) "
-                "does not exist. Falling back to standard filesystem."
+                f"could not be created: {e}. Falling back to standard filesystem."
             )
             return False
 

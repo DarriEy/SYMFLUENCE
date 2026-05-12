@@ -92,10 +92,18 @@ class BaseModelOptimizer(
             reporting_manager: ReportingManager instance
         """
         from symfluence.core.config.coercion import coerce_config
-        self._config = coerce_config(config, warn=False)
+        self._config = coerce_config(config, warn=True)
 
         self.logger = logger
         self.reporting_manager = reporting_manager
+
+        if isinstance(self._config, dict):
+            self.logger.warning(
+                "Configuration could not be fully validated — running with "
+                "raw dict. Some typed config accessors may return defaults "
+                "instead of configured values. Set SYMFLUENCE_STRICT_CONFIG=true "
+                "to surface the underlying validation error."
+            )
 
         # Setup paths using typed config accessors
         # Note: dict_key enables fallback for legacy dict-based configs
