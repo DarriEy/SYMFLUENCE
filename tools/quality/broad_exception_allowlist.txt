@@ -679,7 +679,7 @@ src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.validate_params_for_decisions:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.verify_and_fix_parameter_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.verify_and_fix_parameter_files:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/transfer_functions.py:ParameterTransferManager.create_distributed_para_def:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/fuse/calibration/transfer_functions.py:ParameterTransferManager.create_distributed_para_def:except Exception as e:  # noqa: BLE001
 src/symfluence/models/fuse/calibration/worker.py:FUSEWorker._calculate_multi_gauge_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/worker.py:FUSEWorker._calculate_multi_gauge_metrics:except Exception as exc:  # noqa: BLE001 — let the existence check below surface the real failure
 src/symfluence/models/fuse/forcing_processor.py:FuseForcingProcessor._calculate_distributed_pet:except Exception as e:  # noqa: BLE001 — model execution resilience
