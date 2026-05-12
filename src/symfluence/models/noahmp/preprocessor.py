@@ -1,193 +1,315 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
-"""Noah-MP (noah-owp-modular) Preprocessor."""
+
+"""
+Noah-MP Model Preprocessor.
+
+Prepares forcing data and configuration files for the standalone
+noah-owp-modular model (NOAA-OWP).  Forcing is converted from NetCDF
+(basin-averaged) to the ASCII format expected by the executable, and
+parameter tables (GENPARM.TBL, SOILPARM.TBL, MPTABLE.TBL) plus
+a Fortran namelist (namelist.input) are written to the settings directory.
+"""
+
+import logging
+import shutil
+from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Optional
 
 import numpy as np
+import pandas as pd
+import xarray as xr
 
-from symfluence.models.base import BaseModelPreProcessor
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor('NOAHMP')
-class NoahMPPreProcessor(BaseModelPreProcessor):
+class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
+    """
+    Preprocessor for the standalone Noah-MP land surface model.
+
+    Converts basin-averaged forcing (NetCDF) into the ASCII format
+    expected by noah-owp-modular and generates the Fortran namelist
+    plus parameter lookup tables.
+    """
+
     MODEL_NAME = "NOAHMP"
 
+    def __init__(self, config, logger):
+        super().__init__(config, logger)
+
+        self.noahmp_forcing_dir = self.project_forcing_dir / 'NOAHMP_input'
+        self.noahmp_settings_dir = self.project_dir / 'settings' / 'NOAHMP'
+
+        self._forcing_start: Optional[datetime] = None
+        self._forcing_end: Optional[datetime] = None
+
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
+
     def run_preprocessing(self) -> bool:
+        """Run the complete Noah-MP preprocessing workflow."""
         self.noahmp_forcing_dir = self.project_forcing_dir / 'NOAHMP_input'
         self.noahmp_settings_dir = self.project_dir / 'settings' / 'NOAHMP'
         return self.run_preprocessing_template()
 
+    # ------------------------------------------------------------------
+    # Template-method hooks
+    # ------------------------------------------------------------------
+
     def _prepare_forcing(self) -> None:
-        import pandas as pd
-        import xarray as xr
-        self.noahmp_forcing_dir.mkdir(parents=True, exist_ok=True)
-        time_window = self.get_simulation_time_window()
-        sim_start, sim_end = time_window if time_window else (None, None)
-        forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
-        if not forcing_files:
-            raise FileNotFoundError(f"No forcing in {self.forcing_basin_path}")
-        all_data = []
-        for f in forcing_files:
-            ds = xr.open_dataset(f)
-            if sim_start and sim_end:
-                ds = ds.sel(time=slice(sim_start, sim_end))
-            if ds.sizes.get('time', 0) == 0:
-                ds.close(); continue
-            df = pd.DataFrame({
-                'time': ds['time'].values,
-                'windspd': ds['windspd'].values.flatten(),
-                'airtemp': ds['airtemp'].values.flatten(),
-                'spechum': ds['spechum'].values.flatten(),
-                'airpres': ds['airpres'].values.flatten(),
-                'SWRadAtm': ds['SWRadAtm'].values.flatten(),
-                'LWRadAtm': ds['LWRadAtm'].values.flatten(),
-                'pptrate': ds['pptrate'].values.flatten(),
-            })
-            all_data.append(df); ds.close()
-        if not all_data:
-            raise ValueError("No forcing data in simulation window")
-        forcing = pd.concat(all_data, ignore_index=True).sort_values('time').reset_index(drop=True)
-        forcing['rh'] = self._spechum_to_rh(forcing['spechum'].values, forcing['airtemp'].values, forcing['airpres'].values)
-        forcing_file = self.noahmp_forcing_dir / 'forcing.txt'
-        with open(forcing_file, 'w') as fout:
-            fout.write("<FORCING>\n")
-            for _, row in forcing.iterrows():
-                dt = pd.Timestamp(row['time'])
-                fout.write(f"{dt.year:04d} {dt.month:02d} {dt.day:02d} {dt.hour:02d} {dt.minute:02d}"
-                           f"{row['windspd']:17.10f}{0.0:17.10f}{row['airtemp']:17.10f}"
-                           f"{row['rh']:17.10f}{row['airpres']/100.0:17.10f}"
-                           f"{row['SWRadAtm']:17.10f}{row['LWRadAtm']:17.10f}{row['pptrate']:17.10f}\n")
-        self.logger.info(f"Wrote Noah-MP forcing: {len(forcing)} timesteps to {forcing_file}")
-        self._forcing_start = pd.Timestamp(forcing['time'].iloc[0])
-        self._forcing_end = pd.Timestamp(forcing['time'].iloc[-1])
+        """Convert basin-averaged NetCDF forcing to Noah-MP ASCII format.
+
+        noah-owp-modular expects a single ASCII file with a ``<FORCING>``
+        header line followed by rows of
+        ``YYYY MM DD HH MM  windspd airtemp spechum airpres SWRad LWRad pptrate RH``
+        using a Fortran format of ``(I4.4, 4(1x,I2.2), 8(F17.10))``.
+        """
+        try:
+            self.noahmp_forcing_dir.mkdir(parents=True, exist_ok=True)
+
+            # Locate forcing NetCDF
+            forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
+            if not forcing_files:
+                logger.error(f"No forcing NetCDF found in {self.forcing_basin_path}")
+                return
+
+            ds = xr.open_mfdataset(forcing_files, combine='by_coords')
+
+            # Variable mapping (SYMFLUENCE standard -> Noah-MP names)
+            var_map = {
+                'windspd': ['windspd', 'WIND', 'wind_speed', 'u10'],
+                'airtemp': ['airtemp', 'TAIR', 'air_temperature', 't2m', 'TMP'],
+                'spechum': ['spechum', 'SPFH', 'specific_humidity', 'q2'],
+                'airpres': ['airpres', 'PRES', 'air_pressure', 'sp', 'PSFC'],
+                'SWRadAtm': ['SWRadAtm', 'DSWRF', 'SWDOWN', 'ssrd'],
+                'LWRadAtm': ['LWRadAtm', 'DLWRF', 'LWDOWN', 'strd'],
+                'pptrate': ['pptrate', 'APCP', 'RAINRATE', 'tp', 'PRATE'],
+            }
+
+            def _find_var(ds, aliases):
+                for alias in aliases:
+                    if alias in ds:
+                        return ds[alias].values.flatten()
+                return None
+
+            windspd = _find_var(ds, var_map['windspd'])
+            airtemp = _find_var(ds, var_map['airtemp'])
+            spechum = _find_var(ds, var_map['spechum'])
+            airpres = _find_var(ds, var_map['airpres'])
+            swrad = _find_var(ds, var_map['SWRadAtm'])
+            lwrad = _find_var(ds, var_map['LWRadAtm'])
+            pptrate = _find_var(ds, var_map['pptrate'])
+
+            times = pd.to_datetime(ds['time'].values)
+            ds.close()
+
+            for name, arr in [('windspd', windspd), ('airtemp', airtemp),
+                              ('spechum', spechum), ('airpres', airpres),
+                              ('SWRadAtm', swrad), ('LWRadAtm', lwrad),
+                              ('pptrate', pptrate)]:
+                if arr is None:
+                    logger.error(f"Required forcing variable '{name}' not found")
+                    return
+
+            # Convert specific humidity -> relative humidity
+            rh = self._spechum_to_rh(spechum, airtemp, airpres)
+
+            # Store time bounds
+            self._forcing_start = times[0].to_pydatetime()
+            self._forcing_end = times[-1].to_pydatetime()
+
+            # Write ASCII forcing file
+            forcing_path = self.noahmp_forcing_dir / 'forcing.txt'
+            with open(forcing_path, 'w') as f:
+                f.write('<FORCING>\n')
+                for i, t in enumerate(times):
+                    line = (
+                        f"{t.year:04d} {t.month:02d} {t.day:02d} "
+                        f"{t.hour:02d} {t.minute:02d}"
+                        f"{windspd[i]:17.10f}{airtemp[i]:17.10f}"
+                        f"{spechum[i]:17.10f}{airpres[i]:17.10f}"
+                        f"{swrad[i]:17.10f}{lwrad[i]:17.10f}"
+                        f"{pptrate[i]:17.10f}{rh[i]:17.10f}"
+                    )
+                    f.write(line + '\n')
+
+            logger.info(
+                f"Wrote Noah-MP forcing: {len(times)} timesteps "
+                f"({self._forcing_start} to {self._forcing_end})"
+            )
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.error(f"Error preparing Noah-MP forcing: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
 
     def _create_model_configs(self) -> None:
-        self.noahmp_settings_dir.mkdir(parents=True, exist_ok=True)
-        self._copy_parameter_tables()
-        self._write_namelist()
+        """Copy parameter tables and write namelist.input."""
+        try:
+            self.noahmp_settings_dir.mkdir(parents=True, exist_ok=True)
 
-    def _copy_parameter_tables(self) -> None:
-        param_dir = self.noahmp_settings_dir / 'parameters'
-        param_dir.mkdir(parents=True, exist_ok=True)
-        install_path = self._get_config_value(lambda: self.config.model.noahmp.install_path, default='default')
-        if install_path == 'default' or install_path is None:
-            data_dir = self._get_config_value(lambda: self.config.system.data_dir, default='.', dict_key='SYMFLUENCE_DATA_DIR')
-            noahmp_dir = Path(data_dir) / 'installs' / 'noah-owp-modular'
-        else:
-            noahmp_dir = Path(install_path)
-        source = noahmp_dir / 'parameters'
-        if not source.exists():
-            source = noahmp_dir / 'run' / 'parameters'
-        from symfluence.core.file_utils import copy_file
-        for tbl in ['GENPARM.TBL', 'SOILPARM.TBL', 'MPTABLE.TBL']:
-            src = source / tbl
-            if src.exists():
-                copy_file(src, param_dir / tbl)
+            # Copy parameter lookup tables from install directory
+            install_path = self._get_config_value(
+                lambda: self.config.model.noahmp.install_path,
+                default='default',
+                dict_key='NOAHMP_INSTALL_PATH',
+            )
+            if install_path == 'default':
+                data_dir = Path(self._get_config_value(
+                    lambda: self.config.system.data_dir,
+                    dict_key='SYMFLUENCE_DATA_DIR',
+                ))
+                install_dir = data_dir / 'installs' / 'noah-owp-modular'
+            else:
+                install_dir = Path(install_path)
+
+            params_dir = install_dir / 'parameters'
+            for tbl in ['GENPARM.TBL', 'SOILPARM.TBL', 'MPTABLE.TBL']:
+                src = params_dir / tbl
+                if src.exists():
+                    shutil.copy2(src, self.noahmp_settings_dir / tbl)
+                    logger.debug(f"Copied {tbl}")
+                else:
+                    logger.warning(f"Parameter table not found: {src}")
+
+            # Write namelist.input
+            self._write_namelist()
+
+            logger.info("Noah-MP configuration files created")
+
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.error(f"Error creating Noah-MP configs: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+
+    # ------------------------------------------------------------------
+    # Namelist generation
+    # ------------------------------------------------------------------
 
     def _write_namelist(self) -> None:
-        forcing_file = self.noahmp_forcing_dir / 'forcing.txt'
-        exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='run_1')
-        output_file = self.project_dir / 'simulations' / exp_id / 'NOAHMP' / 'output.nc'
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        param_dir = self.noahmp_settings_dir / 'parameters'
-        dt = self._get_config_value(lambda: self.config.model.noahmp.timestep, default=3600)
-        nsoil = self._get_config_value(lambda: self.config.model.noahmp.nsoil, default=4)
-        nsnow = self._get_config_value(lambda: self.config.model.noahmp.nsnow, default=3)
-        start_str = self._forcing_start.strftime("%Y%m%d%H%M")
-        end_str = self._forcing_end.strftime("%Y%m%d%H%M")
-        lat, lon = self._get_domain_coords()
-        dv = self._get_config_value(lambda: self.config.model.noahmp.dynamic_veg_option, default=1)
-        st = self._get_config_value(lambda: self.config.model.noahmp.canopy_stomatal_option, default=1)
-        sd = self._get_config_value(lambda: self.config.model.noahmp.sfc_drag_option, default=1)
-        sc = self._get_config_value(lambda: self.config.model.noahmp.supercooled_water_option, default=1)
-        fz = self._get_config_value(lambda: self.config.model.noahmp.frozen_soil_option, default=1)
-        rt = self._get_config_value(lambda: self.config.model.noahmp.radiative_transfer_option, default=3)
-        sa = self._get_config_value(lambda: self.config.model.noahmp.snow_albedo_option, default=2)
-        pp = self._get_config_value(lambda: self.config.model.noahmp.precip_phase_option, default=1)
-        nml = (self.noahmp_settings_dir / 'namelist.input')
-        nml.write_text(f"""\
+        """Write the Fortran namelist (namelist.input) for noah-owp-modular."""
+        # Determine time settings
+        if self._forcing_start and self._forcing_end:
+            start_str = self._forcing_start.strftime('%Y%m%d%H%M')
+            end_str = self._forcing_end.strftime('%Y%m%d%H%M')
+        else:
+            start_str = self._get_config_value(
+                lambda: self.config.domain.time_start,
+                default='200001010000',
+                dict_key='EXPERIMENT_TIME_START',
+            ).replace('-', '').replace(' ', '').replace(':', '')
+            end_str = self._get_config_value(
+                lambda: self.config.domain.time_end,
+                default='200112310000',
+                dict_key='EXPERIMENT_TIME_END',
+            ).replace('-', '').replace(' ', '').replace(':', '')
+
+        # Dynamic vegetation option from config (default 1)
+        dynamic_veg = int(self._get_config_value(
+            lambda: self.config.model.noahmp.dynamic_veg_option,
+            default=1,
+            dict_key='NOAHMP_DYNAMIC_VEG_OPTION',
+        ))
+
+        forcing_path = self.noahmp_forcing_dir / 'forcing.txt'
+        output_path = self.noahmp_settings_dir / 'output.nc'
+
+        namelist = f"""\
 &timing
- dt                 = {dt}.0
- startdate          = "{start_str}"
- enddate            = "{end_str}"
- forcing_filename   = "{forcing_file}"
- output_filename    = "{output_file}"
+  dt                 = 3600
+  startdate          = "{start_str}"
+  enddate            = "{end_str}"
+  forcing_filename   = "{forcing_path}"
+  output_filename    = "{output_path}"
 /
 
 &parameters
- parameter_dir      = "{param_dir}/"
- general_table      = "GENPARM.TBL"
- soil_table         = "SOILPARM.TBL"
- noahowp_table      = "MPTABLE.TBL"
- soil_class_name    = "STAS"
- veg_class_name     = "MODIFIED_IGBP_MODIS_NOAH"
+  parameter_dir      = "{self.noahmp_settings_dir}/"
+  soil_class_name    = "STAS"
+  veg_class_name     = "MODIFIED_IGBP_MODIS_NOAH"
 /
 
 &location
- lat                = {lat:.4f}
- lon                = {lon:.4f}
- terrain_slope      = 0.01
- azimuth            = 0.0
+  lat                =  {self._get_lat():.6f}
+  lon                =  {self._get_lon():.6f}
+  terrain_slope      =  0.0
+  azimuth            =  0.0
 /
 
 &forcing
- ZREF               = 2.0
- rain_snow_thresh   = 2.0
+  ZREF               =  10.0
 /
 
 &model_options
- precip_phase_option               = {pp}
- snow_albedo_option                = {sa}
- dynamic_veg_option                = {dv}
- runoff_option                     = 8
- drainage_option                   = 8
- frozen_soil_option                = {fz}
- dynamic_vic_option                = 1
- radiative_transfer_option         = {rt}
- sfc_drag_coeff_option             = {sd}
- canopy_stom_resist_option         = {st}
- crop_model_option                 = 0
- snowsoil_temp_time_option         = 1
- soil_temp_boundary_option         = 2
- supercooled_water_option          = {sc}
- stomatal_resistance_option        = 1
- evap_srfc_resistance_option       = 1
- subsurface_option                 = 1
+  dynamic_veg_option         = {dynamic_veg}
+  runoff_option              = 8
+  drainage_option            = 8
+  snowsoil_temp_time_option  = 1
 /
 
 &structure
- isltyp             = 4
- nsoil              = {nsoil}
- nsnow              = {nsnow}
- nveg               = 20
- vegtyp             = 1
- croptype           = 0
- sfctyp             = 1
- soilcolor          = 4
+  isltyp             = 4
+  nsoil              = 4
+  nsnow              = 3
+  nveg               = 20
+  vegtyp             = 1
+  croptype           = 0
+  dzsnso             = 0.0, 0.0, 0.0, 0.1, 0.3, 0.6, 1.0
 /
+"""
+        nl_path = self.noahmp_settings_dir / 'namelist.input'
+        nl_path.write_text(namelist)
+        logger.info(f"Wrote namelist.input to {nl_path}")
 
-&initial_values
- dzsnso    =  0.0,  0.0,  0.0,  0.1,  0.3,  0.6,  1.0
- sice      =  0.0,  0.0,  0.0,  0.0
- sh2o      =  0.3,  0.3,  0.3,  0.3
- zwt       =  -2.0
-/
-""")
-        self.logger.info(f"Wrote namelist.input: {nml}")
+    # ------------------------------------------------------------------
+    # Helper: lat/lon from domain configuration
+    # ------------------------------------------------------------------
 
-    def _get_domain_coords(self) -> Tuple[float, float]:
-        coords_str = self._get_config_value(lambda: self.config.domain.pour_point_coords, default=None, dict_key='POUR_POINT_COORDS')
-        if coords_str:
-            parts = str(coords_str).replace(',', '/').split('/')
-            if len(parts) >= 2:
-                return float(parts[0]), float(parts[1])
-        return 51.17, -115.57
+    def _get_lat(self) -> float:
+        """Get latitude from configuration or default."""
+        return float(self._get_config_value(
+            lambda: self.config.domain.latitude,
+            default=51.0,
+            dict_key='DOMAIN_LATITUDE',
+        ))
+
+    def _get_lon(self) -> float:
+        """Get longitude from configuration or default."""
+        return float(self._get_config_value(
+            lambda: self.config.domain.longitude,
+            default=-116.0,
+            dict_key='DOMAIN_LONGITUDE',
+        ))
+
+    # ------------------------------------------------------------------
+    # Static utility: specific humidity -> relative humidity
+    # ------------------------------------------------------------------
 
     @staticmethod
-    def _spechum_to_rh(q: np.ndarray, t_k: np.ndarray, p_pa: np.ndarray) -> np.ndarray:
-        t_c = t_k - 273.15
-        es = 611.2 * np.exp(17.67 * t_c / (t_c + 243.5))
+    def _spechum_to_rh(
+        q: np.ndarray,
+        t_k: np.ndarray,
+        p_pa: np.ndarray,
+    ) -> np.ndarray:
+        """Convert specific humidity to relative humidity.
+
+        Uses the Tetens approximation for saturation vapour pressure.
+
+        Args:
+            q: Specific humidity (kg/kg).
+            t_k: Air temperature (K).
+            p_pa: Air pressure (Pa).
+
+        Returns:
+            Relative humidity (%), clipped to [0, 100].
+        """
+        tc = t_k - 273.15
+        es = 611.2 * np.exp(17.67 * tc / (tc + 243.5))
         e = q * p_pa / (0.622 + 0.378 * q)
-        return np.clip(100.0 * e / es, 0.0, 100.0)
+        rh = 100.0 * e / es
+        return np.clip(rh, 0.0, 100.0)
