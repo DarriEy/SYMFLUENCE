@@ -8,7 +8,6 @@ Provides system health checks, toolchain information, and library detection.
 """
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -148,13 +147,36 @@ class SystemDiagnostics(BaseService):
 
     def get_tools_info(self) -> bool:
         """
-        Display installed tools information from toolchain metadata.
+        Display installed tools information: binary status and toolchain metadata.
 
         Returns:
-            True if tools info was displayed, False if no metadata found.
+            True if at least one binary was found, False otherwise.
         """
-        symfluence_data = os.getenv("SYMFLUENCE_DATA")
+        config = self._load_config()
+        symfluence_data = str(self._get_data_dir(config))
         npm_bin_dir = self.detect_npm_binaries()
+
+        if npm_bin_dir:
+            self._console.info(f"npm binaries: {npm_bin_dir}")
+        if symfluence_data:
+            self._console.info(f"Source installs: {symfluence_data}")
+
+        binary_rows = self._check_binary_status(symfluence_data, npm_bin_dir)
+        found = sum(1 for row in binary_rows if "[green]OK[/green]" in row[1])
+        total = len(binary_rows)
+
+        if binary_rows:
+            self._console.newline()
+            self._console.table(
+                columns=["Tool", "Status", "Location"],
+                rows=binary_rows,
+                title="Binary Status",
+            )
+            self._console.newline()
+            self._console.info(f"Binaries: {found}/{total} found")
+        else:
+            self._console.newline()
+            self._console.warning("No binaries found.")
 
         toolchain_locations = []
         if symfluence_data:
@@ -170,18 +192,18 @@ class SystemDiagnostics(BaseService):
                 toolchain_path = path
                 break
 
-        if not toolchain_path:
-            self._console.warning("No binaries installed yet.")
+        if toolchain_path:
             self._console.newline()
-            self._console.info("Model binaries (SUMMA, mizuRoute, FUSE, etc.) must be installed")
-            self._console.info("before 'symfluence binary info' can report on them.")
+            self._read_toolchain_metadata(toolchain_path)
+
+        if found == 0:
             self._console.newline()
             self._console.indent("Install binaries with one of:")
             self._console.indent("  npm install -g symfluence        # pre-built binaries")
             self._console.indent("  symfluence binary install         # build from source")
             return False
 
-        return self._read_toolchain_metadata(toolchain_path)
+        return True
 
     def detect_npm_binaries(self) -> Optional[Path]:
         """
