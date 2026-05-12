@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.fuse.calibration.parameter_regionalization import (
+from symfluence.optimization.regionalization.strategies import (
     ParameterRegionalization,
     RegionalizationFactory,
 )
@@ -167,7 +167,7 @@ def create_summa_regionalization(
     return RegionalizationFactory.create(
         method=method,
         param_bounds=param_bounds,
-        n_subcatchments=n_hrus,
+        n_units=n_hrus,
         config=config,
         attributes=attributes,
         logger=logger,
