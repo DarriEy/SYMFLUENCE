@@ -82,52 +82,39 @@ class SimulatedAnnealingAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Simulated Annealing with {n_params} parameters")
 
-        # SA parameters using standardized config access
-        # Initial temperature (Kirkpatrick 1983, Section 2)
+        # SA parameters from config
         initial_temp = self._get_config_value(
-            lambda: self.config.optimization.sa_initial_temp,
+            lambda: self.config.optimization.sa.initial_temp,
             default=SADefaults.INITIAL_TEMP,
             dict_key='SA_INITIAL_TEMP'
         )
-
-        # Final temperature - termination condition
         final_temp = self._get_config_value(
-            lambda: self.config.optimization.sa_final_temp,
+            lambda: self.config.optimization.sa.final_temp,
             default=SADefaults.FINAL_TEMP,
             dict_key='SA_FINAL_TEMP'
         )
-
-        # Cooling schedule type (Kirkpatrick 1983)
         cooling_schedule = self._get_config_value(
-            lambda: self.config.optimization.sa_cooling_schedule,
+            lambda: self.config.optimization.sa.cooling_schedule,
             default=SADefaults.COOLING_SCHEDULE,
             dict_key='SA_COOLING_SCHEDULE'
         )
-
-        # Cooling rate for exponential schedule (Kirkpatrick 1983, Section 3)
         cooling_rate = self._get_config_value(
-            lambda: self.config.optimization.sa_cooling_rate,
+            lambda: self.config.optimization.sa.cooling_rate,
             default=SADefaults.COOLING_RATE,
             dict_key='SA_COOLING_RATE'
         )
-
-        # Step size for neighbor generation
         step_size = self._get_config_value(
-            lambda: self.config.optimization.sa_step_size,
+            lambda: self.config.optimization.sa.step_size,
             default=SADefaults.STEP_SIZE,
             dict_key='SA_STEP_SIZE'
         )
-
-        # Steps per temperature level
         steps_per_temp = self._get_config_value(
-            lambda: self.config.optimization.sa_steps_per_temp,
+            lambda: self.config.optimization.sa.steps_per_temp,
             default=SADefaults.STEPS_PER_TEMP,
             dict_key='SA_STEPS_PER_TEMP'
         )
-
-        # Enable adaptive step size (Ingber 1989)
         adaptive_step = self._get_config_value(
-            lambda: self.config.optimization.sa_adaptive_step,
+            lambda: self.config.optimization.sa.adaptive_step,
             default=SADefaults.ADAPTIVE_STEP,
             dict_key='SA_ADAPTIVE_STEP'
         )

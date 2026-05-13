@@ -82,50 +82,30 @@ class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Bayesian Optimization with {n_params} parameters")
 
-        # BO parameters using standardized config access
-        # Number of initial samples for building the GP surrogate
-        # Rule of thumb: max(5, 2*n_params) ensures reasonable initial coverage
-        # (Snoek 2012, Section 3)
-        n_initial = self._get_config_value(
-            lambda: self.config.optimization.bo_initial_samples,
-            default=max(5, BODefaults.INITIAL_SAMPLES_FACTOR * n_params),
-            dict_key='BO_INITIAL_SAMPLES'
-        )
+        # BO parameters from config
+        n_initial = max(5, self._get_config_value(
+            lambda: self.config.optimization.bayesian_opt.initial_samples_factor,
+            default=BODefaults.INITIAL_SAMPLES_FACTOR,
+            dict_key='BO_INITIAL_SAMPLES_FACTOR'
+        ) * n_params)
 
-        # Acquisition function: 'ei' (Expected Improvement), 'ucb', or 'pi'
-        # EI is the most commonly used and robust choice
-        # (Jones 1998, Section 4)
         acquisition = self._get_config_value(
-            lambda: self.config.optimization.bo_acquisition,
+            lambda: self.config.optimization.bayesian_opt.acquisition,
             default=BODefaults.ACQUISITION,
             dict_key='BO_ACQUISITION'
         )
-
-        # Exploration parameter for EI/PI acquisition
-        # xi=0.01 provides slight exploration bias
-        # Higher values increase exploration
-        # (Snoek 2012, Section 2.1)
         xi = self._get_config_value(
-            lambda: self.config.optimization.bo_xi,
+            lambda: self.config.optimization.bayesian_opt.xi,
             default=BODefaults.XI,
             dict_key='BO_XI'
         )
-
-        # UCB parameter (kappa)
-        # kappa=2.576 corresponds to 99% confidence interval
-        # Higher values increase exploration
-        # (Srinivas et al. 2010, GP-UCB)
         kappa = self._get_config_value(
-            lambda: self.config.optimization.bo_kappa,
+            lambda: self.config.optimization.bayesian_opt.kappa,
             default=BODefaults.KAPPA,
             dict_key='BO_KAPPA'
         )
-
-        # Number of restarts for acquisition function optimization
-        # More restarts improve chance of finding global optimum of acquisition
-        # (Snoek 2012, Section 3.2)
         n_restarts = self._get_config_value(
-            lambda: self.config.optimization.bo_restarts,
+            lambda: self.config.optimization.bayesian_opt.restarts,
             default=BODefaults.RESTARTS,
             dict_key='BO_RESTARTS'
         )
