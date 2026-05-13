@@ -97,6 +97,14 @@ class FuseToMizurouteConverter:
             if mapping_file is not None:
                 q_fuse, gru_ids = self._filter_coastal_grus(q_fuse, mapping_file)
 
+            # Fall back: extract GRU IDs from the FUSE output's longitude dim
+            # (FUSE uses longitude values as GRU identifiers in distributed mode)
+            if gru_ids is None and 'longitude' in ds.variables:
+                lon_vals = ds['longitude'].values.flatten()
+                if len(lon_vals) == q_fuse.shape[-1] and lon_vals.max() > 180:
+                    gru_ids = lon_vals.astype(np.int32)
+                    self.logger.debug(f"Using GRU IDs from longitude dim: {gru_ids}")
+
             # Convert units
             q_fuse_values, target_units = self._convert_units(q_fuse.values, config)
 
