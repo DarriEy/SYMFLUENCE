@@ -1077,6 +1077,7 @@ src/symfluence/models/summa/forcing_processor.py:SummaForcingProcessor._load_top
 src/symfluence/models/summa/forcing_processor.py:SummaForcingProcessor._process_forcing_batches:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/summa/glacier_manager.py:GlacierAttributesManager.process_glacier_attributes:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/plotter.py:SUMMAPlotter.plot_outputs:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/summa/postprocessor.py:SUMMAPostprocessor._extract_native_summa_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/preprocessor.py:SummaPreProcessor._get_forcing_times:except Exception as exc:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/preprocessor.py:SummaPreProcessor.glacier_manager:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/preprocessor.py:SummaPreProcessor.run_glacier_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
