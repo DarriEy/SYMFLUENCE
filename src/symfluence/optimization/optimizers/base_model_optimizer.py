@@ -674,30 +674,29 @@ class BaseModelOptimizer(
             self.logger.warning(f"Could not adjust end time: {e}")
             return end_time_str
 
-    def _setup_parallel_dirs(self) -> None:
-        """Setup parallel processing directories.
+    def _resolve_sim_base_dir(self, algorithm: str) -> Path:
+        """Resolve the base simulation directory, activating local scratch if configured.
 
         When USE_LOCAL_SCRATCH is enabled and SLURM_TMPDIR is available,
         settings, forcing, and observation data are copied to node-local
-        storage via LocalScratchManager, and parallel directories are created
-        there.  This avoids Lustre IOPS during SUMMA/mizuRoute execution.
-        Results are staged back to the permanent filesystem during cleanup().
-        """
-        # Determine algorithm for directory naming
-        algorithm = self._get_config_value(
-            lambda: self.config.optimization.algorithm, default='optimization'
-        ).lower()
+        storage via LocalScratchManager.  Results are staged back to the
+        permanent filesystem during cleanup().
 
-        # Permanent location (shared filesystem)
+        Subclass overrides of ``_setup_parallel_dirs`` should call this instead
+        of hardcoding ``self.project_dir / 'simulations' / ...`` so that every
+        model benefits from scratch redirection on HPC.
+
+        Returns the ``base_dir`` that should be passed to
+        ``setup_parallel_processing()``.
+        """
         permanent_base = self.project_dir / 'simulations' / f'run_{algorithm}'
 
-        # Check if we should use local scratch for I/O-heavy model runs
         use_local_scratch = self._get_config_value(
             lambda: self.config.system.use_local_scratch, default=False,
             dict_key='USE_LOCAL_SCRATCH',
         )
 
-        self._scratch_base_dir = None  # set if scratch is active
+        self._scratch_base_dir = None
         self._permanent_base_dir = permanent_base
 
         if use_local_scratch:
@@ -728,9 +727,6 @@ class BaseModelOptimizer(
         else:
             base_dir = permanent_base
 
-        # If the primary simulations directory is not writable (common on macOS
-        # sandboxed mounts or read-only network drives), fall back to a local
-        # scratch directory so calibration can proceed.
         try:
             base_dir.mkdir(parents=True, exist_ok=True)
         except PermissionError:
@@ -742,16 +738,23 @@ class BaseModelOptimizer(
             )
             base_dir = fallback
 
+        return base_dir
+
+    def _setup_parallel_dirs(self) -> None:
+        """Setup parallel processing directories."""
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm, default='optimization'
+        ).lower()
+
+        base_dir = self._resolve_sim_base_dir(algorithm)
+
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             self._get_model_name(),
             self.experiment_id
         )
 
-        # For non-parallel runs, set a default output directory for fallback
-        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
         if not self.use_parallel and self.parallel_dirs:
-            # Use process_0 directories as the default
             self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
         else:
             self.default_sim_dir = self.results_dir
