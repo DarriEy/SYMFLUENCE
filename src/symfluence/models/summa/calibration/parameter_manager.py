@@ -148,7 +148,7 @@ class SUMMAParameterManager(BaseParameterManager):
             lambda: self.config.model.summa.transfer_function_attributes_path,
             default=None, dict_key='TRANSFER_FUNCTION_ATTRIBUTES'
         )
-        csv_path = Path(csv_path) if csv_path else None
+        csv_path = Path(csv_path) if csv_path and csv_path != 'default' else None
 
         # Optional per-parameter config override
         param_config = self._get_config_value(
@@ -878,7 +878,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
                     # Add parameters
                     for param_name, param_values in params.items():
-                        param_values_array = np.asarray(param_values)
+                        param_values_array = np.atleast_1d(np.asarray(param_values))
 
                         if param_name in routing_params or param_name in self.basin_params:
                             # GRU-level parameters
