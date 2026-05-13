@@ -245,7 +245,7 @@ def _update_trial_params_inplace(trial_params_path: Path, params: Dict, logger, 
                 with nc.Dataset(trial_params_path, 'r+') as ds:
                     for param_name, param_values in params.items():
                         if param_name in ds.variables:
-                            param_values_array = np.asarray(param_values)
+                            param_values_array = np.atleast_1d(np.asarray(param_values))
                             if param_values_array.ndim > 1:
                                 param_values_array = param_values_array.flatten()
 
@@ -358,7 +358,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
                         # Add parameters with compression
                         for param_name, param_values in params.items():
-                            param_values_array = np.asarray(param_values)
+                            param_values_array = np.atleast_1d(np.asarray(param_values))
 
                             if param_values_array.ndim > 1:
                                 param_values_array = param_values_array.flatten()
