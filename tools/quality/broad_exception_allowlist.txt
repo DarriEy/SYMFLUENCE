@@ -751,6 +751,7 @@ src/symfluence/models/hype/calibration/optimizer.py:HYPEModelOptimizer._update_f
 src/symfluence/models/hype/calibration/parameter_manager.py:HYPEParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/parameter_manager.py:HYPEParameterManager.update_par_file:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/targets.py:HYPEStreamflowTarget._extract_hype_streamflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/models/hype/calibration/worker.py:HYPEWorker._expand_hype_coefficients:except Exception as e:  # noqa: BLE001
 src/symfluence/models/hype/calibration/worker.py:HYPEWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/worker.py:HYPEWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/worker.py:HYPEWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
