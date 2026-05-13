@@ -42,6 +42,32 @@ class HYPEWorker(BaseWorker):
         super().__init__(config, logger)
         self._hype_exe = self._resolve_hype_exe()
 
+    def _expand_hype_coefficients(self, params, config, settings_dir):
+        """Expand TF coefficients to par.txt values using the regionalization adapter."""
+        try:
+            geoclass_path = settings_dir / 'GeoClass.txt'
+            if not geoclass_path.exists():
+                self.logger.warning("GeoClass.txt not found for coefficient expansion")
+                return None
+
+            from symfluence.models.hype.calibration.hype_regionalization import (
+                create_hype_regionalization,
+            )
+            from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
+
+            bounds = get_hype_bounds()
+            tuple_bounds = {k: (v['min'], v['max']) for k, v in bounds.items()}
+
+            method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+            reg = create_hype_regionalization(
+                method=method, param_bounds=tuple_bounds,
+                geoclass_path=geoclass_path, logger=self.logger,
+            )
+            return reg.expand_to_par_values(params)
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"Failed to expand HYPE coefficients: {e}")
+            return None
+
     def _resolve_hype_exe(self) -> str:
         """Resolve the HYPE executable path from the worker's full config."""
         import shutil
@@ -91,20 +117,21 @@ class HYPEWorker(BaseWorker):
         """
         Apply parameters to HYPE configuration files.
 
-        Args:
-            params: Parameter values to apply
-            settings_dir: HYPE settings directory
-            **kwargs: Additional arguments
-
-        Returns:
-            True if successful
+        When regionalization is active, coefficients are expanded to
+        per-SLC values via the parameter manager before writing par.txt.
         """
         try:
             config = kwargs.get('config', self.config)
 
+            # Expand regionalization coefficients to per-SLC par.txt values
+            if any(k.endswith('_a') or k.endswith('_b') for k in params):
+                cfg = config if isinstance(config, dict) else getattr(config, 'config_dict', {})
+                settings_dir_path = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
+                expanded = self._expand_hype_coefficients(params, cfg, settings_dir_path)
+                if expanded is not None:
+                    params = expanded
+
             # Use HYPEPreProcessor to regenerate configs with new params
-            # We only need to regenerate the par.txt file, but calling
-            # preprocess_models with params is the cleanest way.
             preprocessor = HYPEPreProcessor(config, self.logger, params=params)
 
             # Set model-specific paths to point to the worker's settings dir

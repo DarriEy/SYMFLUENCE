@@ -477,7 +477,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
                cos_lat * cos_decl * np.sin(sunset_angle)))
 
         # Oudin formula
-        pet_vals = np.where(temp_c + 5.0 > 0.0, Ra * (temp_c + 5.0) / 100.0, 0.0)
+        pet_vals = np.where(temp_c + 5.0 > 0.0, Ra / (100.0 * 2.45) * (temp_c + 5.0), 0.0)
 
         return xr.DataArray(
             pet_vals,

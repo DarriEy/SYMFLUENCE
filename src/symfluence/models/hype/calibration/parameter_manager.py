@@ -240,11 +240,25 @@ class HYPEParameterManager(BaseParameterManager):
             return False
 
     def _get_default_initial_values(self) -> Dict[str, float]:
-        """Get default initial parameter values (midpoint of bounds)."""
+        """Get default initial parameter values (midpoint of bounds).
+
+        If INITIAL_PARAMETERS is provided in config, use those values
+        instead of midpoints for a warm-start.
+        """
+        config_initial = self.config.get('INITIAL_PARAMETERS') if isinstance(self.config, dict) else None
+        if config_initial and isinstance(config_initial, dict):
+            params = {}
+            for name in self.all_param_names:
+                if name in config_initial:
+                    params[name] = float(config_initial[name])
+                else:
+                    b = self.param_bounds.get(name, {'min': 0, 'max': 1})
+                    params[name] = (b['min'] + b['max']) / 2
+            self.logger.info(f"Using INITIAL_PARAMETERS from config ({sum(1 for n in params if n in config_initial)}/{len(params)} specified)")
+            return params
         params = {}
-        for param_name in self.hype_params:
-            bounds = self.param_bounds[param_name]
-            params[param_name] = (bounds['min'] + bounds['max']) / 2
+        for param_name, param_bounds_dict in self.param_bounds.items():
+            params[param_name] = (param_bounds_dict['min'] + param_bounds_dict['max']) / 2
         return params
 
     def _validate_and_fix_initial_parameters(self, params: Dict[str, float]) -> Dict[str, float]:
