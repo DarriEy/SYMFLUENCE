@@ -76,39 +76,37 @@ class SUMMAWorker(BaseWorker):
         """
         Apply parameters to SUMMA configuration files.
 
-        Args:
-            params: Parameter values to apply
-            settings_dir: SUMMA settings directory
-            **kwargs: Additional arguments (task_data for legacy compatibility)
-
-        Returns:
-            True if successful
+        When regionalization is active, coefficient names (k_soil_a, k_soil_b)
+        are expanded to per-HRU arrays with the original parameter names
+        (k_soil) before writing to trialParams.nc.
         """
         try:
-            # Import existing function
+            # Expand regionalization coefficients to per-HRU arrays
+            if any(k.endswith('_a') or k.endswith('_b') for k in params):
+                config = kwargs.get('config', self.config)
+                from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
+                pm = SUMMAParameterManager(config, self.logger, settings_dir)
+                return pm.update_model_files(params)
+
+            # No coefficients — use standard worker path
             from symfluence.optimization.workers.summa import _apply_parameters_worker
 
-            # Build task_data for legacy function, propagating all kwargs
             task_data = kwargs.get('task_data', {}).copy() if kwargs.get('task_data') else kwargs.copy()
             if 'config' not in task_data:
                 task_data['config'] = self.config
             if 'params' not in task_data:
                 task_data['params'] = params
 
-            # Create minimal logger for internal use
             internal_logger = logging.getLogger('summa_worker_apply')
             internal_logger.setLevel(logging.WARNING)
 
             debug_info = {'stage': 'apply_parameters', 'files_checked': [], 'errors': []}
 
-            success = _apply_parameters_worker(
+            return _apply_parameters_worker(
                 params, task_data, settings_dir, internal_logger, debug_info
             )
 
-            return success
-
         except ImportError:
-            # Fallback: Apply parameters directly
             return self._apply_parameters_direct(params, settings_dir, kwargs.get('config', {}))
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
