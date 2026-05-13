@@ -266,7 +266,7 @@ modeloption snowheat\t0
 modeloption snowmeltmodel\t0
 modeloption snowevaporation\t1
 modeloption lakeriverice\t0
-modeloption deepground\t1
+modeloption deepground\t0
 modeloption glacierini\t1
 modeloption floodmodel\t0
 modeloption frozensoil\t2
