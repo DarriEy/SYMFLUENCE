@@ -550,11 +550,11 @@ class BaseModelOptimizer(
     def _get_moead_objective_names(self) -> List[str]:
         """Resolve MOEA/D objective metric names in priority order."""
         primary_metric = self._get_config_value(
-            lambda: self.config.optimization.moead_primary_metric, default=self.target_metric,
+            lambda: self.config.optimization.moead.primary_metric, default=self.target_metric,
             dict_key='MOEAD_PRIMARY_METRIC'
         )
         secondary_metric = self._get_config_value(
-            lambda: self.config.optimization.moead_secondary_metric, default=self.target_metric,
+            lambda: self.config.optimization.moead.secondary_metric, default=self.target_metric,
             dict_key='MOEAD_SECONDARY_METRIC'
         )
         return [str(primary_metric).upper(), str(secondary_metric).upper()]
@@ -1162,7 +1162,7 @@ class BaseModelOptimizer(
         # For MOEA/D, add multi-objective support only when explicitly enabled
         if algorithm_name.lower() in ['moead', 'moea-d', 'moea_d']:
             moead_multi = bool(self._get_config_value(
-                lambda: self.config.optimization.moead_multi_target, default=False,
+                lambda: self.config.optimization.moead.multi_target, default=False,
                 dict_key='MOEAD_MULTI_TARGET'
             ))
             kwargs['multiobjective'] = moead_multi
