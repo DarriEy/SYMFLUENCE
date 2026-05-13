@@ -39,6 +39,7 @@ FUSE_FILE_ID: rgdist
 FUSE_EXE: fuse.exe
 FUSE_ROUTING_INTEGRATION: default
 SETTINGS_FUSE_FILEMANAGER: fm_catch.txt
+FUSE_TEMPLATE_PATH: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data/domain_bow_regionalisation_comp_lumped/settings/FUSE/bow_regionalisation_comp_lumped_rglump_para_def.nc
 FUSE_DECISION_OPTIONS:
   RFERR: [multiplc_e]
   ARCH1: [tension1_1]
