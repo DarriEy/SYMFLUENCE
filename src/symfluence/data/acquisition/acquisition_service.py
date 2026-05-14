@@ -374,7 +374,7 @@ class AcquisitionService(ConfigurableMixin):
         self.logger.info("Starting attribute acquisition")
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
-        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='merit_hydro').lower()
+        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='copdem90').lower()
 
         dem_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'elevation' / 'dem'
         soilclass_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'soilclass'

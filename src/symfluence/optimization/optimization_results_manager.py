@@ -73,7 +73,7 @@ class OptimizationResultsManager:
             # Save to standard location
             results_file = self.opt_dir / f"{self.experiment_id}_parallel_iteration_results.csv"
             results_df.to_csv(results_file, index=False)
-            self.logger.info(f"Saved optimization results to {results_file}")
+            self.logger.debug(f"Saved optimization results to {results_file}")
 
             # Also save detailed results to optimizer-specific files
             self._save_optimization_history(results.get('history', []), algorithm, target_metric, best_params)

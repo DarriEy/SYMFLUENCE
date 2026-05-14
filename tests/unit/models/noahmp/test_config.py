@@ -91,7 +91,7 @@ class TestNoahMPConfigDefaults:
     def test_config_default_dynamic_veg_option(self):
         from symfluence.core.config.models.model_configs import NoahMPConfig
         config = NoahMPConfig()
-        assert config.dynamic_veg_option == 4
+        assert config.dynamic_veg_option == 1
 
     def test_config_default_spinup_loops(self):
         from symfluence.core.config.models.model_configs import NoahMPConfig

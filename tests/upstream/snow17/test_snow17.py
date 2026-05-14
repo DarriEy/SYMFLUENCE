@@ -231,6 +231,7 @@ class TestSnow17JAX:
                 MFMIN=jnp.array(0.3), NMF=jnp.array(0.15), MBASE=jnp.array(0.0),
                 TIPM=jnp.array(0.1), UADJ=jnp.array(0.04),
                 PLWHC=jnp.array(0.04), DAYGM=jnp.array(0.0),
+                PXADJ=jnp.array(1.0),
             )
             state = Snow17State(
                 w_i=jnp.array(50.0), w_q=jnp.array(0.0), w_qx=jnp.array(0.0),

@@ -282,8 +282,10 @@ class ConfigurationUpdater(ConfigMixin):
             vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
             if vname_qsim in ('default', None, ''):
                 vname_qsim = 'q_routed'
-            # FUSE outputs daily data
+            # FUSE outputs daily data starting at midnight
             dt_qsim = '86400'
+            sim_start_time = '00:00'
+            sim_end_time = '00:00'
         elif model_upper == 'GR':
             domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
             fname_qsim = f"{domain_name}_{experiment_id}_runs_def.nc"

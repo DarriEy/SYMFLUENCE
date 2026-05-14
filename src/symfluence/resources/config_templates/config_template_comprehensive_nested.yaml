@@ -209,8 +209,8 @@ domain:
   # ---------------------------------------------------------------------------
   # Geospatial Data Sources
   # ---------------------------------------------------------------------------
-  # DEM source: copernicus, fabdem, nasadem, merit, srtm
-  dem_source: "copernicus"
+  # DEM source: copdem90, copernicus, fabdem, nasadem, merit_hydro, srtm, etopo, mapzen, alos
+  dem_source: "copdem90"
   download_dem: true
 
   # Land cover source: modis, nlcd, esa_cci
