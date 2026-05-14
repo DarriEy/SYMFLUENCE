@@ -26,6 +26,7 @@ DOWNLOAD_WSC_DATA: false
 HYDROLOGICAL_MODEL: SUMMA
 ROUTING_MODEL: none
 SUMMA_WARMUP_DAYS: 730
+PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,albedoMinSpring,albedoMaxVisible,albedoDecayRate,newSnowDenMin,newSnowDenMult,newSnowDenScal,tempCritRain,tempRangeTimestep,k_soil,k_macropore,aquiferBaseflowExp,aquiferBaseflowRate
 EXPERIMENT_ID: summa_lumped
 OPTIMIZATION_METHODS: [iteration]
 OPTIMIZATION_METRIC: KGE
