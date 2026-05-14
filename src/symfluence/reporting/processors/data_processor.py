@@ -439,7 +439,7 @@ class DataProcessor(ConfigMixin):
                 return sim_df
 
             # Process observations
-            obs_df['datetime'] = pd.to_datetime(obs_df['datetime'], format='mixed', dayfirst=True)
+            obs_df['datetime'] = pd.to_datetime(obs_df['datetime'], format='mixed')
             obs_df.set_index('datetime', inplace=True)
 
             # Resample to daily if needed (assuming results are daily based on original logic)

@@ -131,6 +131,8 @@ cover/*.nc
 
 # Docs build artifacts
 docs/_build/
+# Local drafts, co-author response notes, slide decks — not published
+docs/presentations/
 config_template.yaml
 
 # Benchmark results (auto-generated)
@@ -174,13 +176,12 @@ Makefile
 config_semi_distributed_troute.yaml
 
 # Local test/development domain directories
-domain_bow_test/
-domain_gssurgo_test/
-domain_polaris_test/
-domain_standalone/
+domain_*/
 
 # Paper working directories (local)
 papers/
 
 # Local settings
 settings/
+default/
+domain_domain/

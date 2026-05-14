@@ -280,7 +280,10 @@ def apply_regionalization(
     import netCDF4 as nc
     import pandas as pd
 
-    from symfluence.models.fuse.calibration.parameter_regionalization import RegionalizationFactory
+    from symfluence.models.fuse.calibration.parameter_regionalization import (
+        FUSE_DEFAULT_PARAM_CONFIG,
+    )
+    from symfluence.optimization.regionalization.strategies import RegionalizationFactory
 
     log = log or logger
     params_updated: set = set()
@@ -319,11 +322,15 @@ def apply_regionalization(
             with nc.Dataset(para_def_path, 'r') as ds:
                 n_subcatchments = ds.dimensions['par'].size
 
+        # Inject FUSE default param config if not already in config
+        if 'TRANSFER_FUNCTION_PARAM_CONFIG' not in config:
+            config = dict(config, TRANSFER_FUNCTION_PARAM_CONFIG=FUSE_DEFAULT_PARAM_CONFIG)
+
         # Create regionalization strategy
         regionalization = RegionalizationFactory.create(
             method=method,
             param_bounds=param_bounds_tuples,
-            n_subcatchments=n_subcatchments,
+            n_units=n_subcatchments,
             config=config,
             attributes=attributes,
             logger=log

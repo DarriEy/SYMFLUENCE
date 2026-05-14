@@ -199,7 +199,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
         algorithm = self._get_config_value(
             lambda: self.config.optimization.algorithm, default='optimization'
         ).lower()
-        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        base_dir = self._resolve_sim_base_dir(algorithm)
 
         # Create process directories using base class method
         self.parallel_dirs = self.setup_parallel_processing(

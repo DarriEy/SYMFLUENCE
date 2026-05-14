@@ -1,0 +1,127 @@
+# Iceland National Water Model — HYPE
+#
+# Semi-distributed setup across all of Iceland using TauDEM delineation,
+# ERA5 forcing, and LamaH-ICE observations.  HYPE's Nordic heritage and
+# built-in snow/glacier routines make it a natural fit for Iceland.
+
+# ── System ──────────────────────────────────────────────────────────
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
+MPI_PROCESSES: 1
+FORCE_RUN_ALL_STEPS: false
+LOG_LEVEL: INFO
+LOG_TO_FILE: true
+LOG_FORMAT: detailed
+
+# ── Domain identification ───────────────────────────────────────────
+DOMAIN_NAME: Iceland_National
+EXPERIMENT_ID: iceland_hype_v1
+
+# ── Temporal extent ─────────────────────────────────────────────────
+# 10-year run: 2 years spinup (HYPE needs longer spinup for soil stores),
+# 5 years calibration, 3 years evaluation
+EXPERIMENT_TIME_START: 2001-01-01 01:00
+EXPERIMENT_TIME_END:   2010-12-31 23:00
+SPINUP_PERIOD:         2001-01-01, 2002-12-31
+CALIBRATION_PERIOD:    2003-01-01 01:00, 2007-12-31 23:00
+EVALUATION_PERIOD:     2008-01-01 01:00, 2010-12-31 23:00
+
+# ── Spatial domain ──────────────────────────────────────────────────
+# Full Iceland bounding box
+BOUNDING_BOX_COORDS: 66.6/-24.6/63.2/-13.2
+POUR_POINT_COORDS: 64.5/-18.5
+
+# Semi-distributed: TauDEM delineation into sub-catchments
+DOMAIN_DEFINITION_METHOD: delineate
+ROUTING_DELINEATION: distributed
+GEOFABRIC_TYPE: na
+DELINEATION_METHOD: stream_threshold
+STREAM_THRESHOLD: 5000
+LUMPED_WATERSHED_METHOD: TauDEM
+
+# Critical for an island
+DELINEATE_COASTAL_WATERSHEDS: true
+DELINEATE_BY_POURPOINT: false
+MOVE_OUTLETS_MAX_DISTANCE: 200
+CLEANUP_INTERMEDIATE_FILES: false
+
+# ── Sub-grid discretization ────────────────────────────────────────
+# HYPE uses Soil-Land Class (SLC) combinations within each sub-basin
+DOMAIN_DISCRETIZATION: GRUs
+SUB_GRID_DISCRETIZATION: elevation
+ELEVATION_BAND_SIZE: 200
+MIN_HRU_SIZE: 4
+MIN_GRU_SIZE: 0
+
+# ── DEM & land surface data ────────────────────────────────────────
+DATA_ACCESS: cloud
+DEM_SOURCE: copdem90
+SOILGRIDS_LAYER: wrb_0-5cm_mode
+
+# ── Forcing ─────────────────────────────────────────────────────────
+FORCING_DATASET: ERA5
+FORCING_VARIABLES: default
+FORCING_MEASUREMENT_HEIGHT: 2
+FORCING_TIME_STEP_SIZE: 3600
+APPLY_LAPSE_RATE: true
+LAPSE_RATE: 0.0065
+PET_METHOD: oudin
+SUPPLEMENT_FORCING: false
+
+# ── Observations — LamaH-ICE ───────────────────────────────────────
+# Single-gauge evaluation (for benchmarking / postprocessing)
+EVALUATION_DATA:
+  - streamflow
+STREAMFLOW_DATA_PROVIDER: LAMAH_ICE
+LAMAH_ICE_DOMAIN_ID: 105
+LAMAH_ICE_PATH: default
+
+# ── Multi-gauge calibration ────────────────────────────────────────
+# Calibrate against all 111 LamaH-ICE gauges simultaneously.
+# Gauge→subbasin mapping is auto-generated via spatial join.
+MULTI_GAUGE_CALIBRATION: true
+MULTI_GAUGE_AGGREGATION: mean
+MULTI_GAUGE_MIN_GAUGES: 5
+MULTI_GAUGE_KGE_FLOOR: -5.0
+MULTI_GAUGE_MAX_DISTANCE: 0.1
+
+# ── Model: HYPE ─────────────────────────────────────────────────────
+HYDROLOGICAL_MODEL: HYPE
+HYPE_EXE: hype
+SETTINGS_HYPE_PATH: default
+HYPE_SPINUP_DAYS: 730
+
+# Parameters to calibrate — Nordic-relevant set
+# Snow:   ttmp (snow/rain threshold), cmlt (degree-day melt factor)
+# ET:     cevp (ET coefficient), lp (soil moisture threshold for ET)
+# Soil:   rrcs1/rrcs2 (recession coefficients), wcwp/wcfc/wcep (soil water)
+# GW:     rcgrw (regional groundwater recession)
+# Routing: rivvel (river velocity), damp (routing damping)
+HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp,wcwp,wcfc,wcep,srrcs
+
+# SLC fraction threshold — keep classes covering at least 5% of a sub-basin
+HYPE_FRAC_THRESHOLD: 0.05
+
+# ── Optimization ────────────────────────────────────────────────────
+OPTIMIZATION_METHODS:
+  - iteration
+OPTIMIZATION_TARGET: streamflow
+CALIBRATION_TIMESTEP: daily
+ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
+NUMBER_OF_ITERATIONS: 200
+DDS_R: 0.2
+OPTIMIZATION_METRIC: KGE
+
+# ── Shapefile field mappings ────────────────────────────────────────
+CATCHMENT_SHP_LAT: center_lat
+CATCHMENT_SHP_LON: center_lon
+CATCHMENT_SHP_AREA: HRU_area
+CATCHMENT_SHP_HRUID: HRU_ID
+CATCHMENT_SHP_GRUID: GRU_ID
+RIVER_BASIN_SHP_RM_GRUID: GRU_ID
+RIVER_BASIN_SHP_HRU_TO_SEG: gru_to_seg
+RIVER_BASIN_SHP_AREA: GRU_area
+RIVER_NETWORK_SHP_LENGTH: Length
+RIVER_NETWORK_SHP_SEGID: LINKNO
+RIVER_NETWORK_SHP_DOWNSEGID: DSLINKNO
+RIVER_NETWORK_SHP_SLOPE: Slope

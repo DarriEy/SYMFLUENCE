@@ -119,10 +119,8 @@ class CMAESAlgorithm(OptimizationAlgorithm):
         # Mean at center of normalized space [0, 1]
         mean = np.full(n_params, 0.5)
 
-        # Initial step size (sigma) - covers about 1/3 of the range
-        # sigma_0 = 0.3 is recommended by Hansen (2006) for [0,1] bounded problems
         sigma = self._get_config_value(
-            lambda: self.config.optimization.cmaes_initial_sigma,
+            lambda: self.config.optimization.cmaes.initial_sigma,
             default=CMAESDefaults.INITIAL_SIGMA,
             dict_key='CMAES_INITIAL_SIGMA'
         )

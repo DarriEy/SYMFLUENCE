@@ -292,10 +292,20 @@ class OptimizationManager(BaseManager):
 
             # Skip external DDS for FUSE when built-in SCE calibration is enabled.
             # FUSE's internal calib_sce (run in step 11) makes external DDS redundant.
+            # Multi-gauge calibration always needs the external worker because
+            # FUSE-internal SCE is single-basin only.
             if 'FUSE' in hydrological_models:
-                fuse_cfg = self.config.model.fuse if self.config.model else None
-                use_internal = fuse_cfg.run_internal_calibration if fuse_cfg else True
-                if use_internal:
+                use_internal = self._get_config_value(
+                    lambda: self.config.model.fuse.run_internal_calibration,
+                    default=True,
+                    dict_key='FUSE_RUN_INTERNAL_CALIBRATION'
+                )
+                multi_gauge = self._get_config_value(
+                    lambda: self.config.calibration.multi_gauge,
+                    default=False,
+                    dict_key='MULTI_GAUGE_CALIBRATION'
+                )
+                if use_internal and not multi_gauge:
                     self.logger.info(
                         "Skipping external optimization for FUSE — "
                         "using built-in SCE calibration (FUSE_RUN_INTERNAL_CALIBRATION=True). "
@@ -467,9 +477,11 @@ class OptimizationManager(BaseManager):
 
                         # Extract optimization history
                         history = []
-                        if 'iteration' in results_df.columns or 'Iteration' in results_df.columns:
-                            iter_col = 'iteration' if 'iteration' in results_df.columns else 'Iteration'
-                            obj_cols = [c for c in results_df.columns if 'objective' in c.lower() or 'kge' in c.lower() or 'fitness' in c.lower()]
+                        iter_candidates = ['iteration', 'Iteration']
+                        iter_col = next((c for c in iter_candidates if c in results_df.columns), None)
+                        if iter_col:
+                            obj_cols = [c for c in results_df.columns
+                                        if any(k in c.lower() for k in ['objective', 'kge', 'fitness', 'score', 'nse', 'rmse'])]
                             obj_col = obj_cols[0] if obj_cols else None
                             if obj_col:
                                 for _, row in results_df.iterrows():
@@ -479,7 +491,12 @@ class OptimizationManager(BaseManager):
                                     })
 
                         # Extract best parameters - find actual best row, not just row 0
-                        param_cols = [c for c in results_df.columns if c not in ['iteration', 'Iteration', 'objective', 'Objective', 'kge', 'KGE', 'fitness']]
+                        non_param = {'iteration', 'Iteration', 'objective', 'Objective',
+                                     'kge', 'KGE', 'fitness', 'score', 'timestamp',
+                                     'crash_count', 'crash_rate', 'Calib_RMSE',
+                                     'Calib_KGE', 'Calib_KGEp', 'Calib_KGEnp',
+                                     'Calib_NSE', 'Calib_MAE'}
+                        param_cols = [c for c in results_df.columns if c not in non_param]
                         best_params = {}
                         if not results_df.empty and param_cols:
                             # Try to load best params from JSON file first (most reliable)

@@ -287,7 +287,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Read observations
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True, utc=True, errors='coerce').dt.tz_convert(None)
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], utc=True, errors='coerce').dt.tz_convert(None)
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_daily = obs_df.resample('D').mean()
@@ -414,7 +414,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True, utc=True, errors='coerce').dt.tz_convert(None)
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], utc=True, errors='coerce').dt.tz_convert(None)
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_daily = obs_df.resample('D').mean()

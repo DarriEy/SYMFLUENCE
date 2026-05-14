@@ -154,6 +154,9 @@ class HYPEGeoDataManager:
             'maindown': riv[next_down_col]
         })
 
+        # Regional groundwater routing follows the surface water path
+        base_df['grwdown'] = base_df['maindown']
+
         # 2. River properties
         rivlen_info = self.geofabric_mapping['rivlen']
         if rivlen_info['in_varname'] in riv.columns:
@@ -214,7 +217,10 @@ class HYPEGeoDataManager:
 
         def get_elevation(subid):
             if subid in elevation_data.index:
-                return elevation_data.loc[subid, elev_col]
+                result = elevation_data.loc[subid, elev_col]
+                if isinstance(result, pd.Series):
+                    return float(result.iloc[0])
+                return float(result)
             elif len(elevation_data) == 1:
                 return elevation_data[elev_col].iloc[0]
             return 0.0
@@ -226,10 +232,22 @@ class HYPEGeoDataManager:
         if slc_cols:
             base_df[slc_cols] = base_df[slc_cols].div(base_df[slc_cols].sum(axis=1), axis=0).fillna(0)
 
-        # 7. Handle ID shifting (HYPE requires IDs > 0)
+        # 7. Drop sub-basins with missing geometry (no area/lat/lon from join)
+        required_cols = ['area', 'latitude', 'longitude']
+        missing_mask = base_df[required_cols].isna().any(axis=1)
+        if missing_mask.any():
+            dropped_ids = base_df.loc[missing_mask, 'subid'].tolist()
+            self.logger.warning(
+                f"Dropping {missing_mask.sum()} sub-basins with missing geometry: {dropped_ids}"
+            )
+            base_df = base_df[~missing_mask].copy()
+            # Remove any maindown references to dropped sub-basins
+            base_df.loc[base_df['maindown'].isin(dropped_ids), 'maindown'] = 0
+
+        # 8. Handle ID shifting (HYPE requires IDs > 0)
         base_df = self._shift_ids_if_needed(base_df)
 
-        # 8. Sort and save
+        # 9. Sort and save
         sorted_df = self.sort_geodata(base_df)
         sorted_df.to_csv(self.output_path / 'GeoData.txt', sep='\t', index=False)
 

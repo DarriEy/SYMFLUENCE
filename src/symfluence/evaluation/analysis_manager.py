@@ -315,6 +315,18 @@ class AnalysisManager(ConfigurableMixin):
         """
         self.logger.info("Starting benchmarking analysis")
 
+        opt_target = self._get_config_value(
+            lambda: self.config.optimization.target,
+            dict_key='OPTIMIZATION_TARGET',
+        ) or 'streamflow'
+        if opt_target.lower() != 'streamflow':
+            self.logger.info(
+                "Skipping benchmarking: HydroBM benchmarks are streamflow-specific "
+                "and do not apply to OPTIMIZATION_TARGET='%s'",
+                opt_target,
+            )
+            return None
+
         with symfluence_error_handler(
             "benchmarking analysis",
             self.logger,
@@ -393,22 +405,27 @@ class AnalysisManager(ConfigurableMixin):
             return None
 
         sensitivity_results = {}
+        per_model_errors: Dict[str, str] = {}
 
-        with symfluence_error_handler(
-            "sensitivity analysis",
-            self.logger,
-            reraise=False,
-            error_type=EvaluationError
-        ):
-            models_str = self._get_config_value(
-                lambda: self.config.model.hydrological_model,
-                ''
-            )
-            hydrological_models = str(models_str).split(',')
+        # Previously wrapped in symfluence_error_handler(reraise=False),
+        # which swallowed every SA failure as a warning and let the
+        # workflow step report "complete" with no output. Co-authors
+        # hit exactly this: SA produced no panels but the run said it
+        # succeeded, so there was no trail back to the root cause
+        # (typically "Bounds are not legal" from stringified bounds).
+        # Per-model failures are now captured as warnings (one bad
+        # model shouldn't sink SA for the others), but if NONE of the
+        # configured models produced results we raise so the workflow
+        # step is flagged failed and the user sees the aggregated
+        # cause.
+        models_str = self._get_config_value(
+            lambda: self.config.model.hydrological_model,
+            ''
+        )
+        hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
 
-            for model in hydrological_models:
-                model = model.strip().upper()
-
+        for model in hydrological_models:
+            try:
                 # Check registry for model-specific sensitivity analyzer
                 analyzer_cls = R.sensitivity_analyzers.get(model)
 
@@ -420,15 +437,35 @@ class AnalysisManager(ConfigurableMixin):
                     if results_file:
                         sensitivity_results[model] = analyzer.run_sensitivity_analysis(results_file)
                     else:
-                        self.logger.warning(f"Calibration results file not found for {model}")
+                        msg = f"Calibration results file not found for {model}"
+                        self.logger.warning(msg)
+                        per_model_errors[model] = msg
                 else:
                     # Fall back to generic sensitivity analyzer (works for SUMMA and similar)
                     self.logger.info(f"Using generic sensitivity analyzer for {model}")
                     sensitivity_results[model] = self._run_generic_sensitivity_analysis(model)
+            except Exception as exc:  # noqa: BLE001 — aggregate per-model failures for the post-loop decision
+                self.logger.error(
+                    f"Sensitivity analysis failed for {model}: {exc}",
+                    exc_info=True,
+                )
+                per_model_errors[model] = f"{type(exc).__name__}: {exc}"
 
-            return sensitivity_results if sensitivity_results else None
+        # Drop any None entries (analyzers that returned None silently).
+        sensitivity_results = {k: v for k, v in sensitivity_results.items() if v is not None}
 
-        return None
+        if not sensitivity_results and hydrological_models:
+            detail = "; ".join(
+                f"{m}: {per_model_errors.get(m, 'no results')}"
+                for m in hydrological_models
+            )
+            raise EvaluationError(
+                "Sensitivity analysis produced no results for any "
+                f"configured model ({', '.join(hydrological_models)}). "
+                f"Per-model causes: {detail}"
+            )
+
+        return sensitivity_results if sensitivity_results else None
 
     def _run_generic_sensitivity_analysis(self, model: str) -> Optional[Dict]:
         """
@@ -591,11 +628,37 @@ class AnalysisManager(ConfigurableMixin):
                         'best_combinations': best_combinations
                     }
                 else:
-                    available = R.decision_analyzers.keys()
+                    # Decision analysis is only meaningful for models that
+                    # expose alternative physics-parameterization choices
+                    # (currently SUMMA). Conceptual / lumped models like
+                    # HBV, GR4J, HYPE have a fixed structure by design
+                    # and there is nothing to analyse. Previously this
+                    # path emitted a generic INFO ("No decision analyzer
+                    # registered for model X") that a co-author read as
+                    # a bug — "why isn't HBV registered?" — and the step
+                    # still marked ✓ Complete with no output. Record the
+                    # skip explicitly and say why.
                     self.logger.info(
-                        f"No decision analyzer registered for model: {model}. "
-                        f"Available analyzers: {available}"
+                        f"{model}: skipping decision analysis — no "
+                        "decision structure by design (decision analysis "
+                        "requires a model with alternative physics "
+                        "parameterizations; registered analyzers: "
+                        f"{sorted(R.decision_analyzers.keys())})"
                     )
+                    decision_results[model] = {
+                        'skipped': True,
+                        'skipped_reason': 'no decision structure by design',
+                    }
+
+            # Summary so the workflow log makes the skip visible without
+            # re-reading per-model lines.
+            analysed = [m for m, v in decision_results.items() if not v.get('skipped')]
+            skipped = [m for m, v in decision_results.items() if v.get('skipped')]
+            self.logger.info(
+                f"Decision analysis summary: {len(analysed)}/{len(decision_results)} "
+                "models analysed"
+                + (f"; skipped by design: {', '.join(skipped)}" if skipped else "")
+            )
 
             return decision_results if decision_results else None
 

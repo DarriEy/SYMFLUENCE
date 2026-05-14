@@ -47,7 +47,7 @@ Usage:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -1172,6 +1172,14 @@ def get_gsflow_bounds() -> Dict[str, Dict[str, float]]:
     ]
     prefixed = get_registry().get_bounds_for_params(gsflow_params)
     return {k.replace('gsflow_', ''): v for k, v in prefixed.items()}
+
+
+def get_noahmp_bounds() -> Dict[str, Dict[str, Any]]:
+    noahmp_params = [
+        'slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt', 'smcref',
+        'refkdt', 'noah_czil', 'rain_snow_thresh', 'ZREF',
+    ]
+    return get_registry().get_bounds_for_params(noahmp_params)
 
 
 def get_watflood_bounds() -> Dict[str, Dict[str, float]]:
