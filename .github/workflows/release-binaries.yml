@@ -144,8 +144,8 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Core build dependencies
-          conda install -y gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
+          # Core build dependencies (pip required — latest Miniconda no longer bundles it)
+          conda install -y pip gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
 
           # Expose CONDA_PREFIX so symfluence dependency checker finds conda-installed libs
           echo "CONDA_PREFIX=$CONDA_PREFIX" >> $GITHUB_ENV
