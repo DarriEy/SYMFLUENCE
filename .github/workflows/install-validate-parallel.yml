@@ -346,6 +346,13 @@ jobs:
           echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
+      - name: Reinstall GDAL Python bindings (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          GDAL_VERSION=$(gdal-config --version)
+          GDAL_MAJOR_MINOR="${GDAL_VERSION%.*}"
+          pip install --force-reinstall --no-cache-dir "gdal>=${GDAL_VERSION},<${GDAL_MAJOR_MINOR}.$((${GDAL_VERSION##*.}+1))"
+
       - name: Run unit tests (parallel)
         run: |
           echo "========================================="
