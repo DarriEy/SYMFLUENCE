@@ -942,6 +942,12 @@ src/symfluence/models/ngen/runner.py:NgenRunner._run_ngen_docker_pipeline:except
 src/symfluence/models/ngen/runner.py:NgenRunner._run_troute_routing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/runner.py:NgenRunner._run_troute_routing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/visualizer.py:visualize_ngen:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/noahmp/calibration/worker.py:NoahMPWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/noahmp/calibration/worker.py:NoahMPWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/noahmp/calibration/worker.py:NoahMPWorker.run_model:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/noahmp/calibration/worker.py:_evaluate_noahmp_parameters_worker:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/noahmp/preprocessor.py:NoahMPPreProcessor._create_model_configs:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/noahmp/preprocessor.py:NoahMPPreProcessor._prepare_forcing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/parflow/calibration/parameter_manager.py:ParFlowParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/parflow/calibration/parameter_manager.py:ParFlowParameterManager.update_model_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/parflow/calibration/targets.py:ParFlowStreamflowTarget._extract_parflow_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
