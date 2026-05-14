@@ -36,6 +36,7 @@ ROUTING_MODEL: mizuRoute
 MIZU_FROM_MODEL: SUMMA
 SUMMA_WARMUP_DAYS: 730
 PARAMETER_REGIONALIZATION: transfer_function
+TRANSFER_FUNCTION_ATTRIBUTES: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data/domain_bow_regionalisation_comp_distributed_summa/data/attributes/climate/climate_statistics.csv
 SETTINGS_MIZU_WITHIN_BASIN: 0
 SETTINGS_MIZU_ROUTING_DT: 3600
 SETTINGS_MIZU_ROUTING_UNITS: m/s
