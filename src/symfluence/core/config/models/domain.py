@@ -164,7 +164,7 @@ class DomainConfig(BaseModel):
     download_dem: bool = Field(default=True, alias='DOWNLOAD_DEM')
     download_soil: bool = Field(default=True, alias='DOWNLOAD_SOIL')
     download_landcover: bool = Field(default=True, alias='DOWNLOAD_LAND_COVER')
-    dem_source: str = Field(default='copernicus', alias='DEM_SOURCE')  # Copernicus DEM is free and open
+    dem_source: str = Field(default='copdem90', alias='DEM_SOURCE')
     land_class_source: str = Field(default='modis', alias='LAND_CLASS_SOURCE')
     land_class_name: str = Field(default='default', alias='LAND_CLASS_NAME')
     soilgrids_layer: str = Field(default='wrb_0-5cm_mode', alias='SOILGRIDS_LAYER')
@@ -194,6 +194,9 @@ class DomainConfig(BaseModel):
             'distribute': 'distributed',
             'discretized': 'semidistributed',  # deprecated
             'subset': 'semidistributed',  # now use subset_from_geofabric=True
+            # Spelling variants written by several paper configs
+            'semi_distributed': 'semidistributed',
+            'semi-distributed': 'semidistributed',
         }
         if v in legacy_mapping:
             if v == 'discretized':

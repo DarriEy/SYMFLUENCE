@@ -60,8 +60,13 @@ class LocalScratchManager(ConfigMixin):
         self.logger = logger
         self.project_dir = project_dir  # This is the ORIGINAL project dir
         self.algorithm_name = algorithm_name
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.domain_name = self._get_config_value(
+            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+        )
+        self.experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id,
+            default='run_1', dict_key='EXPERIMENT_ID'
+        )
         self.mpi_rank = mpi_rank if mpi_rank is not None else 0
 
         # Get node information
@@ -126,10 +131,12 @@ class LocalScratchManager(ConfigMixin):
             )
             return False
 
-        if not Path(slurm_tmpdir).exists():
+        try:
+            Path(slurm_tmpdir).mkdir(parents=True, exist_ok=True)
+        except OSError as e:
             self.logger.warning(
                 f"Rank {self.mpi_rank}: USE_LOCAL_SCRATCH is True but SLURM_TMPDIR ({slurm_tmpdir}) "
-                "does not exist. Falling back to standard filesystem."
+                f"could not be created: {e}. Falling back to standard filesystem."
             )
             return False
 

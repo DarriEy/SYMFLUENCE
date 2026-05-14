@@ -1,0 +1,156 @@
+# Iceland National Fire Weather Index Analysis — IGNACIO
+#
+# FWI-focused configuration using ERA5 forcing across Iceland.
+# Computes FFMC, DMC, DC, ISI, BUI, and FWI from ERA5 temperature,
+# humidity, wind speed, and precipitation.  No fuel raster or ignition
+# shapefile is needed for pure FWI mapping — IGNACIO will calculate
+# the moisture codes and danger indices from weather alone.
+#
+# Iceland context:
+#   - Subarctic vegetation: heathland, moss, grassland, sparse birch
+#   - Fire season is short (May–August) but increasing with climate change
+#   - FWI latitude correction matters at 65°N (long summer days)
+
+# ── System ──────────────────────────────────────────────────────────
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
+MPI_PROCESSES: 1
+FORCE_RUN_ALL_STEPS: false
+LOG_LEVEL: INFO
+LOG_TO_FILE: true
+LOG_FORMAT: detailed
+
+# ── Domain identification ───────────────────────────────────────────
+DOMAIN_NAME: Iceland_National
+EXPERIMENT_ID: iceland_ignacio_fwi_v1
+
+# ── Temporal extent ─────────────────────────────────────────────────
+# Match the hydrology configs: full decade, but FWI is most meaningful
+# during the fire season (May–August).  The preprocessor will convert
+# the entire ERA5 record so seasonal analysis is possible in post.
+EXPERIMENT_TIME_START: 2001-01-01 01:00
+EXPERIMENT_TIME_END:   2010-12-31 23:00
+
+# ── Spatial domain ──────────────────────────────────────────────────
+# Full Iceland bounding box — same as HYPE / SUMMA configs
+BOUNDING_BOX_COORDS: 66.6/-24.6/63.2/-13.2
+POUR_POINT_COORDS: 64.5/-18.5
+
+# Semi-distributed: reuse the same TauDEM delineation
+DOMAIN_DEFINITION_METHOD: delineate
+ROUTING_DELINEATION: distributed
+GEOFABRIC_TYPE: na
+DELINEATION_METHOD: stream_threshold
+STREAM_THRESHOLD: 5000
+LUMPED_WATERSHED_METHOD: TauDEM
+
+DELINEATE_COASTAL_WATERSHEDS: true
+DELINEATE_BY_POURPOINT: false
+MOVE_OUTLETS_MAX_DISTANCE: 200
+CLEANUP_INTERMEDIATE_FILES: false
+
+# ── Sub-grid discretization ────────────────────────────────────────
+DOMAIN_DISCRETIZATION: GRUs
+SUB_GRID_DISCRETIZATION: elevation
+ELEVATION_BAND_SIZE: 200
+MIN_HRU_SIZE: 4
+MIN_GRU_SIZE: 0
+
+# ── DEM & land surface data ────────────────────────────────────────
+DATA_ACCESS: cloud
+DEM_SOURCE: copdem90
+SOILGRIDS_LAYER: wrb_0-5cm_mode
+
+# ── Forcing ─────────────────────────────────────────────────────────
+# ERA5 provides the four variables IGNACIO needs for FWI:
+#   air_temperature  → TEMP (K → °C in preprocessor)
+#   specific_humidity + surface_air_pressure → RH (derived)
+#   wind_speed       → WS (m/s → km/h in preprocessor)
+#   precipitation_flux → PRECIP (mm/s → mm/h in preprocessor)
+FORCING_DATASET: ERA5
+FORCING_VARIABLES: default
+FORCING_MEASUREMENT_HEIGHT: 2
+FORCING_TIME_STEP_SIZE: 3600
+APPLY_LAPSE_RATE: true
+LAPSE_RATE: 0.0065
+SUPPLEMENT_FORCING: false
+
+# ── Model: IGNACIO (FWI mode) ──────────────────────────────────────
+HYDROLOGICAL_MODEL: IGNACIO
+
+# Project
+IGNACIO_PROJECT_NAME: iceland_fwi_analysis
+IGNACIO_OUTPUT_DIR: default
+IGNACIO_RANDOM_SEED: 42
+
+# CRS — ISN93 / Lambert 1993 for Iceland
+IGNACIO_WORKING_CRS: EPSG:3057
+IGNACIO_OUTPUT_CRS: EPSG:3057
+
+# FWI calculation from ERA5 weather data
+IGNACIO_CALCULATE_FWI: true
+IGNACIO_FWI_LATITUDE: 65.0
+IGNACIO_TIME_VARYING_WEATHER: true
+
+# Fuel types — derived from MODIS IGBP land cover raster acquired
+# during the attributes step.  The preprocessor discovers the land
+# class raster automatically and maps IGBP codes → FBP fuel types.
+# Iceland's IGBP breakdown (land only):
+#   10  Grasslands        56%  → O-1b (standing grass)
+#   16  Barren/lava       27%  → NF   (non-fuel)
+#    9  Savannas/heath     3%  → O-1a (matted grass / heathland)
+#   15  Snow/Ice          11%  → NF   (non-fuel)
+#   11  Wetlands           2%  → NF   (non-fuel, too wet to carry fire)
+IGNACIO_FUEL_SOURCE_TYPE: raster
+IGNACIO_DEFAULT_FUEL: O-1b
+
+# FBP defaults — conservative starting moisture codes for spring onset.
+# These are overridden once ERA5 weather data feeds the FWI calculator,
+# but set sensible Iceland values in case of data gaps.
+IGNACIO_DEFAULT_FFMC: 85.0
+IGNACIO_DEFAULT_DMC: 20.0
+IGNACIO_DEFAULT_DC: 100.0
+IGNACIO_DEFAULT_ISI: 4.0
+IGNACIO_DEFAULT_BUI: 30.0
+IGNACIO_FMC: 120.0
+IGNACIO_CURING: 60.0
+
+# Non-fuel codes — IGBP classes that cannot carry fire in Iceland:
+#   0   = Water (background)
+#   11  = Wetlands (too saturated)
+#   13  = Urban (not present but excluded for safety)
+#   15  = Snow/Ice (glaciers: Vatnajökull, Langjökull, etc.)
+#   16  = Barren (lava fields, bare rock)
+#   17  = Water Bodies (ocean, lakes, rivers)
+#   255 = NoData
+IGNACIO_NON_FUEL_CODES: [0, 11, 13, 15, 16, 17, 255, -9999]
+
+# Simulation parameters — long duration for seasonal FWI tracking
+IGNACIO_DT: 60.0
+IGNACIO_MAX_DURATION: 43200
+IGNACIO_N_VERTICES: 300
+IGNACIO_INITIAL_RADIUS: 10.0
+IGNACIO_MIN_ROS: 0.01
+
+# Output
+IGNACIO_SAVE_PERIMETERS: false
+IGNACIO_SAVE_ROS_GRIDS: true
+IGNACIO_PERIMETER_FORMAT: gpkg
+IGNACIO_GENERATE_PLOTS: true
+
+# No ignition or spread — this is a FWI analysis, not a fire simulation
+# Leave IGNACIO_IGNITION_SHAPEFILE unset; preprocessor handles gracefully.
+
+# ── Shapefile field mappings ────────────────────────────────────────
+CATCHMENT_SHP_LAT: center_lat
+CATCHMENT_SHP_LON: center_lon
+CATCHMENT_SHP_AREA: HRU_area
+CATCHMENT_SHP_HRUID: HRU_ID
+CATCHMENT_SHP_GRUID: GRU_ID
+RIVER_BASIN_SHP_RM_GRUID: GRU_ID
+RIVER_BASIN_SHP_HRU_TO_SEG: gru_to_seg
+RIVER_BASIN_SHP_AREA: GRU_area
+RIVER_NETWORK_SHP_LENGTH: Length
+RIVER_NETWORK_SHP_SEGID: LINKNO
+RIVER_NETWORK_SHP_DOWNSEGID: DSLINKNO
+RIVER_NETWORK_SHP_SLOPE: Slope

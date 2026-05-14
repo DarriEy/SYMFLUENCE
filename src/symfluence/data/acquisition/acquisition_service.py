@@ -374,7 +374,7 @@ class AcquisitionService(ConfigurableMixin):
         self.logger.info("Starting attribute acquisition")
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
-        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='merit_hydro').lower()
+        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='copdem90').lower()
 
         dem_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'elevation' / 'dem'
         soilclass_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'soilclass'
@@ -421,7 +421,37 @@ class AcquisitionService(ConfigurableMixin):
                             self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
                             return dem_dir / f"domain_{self.domain_name}_elv.tif"
                         else:
-                            raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
+                            # Surface common misconfigurations with an actionable
+                            # hint instead of just "unsupported". MERIT-Hydro in
+                            # particular looks superficially right — it's in many
+                            # of our HPC paper configs — but it's only reachable
+                            # via the MAF gistool path, not cloud. If the user
+                            # set it with DATA_ACCESS=cloud they need a
+                            # cloud-reachable source.
+                            lower = str(dem_source).lower()
+                            accepted_cloud = [
+                                'copernicus', 'copdem90', 'copernicus_90',
+                                'fabdem', 'nasadem', 'srtm', 'etopo',
+                                'mapzen', 'alos',
+                            ]
+                            hint = ""
+                            if 'merit' in lower:
+                                hint = (
+                                    " MERIT-Hydro is only available via the MAF "
+                                    "gistool path (DATA_ACCESS: hpc). For "
+                                    "DATA_ACCESS: cloud, use 'copernicus' "
+                                    "(the default) or one of: "
+                                    f"{', '.join(accepted_cloud)}."
+                                )
+                            else:
+                                hint = (
+                                    f" Accepted cloud DEM sources: "
+                                    f"{', '.join(accepted_cloud)}."
+                                )
+                            raise ValueError(
+                                f"Unsupported DEM_SOURCE: '{dem_source}' for "
+                                f"DATA_ACCESS: cloud.{hint}"
+                            )
                     attr_tasks.append(('DEM', _acquire_dem))
                 else:
                     self.logger.info("Skipping DEM acquisition (DOWNLOAD_DEM is False)")
@@ -608,6 +638,35 @@ class AcquisitionService(ConfigurableMixin):
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
+
+        # If forcing_path points to existing data, symlink into raw_data and skip download
+        forcing_path = self._get_config_value(
+            lambda: self.config.paths.forcing_path, default=None, dict_key='FORCING_PATH')
+        if forcing_path and forcing_path != 'default':
+            forcing_path = Path(forcing_path)
+            if forcing_path.exists():
+                nc_files = list(forcing_path.glob('*.nc')) + list(forcing_path.glob('*.nc4'))
+                csv_files = list(forcing_path.glob('*.csv'))
+                if nc_files or csv_files:
+                    raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
+                    raw_data_dir.mkdir(parents=True, exist_ok=True)
+                    existing_raw = list(raw_data_dir.glob('*.nc')) + list(raw_data_dir.glob('*.csv'))
+                    if not existing_raw:
+                        raw_data_dir.symlink_to(forcing_path) if not raw_data_dir.exists() else None
+                        for f in (nc_files + csv_files):
+                            link = raw_data_dir / f.name
+                            if not link.exists():
+                                link.symlink_to(f)
+                        self.logger.info(
+                            f"✓ Using pre-staged forcing data from forcing_path: {forcing_path} "
+                            f"({len(nc_files)} .nc, {len(csv_files)} .csv files symlinked to raw_data/)"
+                        )
+                    else:
+                        self.logger.info(
+                            f"✓ Forcing data already exists in raw_data/ ({len(existing_raw)} files), "
+                            f"skipping acquisition"
+                        )
+                    return
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()

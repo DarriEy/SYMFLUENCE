@@ -39,7 +39,7 @@ def bow_river_preset():
             'GEOFABRIC_TYPE': 'TDX',
             'STREAM_THRESHOLD': 1000,
             'LUMPED_WATERSHED_METHOD': 'TauDEM',
-            'DEM_SOURCE': 'copernicus',
+            'DEM_SOURCE': 'copdem90',
 
             # Forcing settings
             'FORCING_DATASET': 'ERA5',

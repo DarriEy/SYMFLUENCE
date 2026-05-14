@@ -706,6 +706,12 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         timestamp = self._get_timestamp()
         plot_filename = output_dir / f'{timestamp}_{model_name}_input_diagnostic.png'
 
+        # Routing models keep their files in settings/, not forcing/
+        if model_name.upper() == 'MIZUROUTE':
+            settings_candidate = input_dir.parent.parent / 'settings' / 'mizuRoute'
+            if settings_candidate.exists():
+                input_dir = settings_candidate
+
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
         # Panel 1: File inventory
@@ -786,20 +792,42 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         # Create validation summary text
         validation_items = []
 
-        # Check for common required files based on model
-        required_files = {
-            'SUMMA': ['forcing.nc', 'attributes.nc', 'coldState.nc'],
-            'FUSE': ['forcing.nc', 'elev_bands.nc'],
-            'HYPE': ['Qobs.txt', 'Pobs.txt'],
-            'MESH': ['MESH_drainage_database.r2c'],
-        }
+        # Check for common required files based on model.
+        # SUMMA forcing is split into monthly files in the input_dir;
+        # attributes.nc and coldState.nc live in settings/SUMMA/.
+        settings_dir = input_dir.parent.parent / 'settings' / model_name.upper()
+        if model_name.upper() == 'SUMMA':
+            checks = [
+                ('forcing (*.nc)', any(input_dir.glob('*.nc'))),
+                ('attributes.nc', (settings_dir / 'attributes.nc').exists()),
+                ('coldState.nc', (settings_dir / 'coldState.nc').exists()),
+            ]
+        elif model_name.upper() == 'FUSE':
+            checks = [
+                ('forcing (*.nc)', any(input_dir.glob('*.nc'))),
+                ('elev_bands.nc', any(input_dir.glob('*elev_bands*'))),
+            ]
+        elif model_name.upper() == 'HYPE':
+            checks = [
+                ('Qobs.txt', (input_dir / 'Qobs.txt').exists()),
+                ('Pobs.txt', (input_dir / 'Pobs.txt').exists()),
+            ]
+        elif model_name.upper() == 'MIZUROUTE':
+            checks = [
+                ('topology.nc', any(input_dir.glob('*topology*'))),
+                ('control file', any(input_dir.glob('*.control'))),
+            ]
+        elif model_name.upper() == 'MESH':
+            checks = [
+                ('MESH_drainage_database.r2c', any(input_dir.glob('*drainage_database*'))),
+            ]
+        else:
+            checks = []
 
-        model_reqs = required_files.get(model_name.upper(), [])
-        if model_reqs and input_dir.exists():
-            for req in model_reqs:
-                found = any(f.name == req or req in f.name for f in input_dir.glob('*'))
+        if checks:
+            for label, found in checks:
                 status = '  [OK]' if found else ' [MISSING]'
-                validation_items.append(f'{req}: {status}')
+                validation_items.append(f'{label}: {status}')
         else:
             validation_items.append(f'No specific requirements for {model_name}')
 

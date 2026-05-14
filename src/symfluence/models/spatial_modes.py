@@ -259,6 +259,18 @@ MODEL_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
             "channel routing. Lumped mode uses a single-GRU configuration."
         )
     ),
+
+    'PCRGLOBWB': ModelSpatialCapability(
+        supported_modes={SpatialMode.DISTRIBUTED},
+        default_mode=SpatialMode.DISTRIBUTED,
+        requires_routing={
+            SpatialMode.DISTRIBUTED: False,  # Internal accuTravelTime routing
+        },
+        warning_message=(
+            "PCR-GLOBWB is inherently grid-based with internal "
+            "accuTravelTime routing. Lumped mode uses a 3x3 grid."
+        )
+    ),
 }
 
 

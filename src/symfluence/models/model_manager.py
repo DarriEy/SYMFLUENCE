@@ -39,9 +39,9 @@ class ModelManager(BaseManager):
         configured_models = [m.strip() for m in str(models_str).split(',') if m.strip()]
         execution_list = []
 
-        # Models that support routing via mizuRoute or dRoute
-        # Note: MESH, HYPE, and NGEN have internal routing, so don't need external routing
-        routable_models = {'SUMMA', 'FUSE', 'GR'}
+        # Models that need an EXTERNAL routing step (standalone MIZUROUTE/dRoute).
+        # FUSE and GR handle routing internally in their runners (like MESH, HYPE, NGEN).
+        routable_models = {'SUMMA'}
 
         # Determine which routing model to use
         routing_model = self._get_config_value(

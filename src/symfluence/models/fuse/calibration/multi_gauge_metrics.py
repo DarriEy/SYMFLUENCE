@@ -613,6 +613,70 @@ class MultiGaugeMetrics:
         return available
 
 
+def ensure_gauge_segment_mapping(
+    project_dir: Path,
+    lamah_root: Path,
+    domain_name: str,
+    logger: logging.Logger,
+) -> Optional[Path]:
+    """Ensure gauge_segment_mapping.csv exists at the canonical project path.
+
+    Generates the mapping by spatial-joining the LaMAH-Ice gauge points
+    against the domain's mizuRoute river-basin polygons. Returns the canonical
+    path on success; None if either input shapefile is unavailable.
+    """
+    canonical = project_dir / 'settings' / 'mizuRoute' / 'gauge_segment_mapping.csv'
+    if canonical.exists():
+        return canonical
+
+    gauges_shp = lamah_root / 'D_gauges' / '3_shapefiles' / 'gauges.shp'
+    basins_shp = (
+        project_dir / 'shapefiles' / 'river_basins' /
+        f"{domain_name}_riverBasins_semidistributed.shp"
+    )
+    if not gauges_shp.exists() or not basins_shp.exists():
+        logger.warning(
+            "Cannot generate gauge_segment_mapping.csv: missing "
+            f"gauges shapefile ({gauges_shp.exists()=}) or "
+            f"river basins shapefile ({basins_shp.exists()=})"
+        )
+        return None
+
+    try:
+        import geopandas as gpd
+    except ImportError:
+        logger.warning("geopandas unavailable; cannot auto-generate gauge mapping")
+        return None
+
+    logger.info(f"Auto-generating gauge_segment_mapping.csv at {canonical}")
+    gauges = gpd.read_file(gauges_shp).to_crs('EPSG:4326')
+    basins = gpd.read_file(basins_shp)
+    if basins.crs is None:
+        basins = basins.set_crs('EPSG:4326')
+    else:
+        basins = basins.to_crs('EPSG:4326')
+
+    seg_col = 'GRU_ID' if 'GRU_ID' in basins.columns else 'gru_to_seg'
+    joined = gpd.sjoin_nearest(
+        gauges[['id', 'name', 'geometry']],
+        basins[[seg_col, 'geometry']],
+        how='left',
+        distance_col='distance_to_segment',
+    )
+    joined = joined.rename(columns={seg_col: 'nearest_segment'})
+
+    out = pd.DataFrame({
+        'id': joined['id'].astype(int),
+        'name': joined['name'],
+        'nearest_segment': joined['nearest_segment'].astype(int),
+        'distance_to_segment': joined['distance_to_segment'].astype(float),
+    })
+    canonical.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(canonical, index=False)
+    logger.info(f"Wrote {len(out)} gauge→segment rows to {canonical}")
+    return canonical
+
+
 def create_multi_gauge_config(
     gauge_segment_mapping_path: str,
     obs_data_dir: str,
