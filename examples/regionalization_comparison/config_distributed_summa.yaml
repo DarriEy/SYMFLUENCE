@@ -35,6 +35,7 @@ HYDROLOGICAL_MODEL: SUMMA
 ROUTING_MODEL: mizuRoute
 MIZU_FROM_MODEL: SUMMA
 SUMMA_WARMUP_DAYS: 730
+PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,albedoMinSpring,albedoMaxVisible,albedoDecayRate,newSnowDenMin,newSnowDenMult,newSnowDenScal,tempCritRain,tempRangeTimestep,k_soil,k_macropore,aquiferBaseflowExp,aquiferBaseflowRate
 PARAMETER_REGIONALIZATION: transfer_function
 TRANSFER_FUNCTION_ATTRIBUTES: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data/domain_bow_regionalisation_comp_distributed_summa/data/attributes/climate/climate_statistics.csv
 SETTINGS_MIZU_WITHIN_BASIN: 0
@@ -61,11 +62,3 @@ RANDOM_SEED: 42
 MPI_PROCESSES: 1
 FORCE_RUN_ALL_STEPS: true
 SKIP_WARM_START: true
-INITIAL_PARAMETERS:
-  k_soil_a: 0.00981
-  k_soil_b: 0.0
-  snowfrz_scale_a: 10.352
-  snowfrz_scale_b: 0.0
-  albedoMax_a: 0.702
-  routingGammaShape: 2.0
-  routingGammaScale: 169.1
