@@ -738,13 +738,7 @@ class PCRGLOBWBConfig(BaseModel):
 class NoahMPConfig(BaseModel):
     """Noah-MP standalone land surface model configuration.
 
-    Drives noah-owp-modular (NOAA-OWP), a 1-D column Fortran model
-    with Fortran-namelist configuration, ASCII forcing input, and
-    NetCDF output.
-
-    Reference:
-        Niu, G.-Y., et al. (2011): The community Noah land surface
-        model with multiparameterization options (Noah-MP). JGR, 116.
+    Drives noah-owp-modular (NOAA-OWP), a 1-D column Fortran model.
     Repository: https://github.com/NOAA-OWP/noah-owp-modular
     """
 
@@ -760,7 +754,7 @@ class NoahMPConfig(BaseModel):
     timestep: int = Field(default=3600, alias='NOAHMP_TIMESTEP', ge=900, le=3600)
     nsoil: int = Field(default=4, alias='NOAHMP_NSOIL', ge=1, le=10)
     nsnow: int = Field(default=3, alias='NOAHMP_NSNOW', ge=1, le=5)
-    dynamic_veg_option: int = Field(default=4, alias='NOAHMP_DYNAMIC_VEG_OPTION', ge=1, le=10)
+    dynamic_veg_option: int = Field(default=1, alias='NOAHMP_DYNAMIC_VEG_OPTION', ge=1, le=10)
     canopy_stomatal_option: int = Field(default=1, alias='NOAHMP_CANOPY_STOMATAL_OPTION', ge=1, le=2)
     soil_moisture_option: int = Field(default=1, alias='NOAHMP_SOIL_MOISTURE_OPTION', ge=1, le=3)
     runoff_option: int = Field(default=1, alias='NOAHMP_RUNOFF_OPTION', ge=1, le=8)
@@ -810,6 +804,7 @@ class CWatMConfig(BaseModel):
         alias='CWATM_PARAMS_TO_CALIBRATE',
     )
     timeout: int = Field(default=14400, alias='CWATM_TIMEOUT', ge=60, le=172800)
+
 
 
 __all__ = [

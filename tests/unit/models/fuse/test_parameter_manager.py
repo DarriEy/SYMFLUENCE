@@ -216,7 +216,7 @@ class TestFUSEParameterBounds:
         settings_dir.mkdir(parents=True)
 
         manager = FUSEParameterManager(fuse_config, test_logger, settings_dir)
-        default_bounds = manager._get_default_fuse_bounds()
+        default_bounds = manager._get_raw_fuse_bounds()
 
         # Check specific parameters have reasonable bounds
         assert default_bounds['MBASE']['min'] >= -10.0  # Temperature can be negative

@@ -154,6 +154,9 @@ class HYPEGeoDataManager:
             'maindown': riv[next_down_col]
         })
 
+        # Regional groundwater routing follows the surface water path
+        base_df['grwdown'] = base_df['maindown']
+
         # 2. River properties
         rivlen_info = self.geofabric_mapping['rivlen']
         if rivlen_info['in_varname'] in riv.columns:

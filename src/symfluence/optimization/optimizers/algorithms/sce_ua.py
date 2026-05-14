@@ -65,10 +65,36 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting SCE-UA optimization with {n_params} parameters")
 
-        # SCE-UA parameters
-        n_complexes = max(2, self.population_size // 10)
+        # Read SCE-UA parameters from config
+        n_complexes = self._get_config_value(
+            lambda: self.config.optimization.sce_ua.number_of_complexes,
+            default=max(2, self.population_size // 10),
+            dict_key='NUMBER_OF_COMPLEXES'
+        )
+        n_evolution_steps = self._get_config_value(
+            lambda: self.config.optimization.sce_ua.number_of_evolution_steps,
+            default=2 * n_params + 1,
+            dict_key='NUMBER_OF_EVOLUTION_STEPS'
+        )
         n_per_complex = 2 * n_params + 1
         pop_size = n_complexes * n_per_complex
+
+        # Early stopping parameters from config
+        stagnation_limit = self._get_config_value(
+            lambda: self.config.optimization.sce_ua.evolution_stagnation,
+            default=5,
+            dict_key='EVOLUTION_STAGNATION'
+        )
+        pct_change_threshold = self._get_config_value(
+            lambda: self.config.optimization.sce_ua.percent_change_threshold,
+            default=0.01,
+            dict_key='PERCENT_CHANGE_THRESHOLD'
+        )
+
+        self.logger.info(
+            f"SCE-UA structure: {n_complexes} complexes × {n_per_complex} points/complex "
+            f"= {pop_size} total, {n_evolution_steps} evolution steps per shuffle"
+        )
 
         # Initialize population
         self.logger.info(f"Evaluating initial population ({pop_size} individuals)...")
@@ -90,7 +116,10 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
         if log_initial_population:
             log_initial_population(self.name, pop_size, best_fit)
 
-        # SCE-UA main loop
+        # SCE-UA main loop with early stopping
+        stagnation_count = 0
+        prev_best_fit = best_fit
+
         for iteration in range(1, self.max_iterations + 1):
             # Partition into complexes
             for complex_idx in range(n_complexes):
@@ -98,8 +127,8 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 sub_complex = population[complex_members]
                 sub_fitness = fitness[complex_members]
 
-                # Evolve sub-complex (simplified CCE step)
-                for _ in range(n_per_complex):
+                # Evolve sub-complex (CCE step)
+                for _ in range(n_evolution_steps):
                     # Select simplex
                     simplex_size = n_params + 1
                     simplex_idx = np.random.choice(
@@ -143,6 +172,27 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
 
             # Log progress
             log_progress(self.name, iteration, best_fit)
+
+            # Early stopping: check for stagnation
+            if prev_best_fit != 0:
+                pct_change = abs(best_fit - prev_best_fit) / abs(prev_best_fit)
+            else:
+                pct_change = abs(best_fit - prev_best_fit)
+
+            if pct_change < pct_change_threshold:
+                stagnation_count += 1
+            else:
+                stagnation_count = 0
+
+            if stagnation_count >= stagnation_limit:
+                self.logger.info(
+                    f"SCE-UA early stopping at iteration {iteration}: "
+                    f"no improvement > {pct_change_threshold:.4f} for "
+                    f"{stagnation_limit} consecutive shuffles"
+                )
+                break
+
+            prev_best_fit = best_fit
 
         return {
             'best_solution': best_pos,
