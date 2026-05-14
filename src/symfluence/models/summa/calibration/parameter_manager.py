@@ -150,6 +150,18 @@ class SUMMAParameterManager(BaseParameterManager):
         )
         csv_path = Path(csv_path) if csv_path and csv_path != 'default' else None
 
+        # Auto-discover climate statistics from model-ready store
+        if csv_path is None:
+            climate_csv = self.data_dir / f"domain_{self.domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv' if hasattr(self, 'data_dir') else None
+            if climate_csv is None:
+                data_dir = self._get_config_value(lambda: self.config.system.data_dir, default=None, dict_key='SYMFLUENCE_DATA_DIR')
+                domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+                if data_dir and domain_name:
+                    climate_csv = Path(data_dir) / f"domain_{domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv'
+            if climate_csv and climate_csv.exists():
+                csv_path = climate_csv
+                self.logger.info(f"Auto-discovered climate attributes: {csv_path}")
+
         # Optional per-parameter config override
         param_config = self._get_config_value(
             lambda: self.config.model.summa.transfer_function_param_config,
