@@ -66,6 +66,7 @@ class ModelReadyStoreBuilder:
         logger.info("Building model-ready data store for %s", self.domain_name)
 
         self.build_forcings()
+        self._compute_climate_statistics()
         self.build_observations()
         self.build_attributes()
 
@@ -102,6 +103,83 @@ class ModelReadyStoreBuilder:
             config=self._config,
         )
         return builder.build()
+
+    def _compute_climate_statistics(self) -> None:
+        """Compute per-HRU climate statistics from basin-averaged forcing.
+
+        Derives mean precipitation, temperature, aridity index, and snow
+        fraction from the forcing files and writes them to
+        ``attributes/climate/climate_statistics.csv`` so the attributes
+        builder can include a ``/climate/`` group in the model-ready store.
+        """
+        import glob
+
+        import numpy as np
+        import pandas as pd
+
+        forcing_dir = self.project_dir / 'data' / 'forcing' / 'basin_averaged_data'
+        if not forcing_dir.exists():
+            return
+
+        files = sorted(glob.glob(str(forcing_dir / '*.nc')))
+        if not files:
+            return
+
+        try:
+            import xarray as xr
+
+            ds = xr.open_mfdataset(
+                files, combine='nested', concat_dim='time',
+                coords='minimal', compat='override', data_vars='minimal',
+            ).sortby('time')
+
+            n_hru = ds.sizes.get('hru', 1)
+            if n_hru <= 1:
+                ds.close()
+                return
+
+            # Identify forcing variable names (CFIF or standard)
+            precip_var = next((v for v in ['precipitation_flux', 'pptrate'] if v in ds), None)
+            temp_var = next((v for v in ['air_temperature', 'airtemp'] if v in ds), None)
+
+            if precip_var is None or temp_var is None:
+                logger.debug("Climate stats: missing precip or temp variable")
+                ds.close()
+                return
+
+            rows = []
+            for i in range(n_hru):
+                p_mean = float(ds[precip_var].isel(hru=i).mean())
+                p_mm_yr = p_mean * 86400 * 365.25
+
+                t_vals = ds[temp_var].isel(hru=i).values
+                t_c = t_vals - 273.15 if np.nanmean(t_vals) > 100 else t_vals
+                t_mean = float(np.nanmean(t_c))
+
+                pet_daily = np.where(t_c > -5, 0.4 * (t_c + 5), 0.0)
+                pet_annual = float(np.nanmean(pet_daily)) * 365.25
+                aridity = pet_annual / max(p_mm_yr, 1.0)
+
+                p_vals = ds[precip_var].isel(hru=i).values
+                wet = p_vals > 1e-7
+                snow_frac = float(np.sum((t_c < 0) & wet) / max(np.sum(wet), 1))
+
+                rows.append({
+                    'precip_mm_yr': p_mm_yr,
+                    'temp_C': t_mean,
+                    'aridity': aridity,
+                    'snow_frac': snow_frac,
+                })
+
+            ds.close()
+
+            out_dir = self.project_dir / 'data' / 'attributes' / 'climate'
+            out_dir.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame(rows).to_csv(out_dir / 'climate_statistics.csv', index=False)
+            logger.info("Climate statistics computed for %d HRUs", n_hru)
+
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Could not compute climate statistics: %s", e)
 
     def build_attributes(self) -> Optional[Path]:
         """Build the attributes section. Skip if no intersection shapefiles."""
