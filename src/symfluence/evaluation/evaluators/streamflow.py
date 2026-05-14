@@ -889,7 +889,8 @@ class StreamflowEvaluator(ModelEvaluator):
         """
         domain_method = self._get_config_value(
             lambda: self.config.domain.definition_method,
-            default='lumped'
+            default='lumped',
+            dict_key='DOMAIN_DEFINITION_METHOD'
         )
         routing_delineation = self._get_config_value(
             lambda: self.config.routing.delineation,
