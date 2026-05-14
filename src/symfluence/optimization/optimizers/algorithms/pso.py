@@ -80,45 +80,23 @@ class PSOAlgorithm(OptimizationAlgorithm):
 
         n_particles = self.population_size
 
-        # PSO parameters using standardized config access
-        # Inertia weight (w): controls influence of previous velocity
-        # w=0.7 provides good balance between exploration and exploitation
-        # Lower values (0.4) favor exploitation; higher (0.9) favor exploration
-        # (Shi & Eberhart 1998, "Inertia Weight Approach")
+        # PSO parameters from config
         w = self._get_config_value(
-            lambda: self.config.optimization.pso_inertia,
+            lambda: self.config.optimization.pso.inertia_weight,
             default=PSODefaults.INERTIA,
-            dict_key='PSO_INERTIA'
+            dict_key='PSO_INERTIA_WEIGHT'
         )
-
-        # Cognitive coefficient (c1): attraction to personal best
-        # c1=1.5 gives moderate self-confidence. Typical range: 1.0-2.0
-        # (Kennedy & Eberhart 1995, Equation 1)
         c1 = self._get_config_value(
-            lambda: self.config.optimization.pso_cognitive,
+            lambda: self.config.optimization.pso.cognitive_param,
             default=PSODefaults.COGNITIVE,
-            dict_key='PSO_COGNITIVE'
+            dict_key='PSO_COGNITIVE_PARAM'
         )
-
-        # Social coefficient (c2): attraction to global best
-        # c2=1.5 gives moderate social influence. Typical range: 1.0-2.0
-        # Often c1=c2 for balanced behavior
-        # (Kennedy & Eberhart 1995, Equation 1)
         c2 = self._get_config_value(
-            lambda: self.config.optimization.pso_social,
+            lambda: self.config.optimization.pso.social_param,
             default=PSODefaults.SOCIAL,
-            dict_key='PSO_SOCIAL'
+            dict_key='PSO_SOCIAL_PARAM'
         )
-
-        # Maximum velocity: limits velocity to prevent overshooting
-        # v_max=0.2 limits movement to 20% of search space per iteration
-        # Prevents oscillation and improves convergence stability
-        # (Kennedy & Eberhart 1995, Section "Vmax")
-        v_max = self._get_config_value(
-            lambda: self.config.optimization.pso_v_max,
-            default=PSODefaults.V_MAX,
-            dict_key='PSO_V_MAX'
-        )
+        v_max = PSODefaults.V_MAX
 
         # Validate coefficients for convergence
         valid, warning = PSODefaults.validate_coefficients(w, c1, c2)

@@ -60,7 +60,6 @@ class NoahMPModelOptimizer(BaseModelOptimizer):
         return self.noahmp_setup_dir / 'namelist.input'
 
     def _create_parameter_manager(self):
-        """Create Noah-MP parameter manager."""
         return NoahMPParameterManager(
             self.config,
             self.logger,
@@ -68,11 +67,9 @@ class NoahMPModelOptimizer(BaseModelOptimizer):
         )
 
     def _check_routing_needed(self) -> bool:
-        """Noah-MP does not use external routing."""
         return False
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
-        """Run Noah-MP for final evaluation using best parameters."""
         import re
 
         best_result = self.get_best_result()
@@ -82,7 +79,6 @@ class NoahMPModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
 
-        # Rewrite namelist output_filename to point to output_dir
         nl_path = self.noahmp_setup_dir / 'namelist.input'
         if nl_path.exists():
             content = nl_path.read_text()
@@ -104,8 +100,9 @@ class NoahMPModelOptimizer(BaseModelOptimizer):
             output_dir,
         )
 
-    def _setup_parallel_dirs(self):
-        """Set up parallel directories for multi-process optimization."""
-        return self.setup_parallel_processing(
-            self.project_dir, 'NOAHMP', self.experiment_id
-        )
+    def _setup_parallel_dirs(self) -> None:
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
+        base_dir = self._resolve_sim_base_dir(algorithm)
+        self.parallel_dirs = self.setup_parallel_processing(base_dir, 'NOAHMP', self.experiment_id)
+        if self.noahmp_setup_dir.exists():
+            self.copy_base_settings(self.noahmp_setup_dir, self.parallel_dirs, 'NOAHMP')

@@ -85,7 +85,7 @@ class ResultsManager(ConfigMixin):
         param_csv_path = self.output_dir / "best_parameters.csv"
         param_df.to_csv(param_csv_path, index=False)
 
-        self.logger.info(f"Saved best parameters to: {param_csv_path}")
+        self.logger.debug(f"Saved best parameters to: {param_csv_path}")
 
     def _save_history_csv(self, history: List[Dict]) -> None:
         """Save optimization history to CSV"""

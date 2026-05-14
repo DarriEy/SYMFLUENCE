@@ -1366,6 +1366,384 @@ MOEAD_SECONDARY_TARGET: "gw_depth"
 #   Usage:      Secondary metric for MOEA/D multi-target optimization
 MOEAD_SECONDARY_METRIC: "KGE"
 
+# MOEAD_NEIGHBORS
+#   Type:        int
+#   Default:     20
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Neighborhood size for each subproblem
+MOEAD_NEIGHBORS: 20
+
+# MOEAD_CR
+#   Type:        float
+#   Default:     1.0
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Crossover rate for DE reproduction
+MOEAD_CR: 1.0
+
+# MOEAD_F
+#   Type:        float
+#   Default:     0.5
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      DE scaling factor
+MOEAD_F: 0.5
+
+# MOEAD_MUTATION
+#   Type:        float
+#   Default:     0.1
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Polynomial mutation rate
+MOEAD_MUTATION: 0.1
+
+# MOEAD_NR
+#   Type:        int
+#   Default:     2
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Maximum replacements per offspring
+MOEAD_NR: 2
+
+# MOEAD_DECOMPOSITION
+#   Type:        str
+#   Default:     tchebycheff
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Decomposition approach (tchebycheff or weighted_sum)
+MOEAD_DECOMPOSITION: "tchebycheff"
+
+# CMAES_INITIAL_SIGMA
+#   Type:        float
+#   Default:     0.3
+#   Source:      CMAESConfig (optimization.py)
+#   Usage:      Initial step size for CMA-ES
+CMAES_INITIAL_SIGMA: 0.3
+
+# DREAM_PAIRS
+#   Type:        int
+#   Default:     3
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Number of chain pairs for DE proposal
+DREAM_PAIRS: 3
+
+# DREAM_CR
+#   Type:        float
+#   Default:     0.9
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Crossover probability for subspace sampling
+DREAM_CR: 0.9
+
+# DREAM_EPS
+#   Type:        float
+#   Default:     0.001
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Small random noise for ergodicity
+DREAM_EPS: 0.001
+
+# DREAM_TEMPERATURE
+#   Type:        float
+#   Default:     1.0
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Temperature for likelihood
+DREAM_TEMPERATURE: 1.0
+
+# DREAM_OUTLIER_THRESHOLD
+#   Type:        float
+#   Default:     2.0
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      IQR multiplier for outlier chain detection
+DREAM_OUTLIER_THRESHOLD: 2.0
+
+# GA_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Probability of applying crossover
+GA_CROSSOVER_RATE: 0.9
+
+# GA_MUTATION_RATE
+#   Type:        float
+#   Default:     0.1
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Probability of mutating each gene
+GA_MUTATION_RATE: 0.1
+
+# GA_MUTATION_SCALE
+#   Type:        float
+#   Default:     0.1
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Magnitude of mutations
+GA_MUTATION_SCALE: 0.1
+
+# GA_TOURNAMENT_SIZE
+#   Type:        int
+#   Default:     3
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Number of individuals in tournament selection
+GA_TOURNAMENT_SIZE: 3
+
+# GA_ELITISM_COUNT
+#   Type:        int
+#   Default:     2
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Number of elite individuals preserved each generation
+GA_ELITISM_COUNT: 2
+
+# NM_ALPHA
+#   Type:        float
+#   Default:     1.0
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Reflection coefficient
+NM_ALPHA: 1.0
+
+# NM_GAMMA
+#   Type:        float
+#   Default:     2.0
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Expansion coefficient
+NM_GAMMA: 2.0
+
+# NM_RHO
+#   Type:        float
+#   Default:     0.5
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Contraction coefficient
+NM_RHO: 0.5
+
+# NM_SIGMA
+#   Type:        float
+#   Default:     0.5
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Shrinkage coefficient
+NM_SIGMA: 0.5
+
+# NM_SIMPLEX_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Initial simplex size in normalized space
+NM_SIMPLEX_SIZE: 0.1
+
+# NM_X_TOL
+#   Type:        float
+#   Default:     0.000001
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Convergence tolerance for simplex size
+NM_X_TOL: 0.000001
+
+# NM_F_TOL
+#   Type:        float
+#   Default:     0.000001
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Convergence tolerance for function values
+NM_F_TOL: 0.000001
+
+# NM_ADAPTIVE
+#   Type:        bool
+#   Default:     true
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Use adaptive parameters for high dimensions
+NM_ADAPTIVE: true
+
+# GLUE_THRESHOLD
+#   Type:        float
+#   Default:     0.0
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Minimum acceptable performance threshold
+GLUE_THRESHOLD: 0.0
+
+# GLUE_SHAPING_FACTOR
+#   Type:        float
+#   Default:     1.0
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Likelihood shaping factor
+GLUE_SHAPING_FACTOR: 1.0
+
+# GLUE_SAMPLING
+#   Type:        str
+#   Default:     lhs
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Sampling method (lhs or uniform)
+GLUE_SAMPLING: "lhs"
+
+# BH_STEP_SIZE
+#   Type:        float
+#   Default:     0.5
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Step size for random perturbations
+BH_STEP_SIZE: 0.5
+
+# BH_TEMPERATURE
+#   Type:        float
+#   Default:     1.0
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Metropolis acceptance temperature
+BH_TEMPERATURE: 1.0
+
+# BH_LOCAL_STEPS
+#   Type:        int
+#   Default:     50
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Local optimization steps per basin
+BH_LOCAL_STEPS: 50
+
+# BH_LOCAL_METHOD
+#   Type:        str
+#   Default:     nelder_mead
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Local optimizer method
+BH_LOCAL_METHOD: "nelder_mead"
+
+# BH_TARGET_ACCEPT
+#   Type:        float
+#   Default:     0.5
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Target acceptance rate for adaptive step size
+BH_TARGET_ACCEPT: 0.5
+
+# BH_ADAPT_INTERVAL
+#   Type:        int
+#   Default:     10
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Iterations between step size adjustments
+BH_ADAPT_INTERVAL: 10
+
+# BO_INITIAL_SAMPLES_FACTOR
+#   Type:        int
+#   Default:     2
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Multiplier for initial GP samples (n_initial = max(5, factor * n_params))
+BO_INITIAL_SAMPLES_FACTOR: 2
+
+# BO_ACQUISITION
+#   Type:        str
+#   Default:     ei
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Acquisition function (ei, ucb, or pi)
+BO_ACQUISITION: "ei"
+
+# BO_XI
+#   Type:        float
+#   Default:     0.01
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Exploration parameter for EI/PI
+BO_XI: 0.01
+
+# BO_KAPPA
+#   Type:        float
+#   Default:     2.576
+#   Source:      BOConfig (optimization.py)
+#   Usage:      UCB parameter (confidence interval width)
+BO_KAPPA: 2.576
+
+# BO_RESTARTS
+#   Type:        int
+#   Default:     10
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Random restarts for acquisition optimization
+BO_RESTARTS: 10
+
+# SA_INITIAL_TEMP
+#   Type:        float
+#   Default:     1.0
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Initial annealing temperature
+SA_INITIAL_TEMP: 1.0
+
+# SA_FINAL_TEMP
+#   Type:        float
+#   Default:     0.000001
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Final temperature (termination condition)
+SA_FINAL_TEMP: 0.000001
+
+# SA_COOLING_SCHEDULE
+#   Type:        str
+#   Default:     exponential
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Cooling schedule type (exponential, linear, logarithmic)
+SA_COOLING_SCHEDULE: "exponential"
+
+# SA_COOLING_RATE
+#   Type:        float
+#   Default:     0.95
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Temperature decay rate per iteration
+SA_COOLING_RATE: 0.95
+
+# SA_STEP_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Perturbation step size for neighbor generation
+SA_STEP_SIZE: 0.1
+
+# SA_STEPS_PER_TEMP
+#   Type:        int
+#   Default:     10
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Number of evaluations per temperature level
+SA_STEPS_PER_TEMP: 10
+
+# SA_ADAPTIVE_STEP
+#   Type:        bool
+#   Default:     true
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Enable adaptive step size adjustment
+SA_ADAPTIVE_STEP: true
+
+# ADAM_LR
+#   Type:        float
+#   Default:     0.01
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Learning rate
+ADAM_LR: 0.01
+
+# ADAM_BETA1
+#   Type:        float
+#   Default:     0.9
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      First moment decay rate
+ADAM_BETA1: 0.9
+
+# ADAM_BETA2
+#   Type:        float
+#   Default:     0.999
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Second moment decay rate
+ADAM_BETA2: 0.999
+
+# ADAM_EPS
+#   Type:        float
+#   Default:     0.00000001
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Numerical stability epsilon
+ADAM_EPS: 0.00000001
+
+# LBFGS_LR
+#   Type:        float
+#   Default:     0.1
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Initial step size for line search
+LBFGS_LR: 0.1
+
+# LBFGS_HISTORY_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Number of (s,y) pairs for Hessian approximation
+LBFGS_HISTORY_SIZE: 10
+
+# LBFGS_C1
+#   Type:        float
+#   Default:     0.0001
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Armijo sufficient decrease condition
+LBFGS_C1: 0.0001
+
+# LBFGS_C2
+#   Type:        float
+#   Default:     0.9
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Wolfe curvature condition
+LBFGS_C2: 0.9
+
 # NUMBER_OF_ITERATIONS
 #   Type:        int
 #   Default:     1000

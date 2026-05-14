@@ -108,34 +108,26 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         """Single-objective optimization using MOEA/D framework."""
         self.logger.info(f"Starting MOEA/D (single-objective mode) with {n_params} parameters")
 
-        # MOEA/D parameters using standardized config access
+        # MOEA/D parameters from config
         pop_size = self.population_size
 
-        # Neighborhood size - number of neighbors for each subproblem
-        # (Zhang & Li 2007, Section III-A)
         n_neighbors = self._get_config_value(
-            lambda: self.config.optimization.moead_neighbors,
+            lambda: self.config.optimization.moead.neighbors,
             default=min(MOEADDefaults.NEIGHBORS, pop_size - 1),
             dict_key='MOEAD_NEIGHBORS'
         )
-
-        # Crossover rate for DE reproduction (Zhang & Li 2007, Section III-B)
         cr = self._get_config_value(
-            lambda: self.config.optimization.moead_cr,
+            lambda: self.config.optimization.moead.crossover_rate,
             default=MOEADDefaults.CR,
             dict_key='MOEAD_CR'
         )
-
-        # DE scaling factor (Zhang & Li 2007, Section III-B)
         f = self._get_config_value(
-            lambda: self.config.optimization.moead_f,
+            lambda: self.config.optimization.moead.scaling_factor,
             default=MOEADDefaults.F,
             dict_key='MOEAD_F'
         )
-
-        # Mutation rate for polynomial mutation
         mutation_rate = self._get_config_value(
-            lambda: self.config.optimization.moead_mutation,
+            lambda: self.config.optimization.moead.mutation_rate,
             default=MOEADDefaults.MUTATION,
             dict_key='MOEAD_MUTATION'
         )
@@ -243,47 +235,36 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         """Multi-objective optimization using MOEA/D decomposition."""
         self.logger.info(f"Starting MOEA/D (multi-objective mode) with {n_params} parameters")
 
-        # MOEA/D parameters using standardized config access
+        # MOEA/D parameters from config
         pop_size = self.population_size
 
-        # Neighborhood size (Zhang & Li 2007, Section III-A)
         n_neighbors = self._get_config_value(
-            lambda: self.config.optimization.moead_neighbors,
+            lambda: self.config.optimization.moead.neighbors,
             default=min(MOEADDefaults.NEIGHBORS, pop_size - 1),
             dict_key='MOEAD_NEIGHBORS'
         )
-
-        # Crossover rate for DE reproduction (Zhang & Li 2007, Section III-B)
         cr = self._get_config_value(
-            lambda: self.config.optimization.moead_cr,
+            lambda: self.config.optimization.moead.crossover_rate,
             default=MOEADDefaults.CR,
             dict_key='MOEAD_CR'
         )
-
-        # DE scaling factor (Zhang & Li 2007, Section III-B)
         f = self._get_config_value(
-            lambda: self.config.optimization.moead_f,
+            lambda: self.config.optimization.moead.scaling_factor,
             default=MOEADDefaults.F,
             dict_key='MOEAD_F'
         )
-
-        # Mutation rate for polynomial mutation
         mutation_rate = self._get_config_value(
-            lambda: self.config.optimization.moead_mutation,
+            lambda: self.config.optimization.moead.mutation_rate,
             default=MOEADDefaults.MUTATION,
             dict_key='MOEAD_MUTATION'
         )
-
-        # Max replacements per offspring (Zhang & Li 2007, Section III-C)
         nr = self._get_config_value(
-            lambda: self.config.optimization.moead_nr,
+            lambda: self.config.optimization.moead.max_replacements,
             default=MOEADDefaults.NR,
             dict_key='MOEAD_NR'
         )
-
-        # Decomposition approach (Zhang & Li 2007, Section II-B)
         decomposition = self._get_config_value(
-            lambda: self.config.optimization.moead_decomposition,
+            lambda: self.config.optimization.moead.decomposition,
             default=MOEADDefaults.DECOMPOSITION,
             dict_key='MOEAD_DECOMPOSITION'
         )
