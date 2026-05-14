@@ -248,7 +248,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         # Try to read with index_col=0 first (handles GRACE/TWS files where date is first column)
         try:
             obs_df = pd.read_csv(obs_path, index_col=0)
-            obs_df.index = pd.to_datetime(obs_df.index, format='mixed', dayfirst=True)
+            obs_df.index = pd.to_datetime(obs_df.index, format='mixed')
 
             # Check if index looks like dates
             if isinstance(obs_df.index, pd.DatetimeIndex):
