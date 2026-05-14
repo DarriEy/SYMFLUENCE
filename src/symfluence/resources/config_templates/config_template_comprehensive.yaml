@@ -7469,6 +7469,87 @@ PCRGLOBWB_PARAMS_TO_CALIBRATE: KSat1,KSat2,recessionCoeff,degreeDayFactor,freezi
 #   Usage:      Maximum runtime in seconds (default 4 hours)
 PCRGLOBWB_TIMEOUT: 14400
 
+# --- CWatM (IIASA Community Water Model) ---
+
+# CWATM_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_INSTALL_PATH: default
+
+# CWATM_EXE
+#   Type:        str
+#   Default:     run_cwatm.py
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_EXE: "run_cwatm.py"
+
+# SETTINGS_CWATM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+SETTINGS_CWATM_PATH: default
+
+# CWATM_CONFIG_FILE
+#   Type:        str
+#   Default:     settings.ini
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CONFIG_FILE: "settings.ini"
+
+# CWATM_RESOLUTION
+#   Type:        str
+#   Default:     30min
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_RESOLUTION: "30min"
+
+# CWATM_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_CWATM
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+EXPERIMENT_OUTPUT_CWATM: default
+
+# CWATM_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_OUTPUT_DIR: default
+
+# CWATM_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPINUP_YEARS: 0
+
+# CWATM_CALC_EVAPORATION
+#   Type:        bool
+#   Default:     False
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CALC_EVAPORATION: False
+
+# CWATM_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PET_METHOD: "hamon"
+
+# CWATM_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PARAMS_TO_CALIBRATE: SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+
+# CWATM_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_TIMEOUT: 14400
+
+
 # --- Noah-MP Standalone (NOAA-OWP noah-owp-modular) ---
 
 # NOAHMP_INSTALL_PATH
