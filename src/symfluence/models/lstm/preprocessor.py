@@ -179,7 +179,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
                 streamflow_path = legacy_path
                 self.logger.info(f"Using legacy streamflow path: {streamflow_path.name}")
 
-        streamflow_df = pd.read_csv(streamflow_path, parse_dates=['datetime'], dayfirst=True)
+        streamflow_df = pd.read_csv(streamflow_path, parse_dates=['datetime'])
         streamflow_df = streamflow_df.set_index('datetime').rename(columns={'discharge_cms': 'streamflow'})
         streamflow_df.index = pd.to_datetime(streamflow_df.index)
 
@@ -188,7 +188,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         snow_files = glob.glob(str(snow_path / f"{self.domain_name}_filtered_snow_observations.csv"))
 
         if snow_files:
-            snow_df = pd.concat([pd.read_csv(file, parse_dates=['datetime'], dayfirst=True) for file in snow_files])
+            snow_df = pd.concat([pd.read_csv(file, parse_dates=['datetime']) for file in snow_files])
             # Aggregate snow data across all stations
             snow_df = snow_df.groupby('datetime')['snw'].mean().reset_index()
             snow_df['datetime'] = pd.to_datetime(snow_df['datetime'])
