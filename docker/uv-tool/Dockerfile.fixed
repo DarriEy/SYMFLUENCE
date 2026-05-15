@@ -13,8 +13,6 @@
 # Differences from Dockerfile (same set as docker/pip/Dockerfile.fixed and
 # docker/uv/Dockerfile.fixed — `symfluence binary install` hits identical
 # upstream bugs regardless of which Python installer was used):
-#   + libproj-dev libgeos-dev   (README.md L125; fixes taudem/gistool PROJ failures)
-#   + libudunits2-dev           (surfaced by `symfluence binary doctor`)
 #   + pkg-config                (helps cmake locate apt's multi-arch OpenBLAS)
 #   + wget                      (ngen's `_build.sh` line 839 downloads Boost
 #                                1.79 — Debian only has 1.74 — via wget)
@@ -35,16 +33,16 @@
 
 FROM python:3.11-slim-bookworm
 
-# Build toolchain (docs/SYSTEM_REQUIREMENTS.md L156-160) +
-# GDAL build prereqs (README.md L107) +
-# README.md L125 "Other System Libraries" (libproj-dev, libgeos-dev) +
-# UDUNITS-2 (required by datatool/gistool, surfaced by `symfluence binary doctor`) +
-# pkg-config (so cmake's BLAS/LAPACK probe finds apt's multi-arch OpenBLAS) +
-# git/curl/wget/ca-certificates
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml (all `required: true` deps plus
+# default-toolset optionals: udunits2, cdo, r_base, perl) + the workarounds
+# below: pkg-config (cmake BLAS/LAPACK probe on multi-arch), wget (ngen
+# downloads Boost 1.79), and the symlink RUN blocks further down.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         pkg-config \
         libopenmpi-dev \
         openmpi-bin \
@@ -58,6 +56,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libproj-dev \
         libgeos-dev \
         libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         wget \

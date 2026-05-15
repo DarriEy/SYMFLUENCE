@@ -14,8 +14,12 @@
 # install of a local checkout instead of using the bootstrap script.
 #   docker build --target manual -f docker/source/Dockerfile.fixed -t symfluence:source-manual-fixed .
 #
-# Differences from Dockerfile:
-#   + apt: libproj-dev libgeos-dev libudunits2-dev pkg-config wget
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml (all `required: true` deps plus
+# default-toolset optionals: udunits2, cdo, r_base, perl).
+#
+# Differences from Dockerfile (workarounds layered on top of registry deps):
+#   + apt: pkg-config wget
 #   + libhdf5_serial → libhdf5 symlinks
 #   + /lib64/libc.so.6 symlink
 #   + Hide /usr/include/boost between bootstrap and binary install
@@ -28,12 +32,15 @@
 # ----------------------------------------------------------------------------
 FROM python:3.11-slim-bookworm AS bootstrap
 
-# Build toolchain (docs/SYSTEM_REQUIREMENTS.md L156-160) +
-# GDAL build prereqs (README.md L107) + git (needed by bootstrap clone)
+# System deps follow src/symfluence/resources/system_deps.yml (all
+# `required: true` deps plus default-toolset optionals: udunits2, cdo,
+# r_base, perl) + workarounds: pkg-config, wget, plus the symlink RUN
+# block below. Both bootstrap and manual stages share the apt list.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         pkg-config \
         libopenmpi-dev \
         openmpi-bin \
@@ -47,6 +54,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libproj-dev \
         libgeos-dev \
         libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         wget \
@@ -116,6 +127,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         pkg-config \
         libopenmpi-dev \
         openmpi-bin \
@@ -129,6 +141,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libproj-dev \
         libgeos-dev \
         libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         wget \
