@@ -27,13 +27,30 @@ from symfluence.optimization.regionalization.strategies import (
 # variation driven by the attribute); ``False`` means only the intercept
 # is calibrated (spatially uniform).
 SUMMA_DEFAULT_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
-    'frozenPrecipMultip': {'attribute': 'precip_mm_yr', 'calibrate_b': True},
+    # Snow albedo — vary with elevation (snow persistence)
+    'albedoMax':          {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMinWinter':    {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMinSpring':    {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMaxVisible':   {'attribute': 'elev_m',       'calibrate_b': False},
+    'albedoDecayRate':    {'attribute': 'elev_m',       'calibrate_b': True},
+    # Snow density — vary with temperature
+    'newSnowDenMin':      {'attribute': 'temp_C',       'calibrate_b': True},
+    'newSnowDenMult':     {'attribute': 'temp_C',       'calibrate_b': False},
+    'newSnowDenScal':     {'attribute': 'temp_C',       'calibrate_b': False},
+    # Rain/snow threshold — vary with elevation
     'tempCritRain':       {'attribute': 'elev_m',       'calibrate_b': True},
+    'tempRangeTimestep':  {'attribute': 'elev_m',       'calibrate_b': False},
+    # Soil hydraulics — vary with aridity
     'k_soil':             {'attribute': 'aridity',      'calibrate_b': True},
+    'k_macropore':        {'attribute': 'aridity',      'calibrate_b': True},
+    # Aquifer — vary with aridity
+    'aquiferBaseflowExp': {'attribute': 'aridity',      'calibrate_b': False},
+    'aquiferBaseflowRate':{'attribute': 'aridity',      'calibrate_b': True},
+    # Legacy defaults
+    'frozenPrecipMultip': {'attribute': 'precip_mm_yr', 'calibrate_b': True},
     'theta_sat':          {'attribute': 'precip_mm_yr', 'calibrate_b': True},
     'vGn_n':              {'attribute': 'aridity',      'calibrate_b': False},
     'snowfrz_scale':      {'attribute': 'elev_m',       'calibrate_b': True},
-    'albedoMax':          {'attribute': 'elev_m',       'calibrate_b': False},
     'routingGammaScale':  {'attribute': 'precip_mm_yr', 'calibrate_b': False},
 }
 
