@@ -647,7 +647,7 @@ fi
 
 # --- Build Snow-17 (Fortran module - temperature-index snow model) ---
 # Snow-17 needs ISO_C_FORTRAN_BMI_PATH to build as a shared BMI library.
-# Library target name is snow17_bmi (produces libsnow17_bmi.{so,dylib}).
+# Library target name is snow17bmi (per upstream CMakeLists SNOW_LIB_NAME_CMAKE).
 if [ -d "extern/snow17" ] && [ -f "extern/snow17/CMakeLists.txt" ] && [ -n "$FC" ]; then
   echo "Building Snow-17 (Fortran)..."
   (
@@ -670,7 +670,7 @@ if [ -d "extern/snow17" ] && [ -f "extern/snow17/CMakeLists.txt" ] && [ -n "$FC"
     cmake $SNOW17_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
   )
-  if _lib_found extern/snow17/cmake_build/libsnow17_bmi.*; then
+  if _lib_found extern/snow17/cmake_build/libsnow17bmi.*; then
     echo "Snow-17 built successfully"
   else
     echo "WARNING: Snow-17 build failed (non-fatal)"
@@ -771,7 +771,7 @@ echo "PET:         $(_lib_found extern/evapotranspiration/evapotranspiration/cma
 echo "Noah-MP:     $(_lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.* && echo 'OK' || echo 'Not built')"
 echo "TOPMODEL:    $(_lib_found extern/topmodel/cmake_build/libtopmodelbmi.* && echo 'OK' || echo 'Not built')"
 echo "SAC-SMA:     $(_lib_found extern/sac-sma/cmake_build/libsacbmi.* && echo 'OK' || echo 'Not built')"
-echo "Snow-17:     $(_lib_found extern/snow17/cmake_build/libsnow17_bmi.* && echo 'OK' || echo 'Not built')"
+echo "Snow-17:     $(_lib_found extern/snow17/cmake_build/libsnow17bmi.* && echo 'OK' || echo 'Not built')"
 echo "t-route:     $($PYTHON_EXE -c 'import ngen_routing; print("OK")' 2>/dev/null || echo 'Not installed')"
 echo "=============================================="
             '''.strip()
