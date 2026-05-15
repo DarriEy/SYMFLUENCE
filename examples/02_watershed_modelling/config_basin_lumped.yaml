@@ -315,4 +315,4 @@ EASYMORE_CACHE: /path/to/cache/dir
 EASYMORE_JOB_CONF: /path/to/esmr/job_config
 CLUSTER_JSON: /path/to/cluster.json
 GISTOOL_LIB_PATH: /path/to/r-env/
-BOUNDING_BOX_COORDS: 44.5/-87.9/44.2/-87.5
+BOUNDING_BOX_COORDS: 51.4/-115.8/51.0/-115.3
