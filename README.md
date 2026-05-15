@@ -202,41 +202,72 @@ All eight install paths build successfully on both `linux/amd64` and `linux/arm6
 
 ### Build & run
 
-For each method, run from the repo root. Add `--platform=linux/amd64` to npm if you're on Apple Silicon (npm publishes binaries for Linux x86_64 / macOS ARM64 only).
+`docker-compose.yaml` defines one service per install method, each wired to its `Dockerfile.fixed`. Run from the repo root:
 
 ```bash
 # pip
-docker build -f docker/pip/Dockerfile.fixed -t symfluence:pip-fixed .
-docker run --rm symfluence:pip-fixed --help
+docker compose build pip
+docker compose run --rm pip --help
 
 # uv
-docker build -f docker/uv/Dockerfile.fixed -t symfluence:uv-fixed .
-docker run --rm symfluence:uv-fixed --help
+docker compose build uv
+docker compose run --rm uv --help
 
 # uv tool (isolated CLI)
-docker build -f docker/uv-tool/Dockerfile.fixed -t symfluence:uv-tool-fixed .
-docker run --rm symfluence:uv-tool-fixed --help
+docker compose build uv-tool
+docker compose run --rm uv-tool --help
 
 # pipx (isolated CLI)
-docker build -f docker/pipx/Dockerfile.fixed -t symfluence:pipx-fixed .
-docker run --rm symfluence:pipx-fixed --help
+docker compose build pipx
+docker compose run --rm pipx --help
 
-# npm (pre-built binaries, no compilation)
-docker build --platform=linux/amd64 -f docker/npm/Dockerfile.fixed -t symfluence:npm-fixed .
-docker run --rm --platform=linux/amd64 symfluence:npm-fixed --help
+# npm (pre-built binaries, no compilation; service pins platform: linux/amd64)
+docker compose build npm
+docker compose run --rm npm --help
 
 # conda (Windows install path / macOS ARM64 GDAL workaround)
-docker build -f docker/conda/Dockerfile.fixed -t symfluence:conda-fixed .
-docker run --rm symfluence:conda-fixed --help
+docker compose build conda
+docker compose run --rm conda --help
 
 # source — bootstrap from upstream clone
-docker build -f docker/source/Dockerfile.fixed -t symfluence:source-fixed .
-docker run --rm symfluence:source-fixed --help
+docker compose build source
+docker compose run --rm source --help
 
-# source — manual editable install of local checkout
-docker build --target manual -f docker/source/Dockerfile.fixed -t symfluence:source-manual-fixed .
-docker run --rm symfluence:source-manual-fixed --help
+# source — manual editable install of local checkout (Dockerfile target: manual)
+docker compose build source-manual
+docker compose run --rm source-manual --help
 ```
+
+#### Building for `linux/amd64` on Apple Silicon
+
+A quick terminology note, because the names are confusing:
+
+- **arm64** (aka aarch64) — ARM 64-bit. Apple Silicon (M1/M2/M3/M4), AWS Graviton, Raspberry Pi.
+- **amd64** (aka x86_64) — Intel/AMD 64-bit. Intel Macs, most Linux servers and HPC nodes, most cloud VMs, GitHub Actions runners. The "AMD" in the name is historical; Intel chips use the same instruction set.
+
+Your Apple Silicon Mac is **arm64**. Docker images are architecture-specific, so by default `docker compose build` produces an arm64 image on Apple Silicon — fast, native, no emulation. That's the right choice for day-to-day local work on pip / uv / uv-tool / pipx / conda / source.
+
+You'd want to override to `linux/amd64` (which Docker Desktop runs under QEMU emulation, so noticeably slower) in these cases:
+
+- **Reproducing what CI sees** — GitHub Actions runners are `linux/amd64`.
+- **Matching what end users actually deploy** — most production Linux (cloud VMs, HPC, university workstations) is amd64.
+- **Running the `npm` install path** — the published prebuilt tarballs only exist for `linux/amd64` + `darwin/arm64`. There's no `linux/arm64` tarball, so the npm container has to be amd64 (this is why the `npm` service already pins amd64 in the base file).
+- **Cross-arch validation before a release** — your Mac is arm64; emulated amd64 fills in the other half of the test matrix.
+
+To force amd64, layer `docker-compose.amd64.yaml` on top of the base file. It pins every service to `platform: linux/amd64`:
+
+```bash
+# One-off per command:
+docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml build pip
+docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml run --rm pip --help
+
+# Or set COMPOSE_FILE once for the shell session:
+export COMPOSE_FILE=docker-compose.yaml:docker-compose.amd64.yaml
+docker compose build pip
+docker compose run --rm pip --help
+```
+
+Source-compile methods (`source`, `source-manual`) take 30+ minutes natively and considerably longer under QEMU — plan accordingly.
 
 ### Which one should I use?
 

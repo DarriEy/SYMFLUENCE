@@ -36,3 +36,5 @@ services:
     platform: linux/amd64
   source:
     platform: linux/amd64
+  source-manual:
+    platform: linux/amd64
