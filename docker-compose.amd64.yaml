@@ -1,0 +1,38 @@
+# Override file: forces every service to build/run as linux/amd64.
+#
+# Use this when you want amd64 explicitly — either on a native amd64 host
+# (the platform pin is a no-op but documents intent) or on Apple Silicon /
+# other ARM hosts when you want to validate the amd64 install path under
+# QEMU emulation.
+#
+# Usage (must pass both files; base file alone uses the host's native arch):
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml build npm
+#   docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml run --rm npm --help
+#
+# Or set COMPOSE_FILE once for the shell session:
+#
+#   export COMPOSE_FILE=docker-compose.yaml:docker-compose.amd64.yaml
+#   docker compose build npm
+#
+# Compose merges these deltas onto the base file: only `platform` is
+# specified here, everything else (build, image, volumes, environment,
+# named-volume declarations) is inherited from docker-compose.yaml.
+# Any change to volumes / env / build context only needs to be made in the
+# base file — this override stays minimal.
+
+services:
+  pip:
+    platform: linux/amd64
+  pipx:
+    platform: linux/amd64
+  uv:
+    platform: linux/amd64
+  uv-tool:
+    platform: linux/amd64
+  conda:
+    platform: linux/amd64
+  npm:
+    platform: linux/amd64
+  source:
+    platform: linux/amd64

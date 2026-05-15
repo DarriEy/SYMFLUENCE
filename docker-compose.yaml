@@ -102,6 +102,7 @@ services:
       context: .
       dockerfile: docker/npm/Dockerfile.fixed
     image: symfluence:npm
+    platform: linux/amd64
     volumes:
       - ./data:/workspace/data
       - ./output:/workspace/output
