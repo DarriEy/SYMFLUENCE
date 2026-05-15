@@ -186,15 +186,19 @@ The `docker/` directory contains a Dockerfile per documented install method. Eac
 
 ### Method matrix
 
+All eight install paths build successfully on both `linux/amd64` and `linux/arm64`. Numbers count model binaries produced by `symfluence binary install` (out of 12, except npm which bundles a different prebuilt set).
+
 | Method | Base image | `Dockerfile` (doc-faithful) | `Dockerfile.fixed` |
 |---|---|---|---|
-| pip | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
-| uv | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
-| uv-tool | `python:3.11-slim-bookworm` | builds; 4/12 model binaries succeed | 11/12 (troute upstream-flaky) |
-| pipx | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
-| npm | `node:20-bookworm-slim` | **fails** at `binary info` (npm shim needs a Python CLI install — undocumented) | 21/23 binaries (ngiab + troute not bundled by npm) ✅ |
-| conda | `condaforge/miniforge3:24.11.3-2` | **fails** at `pip install symfluence` (no compilers) | 8/12 (conda-vs-system HDF5 ABI conflict) |
-| source | `python:3.11-slim-bookworm` | builds; 0/11 binaries (bootstrap doesn't compile binaries) | **12/12** ✅ |
+| pip | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| uv | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| uv-tool | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| pipx | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| npm | `node:20-bookworm-slim` | builds; runtime-only (prebuilt binaries) | 21/23 binaries (ngiab + troute not bundled by npm) |
+| conda | `condaforge/miniforge3:24.11.3-2` | builds; 11/12¹ | builds; 11/12¹ (single-source conda toolchain) |
+| source | `python:3.11-slim-bookworm` | builds; 11/12¹ (bootstrap stage; clones upstream main) | builds; 12/12 (manual stage; installs from local checkout, picks up in-development ngen fixes) |
+
+¹ The 1-of-12 gap is `ngen`, which the wrapper marks as failed despite the binary being built. This is a known false-negative in published symfluence's `_build.sh` — fixed on a development branch and landing in the next release, at which point every row above reports 12/12.
 
 ### Build & run
 
