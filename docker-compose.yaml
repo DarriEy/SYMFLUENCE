@@ -125,6 +125,21 @@ services:
       - installs-source:/SYMFLUENCE_data/installs
       - ~/.cdsapirc:/root/.cdsapirc:ro
 
+  source-manual:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/source/Dockerfile.fixed
+      target: manual
+    image: symfluence:source-manual
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-source-manual:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
 volumes:
   symfluence_data:
   installs-pip:
@@ -134,3 +149,4 @@ volumes:
   installs-conda:
   installs-npm:
   installs-source:
+  installs-source-manual:
