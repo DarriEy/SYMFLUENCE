@@ -255,8 +255,10 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             import pandas as pd
             import xarray as xr
 
-            # Find forcing files — prefer basin-averaged (1-D) over
-            # multi-HRU files that require spatial averaging.
+            # Find forcing files matching the configured dataset.
+            # Search all forcing directories, filtering by dataset name
+            # (e.g. CARRA, ERA5) when multiple datasets coexist.
+            forcing_dataset = self.config_dict.get('FORCING_DATASET', 'ERA5')
             forcing_dirs = [
                 self.project_forcing_dir / 'basin_averaged_data',
                 self.project_forcing_dir / 'merged_path',
@@ -265,12 +267,23 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
             nc_files = []
             for forcing_dir in forcing_dirs:
-                if forcing_dir.exists():
-                    found = list(forcing_dir.glob('*.nc'))
-                    if found:
-                        nc_files = found
-                        self.logger.info(f"Using forcing from: {forcing_dir.name}")
-                        break
+                if not forcing_dir.exists():
+                    continue
+                # Look for files matching the configured dataset first
+                matched = list(forcing_dir.glob(f'*{forcing_dataset}*.nc'))
+                if matched:
+                    nc_files = matched
+                    self.logger.info(f"Using {forcing_dataset} forcing from: {forcing_dir.name}")
+                    break
+            # Fall back to any .nc files if no dataset-specific match
+            if not nc_files:
+                for forcing_dir in forcing_dirs:
+                    if forcing_dir.exists():
+                        found = list(forcing_dir.glob('*.nc'))
+                        if found:
+                            nc_files = found
+                            self.logger.info(f"Using forcing from: {forcing_dir.name}")
+                            break
 
             if not nc_files:
                 self.logger.warning("No forcing files found")

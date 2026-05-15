@@ -214,10 +214,16 @@ class CERRAHandler(BaseDatasetHandler):
         output_shapefile = shapefile_path / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset, default='unknown')}.shp"
 
         try:
-            # Find a processed CERRA file
-            cerra_files = list(merged_forcing_path.glob('*.nc'))
+            # Find a file matching this dataset (CARRA or CERRA)
+            dataset_id = self._get_config_value(
+                lambda: self.config.forcing.dataset, default='CERRA',
+                dict_key='FORCING_DATASET',
+            )
+            cerra_files = list(merged_forcing_path.glob(f'*{dataset_id}*.nc'))
             if not cerra_files:
-                raise FileNotFoundError("No processed CERRA files found")
+                cerra_files = list(merged_forcing_path.glob('*.nc'))
+            if not cerra_files:
+                raise FileNotFoundError(f"No {dataset_id} files found in {merged_forcing_path}")
             cerra_file = cerra_files[0]
 
             self.logger.info(f"Using CERRA file: {cerra_file}")
