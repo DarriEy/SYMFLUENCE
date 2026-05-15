@@ -84,9 +84,10 @@ class SUMMAWorker(BaseWorker):
             # Expand regionalization coefficients to per-HRU arrays
             if any(k.endswith('_a') or k.endswith('_b') for k in params):
                 config = kwargs.get('config', self.config)
-                from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
-                pm = SUMMAParameterManager(config, self.logger, settings_dir)
-                return pm.update_model_files(params)
+                if not hasattr(self, '_cached_pm') or self._cached_pm is None:  # type: ignore[has-type]
+                    from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
+                    self._cached_pm = SUMMAParameterManager(config, self.logger, settings_dir)
+                return self._cached_pm.update_model_files(params)
 
             # No coefficients — use standard worker path
             from symfluence.optimization.workers.summa import _apply_parameters_worker
