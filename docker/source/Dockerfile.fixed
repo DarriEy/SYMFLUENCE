@@ -86,6 +86,14 @@ RUN ./scripts/symfluence-bootstrap --install
 # bootstrap creates a venv at /opt/SYMFLUENCE/venv but doesn't add it to PATH.
 ENV PATH=/opt/SYMFLUENCE/venv/bin:$PATH
 
+# GDAL Python bindings (`osgeo`) are required by GDALProcessor in setup_project,
+# but the bootstrap script doesn't install the `[gdal]` extra (and the script is
+# shared with non-docker users who may have their own GDAL setup, so docker-
+# specific changes don't belong there). Inject gdal pinned to the apt
+# libgdal-dev version directly into the bootstrap venv.
+RUN /opt/SYMFLUENCE/venv/bin/pip install --no-cache-dir \
+        "gdal==$(gdal-config --version)"
+
 # Hide system Boost (1.74) between bootstrap and binary install so ngen's cmake
 # `find_package(Boost ≥ 1.79)` falls back to the 1.79 its `_build.sh` downloads.
 RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
@@ -151,8 +159,12 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
 #   pip install -e .
 COPY . /opt/SYMFLUENCE
 WORKDIR /opt/SYMFLUENCE
+# `[gdal]` extra pulls the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project). Pin to the exact apt libgdal-dev version so the bindings link
+# against the system .so at runtime — pyproject's `gdal>=3.6.0,<4.0.0` window
+# would otherwise let pip pick a newer minor and crash at import.
 RUN python3 -m venv venv \
-    && ./venv/bin/pip install --no-cache-dir -e .
+    && ./venv/bin/pip install --no-cache-dir -e ".[gdal]" "gdal==$(gdal-config --version)"
 
 ENV PATH=/opt/SYMFLUENCE/venv/bin:$PATH
 

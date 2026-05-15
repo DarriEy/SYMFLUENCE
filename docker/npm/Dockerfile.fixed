@@ -51,6 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libopenmpi3 \
         python3 \
         python3-venv \
+        python3-dev \
         libgdal-dev \
         gcc \
         g++ \
@@ -78,6 +79,15 @@ ENV VIRTUAL_ENV=/opt/symfluence-venv \
 #      shim at npm/bin/symfluence forwards CLI calls to it). Step 2 is now
 #      fatal-on-failure — see SYMFLUENCE_OPTIONAL_PYTHON to opt out.
 RUN npm install -g symfluence
+
+# npm/install.js's postinstall pip-installs symfluence without the `[gdal]`
+# extra, so the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project) are missing. Inject gdal pinned to the apt libgdal-dev
+# version into the postinstall-created venv. This is docker-only — fixing
+# it in install.js would complicate the cross-platform flow (macOS users
+# may have brew-installed gdal at a different version).
+RUN /opt/symfluence-venv/bin/pip install --no-cache-dir \
+        "gdal==$(gdal-config --version)"
 
 # README.md L78-82: bundled-binary sanity checks.
 RUN symfluence binary info \
