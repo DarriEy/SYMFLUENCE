@@ -67,16 +67,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (the postinstall hook's preferred strategy — keeps install time
-# inside the postinstall's exec timeout for the heavy scientific stack).
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv via Astral's recommended Docker pattern: copy the static binary
+# from the upstream image rather than `curl -LsSf https://astral.sh/uv/install.sh
+# | sh`. Faster (no network in the RUN), image-cached, and pinnable to a
+# specific uv version by replacing `:latest` with e.g. `:0.5.0`. Matches the
+# pattern already used in docker/uv/Dockerfile.fixed and
+# docker/uv-tool/Dockerfile.fixed. uv's the postinstall hook's preferred
+# strategy — keeps install time inside the postinstall's exec timeout for
+# the heavy scientific stack.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Isolated venv. Setting VIRTUAL_ENV makes `uv pip install <pkg>` install into
 # this venv (no --system flag) and the venv on PATH means pip3/pip resolve to
 # the venv too. Both sidestep Debian's PEP-668 protection on the system Python.
 RUN python3 -m venv /opt/symfluence-venv
 ENV VIRTUAL_ENV=/opt/symfluence-venv \
-    PATH=/opt/symfluence-venv/bin:/root/.local/bin:$PATH \
+    PATH=/opt/symfluence-venv/bin:$PATH \
     CPLUS_INCLUDE_PATH=/usr/include/gdal \
     C_INCLUDE_PATH=/usr/include/gdal
 
