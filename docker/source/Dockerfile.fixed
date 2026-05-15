@@ -109,6 +109,13 @@ RUN /opt/SYMFLUENCE/venv/bin/pip install --no-cache-dir \
 # `find_package(Boost ≥ 1.79)` falls back to the 1.79 its `_build.sh` downloads.
 RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
 
+# Pin the install location so `symfluence binary install` does not infer it
+# from WORKDIR=/opt/SYMFLUENCE (which would place binaries at /opt/SYMFLUENCE_data,
+# out of sync with the docker-compose named-volume mount at /SYMFLUENCE_data/installs
+# and with the cwd-relative `../SYMFLUENCE_data` paths the example configs resolve
+# from /workspace).
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
 # bootstrap doesn't compile model binaries — do it explicitly here.
 RUN symfluence binary install
 
@@ -186,6 +193,9 @@ ENV PATH=/opt/SYMFLUENCE/venv/bin:$PATH
 
 # Hide system Boost (1.74) before binary install — see bootstrap target above.
 RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
+
+# Pin the install location — see bootstrap target above for rationale.
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
 
 # Manual setup also doesn't compile model binaries — do it explicitly here.
 RUN symfluence binary install

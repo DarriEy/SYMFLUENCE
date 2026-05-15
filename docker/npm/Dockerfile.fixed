@@ -84,7 +84,8 @@ RUN python3 -m venv /opt/symfluence-venv
 ENV VIRTUAL_ENV=/opt/symfluence-venv \
     PATH=/opt/symfluence-venv/bin:$PATH \
     CPLUS_INCLUDE_PATH=/usr/include/gdal \
-    C_INCLUDE_PATH=/usr/include/gdal
+    C_INCLUDE_PATH=/usr/include/gdal \
+    SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
 
 # README.md L75: npm install -g symfluence.
 # Triggers npm/install.js which:
