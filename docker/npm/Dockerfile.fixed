@@ -17,27 +17,30 @@
 # Run:
 #   docker run --rm --platform=linux/amd64 symfluence:npm-fixed --help
 #
-# Differences from Dockerfile (this is the only fix here — npm's failures are
-# orthogonal to the pip/uv/uv-tool/pipx workarounds):
-#   + python3 + venv + `pip install symfluence`  (the npm package is a *wrapper*
-#                                                 around the Python CLI, not a
-#                                                 self-contained install — the
-#                                                 README docs L75-82 are misleading)
-#   + libgdal-dev + headers env vars             (some Python deps still need
-#                                                 to compile from source, no wheel
-#                                                 available for arm64/aarch64 amd64
-#                                                 combos under emulation)
+# Differences from Dockerfile (the npm shim wraps the Python CLI — see
+# npm/bin/symfluence and npm/install.js — so a Python install is required;
+# the package's own postinstall hook handles it given the right tooling):
+#   + python3 + venv  (postinstall runs pip into VIRTUAL_ENV, sidestepping
+#                       Debian's PEP-668 system-Python protection)
+#   + uv              (postinstall's preferred strategy — much faster than
+#                       pip3/pip on the heavy scientific stack)
+#   + libgdal-dev + headers env vars  (some Python deps (e.g. gdal binding)
+#                                       still need to compile from source under
+#                                       cross-arch emulation with no wheel)
 #
-# Note: this Dockerfile is no longer "runtime-only" — once the docs are fixed
-# upstream so the npm shim works without pip, this whole .fixed file becomes
-# unnecessary.
+# This image deliberately does NOT pre-install the Python `symfluence`
+# package — the goal is to validate the documented npm-only install flow
+# (`npm install -g symfluence`) end-to-end. The postinstall hook in
+# npm/install.js auto-installs the Python wrapper, and now exits non-zero
+# if it can't (so a missing Python install fails the build instead of
+# surfacing later as a confusing `binary info` error).
 # ============================================================================
 
 FROM node:20-bookworm-slim
 
 # Runtime-only system libraries (docs/SYSTEM_REQUIREMENTS.md L34-44) +
-# Python 3, pip, venv (npm shim wraps the Python CLI; see header) +
-# libgdal-dev so pip can install the gdal Python binding from source if no wheel
+# Python toolchain so the npm postinstall can pip-install the Python wrapper +
+# libgdal-dev so pip can compile the gdal binding from source if no wheel.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libnetcdf19 \
         libnetcdff7 \
@@ -47,27 +50,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgeos3.11.1 \
         libopenmpi3 \
         python3 \
-        python3-pip \
         python3-venv \
         libgdal-dev \
         gcc \
         g++ \
+        curl \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Isolated venv to avoid Debian's PEP-668 system-Python protection.
+# Install uv (the postinstall hook's preferred strategy — keeps install time
+# inside the postinstall's exec timeout for the heavy scientific stack).
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Isolated venv. Setting VIRTUAL_ENV makes `uv pip install <pkg>` install into
+# this venv (no --system flag) and the venv on PATH means pip3/pip resolve to
+# the venv too. Both sidestep Debian's PEP-668 protection on the system Python.
 RUN python3 -m venv /opt/symfluence-venv
-ENV PATH=/opt/symfluence-venv/bin:$PATH \
+ENV VIRTUAL_ENV=/opt/symfluence-venv \
+    PATH=/opt/symfluence-venv/bin:/root/.local/bin:$PATH \
     CPLUS_INCLUDE_PATH=/usr/include/gdal \
     C_INCLUDE_PATH=/usr/include/gdal
 
-# Install the Python CLI that the npm package wraps.
-RUN pip install --no-cache-dir symfluence
-
-# README.md L75: npm install -g symfluence (drops pre-built binaries)
+# README.md L75: npm install -g symfluence.
+# Triggers npm/install.js which:
+#   1. Downloads pre-built binaries from GitHub Releases into dist/bin/
+#   2. Installs the Python `symfluence` package via `uv pip install` (the npm
+#      shim at npm/bin/symfluence forwards CLI calls to it). Step 2 is now
+#      fatal-on-failure — see SYMFLUENCE_OPTIONAL_PYTHON to opt out.
 RUN npm install -g symfluence
 
-# README.md L78-82: bundled-binary sanity checks (now that BOTH halves are present).
+# README.md L78-82: bundled-binary sanity checks.
 RUN symfluence binary info \
     && symfluence binary doctor
 
