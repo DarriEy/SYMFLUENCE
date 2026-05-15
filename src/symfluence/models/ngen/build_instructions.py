@@ -483,8 +483,9 @@ if [ -d "extern/sloth" ] && [ -f "extern/sloth/CMakeLists.txt" ]; then
     git_clean submodule update --init --recursive 2>/dev/null || true
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
-    cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+    # Build only slothmodel — SLoTH's vendored googletest gmock is pre-1.13 and fails under conda-forge GCC 14.
+    cmake --build cmake_build --target slothmodel -j ${NCORES:-4} 2>&1
+  ) || true   # set +e inside does not rewrite the subshell's final exit code; isolate it here.
   if _lib_found extern/sloth/cmake_build/libslothmodel.*; then
     echo "SLOTH built successfully"
   else
