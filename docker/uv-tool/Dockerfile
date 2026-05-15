@@ -9,6 +9,13 @@
 #
 # Build: docker build -f docker/uv-tool/Dockerfile -t symfluence:uv-tool .
 # Run:   docker run --rm symfluence:uv-tool --help
+#
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml — every apt package below maps to a
+# dep_id there (all `required: true` entries, plus optionals `udunits2`, `cdo`,
+# `r_base`, `perl` needed by the default `symfluence binary install` tool set).
+# Run `symfluence binary doctor` to validate the host against the registry.
+# Update the apt list when adding or removing dep_ids in system_deps.yml.
 # ============================================================================
 
 FROM python:3.11-slim-bookworm
@@ -19,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         libopenmpi-dev \
         openmpi-bin \
         libopenblas-dev \
@@ -28,6 +36,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         gdal-bin \
         libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         ca-certificates \
