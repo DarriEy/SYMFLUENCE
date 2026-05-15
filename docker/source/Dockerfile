@@ -13,6 +13,14 @@
 # Manual-setup variant (installation.html "Manual Setup"): builds via editable
 # install of a local checkout instead of using the bootstrap script.
 #   docker build --target manual -f docker/source/Dockerfile -t symfluence:source-manual .
+#
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml — every apt package below maps to a
+# dep_id there (all `required: true` entries, plus optionals `udunits2`, `cdo`,
+# `r_base`, `perl` needed by the default `symfluence binary install` tool set).
+# Both the bootstrap and manual stages share the same apt list.
+# Run `symfluence binary doctor` to validate the host against the registry.
+# Update the apt list when adding or removing dep_ids in system_deps.yml.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -26,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         libopenmpi-dev \
         openmpi-bin \
         libopenblas-dev \
@@ -35,6 +44,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         gdal-bin \
         libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         ca-certificates \
@@ -77,6 +93,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gfortran \
         cmake \
+        make \
         libopenmpi-dev \
         openmpi-bin \
         libopenblas-dev \
@@ -86,6 +103,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         gdal-bin \
         libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
         git \
         curl \
         ca-certificates \
