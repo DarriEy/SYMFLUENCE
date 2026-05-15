@@ -9,6 +9,7 @@ and ``AttributesNetCDFBuilder`` into a single ``build_all()`` entry point.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -172,6 +173,38 @@ class ModelReadyStoreBuilder:
                 })
 
             ds.close()
+
+            # ── Enrich with mean elevation from catchment shapefile ──
+            elev_values = [float('nan')] * n_hru
+            try:
+                import geopandas as gpd
+
+                shp_root = self.project_dir / 'shapefiles' / 'catchment'
+                shp_file = None
+                if shp_root.exists():
+                    for dirpath, _dirnames, filenames in os.walk(shp_root):
+                        for fn in filenames:
+                            if fn.endswith('.shp') and 'HRUs' in fn:
+                                shp_file = Path(dirpath) / fn
+                                break
+                        if shp_file is not None:
+                            break
+
+                if shp_file is not None:
+                    gdf = gpd.read_file(shp_file)
+                    if 'elev_mean' in gdf.columns and len(gdf) == n_hru:
+                        elev_values = gdf['elev_mean'].tolist()
+                        logger.debug("Loaded elev_mean from %s", shp_file)
+                    else:
+                        logger.debug(
+                            "Shapefile found but elev_mean missing or row count "
+                            "mismatch (%d vs %d HRUs)", len(gdf), n_hru,
+                        )
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not load elevation from shapefile")
+
+            for row, elev in zip(rows, elev_values):
+                row['elev_m'] = elev
 
             out_dir = self.project_dir / 'data' / 'attributes' / 'climate'
             out_dir.mkdir(parents=True, exist_ok=True)
