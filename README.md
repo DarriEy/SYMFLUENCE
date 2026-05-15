@@ -177,6 +177,86 @@ For detailed troubleshooting, see the [installation guide](https://symfluence.re
 
 ---
 
+## Containerised installs
+
+The `docker/` directory contains a Dockerfile per documented install method. Each method has two files:
+
+- **`Dockerfile`** — the install method **as described in the docs**, verbatim. No workarounds. Useful for reproducing what a user following the README/installation.html would actually get.
+- **`Dockerfile.fixed`** — a copy with the minimum set of workarounds needed for a fully-working image. Each workaround is annotated with the upstream bug it papers over so it can be removed once fixed upstream.
+
+### Method matrix
+
+| Method | Base image | `Dockerfile` (doc-faithful) | `Dockerfile.fixed` |
+|---|---|---|---|
+| pip | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
+| uv | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
+| uv-tool | `python:3.11-slim-bookworm` | builds; 4/12 model binaries succeed | 11/12 (troute upstream-flaky) |
+| pipx | `python:3.11-slim-bookworm` | builds; 5/12 model binaries succeed | **12/12** ✅ |
+| npm | `node:20-bookworm-slim` | **fails** at `binary info` (npm shim needs a Python CLI install — undocumented) | 21/23 binaries (ngiab + troute not bundled by npm) ✅ |
+| conda | `condaforge/miniforge3:24.11.3-2` | **fails** at `pip install symfluence` (no compilers) | 8/12 (conda-vs-system HDF5 ABI conflict) |
+| source | `python:3.11-slim-bookworm` | builds; 0/11 binaries (bootstrap doesn't compile binaries) | **12/12** ✅ |
+
+### Build & run
+
+For each method, run from the repo root. Add `--platform=linux/amd64` to npm if you're on Apple Silicon (npm publishes binaries for Linux x86_64 / macOS ARM64 only).
+
+```bash
+# pip
+docker build -f docker/pip/Dockerfile.fixed -t symfluence:pip-fixed .
+docker run --rm symfluence:pip-fixed --help
+
+# uv
+docker build -f docker/uv/Dockerfile.fixed -t symfluence:uv-fixed .
+docker run --rm symfluence:uv-fixed --help
+
+# uv tool (isolated CLI)
+docker build -f docker/uv-tool/Dockerfile.fixed -t symfluence:uv-tool-fixed .
+docker run --rm symfluence:uv-tool-fixed --help
+
+# pipx (isolated CLI)
+docker build -f docker/pipx/Dockerfile.fixed -t symfluence:pipx-fixed .
+docker run --rm symfluence:pipx-fixed --help
+
+# npm (pre-built binaries, no compilation)
+docker build --platform=linux/amd64 -f docker/npm/Dockerfile.fixed -t symfluence:npm-fixed .
+docker run --rm --platform=linux/amd64 symfluence:npm-fixed --help
+
+# conda (Windows install path / macOS ARM64 GDAL workaround)
+docker build -f docker/conda/Dockerfile.fixed -t symfluence:conda-fixed .
+docker run --rm symfluence:conda-fixed --help
+
+# source — bootstrap from upstream clone
+docker build -f docker/source/Dockerfile.fixed -t symfluence:source-fixed .
+docker run --rm symfluence:source-fixed --help
+
+# source — manual editable install of local checkout
+docker build --target manual -f docker/source/Dockerfile.fixed -t symfluence:source-manual-fixed .
+docker run --rm symfluence:source-manual-fixed --help
+```
+
+### Which one should I use?
+
+- **Most users**: `pip-fixed` or `uv-fixed`. Both produce 12/12 working binaries on Linux. uv is faster to install.
+- **Need pre-compiled binaries (no host build toolchain)**: `npm-fixed`. Linux x86_64 and macOS ARM64 only.
+- **Developing on the project**: `source --target manual` so the venv contains an editable install of your local checkout.
+- **Avoid for now**: the unmodified `Dockerfile` files. They are kept as a record of what the docs literally say; they're not meant to be used directly.
+
+### Upstream issues the workarounds paper over
+
+These are the bugs `Dockerfile.fixed` works around. When they are fixed upstream, the corresponding workaround can be removed.
+
+- `_build.sh` host-libc probe omits aarch64 paths (`/lib/aarch64-linux-gnu/libc.so.6`); falsely triggers a static-link "workaround" that breaks `cmake`.
+- `_build.sh` static-link fallback passes `-static-libstdc++` as a top-level CMake argument instead of via `CMAKE_EXE_LINKER_FLAGS`.
+- `ngen` `_build.sh` doesn't set `Boost_NO_SYSTEM_PATHS=ON` despite specifying `BOOST_ROOT`, so cmake picks up Debian's libboost 1.74 over the 1.79 the script downloads.
+- `fuse` Makefile assumes `-L/usr/lib -lhdf5` finds plain-named `libhdf5.so` (Debian multi-arch installs it as `libhdf5_serial.so` under `/usr/lib/<arch>/`).
+- `symfluence binary install` exits 0 even with tool failures, masking partial-build problems in CI.
+- `symfluence binary info` reports "No toolchain metadata found" even when `binary doctor` reads the same file successfully.
+- The npm package is presented in the README as a self-contained install but is actually a wrapper that needs the Python CLI installed separately.
+- The `bootstrap` install path documented in installation.html doesn't run `symfluence binary install`; users get a working CLI with no model binaries.
+- Pip-installed `h5py` and `netCDF4` wheels bundle different `libhdf5` builds, causing runtime warnings (avoidable only by switching to conda).
+
+---
+
 ## Quick Start
 
 ### Basic CLI Usage

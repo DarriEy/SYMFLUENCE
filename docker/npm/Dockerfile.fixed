@@ -1,0 +1,77 @@
+# ============================================================================
+# SYMFLUENCE npm install (Method A from README.md / installation.html)
+#
+#   npm install -g symfluence
+#   symfluence binary info
+#   symfluence binary doctor
+#
+# Distributes PRE-BUILT binaries — no compilation, no `symfluence binary install`.
+# Only runtime libraries are needed.
+#
+# Platform support (README.md L84-86, npm/package.json):
+#   - Linux x86_64 (Ubuntu 22.04+, RHEL 9+, Debian 12+)
+#   - macOS ARM64 (Apple Silicon)
+#
+# Build (Linux x86_64, force platform if you're on Apple Silicon):
+#   docker build --platform=linux/amd64 -f docker/npm/Dockerfile.fixed -t symfluence:npm-fixed .
+# Run:
+#   docker run --rm --platform=linux/amd64 symfluence:npm-fixed --help
+#
+# Differences from Dockerfile (this is the only fix here — npm's failures are
+# orthogonal to the pip/uv/uv-tool/pipx workarounds):
+#   + python3 + venv + `pip install symfluence`  (the npm package is a *wrapper*
+#                                                 around the Python CLI, not a
+#                                                 self-contained install — the
+#                                                 README docs L75-82 are misleading)
+#   + libgdal-dev + headers env vars             (some Python deps still need
+#                                                 to compile from source, no wheel
+#                                                 available for arm64/aarch64 amd64
+#                                                 combos under emulation)
+#
+# Note: this Dockerfile is no longer "runtime-only" — once the docs are fixed
+# upstream so the npm shim works without pip, this whole .fixed file becomes
+# unnecessary.
+# ============================================================================
+
+FROM node:20-bookworm-slim
+
+# Runtime-only system libraries (docs/SYSTEM_REQUIREMENTS.md L34-44) +
+# Python 3, pip, venv (npm shim wraps the Python CLI; see header) +
+# libgdal-dev so pip can install the gdal Python binding from source if no wheel
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnetcdf19 \
+        libnetcdff7 \
+        libhdf5-103 \
+        libgdal32 \
+        libproj25 \
+        libgeos3.11.1 \
+        libopenmpi3 \
+        python3 \
+        python3-pip \
+        python3-venv \
+        libgdal-dev \
+        gcc \
+        g++ \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Isolated venv to avoid Debian's PEP-668 system-Python protection.
+RUN python3 -m venv /opt/symfluence-venv
+ENV PATH=/opt/symfluence-venv/bin:$PATH \
+    CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal
+
+# Install the Python CLI that the npm package wraps.
+RUN pip install --no-cache-dir symfluence
+
+# README.md L75: npm install -g symfluence (drops pre-built binaries)
+RUN npm install -g symfluence
+
+# README.md L78-82: bundled-binary sanity checks (now that BOTH halves are present).
+RUN symfluence binary info \
+    && symfluence binary doctor
+
+WORKDIR /workspace
+
+ENTRYPOINT ["symfluence"]
+CMD ["--help"]
