@@ -1,0 +1,206 @@
+# ============================================================================
+# SYMFLUENCE source / bootstrap install (Method G from README.md /
+# installation.html "Development Installation")
+#
+#   git clone https://github.com/symfluence-org/SYMFLUENCE.git
+#   cd SYMFLUENCE
+#   ./scripts/symfluence-bootstrap --install
+#   source venv/bin/activate
+#
+# Build: docker build -f docker/source/Dockerfile.fixed -t symfluence:source-fixed .
+# Run:   docker run --rm symfluence:source-fixed --help
+#
+# Manual-setup variant (installation.html "Manual Setup"): builds via editable
+# install of a local checkout instead of using the bootstrap script.
+#   docker build --target manual -f docker/source/Dockerfile.fixed -t symfluence:source-manual-fixed .
+#
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml (all `required: true` deps plus
+# default-toolset optionals: udunits2, cdo, r_base, perl).
+#
+# Differences from Dockerfile (workarounds layered on top of registry deps):
+#   + apt: pkg-config wget
+#   + libhdf5_serial → libhdf5 symlinks
+#   + /lib64/libc.so.6 symlink
+#   + Hide /usr/include/boost between bootstrap and binary install
+#   + RUN symfluence binary install after bootstrap
+#     (bootstrap only installs Python deps; binaries aren't compiled by default)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Default target: bootstrap from upstream clone
+# ----------------------------------------------------------------------------
+FROM python:3.11-slim-bookworm AS bootstrap
+
+# System deps follow src/symfluence/resources/system_deps.yml (all
+# `required: true` deps plus default-toolset optionals: udunits2, cdo,
+# r_base, perl) + workarounds: pkg-config, wget, plus the symlink RUN
+# block below. Both bootstrap and manual stages share the apt list.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gfortran \
+        cmake \
+        make \
+        pkg-config \
+        libopenmpi-dev \
+        openmpi-bin \
+        libopenblas-dev \
+        liblapack-dev \
+        libnetcdf-dev \
+        libnetcdff-dev \
+        libhdf5-dev \
+        gdal-bin \
+        libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
+        git \
+        curl \
+        wget \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ARCH=$(gcc -print-multiarch) \
+    && ARCH_LIB=/usr/lib/${ARCH} \
+    && for src in libhdf5_serial.so libhdf5_serial_hl.so libhdf5_serial_fortran.so libhdf5_serialhl_fortran.so; do \
+         test -f "${ARCH_LIB}/${src}" || { echo "MISSING source: ${ARCH_LIB}/${src}"; exit 1; }; \
+       done \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial.so"           /usr/lib/libhdf5.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_hl.so"        /usr/lib/libhdf5_hl.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_fortran.so"   /usr/lib/libhdf5_fortran.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serialhl_fortran.so" /usr/lib/libhdf5_hl_fortran.so \
+    && mkdir -p /lib64 \
+    && ln -sf "/lib/${ARCH}/libc.so.6" /lib64/libc.so.6
+
+# README.md L108-109: GDAL Python wheel needs these to find headers.
+# OMPI_ALLOW_RUN_AS_ROOT: compiled hydrology models invoke OpenMPI inside the
+# container, which by default refuses to run as root.
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal \
+    HDF5_USE_FILE_LOCKING=FALSE \
+    OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+    PYTHONUNBUFFERED=1
+
+# README.md L60-64 / installation.html "Development Installation":
+#   git clone https://github.com/symfluence-org/SYMFLUENCE.git
+#   cd SYMFLUENCE
+#   ./scripts/symfluence-bootstrap --install
+WORKDIR /opt
+RUN git clone https://github.com/symfluence-org/SYMFLUENCE.git
+WORKDIR /opt/SYMFLUENCE
+RUN ./scripts/symfluence-bootstrap --install
+
+# bootstrap creates a venv at /opt/SYMFLUENCE/venv but doesn't add it to PATH.
+ENV PATH=/opt/SYMFLUENCE/venv/bin:$PATH
+
+# GDAL Python bindings (`osgeo`) are required by GDALProcessor in setup_project,
+# but the bootstrap script doesn't install the `[gdal]` extra (and the script is
+# shared with non-docker users who may have their own GDAL setup, so docker-
+# specific changes don't belong there). Inject gdal pinned to the apt
+# libgdal-dev version directly into the bootstrap venv.
+RUN /opt/SYMFLUENCE/venv/bin/pip install --no-cache-dir \
+        "gdal==$(gdal-config --version)"
+
+# Hide system Boost (1.74) between bootstrap and binary install so ngen's cmake
+# `find_package(Boost ≥ 1.79)` falls back to the 1.79 its `_build.sh` downloads.
+RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
+
+# Pin the install location so `symfluence binary install` does not infer it
+# from WORKDIR=/opt/SYMFLUENCE (which would place binaries at /opt/SYMFLUENCE_data,
+# out of sync with the docker-compose named-volume mount at /SYMFLUENCE_data/installs
+# and with the cwd-relative `../SYMFLUENCE_data` paths the example configs resolve
+# from /workspace).
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
+# bootstrap doesn't compile model binaries — do it explicitly here.
+RUN symfluence binary install
+
+WORKDIR /workspace
+
+ENTRYPOINT ["symfluence"]
+CMD ["--help"]
+
+# ----------------------------------------------------------------------------
+# Manual variant: editable install of local checkout (installation.html
+# "Manual Setup") — `docker build --target manual ...`
+# ----------------------------------------------------------------------------
+FROM python:3.11-slim-bookworm AS manual
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gfortran \
+        cmake \
+        make \
+        pkg-config \
+        libopenmpi-dev \
+        openmpi-bin \
+        libopenblas-dev \
+        liblapack-dev \
+        libnetcdf-dev \
+        libnetcdff-dev \
+        libhdf5-dev \
+        gdal-bin \
+        libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
+        git \
+        curl \
+        wget \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ARCH=$(gcc -print-multiarch) \
+    && ARCH_LIB=/usr/lib/${ARCH} \
+    && for src in libhdf5_serial.so libhdf5_serial_hl.so libhdf5_serial_fortran.so libhdf5_serialhl_fortran.so; do \
+         test -f "${ARCH_LIB}/${src}" || { echo "MISSING source: ${ARCH_LIB}/${src}"; exit 1; }; \
+       done \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial.so"           /usr/lib/libhdf5.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_hl.so"        /usr/lib/libhdf5_hl.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_fortran.so"   /usr/lib/libhdf5_fortran.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serialhl_fortran.so" /usr/lib/libhdf5_hl_fortran.so \
+    && mkdir -p /lib64 \
+    && ln -sf "/lib/${ARCH}/libc.so.6" /lib64/libc.so.6
+
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal \
+    HDF5_USE_FILE_LOCKING=FALSE \
+    OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+    PYTHONUNBUFFERED=1
+
+# installation.html "Manual Setup":
+#   python3 -m venv venv
+#   source venv/bin/activate
+#   pip install -e .
+COPY . /opt/SYMFLUENCE
+WORKDIR /opt/SYMFLUENCE
+# `[gdal]` extra pulls the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project). Pin to the exact apt libgdal-dev version so the bindings link
+# against the system .so at runtime — pyproject's `gdal>=3.6.0,<4.0.0` window
+# would otherwise let pip pick a newer minor and crash at import.
+RUN python3 -m venv venv \
+    && ./venv/bin/pip install --no-cache-dir -e ".[gdal]" "gdal==$(gdal-config --version)"
+
+ENV PATH=/opt/SYMFLUENCE/venv/bin:$PATH
+
+# Hide system Boost (1.74) before binary install — see bootstrap target above.
+RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
+
+# Pin the install location — see bootstrap target above for rationale.
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
+# Manual setup also doesn't compile model binaries — do it explicitly here.
+RUN symfluence binary install
+
+WORKDIR /workspace
+
+ENTRYPOINT ["symfluence"]
+CMD ["--help"]
