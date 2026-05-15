@@ -38,12 +38,20 @@ jobs:
               const signatures = fs.readFileSync('CLA_SIGNATURES', 'utf8');
               const lines = signatures.split('\n');
               for (const line of lines) {
-                if (line.startsWith('GitHub:')) {
-                  const gh = line.replace('GitHub:', '').trim();
+                // Individual CLA: "GitHub: username"
+                // Org signatory: "GitHub Username of Signatory: <username>"
+                if (line.startsWith('GitHub')) {
+                  const gh = line.split(':').slice(1).join(':').trim().replace(/^<|>$/g, '');
                   if (gh.toLowerCase() === author.toLowerCase()) {
                     signed = true;
                     break;
                   }
+                }
+                // Organizational CLA: "Name (github-username)"
+                const match = line.match(/\(([^)]+)\)\s*$/);
+                if (match && match[1].toLowerCase() === author.toLowerCase()) {
+                  signed = true;
+                  break;
                 }
               }
             } catch (e) {
