@@ -505,7 +505,7 @@ if [ -d "extern/cfe" ] && [ -f "extern/cfe/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/cfe/cmake_build/libcfebmi.*; then
     echo "CFE built successfully"
   else
@@ -527,7 +527,7 @@ if [ -d "$_PET_SRC" ] && [ -f "$_PET_SRC/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found "$_PET_SRC"/cmake_build/libpetbmi.*; then
     echo "PET built successfully"
   else
@@ -553,7 +553,7 @@ if [ -d "extern/iso_c_fortran_bmi" ] && [ -f "extern/iso_c_fortran_bmi/CMakeList
 
     cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/iso_c_fortran_bmi/cmake_build/libiso_c_bmi.*; then
     echo "iso_c_fortran_bmi built successfully"
   else
@@ -581,7 +581,7 @@ if [ -d "extern/noah-owp-modular" ] && [ -f "extern/noah-owp-modular/CMakeLists.
 
     cmake $NOAH_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.*; then
     echo "Noah-MP built successfully"
   else
@@ -605,7 +605,7 @@ if [ -d "extern/topmodel" ] && [ -f "extern/topmodel/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/topmodel/cmake_build/libtopmodelbmi.*; then
     echo "TOPMODEL built successfully"
   else
@@ -631,7 +631,7 @@ if [ -d "extern/sac-sma" ] && [ -f "extern/sac-sma/CMakeLists.txt" ] && [ -n "$F
 
     cmake $SAC_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/sac-sma/cmake_build/libsacbmi.*; then
     echo "SAC-SMA built successfully"
   else
@@ -669,7 +669,7 @@ if [ -d "extern/snow17" ] && [ -f "extern/snow17/CMakeLists.txt" ] && [ -n "$FC"
 
     cmake $SNOW17_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/snow17/cmake_build/libsnow17bmi.*; then
     echo "Snow-17 built successfully"
   else
