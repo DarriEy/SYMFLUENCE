@@ -107,6 +107,13 @@ RUN pip install --no-cache-dir "symfluence[gdal]" "gdal==$(gdal-config --version
 # fall back to the Boost 1.79 its `_build.sh` downloads via wget.
 RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
 
+# Pin the install location so `symfluence binary install` does not infer it
+# from WORKDIR via the auto-resolver (which would place it at e.g.
+# /opt/SYMFLUENCE_data). Aligns build-time install path with docker-compose's
+# named-volume mount at /SYMFLUENCE_data/installs and with the cwd-relative
+# `../SYMFLUENCE_data` paths the example configs resolve from /workspace.
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
 RUN symfluence binary install
 
 WORKDIR /workspace
