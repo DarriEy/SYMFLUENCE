@@ -1,0 +1,152 @@
+# One service per install method, using the per-method Dockerfile.fixed.
+# Run a workflow against any method:
+#   docker compose run pip workflow run --config /workspace/data/config.yaml
+#   docker compose run conda workflow run --config /workspace/data/config.yaml
+#
+# All services share volumes, env, and the `symfluence` ENTRYPOINT (set in
+# the Dockerfiles). The default CMD is `--help`.
+#
+# Volume strategy:
+#   - `symfluence_data` (shared) holds domain_*/ data + cached downloads —
+#     re-acquiring multi-GB datasets per install method would be wasteful.
+#   - `installs-<method>` (per-method) holds /SYMFLUENCE_data/installs/ —
+#     external binaries (TauDEM, SUMMA, FUSE, ...) are dynamically linked
+#     against the building image's GDAL/HDF5, so they can't be shared
+#     across services with different base images.
+
+x-symfluence-common: &symfluence-common
+  environment:
+    - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+    - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+    - ERA5_USE_CDS=true
+
+# Volume lists are spelled out per service (YAML merge doesn't concatenate
+# lists). Each service repeats the shared mounts and adds its own
+# `installs-<method>` volume at /SYMFLUENCE_data/installs.
+
+services:
+  pip:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/pip/Dockerfile.fixed
+    image: symfluence:pip
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-pip:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  pipx:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/pipx/Dockerfile.fixed
+    image: symfluence:pipx
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-pipx:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  uv:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/uv/Dockerfile.fixed
+    image: symfluence:uv
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-uv:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  uv-tool:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/uv-tool/Dockerfile.fixed
+    image: symfluence:uv-tool
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-uv-tool:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  conda:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/conda/Dockerfile.fixed
+    image: symfluence:conda
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-conda:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  npm:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/npm/Dockerfile.fixed
+    image: symfluence:npm
+    platform: linux/amd64
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-npm:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  source:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/source/Dockerfile.fixed
+    image: symfluence:source
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-source:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+  source-manual:
+    <<: *symfluence-common
+    build:
+      context: .
+      dockerfile: docker/source/Dockerfile.fixed
+      target: manual
+    image: symfluence:source-manual
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ./examples:/workspace/examples:ro
+      - symfluence_data:/SYMFLUENCE_data
+      - installs-source-manual:/SYMFLUENCE_data/installs
+      - ~/.cdsapirc:/root/.cdsapirc:ro
+
+volumes:
+  symfluence_data:
+  installs-pip:
+  installs-pipx:
+  installs-uv:
+  installs-uv-tool:
+  installs-conda:
+  installs-npm:
+  installs-source:
+  installs-source-manual:

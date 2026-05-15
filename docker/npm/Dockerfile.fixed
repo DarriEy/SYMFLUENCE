@@ -1,0 +1,157 @@
+# ============================================================================
+# SYMFLUENCE npm install (Method A from README.md / installation.html)
+#
+#   npm install -g symfluence
+#   symfluence binary info
+#   symfluence binary doctor
+#
+# Distributes PRE-BUILT binaries — no compilation, no `symfluence binary install`.
+# Only runtime libraries are needed.
+#
+# Platform support (README.md L84-86, npm/package.json):
+#   - Linux x86_64 (Ubuntu 22.04+, RHEL 9+, Debian 12+)
+#   - macOS ARM64 (Apple Silicon)
+#
+# Build (Linux x86_64, force platform if you're on Apple Silicon):
+#   docker build --platform=linux/amd64 -f docker/npm/Dockerfile.fixed -t symfluence:npm-fixed .
+# Run:
+#   docker run --rm --platform=linux/amd64 symfluence:npm-fixed --help
+#
+# Differences from Dockerfile (the npm shim wraps the Python CLI — see
+# npm/bin/symfluence and npm/install.js — so a Python install is required;
+# the package's own postinstall hook handles it given the right tooling):
+#   + python3 + venv  (postinstall runs pip into VIRTUAL_ENV, sidestepping
+#                       Debian's PEP-668 system-Python protection)
+#   + uv              (postinstall's preferred strategy — much faster than
+#                       pip3/pip on the heavy scientific stack)
+#   + libgdal-dev + headers env vars  (some Python deps (e.g. gdal binding)
+#                                       still need to compile from source under
+#                                       cross-arch emulation with no wheel)
+#
+# This image deliberately does NOT pre-install the Python `symfluence`
+# package — the goal is to validate the documented npm-only install flow
+# (`npm install -g symfluence`) end-to-end. The postinstall hook in
+# npm/install.js auto-installs the Python wrapper, and now exits non-zero
+# if it can't (so a missing Python install fails the build instead of
+# surfacing later as a confusing `binary info` error).
+# ============================================================================
+
+#
+# Base image: Debian Trixie (glibc 2.40), NOT Bookworm (glibc 2.36).
+# The npm package's bundled libgfortran.so.5 and libopenblas.so.0 are built
+# against glibc 2.38 — Bookworm cannot load them. The npm package's stated
+# "Debian 12+" support is incorrect; the actual minimum is Debian 13 / Ubuntu
+# 24.04. See notes/20260510_docker_smoke_results_and_followups.md F5/F6.
+FROM node:20-trixie-slim
+
+# Runtime-only system libraries (docs/SYSTEM_REQUIREMENTS.md L34-44) +
+# Python toolchain so the npm postinstall can pip-install the Python wrapper +
+# libgdal-dev so pip can compile the gdal binding from source if no wheel.
+# Trixie soname bumps from Bookworm: libnetcdf19→22, libhdf5-103→310,
+# libgdal32→36, libgeos3.11.1→3.13.1, libopenmpi3→40.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnetcdf22 \
+        libnetcdff7 \
+        libhdf5-310 \
+        libgdal36 \
+        libproj25 \
+        libgeos3.13.1 \
+        libopenmpi40 \
+        python3 \
+        python3-venv \
+        python3-dev \
+        libgdal-dev \
+        gcc \
+        g++ \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv via Astral's recommended Docker pattern: copy the static binary
+# from the upstream image rather than `curl -LsSf https://astral.sh/uv/install.sh
+# | sh`. Faster (no network in the RUN), image-cached, and pinnable to a
+# specific uv version by replacing `:latest` with e.g. `:0.5.0`. Matches the
+# pattern already used in docker/uv/Dockerfile.fixed and
+# docker/uv-tool/Dockerfile.fixed. uv's the postinstall hook's preferred
+# strategy — keeps install time inside the postinstall's exec timeout for
+# the heavy scientific stack.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Isolated venv. Setting VIRTUAL_ENV makes `uv pip install <pkg>` install into
+# this venv (no --system flag) and the venv on PATH means pip3/pip resolve to
+# the venv too. Both sidestep Debian's PEP-668 protection on the system Python.
+RUN python3 -m venv /opt/symfluence-venv
+ENV VIRTUAL_ENV=/opt/symfluence-venv \
+    PATH=/opt/symfluence-venv/bin:$PATH \
+    CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal \
+    SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
+# README.md L75: npm install -g symfluence.
+# Triggers npm/install.js which:
+#   1. Downloads pre-built binaries from GitHub Releases into dist/bin/
+#   2. Installs the Python `symfluence` package via `uv pip install` (the npm
+#      shim at npm/bin/symfluence forwards CLI calls to it). Step 2 is now
+#      fatal-on-failure — see SYMFLUENCE_OPTIONAL_PYTHON to opt out.
+RUN npm install -g symfluence
+
+# npm/install.js's postinstall pip-installs symfluence without the `[gdal]`
+# extra, so the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project) are missing. Inject gdal pinned to the apt libgdal-dev
+# version into the postinstall-created venv. This is docker-only — fixing
+# it in install.js would complicate the cross-platform flow (macOS users
+# may have brew-installed gdal at a different version).
+RUN /opt/symfluence-venv/bin/pip install --no-cache-dir \
+        "gdal==$(gdal-config --version)"
+
+# The npm package's bundled libnetcdff.so.7 was built against Bookworm's
+# libnetcdf.so.19 — but Trixie ships libnetcdf.so.22, so the bundled libnetcdff
+# fails to resolve its NEEDED soname. Drop the bundled copy so the dynamic
+# loader falls through RUNPATH ($ORIGIN/../lib) to /usr/lib/x86_64-linux-gnu/
+# and picks up Trixie's apt-installed libnetcdff7 (which links against
+# libnetcdf22 correctly). The Fortran NetCDF F90 ABI is stable across these
+# versions, so libsumma.so loads against the system libnetcdff without issue.
+# See notes/20260510_docker_smoke_results_and_followups.md F7.
+RUN rm /usr/local/lib/node_modules/symfluence/dist/lib/libnetcdff.so.7
+
+# README.md L78-82: bundled-binary sanity checks.
+RUN symfluence binary info \
+    && symfluence binary doctor
+
+# Bridge the npm-bundled binary location into the path the workflow runner
+# expects. The runner's resolver (src/symfluence/models/base/base_runner.py
+# get_install_path) searches `<data_dir>/installs/<model>/bin/` for a `default`
+# install_path — but the npm package bundles binaries at
+# /usr/local/lib/node_modules/symfluence/dist/bin/ under different filenames
+# (`summa` rather than `summa_sundials.exe`, etc.), so the lookup fails. Symlink
+# the npm bundle into the runner's expected layout. Per-model entries here mirror
+# the `default_install_subpath` + `<MODEL>_EXE` defaults from
+# src/symfluence/core/config/models/model_configs_*.py and each model's
+# build_instructions.py.
+#
+# Caveat: in docker-compose, /SYMFLUENCE_data/installs/ is backed by the
+# `installs-npm` named volume. Docker only seeds a named volume from the image
+# the FIRST time the volume is created. If a stale empty `installs-npm` volume
+# already exists, the symlinks won't appear at runtime — drop and recreate the
+# volume:  docker volume rm symfluence_installs-npm
+RUN NPM_BIN=/usr/local/lib/node_modules/symfluence/dist/bin \
+    && mkdir -p /SYMFLUENCE_data/installs/summa/bin \
+                /SYMFLUENCE_data/installs/fuse/bin \
+                /SYMFLUENCE_data/installs/ngen \
+                /SYMFLUENCE_data/installs/mizuRoute/route/bin \
+                /SYMFLUENCE_data/installs/mesh/bin \
+                /SYMFLUENCE_data/installs/hype/bin \
+                /SYMFLUENCE_data/installs/mhm/bin \
+    && ln -s "$NPM_BIN/summa"     /SYMFLUENCE_data/installs/summa/bin/summa_sundials.exe \
+    && ln -s "$NPM_BIN/summa"     /SYMFLUENCE_data/installs/summa/bin/summa_actors.exe \
+    && ln -s "$NPM_BIN/fuse"      /SYMFLUENCE_data/installs/fuse/bin/fuse.exe \
+    && ln -s "$NPM_BIN/ngen"      /SYMFLUENCE_data/installs/ngen/ngen \
+    && ln -s "$NPM_BIN/mizuroute" /SYMFLUENCE_data/installs/mizuRoute/route/bin/mizuRoute.exe \
+    && ln -s "$NPM_BIN/mesh"      /SYMFLUENCE_data/installs/mesh/bin/mesh.exe \
+    && ln -s "$NPM_BIN/hype"      /SYMFLUENCE_data/installs/hype/bin/hype \
+    && ln -s "$NPM_BIN/mhm"       /SYMFLUENCE_data/installs/mhm/bin/mhm
+
+WORKDIR /workspace
+
+ENTRYPOINT ["symfluence"]
+CMD ["--help"]
