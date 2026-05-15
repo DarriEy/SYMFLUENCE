@@ -100,7 +100,11 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
 
 # README.md L41: uv pip install symfluence
 # `--system` is required because the slim base has no active venv.
-RUN uv pip install --system --no-cache symfluence
+# `[gdal]` extra pulls the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project). Pin to the exact apt libgdal-dev version so the bindings link
+# against the system .so at runtime — pyproject's `gdal>=3.6.0,<4.0.0` window
+# would otherwise let uv pick a newer minor and crash at import.
+RUN uv pip install --system --no-cache "symfluence[gdal]" "gdal==$(gdal-config --version)"
 
 # libboost-dev (1.74) is pulled in transitively (by libgdal-dev) and is needed
 # by some pip wheels at build time. After install, hide its headers so

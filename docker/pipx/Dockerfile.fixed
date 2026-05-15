@@ -107,7 +107,14 @@ RUN pip install --no-cache-dir pipx \
     && pipx ensurepath
 
 # README.md L48: pipx install symfluence
-RUN pipx install symfluence
+# GDAL Python bindings (`osgeo`) are required by GDALProcessor in setup_project,
+# but pyproject's `[gdal]` extra is `gdal>=3.6.0,<4.0.0` — pipx resolves that to
+# the latest (3.13.0), which requires libgdal>=3.13 and won't build against
+# Debian's 3.6.2 (the install errors out before any post-install hook can pin).
+# Install symfluence without extras, then inject gdal pinned to the apt
+# libgdal-dev version into symfluence's venv.
+RUN pipx install symfluence \
+ && pipx inject symfluence "gdal==$(gdal-config --version)"
 
 # libboost-dev (1.74) is pulled in transitively (by libgdal-dev) and is needed
 # by some pip wheels at build time. After install, hide its headers so
