@@ -160,6 +160,11 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
             self.logger.debug(f"Processing {runoff_filepath}")
 
+            # Check file size before opening — empty files from SIGSEGV crashes
+            if runoff_filepath.stat().st_size < 1000:
+                self.logger.error(f"Model output file too small ({runoff_filepath.stat().st_size} bytes): {runoff_filepath}")
+                return None
+
             # Open dataset and examine time format
             try:
                 ds = xr.open_dataset(runoff_filepath, decode_times=False)
