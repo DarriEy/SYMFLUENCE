@@ -10,52 +10,44 @@
 # Build: docker build -f docker/conda/Dockerfile.fixed -t symfluence:conda-fixed .
 # Run:   docker run --rm symfluence:conda-fixed --help
 #
-# Differences from Dockerfile (single-source conda-forge for the native
-# scientific stack — the prior Dockerfile.fixed mixed apt-installed dev libs
-# with conda-installed libs, and the link stage picked conda's libcurl /
-# libnetcdf while system libhdf5_serial.so wanted CURL_OPENSSL_4-versioned
-# symbols, killing fuse/mizuroute/ngen/summa with undefined references):
+# Differences from Dockerfile (single-source conda-forge for the entire
+# scientific toolchain — apt only carries host utilities):
 #
-#   + apt: only what conda-forge can't (or shouldn't) provide:
-#       build-essential, gfortran, make, pkg-config — model Makefiles
-#         (e.g. fuse) hardcode unprefixed gcc/g++/gfortran/make; conda-forge
-#         compilers are prefix-named and would need symlink wrappers
-#       git, curl, wget, ca-certificates           — model source clones,
-#         ngen's boost-1.79 fetch fallback (boost is also on conda below)
-#
-#   + conda: every scientific library the build links against:
-#       hdf5, netcdf-fortran, gdal, proj, geos, udunits2, openmpi,
-#       openblas, boost, expat, cmake               — single, internally
-#                                                     consistent toolchain.
-#       (libnetcdf-C is pulled in transitively by netcdf4/netcdf-fortran;
-#        no separate `netcdf-c` package on conda-forge linux-aarch64.
-#        `expat` is needed because ngen's cmake adds `-lexpat` to its
-#        link line — Boost.PropertyTree pulls it in for XML parsing.)
+#   + conda: extended beyond Method F's documented `gdal geopandas rasterio
+#     netcdf4 hdf5` to every scientific library the model builds link
+#     against (proj, geos, udunits2, netcdf-fortran, openmpi, openblas, plus
+#     `boost` and `expat` which the registry doesn't cover — boost: ngen's
+#     Boost ≥ 1.79 dep; expat: ngen's cmake adds -lexpat for Boost
+#     PropertyTree XML parsing). Single, internally consistent toolchain so
+#     the linker only ever sees one of each (libcurl, libnetcdf, libhdf5,
+#     libudunits2, ...).
 #
 #   + CFLAGS/CPPFLAGS/LDFLAGS/PKG_CONFIG_PATH/CMAKE_PREFIX_PATH point at the
 #     conda env, so makefiles + cmake projects find conda's headers and
 #     libs first; -Wl,-rpath bakes the conda lib path into the produced
 #     executables so they keep resolving to conda's libs at runtime.
 #
-#   + /lib64/libc.so.6 symlink retained — orthogonal aarch64 quirk in
-#     symfluence's _build.sh GLIBC-detection probe (only checks x86_64 paths).
+#   + /lib64/libc.so.6 symlink — orthogonal aarch64 quirk in symfluence's
+#     _build.sh GLIBC-detection probe (only checks x86_64 paths).
 #
-# Hacks dropped (no longer needed under single-source toolchain):
-#   - libhdf5_serial → libhdf5 symlinks   (conda ships libhdf5.so directly)
-#   - hide /usr/include/boost between pip install and binary install
-#                                          (no system boost is pulled in
-#                                           without apt scientific dev libs;
-#                                           ngen finds conda's boost via
-#                                           CMAKE_PREFIX_PATH)
+# Hacks dropped (no longer needed):
+#   - apt build-essential/gfortran + OMPI_CC=/usr/bin/gcc overrides — the
+#     registry's `gcc`/`gfortran` dep_ids now use conda-forge's
+#     `c-compiler`/`cxx-compiler`/`fortran-compiler` metapackages, which
+#     install unprefixed `gcc`/`g++`/`gfortran` shims on PATH that wrap
+#     the prefix-named conda compilers that conda-forge openmpi was
+#     actually built against. Single toolchain, no apt fallback needed.
+#   - libhdf5_serial → libhdf5 symlinks — conda ships libhdf5.so directly.
+#   - hide /usr/include/boost between pip install and binary install — no
+#     system boost present without apt scientific dev libs.
 # ============================================================================
 
 FROM condaforge/miniforge3:24.11.3-2
 
+# Host utilities only — everything else lives in the conda env created below.
+# (compilers, make, pkg-config, cmake are all conda-installed now via the
+# c-compiler/cxx-compiler/fortran-compiler metapackages.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        gfortran \
-        make \
-        pkg-config \
         git \
         curl \
         wget \
@@ -64,31 +56,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Workaround for upstream `symfluence binary install` GLIBC-mismatch probe:
 # its `_build.sh` host-libc lookup only checks x86_64 paths; on aarch64 the
-# real libc lives at /lib/aarch64-linux-gnu/libc.so.6.
+# real libc lives at /lib/aarch64-linux-gnu/libc.so.6. `uname -m` works on
+# both arches without needing gcc (which isn't on PATH at this stage —
+# it'll be installed by the conda step below).
 RUN mkdir -p /lib64 \
-    && ln -sf "/lib/$(gcc -print-multiarch)/libc.so.6" /lib64/libc.so.6
+    && ln -sf "/lib/$(uname -m)-linux-gnu/libc.so.6" /lib64/libc.so.6
 
-# Single-source conda-forge env. Method F's documented `gdal geopandas
-# rasterio netcdf4 hdf5` is extended to include every C/Fortran library the
-# downstream model builds link against, so the linker only ever sees one of
-# each (libcurl, libnetcdf, libhdf5, libudunits2, ...).
+# Single-source conda-forge env. The conda packages here map 1:1 to the
+# canonical registry at src/symfluence/resources/system_deps.yml (all
+# `required: true` deps plus default-toolset optionals udunits2, cdo,
+# r_base, perl), plus geopandas/rasterio (Python deps with native bindings
+# that need the same conda env's GDAL) and `boost`/`expat` which the model
+# builds need but the registry doesn't cover (boost: ngen's Boost ≥1.79
+# requirement; expat: ngen's cmake adds -lexpat for Boost PropertyTree).
 RUN conda create -y -n symfluence python=3.11 \
     && conda install -y -n symfluence -c conda-forge \
-         gdal geopandas rasterio netcdf4 \
-         hdf5 netcdf-fortran proj geos udunits2 \
+         c-compiler cxx-compiler fortran-compiler make cmake \
+         gdal geopandas rasterio netcdf4 netcdf-fortran hdf5 \
+         proj geos udunits2 cdo \
          openmpi openblas boost expat \
-         cmake \
+         r-base perl \
     && conda clean -afy
 
 # `conda activate` doesn't work in a `RUN` (the shell isn't interactive);
-# put the env's bin on PATH and set CONDA_DEFAULT_ENV instead.
+# put the env's bin on PATH and set CONDA_DEFAULT_ENV instead. The conda
+# c-compiler metapackage installs unprefixed `gcc`/`g++`/`gfortran` shims
+# in the env's bin/, which wrap the prefix-named compilers that
+# conda-forge openmpi was built against — so mpicc's wrapper-compiler
+# lookup succeeds without needing OMPI_CC overrides.
+#
 # OMPI env vars: compiled hydrology models invoke OpenMPI; default refuses root.
-# OMPI_CC/CXX/FC point conda's mpicc wrappers at system gcc/g++/gfortran —
-# conda-forge openmpi was built against `aarch64-conda-linux-gnu-cc` (the
-# conda-forge `gcc_linux-aarch64` compiler), which we deliberately don't
-# install (model Makefiles hardcode unprefixed gcc). Without this override,
-# `mpicc` errors with "wrapper compiler unable to find aarch64-conda-linux-
-# gnu-cc in PATH" and TauDEM's cmake C-compiler probe fails.
 # CFLAGS/LDFLAGS/PKG_CONFIG_PATH/CMAKE_PREFIX_PATH: point compilers + cmake
 # at the conda env so model builds find conda's headers/libs first; rpath
 # bakes the conda lib path into produced executables.
@@ -98,9 +95,6 @@ ENV PATH=/opt/conda/envs/symfluence/bin:$PATH \
     HDF5_USE_FILE_LOCKING=FALSE \
     OMPI_ALLOW_RUN_AS_ROOT=1 \
     OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
-    OMPI_CC=/usr/bin/gcc \
-    OMPI_CXX=/usr/bin/g++ \
-    OMPI_FC=/usr/bin/gfortran \
     PYTHONUNBUFFERED=1 \
     CFLAGS="-I/opt/conda/envs/symfluence/include" \
     CPPFLAGS="-I/opt/conda/envs/symfluence/include" \
