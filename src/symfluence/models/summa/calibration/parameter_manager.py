@@ -341,6 +341,19 @@ class SUMMAParameterManager(BaseParameterManager):
                 elif 'albedoMax' in validated:
                     validated['albedoMax'] = self._format_parameter_value('albedoMax', albedo_min_w)
 
+        # 6. k_macropore >= k_soil — macropore conductivity must exceed
+        #    micropore conductivity or SUMMA resets it every timestep,
+        #    causing numerical instability and SIGSEGV on long runs
+        k_soil_val = get_scalar('k_soil', {**full_params, **validated})
+        k_macro_val = get_scalar('k_macropore', {**full_params, **validated})
+
+        if k_soil_val is not None and k_macro_val is not None:
+            if k_macro_val < k_soil_val:
+                if 'k_macropore' in validated:
+                    validated['k_macropore'] = self._format_parameter_value('k_macropore', k_soil_val)
+                elif 'k_soil' in validated:
+                    validated['k_soil'] = self._format_parameter_value('k_soil', k_macro_val)
+
         return validated
 
     # ========================================================================
