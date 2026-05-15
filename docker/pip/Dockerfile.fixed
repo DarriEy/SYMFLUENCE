@@ -93,7 +93,11 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
     OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
     PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir symfluence
+# `[gdal]` extra pulls the Python `osgeo` bindings (required by GDALProcessor in
+# setup_project). Pin to the exact apt libgdal-dev version so the bindings link
+# against the system .so at runtime — pyproject's `gdal>=3.6.0,<4.0.0` window
+# would otherwise let pip pick a newer minor and crash at import.
+RUN pip install --no-cache-dir "symfluence[gdal]" "gdal==$(gdal-config --version)"
 
 # libboost-dev (1.74) is pulled in transitively (by libgdal-dev) and is needed
 # by some pip wheels at build time. After pip install, hide its headers so

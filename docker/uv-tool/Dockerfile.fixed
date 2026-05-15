@@ -104,7 +104,15 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
     PATH=/root/.local/bin:$PATH
 
 # README.md L43: uv tool install symfluence
-RUN uv tool install symfluence
+# GDAL Python bindings (`osgeo`) are required by GDALProcessor in setup_project,
+# but pyproject's `[gdal]` extra is `gdal>=3.6.0,<4.0.0` — uv resolves that to
+# the latest (3.13.0), which requires libgdal>=3.13 and won't build against
+# Debian's 3.6.2. `uv tool install --with` also doesn't persist into the tool
+# venv reliably. Install symfluence first, then inject gdal pinned to the apt
+# libgdal-dev version directly into the tool's interpreter.
+RUN uv tool install symfluence \
+ && uv pip install --python /root/.local/share/uv/tools/symfluence/bin/python \
+        "gdal==$(gdal-config --version)"
 
 # libboost-dev (1.74) is pulled in transitively (by libgdal-dev) and is needed
 # by some pip wheels at build time. After install, hide its headers so
