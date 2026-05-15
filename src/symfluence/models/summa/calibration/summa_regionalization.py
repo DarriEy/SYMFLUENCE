@@ -118,15 +118,15 @@ def load_hru_attributes(
     # --- Derive synthetic attributes if missing ----------------------------
     if 'precip_mm_yr' not in df.columns:
         # Placeholder – should be provided via CSV in production
-        logger.info("precip_mm_yr not available; using uniform placeholder (1000)")
+        logger.debug("precip_mm_yr not available; using uniform placeholder (1000)")
         df['precip_mm_yr'] = 1000.0
 
     if 'aridity' not in df.columns:
-        logger.info("aridity not available; using uniform placeholder (1.0)")
+        logger.debug("aridity not available; using uniform placeholder (1.0)")
         df['aridity'] = 1.0
 
     if 'snow_frac' not in df.columns:
-        logger.info("snow_frac not available; using uniform placeholder (0.3)")
+        logger.debug("snow_frac not available; using uniform placeholder (0.3)")
         df['snow_frac'] = 0.3
 
     if 'temp_C' not in df.columns and 'elev_m' in df.columns:

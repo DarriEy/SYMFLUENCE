@@ -556,7 +556,7 @@ class SUMMAParameterManager(BaseParameterManager):
         # Config-level overrides (highest priority)
         config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
         if config_bounds:
-            self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
+            self.logger.debug(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
             for param_name, limit_list in config_bounds.items():
                 if len(limit_list) >= 2:
                     bounds[param_name] = {'min': float(limit_list[0]), 'max': float(limit_list[1])}
