@@ -33,7 +33,7 @@ from symfluence.optimization.regionalization.strategies import (
 
 HYPE_LU_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
     'ttmp':  {'attribute': 'vegetation_height', 'calibrate_b': True},
-    'cmlt':  {'attribute': 'vegetation_height', 'calibrate_b': True},
+    'cmlt':  {'attribute': 'glacier_fraction',  'calibrate_b': True},
     'cevp':  {'attribute': 'lai',               'calibrate_b': True},
     'srrcs': {'attribute': 'root_depth',        'calibrate_b': True},
 }
@@ -51,23 +51,23 @@ HYPE_GLOBAL_PARAMS: List[str] = [
 ]
 
 _IGBP_ATTRIBUTES: Dict[int, Dict[str, float]] = {
-    1:  {'lai': 5.0, 'vegetation_height': 20.0, 'root_depth': 2.0},
-    2:  {'lai': 6.0, 'vegetation_height': 25.0, 'root_depth': 2.5},
-    3:  {'lai': 3.5, 'vegetation_height': 18.0, 'root_depth': 1.8},
-    4:  {'lai': 4.5, 'vegetation_height': 20.0, 'root_depth': 2.0},
-    5:  {'lai': 4.0, 'vegetation_height': 18.0, 'root_depth': 2.0},
-    6:  {'lai': 2.0, 'vegetation_height': 3.0,  'root_depth': 1.0},
-    7:  {'lai': 1.5, 'vegetation_height': 1.5,  'root_depth': 0.8},
-    8:  {'lai': 3.0, 'vegetation_height': 10.0, 'root_depth': 1.5},
-    9:  {'lai': 2.0, 'vegetation_height': 5.0,  'root_depth': 1.0},
-    10: {'lai': 2.5, 'vegetation_height': 0.5,  'root_depth': 0.8},
-    11: {'lai': 3.0, 'vegetation_height': 2.0,  'root_depth': 0.5},
-    12: {'lai': 3.5, 'vegetation_height': 1.0,  'root_depth': 0.8},
-    13: {'lai': 1.0, 'vegetation_height': 10.0, 'root_depth': 0.3},
-    14: {'lai': 3.0, 'vegetation_height': 5.0,  'root_depth': 1.0},
-    15: {'lai': 0.1, 'vegetation_height': 0.1,  'root_depth': 0.1},
-    16: {'lai': 0.5, 'vegetation_height': 0.2,  'root_depth': 0.3},
-    17: {'lai': 0.0, 'vegetation_height': 0.0,  'root_depth': 0.0},
+    1:  {'lai': 5.0, 'vegetation_height': 20.0, 'root_depth': 2.0, 'glacier_fraction': 0.0},
+    2:  {'lai': 6.0, 'vegetation_height': 25.0, 'root_depth': 2.5, 'glacier_fraction': 0.0},
+    3:  {'lai': 3.5, 'vegetation_height': 18.0, 'root_depth': 1.8, 'glacier_fraction': 0.0},
+    4:  {'lai': 4.5, 'vegetation_height': 20.0, 'root_depth': 2.0, 'glacier_fraction': 0.0},
+    5:  {'lai': 4.0, 'vegetation_height': 18.0, 'root_depth': 2.0, 'glacier_fraction': 0.0},
+    6:  {'lai': 2.0, 'vegetation_height': 3.0,  'root_depth': 1.0, 'glacier_fraction': 0.0},
+    7:  {'lai': 1.5, 'vegetation_height': 1.5,  'root_depth': 0.8, 'glacier_fraction': 0.0},
+    8:  {'lai': 3.0, 'vegetation_height': 10.0, 'root_depth': 1.5, 'glacier_fraction': 0.0},
+    9:  {'lai': 2.0, 'vegetation_height': 5.0,  'root_depth': 1.0, 'glacier_fraction': 0.0},
+    10: {'lai': 2.5, 'vegetation_height': 0.5,  'root_depth': 0.8, 'glacier_fraction': 0.0},
+    11: {'lai': 3.0, 'vegetation_height': 2.0,  'root_depth': 0.5, 'glacier_fraction': 0.0},
+    12: {'lai': 3.5, 'vegetation_height': 1.0,  'root_depth': 0.8, 'glacier_fraction': 0.0},
+    13: {'lai': 1.0, 'vegetation_height': 10.0, 'root_depth': 0.3, 'glacier_fraction': 0.0},
+    14: {'lai': 3.0, 'vegetation_height': 5.0,  'root_depth': 1.0, 'glacier_fraction': 0.0},
+    15: {'lai': 0.1, 'vegetation_height': 0.1,  'root_depth': 0.1, 'glacier_fraction': 1.0},
+    16: {'lai': 0.5, 'vegetation_height': 0.2,  'root_depth': 0.3, 'glacier_fraction': 0.0},
+    17: {'lai': 0.0, 'vegetation_height': 0.0,  'root_depth': 0.0, 'glacier_fraction': 0.0},
 }
 
 
