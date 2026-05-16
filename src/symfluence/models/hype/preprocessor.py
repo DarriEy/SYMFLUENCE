@@ -242,7 +242,10 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # domain subbasins and rivers - handle different delineation methods
         method_suffix = self._get_method_suffix()
-        self.subbasins_shapefile = str(self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{method_suffix}.shp')
+        # Prefer _with_coastal variant (includes all basins in the forcing)
+        coastal_shp = self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_with_coastal.shp'
+        default_shp = self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{method_suffix}.shp'
+        self.subbasins_shapefile = str(coastal_shp if coastal_shp.exists() else default_shp)
 
         # River network file might not always exist for lumped domains, fallback to river_basins if needed
         network_file = self.project_dir / 'shapefiles' / 'river_network' / f'{self.domain_name}_riverNetwork_{method_suffix}.shp'
@@ -371,11 +374,13 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _create_model_configs(self) -> None:
         """HYPE-specific configuration file creation (template hook)."""
-        # Get basin shapefile path
+        # Get basin shapefile path — prefer _with_coastal (all basins in forcing)
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
         method_suffix = self._get_method_suffix()
+        coastal_name = f"{self.domain_name}_riverBasins_with_coastal.shp"
         basin_name = f"{self.domain_name}_riverBasins_{method_suffix}.shp"
-        basin_path = basin_dir / basin_name
+        coastal_path = basin_dir / coastal_name
+        basin_path = coastal_path if coastal_path.exists() else basin_dir / basin_name
 
         # Fallback for legacy naming
         if not basin_path.exists() and self.domain_name == 'bow_banff_minimal':
