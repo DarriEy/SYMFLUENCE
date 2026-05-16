@@ -1090,6 +1090,8 @@ class BaseModelOptimizer(
         kwargs = {
             'log_initial_population': self.log_initial_population,
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
+            'results_dir': self.results_dir,
+            'experiment_id': self.experiment_id,
         }
 
         return callbacks, kwargs
