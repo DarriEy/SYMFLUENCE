@@ -1201,6 +1201,7 @@ src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort tracking path setup
 src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_individual_steps:except Exception as e:  # noqa: BLE001 — must-not-raise contract
