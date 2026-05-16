@@ -62,11 +62,7 @@ RANDOM_SEED: 42
 MPI_PROCESSES: 1
 FORCE_RUN_ALL_STEPS: true
 SKIP_WARM_START: true
-# Tighten bounds to avoid SUMMA SIGSEGV from extreme parameter combinations.
-# k_macropore lower bound raised above typical k_soil values to prevent
-# the hydraulic conductivity reset that destabilizes the solver.
+# Only constrain tempRangeTimestep (near-zero causes instability).
+# k_macropore >= k_soil enforced by parameter constraint in PM, not bounds.
 PARAMETER_BOUNDS:
-  k_soil: [1.0e-07, 5.0e-03]
-  k_macropore: [5.0e-03, 1.0e-02]
-  aquiferBaseflowRate: [1.0e-08, 1.0e-05]
-  tempRangeTimestep: [1.0, 5.0]
+  tempRangeTimestep: [0.5, 5.0]
