@@ -73,6 +73,7 @@ ideal 5× wall-clock speedup when using 5 or more parallel workers.
 
 import csv
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -575,13 +576,10 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                     per_step_state,
                     reflection_batch, reflection_fitness,
                     n_params, iteration, evaluate_population,
-                    log_evolution_batch=lambda complex_ids, batch, scores, stage: log_evolution_batch(
-                        complex_ids,
-                        batch,
-                        scores,
-                        stage,
-                        iteration,
-                        evolution_id,
+                    log_evolution_batch=partial(
+                        log_evolution_batch,
+                        shuffle_iteration=iteration,
+                        evolution_step=evolution_id,
                     ),
                 )
 
