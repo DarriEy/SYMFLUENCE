@@ -236,7 +236,6 @@ src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._r
 src/symfluence/data/model_ready/forcings_builder.py:ForcingsStoreBuilder._enrich_metadata:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/observations_builder.py:ObservationsNetCDFBuilder._read_timeseries_csv:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/store_builder.py:ModelReadyStoreBuilder._compute_climate_statistics:except Exception as e:  # noqa: BLE001
-src/symfluence/data/model_ready/store_builder.py:ModelReadyStoreBuilder._compute_climate_statistics:except Exception:  # noqa: BLE001
 src/symfluence/data/observation/base.py:BaseObservationHandler._open_dataset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/observation/base.py:BaseObservationHandler.safe_acquire:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/observation/base.py:BaseObservationHandler.safe_process:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -658,6 +657,8 @@ src/symfluence/models/fuse/calibration/model_execution.py:_log_fuse_diagnostics:
 src/symfluence/models/fuse/calibration/model_execution.py:_validate_fuse_output:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/model_execution.py:handle_fuse_output:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/model_execution.py:log_execution_directory:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/fuse/calibration/multi_gauge_metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/fuse/calibration/multi_gauge_metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/optimizer.py:FUSEModelOptimizer._add_elevation_params_to_constraints:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/optimizer.py:FUSEModelOptimizer._apply_best_parameters_for_final:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/optimizer.py:FUSEModelOptimizer._create_para_def_nc:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1067,9 +1068,6 @@ src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManag
 src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManager._update_soil_depths:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._apply_parameters_direct:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._calculate_metrics_direct:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._calculate_multi_gauge_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._calculate_multi_gauge_metrics:except Exception as exc:  # noqa: BLE001
-src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._ensure_gauge_mapping:except Exception as e:  # noqa: BLE001
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._run_summa_direct:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1202,8 +1200,6 @@ src/symfluence/models/wrfhydro/preprocessor.py:WRFHydroPreProcessor.run_preproce
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort tracking path setup
 src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
