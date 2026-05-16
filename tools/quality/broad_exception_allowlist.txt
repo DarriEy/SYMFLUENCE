@@ -764,6 +764,7 @@ src/symfluence/models/hype/config_manager.py:HYPEConfigManager.write_par_file:ex
 src/symfluence/models/hype/extractor.py:HYPEResultExtractor._extract_from_text:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/hype/forcing_processor.py:HYPEForcingProcessor._merge_forcing_files:except Exception as xe:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager._calculate_geometry_area:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager.create_geofiles:except Exception as e:  # noqa: BLE001
 src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager.sort_geodata:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager.sort_geodata:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/plotter.py:HYPEPlotter.plot_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
