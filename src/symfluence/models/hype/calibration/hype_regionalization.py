@@ -81,12 +81,9 @@ def load_lu_attributes(
     rows = []
     for lu_id in lu_ids:
         attrs = _IGBP_ATTRIBUTES.get(int(lu_id), _IGBP_ATTRIBUTES[16])
-        rows.append({
-            'lu_id': int(lu_id),
-            'lai': attrs['lai'],
-            'vegetation_height': attrs['vegetation_height'],
-            'root_depth': attrs['root_depth'],
-        })
+        row = {'lu_id': int(lu_id)}
+        row.update(attrs)
+        rows.append(row)
     df = pd.DataFrame(rows)
     logger.info(f"Loaded LU attributes: {len(df)} classes, IDs={list(lu_ids)}")
     return df, lu_ids
