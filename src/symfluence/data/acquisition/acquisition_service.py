@@ -476,7 +476,7 @@ class AcquisitionService(ConfigurableMixin):
                     self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
 
                 # --- Glacier task (optional, failure is non-fatal) ---
-                if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False):
+                if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False, dict_key='DOWNLOAD_GLACIER_DATA'):
                     attr_tasks.append(('glacier', downloader.download_glacier_data))
 
                 # Run attribute downloads concurrently
