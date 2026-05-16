@@ -197,11 +197,16 @@ class DataManager(BaseManager):
             if not domain_name or not data_dir:
                 return
             project_dir = Path(data_dir) / f"domain_{domain_name}"
-            from symfluence.models.fuse.calibration.multi_gauge_metrics import (
-                ensure_gauge_segment_mapping,
+            from symfluence.optimization.multi_gauge.gauge_mapping import (
+                ensure_gauge_mapping,
             )
-            ensure_gauge_segment_mapping(
-                project_dir, lamah_root, domain_name, self.logger,
+            ensure_gauge_mapping(
+                project_dir,
+                lamah_root,
+                domain_name,
+                output_subdir='mizuRoute',
+                output_filename='gauge_segment_mapping.csv',
+                logger=self.logger,
             )
         except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
             self.logger.warning(

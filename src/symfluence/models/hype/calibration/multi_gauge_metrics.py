@@ -5,7 +5,7 @@
 Multi-gauge calibration metrics for HYPE.
 
 Reuses the model-agnostic observation loading, quality filtering, and
-KGE aggregation from the FUSE MultiGaugeMetrics base class, overriding
+KGE aggregation from the shared MultiGaugeMetrics base class, overriding
 only the simulated-flow extraction to read HYPE's timeCOUT.txt format
 instead of mizuRoute NetCDF.
 """
@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from symfluence.models.fuse.calibration.multi_gauge_metrics import (
+from symfluence.optimization.multi_gauge.metrics import (
     MultiGaugeMetrics,
 )
 
@@ -117,68 +117,23 @@ def ensure_hype_gauge_mapping(
     domain_name: str,
     logger: logging.Logger,
 ) -> Optional[Path]:
-    """Generate gauge→subbasin mapping for HYPE at the canonical path.
+    """Generate gauge-to-subbasin mapping for HYPE at the canonical path.
 
     Mirrors :func:`ensure_gauge_segment_mapping` but writes to
     ``settings/HYPE/gauge_subbasin_mapping.csv``.  The underlying
-    spatial join is identical — HYPE subbasin IDs come from the
+    spatial join is identical -- HYPE subbasin IDs come from the
     ``GRU_ID`` column of the river-basins shapefile.
+
+    Delegates to :func:`symfluence.optimization.multi_gauge.gauge_mapping.ensure_gauge_mapping`.
     """
-    canonical = project_dir / 'settings' / 'HYPE' / 'gauge_subbasin_mapping.csv'
-    if canonical.exists():
-        return canonical
+    from symfluence.optimization.multi_gauge.gauge_mapping import ensure_gauge_mapping
 
-    gauges_shp = lamah_root / 'D_gauges' / '3_shapefiles' / 'gauges.shp'
-    basins_shp = (
-        project_dir / 'shapefiles' / 'river_basins'
-        / f"{domain_name}_riverBasins_semidistributed.shp"
+    return ensure_gauge_mapping(
+        project_dir,
+        lamah_root,
+        domain_name,
+        output_subdir='HYPE',
+        output_filename='gauge_subbasin_mapping.csv',
+        logger=logger,
+        prefer_coastal_basins=True,
     )
-    coastal_shp = (
-        project_dir / 'shapefiles' / 'river_basins'
-        / f"{domain_name}_riverBasins_with_coastal.shp"
-    )
-    # Prefer the version that includes coastal basins
-    if coastal_shp.exists():
-        basins_shp = coastal_shp
-
-    if not gauges_shp.exists() or not basins_shp.exists():
-        logger.warning(
-            "Cannot generate HYPE gauge mapping: missing "
-            f"gauges shapefile ({gauges_shp.exists()=}) or "
-            f"river basins shapefile ({basins_shp.exists()=})"
-        )
-        return None
-
-    try:
-        import geopandas as gpd
-    except ImportError:
-        logger.warning("geopandas unavailable; cannot auto-generate gauge mapping")
-        return None
-
-    logger.info(f"Auto-generating HYPE gauge→subbasin mapping at {canonical}")
-    gauges = gpd.read_file(gauges_shp).to_crs('EPSG:4326')
-    basins = gpd.read_file(basins_shp)
-    if basins.crs is None:
-        basins = basins.set_crs('EPSG:4326')
-    else:
-        basins = basins.to_crs('EPSG:4326')
-
-    seg_col = 'GRU_ID' if 'GRU_ID' in basins.columns else 'subid'
-    joined = gpd.sjoin_nearest(
-        gauges[['id', 'name', 'geometry']],
-        basins[[seg_col, 'geometry']],
-        how='left',
-        distance_col='distance_to_segment',
-    )
-    joined = joined.rename(columns={seg_col: 'nearest_segment'})
-
-    out = pd.DataFrame({
-        'id': joined['id'].astype(int),
-        'name': joined['name'],
-        'nearest_segment': joined['nearest_segment'].astype(int),
-        'distance_to_segment': joined['distance_to_segment'].astype(float),
-    })
-    canonical.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(canonical, index=False)
-    logger.info(f"Wrote {len(out)} gauge→subbasin rows to {canonical}")
-    return canonical
