@@ -83,6 +83,9 @@ _handler_modules = [
     'wokam',
     # NWM retrospective
     'nwm3_retrospective',
+    # CAMELS-SPAT profile handlers
+    'worldclim',
+    'glclu',
 ]
 
 for _module_name in _handler_modules:

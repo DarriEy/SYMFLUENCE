@@ -3027,6 +3027,12 @@ RIVER_NETWORK_SHP_SLOPE: "Slope"
 #   Usage:      3
 SOILGRIDS_LAYER: "wrb_0-5cm_mode"
 
+# ATTRIBUTE_PROFILE - 'core', 'camels_spat', or 'full' (all available attribute datasets)
+#   Type:        Literal['core', 'camels_spat', 'full']
+#   Default:     core
+#   Source:      DomainConfig (domain.py)
+ATTRIBUTE_PROFILE: "core"
+
 # SOILGRIDS_WCS_MAP
 #   Type:        str
 #   Default:     /map/wcs/soilgrids.map

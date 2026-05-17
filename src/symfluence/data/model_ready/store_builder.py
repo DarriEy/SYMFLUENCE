@@ -207,6 +207,27 @@ class ModelReadyStoreBuilder:
             except Exception:  # noqa: BLE001
                 logger.debug("Could not load elevation from shapefile")
 
+            # ── Enrich with glacier fraction from domain_type intersection ──
+            df['glacier_fraction'] = 0.0
+            try:
+                import geopandas as gpd
+
+                glacier_shp = (
+                    self.project_dir / 'shapefiles' / 'catchment_intersection'
+                    / 'with_domain_type' / 'catchment_with_domain_type.shp'
+                )
+                if glacier_shp.exists():
+                    gdf_gl = gpd.read_file(glacier_shp)
+                    # domType_2=clean accum, domType_3=clean ablation, domType_4=debris
+                    gl_cols = [c for c in gdf_gl.columns if c.startswith('domType_') and c != 'domType_1']
+                    if gl_cols and len(gdf_gl) == n_hru:
+                        df['glacier_fraction'] = gdf_gl[gl_cols].sum(axis=1).values
+                        logger.debug("Loaded glacier_fraction from %s (mean=%.3f)", glacier_shp, df['glacier_fraction'].mean())
+                    elif gl_cols:
+                        logger.debug("Glacier shapefile row count mismatch (%d vs %d HRUs)", len(gdf_gl), n_hru)
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not load glacier fraction")
+
             out_dir = self.project_dir / 'data' / 'attributes' / 'climate'
             out_dir.mkdir(parents=True, exist_ok=True)
             df.to_csv(out_dir / 'climate_statistics.csv', index=False)

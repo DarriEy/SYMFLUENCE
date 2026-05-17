@@ -1,0 +1,146 @@
+################################################################################
+#
+#  CAMELS-SPAT Attribute Acquisition — Bow at Banff (test domain)
+#
+#  Acquires geospatial attribute data matching the CAMELS-SPAT dataset
+#  (Knoben et al., 2025, HESS).  Uses the Bow at Banff catchment as a
+#  small test domain before scaling to continental North America.
+#
+#  CAMELS-SPAT uses 11 geospatial datasets across 5 categories.
+#  SYMFLUENCE supports 10 of 11 natively via ATTRIBUTE_PROFILE: camels_spat
+#  (LGRIP30 agriculture is not yet integrated).
+#
+#  The profile acquires:
+#    Core (always):  Copernicus DEM, SoilGrids WRB soil class, MODIS IGBP
+#    Extended:       WorldClim 2.1, SoilGrids properties (6 depths),
+#                    Pelletier soil/regolith depth, GLHYMPS hydrogeology,
+#                    HydroLAKES, MODIS LAI, GLAD forest height, GLCLU 2019
+#
+#  Workflow:
+#    symfluence workflow step setup_project -c <this_file>
+#    symfluence workflow step acquire_attributes
+#
+#  To scale to full North America, change:
+#    DOMAIN_NAME: CAMELS_SPAT_North_America
+#    BOUNDING_BOX_COORDS: 66.0/-141.0/24.0/-52.0
+#    DOMAIN_DEFINITION_METHOD: distributed
+#    GRID_SOURCE: native
+#    NATIVE_GRID_DATASET: era5
+#    (~170 GB of data)
+#
+################################################################################
+
+
+# =============================================================================
+# 1. System Settings
+# =============================================================================
+
+SYMFLUENCE_DATA_DIR: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: /Users/darri.eythorsson/compHydro/SYMFLUENCE
+NUM_PROCESSES: 1
+DEBUG_MODE: false
+LOG_LEVEL: INFO
+LOG_TO_FILE: true
+LOG_FORMAT: detailed
+FORCE_RUN_ALL_STEPS: false
+USE_LOCAL_SCRATCH: false
+STOP_ON_ERROR: true
+RECORD_PROVENANCE: true
+
+
+# =============================================================================
+# 2. Domain Definition — Bow at Banff (test domain)
+# =============================================================================
+
+DOMAIN_NAME: Bow_at_Banff_camels_spat
+EXPERIMENT_ID: camels_spat_attributes
+DOMAIN_DEFINITION_METHOD: lumped
+SUB_GRID_DISCRETIZATION: GRUs
+POUR_POINT_COORDS: 51.1722/-115.5717
+BOUNDING_BOX_COORDS: 51.76/-116.55/50.95/-115.5
+
+EXPERIMENT_TIME_START: 2000-01-01 01:00
+EXPERIMENT_TIME_END: 2020-12-31 23:00
+
+
+# =============================================================================
+# 3. Attribute Acquisition
+# =============================================================================
+
+DATA_ACCESS: cloud
+FORCE_DOWNLOAD: false
+MAX_ACQUISITION_WORKERS: 3
+
+# --- Attribute profile ---
+# 'core'        = DEM + soil class + land cover only (default)
+# 'camels_spat' = core + WorldClim + SoilGrids properties + Pelletier +
+#                 GLHYMPS + HydroLAKES + MODIS LAI + forest height + GLCLU
+ATTRIBUTE_PROFILE: camels_spat
+
+# --- Core datasets (always acquired) ---
+DOWNLOAD_DEM: true
+DEM_SOURCE: copdem90
+DOWNLOAD_SOIL: true
+SOILGRIDS_LAYER: wrb_0-5cm_mode
+DOWNLOAD_LAND_COVER: true
+LAND_CLASS_SOURCE: modis
+
+# --- Individual overrides (uncomment to skip specific datasets) ---
+# DOWNLOAD_WORLDCLIM: false
+# DOWNLOAD_SOILGRIDS_PROPERTIES: false
+# DOWNLOAD_PELLETIER: false
+# DOWNLOAD_GLHYMPS: false
+# DOWNLOAD_HYDROLAKES: false
+# DOWNLOAD_MODIS_LAI: false
+# DOWNLOAD_FOREST_HEIGHT: false
+# DOWNLOAD_GLCLU: false
+
+
+# =============================================================================
+# 4. Attribute Data Paths (default = standard project layout)
+# =============================================================================
+
+ATTRIBUTES_DATA_DIR: default
+ATTRIBUTES_OUTPUT_DIR: default
+ATTRIBUTES_WORLDCLIM_PATH: default
+ATTRIBUTES_SOILGRIDS_PATH: default
+ATTRIBUTES_PELLETIER_PATH: default
+ATTRIBUTES_MERIT_PATH: default
+ATTRIBUTES_MODIS_PATH: default
+ATTRIBUTES_GLCLU_PATH: default
+ATTRIBUTES_FOREST_HEIGHT_PATH: default
+ATTRIBUTES_GLIM_PATH: default
+ATTRIBUTES_HYDROLAKES_PATH: default
+
+
+# =============================================================================
+# 5. Processing
+# =============================================================================
+
+DEM_CONDITIONING_METHOD: none
+BUILD_MODEL_READY_STORE: true
+MODEL_READY_FORCING_STRATEGY: symlink
+
+
+# =============================================================================
+# 6. Forcing (minimal — for framework compatibility)
+# =============================================================================
+
+FORCING_DATASET: ERA5
+
+
+# =============================================================================
+# 7. Observation & Evaluation (disabled — attributes only)
+# =============================================================================
+
+DOWNLOAD_USGS_DATA: false
+DOWNLOAD_WSC_DATA: false
+DOWNLOAD_ISMN: false
+DOWNLOAD_GRACE: false
+DOWNLOAD_MODIS_SNOW: false
+DOWNLOAD_MODIS_ET: false
+DOWNLOAD_FLUXNET: false
+DOWNLOAD_SNOTEL: false
+DOWNLOAD_GLACIER_DATA: false
+DOWNLOAD_LAMAH_ICE_DATA: false
+DOWNLOAD_SMAP: false
