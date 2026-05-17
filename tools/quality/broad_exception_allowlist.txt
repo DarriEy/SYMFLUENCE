@@ -233,6 +233,7 @@ src/symfluence/data/data_manager.py:DataManager._ensure_gauge_segment_mapping:ex
 src/symfluence/data/data_manager.py:DataManager._ensure_multi_gauge_dataset_present:except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
 src/symfluence/data/data_manager.py:DataManager.process_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_climate_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_csv_group:except Exception as e:  # noqa: BLE001
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hru_identity_group:except Exception:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hydrogeology_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._read_shapefile:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -316,11 +317,13 @@ src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.acquire:
 src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.get_processed_data:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.process:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processor.py:attributeProcessor.process_attributes:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/data/preprocessing/attribute_processor.py:attributeProcessor.process_profile_attributes:except Exception as e:  # noqa: BLE001
 src/symfluence/data/preprocessing/attribute_processors/elevation.py:ElevationProcessor.generate_slope_and_aspect:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/preprocessing/attribute_processors/elevation.py:ElevationProcessor.process:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyProcessor.calculate_baseflow_attributes:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyProcessor.calculate_streamflow_signatures:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyProcessor.calculate_water_balance:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/preprocessing/attribute_processors/landcover.py:LandCoverProcessor._process_lai_from_netcdf:except Exception as e:  # noqa: BLE001
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._check_and_set_nodata_value:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._read_scale_and_offset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/dataset_alignment_manager.py:DatasetAlignmentManager._align_single_dataset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
