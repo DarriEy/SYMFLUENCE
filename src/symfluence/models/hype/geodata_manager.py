@@ -227,6 +227,27 @@ class HYPEGeoDataManager:
 
         base_df['elev_mean'] = base_df['subid'].apply(get_elevation)
 
+        # Load glacier fraction from domain_type intersection shapefile
+        glacier_shp = None
+        if intersect_base_path:
+            glacier_shp = Path(intersect_base_path).parent / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp is None or not glacier_shp.exists():
+            glacier_shp = Path(str(subbasins_shapefile)).parents[1] / 'catchment_intersection' / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp.exists():
+            try:
+                gl_gdf = gpd.read_file(glacier_shp)
+                gl_cols = [c for c in gl_gdf.columns if c.startswith('domType_') and c != 'domType_1']
+                if gl_cols:
+                    gl_frac = gl_gdf[gl_cols].sum(axis=1).values
+                    if len(gl_frac) == len(cat):
+                        gl_map = dict(zip(cat[basin_id_col].values, gl_frac))
+                        base_df['glacier_fraction'] = base_df['subid'].map(gl_map).fillna(0.0)
+                        self.logger.debug("Loaded glacier_fraction for %d sub-basins (mean=%.3f)", len(base_df), base_df['glacier_fraction'].mean())
+            except Exception as e:  # noqa: BLE001
+                self.logger.debug("Could not load glacier fraction: %s", e)
+        if 'glacier_fraction' not in base_df.columns:
+            base_df['glacier_fraction'] = 0.0
+
         # Normalize SLC fractions
         slc_cols = [col for col in base_df.columns if col.startswith('SLC_')]
         if slc_cols:
