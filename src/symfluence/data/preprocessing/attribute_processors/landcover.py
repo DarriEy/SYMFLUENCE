@@ -62,14 +62,23 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        # Define path to GLCLU2019 data (configurable via GLCLU2019_DIR)
-        glclu_path = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'glclu2019' / 'raw'), dict_key='GLCLU2019_DIR')
-        )
-        main_tif = glclu_path / "glclu2019_map.tif"
+        # Define path to GLCLU data (configurable via GLCLU2019_DIR)
+        glclu_path = Path(self._get_config_value(
+            lambda: None,
+            default=str(self.project_dir / 'data' / 'attributes' / 'landclass' / 'glclu'),
+            dict_key='GLCLU2019_DIR',
+        ))
 
-        # Check if file exists
-        if not main_tif.exists():
-            self.logger.warning(f"GLCLU2019 file not found: {main_tif}")
+        # Find GLCLU raster: acquisition naming or legacy
+        main_tif = None
+        for pattern in ("*glclu*.tif", "glclu2019_map.tif"):
+            matches = list(glclu_path.glob(pattern)) if glclu_path.exists() else []
+            if matches:
+                main_tif = matches[0]
+                break
+
+        if main_tif is None:
+            self.logger.warning(f"GLCLU file not found in {glclu_path}")
             return results
 
         # Create cache directory
@@ -205,19 +214,29 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results: Dict[str, Any] = {}
 
-        # Configurable via LAI_DIR
-        lai_path = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'lai' / 'monthly_average_2013_2023'), dict_key='LAI_DIR')
-        )
+        # Configurable via LAI_DIR — check acquisition output first
+        lai_path = Path(self._get_config_value(
+            lambda: None,
+            default=str(self.project_dir / 'data' / 'attributes' / 'vegetation' / 'modis_lai'),
+            dict_key='LAI_DIR',
+        ))
         use_water_mask = self._get_config_value(lambda: None, default=True, dict_key='USE_WATER_MASKED_LAI')
 
-        lai_folder = lai_path / ('monthly_lai_with_water_mask' if use_water_mask else 'monthly_lai_no_water_mask')
+        # Try acquisition NetCDF first, then legacy monthly TIF folders
+        lai_nc = list(lai_path.glob("*MODIS_LAI*.nc")) if lai_path.exists() else []
+        if lai_nc:
+            return self._process_lai_from_netcdf(lai_nc[0])
 
+        lai_folder = lai_path / ('monthly_lai_with_water_mask' if use_water_mask else 'monthly_lai_no_water_mask')
         if not lai_folder.exists():
-            # Try alternative
             lai_folder = lai_path / ('monthly_lai_no_water_mask' if use_water_mask else 'monthly_lai_with_water_mask')
             if not lai_folder.exists():
-                self.logger.warning("LAI folder not found")
-                return results
+                # Also try legacy path
+                legacy = self.data_dir / 'geospatial' / 'lai' / 'monthly_average_2013_2023'
+                lai_folder = legacy / ('monthly_lai_with_water_mask' if use_water_mask else 'monthly_lai_no_water_mask')
+                if not lai_folder.exists():
+                    self.logger.warning("LAI folder not found")
+                    return results
 
         # Cache
         cache_dir = self.project_dir / 'cache' / 'lai'
@@ -308,6 +327,34 @@ class LandCoverProcessor(BaseAttributeProcessor):
 
         return results
 
+    def _process_lai_from_netcdf(self, nc_path) -> Dict[str, Any]:
+        """Process LAI from acquisition NetCDF (MODIS MCD15A2H)."""
+        results: Dict[str, Any] = {}
+        try:
+            import xarray as xr
+            ds = xr.open_dataset(nc_path)
+            if 'lai_mean' in ds:
+                lai = ds['lai_mean'].values
+                results['vegetation.lai_annual_mean'] = float(np.nanmean(lai))
+                results['vegetation.lai_annual_min'] = float(np.nanmin(lai))
+                results['vegetation.lai_annual_max'] = float(np.nanmax(lai))
+                results['vegetation.lai_seasonal_amplitude'] = float(
+                    np.nanmax(lai) - np.nanmin(lai)
+                )
+            elif 'Lai_500m' in ds:
+                lai = ds['Lai_500m'].values
+                results['vegetation.lai_annual_mean'] = float(np.nanmean(lai))
+                results['vegetation.lai_annual_min'] = float(np.nanmin(lai))
+                results['vegetation.lai_annual_max'] = float(np.nanmax(lai))
+                results['vegetation.lai_seasonal_amplitude'] = float(
+                    np.nanmax(lai) - np.nanmin(lai)
+                )
+            ds.close()
+            self.logger.info(f"Processed LAI from NetCDF: {nc_path.name}")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"Error processing LAI NetCDF: {e}")
+        return results
+
     def _process_forest_height(self) -> Dict[str, Any]:
         """
         Process forest height data.
@@ -317,13 +364,32 @@ class LandCoverProcessor(BaseAttributeProcessor):
         """
         results = {}
 
-        # Configurable via FOREST_HEIGHT_DIR
-        forest_dir = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'forest_height' / 'raw'), dict_key='FOREST_HEIGHT_DIR')
-        )
-        forest_files = {
-            "2000": forest_dir / "forest_height_2000.tif",
-            "2020": forest_dir / "forest_height_2020.tif"
-        }
+        # Check acquisition output first, then legacy path
+        acq_dir = self.project_dir / 'data' / 'attributes' / 'vegetation' / 'canopy_height' / 'glad'
+        forest_dir = Path(self._get_config_value(
+            lambda: None,
+            default=str(acq_dir),
+            dict_key='FOREST_HEIGHT_DIR',
+        ))
+
+        # Find forest height files — acquisition naming or legacy
+        forest_files = {}
+        if forest_dir.exists():
+            for tif in forest_dir.glob("*.tif"):
+                if 'tree_height' in tif.name or 'treecover' in tif.name:
+                    forest_files['acquired'] = tif
+                    break
+                elif 'forest_height_2020' in tif.name:
+                    forest_files['2020'] = tif
+                elif 'forest_height_2000' in tif.name:
+                    forest_files['2000'] = tif
+
+        if not forest_files:
+            legacy_dir = self.data_dir / 'geospatial' / 'forest_height' / 'raw'
+            if (legacy_dir / 'forest_height_2020.tif').exists():
+                forest_files['2020'] = legacy_dir / 'forest_height_2020.tif'
+            if (legacy_dir / 'forest_height_2000.tif').exists():
+                forest_files['2000'] = legacy_dir / 'forest_height_2000.tif'
 
         # Cache
         cache_dir = self.project_dir / 'cache' / 'forest_height'

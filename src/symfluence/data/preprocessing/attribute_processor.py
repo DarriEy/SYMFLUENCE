@@ -192,3 +192,54 @@ class attributeProcessor(ConfigMixin):
         except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"Error in attribute processing: {str(e)}")
             raise
+
+    def process_profile_attributes(self, profile_name: str = 'core'):
+        """Run attribute processors enabled by the given profile.
+
+        Writes results as CSVs to ``data/attributes/{category}/`` for
+        each processor category.  The ``AttributesNetCDFBuilder`` picks
+        up these CSVs during ``build_model_ready_store``.
+
+        Parameters
+        ----------
+        profile_name : str
+            One of 'core', 'camels_spat', 'full'.
+        """
+        from symfluence.core.mixins.project import resolve_data_subdir
+
+        _PROFILE_CATEGORIES = {
+            'core': [],
+            'camels_spat': ['climate', 'soil', 'geology', 'landcover'],
+            'full': ['climate', 'soil', 'geology', 'landcover', 'hydrology'],
+        }
+
+        categories = _PROFILE_CATEGORIES.get(profile_name, [])
+        if not categories:
+            return
+
+        self.logger.info(
+            f"Processing extended attributes (profile: {profile_name}, "
+            f"categories: {categories})"
+        )
+
+        attrs_dir = resolve_data_subdir(self.project_dir, 'attributes')
+
+        _PROCESSOR_MAP = {
+            'climate': (self.climate, attrs_dir / 'climate', 'worldclim_attributes.csv'),
+            'soil': (self.soil, attrs_dir / 'soilclass', 'soil_extended_attributes.csv'),
+            'geology': (self.geology, attrs_dir / 'geology', 'glhymps_attributes.csv'),
+            'landcover': (self.landcover, attrs_dir / 'landclass', 'landcover_extended_attributes.csv'),
+            'hydrology': (self.hydrology, attrs_dir / 'hydrology', 'hydrology_attributes.csv'),
+        }
+
+        for cat in categories:
+            processor, out_dir, filename = _PROCESSOR_MAP[cat]
+            try:
+                self.logger.info(f"Processing {cat} attributes")
+                results = processor.process()
+                if results:
+                    processor._write_results_csv(results, out_dir, filename)
+                else:
+                    self.logger.info(f"No {cat} attributes produced (data may not be available)")
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"{cat} attribute processing failed (non-fatal): {e}")

@@ -37,7 +37,7 @@ class ClimateProcessor(BaseAttributeProcessor):
         results: Dict[str, Any] = {}
 
         # Find WorldClim data path
-        worldclim_path = self._get_data_path('ATTRIBUTES_WORLDCLIM_PATH', 'worldclim')
+        worldclim_path = self._get_data_path('ATTRIBUTES_WORLDCLIM_PATH', 'data/attributes/climate/worldclim')
 
         if not worldclim_path.exists():
             self.logger.warning(f"WorldClim path not found: {worldclim_path}")
@@ -98,16 +98,13 @@ class ClimateProcessor(BaseAttributeProcessor):
 
         # Process each climate variable
         for var, var_info in raw_variables.items():
-            var_path = worldclim_path / 'raw' / var
-
-            if not var_path.exists():
-                self.logger.warning(f"WorldClim {var} directory not found: {var_path}")
-                continue
-
             self.logger.info(f"Processing WorldClim {var_info['description']} ({var})")
 
-            # Find all monthly files for this variable
-            monthly_files = sorted(var_path.glob(f"wc2.1_30s_{var}_*.tif"))
+            # Search for monthly files: flat layout (acquisition) or nested (legacy)
+            monthly_files = sorted(worldclim_path.glob(f"wc2.1_30s_{var}_*.tif"))
+            if not monthly_files:
+                var_path = worldclim_path / 'raw' / var
+                monthly_files = sorted(var_path.glob(f"wc2.1_30s_{var}_*.tif"))
 
             if not monthly_files:
                 self.logger.warning(f"No {var} files found in {var_path}")
