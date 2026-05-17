@@ -126,6 +126,7 @@ from symfluence.core.mixins import ConfigurableMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.data.acquisition.maf_pipeline import datatoolRunner, gistoolRunner
+from symfluence.data.acquisition.registry import AcquisitionRegistry
 from symfluence.data.cache import RawForcingCache
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
@@ -513,6 +514,8 @@ class AcquisitionService(ConfigurableMixin):
                 self.logger.error(f"Error during cloud attribute acquisition: {e}")
                 raise
 
+            self._acquire_profile_datasets()
+
         else:
             self.logger.info("Using traditional MAF attribute acquisition workflow")
             gr = gistoolRunner(self.config, self.logger)
@@ -551,6 +554,90 @@ class AcquisitionService(ConfigurableMixin):
             except (ImportError, AttributeError, IndexError) as e:
                 self.logger.error(f"Error during attribute acquisition: {e}")
                 raise
+
+            self._acquire_profile_datasets()
+
+    def _acquire_profile_datasets(self):
+        """Acquire extended datasets based on ATTRIBUTE_PROFILE config.
+
+        Reads the profile name from config and downloads all datasets
+        listed in the profile that haven't been individually disabled
+        via DOWNLOAD_* override flags.  Failures are non-fatal by
+        default (warns and continues).
+        """
+        from symfluence.data.acquisition.attribute_profiles import PROFILES
+
+        profile_name = self._get_config_value(
+            lambda: self.config.domain.attribute_profile,
+            default='core',
+            dict_key='ATTRIBUTE_PROFILE',
+        )
+        if isinstance(profile_name, str):
+            profile_name = profile_name.lower().strip()
+
+        profile_datasets = PROFILES.get(profile_name, [])
+        if not profile_datasets:
+            return
+
+        self.logger.info(
+            f"Attribute profile '{profile_name}': "
+            f"{len(profile_datasets)} extended datasets to acquire"
+        )
+
+        tasks: List[Tuple[str, Callable]] = []
+        for ds in profile_datasets:
+            if ds.config_override_key:
+                override = self._get_config_value(
+                    lambda: None,
+                    default=True,
+                    dict_key=ds.config_override_key,
+                )
+                if isinstance(override, str):
+                    override = override.lower() not in ('false', '0', 'no')
+                if not override:
+                    self.logger.info(
+                        f"Skipping {ds.description} "
+                        f"({ds.config_override_key} is False)"
+                    )
+                    continue
+
+            def _make_task(dataset=ds):
+                handler = AcquisitionRegistry.get_handler(
+                    dataset.handler_name, self.config, self.logger,
+                )
+                out_dir = (
+                    resolve_data_subdir(self.project_dir, 'attributes')
+                    / dataset.output_subdir
+                )
+                out_dir.mkdir(parents=True, exist_ok=True)
+                return handler.download(out_dir)
+
+            tasks.append((ds.description, _make_task))
+
+        if not tasks:
+            return
+
+        results = self._run_parallel_tasks(
+            tasks, desc=f"Acquiring '{profile_name}' profile datasets",
+        )
+
+        for name, result in results.items():
+            if isinstance(result, Exception):
+                ds_info = next(
+                    (d for d in profile_datasets if d.description == name),
+                    None,
+                )
+                if ds_info and ds_info.fatal:
+                    self.logger.error(
+                        f"Required profile dataset failed: {name}: {result}"
+                    )
+                    raise result
+                self.logger.warning(
+                    f"Optional profile dataset failed (non-fatal): "
+                    f"{name}: {result}"
+                )
+            else:
+                self.logger.info(f"Profile dataset acquired: {name}")
 
     def _acquire_elevation_data(self, gistool_runner, output_dir: Path, lat_lims: str, lon_lims: str):
         self.logger.info("Acquiring elevation data")

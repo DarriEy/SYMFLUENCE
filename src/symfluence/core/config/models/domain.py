@@ -169,6 +169,24 @@ class DomainConfig(BaseModel):
     land_class_name: str = Field(default='default', alias='LAND_CLASS_NAME')
     soilgrids_layer: str = Field(default='wrb_0-5cm_mode', alias='SOILGRIDS_LAYER')
 
+    # Attribute acquisition profile ('core' or 'camels_spat')
+    attribute_profile: str = Field(default='core', alias='ATTRIBUTE_PROFILE')
+
+    @field_validator('attribute_profile', mode='before')
+    @classmethod
+    def normalize_attribute_profile(cls, v):
+        """Validate attribute profile name."""
+        if not isinstance(v, str):
+            return v
+        v = v.lower().strip()
+        from symfluence.data.acquisition.attribute_profiles import PROFILES
+        if v not in PROFILES:
+            valid = ', '.join(sorted(PROFILES.keys()))
+            raise ValueError(
+                f"ATTRIBUTE_PROFILE must be one of [{valid}], got '{v}'"
+            )
+        return v
+
     @field_validator('min_gru_size', 'min_hru_size', 'elevation_band_size')
     @classmethod
     def validate_positive_thresholds(cls, v, info):

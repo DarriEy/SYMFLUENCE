@@ -147,7 +147,8 @@ src/symfluence/data/acquisition/handlers/gldas_tws.py:GLDASAcquirer.download:exc
 src/symfluence/data/acquisition/handlers/gleam_et.py:GLEAMETAcquirer._download_via_sftp:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/gleam_et.py:GLEAMETAcquirer._download_via_sftp:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/gleam_et.py:GLEAMETAcquirer._download_via_sftp:except Exception:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/acquisition/handlers/glhymps.py:GLHYMPSAcquirer._get_global_shapefile:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/glhymps.py:GLHYMPSAcquirer._get_global_shapefile:except Exception as e:  # noqa: BLE001
+src/symfluence/data/acquisition/handlers/glhymps.py:GLHYMPSAcquirer._get_global_shapefile:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/globsnow.py:GlobSnowAcquirer._download_daily_file:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/globsnow.py:GlobSnowAcquirer._download_daily_file:except Exception:  # noqa: BLE001 — NSIDC fallback resilience
 src/symfluence/data/acquisition/handlers/globsnow.py:GlobSnowAcquirer._reproject_ease_to_wgs84:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -194,6 +195,7 @@ src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._download_ftp:ex
 src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._download_http:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/nex_gddp.py:NEXGDDPCHandler.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/openet.py:OpenETAcquirer._request_timeseries:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer._create_earthdata_session:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/polaris.py:POLARISAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/rdrs.py:RDRSAcquirer._download_http:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -220,6 +222,7 @@ src/symfluence/data/acquisition/handlers/viirs_snow.py:VIIRSSnowAcquirer._submit
 src/symfluence/data/acquisition/handlers/viirs_snow.py:VIIRSSnowAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/wokam.py:WOKAMAcquirer._get_global_shapefile:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/wokam.py:WOKAMAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/worldclim.py:WorldClimAcquirer.download:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/maf_pipeline.py:datatoolRunner.execute_datatool_command:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/acquisition/utils.py:resolve_credentials:except Exception as e:  # noqa: BLE001 — .netrc fallback is non-critical
 src/symfluence/data/acquisition/zonal_stats_processor.py:DataPreProcessor.calculate_land_stats:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
