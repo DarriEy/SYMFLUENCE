@@ -142,6 +142,7 @@ def _make_service(profile='core', overrides=None):
     mock_config.domain.name = 'test_domain'
     mock_config.system.data_dir = '/tmp/test'
     mock_config.domain.bounding_box_coords = '51.76/-116.55/50.95/-115.5'
+    mock_config.data.max_acquisition_workers = 1
 
     logger = logging.getLogger('test_profiles')
     logger.setLevel(logging.DEBUG)
