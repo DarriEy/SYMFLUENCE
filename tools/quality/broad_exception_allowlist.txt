@@ -139,6 +139,7 @@ src/symfluence/data/acquisition/handlers/fluxnet.py:FLUXNETAcquirer._get_site_da
 src/symfluence/data/acquisition/handlers/fluxnet.py:FLUXNETAcquirer._load_local_data:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/fluxnet.py:FLUXNETAcquirer._wait_for_download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/glacier.py:GlacierAcquirer._create_intersection_shapefiles:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/glacier.py:GlacierAcquirer._create_nsidc_session:except Exception:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/glacier.py:GlacierAcquirer._download_from_alternative:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/glacier.py:GlacierAcquirer._download_from_glims_wfs:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/glacier.py:GlacierAcquirer._download_rgi_regions:except Exception as e:  # noqa: BLE001 — preprocessing resilience
