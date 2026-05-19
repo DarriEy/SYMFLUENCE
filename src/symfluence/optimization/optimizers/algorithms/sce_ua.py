@@ -486,6 +486,11 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
             log_initial_population: Optional callback after initial population.
             **kwargs: Accepts 'results_dir' (Path) and 'experiment_id' (str)
                       injected by BaseModelOptimizer for CSV tracking.
+            evaluate_solution: Single-solution callback (not used internally;
+                               present for interface compatibility).
+            evaluate_population: Batch evaluation callback.
+                                  Signature: (population, iteration) -> scores.
+            denormalize_params: Convert normalised params to a human-readable dict.
 
         Returns:
             dict with keys:
@@ -845,15 +850,24 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 reflection_fitness = evaluate_population(reflection_batch, iteration)
 
                 # Accept reflections / fall back to contraction / random (all batched).
+                # The lambda captures iteration and evolution_id as default arguments
+                # to avoid the late-binding closure issue: without the defaults, all
+                # lambda calls would see the values of iteration/evolution_id from the
+                # LAST loop iteration rather than the one that created the lambda.
+                _it = iteration
+                _eid = evolution_id
                 self._apply_cce_step(
                     sub_complexes, sub_fitnesses,
                     per_step_state,
                     reflection_batch, reflection_fitness,
-                    n_params, iteration, evolution_id, evaluate_population,
-                    log_evolution_batch=partial(
-                        log_evolution_batch,
-                        shuffle_iteration=iteration,
-                        evolution_step=evolution_id,
+                    n_params, iteration, evaluate_population,
+                    log_evolution_batch=lambda complex_ids, batch, scores, stage: log_evolution_batch(
+                        complex_ids,
+                        batch,
+                        scores,
+                        stage,
+                        iteration,
+                        evolution_id,
                     ),
                     log_complex_batch=partial(
                         log_complex_batch,
