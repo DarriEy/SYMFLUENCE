@@ -228,6 +228,9 @@ class NgenParameterManager(BaseParameterManager):
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
 
+        # Normalize hyphenated module names (SNOW-17 -> SNOW17, SAC-SMA -> SACSMA, NOAH-OWP -> NOAH)
+        modules = [m.replace('-', '') for m in modules]
+
         # Validate modules (filter invalid ones without mutating during iteration)
         valid_modules = ['CFE', 'NOAH', 'PET', 'TOPMODEL', 'SACSMA', 'SNOW17']
         validated = []
