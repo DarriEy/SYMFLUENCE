@@ -6,7 +6,7 @@
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from .base import FROZEN_CONFIG
 from .model_config_types import SpatialModeType
@@ -184,11 +184,21 @@ class NGENConfig(BaseModel):
         default='UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE',
         alias='NGEN_SACSMA_PARAMS_TO_CALIBRATE'
     )
+    snow17_params_to_calibrate: str = Field(
+        default='SCF,MFMAX,MFMIN,TIPM,PLWHC',
+        alias='NGEN_SNOW-17_PARAMS_TO_CALIBRATE',
+        validation_alias=AliasChoices(
+            'snow-17_params_to_calibrate',
+            'NGEN_SNOW-17_PARAMS_TO_CALIBRATE',
+            'NGEN_SNOW17_PARAMS_TO_CALIBRATE',
+        ),
+    )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
     # Parameter bounds overrides (per-module)
     cfe_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_CFE_PARAM_BOUNDS')
     noah_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_NOAH_PARAM_BOUNDS')
     pet_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_PET_PARAM_BOUNDS')
+    snow17_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_SNOW17_PARAM_BOUNDS')
     # Module selection (replaces individual ENABLE_* flags)
     modules_selected: str = Field(default='SLOTH,PET,CFE', alias='NGEN_MODULES_SELECTED')
     noah_et_fallback: str = Field(default='ETRAN', alias='NGEN_NOAH_ET_FALLBACK')
