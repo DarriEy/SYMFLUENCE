@@ -860,14 +860,11 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                     sub_complexes, sub_fitnesses,
                     per_step_state,
                     reflection_batch, reflection_fitness,
-                    n_params, iteration, evaluate_population,
-                    log_evolution_batch=lambda complex_ids, batch, scores, stage: log_evolution_batch(
-                        complex_ids,
-                        batch,
-                        scores,
-                        stage,
-                        iteration,
-                        evolution_id,
+                    n_params, iteration, evolution_id, evaluate_population,
+                    log_evolution_batch=partial(
+                        log_evolution_batch,
+                        shuffle_iteration=iteration,
+                        evolution_step=evolution_id,
                     ),
                     log_complex_batch=partial(
                         log_complex_batch,
