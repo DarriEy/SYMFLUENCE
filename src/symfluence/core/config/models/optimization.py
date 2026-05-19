@@ -73,7 +73,7 @@ class SCEUAConfig(BaseModel):
 
     number_of_complexes: int = Field(default=2, alias='NUMBER_OF_COMPLEXES')
     points_per_subcomplex: int = Field(default=5, alias='POINTS_PER_SUBCOMPLEX')
-    number_of_evolution_steps: int = Field(default=20, alias='NUMBER_OF_EVOLUTION_STEPS')
+    number_of_evolution_steps: Optional[int] = Field(default=None, alias='NUMBER_OF_EVOLUTION_STEPS')
     evolution_stagnation: int = Field(default=5, alias='EVOLUTION_STAGNATION')
     percent_change_threshold: float = Field(default=0.01, alias='PERCENT_CHANGE_THRESHOLD')
 
