@@ -62,8 +62,11 @@ class SoilProcessor(BaseAttributeProcessor):
         results = {}
 
         # Define paths to SOILGRIDS data (configurable via SOILGRIDS_DIR)
-        soilgrids_dir = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'soilgrids' / 'raw'), dict_key='SOILGRIDS_DIR')
-        )
+        soilgrids_dir = Path(self._get_config_value(
+            lambda: None,
+            default=str(self.project_dir / 'data' / 'attributes' / 'soilclass' / 'soilgrids'),
+            dict_key='SOILGRIDS_DIR',
+        ))
 
         # Define soil components and depths to process
         components = ['clay', 'sand', 'silt']
@@ -73,12 +76,12 @@ class SoilProcessor(BaseAttributeProcessor):
         # Process each soil component at each depth
         for component in components:
             for depth in depths:
-                # Define file path for mean values
-                tif_path = soilgrids_dir / component / f"{component}_{depth}_mean.tif"
+                # Try acquisition naming first, then legacy nested layout
+                tif_path = self._find_soilgrids_file(
+                    soilgrids_dir, component, depth
+                )
 
-                # Skip if file doesn't exist
-                if not tif_path.exists():
-                    self.logger.warning(f"Soil component file not found: {tif_path}")
+                if tif_path is None:
                     continue
 
                 self.logger.info(f"Processing soil {component} at depth {depth}")
@@ -132,6 +135,54 @@ class SoilProcessor(BaseAttributeProcessor):
         self._calculate_usda_texture_classes(results)
 
         return results
+
+    def _find_pelletier_file(
+        self, pelletier_dir: Path, attr_key: str
+    ) -> Optional[Path]:
+        """Find a Pelletier TIF file, checking acquisition and legacy naming."""
+        # Acquisition naming: domain_{name}_pelletier_{attr_key}.tif
+        matches = list(pelletier_dir.glob(f"*pelletier_{attr_key}.tif"))
+        if matches:
+            return matches[0]
+
+        # Legacy naming maps
+        _LEGACY_NAMES = {
+            'soil_thickness': 'upland_hill-slope_soil_thickness.tif',
+            'regolith_thickness': 'upland_hill-slope_regolith_thickness.tif',
+            'sedimentary_thickness': 'upland_valley-bottom_and_lowland_sedimentary_deposit_thickness.tif',
+            'average_thickness': 'average_soil_and_sedimentary-deposit_thickness.tif',
+            'hillslope_valley_average': 'hill-slope_and_valley-bottom_average_soil_and_sedimentary-deposit_thickness.tif',
+        }
+        legacy_name = _LEGACY_NAMES.get(attr_key)
+        if legacy_name:
+            legacy = pelletier_dir / legacy_name
+            if legacy.exists():
+                return legacy
+
+        self.logger.debug(f"Pelletier file not found: {attr_key}")
+        return None
+
+    def _find_soilgrids_file(
+        self, soilgrids_dir: Path, component: str, depth: str
+    ) -> Optional[Path]:
+        """Find a SoilGrids TIF file, checking acquisition and legacy naming."""
+        # Acquisition naming: domain_{name}_soilgrids_{component}_{depth}_mean.tif
+        matches = list(soilgrids_dir.glob(f"*soilgrids_{component}_{depth}_mean.tif"))
+        if matches:
+            return matches[0]
+
+        # Legacy nested: {component}/{component}_{depth}_mean.tif
+        legacy = soilgrids_dir / component / f"{component}_{depth}_mean.tif"
+        if legacy.exists():
+            return legacy
+
+        # Legacy flat
+        flat = soilgrids_dir / f"{component}_{depth}_mean.tif"
+        if flat.exists():
+            return flat
+
+        self.logger.debug(f"Soil component file not found: {component} {depth}")
+        return None
 
     def _derive_hydraulic_properties(self, texture_results: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -361,26 +412,28 @@ class SoilProcessor(BaseAttributeProcessor):
         results = {}
 
         # Define path to Pelletier data (configurable via PELLETIER_DIR)
-        pelletier_dir = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'pelletier' / 'raw'), dict_key='PELLETIER_DIR')
-        )
+        pelletier_dir = Path(self._get_config_value(
+            lambda: None,
+            default=str(self.project_dir / 'data' / 'attributes' / 'soilclass' / 'pelletier'),
+            dict_key='PELLETIER_DIR',
+        ))
 
-        # Define files to process
-        pelletier_files = {
-            "upland_hill-slope_regolith_thickness.tif": "regolith_thickness",
-            "upland_hill-slope_soil_thickness.tif": "soil_thickness",
-            "upland_valley-bottom_and_lowland_sedimentary_deposit_thickness.tif": "sedimentary_thickness",
-            "average_soil_and_sedimentary-deposit_thickness.tif": "average_thickness"
+        # Define attributes to process with possible filename patterns
+        pelletier_attributes = {
+            'regolith_thickness': 'regolith_thickness',
+            'soil_thickness': 'soil_thickness',
+            'sedimentary_thickness': 'sedimentary_thickness',
+            'average_thickness': 'average_thickness',
+            'hillslope_valley_average': 'hillslope_valley_average',
         }
 
         stats = ['mean', 'min', 'max', 'std']
 
-        for file_name, attribute in pelletier_files.items():
-            # Define file path
-            tif_path = pelletier_dir / file_name
+        for attr_key, attribute in pelletier_attributes.items():
+            # Search: acquisition naming then legacy naming
+            tif_path = self._find_pelletier_file(pelletier_dir, attr_key)
 
-            # Skip if file doesn't exist
-            if not tif_path.exists():
-                self.logger.warning(f"Pelletier file not found: {tif_path}")
+            if tif_path is None:
                 continue
 
             self.logger.info(f"Processing Pelletier {attribute}")

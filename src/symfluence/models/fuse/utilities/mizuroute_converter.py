@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
+
 # Suppress xarray FutureWarning about timedelta64 decoding
 warnings.filterwarnings('ignore',
                        message='.*decode_timedelta.*',
@@ -64,7 +66,7 @@ class FuseToMizurouteConverter:
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')
-            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+            fuse_id = resolve_fuse_id(config, experiment_id)
 
             # Find FUSE output file (runs_def.nc for run_def mode)
             output_file = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
@@ -94,6 +96,14 @@ class FuseToMizurouteConverter:
             mapping_file = self._find_mapping_file(fuse_output_dir, config)
             if mapping_file is not None:
                 q_fuse, gru_ids = self._filter_coastal_grus(q_fuse, mapping_file)
+
+            # Fall back: extract GRU IDs from the FUSE output's longitude dim
+            # (FUSE uses longitude values as GRU identifiers in distributed mode)
+            if gru_ids is None and 'longitude' in ds.variables:
+                lon_vals = ds['longitude'].values.flatten()
+                if len(lon_vals) == q_fuse.shape[-1] and lon_vals.max() > 180:
+                    gru_ids = lon_vals.astype(np.int32)
+                    self.logger.debug(f"Using GRU IDs from longitude dim: {gru_ids}")
 
             # Convert units
             q_fuse_values, target_units = self._convert_units(q_fuse.values, config)

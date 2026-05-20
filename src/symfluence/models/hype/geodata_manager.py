@@ -154,6 +154,9 @@ class HYPEGeoDataManager:
             'maindown': riv[next_down_col]
         })
 
+        # Regional groundwater routing follows the surface water path
+        base_df['grwdown'] = base_df['maindown']
+
         # 2. River properties
         rivlen_info = self.geofabric_mapping['rivlen']
         if rivlen_info['in_varname'] in riv.columns:
@@ -214,22 +217,58 @@ class HYPEGeoDataManager:
 
         def get_elevation(subid):
             if subid in elevation_data.index:
-                return elevation_data.loc[subid, elev_col]
+                result = elevation_data.loc[subid, elev_col]
+                if isinstance(result, pd.Series):
+                    return float(result.iloc[0])
+                return float(result)
             elif len(elevation_data) == 1:
                 return elevation_data[elev_col].iloc[0]
             return 0.0
 
         base_df['elev_mean'] = base_df['subid'].apply(get_elevation)
 
+        # Load glacier fraction from domain_type intersection shapefile
+        glacier_shp = None
+        if intersect_base_path:
+            glacier_shp = Path(intersect_base_path).parent / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp is None or not glacier_shp.exists():
+            glacier_shp = Path(str(subbasins_shapefile)).parents[1] / 'catchment_intersection' / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp.exists():
+            try:
+                gl_gdf = gpd.read_file(glacier_shp)
+                gl_cols = [c for c in gl_gdf.columns if c.startswith('domType_') and c != 'domType_1']
+                if gl_cols:
+                    gl_frac = gl_gdf[gl_cols].sum(axis=1).values
+                    if len(gl_frac) == len(cat):
+                        gl_map = dict(zip(cat[basin_id_col].values, gl_frac))
+                        base_df['glacier_fraction'] = base_df['subid'].map(gl_map).fillna(0.0)
+                        self.logger.debug("Loaded glacier_fraction for %d sub-basins (mean=%.3f)", len(base_df), base_df['glacier_fraction'].mean())
+            except Exception as e:  # noqa: BLE001
+                self.logger.debug("Could not load glacier fraction: %s", e)
+        if 'glacier_fraction' not in base_df.columns:
+            base_df['glacier_fraction'] = 0.0
+
         # Normalize SLC fractions
         slc_cols = [col for col in base_df.columns if col.startswith('SLC_')]
         if slc_cols:
             base_df[slc_cols] = base_df[slc_cols].div(base_df[slc_cols].sum(axis=1), axis=0).fillna(0)
 
-        # 7. Handle ID shifting (HYPE requires IDs > 0)
+        # 7. Drop sub-basins with missing geometry (no area/lat/lon from join)
+        required_cols = ['area', 'latitude', 'longitude']
+        missing_mask = base_df[required_cols].isna().any(axis=1)
+        if missing_mask.any():
+            dropped_ids = base_df.loc[missing_mask, 'subid'].tolist()
+            self.logger.warning(
+                f"Dropping {missing_mask.sum()} sub-basins with missing geometry: {dropped_ids}"
+            )
+            base_df = base_df[~missing_mask].copy()
+            # Remove any maindown references to dropped sub-basins
+            base_df.loc[base_df['maindown'].isin(dropped_ids), 'maindown'] = 0
+
+        # 8. Handle ID shifting (HYPE requires IDs > 0)
         base_df = self._shift_ids_if_needed(base_df)
 
-        # 8. Sort and save
+        # 9. Sort and save
         sorted_df = self.sort_geodata(base_df)
         sorted_df.to_csv(self.output_path / 'GeoData.txt', sep='\t', index=False)
 

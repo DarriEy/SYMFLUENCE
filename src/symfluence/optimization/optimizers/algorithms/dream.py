@@ -90,21 +90,13 @@ class DREAMAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting DREAM optimization with {n_params} parameters")
 
-        # DREAM parameters using standardized config access
-
-        # Number of chains: DREAM needs at least 2*n+1 for good mixing
-        # This ensures the differential evolution has sufficient chain diversity
-        # to generate meaningful proposals in n-dimensional space.
-        # (Vrugt 2009, Section 2.2 - "Number of Chains")
+        # DREAM parameters from config
         min_chains = DREAMDefaults.compute_min_chains(n_params)
         n_chains = max(min_chains, self.population_size)
         self.logger.info(f"Using {n_chains} chains for DREAM ({n_params} parameters)")
 
-        # Number of chain pairs for DE proposal (delta)
-        # Using 3 pairs provides robust proposal generation.
-        # (Vrugt 2009, Section 2.1 - "Differential Evolution")
         n_pairs = self._get_config_value(
-            lambda: self.config.optimization.dream_pairs,
+            lambda: self.config.optimization.dream.de_pairs,
             default=DREAMDefaults.DE_PAIRS,
             dict_key='DREAM_PAIRS'
         )
@@ -112,44 +104,29 @@ class DREAMAlgorithm(OptimizationAlgorithm):
         if n_pairs < 1:
             n_pairs = 1
 
-        # Crossover probability for subspace sampling (CR)
-        # 0.9 means 90% of dimensions are updated in each proposal.
-        # (Vrugt 2009, Section 2.3 - "Snooker Update")
         CR = self._get_config_value(
-            lambda: self.config.optimization.dream_cr,
+            lambda: self.config.optimization.dream.crossover_probability,
             default=DREAMDefaults.CROSSOVER_PROBABILITY,
             dict_key='DREAM_CR'
         )
 
-        # Jump rate scaling factor (gamma)
-        # The optimal gamma depends on effective dimensions: d* = CR * n_params
-        # gamma = 2.38 / sqrt(2 * delta * d*) maximizes expected squared jumping distance
-        # (Vrugt 2009, Equation 5)
         d_star = max(1, int(CR * n_params))
         gamma_base = DREAMDefaults.compute_optimal_gamma(n_pairs, d_star)
 
-        # Small random noise for ergodicity (scaled by parameter range)
-        # Default is 1e-3 which gives ~0.1% noise in normalized [0,1] space
-        # (Vrugt 2009, Equation 4)
         eps_std = self._get_config_value(
-            lambda: self.config.optimization.dream_eps,
+            lambda: self.config.optimization.dream.epsilon_std,
             default=DREAMDefaults.EPSILON_STD,
             dict_key='DREAM_EPS'
         )
 
-        # Temperature for likelihood (lower = more greedy, higher = more exploration)
-        # T=1.0 is standard MCMC (Vrugt 2016, Section 2.4)
         temperature = self._get_config_value(
-            lambda: self.config.optimization.dream_temperature,
+            lambda: self.config.optimization.dream.temperature,
             default=DREAMDefaults.TEMPERATURE,
             dict_key='DREAM_TEMPERATURE'
         )
 
-        # Outlier detection threshold (IQR multiplier)
-        # Chains with log-likelihood below Q1 - threshold*IQR are considered outliers
-        # (Vrugt 2009, Section 2.4)
         outlier_threshold = self._get_config_value(
-            lambda: self.config.optimization.dream_outlier_threshold,
+            lambda: self.config.optimization.dream.outlier_threshold,
             default=DREAMDefaults.OUTLIER_THRESHOLD,
             dict_key='DREAM_OUTLIER_THRESHOLD'
         )

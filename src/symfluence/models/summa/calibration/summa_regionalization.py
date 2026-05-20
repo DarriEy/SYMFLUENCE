@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.fuse.calibration.parameter_regionalization import (
+from symfluence.optimization.regionalization.strategies import (
     ParameterRegionalization,
     RegionalizationFactory,
 )
@@ -27,13 +27,30 @@ from symfluence.models.fuse.calibration.parameter_regionalization import (
 # variation driven by the attribute); ``False`` means only the intercept
 # is calibrated (spatially uniform).
 SUMMA_DEFAULT_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
-    'frozenPrecipMultip': {'attribute': 'precip_mm_yr', 'calibrate_b': True},
+    # Snow albedo — vary with elevation (snow persistence)
+    'albedoMax':          {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMinWinter':    {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMinSpring':    {'attribute': 'elev_m',       'calibrate_b': True},
+    'albedoMaxVisible':   {'attribute': 'elev_m',       'calibrate_b': False},
+    'albedoDecayRate':    {'attribute': 'elev_m',       'calibrate_b': True},
+    # Snow density — vary with temperature
+    'newSnowDenMin':      {'attribute': 'temp_C',       'calibrate_b': True},
+    'newSnowDenMult':     {'attribute': 'temp_C',       'calibrate_b': False},
+    'newSnowDenScal':     {'attribute': 'temp_C',       'calibrate_b': False},
+    # Rain/snow threshold — vary with elevation
     'tempCritRain':       {'attribute': 'elev_m',       'calibrate_b': True},
+    'tempRangeTimestep':  {'attribute': 'elev_m',       'calibrate_b': False},
+    # Soil hydraulics — vary with aridity
     'k_soil':             {'attribute': 'aridity',      'calibrate_b': True},
+    'k_macropore':        {'attribute': 'aridity',      'calibrate_b': True},
+    # Aquifer — vary with aridity
+    'aquiferBaseflowExp': {'attribute': 'aridity',      'calibrate_b': False},
+    'aquiferBaseflowRate':{'attribute': 'aridity',      'calibrate_b': True},
+    # Legacy defaults
+    'frozenPrecipMultip': {'attribute': 'precip_mm_yr', 'calibrate_b': True},
     'theta_sat':          {'attribute': 'precip_mm_yr', 'calibrate_b': True},
     'vGn_n':              {'attribute': 'aridity',      'calibrate_b': False},
     'snowfrz_scale':      {'attribute': 'elev_m',       'calibrate_b': True},
-    'albedoMax':          {'attribute': 'elev_m',       'calibrate_b': False},
     'routingGammaScale':  {'attribute': 'precip_mm_yr', 'calibrate_b': False},
 }
 
@@ -101,15 +118,15 @@ def load_hru_attributes(
     # --- Derive synthetic attributes if missing ----------------------------
     if 'precip_mm_yr' not in df.columns:
         # Placeholder – should be provided via CSV in production
-        logger.info("precip_mm_yr not available; using uniform placeholder (1000)")
+        logger.debug("precip_mm_yr not available; using uniform placeholder (1000)")
         df['precip_mm_yr'] = 1000.0
 
     if 'aridity' not in df.columns:
-        logger.info("aridity not available; using uniform placeholder (1.0)")
+        logger.debug("aridity not available; using uniform placeholder (1.0)")
         df['aridity'] = 1.0
 
     if 'snow_frac' not in df.columns:
-        logger.info("snow_frac not available; using uniform placeholder (0.3)")
+        logger.debug("snow_frac not available; using uniform placeholder (0.3)")
         df['snow_frac'] = 0.3
 
     if 'temp_C' not in df.columns and 'elev_m' in df.columns:
@@ -167,7 +184,7 @@ def create_summa_regionalization(
     return RegionalizationFactory.create(
         method=method,
         param_bounds=param_bounds,
-        n_subcatchments=n_hrus,
+        n_units=n_hrus,
         config=config,
         attributes=attributes,
         logger=logger,

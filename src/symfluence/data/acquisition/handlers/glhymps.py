@@ -35,11 +35,21 @@ from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
-# GLHYMPS 2.0 download URLs (Borealis Data)
-_GLHYMPS_URLS = {
-    '2.0': 'https://borealisdata.ca/api/access/datafile/71909',  # GLHYMPS.zip (2.4 GB)
-    '1.0': 'https://borealisdata.ca/api/access/datafile/72026',  # GLHYMPS.zip (1.1 GB)
-}
+# GLHYMPS download sources — tried in order until one succeeds
+_GLHYMPS_SOURCES = [
+    {
+        'name': 'Borealis Data (primary)',
+        'url': 'https://borealisdata.ca/api/access/datafile/71909',
+        'size_hint': '~2.4 GB',
+        'format': 'shapefile',
+    },
+]
+
+# CONUS-only fallback (GeoPackage from Hugging Face / pygeoglim)
+_GLHYMPS_CONUS_URL = (
+    "https://huggingface.co/datasets/mgalib/GLIM_GLHYMPS/"
+    "resolve/main/GLHYMP_CONUS.gpkg"
+)
 
 # Key attribute columns
 _KEEP_COLUMNS = [
@@ -155,37 +165,82 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Found local GLHYMPS: {shp}")
                 return shp
 
-        # Download from Borealis Data
-        version = self._get_config_value(lambda: None, default='2.0', dict_key='GLHYMPS_VERSION')
-        url = _GLHYMPS_URLS.get(version, _GLHYMPS_URLS['2.0'])
-
-        zip_path = cache_dir / "GLHYMPS.zip"
-        self.logger.info(f"Downloading GLHYMPS v{version} from Borealis Data")
-        self.logger.info("This is a ~2.4 GB download and may take several minutes...")
-
+        # Try each source until one works
         session = create_robust_session(max_retries=3, backoff_factor=2.0)
+        zip_path = cache_dir / "GLHYMPS.zip"
 
-        try:
-            download_file_streaming(url, zip_path, session=session, timeout=1800)
-
-            self.logger.info("Download complete, extracting...")
-            with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(cache_dir)
-
-            zip_path.unlink(missing_ok=True)
-
-            for shp in cache_dir.rglob("*.shp"):
-                self.logger.info(f"Extracted GLHYMPS shapefile: {shp}")
-                return shp
-
-            self.logger.error("No shapefile found in extracted archive")
-            return None
-
-        except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to download GLHYMPS: {e}")
+        for source in _GLHYMPS_SOURCES:
             self.logger.info(
-                "Manual download: visit https://borealisdata.ca/dataset.xhtml"
-                "?persistentId=doi:10.5683/SP2/TTJNIU\n"
-                f"  Place the extracted shapefile in: {cache_dir}"
+                f"Downloading GLHYMPS from {source['name']} "
+                f"({source['size_hint']})"
             )
-            return None
+
+            try:
+                download_file_streaming(
+                    source['url'], zip_path, session=session, timeout=1800
+                )
+
+                # Detect placeholder responses (Borealis maintenance mode)
+                if zip_path.stat().st_size < 10000:
+                    content = zip_path.read_bytes()
+                    if b'"status"' in content or b'<html' in content.lower():
+                        zip_path.unlink(missing_ok=True)
+                        self.logger.warning(
+                            f"{source['name']} returned a placeholder — "
+                            f"service may be in maintenance"
+                        )
+                        continue
+
+                self.logger.info("Download complete, extracting...")
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    zf.extractall(cache_dir)
+
+                zip_path.unlink(missing_ok=True)
+
+                for shp in cache_dir.rglob("*.shp"):
+                    if 'glhymps' in shp.name.lower() or 'GLHYMPS' in shp.name:
+                        self.logger.info(f"Extracted GLHYMPS shapefile: {shp}")
+                        return shp
+
+                # Bundle may contain GLHYMPS in a subdirectory
+                for shp in cache_dir.rglob("*.shp"):
+                    self.logger.info(f"Extracted shapefile: {shp}")
+                    return shp
+
+                self.logger.warning("No shapefile found in archive")
+                continue
+
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(
+                    f"Failed from {source['name']}: {e}"
+                )
+                zip_path.unlink(missing_ok=True)
+                continue
+
+        # Fallback: CONUS-only GeoPackage from Hugging Face
+        if (self.bbox['lat_min'] >= 24 and self.bbox['lat_max'] <= 50
+                and self.bbox['lon_min'] >= -125 and self.bbox['lon_max'] <= -66):
+            self.logger.info(
+                "Trying CONUS-only GLHYMPS from Hugging Face (~546 MB)"
+            )
+            gpkg_path = cache_dir / "GLHYMP_CONUS.gpkg"
+            try:
+                download_file_streaming(
+                    _GLHYMPS_CONUS_URL, gpkg_path,
+                    session=session, timeout=600,
+                )
+                if gpkg_path.exists() and gpkg_path.stat().st_size > 10000:
+                    self.logger.info(f"Downloaded CONUS GLHYMPS: {gpkg_path}")
+                    return gpkg_path
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"CONUS fallback failed: {e}")
+
+        self.logger.error(
+            "All GLHYMPS download sources failed. Borealis Data "
+            "(the only global source) may be in maintenance. "
+            "Download manually from "
+            "https://borealisdata.ca/dataset.xhtml"
+            "?persistentId=doi:10.5683/SP2/TTJNIU "
+            f"and place the shapefile in {cache_dir}"
+        )
+        return None

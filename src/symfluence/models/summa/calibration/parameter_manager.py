@@ -148,7 +148,19 @@ class SUMMAParameterManager(BaseParameterManager):
             lambda: self.config.model.summa.transfer_function_attributes_path,
             default=None, dict_key='TRANSFER_FUNCTION_ATTRIBUTES'
         )
-        csv_path = Path(csv_path) if csv_path else None
+        csv_path = Path(csv_path) if csv_path and csv_path != 'default' else None
+
+        # Auto-discover climate statistics from model-ready store
+        if csv_path is None:
+            climate_csv = self.data_dir / f"domain_{self.domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv' if hasattr(self, 'data_dir') else None
+            if climate_csv is None:
+                data_dir = self._get_config_value(lambda: self.config.system.data_dir, default=None, dict_key='SYMFLUENCE_DATA_DIR')
+                domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+                if data_dir and domain_name:
+                    climate_csv = Path(data_dir) / f"domain_{domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv'
+            if climate_csv and climate_csv.exists():
+                csv_path = climate_csv
+                self.logger.info(f"Auto-discovered climate attributes: {csv_path}")
 
         # Optional per-parameter config override
         param_config = self._get_config_value(
@@ -328,6 +340,19 @@ class SUMMAParameterManager(BaseParameterManager):
                     validated['albedoMinWinter'] = self._format_parameter_value('albedoMinWinter', albedo_max)
                 elif 'albedoMax' in validated:
                     validated['albedoMax'] = self._format_parameter_value('albedoMax', albedo_min_w)
+
+        # 6. k_macropore >= k_soil — macropore conductivity must exceed
+        #    micropore conductivity or SUMMA resets it every timestep,
+        #    causing numerical instability and SIGSEGV on long runs
+        k_soil_val = get_scalar('k_soil', {**full_params, **validated})
+        k_macro_val = get_scalar('k_macropore', {**full_params, **validated})
+
+        if k_soil_val is not None and k_macro_val is not None:
+            if k_macro_val < k_soil_val:
+                if 'k_macropore' in validated:
+                    validated['k_macropore'] = self._format_parameter_value('k_macropore', k_soil_val)
+                elif 'k_soil' in validated:
+                    validated['k_soil'] = self._format_parameter_value('k_soil', k_macro_val)
 
         return validated
 
@@ -531,7 +556,7 @@ class SUMMAParameterManager(BaseParameterManager):
         # Config-level overrides (highest priority)
         config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
         if config_bounds:
-            self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
+            self.logger.debug(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
             for param_name, limit_list in config_bounds.items():
                 if len(limit_list) >= 2:
                     bounds[param_name] = {'min': float(limit_list[0]), 'max': float(limit_list[1])}
@@ -878,7 +903,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
                     # Add parameters
                     for param_name, param_values in params.items():
-                        param_values_array = np.asarray(param_values)
+                        param_values_array = np.atleast_1d(np.asarray(param_values))
 
                         if param_name in routing_params or param_name in self.basin_params:
                             # GRU-level parameters

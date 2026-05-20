@@ -92,54 +92,34 @@ class BasinHoppingAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Basin Hopping optimization with {n_params} parameters")
 
-        # Basin Hopping parameters using standardized config access
-        # Step size for random perturbations (in normalized [0,1] space)
-        # 0.5 covers half the parameter range, providing good exploration
-        # (Wales & Doye 1997, Section 2.1)
+        # Basin Hopping parameters from config
         step_size = self._get_config_value(
-            lambda: self.config.optimization.bh_step_size,
+            lambda: self.config.optimization.basin_hopping.step_size,
             default=BasinHoppingDefaults.STEP_SIZE,
             dict_key='BH_STEP_SIZE'
         )
-
-        # Temperature for Metropolis acceptance criterion
-        # T=1.0 is standard; lower values favor exploitation, higher favor exploration
-        # (Li & Scheraga 1987)
         temperature = self._get_config_value(
-            lambda: self.config.optimization.bh_temperature,
+            lambda: self.config.optimization.basin_hopping.temperature,
             default=BasinHoppingDefaults.TEMPERATURE,
             dict_key='BH_TEMPERATURE'
         )
-
-        # Number of local optimization steps per basin
-        # Higher values ensure better local convergence
-        # 50 is recommended for good convergence
         local_steps = self._get_config_value(
-            lambda: self.config.optimization.bh_local_steps,
+            lambda: self.config.optimization.basin_hopping.local_steps,
             default=BasinHoppingDefaults.LOCAL_STEPS,
             dict_key='BH_LOCAL_STEPS'
         )
-
-        # Local optimizer method: 'nelder_mead' or 'gradient'
-        # Nelder-Mead is derivative-free and robust
         local_method = self._get_config_value(
-            lambda: self.config.optimization.bh_local_method,
+            lambda: self.config.optimization.basin_hopping.local_method,
             default=BasinHoppingDefaults.LOCAL_METHOD,
             dict_key='BH_LOCAL_METHOD'
         )
-
-        # Target acceptance rate for adaptive step size
-        # 0.5 is optimal for random walk Metropolis (Roberts et al. 1997)
         target_accept_rate = self._get_config_value(
-            lambda: self.config.optimization.bh_target_accept,
+            lambda: self.config.optimization.basin_hopping.target_accept,
             default=BasinHoppingDefaults.TARGET_ACCEPT,
             dict_key='BH_TARGET_ACCEPT'
         )
-
-        # Adaptation interval (iterations between step size adjustments)
-        # 10 provides reasonably frequent adaptation without instability
         adapt_interval = self._get_config_value(
-            lambda: self.config.optimization.bh_adapt_interval,
+            lambda: self.config.optimization.basin_hopping.adapt_interval,
             default=BasinHoppingDefaults.ADAPT_INTERVAL,
             dict_key='BH_ADAPT_INTERVAL'
         )

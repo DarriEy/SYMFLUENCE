@@ -125,6 +125,14 @@ class ForcingConfig(BaseModel):
     supplement: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
     keep_raw: bool = Field(default=True, alias='KEEP_RAW_FORCING')
 
+    # Temporal completeness validation
+    missing_data_strategy: Literal['error', 'warn', 'interpolate', 'fill_forward'] = Field(
+        default='error', alias='FORCING_MISSING_DATA_STRATEGY'
+    )
+    max_gap_hours: int = Field(
+        default=24, alias='FORCING_MAX_GAP_HOURS', ge=1
+    )
+
     # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
 

@@ -1366,6 +1366,384 @@ MOEAD_SECONDARY_TARGET: "gw_depth"
 #   Usage:      Secondary metric for MOEA/D multi-target optimization
 MOEAD_SECONDARY_METRIC: "KGE"
 
+# MOEAD_NEIGHBORS
+#   Type:        int
+#   Default:     20
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Neighborhood size for each subproblem
+MOEAD_NEIGHBORS: 20
+
+# MOEAD_CR
+#   Type:        float
+#   Default:     1.0
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Crossover rate for DE reproduction
+MOEAD_CR: 1.0
+
+# MOEAD_F
+#   Type:        float
+#   Default:     0.5
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      DE scaling factor
+MOEAD_F: 0.5
+
+# MOEAD_MUTATION
+#   Type:        float
+#   Default:     0.1
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Polynomial mutation rate
+MOEAD_MUTATION: 0.1
+
+# MOEAD_NR
+#   Type:        int
+#   Default:     2
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Maximum replacements per offspring
+MOEAD_NR: 2
+
+# MOEAD_DECOMPOSITION
+#   Type:        str
+#   Default:     tchebycheff
+#   Source:      MOEADConfig (optimization.py)
+#   Usage:      Decomposition approach (tchebycheff or weighted_sum)
+MOEAD_DECOMPOSITION: "tchebycheff"
+
+# CMAES_INITIAL_SIGMA
+#   Type:        float
+#   Default:     0.3
+#   Source:      CMAESConfig (optimization.py)
+#   Usage:      Initial step size for CMA-ES
+CMAES_INITIAL_SIGMA: 0.3
+
+# DREAM_PAIRS
+#   Type:        int
+#   Default:     3
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Number of chain pairs for DE proposal
+DREAM_PAIRS: 3
+
+# DREAM_CR
+#   Type:        float
+#   Default:     0.9
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Crossover probability for subspace sampling
+DREAM_CR: 0.9
+
+# DREAM_EPS
+#   Type:        float
+#   Default:     0.001
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Small random noise for ergodicity
+DREAM_EPS: 0.001
+
+# DREAM_TEMPERATURE
+#   Type:        float
+#   Default:     1.0
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      Temperature for likelihood
+DREAM_TEMPERATURE: 1.0
+
+# DREAM_OUTLIER_THRESHOLD
+#   Type:        float
+#   Default:     2.0
+#   Source:      DREAMConfig (optimization.py)
+#   Usage:      IQR multiplier for outlier chain detection
+DREAM_OUTLIER_THRESHOLD: 2.0
+
+# GA_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Probability of applying crossover
+GA_CROSSOVER_RATE: 0.9
+
+# GA_MUTATION_RATE
+#   Type:        float
+#   Default:     0.1
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Probability of mutating each gene
+GA_MUTATION_RATE: 0.1
+
+# GA_MUTATION_SCALE
+#   Type:        float
+#   Default:     0.1
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Magnitude of mutations
+GA_MUTATION_SCALE: 0.1
+
+# GA_TOURNAMENT_SIZE
+#   Type:        int
+#   Default:     3
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Number of individuals in tournament selection
+GA_TOURNAMENT_SIZE: 3
+
+# GA_ELITISM_COUNT
+#   Type:        int
+#   Default:     2
+#   Source:      GAConfig (optimization.py)
+#   Usage:      Number of elite individuals preserved each generation
+GA_ELITISM_COUNT: 2
+
+# NM_ALPHA
+#   Type:        float
+#   Default:     1.0
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Reflection coefficient
+NM_ALPHA: 1.0
+
+# NM_GAMMA
+#   Type:        float
+#   Default:     2.0
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Expansion coefficient
+NM_GAMMA: 2.0
+
+# NM_RHO
+#   Type:        float
+#   Default:     0.5
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Contraction coefficient
+NM_RHO: 0.5
+
+# NM_SIGMA
+#   Type:        float
+#   Default:     0.5
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Shrinkage coefficient
+NM_SIGMA: 0.5
+
+# NM_SIMPLEX_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Initial simplex size in normalized space
+NM_SIMPLEX_SIZE: 0.1
+
+# NM_X_TOL
+#   Type:        float
+#   Default:     0.000001
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Convergence tolerance for simplex size
+NM_X_TOL: 0.000001
+
+# NM_F_TOL
+#   Type:        float
+#   Default:     0.000001
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Convergence tolerance for function values
+NM_F_TOL: 0.000001
+
+# NM_ADAPTIVE
+#   Type:        bool
+#   Default:     true
+#   Source:      NelderMeadConfig (optimization.py)
+#   Usage:      Use adaptive parameters for high dimensions
+NM_ADAPTIVE: true
+
+# GLUE_THRESHOLD
+#   Type:        float
+#   Default:     0.0
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Minimum acceptable performance threshold
+GLUE_THRESHOLD: 0.0
+
+# GLUE_SHAPING_FACTOR
+#   Type:        float
+#   Default:     1.0
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Likelihood shaping factor
+GLUE_SHAPING_FACTOR: 1.0
+
+# GLUE_SAMPLING
+#   Type:        str
+#   Default:     lhs
+#   Source:      GLUEConfig (optimization.py)
+#   Usage:      Sampling method (lhs or uniform)
+GLUE_SAMPLING: "lhs"
+
+# BH_STEP_SIZE
+#   Type:        float
+#   Default:     0.5
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Step size for random perturbations
+BH_STEP_SIZE: 0.5
+
+# BH_TEMPERATURE
+#   Type:        float
+#   Default:     1.0
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Metropolis acceptance temperature
+BH_TEMPERATURE: 1.0
+
+# BH_LOCAL_STEPS
+#   Type:        int
+#   Default:     50
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Local optimization steps per basin
+BH_LOCAL_STEPS: 50
+
+# BH_LOCAL_METHOD
+#   Type:        str
+#   Default:     nelder_mead
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Local optimizer method
+BH_LOCAL_METHOD: "nelder_mead"
+
+# BH_TARGET_ACCEPT
+#   Type:        float
+#   Default:     0.5
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Target acceptance rate for adaptive step size
+BH_TARGET_ACCEPT: 0.5
+
+# BH_ADAPT_INTERVAL
+#   Type:        int
+#   Default:     10
+#   Source:      BasinHoppingConfig (optimization.py)
+#   Usage:      Iterations between step size adjustments
+BH_ADAPT_INTERVAL: 10
+
+# BO_INITIAL_SAMPLES_FACTOR
+#   Type:        int
+#   Default:     2
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Multiplier for initial GP samples (n_initial = max(5, factor * n_params))
+BO_INITIAL_SAMPLES_FACTOR: 2
+
+# BO_ACQUISITION
+#   Type:        str
+#   Default:     ei
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Acquisition function (ei, ucb, or pi)
+BO_ACQUISITION: "ei"
+
+# BO_XI
+#   Type:        float
+#   Default:     0.01
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Exploration parameter for EI/PI
+BO_XI: 0.01
+
+# BO_KAPPA
+#   Type:        float
+#   Default:     2.576
+#   Source:      BOConfig (optimization.py)
+#   Usage:      UCB parameter (confidence interval width)
+BO_KAPPA: 2.576
+
+# BO_RESTARTS
+#   Type:        int
+#   Default:     10
+#   Source:      BOConfig (optimization.py)
+#   Usage:      Random restarts for acquisition optimization
+BO_RESTARTS: 10
+
+# SA_INITIAL_TEMP
+#   Type:        float
+#   Default:     1.0
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Initial annealing temperature
+SA_INITIAL_TEMP: 1.0
+
+# SA_FINAL_TEMP
+#   Type:        float
+#   Default:     0.000001
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Final temperature (termination condition)
+SA_FINAL_TEMP: 0.000001
+
+# SA_COOLING_SCHEDULE
+#   Type:        str
+#   Default:     exponential
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Cooling schedule type (exponential, linear, logarithmic)
+SA_COOLING_SCHEDULE: "exponential"
+
+# SA_COOLING_RATE
+#   Type:        float
+#   Default:     0.95
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Temperature decay rate per iteration
+SA_COOLING_RATE: 0.95
+
+# SA_STEP_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Perturbation step size for neighbor generation
+SA_STEP_SIZE: 0.1
+
+# SA_STEPS_PER_TEMP
+#   Type:        int
+#   Default:     10
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Number of evaluations per temperature level
+SA_STEPS_PER_TEMP: 10
+
+# SA_ADAPTIVE_STEP
+#   Type:        bool
+#   Default:     true
+#   Source:      SAConfig (optimization.py)
+#   Usage:      Enable adaptive step size adjustment
+SA_ADAPTIVE_STEP: true
+
+# ADAM_LR
+#   Type:        float
+#   Default:     0.01
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Learning rate
+ADAM_LR: 0.01
+
+# ADAM_BETA1
+#   Type:        float
+#   Default:     0.9
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      First moment decay rate
+ADAM_BETA1: 0.9
+
+# ADAM_BETA2
+#   Type:        float
+#   Default:     0.999
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Second moment decay rate
+ADAM_BETA2: 0.999
+
+# ADAM_EPS
+#   Type:        float
+#   Default:     0.00000001
+#   Source:      AdamConfig (optimization.py)
+#   Usage:      Numerical stability epsilon
+ADAM_EPS: 0.00000001
+
+# LBFGS_LR
+#   Type:        float
+#   Default:     0.1
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Initial step size for line search
+LBFGS_LR: 0.1
+
+# LBFGS_HISTORY_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Number of (s,y) pairs for Hessian approximation
+LBFGS_HISTORY_SIZE: 10
+
+# LBFGS_C1
+#   Type:        float
+#   Default:     0.0001
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Armijo sufficient decrease condition
+LBFGS_C1: 0.0001
+
+# LBFGS_C2
+#   Type:        float
+#   Default:     0.9
+#   Source:      LBFGSConfig (optimization.py)
+#   Usage:      Wolfe curvature condition
+LBFGS_C2: 0.9
+
 # NUMBER_OF_ITERATIONS
 #   Type:        int
 #   Default:     1000
@@ -1407,6 +1785,13 @@ CALIBRATION_VARIABLE: "streamflow"
 #   Source:      OptimizationConfig (optimization.py)
 #   Usage:      1
 CLEANUP_PARALLEL_DIRS: true
+
+# CHECKPOINT_INTERVAL
+#   Type:        int
+#   Default:     10
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Save best_params.json and iteration results every N iterations during optimization
+CHECKPOINT_INTERVAL: 10
 
 # ERROR_LOG_DIR
 #   Type:        str
@@ -2023,6 +2408,13 @@ LAMAH_ICE_PATH: null
 #   Usage:      LamaH-Ice station identifier for Iceland basins
 LAMAH_ICE_STATION_ID: null
 
+# LAMAH_ICE_DOMAIN_ID
+#   Type:        str | int
+#   Default:     None
+#   Source:      LAMAHICEConfig (evaluation.py)
+#   Usage:      LamaH-Ice basin identifier (matches ID_<n>.csv naming); preferred over STATION_ID
+LAMAH_ICE_DOMAIN_ID: null
+
 # ========================================
 # SMHI (Swedish Meteorological and Hydrological Institute)
 # ========================================
@@ -2634,6 +3026,12 @@ RIVER_NETWORK_SHP_SLOPE: "Slope"
 #   Source:      DomainConfig (domain.py)
 #   Usage:      3
 SOILGRIDS_LAYER: "wrb_0-5cm_mode"
+
+# ATTRIBUTE_PROFILE - 'core', 'camels_spat', or 'full' (all available attribute datasets)
+#   Type:        Literal['core', 'camels_spat', 'full']
+#   Default:     core
+#   Source:      DomainConfig (domain.py)
+ATTRIBUTE_PROFILE: "core"
 
 # SOILGRIDS_WCS_MAP
 #   Type:        str
@@ -3574,6 +3972,20 @@ SUPPLEMENT_FORCING: false
 #   Source:      ForcingConfig (forcing.py)
 #   Usage:      1
 KEEP_RAW_FORCING: true
+
+# FORCING_MISSING_DATA_STRATEGY
+#   Type:        Literal['error', 'warn', 'interpolate', 'fill_forward']
+#   Default:     error
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MISSING_DATA_STRATEGY: "error"
+
+# FORCING_MAX_GAP_HOURS
+#   Type:        int
+#   Default:     24
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      2
+FORCING_MAX_GAP_HOURS: 24
 
 # EM_PRCP
 #   Type:        str
@@ -6841,6 +7253,460 @@ WFLOW_PARAMS_TO_CALIBRATE: KsatVer,f,SoilThickness,InfiltCapPath,RootingDepth,Ks
 #   Source:      WflowConfig (model_configs_hydrology.py)
 #   Usage:      3
 WFLOW_TIMEOUT: 7200
+
+# --- LISFLOOD (JRC/Deltares Distributed Model) ---
+
+# LISFLOOD_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_INSTALL_PATH: default
+
+# LISFLOOD_EXE
+#   Type:        str
+#   Default:     lisflood
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_EXE: "lisflood"
+
+# SETTINGS_LISFLOOD_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+SETTINGS_LISFLOOD_PATH: default
+
+# LISFLOOD_SETTINGS_FILE
+#   Type:        str
+#   Default:     settings.xml
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      3
+LISFLOOD_SETTINGS_FILE: "settings.xml"
+
+# LISFLOOD_SPATIAL_MODE
+#   Type:        SpatialModeType
+#   Default:     lumped
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_SPATIAL_MODE: "lumped"
+
+# EXPERIMENT_OUTPUT_LISFLOOD
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+EXPERIMENT_OUTPUT_LISFLOOD: default
+
+# LISFLOOD_PCRASTER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_PCRASTER_PATH: default
+
+# LISFLOOD_NUM_THREADS
+#   Type:        int
+#   Default:     1
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_NUM_THREADS: 1
+
+# LISFLOOD_PET_METHOD
+#   Type:        str
+#   Default:     oudin
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_PET_METHOD: "oudin"
+
+# LISFLOOD_FOREST_FRACTION
+#   Type:        float
+#   Default:     0.3
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_FOREST_FRACTION: 0.3
+
+# LISFLOOD_FORCING_TIMESTEP
+#   Type:        int
+#   Default:     86400 (daily). Set to 3600 for hourly.
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      2
+LISFLOOD_FORCING_TIMESTEP: 86400
+
+# LISFLOOD_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,thetas2,thetas3,chanman,mannings,cropcoef,snow_melt_coef,temp_melt,temp_snow,GwPercValue
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      1
+LISFLOOD_PARAMS_TO_CALIBRATE: ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,thetas2,thetas3,chanman,mannings,cropcoef,snow_melt_coef,temp_melt,temp_snow,GwPercValue
+
+# LISFLOOD_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      LisfloodConfig (model_configs_hydrology.py)
+#   Usage:      3
+LISFLOOD_TIMEOUT: 7200
+
+# --- PCR-GLOBWB (Utrecht University Global Water Balance Model) ---
+
+# PCRGLOBWB_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to the cloned PCR-GLOBWB repository
+PCRGLOBWB_INSTALL_PATH: default
+
+# PCRGLOBWB_EXE
+#   Type:        str
+#   Default:     deterministic_runner.py
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the PCR-GLOBWB runner script
+PCRGLOBWB_EXE: "deterministic_runner.py"
+
+# PCRGLOBWB_PYTHON_EXE
+#   Type:        str
+#   Default:     python
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Python executable with PCRaster installed (e.g., conda env)
+PCRGLOBWB_PYTHON_EXE: "python"
+
+# SETTINGS_PCRGLOBWB_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB settings directory
+SETTINGS_PCRGLOBWB_PATH: default
+
+# PCRGLOBWB_CONFIG_FILE
+#   Type:        str
+#   Default:     setup.ini
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Name of the INI configuration file
+PCRGLOBWB_CONFIG_FILE: "setup.ini"
+
+# PCRGLOBWB_CLONE_MAP
+#   Type:        str
+#   Default:     clone.map
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PCRaster clone map defining the grid domain
+PCRGLOBWB_CLONE_MAP: "clone.map"
+
+# PCRGLOBWB_RESOLUTION
+#   Type:        str
+#   Default:     05min
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial resolution: '05min' (~10km) or '30min' (~50km)
+PCRGLOBWB_RESOLUTION: "05min"
+
+# PCRGLOBWB_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Spatial mode for the model run
+PCRGLOBWB_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_PCRGLOBWB
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Experiment output directory for PCR-GLOBWB
+EXPERIMENT_OUTPUT_PCRGLOBWB: default
+
+# PCRGLOBWB_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Output directory for PCR-GLOBWB results
+PCRGLOBWB_OUTPUT_DIR: default
+
+# PCRGLOBWB_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Number of spin-up years (0 = no spin-up)
+PCRGLOBWB_SPINUP_YEARS: 0
+
+# PCRGLOBWB_SPINUP_CONVERGENCE
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Enable convergence checking during spin-up
+PCRGLOBWB_SPINUP_CONVERGENCE: False
+
+# PCRGLOBWB_USE_OPENDAP
+#   Type:        bool
+#   Default:     False
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Read global inputs from 4TU OPeNDAP server
+PCRGLOBWB_USE_OPENDAP: False
+
+# PCRGLOBWB_INPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to PCR-GLOBWB input data directory
+PCRGLOBWB_INPUT_DIR: default
+
+# PCRGLOBWB_MET_FORCING_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Path to meteorological forcing data
+PCRGLOBWB_MET_FORCING_DIR: default
+
+# PCRGLOBWB_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      PET estimation method: 'hamon' or 'oudin'
+PCRGLOBWB_PET_METHOD: "hamon"
+
+# PCRGLOBWB_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Comma-separated list of parameters for calibration
+PCRGLOBWB_PARAMS_TO_CALIBRATE: KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW
+
+# PCRGLOBWB_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      PCRGLOBWBConfig (model_configs_hydrology.py)
+#   Usage:      Maximum runtime in seconds (default 4 hours)
+PCRGLOBWB_TIMEOUT: 14400
+
+# --- CWatM (IIASA Community Water Model) ---
+
+# CWATM_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_INSTALL_PATH: default
+
+# CWATM_EXE
+#   Type:        str
+#   Default:     run_cwatm.py
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_EXE: "run_cwatm.py"
+
+# SETTINGS_CWATM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+SETTINGS_CWATM_PATH: default
+
+# CWATM_CONFIG_FILE
+#   Type:        str
+#   Default:     settings.ini
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CONFIG_FILE: "settings.ini"
+
+# CWATM_RESOLUTION
+#   Type:        str
+#   Default:     30min
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_RESOLUTION: "30min"
+
+# CWATM_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPATIAL_MODE: "distributed"
+
+# EXPERIMENT_OUTPUT_CWATM
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+EXPERIMENT_OUTPUT_CWATM: default
+
+# CWATM_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_OUTPUT_DIR: default
+
+# CWATM_SPINUP_YEARS
+#   Type:        int
+#   Default:     0
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_SPINUP_YEARS: 0
+
+# CWATM_CALC_EVAPORATION
+#   Type:        bool
+#   Default:     False
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_CALC_EVAPORATION: False
+
+# CWATM_PET_METHOD
+#   Type:        str
+#   Default:     hamon
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PET_METHOD: "hamon"
+
+# CWATM_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_PARAMS_TO_CALIBRATE: SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN
+
+# CWATM_TIMEOUT
+#   Type:        int
+#   Default:     14400
+#   Source:      CWatMConfig (model_configs_hydrology.py)
+CWATM_TIMEOUT: 14400
+
+
+# --- Noah-MP Standalone (NOAA-OWP noah-owp-modular) ---
+
+# NOAHMP_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_INSTALL_PATH: default
+
+# NOAHMP_EXE
+#   Type:        str
+#   Default:     noah_owp_modular.exe
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_EXE: "noah_owp_modular.exe"
+
+# SETTINGS_NOAHMP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+SETTINGS_NOAHMP_PATH: default
+
+# NOAHMP_NAMELIST_FILE
+#   Type:        str
+#   Default:     namelist.input
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NAMELIST_FILE: "namelist.input"
+
+# NOAHMP_FORCING_FILE
+#   Type:        str
+#   Default:     forcing.txt
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_FORCING_FILE: "forcing.txt"
+
+# NOAHMP_OUTPUT_FILE
+#   Type:        str
+#   Default:     output.nc
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_OUTPUT_FILE: "output.nc"
+
+# NOAHMP_PARAMETER_DIR
+#   Type:        str
+#   Default:     parameters
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PARAMETER_DIR: "parameters"
+
+# NOAHMP_TIMESTEP
+#   Type:        int
+#   Default:     3600
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_TIMESTEP: 3600
+
+# NOAHMP_NSOIL
+#   Type:        int
+#   Default:     4
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NSOIL: 4
+
+# NOAHMP_NSNOW
+#   Type:        int
+#   Default:     3
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_NSNOW: 3
+
+# NOAHMP_DYNAMIC_VEG_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_DYNAMIC_VEG_OPTION: 1
+
+# NOAHMP_CANOPY_STOMATAL_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_CANOPY_STOMATAL_OPTION: 1
+
+# NOAHMP_SOIL_MOISTURE_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SOIL_MOISTURE_OPTION: 1
+
+# NOAHMP_RUNOFF_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_RUNOFF_OPTION: 1
+
+# NOAHMP_SFC_DRAG_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SFC_DRAG_OPTION: 1
+
+# NOAHMP_SUPERCOOLED_WATER_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SUPERCOOLED_WATER_OPTION: 1
+
+# NOAHMP_FROZEN_SOIL_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_FROZEN_SOIL_OPTION: 1
+
+# NOAHMP_RADIATIVE_TRANSFER_OPTION
+#   Type:        int
+#   Default:     3
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_RADIATIVE_TRANSFER_OPTION: 3
+
+# NOAHMP_SNOW_ALBEDO_OPTION
+#   Type:        int
+#   Default:     2
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SNOW_ALBEDO_OPTION: 2
+
+# NOAHMP_PRECIP_PHASE_OPTION
+#   Type:        int
+#   Default:     1
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PRECIP_PHASE_OPTION: 1
+
+# EXPERIMENT_OUTPUT_NOAHMP
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+EXPERIMENT_OUTPUT_NOAHMP: default
+
+# NOAHMP_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_OUTPUT_DIR: default
+
+# NOAHMP_SPINUP_LOOPS
+#   Type:        int
+#   Default:     0
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_SPINUP_LOOPS: 0
+
+# NOAHMP_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     refkdt,dksat,bexp,smcmax,slope,noah_czil
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_PARAMS_TO_CALIBRATE: refkdt,dksat,bexp,smcmax,slope,noah_czil
+
+# NOAHMP_TIMEOUT
+#   Type:        int
+#   Default:     7200
+#   Source:      NoahMPConfig (model_configs_hydrology.py)
+NOAHMP_TIMEOUT: 7200
 
 
 # 18. State Management

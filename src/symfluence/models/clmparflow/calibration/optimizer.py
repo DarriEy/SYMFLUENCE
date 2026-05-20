@@ -83,7 +83,7 @@ class CLMParFlowModelOptimizer(BaseModelOptimizer):
             dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM',
         ).lower()
 
-        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        base_dir = self._resolve_sim_base_dir(algorithm)
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir, 'CLMPARFLOW', self.experiment_id
         )

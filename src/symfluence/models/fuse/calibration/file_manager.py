@@ -17,6 +17,21 @@ from symfluence.core.mixins.project import resolve_data_subdir
 logger = logging.getLogger(__name__)
 
 
+def resolve_fuse_id(config: Dict[str, Any], experiment_id: Optional[str] = None) -> str:
+    """Resolve the FUSE file ID, hashing long IDs to fit FUSE's 6-char buffer.
+
+    Mirrors FUSERunner._get_fuse_file_id so worker-side filenames match
+    runner-side filenames (FUSE Fortran uses CHARACTER(LEN=6) for FMODEL_ID).
+    """
+    if experiment_id is None:
+        experiment_id = (config.get('EXPERIMENT_ID') if config else None) or 'run_1'
+    fuse_id = (config.get('FUSE_FILE_ID') if config else None) or experiment_id
+    if fuse_id and len(fuse_id) > 6:
+        import hashlib
+        fuse_id = hashlib.md5(fuse_id.encode(), usedforsecurity=False).hexdigest()[:6]
+    return fuse_id
+
+
 def update_fuse_file_manager(
     filemanager_path: Path,
     settings_dir: Path,
@@ -49,10 +64,10 @@ def update_fuse_file_manager(
         # Read file with encoding fallback
         lines = _read_file_with_fallback(filemanager_path, log)
 
-        # Resolve experiment/fuse IDs
+        # Resolve experiment/fuse IDs (hash long IDs to fit FUSE's 6-char buffer)
         if experiment_id is None:
             experiment_id = config.get('EXPERIMENT_ID', 'run_1') if config else 'run_1'
-        fuse_id = config.get('FUSE_FILE_ID', experiment_id) if config else experiment_id
+        fuse_id = resolve_fuse_id(config, experiment_id)
 
         # Resolve paths
         settings_path_str = "./"

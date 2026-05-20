@@ -536,8 +536,16 @@ function tryPixiBootstrap(distDir) {
 }
 
 /**
- * Try to install the SYMFLUENCE Python package automatically.
- * Tries uv, pip3, pip in order. Non-fatal: prints manual instructions on failure.
+ * Install the SYMFLUENCE Python package.
+ *
+ * Tries uv, pip3, pip in order. Fails the postinstall (exit 1) if none
+ * succeed — the npm package is a wrapper around the Python CLI, so a missing
+ * Python install means everything except the built-in commands is broken,
+ * and silently warning at install time produces a confusing error at first
+ * forwarded-command run.
+ *
+ * Set SYMFLUENCE_OPTIONAL_PYTHON=1 to opt out (e.g. when only the built-in
+ * commands `version`, `path`, `help`, `info` are needed).
  */
 function tryInstallPython() {
   console.log('\n🐍 Installing SYMFLUENCE Python package...\n');
@@ -557,7 +565,9 @@ function tryInstallPython() {
 
     try {
       console.log(`   Using ${label}...`);
-      execSync(install, { stdio: 'inherit', timeout: 120000 });
+      // 10 min: heavy scientific stack (torch, geopandas, etc.) can exceed
+      // the previous 120 s budget on slow networks or under emulation.
+      execSync(install, { stdio: 'inherit', timeout: 600000 });
       console.log(`\n✅ Python package installed via ${label}`);
       return;
     } catch (err) {
@@ -566,10 +576,22 @@ function tryInstallPython() {
     }
   }
 
-  // All strategies failed — print manual instructions
-  console.warn('\n⚠️  Could not auto-install the Python package.');
-  console.warn('   Please install it manually:');
-  console.warn('     pip install symfluence\n');
+  const message =
+    '\n❌ Could not auto-install the SYMFLUENCE Python package.\n\n' +
+    '   The npm package is a wrapper around the Python CLI; without it,\n' +
+    '   only the built-in commands (version, path, help, info) will work.\n\n' +
+    '   Install Python 3 and one of: uv, pip3, pip — then re-run:\n' +
+    '     npm install -g symfluence\n\n' +
+    '   To install the npm shim alone (built-ins only), set:\n' +
+    '     SYMFLUENCE_OPTIONAL_PYTHON=1\n';
+
+  if (process.env.SYMFLUENCE_OPTIONAL_PYTHON === '1') {
+    console.warn(message);
+    return;
+  }
+
+  console.error(message);
+  process.exit(1);
 }
 
 /**

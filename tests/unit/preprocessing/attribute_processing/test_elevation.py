@@ -15,7 +15,15 @@ from symfluence.data.preprocessing.attribute_processors.elevation import Elevati
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
+_gdal_available = False
+try:
+    from osgeo import gdal  # noqa: F401
+    _gdal_available = True
+except (ImportError, OSError):
+    pass
 
+
+@pytest.mark.skipif(not _gdal_available, reason="GDAL C library not available")
 class TestGenerateSlopeAndAspect:
     """Tests for generate_slope_and_aspect method."""
 

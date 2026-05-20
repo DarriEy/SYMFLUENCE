@@ -214,6 +214,13 @@ class HYPEConfigManager(ConfigMixin):
         spinup_str = spinup_date.strftime('%Y-%m-%d')
         end_str = end_date.strftime('%Y-%m-%d')
 
+        # Disable HYPE internal obs loading when using external multi-gauge metrics
+        multi_gauge = self._get_config_value(
+            lambda: self.config.calibration.multi_gauge_calibration,
+            default=False, dict_key='MULTI_GAUGE_CALIBRATION',
+        )
+        readobsid_flag = 'n' if multi_gauge else 'y'
+
         # Build info.txt content
         info_content = f"""!! ----------------------------------------------------------------------------
 !!
@@ -237,7 +244,7 @@ warning\ty
 readdaily\ty
 submodel\tn
 calibration\tn
-readobsid\ty
+readobsid\t{readobsid_flag}
 soilstretch\tn
 !! Soilstretch enable the use of soilcorr parameters (strech soildepths in layer 2 and 3)
 steplength\t1d

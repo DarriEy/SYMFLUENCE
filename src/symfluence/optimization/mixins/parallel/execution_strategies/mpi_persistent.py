@@ -96,9 +96,14 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
         self._comm_dir = self._create_comm_dir()
         self.logger.info(f"Persistent MPI comm dir: {self._comm_dir}")
 
-        # Create worker script
-        work_dir = self.project_dir / "temp_mpi"
-        work_dir.mkdir(exist_ok=True)
+        # Create worker script on local scratch when available to avoid
+        # NFS reads when MPI ranks load the script at launch.
+        slurm_tmpdir = os.environ.get('SLURM_TMPDIR')
+        if slurm_tmpdir:
+            work_dir = Path(slurm_tmpdir) / "symfluence_mpi_scripts"
+        else:
+            work_dir = self.project_dir / "temp_mpi"
+        work_dir.mkdir(parents=True, exist_ok=True)
 
         uid = uuid.uuid4().hex[:8]
         self._worker_script = work_dir / f"mpi_persistent_worker_{uid}.py"
@@ -325,8 +330,52 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
         )
 
     def _find_python_executable(self) -> str:
-        python_exe = sys.executable
+        """Find the best Python executable, preferring node-local storage.
+
+        Search order (first match wins):
+        1. $SYMFLUENCE_PYTHON — explicit override for HPC job scripts
+        2. Venv in $SLURM_TMPDIR — avoids NFS metadata IOPS
+        3. Active $VIRTUAL_ENV (local scratch preferred)
+        4. Standard venv locations relative to package root
+        5. sys.executable (fallback)
+        """
         venv_bin = "Scripts" if os.name == "nt" else "bin"
+        slurm_tmpdir = os.environ.get('SLURM_TMPDIR')
+
+        # 1. Explicit override
+        explicit = os.environ.get('SYMFLUENCE_PYTHON')
+        if explicit and os.access(explicit, os.X_OK):
+            self.logger.info(f"Using SYMFLUENCE_PYTHON override: {explicit}")
+            return explicit
+
+        # 2. Venv copied to node-local scratch (eliminates NFS metadata storms)
+        if slurm_tmpdir:
+            for name in ("python3", "python"):
+                scratch_py = Path(slurm_tmpdir) / "venv" / venv_bin / name
+                if scratch_py.exists() and os.access(str(scratch_py), os.X_OK):
+                    self.logger.info(
+                        f"Using node-local scratch Python: {scratch_py} "
+                        f"(avoids NFS metadata IOPS)"
+                    )
+                    return str(scratch_py)
+
+        # 3. Active VIRTUAL_ENV (prefer if on local storage)
+        active_venv = os.environ.get('VIRTUAL_ENV')
+        if active_venv:
+            for name in ("python3", "python"):
+                active_py = Path(active_venv) / venv_bin / name
+                if active_py.exists() and os.access(str(active_py), os.X_OK):
+                    is_local = self._is_local_path(str(active_py), slurm_tmpdir)
+                    if not is_local and slurm_tmpdir:
+                        self.logger.warning(
+                            f"Active VIRTUAL_ENV Python ({active_py}) is on shared storage. "
+                            f"Copy venv to $SLURM_TMPDIR/venv to reduce NFS IOPS."
+                        )
+                    self.logger.info(f"Using active VIRTUAL_ENV Python: {active_py}")
+                    return str(active_py)
+
+        # 4. Standard venv locations relative to package root
+        python_exe = sys.executable
         pkg_root = Path(__file__).parent.parent.parent.parent.parent.parent
         venv_paths = [
             pkg_root / "venv" / venv_bin / "python",
@@ -340,7 +389,25 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
                 python_exe = str(venv_path)
                 self.logger.info(f"Using venv Python: {python_exe}")
                 break
+
+        # Warn if final choice is on shared storage in a SLURM environment
+        if slurm_tmpdir and not self._is_local_path(python_exe, slurm_tmpdir):
+            self.logger.warning(
+                f"Python executable ({python_exe}) is on shared storage. "
+                f"This causes NFS metadata IOPS spikes from module discovery. "
+                f"Copy venv to $SLURM_TMPDIR/venv or set SYMFLUENCE_PYTHON "
+                f"to a node-local path."
+            )
+
         return python_exe
+
+    @staticmethod
+    def _is_local_path(path: str, slurm_tmpdir: Optional[str] = None) -> bool:
+        """Check whether a path is on node-local storage."""
+        local_prefixes = ["/tmp"]  # nosec B108 - path check, not file creation
+        if slurm_tmpdir:
+            local_prefixes.append(slurm_tmpdir)
+        return any(path.startswith(p) for p in local_prefixes)
 
     @staticmethod
     def _detect_mpi_launchers() -> list:

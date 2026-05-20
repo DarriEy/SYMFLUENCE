@@ -123,7 +123,19 @@ Model Selection
 
 .. code-block:: yaml
 
-   HYDROLOGICAL_MODEL: NGEN
+   model:
+     hydrological_model: NGEN
+     routing_model: none
+     ngen:
+       modules_selected: "SLOTH,PET,CFE"
+       modules_to_calibrate: "CFE"
+       cfe_params_to_calibrate: "maxsmc,satdk,bb,slop"
+
+SYMFLUENCE still accepts legacy flat keys such as ``HYDROLOGICAL_MODEL`` and
+``DOMAIN_NAME``, but new examples use the nested YAML format. In nested
+configs, ``domain`` must be a mapping with required fields such as
+``name``, ``experiment_id``, ``time_start``, ``time_end``,
+``definition_method``, and ``discretization``.
 
 Key Configuration Parameters
 ----------------------------
@@ -395,34 +407,81 @@ Model-Specific Workflows
 Basic NGEN with CFE
 -------------------
 
-Simplest NGEN setup:
+This is the smallest complete nested configuration for a Bow at Banff NGEN
+setup using the same domain metadata as the paper calibration-ensemble configs.
+Set ``system.data_dir`` to the directory that contains
+``domain_Bow_at_Banff_lumped_calibration_ensemble``.
 
 .. code-block:: yaml
 
-   # config.yaml
-   DOMAIN_NAME: test_catchment
-   HYDROLOGICAL_MODEL: NGEN
+   # config_bow_ngen_cfe_minimal.yaml
+   system:
+     data_dir: "/path/to/SYMFLUENCE_data"
+     code_dir: "/path/to/SYMFLUENCE"
+     num_processes: 1
 
-   # Domain definition (single catchment or multiple)
-   DOMAIN_DEFINITION_METHOD: semidistributed
-   POUR_POINT_COORDS: [-105.5, 40.2]
+   domain:
+     name: Bow_at_Banff_lumped_calibration_ensemble
+     experiment_id: ngen_cfe_minimal
+     time_start: "2002-01-01 01:00"
+     time_end: "2009-12-31 23:00"
+     calibration_period: "2004-01-01, 2007-12-31"
+     evaluation_period: "2008-01-01, 2009-12-31"
+     spinup_period: "2002-01-01, 2003-12-31"
+     definition_method: lumped
+     discretization: GRUs
+     pour_point_coords: "51.1722/-115.5717"
+     bounding_box_coords: "51.76/-116.55/50.95/-115.5"
+     delineation:
+       routing: lumped
+       geofabric_type: TDX
+       stream_threshold: 10000
 
-   # NGEN modules
-   NGEN_MODULES_TO_CALIBRATE: CFE
+   forcing:
+     dataset: RDRS
+     time_step_size: 3600
 
-   # CFE parameters
-   NGEN_CFE_PARAMS_TO_CALIBRATE: "maxsmc,Ksat,b,expon"
+   data:
+     streamflow_data_provider: WSC
 
-   # Forcing
-   FORCING_DATASET: ERA5
-   FORCING_START_YEAR: 2015
-   FORCING_END_YEAR: 2020
+   model:
+     hydrological_model: NGEN
+     routing_model: none
+     ngen:
+       exe: ngen
+       install_path: default
+       modules_selected: "SLOTH,PET,CFE"
+       modules_to_calibrate: "CFE"
+       cfe_params_to_calibrate: "maxsmc,satdk,bb,slop"
+
+   evaluation:
+     streamflow:
+       station_id: "05BB001"
 
 Run:
 
 .. code-block:: bash
 
-   symfluence workflow run --config config.yaml
+   symfluence config validate --config config_bow_ngen_cfe_minimal.yaml
+   symfluence workflow step run_model --config config_bow_ngen_cfe_minimal.yaml
+
+``symfluence workflow run`` executes all workflow stages, including calibration
+and post-run analyses. For this forward-only minimal config, use targeted
+workflow steps through ``postprocess_results`` or add an ``optimization`` section
+before running the full workflow.
+
+For a forward-only run, leave ``optimization.methods`` unset as above. To run
+calibration, add an ``optimization`` section with an algorithm and iteration
+count, for example:
+
+.. code-block:: yaml
+
+   optimization:
+     methods:
+       - iteration
+     algorithm: DDS
+     iterations: 1000
+     metric: KGE
 
 NGEN with Noah-OWP-M
 --------------------
