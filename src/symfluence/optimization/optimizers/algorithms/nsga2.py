@@ -73,35 +73,24 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         objective_names = objective_names or ['KGE', 'NSE']
         num_objectives = len(objective_names)
 
-        # NSGA-II parameters using standardized config access
-        # Crossover rate: probability of applying crossover (Deb 2002, Section IV-A)
+        # NSGA-II parameters from config
         crossover_rate = self._get_config_value(
-            lambda: self.config.optimization.nsga2_crossover_rate,
+            lambda: self.config.optimization.nsga2.crossover_rate,
             default=NSGA2Defaults.CROSSOVER_RATE,
             dict_key='NSGA2_CROSSOVER_RATE'
         )
-
-        # Mutation rate: probability of mutating each gene
         mutation_rate = self._get_config_value(
-            lambda: self.config.optimization.nsga2_mutation_rate,
+            lambda: self.config.optimization.nsga2.mutation_rate,
             default=NSGA2Defaults.MUTATION_RATE,
             dict_key='NSGA2_MUTATION_RATE'
         )
-
-        # SBX crossover distribution index (eta_c)
-        # Higher values produce children closer to parents (more exploitation)
-        # Typical range: 2-20, with 15 being a common default (Deb 2002, Section III-B)
         eta_c = self._get_config_value(
-            lambda: self.config.optimization.nsga2_eta_c,
+            lambda: self.config.optimization.nsga2.eta_c,
             default=NSGA2Defaults.ETA_C,
             dict_key='NSGA2_ETA_C'
         )
-
-        # Polynomial mutation distribution index (eta_m)
-        # Higher values produce smaller mutations (more local search)
-        # Typical range: 10-20 (Deb 2002, Section III-C)
         eta_m = self._get_config_value(
-            lambda: self.config.optimization.nsga2_eta_m,
+            lambda: self.config.optimization.nsga2.eta_m,
             default=NSGA2Defaults.ETA_M,
             dict_key='NSGA2_ETA_M'
         )

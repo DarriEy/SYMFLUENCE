@@ -16,7 +16,8 @@ from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
 
-from .worker import FUSEWorker  # noqa: F401 - Import to trigger worker registration
+from .parameter_manager import FUSEParameterManager  # noqa: F401 - trigger param manager registration
+from .worker import FUSEWorker  # noqa: F401 - trigger worker registration
 
 
 @OptimizerRegistry.register_optimizer('FUSE')
@@ -67,9 +68,10 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         self.fuse_sim_dir = self.project_dir / 'simulations' / exp_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
         self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
-        # Use 'or' to treat None as "not set" and fallback to exp_id
+        # Use 'or' to treat None as "not set" and fallback to exp_id; hash long IDs.
+        from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
         fuse_file_id = config.get('FUSE_FILE_ID') if isinstance(config, dict) else (config.model.fuse.file_id if config.model and config.model.fuse else None)
-        self.fuse_id = fuse_file_id or exp_id
+        self.fuse_id = resolve_fuse_id({'FUSE_FILE_ID': fuse_file_id, 'EXPERIMENT_ID': exp_id})
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
@@ -94,7 +96,6 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create FUSE parameter manager."""
-        from .parameter_manager import FUSEParameterManager
         return FUSEParameterManager(
             self.config,
             self.logger,
@@ -836,9 +837,8 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         # Transfer SCE-optimized non-calibrated params to para_def.nc before copying
         self._transfer_sce_to_para_def()
 
-        # Use algorithm-specific directory (consistent with SUMMA)
         algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
-        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        base_dir = self._resolve_sim_base_dir(algorithm)
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'FUSE',
@@ -851,9 +851,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
         # Copy parameter file to each parallel directory
         # This is critical for parallel workers to modify parameters in isolation
-        # Use 'or' to treat None as "not set" and fallback to experiment_id
-        fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, dict_key='FUSE_FILE_ID') or self.experiment_id
-        param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
+        param_file = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
 
         # If para_def.nc doesn't exist, try to find a complete FUSE template
         # CRITICAL: For run_pre mode, FUSE requires all ~89 variables including:

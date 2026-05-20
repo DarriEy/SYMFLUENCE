@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import geopandas as gpd
+import numpy as np
 
 from symfluence.core.config.coercion import coerce_config
 from symfluence.core.mixins import ConfigMixin
@@ -84,7 +85,6 @@ class BaseAttributeProcessor(ConfigMixin):
             catchment_path = Path(catchment_path)
 
         if catchment_name == 'default':
-            # Find the catchment shapefile based on domain discretization
             discretization = self._get_config_value(
                 lambda: self.config.domain.discretization,
                 dict_key='SUB_GRID_DISCRETIZATION'
@@ -93,7 +93,22 @@ class BaseAttributeProcessor(ConfigMixin):
         else:
             catchment_file = catchment_name
 
-        return catchment_path / catchment_file
+        # Direct path first
+        direct = catchment_path / catchment_file
+        if direct.exists():
+            return direct
+
+        # Search subdirectories (discretize_domain writes to {method}/{experiment_id}/)
+        matches = list(catchment_path.rglob(catchment_file))
+        if matches:
+            return matches[0]
+
+        # Fallback: any HRU shapefile
+        fallback = list(catchment_path.rglob(f"{self.domain_name}_HRUs_*.shp"))
+        if fallback:
+            return fallback[0]
+
+        return direct
 
     def _get_data_path(self, config_key: str, default_subfolder: str) -> Path:
         """
@@ -160,3 +175,36 @@ class BaseAttributeProcessor(ConfigMixin):
         # For distributed catchments, results are already formatted by
         # individual processors with HRU prefixes
         return results
+
+    def _write_results_csv(
+        self,
+        results: Dict[str, Any],
+        output_dir: Path,
+        filename: str,
+    ) -> Optional[Path]:
+        """Write processor results as CSV for AttributesNetCDFBuilder.
+
+        Converts the result dict into a single-row DataFrame (lumped)
+        and writes it to ``output_dir/filename``.  The builder reads
+        CSVs from ``data/attributes/{category}/`` and stores numeric
+        columns as NetCDF variables.
+        """
+        if not results:
+            return None
+
+        import pandas as pd
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_path = output_dir / filename
+
+        numeric = {
+            k: v for k, v in results.items()
+            if isinstance(v, (int, float, np.integer, np.floating))
+        }
+        if not numeric:
+            return None
+
+        df = pd.DataFrame([numeric])
+        df.to_csv(out_path, index=False)
+        self.logger.info(f"Wrote {len(numeric)} attributes to {out_path}")
+        return out_path

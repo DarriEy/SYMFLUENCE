@@ -138,38 +138,29 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
             - gradient_method: 'native' or 'finite_difference' (which was used)
         """
-        # L-BFGS hyperparameters from config or kwargs using standardized access
-        # Maximum steps (Nocedal 1980)
+        # L-BFGS hyperparameters from config
         steps = kwargs.get('steps', self._get_config_value(
-            lambda: self.config.optimization.lbfgs_steps,
+            lambda: self.config.optimization.iterations,
             default=self.max_iterations,
-            dict_key='LBFGS_STEPS'
+            dict_key='NUMBER_OF_ITERATIONS'
         ))
-
-        # Initial learning rate (Nocedal 1980, Section 4)
         lr = kwargs.get('lr', self._get_config_value(
-            lambda: self.config.optimization.lbfgs_lr,
+            lambda: self.config.optimization.lbfgs.lr,
             default=LBFGSDefaults.LR,
             dict_key='LBFGS_LR'
         ))
-
-        # History size for Hessian approximation (Nocedal 1980, Section 3)
         history_size = kwargs.get('history_size', self._get_config_value(
-            lambda: self.config.optimization.lbfgs_history_size,
+            lambda: self.config.optimization.lbfgs.history_size,
             default=LBFGSDefaults.HISTORY_SIZE,
             dict_key='LBFGS_HISTORY_SIZE'
         ))
-
-        # Armijo condition parameter (Nocedal 1980)
         c1 = kwargs.get('c1', self._get_config_value(
-            lambda: self.config.optimization.lbfgs_c1,
+            lambda: self.config.optimization.lbfgs.c1,
             default=LBFGSDefaults.C1,
             dict_key='LBFGS_C1'
         ))
-
-        # Wolfe curvature condition parameter (Nocedal 1980, Section 2)
         c2 = kwargs.get('c2', self._get_config_value(
-            lambda: self.config.optimization.lbfgs_c2,
+            lambda: self.config.optimization.lbfgs.c2,
             default=LBFGSDefaults.C2,
             dict_key='LBFGS_C2'
         ))

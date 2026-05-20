@@ -15,7 +15,6 @@ import pandas as pd
 
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
-from symfluence.models.hype.runner import HYPERunner
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
@@ -41,6 +40,73 @@ class HYPEWorker(BaseWorker):
             logger: Logger instance
         """
         super().__init__(config, logger)
+        self._hype_exe = self._resolve_hype_exe()
+
+    def _expand_hype_coefficients(self, params, config, settings_dir):
+        """Expand TF coefficients to par.txt values using the regionalization adapter."""
+        try:
+            geoclass_path = settings_dir / 'GeoClass.txt'
+            if not geoclass_path.exists():
+                self.logger.warning("GeoClass.txt not found for coefficient expansion")
+                return None
+
+            from symfluence.models.hype.calibration.hype_regionalization import (
+                create_hype_regionalization,
+            )
+            from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
+
+            bounds = get_hype_bounds()
+            tuple_bounds = {k: (v['min'], v['max']) for k, v in bounds.items()}
+
+            method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+            reg = create_hype_regionalization(
+                method=method, param_bounds=tuple_bounds,
+                geoclass_path=geoclass_path, logger=self.logger,
+            )
+            return reg.expand_to_par_values(params)
+        except Exception as e:  # noqa: BLE001
+            self.logger.error(f"Failed to expand HYPE coefficients: {e}")
+            return None
+
+    def _resolve_hype_exe(self) -> str:
+        """Resolve the HYPE executable path from the worker's full config."""
+        import shutil
+
+        # Extract flat dict from whatever config type we have
+        cfg: dict = {}
+        if isinstance(self.config, dict):
+            cfg = self.config
+        elif hasattr(self.config, 'config_dict'):
+            cfg = self.config.config_dict
+        elif hasattr(self.config, 'model_dump'):
+            cfg = self.config.model_dump()
+
+        exe_name = cfg.get('HYPE_EXE', 'hype')
+
+        if Path(exe_name).is_absolute() and Path(exe_name).exists():
+            return exe_name
+
+        # Try SYMFLUENCE_DATA_DIR install location
+        data_dir = cfg.get('SYMFLUENCE_DATA_DIR', '')
+        if data_dir and data_dir != 'default':
+            candidate = Path(data_dir) / 'installs' / 'hype' / 'bin' / exe_name
+            if candidate.exists():
+                return str(candidate)
+
+        # Try typed config accessors
+        if hasattr(self.config, 'system') and hasattr(self.config.system, 'data_dir'):
+            data_dir = str(self.config.system.data_dir or '')
+            if data_dir and data_dir != 'default':
+                candidate = Path(data_dir) / 'installs' / 'hype' / 'bin' / exe_name
+                if candidate.exists():
+                    return str(candidate)
+
+        # Try PATH
+        resolved = shutil.which(exe_name)
+        if resolved:
+            return resolved
+
+        return exe_name
 
     def apply_parameters(
         self,
@@ -51,20 +117,21 @@ class HYPEWorker(BaseWorker):
         """
         Apply parameters to HYPE configuration files.
 
-        Args:
-            params: Parameter values to apply
-            settings_dir: HYPE settings directory
-            **kwargs: Additional arguments
-
-        Returns:
-            True if successful
+        When regionalization is active, coefficients are expanded to
+        per-SLC values via the parameter manager before writing par.txt.
         """
         try:
             config = kwargs.get('config', self.config)
 
+            # Expand regionalization coefficients to per-SLC par.txt values
+            if any(k.endswith('_a') or k.endswith('_b') for k in params):
+                cfg = config if isinstance(config, dict) else getattr(config, 'config_dict', {})
+                settings_dir_path = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
+                expanded = self._expand_hype_coefficients(params, cfg, settings_dir_path)
+                if expanded is not None:
+                    params = expanded
+
             # Use HYPEPreProcessor to regenerate configs with new params
-            # We only need to regenerate the par.txt file, but calling
-            # preprocess_models with params is the cleanest way.
             preprocessor = HYPEPreProcessor(config, self.logger, params=params)
 
             # Set model-specific paths to point to the worker's settings dir
@@ -128,10 +195,12 @@ class HYPEWorker(BaseWorker):
                 default=None,
             )
 
-            # Write info and file directory files
+            # Write info and file directory files — resultdir must point to
+            # the per-iteration output_dir so the runner finds HYPE output
+            calib_results_dir = str(output_dir).rstrip('/') + '/'
             preprocessor.config_manager.write_info_filedir(
                 spinup_days=preprocessor.spinup_days,
-                results_dir=preprocessor.hype_results_dir_str,
+                results_dir=calib_results_dir,
                 experiment_start=experiment_start,
                 experiment_end=experiment_end,
                 forcing_data_dir=preprocessor.forcing_data_dir
@@ -198,52 +267,38 @@ class HYPEWorker(BaseWorker):
             True if model ran successfully
         """
         try:
-            # Ensure paths are Path objects
+            import subprocess
+
             settings_dir = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
             output_dir = Path(output_dir) if not isinstance(output_dir, Path) else output_dir
+            output_dir.mkdir(parents=True, exist_ok=True)
 
-            self.logger.debug(f"HYPE Worker run_model called with settings_dir={settings_dir}, output_dir={output_dir}")
+            hype_exe = self._hype_exe
 
-            # Initialize HYPE runner
-            runner = HYPERunner(config, self.logger)
+            cmd = [str(hype_exe), str(settings_dir).rstrip('/') + '/']
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=7200
+            )
 
-            self.logger.debug(f"HYPE Runner initialized with setup_dir={runner.setup_dir}")
+            if result.returncode != 0:
+                self.logger.warning(
+                    f"HYPE exited with rc={result.returncode}: "
+                    f"{result.stderr[:200] if result.stderr else 'no stderr'}"
+                )
+                return False
 
-            # Override paths for the worker
-            runner.setup_dir = settings_dir
-            runner.output_dir = output_dir
-            runner.output_path = output_dir
-            runner.quiet = True
+            # Verify output was written
+            cout_file = output_dir / 'timeCOUT.txt'
+            if not cout_file.exists():
+                self.logger.warning(
+                    f"HYPE exited 0 but timeCOUT.txt not found in {output_dir}"
+                )
+                return False
 
-            self.logger.debug(f"HYPE Runner paths overridden: setup_dir={runner.setup_dir}, output_dir={runner.output_dir}")
-
-            # Debug: Check if required input files exist before running
-            required_files = ['par.txt', 'info.txt', 'filedir.txt', 'GeoData.txt', 'GeoClass.txt', 'ForcKey.txt']
-            for f in required_files:
-                fpath = settings_dir / f
-                if not fpath.exists():
-                    self.logger.error(f"Required HYPE input file missing before run: {fpath}")
-
-            # Run HYPE
-            result_path = runner.run()
-
-            if result_path is None:
-                self.logger.error("HYPE run returned None - model may have failed or outputs not found")
-                self.logger.error(f"Expected outputs in: {runner.output_dir}")
-                # Debug: Check if any output files were created
-                if output_dir.exists():
-                    output_files = list(output_dir.glob('*.txt'))
-                    if output_files:
-                        self.logger.error(f"Found {len(output_files)} .txt files in output_dir: {[f.name for f in output_files]}")
-                    else:
-                        self.logger.error(f"No .txt files found in output_dir: {output_dir}")
-
-            return result_path is not None
+            return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running HYPE: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
+            self.logger.warning(f"Error running HYPE: {e}")
             return False
 
     def calculate_metrics(
@@ -266,6 +321,11 @@ class HYPEWorker(BaseWorker):
         output_dir = Path(output_dir)
 
         try:
+            # Check for multi-gauge calibration
+            multi_gauge = self._get_multi_gauge_flag(config)
+            if multi_gauge:
+                return self._calculate_multi_gauge_metrics(output_dir, config)
+
             # HYPE output file for computed discharge
             sim_file = output_dir / 'timeCOUT.txt'
             if not sim_file.exists():
@@ -305,14 +365,28 @@ class HYPEWorker(BaseWorker):
                 sim_series = pd.to_numeric(sim_df[outlet_col], errors='coerce')
                 self.logger.debug(f"Using single outlet column: {outlet_col}")
 
-            # Load observations
-            # Resolve domain_name and data_dir from config
-            try:
-                domain_name = config.domain.name
-                data_dir = Path(str(config.system.data_dir))
-            except (AttributeError, TypeError):
-                domain_name = None
-                data_dir = Path('.')
+            # Load observations — resolve domain_name and data_dir from
+            # whichever config carries them (task config or worker config).
+            domain_name = None
+            data_dir = Path('.')
+            for cfg in (config, self.config):
+                if domain_name:
+                    break
+                try:
+                    domain_name = cfg.domain.name
+                    data_dir = Path(str(cfg.system.data_dir))
+                except (AttributeError, TypeError):
+                    pass
+                if not domain_name and isinstance(cfg, dict):
+                    domain_name = cfg.get('DOMAIN_NAME')
+                    dd = cfg.get('SYMFLUENCE_DATA_DIR', '')
+                    if dd and dd != 'default':
+                        data_dir = Path(dd)
+                if not domain_name and hasattr(cfg, 'config_dict'):
+                    domain_name = cfg.config_dict.get('DOMAIN_NAME')
+                    dd = cfg.config_dict.get('SYMFLUENCE_DATA_DIR', '')
+                    if dd and dd != 'default':
+                        data_dir = Path(dd)
 
             # Use resolve_data_subdir for backward-compatible path resolution
             # (prefers data/observations/ over legacy observations/)
@@ -426,6 +500,125 @@ class HYPEWorker(BaseWorker):
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}
+
+    def _get_multi_gauge_flag(self, config: Any) -> bool:
+        """Check whether multi-gauge calibration is enabled."""
+        for cfg in (config, self.config):
+            if isinstance(cfg, dict) and cfg.get('MULTI_GAUGE_CALIBRATION'):
+                return True
+            if hasattr(cfg, 'config_dict') and cfg.config_dict.get('MULTI_GAUGE_CALIBRATION'):
+                return True
+            try:
+                if cfg.calibration.multi_gauge.enabled:
+                    return True
+            except (AttributeError, TypeError):
+                pass
+        return False
+
+    def _resolve_config_value(self, key: str, config: Any, default: Any = None) -> Any:
+        """Resolve a config key from task config or worker config."""
+        for cfg in (config, self.config):
+            if isinstance(cfg, dict) and key in cfg:
+                return cfg[key]
+            if hasattr(cfg, 'config_dict') and key in cfg.config_dict:
+                return cfg.config_dict[key]
+        return default
+
+    def _calculate_multi_gauge_metrics(
+        self,
+        output_dir: Path,
+        config: Any,
+    ) -> Dict[str, Any]:
+        """Calculate KGE across multiple LamaH-ICE gauges.
+
+        Uses :class:`HYPEMultiGaugeMetrics` to read per-subbasin
+        discharge from ``timeCOUT.txt`` and compare against LamaH-ICE
+        observations at each gauge.
+        """
+        from symfluence.data.observation.handlers.lamah_ice import ensure_lamah_ice_streamflow
+
+        from .multi_gauge_metrics import HYPEMultiGaugeMetrics, ensure_hype_gauge_mapping
+
+        # Resolve paths
+        domain_name = self._resolve_config_value('DOMAIN_NAME', config)
+        data_dir = self._resolve_config_value('SYMFLUENCE_DATA_DIR', config, '.')
+        if data_dir == 'default' or not data_dir:
+            data_dir = '.'
+        project_dir = Path(data_dir) / f'domain_{domain_name}'
+
+        # LamaH-ICE observation data
+        obs_dir_cfg = self._resolve_config_value('MULTI_GAUGE_OBS_DIR', config)
+        if obs_dir_cfg:
+            lamah_root = Path(obs_dir_cfg)
+        else:
+            lamah_root = Path(data_dir) / 'lamah_ice'
+
+        lamah_root = ensure_lamah_ice_streamflow(lamah_root, self.logger)
+        obs_daily_dir = lamah_root / 'D_gauges' / '2_timeseries' / 'daily'
+
+        # Gauge→subbasin mapping
+        mapping_path_cfg = self._resolve_config_value('GAUGE_SEGMENT_MAPPING', config)
+        if mapping_path_cfg and Path(mapping_path_cfg).exists():
+            mapping_path = Path(mapping_path_cfg)
+        else:
+            mapping_path = ensure_hype_gauge_mapping(
+                project_dir, lamah_root, domain_name or '', self.logger
+            )
+        if mapping_path is None:
+            self.logger.error("Cannot generate gauge→subbasin mapping")
+            return {'kge': self.penalty_score, 'error': 'No gauge mapping'}
+
+        # Instantiate multi-gauge evaluator
+        mgm = HYPEMultiGaugeMetrics(mapping_path, obs_daily_dir, self.logger)
+
+        # Parse gauge IDs and calibration period
+        gauge_ids_cfg = self._resolve_config_value('MULTI_GAUGE_IDS', config)
+        gauge_ids = [int(g) for g in gauge_ids_cfg] if gauge_ids_cfg else None
+
+        exclude_ids = self._resolve_config_value('MULTI_GAUGE_EXCLUDE_IDS', config) or []
+        if exclude_ids and gauge_ids is None:
+            all_ids = mgm.get_available_gauges()
+            gauge_ids = [g for g in all_ids if g not in exclude_ids]
+
+        start_date = self._resolve_config_value('CALIBRATION_PERIOD', config)
+        if isinstance(start_date, str) and ',' in start_date:
+            start_date, end_date = [s.strip() for s in start_date.split(',', 1)]
+        else:
+            end_date = None
+
+        aggregation = self._resolve_config_value('MULTI_GAUGE_AGGREGATION', config, 'mean')
+        min_gauges = int(self._resolve_config_value('MULTI_GAUGE_MIN_GAUGES', config, 3))
+        kge_floor = self._resolve_config_value('MULTI_GAUGE_KGE_FLOOR', config)
+        if kge_floor is not None:
+            kge_floor = float(kge_floor)
+
+        filter_config: Dict[str, Any] = {}
+        max_dist = self._resolve_config_value('MULTI_GAUGE_MAX_DISTANCE', config)
+        if max_dist is not None:
+            filter_config['max_distance'] = float(max_dist)
+        min_cv = self._resolve_config_value('MULTI_GAUGE_MIN_OBS_CV', config)
+        if min_cv is not None:
+            filter_config['min_obs_cv'] = float(min_cv)
+
+        results = mgm.calculate_multi_gauge_metrics(
+            output_path=output_dir,
+            gauge_ids=gauge_ids,
+            start_date=start_date,
+            end_date=end_date,
+            min_gauges=min_gauges,
+            aggregation=aggregation,
+            filter_config=filter_config or None,
+            kge_floor=kge_floor,
+        )
+
+        score = results.get('kge', self.penalty_score)
+        return {
+            'kge': float(score) if score is not None else self.penalty_score,
+            'kge_std': results.get('kge_std', 0.0),
+            'kge_min': results.get('kge_min', 0.0),
+            'kge_max': results.get('kge_max', 0.0),
+            'n_gauges': results.get('n_valid_gauges', 0),
+        }
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

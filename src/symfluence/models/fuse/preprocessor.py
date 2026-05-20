@@ -12,7 +12,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple
@@ -630,13 +630,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'pet': (pet, 'pet', unit_str, f'Mean {time_label} pet')
         }
 
-        if obs_ds is not None:
+        if obs_ds is not None and 'q_obs' in obs_ds:
             var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             self.logger.warning(
-                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
-                "This is fine for run_def/run_pre but observations will be needed for calibration."
+                "Streamflow observations not found — writing dummy q_obs (-9999) to FUSE forcing file. "
+                "Observations will be needed for calibration."
             )
+            dummy_q = xr.full_like(ds['precip'], -9999.0)
+            dummy_q.name = 'q_obs'
+            var_map['q_obs'] = (dummy_q, 'streamflow', unit_str, 'Dummy observed discharge (missing)')
 
         # Process and add to dataset
         encoding = {}
@@ -859,16 +862,27 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         cal_period = self._get_config_value(
             lambda: self.config.domain.calibration_period,
-            default='2000-01-01,2010-12-31'
+            default=None
         )
-        cal_start_time = datetime.strptime(cal_period.split(',')[0], '%Y-%m-%d')
-        cal_end_time = datetime.strptime(cal_period.split(',')[1].strip(), '%Y-%m-%d')
+        if cal_period:
+            cal_start_time = datetime.strptime(cal_period.split(',')[0], '%Y-%m-%d')
+            cal_end_time = datetime.strptime(cal_period.split(',')[1].strip(), '%Y-%m-%d')
+            cal_start_time = max(cal_start_time, start_time)
+            cal_end_time = min(cal_end_time, end_time)
+        else:
+            cal_start_time = start_time + timedelta(days=1)
+            cal_end_time = end_time
+            self.logger.info(
+                f"No calibration_period configured; defaulting eval period to "
+                f"{cal_start_time.strftime('%Y-%m-%d')} – {cal_end_time.strftime('%Y-%m-%d')} "
+                f"(sim window with 1-day spinup)"
+            )
 
         date_settings = {
             'date_start_sim': start_time.strftime('%Y-%m-%d'),
             'date_end_sim': end_time.strftime('%Y-%m-%d'),
-            'date_start_eval': cal_start_time.strftime('%Y-%m-%d'),  # Using same dates for evaluation period
-            'date_end_eval': cal_end_time.strftime('%Y-%m-%d')       # Can be modified if needed
+            'date_start_eval': cal_start_time.strftime('%Y-%m-%d'),
+            'date_end_eval': cal_end_time.strftime('%Y-%m-%d')
         }
 
         try:
@@ -1087,13 +1101,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'pet': (pet_a, 'pet', unit_str, f'Mean {time_label} pet')
         }
 
-        if obs_ds_a is not None:
+        if obs_ds_a is not None and 'q_obs' in obs_ds_a:
             var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             self.logger.warning(
-                "Streamflow observations not found — omitting q_obs from FUSE forcing file. "
-                "This is fine for run_def/run_pre but observations will be needed for calibration."
+                "Streamflow observations not found — writing dummy q_obs (-9999) to FUSE forcing file. "
+                "Observations will be needed for calibration."
             )
+            dummy_q = xr.full_like(ds_a['precip'], -9999.0)
+            dummy_q.name = 'q_obs'
+            var_map['q_obs'] = (dummy_q, 'streamflow', unit_str, 'Dummy observed discharge (missing)')
 
         # Add variables with broadcasting
         for var_name, (da, _, units, long_name) in var_map.items():

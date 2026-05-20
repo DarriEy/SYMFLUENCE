@@ -107,6 +107,12 @@ class MOEADConfig(BaseModel):
     secondary_target: str = Field(default='gw_depth', alias='MOEAD_SECONDARY_TARGET')
     primary_metric: str = Field(default='KGE', alias='MOEAD_PRIMARY_METRIC')
     secondary_metric: str = Field(default='KGE', alias='MOEAD_SECONDARY_METRIC')
+    neighbors: int = Field(default=20, alias='MOEAD_NEIGHBORS', ge=1)
+    crossover_rate: float = Field(default=1.0, alias='MOEAD_CR', ge=0, le=1.0)
+    scaling_factor: float = Field(default=0.5, alias='MOEAD_F', ge=0, le=2.0)
+    mutation_rate: float = Field(default=0.1, alias='MOEAD_MUTATION', ge=0, le=1.0)
+    max_replacements: int = Field(default=2, alias='MOEAD_NR', ge=1)
+    decomposition: str = Field(default='tchebycheff', alias='MOEAD_DECOMPOSITION')
 
 
 class ABCConfig(BaseModel):
@@ -223,6 +229,114 @@ class ABCConfig(BaseModel):
     )
 
 
+class CMAESConfig(BaseModel):
+    """CMA-ES (Covariance Matrix Adaptation Evolution Strategy) settings"""
+    model_config = FROZEN_CONFIG
+
+    initial_sigma: float = Field(default=0.3, alias='CMAES_INITIAL_SIGMA', gt=0, le=1.0)
+
+
+class DREAMConfig(BaseModel):
+    """DREAM (DiffeRential Evolution Adaptive Metropolis) MCMC settings"""
+    model_config = FROZEN_CONFIG
+
+    de_pairs: int = Field(default=3, alias='DREAM_PAIRS', ge=1)
+    crossover_probability: float = Field(default=0.9, alias='DREAM_CR', ge=0, le=1.0)
+    epsilon_std: float = Field(default=1e-3, alias='DREAM_EPS', gt=0)
+    temperature: float = Field(default=1.0, alias='DREAM_TEMPERATURE', gt=0)
+    outlier_threshold: float = Field(default=2.0, alias='DREAM_OUTLIER_THRESHOLD', gt=0)
+
+
+class GAConfig(BaseModel):
+    """Genetic Algorithm settings"""
+    model_config = FROZEN_CONFIG
+
+    crossover_rate: float = Field(default=0.9, alias='GA_CROSSOVER_RATE', ge=0, le=1.0)
+    mutation_rate: float = Field(default=0.1, alias='GA_MUTATION_RATE', ge=0, le=1.0)
+    mutation_scale: float = Field(default=0.1, alias='GA_MUTATION_SCALE', gt=0)
+    tournament_size: int = Field(default=3, alias='GA_TOURNAMENT_SIZE', ge=2)
+    elitism_count: int = Field(default=2, alias='GA_ELITISM_COUNT', ge=0)
+
+
+class NelderMeadConfig(BaseModel):
+    """Nelder-Mead Simplex algorithm settings"""
+    model_config = FROZEN_CONFIG
+
+    alpha: float = Field(default=1.0, alias='NM_ALPHA', gt=0)
+    gamma: float = Field(default=2.0, alias='NM_GAMMA', gt=1.0)
+    rho: float = Field(default=0.5, alias='NM_RHO', gt=0, lt=1.0)
+    sigma: float = Field(default=0.5, alias='NM_SIGMA', gt=0, lt=1.0)
+    simplex_size: float = Field(default=0.1, alias='NM_SIMPLEX_SIZE', gt=0, le=1.0)
+    x_tol: float = Field(default=1e-6, alias='NM_X_TOL', gt=0)
+    f_tol: float = Field(default=1e-6, alias='NM_F_TOL', gt=0)
+    adaptive: bool = Field(default=True, alias='NM_ADAPTIVE')
+
+
+class GLUEConfig(BaseModel):
+    """GLUE (Generalized Likelihood Uncertainty Estimation) settings"""
+    model_config = FROZEN_CONFIG
+
+    threshold: float = Field(default=0.0, alias='GLUE_THRESHOLD')
+    shaping_factor: float = Field(default=1.0, alias='GLUE_SHAPING_FACTOR', gt=0)
+    sampling: str = Field(default='lhs', alias='GLUE_SAMPLING')
+
+
+class BasinHoppingConfig(BaseModel):
+    """Basin Hopping global optimization settings"""
+    model_config = FROZEN_CONFIG
+
+    step_size: float = Field(default=0.5, alias='BH_STEP_SIZE', gt=0, le=1.0)
+    temperature: float = Field(default=1.0, alias='BH_TEMPERATURE', gt=0)
+    local_steps: int = Field(default=50, alias='BH_LOCAL_STEPS', ge=1)
+    local_method: str = Field(default='nelder_mead', alias='BH_LOCAL_METHOD')
+    target_accept: float = Field(default=0.5, alias='BH_TARGET_ACCEPT', gt=0, le=1.0)
+    adapt_interval: int = Field(default=10, alias='BH_ADAPT_INTERVAL', ge=1)
+
+
+class BOConfig(BaseModel):
+    """Bayesian Optimization settings"""
+    model_config = FROZEN_CONFIG
+
+    initial_samples_factor: int = Field(default=2, alias='BO_INITIAL_SAMPLES_FACTOR', ge=1)
+    acquisition: str = Field(default='ei', alias='BO_ACQUISITION')
+    xi: float = Field(default=0.01, alias='BO_XI', ge=0)
+    kappa: float = Field(default=2.576, alias='BO_KAPPA', gt=0)
+    restarts: int = Field(default=10, alias='BO_RESTARTS', ge=1)
+
+
+class SAConfig(BaseModel):
+    """Simulated Annealing settings"""
+    model_config = FROZEN_CONFIG
+
+    initial_temp: float = Field(default=1.0, alias='SA_INITIAL_TEMP', gt=0)
+    final_temp: float = Field(default=1e-6, alias='SA_FINAL_TEMP', gt=0)
+    cooling_schedule: str = Field(default='exponential', alias='SA_COOLING_SCHEDULE')
+    cooling_rate: float = Field(default=0.95, alias='SA_COOLING_RATE', gt=0, lt=1.0)
+    step_size: float = Field(default=0.1, alias='SA_STEP_SIZE', gt=0)
+    steps_per_temp: int = Field(default=10, alias='SA_STEPS_PER_TEMP', ge=1)
+    adaptive_step: bool = Field(default=True, alias='SA_ADAPTIVE_STEP')
+
+
+class AdamConfig(BaseModel):
+    """Adam optimizer settings"""
+    model_config = FROZEN_CONFIG
+
+    lr: float = Field(default=0.01, alias='ADAM_LR', gt=0)
+    beta1: float = Field(default=0.9, alias='ADAM_BETA1', ge=0, lt=1.0)
+    beta2: float = Field(default=0.999, alias='ADAM_BETA2', ge=0, lt=1.0)
+    eps: float = Field(default=1e-8, alias='ADAM_EPS', gt=0)
+
+
+class LBFGSConfig(BaseModel):
+    """L-BFGS quasi-Newton optimizer settings"""
+    model_config = FROZEN_CONFIG
+
+    lr: float = Field(default=0.1, alias='LBFGS_LR', gt=0)
+    history_size: int = Field(default=10, alias='LBFGS_HISTORY_SIZE', ge=1)
+    c1: float = Field(default=1e-4, alias='LBFGS_C1', gt=0, lt=1.0)
+    c2: float = Field(default=0.9, alias='LBFGS_C2', gt=0, lt=1.0)
+
+
 class EmulationConfig(BaseModel):
     """Model emulation settings"""
     model_config = FROZEN_CONFIG
@@ -252,6 +366,7 @@ class OptimizationConfig(BaseModel):
     population_size: int = Field(default=50, alias='POPULATION_SIZE', ge=2, le=10000)
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
+    checkpoint_interval: int = Field(default=10, alias='CHECKPOINT_INTERVAL', ge=1)
 
     # Gradient-based optimization settings (Adam, L-BFGS)
     gradient_mode: Literal['auto', 'native', 'finite_difference'] = Field(
@@ -373,6 +488,16 @@ class OptimizationConfig(BaseModel):
     nsga2: Optional[NSGA2Config] = Field(default_factory=NSGA2Config)
     moead: Optional[MOEADConfig] = Field(default_factory=MOEADConfig)
     abc: Optional[ABCConfig] = Field(default_factory=ABCConfig)
+    cmaes: Optional[CMAESConfig] = Field(default_factory=CMAESConfig)
+    dream: Optional[DREAMConfig] = Field(default_factory=DREAMConfig)
+    ga: Optional[GAConfig] = Field(default_factory=GAConfig)
+    nelder_mead: Optional[NelderMeadConfig] = Field(default_factory=NelderMeadConfig)
+    glue: Optional[GLUEConfig] = Field(default_factory=GLUEConfig)
+    basin_hopping: Optional[BasinHoppingConfig] = Field(default_factory=BasinHoppingConfig)
+    bayesian_opt: Optional[BOConfig] = Field(default_factory=BOConfig)
+    sa: Optional[SAConfig] = Field(default_factory=SAConfig)
+    adam: Optional[AdamConfig] = Field(default_factory=AdamConfig)
+    lbfgs: Optional[LBFGSConfig] = Field(default_factory=LBFGSConfig)
     emulation: Optional[EmulationConfig] = Field(default_factory=EmulationConfig)
 
     @field_validator('methods', mode='before')

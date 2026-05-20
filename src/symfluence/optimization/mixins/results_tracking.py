@@ -262,7 +262,7 @@ class ResultsTrackingMixin(ConfigMixin):
         # Save to CSV
         df.to_csv(results_path, index=False)
 
-        self.logger.info(f"Saved optimization results to {results_path}")
+        self.logger.debug(f"Saved optimization results to {results_path}")
 
         return results_path
 
@@ -330,7 +330,7 @@ class ResultsTrackingMixin(ConfigMixin):
         with open(params_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, indent=2)
 
-        self.logger.info(f"Saved best parameters to {params_path}")
+        self.logger.debug(f"Saved best parameters to {params_path}")
 
         return params_path
 

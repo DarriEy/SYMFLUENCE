@@ -140,6 +140,79 @@ class DataManager(BaseManager):
         """
         self.acquisition_service.acquire_observations()
 
+    def _ensure_multi_gauge_dataset_present(self) -> None:
+        """Pre-fetch the multi-gauge observation dataset (e.g. LaMAH-Ice)
+        before any calibration path needs it. Recognises LaMAH-Ice when
+        ``MULTI_GAUGE_OBS_DIR`` points at a ``D_gauges/`` subtree.
+        """
+        from pathlib import Path
+        obs_dir = self._get_config_value(
+            lambda: self.config.evaluation.multi_gauge.obs_dir,
+            dict_key='MULTI_GAUGE_OBS_DIR',
+        )
+        if not obs_dir:
+            return
+        obs_path = Path(obs_dir)
+        if 'D_gauges' not in obs_path.parts:
+            return
+
+        lamah_root = obs_path
+        while lamah_root.name != 'D_gauges' and lamah_root.parent != lamah_root:
+            lamah_root = lamah_root.parent
+        lamah_root = lamah_root.parent
+
+        if not obs_path.exists():
+            try:
+                from symfluence.data.observation.handlers.lamah_ice import (
+                    ensure_lamah_ice_streamflow,
+                )
+                self.logger.info(
+                    f"MULTI_GAUGE_OBS_DIR={obs_dir} resolves under a missing "
+                    f"LaMAH-Ice tree at {lamah_root}; auto-downloading."
+                )
+                ensure_lamah_ice_streamflow(lamah_root, self.logger)
+            except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
+                self.logger.warning(
+                    f"LaMAH-Ice auto-download skipped: {exc}. Subsequent "
+                    "calibration steps will surface the missing-data error."
+                )
+        self._ensure_gauge_segment_mapping(lamah_root)
+
+    def _ensure_gauge_segment_mapping(self, lamah_root: 'Path') -> None:
+        """Generate the canonical gauge_segment_mapping.csv if missing.
+
+        Maps LaMAH gauge IDs to mizuRoute segment IDs by spatial-joining
+        the LaMAH gauges shapefile with the domain's river basins polygons.
+        """
+        try:
+            from pathlib import Path
+            domain_name = self._get_config_value(
+                lambda: self.config.domain.name,
+                dict_key='DOMAIN_NAME',
+            )
+            data_dir = self._get_config_value(
+                lambda: self.config.system.data_dir,
+                dict_key='SYMFLUENCE_DATA_DIR',
+            )
+            if not domain_name or not data_dir:
+                return
+            project_dir = Path(data_dir) / f"domain_{domain_name}"
+            from symfluence.optimization.multi_gauge.gauge_mapping import (
+                ensure_gauge_mapping,
+            )
+            ensure_gauge_mapping(
+                project_dir,
+                lamah_root,
+                domain_name,
+                output_subdir='mizuRoute',
+                output_filename='gauge_segment_mapping.csv',
+                logger=self.logger,
+            )
+        except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
+            self.logger.warning(
+                f"gauge_segment_mapping.csv auto-generation skipped: {exc}"
+            )
+
     def acquire_em_earth_forcings(self):
         """
         Acquire EM-Earth supplementary forcing data.
@@ -157,6 +230,7 @@ class DataManager(BaseManager):
             DataAcquisitionError: If data processing fails
         """
         self.logger.info("Processing observed data")
+        self._ensure_multi_gauge_dataset_present()
         self.acquire_observations()
 
         with symfluence_error_handler(
@@ -333,15 +407,29 @@ class DataManager(BaseManager):
             self.logger,
             error_type=DataAcquisitionError
         ):
-            # Run geospatial statistics
+            # Run geospatial statistics (core: DEM, soil class, land cover)
             self.logger.debug("Running geospatial statistics")
             gs = GeospatialStatistics(self.config, self.logger)
             gs.run_statistics()
 
-            # Run forcing resampling
-            self.logger.debug("Running forcing resampling")
-            fr = ForcingResampler(self.config, self.logger)
-            fr.run_resampling()
+            # Run extended attribute processing based on profile
+            attribute_profile = self._get_config_value(
+                lambda: self.config.domain.attribute_profile,
+                default='core',
+                dict_key='ATTRIBUTE_PROFILE',
+            )
+            if isinstance(attribute_profile, str) and attribute_profile.lower() != 'core':
+                from symfluence.data.preprocessing.attribute_processor import attributeProcessor
+                ap = attributeProcessor(self.config, self.logger)
+                ap.process_profile_attributes(attribute_profile.lower())
+
+            # Run forcing resampling (non-fatal when no forcing data available)
+            try:
+                self.logger.debug("Running forcing resampling")
+                fr = ForcingResampler(self.config, self.logger)
+                fr.run_resampling()
+            except (FileNotFoundError, DataAcquisitionError) as e:
+                self.logger.warning(f"Forcing resampling skipped (no forcing data): {e}")
 
             # Apply model-agnostic elevation corrections
             from symfluence.data.preprocessing import ElevationCorrectionProcessor

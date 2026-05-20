@@ -126,6 +126,7 @@ from symfluence.core.mixins import ConfigurableMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.data.acquisition.maf_pipeline import datatoolRunner, gistoolRunner
+from symfluence.data.acquisition.registry import AcquisitionRegistry
 from symfluence.data.cache import RawForcingCache
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
@@ -374,7 +375,7 @@ class AcquisitionService(ConfigurableMixin):
         self.logger.info("Starting attribute acquisition")
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
-        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='merit_hydro').lower()
+        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='copdem90').lower()
 
         dem_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'elevation' / 'dem'
         soilclass_dir = resolve_data_subdir(self.project_dir, 'attributes') / 'soilclass'
@@ -476,7 +477,7 @@ class AcquisitionService(ConfigurableMixin):
                     self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
 
                 # --- Glacier task (optional, failure is non-fatal) ---
-                if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False):
+                if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False, dict_key='DOWNLOAD_GLACIER_DATA'):
                     attr_tasks.append(('glacier', downloader.download_glacier_data))
 
                 # Run attribute downloads concurrently
@@ -512,6 +513,8 @@ class AcquisitionService(ConfigurableMixin):
             except (ImportError, AttributeError, IndexError) as e:
                 self.logger.error(f"Error during cloud attribute acquisition: {e}")
                 raise
+
+            self._acquire_profile_datasets()
 
         else:
             self.logger.info("Using traditional MAF attribute acquisition workflow")
@@ -551,6 +554,90 @@ class AcquisitionService(ConfigurableMixin):
             except (ImportError, AttributeError, IndexError) as e:
                 self.logger.error(f"Error during attribute acquisition: {e}")
                 raise
+
+            self._acquire_profile_datasets()
+
+    def _acquire_profile_datasets(self):
+        """Acquire extended datasets based on ATTRIBUTE_PROFILE config.
+
+        Reads the profile name from config and downloads all datasets
+        listed in the profile that haven't been individually disabled
+        via DOWNLOAD_* override flags.  Failures are non-fatal by
+        default (warns and continues).
+        """
+        from symfluence.data.acquisition.attribute_profiles import PROFILES
+
+        profile_name = self._get_config_value(
+            lambda: self.config.domain.attribute_profile,
+            default='core',
+            dict_key='ATTRIBUTE_PROFILE',
+        )
+        if isinstance(profile_name, str):
+            profile_name = profile_name.lower().strip()
+
+        profile_datasets = PROFILES.get(profile_name, [])
+        if not profile_datasets:
+            return
+
+        self.logger.info(
+            f"Attribute profile '{profile_name}': "
+            f"{len(profile_datasets)} extended datasets to acquire"
+        )
+
+        tasks: List[Tuple[str, Callable]] = []
+        for ds in profile_datasets:
+            if ds.config_override_key:
+                override = self._get_config_value(
+                    lambda: None,
+                    default=True,
+                    dict_key=ds.config_override_key,
+                )
+                if isinstance(override, str):
+                    override = override.lower() not in ('false', '0', 'no')
+                if not override:
+                    self.logger.info(
+                        f"Skipping {ds.description} "
+                        f"({ds.config_override_key} is False)"
+                    )
+                    continue
+
+            def _make_task(dataset=ds):
+                handler = AcquisitionRegistry.get_handler(
+                    dataset.handler_name, self.config, self.logger,
+                )
+                out_dir = (
+                    resolve_data_subdir(self.project_dir, 'attributes')
+                    / dataset.output_subdir
+                )
+                out_dir.mkdir(parents=True, exist_ok=True)
+                return handler.download(out_dir)
+
+            tasks.append((ds.description, _make_task))
+
+        if not tasks:
+            return
+
+        results = self._run_parallel_tasks(
+            tasks, desc=f"Acquiring '{profile_name}' profile datasets",
+        )
+
+        for name, result in results.items():
+            if isinstance(result, Exception):
+                ds_info = next(
+                    (d for d in profile_datasets if d.description == name),
+                    None,
+                )
+                if ds_info and ds_info.fatal:
+                    self.logger.error(
+                        f"Required profile dataset failed: {name}: {result}"
+                    )
+                    raise result
+                self.logger.warning(
+                    f"Optional profile dataset failed (non-fatal): "
+                    f"{name}: {result}"
+                )
+            else:
+                self.logger.info(f"Profile dataset acquired: {name}")
 
     def _acquire_elevation_data(self, gistool_runner, output_dir: Path, lat_lims: str, lon_lims: str):
         self.logger.info("Acquiring elevation data")
@@ -638,6 +725,35 @@ class AcquisitionService(ConfigurableMixin):
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
+
+        # If forcing_path points to existing data, symlink into raw_data and skip download
+        forcing_path = self._get_config_value(
+            lambda: self.config.paths.forcing_path, default=None, dict_key='FORCING_PATH')
+        if forcing_path and forcing_path != 'default':
+            forcing_path = Path(forcing_path)
+            if forcing_path.exists():
+                nc_files = list(forcing_path.glob('*.nc')) + list(forcing_path.glob('*.nc4'))
+                csv_files = list(forcing_path.glob('*.csv'))
+                if nc_files or csv_files:
+                    raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
+                    raw_data_dir.mkdir(parents=True, exist_ok=True)
+                    existing_raw = list(raw_data_dir.glob('*.nc')) + list(raw_data_dir.glob('*.csv'))
+                    if not existing_raw:
+                        raw_data_dir.symlink_to(forcing_path) if not raw_data_dir.exists() else None
+                        for f in (nc_files + csv_files):
+                            link = raw_data_dir / f.name
+                            if not link.exists():
+                                link.symlink_to(f)
+                        self.logger.info(
+                            f"✓ Using pre-staged forcing data from forcing_path: {forcing_path} "
+                            f"({len(nc_files)} .nc, {len(csv_files)} .csv files symlinked to raw_data/)"
+                        )
+                    else:
+                        self.logger.info(
+                            f"✓ Forcing data already exists in raw_data/ ({len(existing_raw)} files), "
+                            f"skipping acquisition"
+                        )
+                    return
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()

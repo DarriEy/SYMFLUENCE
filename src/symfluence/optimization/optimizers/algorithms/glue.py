@@ -89,34 +89,22 @@ class GLUEAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting GLUE analysis with {n_params} parameters")
 
-        # GLUE parameters
-        n_samples = self.max_iterations * self.population_size  # Total Monte Carlo samples
-        batch_size = self.population_size  # Samples per batch for parallel evaluation
+        # GLUE parameters from config
+        n_samples = self.max_iterations * self.population_size
+        batch_size = self.population_size
 
-        # Behavioral threshold (minimum acceptable performance)
-        # For KGE/NSE, typically 0.0 to 0.5
-        # (Beven & Binley 1992, Section 3 - "Likelihood measures")
         threshold = self._get_config_value(
-            lambda: self.config.optimization.glue_threshold,
+            lambda: self.config.optimization.glue.threshold,
             default=GLUEDefaults.THRESHOLD,
             dict_key='GLUE_THRESHOLD'
         )
-
-        # Likelihood shaping factor (higher = more weight to better solutions)
-        # L = max(0, metric - threshold) ^ N
-        # N=1 is linear weighting; N>1 emphasizes best solutions
-        # (Beven 2006, Section 2.1)
         shaping_factor = self._get_config_value(
-            lambda: self.config.optimization.glue_shaping_factor,
+            lambda: self.config.optimization.glue.shaping_factor,
             default=GLUEDefaults.SHAPING_FACTOR,
             dict_key='GLUE_SHAPING_FACTOR'
         )
-
-        # Sampling method: 'uniform' or 'lhs' (Latin Hypercube)
-        # LHS provides better coverage of parameter space
-        # (McKay et al. 1979)
         sampling_method = self._get_config_value(
-            lambda: self.config.optimization.glue_sampling,
+            lambda: self.config.optimization.glue.sampling,
             default=GLUEDefaults.SAMPLING,
             dict_key='GLUE_SAMPLING'
         )

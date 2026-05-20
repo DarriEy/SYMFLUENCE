@@ -135,6 +135,12 @@ class AttributesNetCDFBuilder:
                 groups_written += 1
             if self._build_hydrogeology_group(root):
                 groups_written += 1
+            if self._build_csv_group(root, 'soil_extended', 'soilclass'):
+                groups_written += 1
+            if self._build_csv_group(root, 'vegetation', 'vegetation'):
+                groups_written += 1
+            if self._build_csv_group(root, 'landcover_extended', 'landclass'):
+                groups_written += 1
 
         if groups_written == 0:
             logger.info("No attribute data found; removing empty file")
@@ -385,6 +391,40 @@ class AttributesNetCDFBuilder:
             return True
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not build hydrogeology group: %s", e)
+            return False
+
+    def _build_csv_group(self, root, group_name: str, subdir: str) -> bool:
+        """Build a NetCDF group from CSV files in an attributes subdirectory."""
+        attr_dir = resolve_data_subdir(self.project_dir, 'attributes') / subdir
+        if not attr_dir.exists():
+            return False
+
+        csvs = list(attr_dir.glob('*_attributes.csv'))
+        if not csvs:
+            return False
+
+        try:
+            import pandas as pd
+            frames = [pd.read_csv(c) for c in csvs]
+            df = pd.concat(frames, axis=1)
+            df = df.loc[:, ~df.columns.duplicated()]
+
+            if df.empty:
+                return False
+
+            grp = root.createGroup(group_name)
+            n = len(df)
+            grp.createDimension('hru', n)
+
+            for col in df.select_dtypes(include=[np.number]).columns:
+                v = grp.createVariable(col, 'f4', ('hru',))
+                v[:] = df[col].values.astype('f4')
+
+            meta = SourceMetadata(source=f'{group_name} attributes')
+            grp.setncatts(meta.to_netcdf_attrs())
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Could not build %s group: %s", group_name, e)
             return False
 
     # ------------------------------------------------------------------

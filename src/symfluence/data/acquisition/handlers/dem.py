@@ -164,9 +164,20 @@ class _TileDownloadMixin:
         self.logger.info(f"Merging {len(tile_paths)} tiles into {out_path}")
         src_files = [rasterio.open(p) for p in tile_paths]
         try:
+            src_nodata = [s.nodata for s in src_files]
+            explicit_nodata = next((v for v in src_nodata if v is not None), None)
+            if any(v != explicit_nodata for v in src_nodata):
+                self.logger.warning(
+                    "Inconsistent nodata across tiles: %s — using %s",
+                    src_nodata,
+                    explicit_nodata,
+                )
+
             merge_kwargs = {}
             if bounds is not None:
                 merge_kwargs['bounds'] = tuple(bounds)
+            if explicit_nodata is not None:
+                merge_kwargs['nodata'] = explicit_nodata
             mosaic, out_trans = rio_merge(src_files, **merge_kwargs)
             out_meta = src_files[0].meta.copy()
             out_meta.update({
@@ -175,6 +186,8 @@ class _TileDownloadMixin:
                 "transform": out_trans,
                 "compress": compress,
             })
+            if explicit_nodata is not None:
+                out_meta["nodata"] = explicit_nodata
             # Use BigTIFF when output exceeds ~4 GB (classic TIFF limit)
             est_bytes = mosaic.dtype.itemsize * mosaic.shape[0] * mosaic.shape[1] * mosaic.shape[2]
             if est_bytes > 3_500_000_000:

@@ -663,6 +663,150 @@ class WflowConfig(BaseModel):
     timeout: int = Field(default=7200, alias='WFLOW_TIMEOUT', ge=60, le=86400)
 
 
+class LisfloodConfig(BaseModel):
+    """LISFLOOD distributed hydrological model configuration.
+
+    LISFLOOD is a spatially distributed water resources model developed by
+    the Joint Research Centre (JRC) of the European Commission. It simulates
+    hydrological processes including snowmelt, soil moisture, groundwater,
+    and channel routing using PCRaster.
+
+    Reference:
+        De Roo et al. (2000): LISFLOOD: a GIS-based distributed model for
+        river basin scale water balance and flood simulation. Int. J.
+        Geographical Information Science, 14(4), 443-455.
+    """
+
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='LISFLOOD_INSTALL_PATH')
+    exe: str = Field(default='lisflood', alias='LISFLOOD_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_LISFLOOD_PATH')
+    settings_file: str = Field(default='settings.xml', alias='LISFLOOD_SETTINGS_FILE')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='LISFLOOD_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_LISFLOOD')
+    pcraster_path: str = Field(default='default', alias='LISFLOOD_PCRASTER_PATH')
+    num_threads: int = Field(default=1, alias='LISFLOOD_NUM_THREADS', ge=1, le=64)
+    pet_method: str = Field(default='oudin', alias='LISFLOOD_PET_METHOD')
+    forest_fraction: float = Field(default=0.3, alias='LISFLOOD_FOREST_FRACTION', ge=0.0, le=1.0)
+    forcing_timestep: int = Field(default=86400, alias='LISFLOOD_FORCING_TIMESTEP', ge=3600, le=86400)
+    params_to_calibrate: str = Field(
+        default='ksat1,ksat2,ksat3,lambda1,lambda2,lambda3,thetas1,thetas2,thetas3,chanman,mannings,cropcoef,snow_melt_coef,temp_melt,temp_snow,GwPercValue',
+        alias='LISFLOOD_PARAMS_TO_CALIBRATE',
+    )
+    timeout: int = Field(default=7200, alias='LISFLOOD_TIMEOUT', ge=60, le=86400)
+
+
+class PCRGLOBWBConfig(BaseModel):
+    """PCR-GLOBWB 2.0 global distributed hydrological model configuration.
+
+    PCR-GLOBWB is a global-scale distributed hydrological model developed
+    at Utrecht University. It simulates water storage and fluxes across
+    the terrestrial water cycle at 5 or 30 arcminute resolution using
+    PCRaster for grid operations.
+
+    Reference:
+        Sutanudjaja, E.H., et al. (2018): PCR-GLOBWB 2: a 5 arcmin global
+        hydrological and water resources model. Geosci. Model Dev., 11, 2429-2453.
+    """
+
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='PCRGLOBWB_INSTALL_PATH')
+    exe: str = Field(default='deterministic_runner.py', alias='PCRGLOBWB_EXE')
+    python_exe: str = Field(default='python', alias='PCRGLOBWB_PYTHON_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_PCRGLOBWB_PATH')
+    config_file: str = Field(default='setup.ini', alias='PCRGLOBWB_CONFIG_FILE')
+    clone_map: str = Field(default='clone.map', alias='PCRGLOBWB_CLONE_MAP')
+    resolution: str = Field(default='05min', alias='PCRGLOBWB_RESOLUTION')
+    spatial_mode: SpatialModeType = Field(default='distributed', alias='PCRGLOBWB_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_PCRGLOBWB')
+    output_dir: str = Field(default='default', alias='PCRGLOBWB_OUTPUT_DIR')
+    spinup_years: int = Field(default=0, alias='PCRGLOBWB_SPINUP_YEARS', ge=0, le=50)
+    spinup_convergence: bool = Field(default=False, alias='PCRGLOBWB_SPINUP_CONVERGENCE')
+    use_opendap: bool = Field(default=False, alias='PCRGLOBWB_USE_OPENDAP')
+    input_dir: str = Field(default='default', alias='PCRGLOBWB_INPUT_DIR')
+    met_forcing_dir: str = Field(default='default', alias='PCRGLOBWB_MET_FORCING_DIR')
+    pet_method: str = Field(default='hamon', alias='PCRGLOBWB_PET_METHOD')
+    params_to_calibrate: str = Field(
+        default='KSat1,KSat2,recessionCoeff,degreeDayFactor,freezingT,manningsN,ROUTE_ALPHA,ROUTE_BETA,ROUTE_SPLIT,ROUTE_BASEFLOW',
+        alias='PCRGLOBWB_PARAMS_TO_CALIBRATE',
+    )
+    timeout: int = Field(default=14400, alias='PCRGLOBWB_TIMEOUT', ge=60, le=172800)
+
+
+class NoahMPConfig(BaseModel):
+    """Noah-MP standalone land surface model configuration.
+
+    Drives noah-owp-modular (NOAA-OWP), a 1-D column Fortran model.
+    Repository: https://github.com/NOAA-OWP/noah-owp-modular
+    """
+
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='NOAHMP_INSTALL_PATH')
+    exe: str = Field(default='noah_owp_modular.exe', alias='NOAHMP_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_NOAHMP_PATH')
+    namelist_file: str = Field(default='namelist.input', alias='NOAHMP_NAMELIST_FILE')
+    forcing_file: str = Field(default='forcing.txt', alias='NOAHMP_FORCING_FILE')
+    output_file: str = Field(default='output.nc', alias='NOAHMP_OUTPUT_FILE')
+    parameter_dir: str = Field(default='parameters', alias='NOAHMP_PARAMETER_DIR')
+    timestep: int = Field(default=3600, alias='NOAHMP_TIMESTEP', ge=900, le=3600)
+    nsoil: int = Field(default=4, alias='NOAHMP_NSOIL', ge=1, le=10)
+    nsnow: int = Field(default=3, alias='NOAHMP_NSNOW', ge=1, le=5)
+    dynamic_veg_option: int = Field(default=1, alias='NOAHMP_DYNAMIC_VEG_OPTION', ge=1, le=10)
+    canopy_stomatal_option: int = Field(default=1, alias='NOAHMP_CANOPY_STOMATAL_OPTION', ge=1, le=2)
+    soil_moisture_option: int = Field(default=1, alias='NOAHMP_SOIL_MOISTURE_OPTION', ge=1, le=3)
+    runoff_option: int = Field(default=1, alias='NOAHMP_RUNOFF_OPTION', ge=1, le=8)
+    sfc_drag_option: int = Field(default=1, alias='NOAHMP_SFC_DRAG_OPTION', ge=1, le=2)
+    supercooled_water_option: int = Field(default=1, alias='NOAHMP_SUPERCOOLED_WATER_OPTION', ge=1, le=2)
+    frozen_soil_option: int = Field(default=1, alias='NOAHMP_FROZEN_SOIL_OPTION', ge=1, le=2)
+    radiative_transfer_option: int = Field(default=3, alias='NOAHMP_RADIATIVE_TRANSFER_OPTION', ge=1, le=3)
+    snow_albedo_option: int = Field(default=2, alias='NOAHMP_SNOW_ALBEDO_OPTION', ge=1, le=2)
+    precip_phase_option: int = Field(default=1, alias='NOAHMP_PRECIP_PHASE_OPTION', ge=1, le=2)
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_NOAHMP')
+    output_dir: str = Field(default='default', alias='NOAHMP_OUTPUT_DIR')
+    spinup_loops: int = Field(default=0, alias='NOAHMP_SPINUP_LOOPS', ge=0, le=100)
+    params_to_calibrate: str = Field(
+        default='refkdt,dksat,bexp,smcmax,slope,noah_czil',
+        alias='NOAHMP_PARAMS_TO_CALIBRATE',
+    )
+    timeout: int = Field(default=7200, alias='NOAHMP_TIMEOUT', ge=60, le=172800)
+
+
+class CWatMConfig(BaseModel):
+    """CWatM (Community Water Model) configuration.
+
+    CWatM is a global-scale distributed hydrological model developed
+    at IIASA. Pure Python with NumPy-based grid operations (no PCRaster
+    dependency). Supports 5/30 arcmin and 30 arcsec resolution.
+
+    Reference:
+        Burek, P., et al. (2020): Development of the Community Water
+        Model (CWatM v1.04). Geosci. Model Dev., 13, 3267-3298.
+    """
+
+    model_config = FROZEN_CONFIG
+
+    install_path: str = Field(default='default', alias='CWATM_INSTALL_PATH')
+    exe: str = Field(default='run_cwatm.py', alias='CWATM_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_CWATM_PATH')
+    config_file: str = Field(default='settings.ini', alias='CWATM_CONFIG_FILE')
+    resolution: str = Field(default='30min', alias='CWATM_RESOLUTION')
+    spatial_mode: SpatialModeType = Field(default='distributed', alias='CWATM_SPATIAL_MODE')
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_CWATM')
+    output_dir: str = Field(default='default', alias='CWATM_OUTPUT_DIR')
+    spinup_years: int = Field(default=0, alias='CWATM_SPINUP_YEARS', ge=0, le=50)
+    calc_evaporation: bool = Field(default=False, alias='CWATM_CALC_EVAPORATION')
+    pet_method: str = Field(default='hamon', alias='CWATM_PET_METHOD')
+    params_to_calibrate: str = Field(
+        default='SnowMeltCoef,crop_correct,soildepth_factor,arnoBeta_add,recessionCoeff_factor,manningsN',
+        alias='CWATM_PARAMS_TO_CALIBRATE',
+    )
+    timeout: int = Field(default=14400, alias='CWATM_TIMEOUT', ge=60, le=172800)
+
+
+
 __all__ = [
     'SUMMAConfig',
     'FUSEConfig',
@@ -681,4 +825,8 @@ __all__ = [
     'GSFLOWConfig',
     'WATFLOODConfig',
     'WflowConfig',
+    'LisfloodConfig',
+    'PCRGLOBWBConfig',
+    'CWatMConfig',
+    'NoahMPConfig',
 ]

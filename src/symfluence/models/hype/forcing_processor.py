@@ -320,9 +320,10 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             else:
                 # Ensure columns (subids) are integers
                 df.columns = df.columns.astype(int)
-                # Shift 0-based IDs if needed (legacy behavior for backwards compatibility)
-                if 0 in df.columns:
-                    df.columns = [c + 1 if c == 0 else c for c in df.columns]
+
+            # Shift 0-based IDs by +1 to match GeoData (HYPE requires subid > 0)
+            if 0 in df.columns or min(df.columns) == 0:
+                df.columns = [c + 1 for c in df.columns]
 
             df.columns.name = None
             df.index.name = 'time'

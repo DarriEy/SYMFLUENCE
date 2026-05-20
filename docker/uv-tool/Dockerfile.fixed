@@ -1,0 +1,137 @@
+# ============================================================================
+# SYMFLUENCE uv tool install (Method D from README.md)
+#
+#   uv tool install symfluence
+#   symfluence binary install
+#
+# `uv tool install` puts symfluence in an isolated venv at
+# /root/.local/share/uv/tools/symfluence/ with a shim at /root/.local/bin/.
+#
+# Build: docker build -f docker/uv-tool/Dockerfile.fixed -t symfluence:uv-tool-fixed .
+# Run:   docker run --rm symfluence:uv-tool-fixed --help
+#
+# Differences from Dockerfile (same set as docker/pip/Dockerfile.fixed and
+# docker/uv/Dockerfile.fixed — `symfluence binary install` hits identical
+# upstream bugs regardless of which Python installer was used):
+#   + pkg-config                (helps cmake locate apt's multi-arch OpenBLAS)
+#   + wget                      (ngen's `_build.sh` line 839 downloads Boost
+#                                1.79 — Debian only has 1.74 — via wget)
+#   + libhdf5_serial → libhdf5  (fuse's Makefile links -lhdf5/-lhdf5_hl, but
+#                                Debian's libhdf5-dev installs as libhdf5_serial;
+#                                symlinks land in /usr/lib because that's what
+#                                fuse passes via -L/usr/lib)
+#   + /lib64/libc.so.6 symlink  (works around GLIBC-detection bug in the
+#                                upstream `_build.sh` host-libc probe; without
+#                                it, sundials/summa/fuse/ngen all fail on
+#                                aarch64 with "Unknown argument -static-libstdc++")
+#   + hide /usr/include/boost   (libboost1.74 is needed by some pip wheels at
+#                                build time, but ngen's cmake then finds 1.74
+#                                instead of the 1.79 it downloads itself; rename
+#                                the headers between uv tool install and binary
+#                                install so cmake can't see them)
+# ============================================================================
+
+FROM python:3.11-slim-bookworm
+
+# System dependencies follow the canonical registry at
+# src/symfluence/resources/system_deps.yml (all `required: true` deps plus
+# default-toolset optionals: udunits2, cdo, r_base, perl) + the workarounds
+# below: pkg-config (cmake BLAS/LAPACK probe on multi-arch), wget (ngen
+# downloads Boost 1.79), and the symlink RUN blocks further down.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gfortran \
+        cmake \
+        make \
+        pkg-config \
+        libopenmpi-dev \
+        openmpi-bin \
+        libopenblas-dev \
+        liblapack-dev \
+        libnetcdf-dev \
+        libnetcdff-dev \
+        libhdf5-dev \
+        gdal-bin \
+        libgdal-dev \
+        libproj-dev \
+        libgeos-dev \
+        libudunits2-dev \
+        cdo \
+        r-base \
+        r-base-dev \
+        perl \
+        git \
+        curl \
+        wget \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Debian's libhdf5-dev installs as libhdf5_serial.so directly under /usr/lib/<arch>/.
+# (Note one quirk: the HL+Fortran combo is named libhdf5_serialhl_fortran.so —
+# no underscore between "serial" and "hl".) fuse's Makefile passes
+# `-L/usr/lib -lhdf5 -lhdf5_hl`, so symlink the canonical names into /usr/lib/.
+# `test -f` guards against silent breakage if Debian ever renames the sources.
+RUN ARCH=$(gcc -print-multiarch) \
+    && ARCH_LIB=/usr/lib/${ARCH} \
+    && for src in libhdf5_serial.so libhdf5_serial_hl.so libhdf5_serial_fortran.so libhdf5_serialhl_fortran.so; do \
+         test -f "${ARCH_LIB}/${src}" || { echo "MISSING source: ${ARCH_LIB}/${src}"; exit 1; }; \
+       done \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial.so"           /usr/lib/libhdf5.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_hl.so"        /usr/lib/libhdf5_hl.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serial_fortran.so"   /usr/lib/libhdf5_fortran.so \
+    && ln -sf "${ARCH_LIB}/libhdf5_serialhl_fortran.so" /usr/lib/libhdf5_hl_fortran.so
+
+# Workaround for upstream `symfluence binary install` GLIBC-mismatch probe
+# (`_build.sh` lines ~304-308): its host-libc lookup only checks
+# /usr/lib64/, /lib/x86_64-linux-gnu/, and /lib64/. On aarch64 Debian the real
+# libc is at /lib/aarch64-linux-gnu/libc.so.6, so the probe fails, false-
+# triggers a static-link "workaround", and breaks the CMake invocation.
+# Putting libc.so.6 at /lib64/ makes the probe succeed on any arch.
+RUN mkdir -p /lib64 \
+    && ln -sf "/lib/$(gcc -print-multiarch)/libc.so.6" /lib64/libc.so.6
+
+# Upstream static uv binary (Astral's recommended Docker pattern).
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# README.md L108-109: GDAL Python wheel needs these to find headers.
+# OMPI_ALLOW_RUN_AS_ROOT: compiled hydrology models invoke OpenMPI inside the
+# container, which by default refuses to run as root.
+# PATH: `uv tool install` shim lives in /root/.local/bin and is otherwise off-PATH.
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal \
+    HDF5_USE_FILE_LOCKING=FALSE \
+    OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/root/.local/bin:$PATH
+
+# README.md L43: uv tool install symfluence
+# GDAL Python bindings (`osgeo`) are required by GDALProcessor in setup_project,
+# but pyproject's `[gdal]` extra is `gdal>=3.6.0,<4.0.0` — uv resolves that to
+# the latest (3.13.0), which requires libgdal>=3.13 and won't build against
+# Debian's 3.6.2. `uv tool install --with` also doesn't persist into the tool
+# venv reliably. Install symfluence first, then inject gdal pinned to the apt
+# libgdal-dev version directly into the tool's interpreter.
+RUN uv tool install symfluence \
+ && uv pip install --python /root/.local/share/uv/tools/symfluence/bin/python \
+        "gdal==$(gdal-config --version)"
+
+# libboost-dev (1.74) is pulled in transitively (by libgdal-dev) and is needed
+# by some pip wheels at build time. After install, hide its headers so
+# ngen's cmake `find_package(Boost ≥ 1.79)` doesn't pick them up — it'll then
+# fall back to the Boost 1.79 its `_build.sh` downloads via wget.
+RUN [ -d /usr/include/boost ] && mv /usr/include/boost /usr/include/boost.disabled || true
+
+# Pin the install location so `symfluence binary install` does not infer it
+# from WORKDIR via the auto-resolver (which would place it at e.g.
+# /opt/SYMFLUENCE_data). Aligns build-time install path with docker-compose's
+# named-volume mount at /SYMFLUENCE_data/installs and with the cwd-relative
+# `../SYMFLUENCE_data` paths the example configs resolve from /workspace.
+ENV SYMFLUENCE_DATA_DIR=/SYMFLUENCE_data
+
+RUN symfluence binary install
+
+WORKDIR /workspace
+
+ENTRYPOINT ["symfluence"]
+CMD ["--help"]

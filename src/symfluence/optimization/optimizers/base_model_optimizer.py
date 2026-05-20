@@ -23,9 +23,7 @@ Optional Overrides:
 """
 
 import logging
-import os
 import random
-import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -40,6 +38,7 @@ from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import OptimizationError, require_not_none
 
 from ..mixins import GradientOptimizationMixin, ParallelExecutionMixin, ResultsTrackingMixin, RetryExecutionMixin
+from ..mixins.parallel.local_scratch_manager import LocalScratchManager
 from ..workers.base_worker import BaseWorker
 from .algorithms import ALGORITHM_REGISTRY, get_algorithm
 from .component_factory import OptimizerComponentFactory
@@ -93,10 +92,18 @@ class BaseModelOptimizer(
             reporting_manager: ReportingManager instance
         """
         from symfluence.core.config.coercion import coerce_config
-        self._config = coerce_config(config, warn=False)
+        self._config = coerce_config(config, warn=True)
 
         self.logger = logger
         self.reporting_manager = reporting_manager
+
+        if isinstance(self._config, dict):
+            self.logger.warning(
+                "Configuration could not be fully validated — running with "
+                "raw dict. Some typed config accessors may return defaults "
+                "instead of configured values. Set SYMFLUENCE_STRICT_CONFIG=true "
+                "to surface the underlying validation error."
+            )
 
         # Setup paths using typed config accessors
         # Note: dict_key enables fallback for legacy dict-based configs
@@ -167,6 +174,8 @@ class BaseModelOptimizer(
         # Parallel processing state
         self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
+        self._scratch_manager: Optional[LocalScratchManager] = None
+        self._original_project_dir: Optional[Path] = None
         # Setup directories if NUM_PROCESSES is set, regardless of count (for isolation)
         num_processes = self._get_config_value(
             lambda: self.config.system.num_processes, default=1,
@@ -541,11 +550,11 @@ class BaseModelOptimizer(
     def _get_moead_objective_names(self) -> List[str]:
         """Resolve MOEA/D objective metric names in priority order."""
         primary_metric = self._get_config_value(
-            lambda: self.config.optimization.moead_primary_metric, default=self.target_metric,
+            lambda: self.config.optimization.moead.primary_metric, default=self.target_metric,
             dict_key='MOEAD_PRIMARY_METRIC'
         )
         secondary_metric = self._get_config_value(
-            lambda: self.config.optimization.moead_secondary_metric, default=self.target_metric,
+            lambda: self.config.optimization.moead.secondary_metric, default=self.target_metric,
             dict_key='MOEAD_SECONDARY_METRIC'
         )
         return [str(primary_metric).upper(), str(secondary_metric).upper()]
@@ -665,52 +674,59 @@ class BaseModelOptimizer(
             self.logger.warning(f"Could not adjust end time: {e}")
             return end_time_str
 
-    def _setup_parallel_dirs(self) -> None:
-        """Setup parallel processing directories.
+    def _resolve_sim_base_dir(self, algorithm: str) -> Path:
+        """Resolve the base simulation directory, activating local scratch if configured.
 
         When USE_LOCAL_SCRATCH is enabled and SLURM_TMPDIR is available,
-        parallel directories are created on node-local storage to avoid
-        Lustre IOPS during SUMMA/mizuRoute execution.  Results are staged
-        back to the permanent filesystem during cleanup().
-        """
-        # Determine algorithm for directory naming
-        algorithm = self._get_config_value(
-            lambda: self.config.optimization.algorithm, default='optimization'
-        ).lower()
+        settings, forcing, and observation data are copied to node-local
+        storage via LocalScratchManager.  Results are staged back to the
+        permanent filesystem during cleanup().
 
-        # Permanent location (shared filesystem)
+        Subclass overrides of ``_setup_parallel_dirs`` should call this instead
+        of hardcoding ``self.project_dir / 'simulations' / ...`` so that every
+        model benefits from scratch redirection on HPC.
+
+        Returns the ``base_dir`` that should be passed to
+        ``setup_parallel_processing()``.
+        """
         permanent_base = self.project_dir / 'simulations' / f'run_{algorithm}'
 
-        # Check if we should use local scratch for I/O-heavy model runs
         use_local_scratch = self._get_config_value(
             lambda: self.config.system.use_local_scratch, default=False,
             dict_key='USE_LOCAL_SCRATCH',
         )
-        slurm_tmpdir = os.environ.get('SLURM_TMPDIR')
 
-        self._scratch_base_dir = None  # set if scratch is active
+        self._scratch_base_dir = None
         self._permanent_base_dir = permanent_base
 
-        if use_local_scratch and slurm_tmpdir and Path(slurm_tmpdir).exists():
-            base_dir = Path(slurm_tmpdir) / 'simulations' / f'run_{algorithm}'
-            base_dir.mkdir(parents=True, exist_ok=True)
-            self._scratch_base_dir = base_dir
-            self.logger.info(
-                f"USE_LOCAL_SCRATCH enabled — parallel dirs on node-local "
-                f"storage: {base_dir}"
+        if use_local_scratch:
+            mgr = LocalScratchManager(
+                config=self.config,
+                logger=self.logger,
+                project_dir=self.project_dir,
+                algorithm_name=algorithm,
             )
-        elif use_local_scratch:
-            self.logger.warning(
-                "USE_LOCAL_SCRATCH is True but SLURM_TMPDIR is not available. "
-                "Falling back to standard filesystem."
-            )
-            base_dir = permanent_base
+            if mgr.use_scratch and mgr.setup_scratch_space():
+                self._scratch_manager = mgr
+                scratch_project = mgr.get_effective_project_dir()
+                base_dir = scratch_project / 'simulations' / f'run_{algorithm}'
+                base_dir.mkdir(parents=True, exist_ok=True)
+                self._scratch_base_dir = base_dir
+                self._original_project_dir = self.project_dir
+                self.project_dir = scratch_project
+                self.logger.info(
+                    f"USE_LOCAL_SCRATCH enabled — project_dir redirected to "
+                    f"node-local storage: {self.project_dir}"
+                )
+            else:
+                self.logger.warning(
+                    "USE_LOCAL_SCRATCH requested but scratch setup failed or "
+                    "SLURM_TMPDIR unavailable. Using standard filesystem."
+                )
+                base_dir = permanent_base
         else:
             base_dir = permanent_base
 
-        # If the primary simulations directory is not writable (common on macOS
-        # sandboxed mounts or read-only network drives), fall back to a local
-        # scratch directory so calibration can proceed.
         try:
             base_dir.mkdir(parents=True, exist_ok=True)
         except PermissionError:
@@ -722,16 +738,23 @@ class BaseModelOptimizer(
             )
             base_dir = fallback
 
+        return base_dir
+
+    def _setup_parallel_dirs(self) -> None:
+        """Setup parallel processing directories."""
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm, default='optimization'
+        ).lower()
+
+        base_dir = self._resolve_sim_base_dir(algorithm)
+
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             self._get_model_name(),
             self.experiment_id
         )
 
-        # For non-parallel runs, set a default output directory for fallback
-        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
         if not self.use_parallel and self.parallel_dirs:
-            # Use process_0 directories as the default
             self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
         else:
             self.default_sim_dir = self.results_dir
@@ -1002,13 +1025,21 @@ class BaseModelOptimizer(
             raise OptimizationError(f"Failed to save results for {algorithm_name} default evaluation")
         return results_path
 
-    def _build_algorithm_callbacks(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def _build_algorithm_callbacks(self, algorithm_name: str = 'optimization') -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Build callback functions and kwargs dict for algorithm.optimize().
+
+        Args:
+            algorithm_name: Algorithm name used for checkpoint file naming.
 
         Returns:
             Tuple of (callbacks_dict, kwargs_dict) where callbacks_dict contains
             the core function bindings and kwargs_dict contains additional settings.
         """
+        checkpoint_interval = self._get_config_value(
+            lambda: self.config.optimization.checkpoint_interval,
+            default=10, dict_key='CHECKPOINT_INTERVAL',
+        )
+
         def evaluate_solution(normalized_params, proc_id=0):
             return self._evaluate_solution(normalized_params, proc_id)
 
@@ -1018,6 +1049,14 @@ class BaseModelOptimizer(
         def denormalize_params(normalized):
             return self.param_manager.denormalize_parameters(normalized)
 
+        def save_checkpoint(iteration: int):
+            try:
+                self.save_results(algorithm_name, standard_filename=True)
+                self.save_best_params(algorithm_name)
+                self.logger.debug(f"Checkpoint saved at iteration {iteration}")
+            except Exception as e:  # noqa: BLE001 — must-not-raise contract
+                self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
+
         def record_iteration(iteration, score, params, additional_metrics=None):
             crash_stats = self.get_crash_stats()
             merged = dict(additional_metrics or {}, **{
@@ -1025,6 +1064,8 @@ class BaseModelOptimizer(
                 'crash_rate': crash_stats['crash_rate'],
             })
             self.record_iteration(iteration, score, params, additional_metrics=merged)
+            if iteration > 0 and iteration % checkpoint_interval == 0:
+                save_checkpoint(iteration)
 
         def update_best(score, params, iteration):
             self.update_best(score, params, iteration)
@@ -1036,14 +1077,6 @@ class BaseModelOptimizer(
                 n_improved=n_improved, population_size=pop_size,
                 crash_stats=self.get_crash_stats()
             )
-
-        def save_checkpoint(algorithm_name: str, iteration: int):
-            try:
-                self.save_results(algorithm_name, standard_filename=True)
-                self.save_best_params(algorithm_name)
-                self.logger.debug(f"Checkpoint saved at iteration {iteration}")
-            except Exception as e:  # noqa: BLE001 — must-not-raise contract
-                self.logger.warning(f"Checkpoint save failed at iteration {iteration}: {e}")
 
         callbacks = {
             'evaluate_solution': evaluate_solution,
@@ -1057,7 +1090,8 @@ class BaseModelOptimizer(
         kwargs = {
             'log_initial_population': self.log_initial_population,
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
-            'save_checkpoint': save_checkpoint,
+            'results_dir': self.results_dir,
+            'experiment_id': self.experiment_id,
         }
 
         return callbacks, kwargs
@@ -1083,7 +1117,7 @@ class BaseModelOptimizer(
         algorithm = get_algorithm(algorithm_name, self.config, self.logger)
 
         # Build callbacks and kwargs for the algorithm
-        callbacks, kwargs = self._build_algorithm_callbacks()
+        callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
         # Seed optimization with best previous result (warm-start) or def file defaults
         skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
@@ -1133,7 +1167,7 @@ class BaseModelOptimizer(
         # For MOEA/D, add multi-objective support only when explicitly enabled
         if algorithm_name.lower() in ['moead', 'moea-d', 'moea_d']:
             moead_multi = bool(self._get_config_value(
-                lambda: self.config.optimization.moead_multi_target, default=False,
+                lambda: self.config.optimization.moead.multi_target, default=False,
                 dict_key='MOEAD_MULTI_TARGET'
             ))
             kwargs['multiobjective'] = moead_multi
@@ -1430,32 +1464,10 @@ class BaseModelOptimizer(
         self._shutdown_mpi_strategy()
 
         # Stage results from local scratch back to permanent storage
-        if getattr(self, '_scratch_base_dir', None) is not None:
-            permanent = getattr(self, '_permanent_base_dir', None)
-            if permanent is not None:
-                self.logger.info(
-                    f"Staging results from scratch ({self._scratch_base_dir}) "
-                    f"to permanent storage ({permanent})"
-                )
-                try:
-                    permanent.mkdir(parents=True, exist_ok=True)
-                    # rsync-style copy: merge scratch into permanent
-                    for item in self._scratch_base_dir.iterdir():
-                        dest = permanent / item.name
-                        if item.is_dir():
-                            if dest.exists():
-                                # Merge into existing directory
-                                shutil.copytree(item, dest, dirs_exist_ok=True)
-                            else:
-                                shutil.copytree(item, dest)
-                        else:
-                            shutil.copy2(item, dest)
-                    self.logger.info("Results staged successfully")
-                except (OSError, shutil.Error) as exc:
-                    self.logger.error(
-                        f"Failed to stage results from scratch: {exc}. "
-                        f"Results remain at: {self._scratch_base_dir}"
-                    )
+        if getattr(self, '_scratch_manager', None) is not None:
+            self._scratch_manager.stage_results_back()
+            if self._original_project_dir is not None:
+                self.project_dir = self._original_project_dir
 
         if self.parallel_dirs:
             self.cleanup_parallel_processing(self.parallel_dirs)

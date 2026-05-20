@@ -73,16 +73,16 @@ class DEAlgorithm(OptimizationAlgorithm):
                 f"Population size {self.population_size} is too small for DE. Increasing to {pop_size}."
             )
 
-        # DE parameters
+        # DE parameters from config
         F = self._get_config_value(
-            lambda: self.config.optimization.de.f,
+            lambda: self.config.optimization.de.scaling_factor,
             default=DEDefaults.F,
-            dict_key='DE_F'
+            dict_key='DE_SCALING_FACTOR'
         )
         CR = self._get_config_value(
-            lambda: self.config.optimization.de.cr,
+            lambda: self.config.optimization.de.crossover_rate,
             default=DEDefaults.CR,
-            dict_key='DE_CR'
+            dict_key='DE_CROSSOVER_RATE'
         )
 
         # Validate DE parameters
