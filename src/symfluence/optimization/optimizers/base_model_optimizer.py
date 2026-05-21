@@ -1144,7 +1144,7 @@ class BaseModelOptimizer(
         # Build callbacks and kwargs for the algorithm
         callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
-        # Seed optimization with config, warm-start, or model default values
+        # Seed optimization using INITIAL_GUESS, previous best parameters, then defaults
         skip_warm_start = self._get_config_value(
             lambda: None,
             default=False,
