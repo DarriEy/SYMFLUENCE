@@ -168,6 +168,15 @@ class SUMMAParameterManager(BaseParameterManager):
             default=None, dict_key='TRANSFER_FUNCTION_PARAM_CONFIG'
         )
 
+        # Build extra_config for factory options (b_bounds, etc.)
+        extra_config: Dict[str, Any] = {}
+        b_bounds = self._get_config_value(
+            lambda: self.config.model.summa.transfer_function_b_bounds,
+            default=None, dict_key='TRANSFER_FUNCTION_B_BOUNDS'
+        )
+        if b_bounds:
+            extra_config['TRANSFER_FUNCTION_B_BOUNDS'] = tuple(b_bounds)
+
         self._regionalization = create_summa_regionalization(
             method=self._regionalization_method,
             param_bounds=tuple_bounds,
@@ -175,6 +184,7 @@ class SUMMAParameterManager(BaseParameterManager):
             attributes_nc_path=self.attr_file_path,
             csv_path=csv_path,
             param_config=param_config,
+            extra_config=extra_config,
             logger=self.logger,
         )
         self.logger.info(

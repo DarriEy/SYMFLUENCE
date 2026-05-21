@@ -98,7 +98,10 @@ class TransferFunctionRegionalization(ParameterRegionalization):
     to their driving attribute and whether b is calibrated.
     """
 
-    LOG_TRANSFORM_ATTRS = {'precip_mm_yr', 'aridity'}
+    LOG_TRANSFORM_ATTRS = {
+        'precip_mm_yr', 'aridity', 'climate.prec_annual_mean',
+        'soil.ksat', 'soil.regolith_thickness_mean',
+    }
 
     def __init__(
         self,
@@ -159,6 +162,17 @@ class TransferFunctionRegionalization(ParameterRegionalization):
             attr = config.get('attribute', 'precip_mm_yr')
             calibrate_b = config.get('calibrate_b', False)
             attr_norm = f'{attr}_norm'
+            if attr_norm not in self.attributes.columns:
+                fallback = config.get('fallback')
+                if fallback:
+                    fallback_norm = f'{fallback}_norm'
+                    if fallback_norm in self.attributes.columns:
+                        self.logger.info(
+                            f"{param_name}: '{attr}' not available, "
+                            f"using fallback '{fallback}'"
+                        )
+                        attr = fallback
+                        attr_norm = fallback_norm
             if attr_norm in self.attributes.columns:
                 self.param_to_attr[param_name] = attr_norm
             else:
@@ -179,12 +193,18 @@ class TransferFunctionRegionalization(ParameterRegionalization):
         for param_name, coeff_names in self.param_to_coeffs.items():
             p_min, p_max = self.param_bounds[param_name]
             p_range = p_max - p_min
+            cfg = self.param_config.get(param_name, {})
             for coeff_name in coeff_names:
                 if coeff_name.endswith('_a'):
                     bounds[coeff_name] = (p_min, p_max)
                 elif coeff_name.endswith('_b'):
                     b_min = self.b_bounds[0] * p_range
                     b_max = self.b_bounds[1] * p_range
+                    b_sign = cfg.get('b_sign')
+                    if b_sign == 'positive':
+                        b_min = max(b_min, 0.0)
+                    elif b_sign == 'negative':
+                        b_max = min(b_max, 0.0)
                     bounds[coeff_name] = (b_min, b_max)
         return bounds
 
