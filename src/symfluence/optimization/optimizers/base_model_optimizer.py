@@ -571,6 +571,31 @@ class BaseModelOptimizer(
         """
         return True
 
+    def _get_config_initial_guess(self) -> Optional[Dict[str, Any]]:
+        """Get and validate a config-specified optimizer initial guess."""
+        initial_guess = self._get_config_value(
+            lambda: self.config.optimization.initial_guess,
+            default=None,
+            dict_key='INITIAL_GUESS',
+        )
+        if not initial_guess:
+            return None
+        if not isinstance(initial_guess, dict):
+            raise ValueError(
+                "INITIAL_GUESS must be a dictionary of parameter names to values"
+            )
+
+        unknown_params = sorted(
+            set(initial_guess) - set(self.param_manager.all_param_names)
+        )
+        if unknown_params:
+            raise ValueError(
+                "INITIAL_GUESS contains unknown parameters: "
+                + ", ".join(unknown_params)
+            )
+
+        return dict(initial_guess)
+
     def _log_calibration_alignment(self) -> None:
         """Log basic calibration alignment info before optimization starts."""
         try:
@@ -1119,13 +1144,22 @@ class BaseModelOptimizer(
         # Build callbacks and kwargs for the algorithm
         callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
-        # Seed optimization with best previous result (warm-start) or def file defaults
-        skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
+        # Seed optimization with config, warm-start, or model default values
+        skip_warm_start = self._get_config_value(
+            lambda: None,
+            default=False,
+            dict_key='SKIP_WARM_START',
+        )
+        initial_params_dict = self._get_config_initial_guess()
         try:
-            if skip_warm_start:
+            if initial_params_dict:
+                self.logger.info(
+                    "Using config-specified INITIAL_GUESS for optimization seeding"
+                )
+            elif skip_warm_start:
                 self.logger.info(
                     "SKIP_WARM_START is set — skipping warm-start from previous runs. "
-                    "Optimization will start from def file defaults or config-specified initial parameters."
+                    "Optimization will start from model default initial parameters."
                 )
                 initial_params_dict = self.param_manager.get_initial_parameters()
             else:

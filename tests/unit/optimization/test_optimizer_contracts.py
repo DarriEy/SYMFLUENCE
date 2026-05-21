@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
+from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
+
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
 
@@ -216,6 +218,33 @@ class TestOptimizerInterfaceContract:
 
         for method, _ in gradient_methods:
             assert hasattr(mock_optimizer, method), f"Optimizer missing gradient method: {method}"
+
+
+class TestInitialGuessSeeding:
+    """Tests for explicit optimizer initial guesses."""
+
+    def test_initial_guess_returns_known_parameters(self):
+        """Test INITIAL_GUESS is returned when parameter names are valid."""
+        optimizer = Mock()
+        initial_guess = {'param1': 0.25, 'param2': 7.5}
+        optimizer._get_config_value.return_value = initial_guess
+        optimizer.param_manager.all_param_names = ['param1', 'param2']
+
+        result = BaseModelOptimizer._get_config_initial_guess(optimizer)
+
+        assert result == initial_guess
+
+    def test_unknown_initial_guess_parameter_raises(self):
+        """Test INITIAL_GUESS rejects unknown parameter names."""
+        optimizer = Mock()
+        optimizer._get_config_value.return_value = {'unknown_param': 0.25}
+        optimizer.param_manager.all_param_names = ['param1', 'param2']
+
+        with pytest.raises(
+            ValueError,
+            match='INITIAL_GUESS contains unknown parameters',
+        ):
+            BaseModelOptimizer._get_config_initial_guess(optimizer)
 
 
 class TestParameterManagerContract:
