@@ -31,11 +31,12 @@ PET_METHOD: oudin
 STREAMFLOW_DATA_PROVIDER: WSC
 STATION_ID: 05BB001
 DOWNLOAD_WSC_DATA: true
+ATTRIBUTE_PROFILE: camels_spat
 HYDROLOGICAL_MODEL: SUMMA
 ROUTING_MODEL: mizuRoute
 MIZU_FROM_MODEL: SUMMA
 SUMMA_WARMUP_DAYS: 730
-PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,albedoMinSpring,albedoMaxVisible,albedoDecayRate,newSnowDenMin,newSnowDenMult,newSnowDenScal,tempCritRain,tempRangeTimestep,k_soil,k_macropore,aquiferBaseflowExp,aquiferBaseflowRate
+PARAMS_TO_CALIBRATE: albedoMax,albedoMinWinter,albedoMinSpring,albedoMaxVisible,albedoDecayRate,newSnowDenMin,newSnowDenMult,newSnowDenScal,tempCritRain,tempRangeTimestep,frozenPrecipMultip,theta_sat,k_soil,k_macropore,aquiferBaseflowExp,aquiferBaseflowRate
 PARAMETER_REGIONALIZATION: transfer_function
 TRANSFER_FUNCTION_ATTRIBUTES: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data/domain_bow_regionalisation_comp_distributed_summa/data/attributes/climate/climate_statistics.csv
 SETTINGS_MIZU_WITHIN_BASIN: 0
@@ -57,12 +58,14 @@ TARGET_METRIC: KGE
 CALIBRATION_TIMESTEP: daily
 ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
 NUMBER_OF_ITERATIONS: 1000
-DDS_R: 0.2
+DDS_R: 0.3
 RANDOM_SEED: 42
 MPI_PROCESSES: 1
 FORCE_RUN_ALL_STEPS: true
 SKIP_WARM_START: true
-# Only constrain tempRangeTimestep (near-zero causes instability).
 # k_macropore >= k_soil enforced by parameter constraint in PM, not bounds.
 PARAMETER_BOUNDS:
   tempRangeTimestep: [0.5, 5.0]
+  albedoMinWinter: [0.55, 0.85]
+  frozenPrecipMultip: [0.5, 2.0]
+TRANSFER_FUNCTION_B_BOUNDS: [-1.5, 1.5]

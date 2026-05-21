@@ -230,10 +230,13 @@ class MultiGaugeMetrics:
         if len(obs) < 10:  # Minimum data points
             return -9999.0
 
-        # Correlation coefficient
-        r = np.corrcoef(obs, sim)[0, 1]
-        if np.isnan(r):
+        # Correlation coefficient — guard against constant series (zero stddev)
+        if np.std(obs) == 0 or np.std(sim) == 0:
             r = 0.0
+        else:
+            r = np.corrcoef(obs, sim)[0, 1]
+            if np.isnan(r):
+                r = 0.0
 
         # Ratio of standard deviations (alpha)
         alpha = np.std(sim) / np.std(obs) if np.std(obs) > 0 else 0.0

@@ -184,13 +184,15 @@ class BaseAttributeProcessor(ConfigMixin):
     ) -> Optional[Path]:
         """Write processor results as CSV for AttributesNetCDFBuilder.
 
-        Converts the result dict into a single-row DataFrame (lumped)
-        and writes it to ``output_dir/filename``.  The builder reads
-        CSVs from ``data/attributes/{category}/`` and stores numeric
-        columns as NetCDF variables.
+        For lumped domains, writes a single-row CSV.  For distributed
+        domains (results keyed as ``HRU_{id}_var.name``), reshapes into
+        one row per HRU with columns matching the variable names — this
+        is the format expected by transfer-function regionalization.
         """
         if not results:
             return None
+
+        import re
 
         import pandas as pd
 
@@ -203,6 +205,29 @@ class BaseAttributeProcessor(ConfigMixin):
         }
         if not numeric:
             return None
+
+        hru_keys = [k for k in numeric if k.startswith('HRU_')]
+        if hru_keys:
+            hru_pattern = re.compile(r'^HRU_(.+?)_(.+)$')
+            hru_data: Dict[str, Dict[str, float]] = {}
+            basin_data: Dict[str, float] = {}
+            for k, v in numeric.items():
+                m = hru_pattern.match(k)
+                if m:
+                    hru_id, var_name = m.group(1), m.group(2)
+                    hru_data.setdefault(hru_id, {})[var_name] = v
+                else:
+                    basin_data[k] = v
+            if hru_data:
+                df = pd.DataFrame.from_dict(hru_data, orient='index')
+                df = df.sort_index()
+                for col, val in basin_data.items():
+                    df[col] = val
+                df.to_csv(out_path, index=False)
+                self.logger.info(
+                    f"Wrote {len(df.columns)} attributes x {len(df)} HRUs to {out_path}"
+                )
+                return out_path
 
         df = pd.DataFrame([numeric])
         df.to_csv(out_path, index=False)

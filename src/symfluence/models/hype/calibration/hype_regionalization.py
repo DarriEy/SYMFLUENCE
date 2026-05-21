@@ -32,22 +32,23 @@ from symfluence.optimization.regionalization.strategies import (
 )
 
 HYPE_LU_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
-    'ttmp':  {'attribute': 'vegetation_height', 'calibrate_b': True},
-    'cmlt':  {'attribute': 'glacier_fraction',  'calibrate_b': True},
-    'cevp':  {'attribute': 'lai',               'calibrate_b': True},
-    'srrcs': {'attribute': 'root_depth',        'calibrate_b': True},
+    'ttmp':  {'attribute': 'mean_elevation', 'calibrate_b': True, 'b_sign': 'negative'},  # colder threshold at high elev (CV=1.02)
+    'cmlt':  {'attribute': 'temp_C',         'calibrate_b': True, 'b_sign': 'negative'},  # colder areas → higher melt factor (CV=0.61)
+    'cevp':  {'attribute': 'aridity',        'calibrate_b': True, 'b_sign': 'positive'},  # drier climate → more ET (CV=0.21)
+    'srrcs': {'attribute': 'precip_mm_yr',   'calibrate_b': True, 'b_sign': 'positive'},  # more precip → faster runoff (CV=0.21)
 }
 
 HYPE_SOIL_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
-    'wcwp':  {'attribute': 'clay_fraction', 'calibrate_b': True},
-    'wcfc':  {'attribute': 'clay_fraction', 'calibrate_b': True},
-    'wcep':  {'attribute': 'clay_fraction', 'calibrate_b': True},
-    'rrcs1': {'attribute': 'sand_fraction', 'calibrate_b': True},
-    'rrcs2': {'attribute': 'sand_fraction', 'calibrate_b': True},
+    'wcwp':  {'attribute': 'silt_fraction',  'calibrate_b': True, 'b_sign': 'positive'},  # more silt → higher wilting point (CV=0.53)
+    'wcfc':  {'attribute': 'silt_fraction',  'calibrate_b': True, 'b_sign': 'positive'},  # more silt → higher field capacity (CV=0.53)
+    'wcep':  {'attribute': 'bulk_density',   'calibrate_b': True, 'b_sign': 'negative'},  # denser soil → lower eff. porosity (CV=0.35)
+    'rrcs1': {'attribute': 'sand_fraction',  'calibrate_b': True, 'b_sign': 'positive'},  # more sand → faster drainage (CV=0.32)
+    'rrcs2': {'attribute': 'bedrock_depth',  'calibrate_b': True, 'b_sign': 'negative'},  # deeper bedrock → slower deep drainage (CV=0.12)
 }
 
 HYPE_GLOBAL_PARAMS: List[str] = [
     'lp', 'epotdist', 'rcgrw', 'rivvel', 'damp',
+    'ttpi', 'cmrefr',
 ]
 
 _IGBP_ATTRIBUTES: Dict[int, Dict[str, float]] = {
@@ -71,22 +72,117 @@ _IGBP_ATTRIBUTES: Dict[int, Dict[str, float]] = {
 }
 
 
+def _compute_lu_climate_attributes(
+    geodata_path: Path,
+    slc_to_lu: Dict,
+    climate_stats_path: Optional[Path],
+    logger: logging.Logger,
+) -> Dict[int, Dict[str, float]]:
+    """Compute area-weighted mean attributes per LU class from GeoData + climate stats."""
+    attrs_by_lu: Dict[int, Dict[str, float]] = {}
+    try:
+        gd = pd.read_csv(geodata_path, sep='\t')
+        slc_cols = [c for c in gd.columns if c.startswith('SLC_')]
+        if not slc_cols:
+            return attrs_by_lu
+
+        climate_cols = ['elev_mean']
+        if climate_stats_path and Path(climate_stats_path).exists():
+            cs = pd.read_csv(climate_stats_path)
+            if len(cs) == len(gd):
+                for col in ['precip_mm_yr', 'aridity', 'snow_frac', 'temp_C']:
+                    if col in cs.columns:
+                        gd[col] = cs[col].values
+                        climate_cols.append(col)
+
+        weighted_sums: Dict[int, Dict[str, float]] = {}
+        total_weights: Dict[int, float] = {}
+
+        for _, row in gd.iterrows():
+            for sc in slc_cols:
+                frac = row[sc]
+                if frac <= 0:
+                    continue
+                slc_id = int(sc.split('_')[1])
+                lu_id = slc_to_lu.get(slc_id)
+                if lu_id is None:
+                    continue
+                lu_key = int(lu_id)
+                if lu_key not in weighted_sums:
+                    weighted_sums[lu_key] = {c: 0.0 for c in climate_cols}
+                    total_weights[lu_key] = 0.0
+                for col in climate_cols:
+                    val = row.get(col)
+                    if val is not None and not np.isnan(val):
+                        weighted_sums[lu_key][col] += frac * val
+                total_weights[lu_key] += frac
+
+        for lu_id in weighted_sums:
+            w = total_weights[lu_id]
+            if w > 0:
+                attrs_by_lu[lu_id] = {
+                    col: weighted_sums[lu_id][col] / w for col in climate_cols
+                }
+
+        logger.info(
+            f"Computed per-LU climate attributes for {len(attrs_by_lu)} classes"
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not compute LU climate attributes: {e}")
+
+    return attrs_by_lu
+
+
 def load_lu_attributes(
     geoclass_path: Path,
     logger: Optional[logging.Logger] = None,
+    geodata_path: Optional[Path] = None,
+    climate_stats_path: Optional[Path] = None,
 ) -> Tuple[pd.DataFrame, np.ndarray]:
     logger = logger or logging.getLogger(__name__)
     geoclass_df = pd.read_csv(geoclass_path, sep='\t', skiprows=1, header=None)
     lu_ids = np.sort(geoclass_df.iloc[:, 1].unique())
+    slc_to_lu = dict(zip(geoclass_df.iloc[:, 0], geoclass_df.iloc[:, 1]))
+
+    lu_climate: Dict[int, Dict[str, float]] = {}
+    if geodata_path is not None and Path(geodata_path).exists():
+        lu_climate = _compute_lu_climate_attributes(
+            geodata_path, slc_to_lu, climate_stats_path, logger
+        )
+
     rows = []
     for lu_id in lu_ids:
         attrs = _IGBP_ATTRIBUTES.get(int(lu_id), _IGBP_ATTRIBUTES[16])
         row = {'lu_id': int(lu_id)}
         row.update(attrs)
+        climate = lu_climate.get(int(lu_id), {})
+        row['mean_elevation'] = climate.get('elev_mean', 0.0)
+        row['precip_mm_yr'] = climate.get('precip_mm_yr', 1000.0)
+        row['aridity'] = climate.get('aridity', 1.0)
+        row['snow_frac'] = climate.get('snow_frac', 0.3)
+        row['temp_C'] = climate.get('temp_C', 2.0)
         rows.append(row)
     df = pd.DataFrame(rows)
     logger.info(f"Loaded LU attributes: {len(df)} classes, IDs={list(lu_ids)}")
     return df, lu_ids
+
+
+# USDA soil texture class properties (mean clay/sand fractions)
+_USDA_TEXTURE: Dict[int, Dict[str, float]] = {
+    0:  {'clay_fraction': 0.0,  'sand_fraction': 0.0,  'bulk_density': 1.0,  'bedrock_depth': 10.0},
+    1:  {'clay_fraction': 0.03, 'sand_fraction': 0.92, 'bulk_density': 1.55, 'bedrock_depth': 10.0},
+    2:  {'clay_fraction': 0.06, 'sand_fraction': 0.82, 'bulk_density': 1.50, 'bedrock_depth': 10.0},
+    3:  {'clay_fraction': 0.10, 'sand_fraction': 0.65, 'bulk_density': 1.45, 'bedrock_depth': 10.0},
+    4:  {'clay_fraction': 0.13, 'sand_fraction': 0.20, 'bulk_density': 1.35, 'bedrock_depth': 10.0},
+    5:  {'clay_fraction': 0.07, 'sand_fraction': 0.50, 'bulk_density': 1.40, 'bedrock_depth': 10.0},
+    6:  {'clay_fraction': 0.18, 'sand_fraction': 0.43, 'bulk_density': 1.40, 'bedrock_depth': 10.0},
+    7:  {'clay_fraction': 0.27, 'sand_fraction': 0.58, 'bulk_density': 1.35, 'bedrock_depth': 10.0},
+    8:  {'clay_fraction': 0.34, 'sand_fraction': 0.32, 'bulk_density': 1.30, 'bedrock_depth': 10.0},
+    9:  {'clay_fraction': 0.40, 'sand_fraction': 0.52, 'bulk_density': 1.25, 'bedrock_depth': 10.0},
+    10: {'clay_fraction': 0.15, 'sand_fraction': 0.08, 'bulk_density': 1.30, 'bedrock_depth': 10.0},
+    11: {'clay_fraction': 0.47, 'sand_fraction': 0.07, 'bulk_density': 1.20, 'bedrock_depth': 10.0},
+    12: {'clay_fraction': 0.55, 'sand_fraction': 0.20, 'bulk_density': 1.15, 'bedrock_depth': 10.0},
+}
 
 
 def load_soil_attributes(
@@ -101,20 +197,20 @@ def load_soil_attributes(
 
     if soil_attributes_csv is not None and Path(soil_attributes_csv).exists():
         df = pd.read_csv(soil_attributes_csv)
-        if len(df) == n_soil:
-            logger.info(f"Loaded soil attributes from CSV: {n_soil} classes")
+        if len(df) >= n_soil:
+            df = df[df['soil_id'].isin(soil_ids.astype(int))]
+            logger.info(f"Loaded soil attributes from CSV: {len(df)} classes, columns={list(df.columns)}")
             return df, soil_ids
         logger.warning(
-            f"Soil CSV has {len(df)} rows but GeoClass has {n_soil} — using placeholders"
+            f"Soil CSV has {len(df)} rows but GeoClass has {n_soil} — using USDA lookup"
         )
 
-    fracs = np.linspace(0.0, 1.0, n_soil) if n_soil > 1 else np.array([0.5])
-    df = pd.DataFrame({
-        'soil_id': soil_ids.astype(int),
-        'clay_fraction': 0.4 - 0.3 * fracs,
-        'sand_fraction': 0.2 + 0.5 * fracs,
-    })
-    logger.info(f"Using placeholder soil attributes for {n_soil} classes")
+    rows = []
+    for soil_id in soil_ids:
+        props = _USDA_TEXTURE.get(int(soil_id), {'clay_fraction': 0.2, 'sand_fraction': 0.4, 'bulk_density': 1.3, 'bedrock_depth': 10.0})
+        rows.append({'soil_id': int(soil_id), **props})
+    df = pd.DataFrame(rows)
+    logger.info(f"Loaded USDA texture properties for {n_soil} soil classes")
     return df, soil_ids
 
 
@@ -195,6 +291,8 @@ def create_hype_regionalization(
     method: str,
     param_bounds: Dict[str, Tuple[float, float]],
     geoclass_path: Path,
+    geodata_path: Optional[Path] = None,
+    climate_stats_path: Optional[Path] = None,
     soil_attributes_csv: Optional[Path] = None,
     lu_param_config: Optional[Dict[str, Dict]] = None,
     soil_param_config: Optional[Dict[str, Dict]] = None,
@@ -208,7 +306,10 @@ def create_hype_regionalization(
     global_names = global_params or HYPE_GLOBAL_PARAMS
     config: Dict[str, Any] = dict(extra_config or {})
 
-    lu_attrs_df, lu_ids = load_lu_attributes(geoclass_path, logger)
+    lu_attrs_df, lu_ids = load_lu_attributes(
+        geoclass_path, logger, geodata_path=geodata_path,
+        climate_stats_path=climate_stats_path,
+    )
     soil_attrs_df, soil_ids = load_soil_attributes(geoclass_path, soil_attributes_csv, logger)
 
     lu_bounds = {k: v for k, v in param_bounds.items() if k in lu_config}
