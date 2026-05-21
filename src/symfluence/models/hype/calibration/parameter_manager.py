@@ -84,11 +84,19 @@ class HYPEParameterManager(BaseParameterManager):
 
         soil_csv = self.config.get('HYPE_SOIL_ATTRIBUTES_CSV')
         soil_csv_path = Path(soil_csv) if soil_csv else None
+        if soil_csv_path is None:
+            default_soil_csv = self.project_dir / 'data' / 'attributes' / 'soilclass' / 'iceland_soil_attributes.csv'
+            if default_soil_csv.exists():
+                soil_csv_path = default_soil_csv
 
+        geodata_path = self.hype_setup_dir / 'GeoData.txt'
+        climate_stats_path = self.project_dir / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv'
         self._regionalization = create_hype_regionalization(
             method=self._regionalization_method,
             param_bounds=tuple_bounds,
             geoclass_path=geoclass_path,
+            geodata_path=geodata_path if geodata_path.exists() else None,
+            climate_stats_path=climate_stats_path if climate_stats_path.exists() else None,
             soil_attributes_csv=soil_csv_path,
             lu_param_config=self.config.get('HYPE_LU_PARAM_CONFIG'),
             soil_param_config=self.config.get('HYPE_SOIL_PARAM_CONFIG'),

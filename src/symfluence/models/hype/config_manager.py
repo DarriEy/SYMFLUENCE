@@ -221,6 +221,36 @@ class HYPEConfigManager(ConfigMixin):
         )
         readobsid_flag = 'n' if multi_gauge else 'y'
 
+        # Resolve configurable model options
+        infilt_opt = self._get_config_value(
+            lambda: self.config.model.hype.infiltration_model,
+            default=3, dict_key='HYPE_INFILTRATION_MODEL',
+        )
+        petmodel_opt = self._get_config_value(
+            lambda: self.config.model.hype.pet_model,
+            default=1, dict_key='HYPE_PET_MODEL',
+        )
+        frozensoil_opt = self._get_config_value(
+            lambda: self.config.model.hype.frozen_soil_model,
+            default=2, dict_key='HYPE_FROZEN_SOIL_MODEL',
+        )
+        snowevap_opt = self._get_config_value(
+            lambda: self.config.model.hype.snow_evaporation,
+            default=0, dict_key='HYPE_SNOW_EVAPORATION',
+        )
+        deepground_opt = self._get_config_value(
+            lambda: self.config.model.hype.deep_ground,
+            default=0, dict_key='HYPE_DEEP_GROUND',
+        )
+        surfrunoff_opt = self._get_config_value(
+            lambda: self.config.model.hype.surface_runoff,
+            default=0, dict_key='HYPE_SURFACE_RUNOFF',
+        )
+        soiliniwet_opt = 'y' if self._get_config_value(
+            lambda: self.config.model.hype.soil_init_wet,
+            default=False, dict_key='HYPE_SOIL_INIT_WET',
+        ) else 'n'
+
         # Build info.txt content
         info_content = f"""!! ----------------------------------------------------------------------------
 !!
@@ -259,7 +289,7 @@ readuobs\tn
 readrhobs\tn
 readtminobs\ty
 readtmaxobs\ty
-soiliniwet\tn
+soiliniwet\t{soiliniwet_opt}
 usestop84\tn
 !! -----------------------------------------------------------------------------
 !!
@@ -271,15 +301,15 @@ modeloption snowdensity\t0
 modeloption snowfalldist\t2
 modeloption snowheat\t0
 modeloption snowmeltmodel\t0
-modeloption snowevaporation\t1
+modeloption snowevaporation\t{snowevap_opt}
 modeloption lakeriverice\t0
-modeloption deepground\t0
+modeloption deepground\t{deepground_opt}
 modeloption glacierini\t1
 modeloption floodmodel\t0
-modeloption frozensoil\t2
-modeloption infiltration\t3
-modeloption surfacerunoff\t0
-modeloption petmodel\t1
+modeloption frozensoil\t{frozensoil_opt}
+modeloption infiltration\t{infilt_opt}
+modeloption surfacerunoff\t{surfrunoff_opt}
+modeloption petmodel\t{petmodel_opt}
 modeloption wetlandmodel\t2
 modeloption connectivity\t0
 !! ------------------------------------------------------------------------------------

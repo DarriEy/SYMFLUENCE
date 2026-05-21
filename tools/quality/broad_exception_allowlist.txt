@@ -752,6 +752,7 @@ src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable
 src/symfluence/models/gsflow/postprocessor.py:GSFLOWPostProcessor._extract_from_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._generate_data_file:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/hype/calibration/hype_regionalization.py:_compute_lu_climate_attributes:except Exception as e:  # noqa: BLE001
 src/symfluence/models/hype/calibration/multi_gauge_metrics.py:HYPEMultiGaugeMetrics._load_cout:except Exception as e:  # noqa: BLE001
 src/symfluence/models/hype/calibration/optimizer.py:HYPEModelOptimizer._update_file_manager_for_final_run:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/hype/calibration/optimizer.py:HYPEModelOptimizer._update_file_manager_output_path:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1073,6 +1074,7 @@ src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManag
 src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManager._parse_param_info_file:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManager._update_mizuroute_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/parameter_manager.py:SUMMAParameterManager._update_soil_depths:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/models/summa/calibration/summa_regionalization.py:load_hru_attributes:except Exception:  # noqa: BLE001
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._apply_parameters_direct:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._calculate_metrics_direct:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/summa/calibration/worker.py:SUMMAWorker._calculate_multi_gauge_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
