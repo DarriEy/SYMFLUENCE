@@ -1793,6 +1793,13 @@ CLEANUP_PARALLEL_DIRS: true
 #   Usage:      Save best_params.json and iteration results every N iterations during optimization
 CHECKPOINT_INTERVAL: 10
 
+# INITIAL_GUESS
+#   Type:        dict | None
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Calibration seed parameters used before warm start files and model defaults
+INITIAL_GUESS: null
+
 # ERROR_LOG_DIR
 #   Type:        str
 #   Default:     error_logs
