@@ -42,27 +42,56 @@ class HYPEWorker(BaseWorker):
         super().__init__(config, logger)
         self._hype_exe = self._resolve_hype_exe()
 
+    _regionalization_cache = None
+
+    def _get_regionalization(self, config, settings_dir):
+        """Get or create the cached regionalization adapter."""
+        if self._regionalization_cache is not None:
+            return self._regionalization_cache
+
+        from symfluence.models.hype.calibration.hype_regionalization import (
+            create_hype_regionalization,
+        )
+        from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
+
+        geoclass_path = settings_dir / 'GeoClass.txt'
+        if not geoclass_path.exists():
+            return None
+
+        bounds = get_hype_bounds()
+        tuple_bounds = {k: (v['min'], v['max']) for k, v in bounds.items()}
+
+        method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
+        geodata_path = settings_dir / 'GeoData.txt'
+        project_dir = config.get('project_dir', '')
+        climate_stats_path = None
+        soil_csv_path = None
+        if project_dir:
+            p = Path(project_dir)
+            cs = p / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv'
+            if cs.exists():
+                climate_stats_path = cs
+            sc = p / 'data' / 'attributes' / 'soilclass' / 'iceland_soil_attributes.csv'
+            if sc.exists():
+                soil_csv_path = sc
+
+        self._regionalization_cache = create_hype_regionalization(
+            method=method, param_bounds=tuple_bounds,
+            geoclass_path=geoclass_path,
+            geodata_path=geodata_path if geodata_path.exists() else None,
+            climate_stats_path=climate_stats_path,
+            soil_attributes_csv=soil_csv_path,
+            logger=self.logger,
+        )
+        return self._regionalization_cache
+
     def _expand_hype_coefficients(self, params, config, settings_dir):
         """Expand TF coefficients to par.txt values using the regionalization adapter."""
         try:
-            geoclass_path = settings_dir / 'GeoClass.txt'
-            if not geoclass_path.exists():
+            reg = self._get_regionalization(config, settings_dir)
+            if reg is None:
                 self.logger.warning("GeoClass.txt not found for coefficient expansion")
                 return None
-
-            from symfluence.models.hype.calibration.hype_regionalization import (
-                create_hype_regionalization,
-            )
-            from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
-
-            bounds = get_hype_bounds()
-            tuple_bounds = {k: (v['min'], v['max']) for k, v in bounds.items()}
-
-            method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
-            reg = create_hype_regionalization(
-                method=method, param_bounds=tuple_bounds,
-                geoclass_path=geoclass_path, logger=self.logger,
-            )
             return reg.expand_to_par_values(params)
         except Exception as e:  # noqa: BLE001
             self.logger.error(f"Failed to expand HYPE coefficients: {e}")
