@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: main
 
       - name: Check CLA signature
         uses: actions/github-script@v7
