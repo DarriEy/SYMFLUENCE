@@ -75,9 +75,9 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         batch_size = self._get_config_value(lambda: self.config.optimization.dds.async_batch_size, default=default_batch, dict_key='ASYNC_DDS_BATCH_SIZE')
         max_stagnation = self._get_config_value(lambda: self.config.optimization.dds.max_stagnation_batches, default=10, dict_key='MAX_STAGNATION_BATCHES')
 
-        # Calculate target evaluations
-        total_target_evaluations = self.max_iterations * num_processes
-        target_batches = max(1, total_target_evaluations // batch_size) if self.max_iterations > 0 else 0
+        # NUMBER_OF_ITERATIONS = total number of batches (consistent with other algorithms)
+        target_batches = self.max_iterations
+        total_target_evaluations = target_batches * batch_size
 
         # Solution pool tracking
         solution_pool = []  # List of (solution, score, batch_num) tuples
@@ -240,8 +240,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
             record_iteration(batch_num, best_score, params_dict)
             update_best(best_score, params_dict, batch_num)
 
-            # Log progress every 10 batches or at the end to reduce log spam
-            if batch_num % 10 == 0 or batch_num >= self.max_iterations // batch_size:
+            if batch_num % 10 == 0 or batch_num == target_batches:
                 log_progress(self.name, batch_num, best_score, improvements, batch_size)
 
         self.logger.info("AsyncDDS completed")
