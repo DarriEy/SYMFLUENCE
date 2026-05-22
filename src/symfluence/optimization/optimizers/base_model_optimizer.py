@@ -1145,11 +1145,7 @@ class BaseModelOptimizer(
         callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
         # Seed optimization using INITIAL_GUESS, previous best parameters, then defaults
-        skip_warm_start = self._get_config_value(
-            lambda: None,
-            default=False,
-            dict_key='SKIP_WARM_START',
-        )
+        skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
         initial_params_dict = self._get_config_initial_guess()
         try:
             if initial_params_dict:
