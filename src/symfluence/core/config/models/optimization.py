@@ -371,7 +371,7 @@ class OptimizationConfig(BaseModel):
         default=None,
         alias='INITIAL_GUESS',
         description="Calibration seed parameters. If set, these take precedence over "
-                    "warm start files and model defaults."
+                    "warm-start files and model defaults."
     )
 
     # Gradient-based optimization settings (Adam, L-BFGS)

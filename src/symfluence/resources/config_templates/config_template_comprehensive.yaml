@@ -1797,7 +1797,7 @@ CHECKPOINT_INTERVAL: 10
 #   Type:        dict | None
 #   Default:     None
 #   Source:      OptimizationConfig (optimization.py)
-#   Usage:      Calibration seed parameters used before warm start files and model defaults
+#   Usage:      Calibration seed parameters used before warm-start files and model defaults
 INITIAL_GUESS: null
 
 # ERROR_LOG_DIR
