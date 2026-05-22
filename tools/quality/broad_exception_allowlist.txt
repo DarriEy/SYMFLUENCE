@@ -938,6 +938,8 @@ src/symfluence/models/ngen/calibration/worker.py:NgenWorker.apply_parameters:exc
 src/symfluence/models/ngen/calibration/worker.py:NgenWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ngen/calibration/worker.py:NgenWorker.run_model:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ngen/plotter.py:NGENPlotter.plot_results:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._load_catchment_areas:except Exception as e:  # noqa: BLE001
+src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._load_catchment_areas:except Exception as e:  # noqa: BLE001
 src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._read_ngen_nexus_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/preprocessor.py:NgenPreProcessor._create_troute_topology:except Exception as e:  # noqa: BLE001 — model execution resilience

@@ -8,8 +8,9 @@ Processes simulation outputs from the NOAA NextGen Framework (ngen).
 Migrated to use StandardModelPostprocessor with multi-file support (Phase 1.5).
 """
 
+import json
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -153,10 +154,20 @@ class NgenPostprocessor(StandardModelPostprocessor):
             aggregated_flow = combined_streamflow.groupby('datetime')['streamflow_cms'].sum()
 
         # Save using standard method
-        return self.save_streamflow_to_results(
+        result = self.save_streamflow_to_results(
             aggregated_flow,
             model_column_name=f"NGEN_{experiment_id}_discharge_cms"
         )
+
+        # If mizuRoute is the routing model, convert nexus CSVs to NetCDF
+        routing_model = self._get_config_value(
+            lambda: self.config.model.routing_model, default=None
+        )
+        if routing_model and str(routing_model).upper() in ('MIZUROUTE', 'MIZU_ROUTE', 'MIZU'):
+            self.logger.info("mizuRoute routing configured — converting NGEN output to NetCDF")
+            self.convert_output_to_mizuroute_netcdf(experiment_id=experiment_id)
+
+        return result
 
     def _read_ngen_nexus_file(self, nexus_file: Path) -> Optional[pd.DataFrame]:
         """
@@ -173,7 +184,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
         """
         try:
             # First try reading with header
-            df = pd.read_csv(nexus_file)
+            df = pd.read_csv(nexus_file, skipinitialspace=True)
 
             # Check for standard NGEN headerless format (index, time, flow)
             is_headerless = False
@@ -187,11 +198,11 @@ class NgenPostprocessor(StandardModelPostprocessor):
                     pass
 
             if is_headerless:
-                # Reload with header=None
                 df = pd.read_csv(
                     nexus_file,
                     header=None,
-                    names=['index', 'time', 'flow']
+                    names=['index', 'time', 'flow'],
+                    skipinitialspace=True,
                 )
                 flow_col = 'flow'
             else:
@@ -217,10 +228,9 @@ class NgenPostprocessor(StandardModelPostprocessor):
                 self.logger.warning(f"No time column found in {nexus_file}")
                 return None
 
-            # Create standardized output dataframe
             return pd.DataFrame({
                 'datetime': time,
-                'streamflow_cms': df[flow_col]
+                'streamflow_cms': pd.to_numeric(df[flow_col], errors='coerce')
             })
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -264,3 +274,162 @@ class NgenPostprocessor(StandardModelPostprocessor):
         kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
 
         return kge
+
+    # -----------------------------------------------------------------
+    # mizuRoute integration: convert NGEN CSV output → NetCDF
+    # -----------------------------------------------------------------
+
+    def convert_output_to_mizuroute_netcdf(
+        self,
+        experiment_id: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Convert NGEN nexus CSV outputs to a mizuRoute-compatible NetCDF.
+
+        mizuRoute expects a NetCDF file with dimensions (time, hru) containing
+        a runoff variable in depth/time units (m/s). NGEN outputs per-nexus
+        CSV files with flow in m³/s. This method reads all nexus CSVs,
+        converts flow to runoff depth using catchment areas, and writes the
+        result as a single NetCDF.
+
+        Args:
+            experiment_id: Override experiment ID (default: from config)
+
+        Returns:
+            Path to the generated NetCDF file, or None on failure.
+        """
+        import xarray as xr
+
+        if experiment_id is None:
+            experiment_id = self._get_config_value(
+                lambda: self.config.domain.experiment_id, default='run_1'
+            )
+
+        output_dir = self.project_dir / 'simulations' / experiment_id / self.model_name
+        nexus_files = sorted(output_dir.glob(self.output_file_glob))
+
+        if not nexus_files:
+            self.logger.error(f"No nexus output files in {output_dir}")
+            return None
+
+        # Load catchment areas from the GeoJSON written by the preprocessor
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, default='domain'
+        )
+        areas_km2 = self._load_catchment_areas(domain_name)
+
+        # Read each nexus file into a per-HRU timeseries
+        hru_data: Dict[str, pd.Series] = {}
+        for nexus_file in nexus_files:
+            df = self._read_ngen_nexus_file(nexus_file)
+            if df is None:
+                continue
+
+            nexus_id = nexus_file.stem.replace('_output', '')
+            cat_id = nexus_id.replace('nex-', 'cat-')
+            hru_data[cat_id] = df.set_index('datetime')['streamflow_cms']
+
+        if not hru_data:
+            self.logger.error("No valid nexus data could be read")
+            return None
+
+        # Build a DataFrame: columns=catchment IDs, index=time, values=flow (m³/s)
+        flow_df = pd.DataFrame(hru_data)
+        flow_df.index = pd.to_datetime(flow_df.index)
+        flow_df = flow_df.sort_index()
+
+        # Convert m³/s → m/s (runoff depth) using catchment area
+        runoff_df = flow_df.copy()
+        for cat_id in runoff_df.columns:
+            area_km2 = areas_km2.get(cat_id, None)
+            if area_km2 is None or area_km2 <= 0:
+                self.logger.warning(
+                    f"No area for {cat_id}, using 1.0 km² — "
+                    "runoff depth will be approximate"
+                )
+                area_km2 = 1.0
+            area_m2 = area_km2 * 1e6
+            runoff_df[cat_id] = flow_df[cat_id] / area_m2
+
+        # Assign integer HRU IDs (1-based)
+        hru_ids = list(range(1, len(runoff_df.columns) + 1))
+
+        # Build xarray Dataset
+        time_values = runoff_df.index.values
+        runoff_array = runoff_df.values
+
+        ds = xr.Dataset(
+            {
+                'runoff': (['time', 'hru'], runoff_array, {
+                    'units': 'm/s',
+                    'long_name': 'NGEN catchment runoff',
+                }),
+                'hruId': (['hru'], np.array(hru_ids, dtype=np.int32), {
+                    'long_name': 'HRU identifier',
+                }),
+            },
+            coords={
+                'time': time_values,
+            },
+            attrs={
+                'source': 'NGEN via SYMFLUENCE',
+                'experiment_id': experiment_id,
+                'history': 'Converted from NGEN nexus CSV outputs for mizuRoute routing',
+            },
+        )
+
+        nc_path = output_dir / f"{experiment_id}_runoff.nc"
+        ds.to_netcdf(nc_path, format='NETCDF4')
+        self.logger.info(
+            f"NGEN → mizuRoute NetCDF written: {nc_path} "
+            f"({len(hru_ids)} HRUs, {len(time_values)} timesteps)"
+        )
+        return nc_path
+
+    def _load_catchment_areas(self, domain_name: str) -> Dict[str, float]:
+        """Load catchment areas (km²) from the NGEN catchments GeoJSON."""
+        settings_dir = self.project_dir / "settings" / "NGEN"
+
+        geojson_path = settings_dir / f"{domain_name}_catchments.geojson"
+        if geojson_path.exists():
+            try:
+                with open(geojson_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                areas: Dict[str, float] = {}
+                for feature in data.get('features', []):
+                    props = feature.get('properties', {})
+                    cat_id = props.get('id', props.get('cat_id', ''))
+                    for area_key in ['areasqkm', 'area_km2', 'area_sqkm', 'AREA']:
+                        if area_key in props and props[area_key] is not None:
+                            area_val = float(props[area_key])
+                            if area_val > 1e6:
+                                area_val /= 1e6
+                            areas[cat_id] = area_val
+                            break
+                return areas
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"Could not read catchment areas from {geojson_path}: {e}")
+
+        gpkg_path = settings_dir / f"{domain_name}_catchments.gpkg"
+        if gpkg_path.exists():
+            try:
+                import geopandas as gpd
+                gdf = gpd.read_file(gpkg_path)
+                areas = {}
+                id_col = next((c for c in ['id', 'cat_id', 'HRU_ID'] if c in gdf.columns), None)
+                area_col = next(
+                    (c for c in ['areasqkm', 'area_km2', 'area_sqkm', 'AREA', 'HRU_area']
+                     if c in gdf.columns), None
+                )
+                if id_col and area_col:
+                    for _, row in gdf.iterrows():
+                        area_val = float(row[area_col])
+                        if area_val > 1e6:
+                            area_val /= 1e6
+                        areas[str(row[id_col])] = area_val
+                return areas
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(f"Could not read catchment areas from {gpkg_path}: {e}")
+
+        self.logger.warning("No catchment area file found — using default 1.0 km² for all HRUs")
+        return {}
