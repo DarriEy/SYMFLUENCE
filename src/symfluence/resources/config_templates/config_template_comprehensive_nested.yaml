@@ -849,6 +849,9 @@ optimization:
   # Population size (PSO, DE, SCE-UA) or swarm size
   population_size: 50
 
+  # Calibration seed parameters used before warm-start files and model defaults
+  initial_guess: null
+
   # ---------------------------------------------------------------------------
   # Objective Function
   # ---------------------------------------------------------------------------

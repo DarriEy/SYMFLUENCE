@@ -144,6 +144,23 @@ class TestSUMMAConfigGlacier:
         assert config.glacier_coldstate == 'custom_glac_cold.nc'
 
 
+class TestOptimizationConfigExtension:
+    """Test optimization config extension fields."""
+
+    def test_initial_guess_flat_to_nested_round_trip(self):
+        """Test INITIAL_GUESS maps between flat and nested config."""
+        initial_guess = {'k_soil': 5.0e-4, 'theta_sat': 0.60}
+        config = SymfluenceConfig.from_minimal(
+            domain_name='test_domain',
+            model='SUMMA',
+            EXPERIMENT_TIME_START='2020-01-01 00:00',
+            EXPERIMENT_TIME_END='2020-12-31 23:00',
+            INITIAL_GUESS=initial_guess,
+        )
+        assert config.optimization.initial_guess == initial_guess
+        assert config.to_dict(flatten=True)['INITIAL_GUESS'] == initial_guess
+
+
 class TestFUSEConfigExtension:
     """Test FUSE config subcatchment_dim field"""
 
