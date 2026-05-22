@@ -289,7 +289,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 sub_complexes[c][worst_idx] = reflection_batch[c]
                 sub_fitnesses[c][worst_idx] = reflection_fitness[c]
                 reflection_accepted.append(True)
-                
+
                 # Log this acceptance
                 if log_complex_batch:
                     log_complex_batch(
@@ -348,7 +348,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 sub_complexes[c][worst_idx] = contraction_batch[batch_i]
                 sub_fitnesses[c][worst_idx] = contraction_fitness[batch_i]
                 contraction_accepted.append(True)
-                
+
                 # Log this acceptance
                 if log_complex_batch:
                     log_complex_batch(
@@ -401,7 +401,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
             sub_complexes[c][worst_idx] = random_batch[batch_i]
             sub_fitnesses[c][worst_idx] = random_fitness[batch_i]
             random_accepted.append(True)
-            
+
             # Log this replacement
             if log_complex_batch:
                 log_complex_batch(
@@ -815,7 +815,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
         for iteration in range(1, self.max_iterations + 1):
             # Evolution index is per-shuffle and resets each shuffle iteration.
             evolution_id = 0
-            
+
             self.logger.debug(f"DEBUG: SCE: Starting shuffle iteration {iteration}")
 
             # -- 2a. Extract independent sub-complexes from the ranked population --
@@ -845,17 +845,11 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 reflection_fitness = evaluate_population(reflection_batch, iteration)
 
                 # Accept reflections / fall back to contraction / random (all batched).
-                # The lambda captures iteration and evolution_id as default arguments
-                # to avoid the late-binding closure issue: without the defaults, all
-                # lambda calls would see the values of iteration/evolution_id from the
-                # LAST loop iteration rather than the one that created the lambda.
-                _it = iteration
-                _eid = evolution_id
                 self._apply_cce_step(
                     sub_complexes, sub_fitnesses,
                     per_step_state,
                     reflection_batch, reflection_fitness,
-                    n_params, iteration, evaluate_population,
+                    n_params, iteration, evolution_id, evaluate_population,
                     log_evolution_batch=partial(
                         log_evolution_batch,
                         shuffle_iteration=iteration,
@@ -895,6 +889,17 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
             record_iteration(iteration, best_fit, params_dict)
             update_best(best_fit, params_dict, iteration)
             log_progress(self.name, iteration, best_fit)
+
+            best_score_so_far = max(best_score_so_far, float(best_fit))
+            best_tracking_rows_buffer.append({
+                'timestamp': datetime.now().isoformat(),
+                'run_id': run_id,
+                'metric_name': metric_name,
+                'shuffle_iteration': iteration,
+                'evolution_id': evolution_id,
+                'evolution_best_score': float(best_fit),
+                'best_score_so_far': best_score_so_far,
+            })
 
             # Persist evolution tracking rows once per shuffle iteration to keep
             # per-batch overhead low while still providing near-real-time output.
