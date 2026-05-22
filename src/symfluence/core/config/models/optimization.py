@@ -9,7 +9,7 @@ PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config,
 EmulationConfig, and the parent OptimizationConfig.
 """
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -367,6 +367,12 @@ class OptimizationConfig(BaseModel):
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
     checkpoint_interval: int = Field(default=10, alias='CHECKPOINT_INTERVAL', ge=1)
+    initial_guess: Optional[Dict[str, Any]] = Field(
+        default=None,
+        alias='INITIAL_GUESS',
+        description="Calibration seed parameters. If set, these take precedence over "
+                    "warm-start files and model defaults."
+    )
 
     # Gradient-based optimization settings (Adam, L-BFGS)
     gradient_mode: Literal['auto', 'native', 'finite_difference'] = Field(
