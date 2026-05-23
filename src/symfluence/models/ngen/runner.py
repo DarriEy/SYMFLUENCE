@@ -489,6 +489,14 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
         """
         import json
 
+        # If mizuRoute handles routing externally, skip t-route entirely
+        routing_model = self._get_config_value(
+            lambda: self.config.model.routing_model, default=None
+        )
+        if routing_model and str(routing_model).upper() in ('MIZUROUTE', 'MIZU_ROUTE', 'MIZU'):
+            self.logger.info("Skipping t-route — mizuRoute will handle routing externally.")
+            return True
+
         try:
             # Check if ngen_routing is available
             from ngen_routing.ngen_main import ngen_main
@@ -517,10 +525,25 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Could not parse nexus file for lumped detection: {e}")
 
-        # For lumped domains, we can skip routing and use nexus output directly
+        # For lumped domains, t-route channel routing is not needed.
+        # However, if the active runoff module lacks built-in routing (SAC-SMA,
+        # TOPMODEL), the nexus output is raw unrouted runoff — an external
+        # routing model (mizuRoute) must handle attenuation separately.
         if is_lumped:
-            self.logger.info("Skipping t-route for lumped domain - nex-*.csv output is already at the outlet.")
-            return True  # Return True since flow is already at outlet
+            routing_model = self._get_config_value(
+                lambda: self.config.model.routing_model, default=None
+            )
+            routing_upper = str(routing_model).upper() if routing_model else ''
+            if routing_upper in ('MIZUROUTE', 'MIZU_ROUTE', 'MIZU'):
+                self.logger.info(
+                    "Lumped domain — skipping t-route; mizuRoute will handle routing."
+                )
+            else:
+                self.logger.info(
+                    "Skipping t-route for lumped domain — "
+                    "nex-*.csv output is already at the outlet."
+                )
+            return True
 
         # Create troute output directory
         troute_output_dir = output_dir / "troute_output"

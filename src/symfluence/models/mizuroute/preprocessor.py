@@ -370,6 +370,8 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             self.create_fuse_control_file()
         elif from_model == 'GR' or gr_routing == 'mizuRoute':
             self.create_gr_control_file()
+        elif from_model == 'NGEN':
+            self.create_ngen_control_file()
         else:
             self.create_control_file()
 
@@ -464,6 +466,22 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         writer = self._get_control_writer()
         mizu_config = self._get_mizu_config()
         writer.write_control_file(model_type='gr', mizu_config=mizu_config)
+
+    def create_ngen_control_file(self):
+        """Create mizuRoute control file for NGEN runoff input.
+
+        NGEN modules like SAC-SMA and TOPMODEL produce raw runoff without
+        built-in routing (unlike CFE which has GIUH). The NGEN postprocessor
+        converts nexus CSV outputs to a mizuRoute-compatible NetCDF with
+        runoff in m/s. This control file points mizuRoute at that NetCDF.
+
+        doesBasinRoute is set to 1 (IRF hillslope routing) since NGEN's
+        SAC-SMA/TOPMODEL output is unrouted.
+        """
+        writer = self._get_control_writer()
+        mizu_config = self._get_mizu_config()
+        mizu_config['within_basin'] = 1
+        writer.write_control_file(model_type='ngen', mizu_config=mizu_config)
 
     def _get_control_writer(self) -> ControlFileWriter:
         """Get a configured ControlFileWriter instance."""
