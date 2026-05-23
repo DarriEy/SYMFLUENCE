@@ -76,9 +76,14 @@ class MizuRouteTopologyGenerator:
 
         # Check if this is lumped domain with distributed routing
         # If so, use the delineated river network (from distributed delineation)
+        routing_delineation = self.pp._get_config_value(
+            lambda: self.pp.config.domain.routing,
+            default='lumped',
+            dict_key='ROUTING_DELINEATION',
+        )
         is_lumped_to_distributed = (
             self.pp.domain_definition_method == 'lumped' and
-            self.pp._get_config_value(lambda: self.pp.config.model.mizuroute.routing_delineation, default='river_network') == 'river_network'
+            routing_delineation == 'river_network'
         )
 
         # For lumped-to-distributed, use delineated river network and catchments

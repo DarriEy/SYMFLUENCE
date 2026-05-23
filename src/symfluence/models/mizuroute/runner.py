@@ -125,6 +125,10 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             else:
                 experiment_output_dir = Path(experiment_output_hype)
             runoff_filename = f"{self.experiment_id}_timestep.nc"
+        elif 'NGEN' in active_models:
+            self.logger.info("NGEN runoff NetCDF for mizuRoute — checking time precision")
+            experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'NGEN'
+            runoff_filename = f"{self.experiment_id}_runoff.nc"
         else:
             self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
             experiment_output_summa = self._get_config_value(
@@ -490,6 +494,8 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                     control_file = 'mizuRoute_control_GR.txt'
                 elif mizu_from == 'FUSE':
                     control_file = 'mizuRoute_control_FUSE.txt'
+                elif mizu_from == 'NGEN':
+                    control_file = 'mizuroute.control'
                 else:
                     control_file = 'mizuroute.control'
                 self.logger.debug(f"Using default mizuRoute control file: {control_file}")
