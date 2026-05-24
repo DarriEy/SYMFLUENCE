@@ -215,7 +215,7 @@ class SUMMAWorker(BaseWorker):
             summa_timeout = int(config.get('SUMMA_TIMEOUT', 7200))
             success = _run_summa_worker(
                 summa_exe, file_manager, summa_dir, internal_logger, debug_info, settings_dir,
-                timeout=summa_timeout
+                timeout=summa_timeout, config=config
             )
 
             if not success:
