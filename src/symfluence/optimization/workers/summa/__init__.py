@@ -47,6 +47,11 @@ from .netcdf_utilities import (
     fix_summa_time_precision,
     fix_summa_time_precision_inplace,
 )
+from .parallel_gru_execution import (
+    compute_gru_splits,
+    merge_split_outputs,
+    run_summa_gru_parallel,
+)
 from .parameter_application import (
     _apply_parameters_worker,
     _generate_trial_params_worker,
@@ -80,6 +85,10 @@ __all__ = [
     '_run_summa_worker',
     '_run_mizuroute_worker',
     '_needs_mizuroute_routing_worker',
+    # Parallel GRU execution
+    'run_summa_gru_parallel',
+    'compute_gru_splits',
+    'merge_split_outputs',
     # Worker orchestration
     '_evaluate_parameters_worker',
     # DDS optimization

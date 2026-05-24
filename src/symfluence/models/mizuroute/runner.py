@@ -521,15 +521,22 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             if backup == 'yes':
                 self.backup_settings(settings_path, backup_subdir="run_settings")
 
-            # Run mizuRoute
+            # Run mizuRoute (with OpenMP thread count if configured)
             mizu_log_path.mkdir(parents=True, exist_ok=True)
             mizu_command = [str(self.mizu_exe), str(settings_path / control_file)]
-            self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)}')
+
+            mizu_num_threads = self._get_config_value(
+                lambda: self.config.model.mizuroute.num_threads,
+                default=1, dict_key='MIZUROUTE_NUM_THREADS',
+            )
+            mizu_env = {**__import__('os').environ, 'OMP_NUM_THREADS': str(mizu_num_threads)}
+            self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)} (OMP_NUM_THREADS={mizu_num_threads})')
 
             self.execute_subprocess(
                 mizu_command,
                 mizu_log_path / mizu_log_name,
-                success_message="mizuRoute run completed successfully"
+                success_message="mizuRoute run completed successfully",
+                env=mizu_env,
             )
 
             return mizu_out_path
