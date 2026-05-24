@@ -44,7 +44,6 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
     files_removed = 0
     for pattern in cleanup_patterns:
         for file_path in output_dir.glob(pattern):
-            # Skip if it's a directory
             if file_path.is_dir():
                 continue
             try:
@@ -53,8 +52,18 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
             except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Could not remove stale file {file_path}: {e}")
 
+    # Clean up stale GRU-parallel split directories
+    for split_dir in output_dir.glob('gru_split_*'):
+        if split_dir.is_dir():
+            try:
+                import shutil
+                shutil.rmtree(split_dir, ignore_errors=True)
+                files_removed += 1
+            except OSError as e:
+                logger.warning(f"Could not remove stale split dir {split_dir}: {e}")
+
     if files_removed > 0:
-        logger.debug(f"Cleaned up {files_removed} stale output files from {output_dir}")
+        logger.debug(f"Cleaned up {files_removed} stale output files/dirs from {output_dir}")
 
 
 def _deduplicate_output_control(output_control_path: Path, logger):
@@ -99,7 +108,7 @@ def _deduplicate_output_control(output_control_path: Path, logger):
         logger.warning(f"Failed to deduplicate output control: {e}")
 
 
-def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None, timeout: int = 7200) -> bool:
+def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None, timeout: int = 7200, config: Dict = None) -> bool:
     """SUMMA execution with iteration-aware logging.
 
     Log files include iteration number to prevent overwriting during calibration.
@@ -220,6 +229,29 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
             logger.warning(f"Failed to update file manager paths: {e}")
             # Continue anyway, hoping it works or fails later
+
+        # Check for intra-iteration parallel GRU execution
+        use_parallel = config.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False) if config else False
+        logger.info(f"Parallel SUMMA check: config={config is not None}, use_parallel={use_parallel}, settings_dir={summa_settings_dir}")
+        if use_parallel and summa_settings_dir is not None:
+            from .parallel_gru_execution import run_summa_gru_parallel
+
+            num_parallel = int(config.get('SETTINGS_SUMMA_CPUS_PER_TASK', 8))
+            logger.info(f"Launching parallel SUMMA with {num_parallel} processes")
+            result = run_summa_gru_parallel(
+                summa_exe=Path(summa_exe_str),
+                file_manager=Path(file_manager_str),
+                summa_dir=summa_dir,
+                settings_dir=Path(summa_settings_dir) if not isinstance(summa_settings_dir, Path) else summa_settings_dir,
+                num_parallel=num_parallel,
+                logger=logger,
+                debug_info=debug_info,
+                timeout=timeout,
+                env=env,
+            )
+            if result:
+                return True
+            logger.warning("Parallel GRU execution did not succeed, falling back to sequential")
 
         # Build command as list to avoid shell=True security concerns
         cmd = [summa_exe_str, "-m", file_manager_str]
@@ -372,7 +404,12 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         cmd = [str(mizu_exe), str(control_file)]
         cmd_str = " ".join(cmd)
 
-        logger.info(f"Executing mizuRoute command: {cmd_str}")
+        # Set OpenMP thread count for mizuRoute (if compiled with OpenMP)
+        mizu_env = os.environ.copy()
+        mizu_num_threads = str(config.get('MIZUROUTE_NUM_THREADS', 1))
+        mizu_env['OMP_NUM_THREADS'] = mizu_num_threads
+
+        logger.info(f"Executing mizuRoute command: {cmd_str} (OMP_NUM_THREADS={mizu_num_threads})")
         debug_info['commands_run'].append(f"mizuRoute: {cmd_str}")
         debug_info['mizuroute_log'] = str(log_file)
 
@@ -383,6 +420,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             f.write("mizuRoute Execution Log\n")
             f.write(f"Command: {cmd_str}\n")
             f.write(f"Working Directory: {control_file.parent}\n")
+            f.write(f"OMP_NUM_THREADS: {mizu_num_threads}\n")
             f.write("=" * 50 + "\n")
             f.flush()
 
@@ -392,6 +430,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
                 component='mizuroute',
                 iteration=debug_info.get('iteration'),
                 cwd=control_file.parent,
+                env=mizu_env,
                 track_files=True,
                 output_dir=mizuroute_dir
             ) as proc:
