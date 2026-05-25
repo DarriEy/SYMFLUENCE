@@ -142,9 +142,6 @@ Installation and Execution
    * - SETTINGS_SUMMA_PARALLEL_BACKEND
      - slurm
      - Domain parallel backend (``slurm`` or ``local``)
-   * - SETTINGS_SUMMA_LOCAL_WORKERS
-     - 0
-     - Concurrent local SUMMA subprocess workers; 0 selects automatically
    * - SETTINGS_SUMMA_PARALLEL_EXE
      - summa_actors.exe
      - Parallel SUMMA executable name
@@ -256,7 +253,7 @@ For large-scale applications:
      - GRUs processed per parallel job
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - 32
-     - CPUs allocated per task (SLURM)
+     - Number of parallel SUMMA tasks
    * - SETTINGS_SUMMA_MEM
      - 5
      - Memory per task (GB)
@@ -478,14 +475,13 @@ Parallel SUMMA for Large Domains
 --------------------------------
 
 For continental-scale or high-resolution applications, SUMMA can run GRU subsets
-through a domain parallel backend. The default backend is ``slurm``, which keeps
-the existing SLURM array workflow. On machines without SLURM, use the ``local``
-backend to launch multiple SUMMA subprocesses on the current machine.
+through a domain parallel backend. The ``slurm`` backend submits GRU array jobs.
+The ``local`` backend launches multiple SUMMA subprocesses on the current
+machine.
 
 The local backend runs commands of the form
-``SUMMA_EXE -g <gru> 1 -m <fileManager>``. It uses
-``SETTINGS_SUMMA_LOCAL_WORKERS`` to control how many subprocess workers run at
-once, and ``0`` chooses ``min(os.cpu_count(), number_of_gru_groups)``.
+``SUMMA_EXE -g <startGRU> <numGRU> -m <fileManager>``. It uses
+``SETTINGS_SUMMA_CPUS_PER_TASK`` to control how many GRU splits run at once.
 
 SLURM backend:
 
@@ -512,8 +508,8 @@ Local backend:
    SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
    SETTINGS_SUMMA_PARALLEL_BACKEND: local
 
-   # Use 0 to choose automatically, or set an explicit worker count
-   SETTINGS_SUMMA_LOCAL_WORKERS: 0
+   # Configure local GRU split execution
+   SETTINGS_SUMMA_CPUS_PER_TASK: 8
 
 Calibration Strategies
 ======================

@@ -36,7 +36,6 @@ class SUMMAConfig(BaseModel):
         default='slurm',
         alias='SETTINGS_SUMMA_PARALLEL_BACKEND'
     )
-    local_workers: int = Field(default=0, alias='SETTINGS_SUMMA_LOCAL_WORKERS', ge=0)
     cpus_per_task: int = Field(default=32, alias='SETTINGS_SUMMA_CPUS_PER_TASK', ge=1, le=256)
     time_limit: str = Field(default='01:00:00', alias='SETTINGS_SUMMA_TIME_LIMIT')
     mem: Union[int, str] = Field(default='5G', alias='SETTINGS_SUMMA_MEM')  # SLURM-style memory spec like "12G"

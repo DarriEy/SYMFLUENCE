@@ -54,7 +54,6 @@ Configuration Parameters:
     SETTINGS_SUMMA_GLACIER_MODE: Enable glacier dynamics (default: False)
     SETTINGS_SUMMA_USE_PARALLEL_SUMMA: Use parallel execution (default: False)
     SETTINGS_SUMMA_PARALLEL_BACKEND: Domain parallel backend (default: 'slurm')
-    SETTINGS_SUMMA_LOCAL_WORKERS: Local subprocess worker count (default: 0)
     PARAMS_TO_CALIBRATE: Local parameters
         (default: 'albedo_max,albedo_min,canopy_capacity,slow_drainage')
     BASIN_PARAMS_TO_CALIBRATE: Basin-scale routing parameters
