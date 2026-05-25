@@ -1,5 +1,5 @@
-SYMFLUENCE_DATA_DIR: /private/tmp/SYMFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/tristanmontoya/Projects/SYMFLUENCE
+SYMFLUENCE_DATA_DIR: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data
+SYMFLUENCE_CODE_DIR: /Users/darri.eythorsson/compHydro/SYMFLUENCE
 NUM_PROCESSES: 1
 DEBUG_MODE: false
 LOG_LEVEL: INFO

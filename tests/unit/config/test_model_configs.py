@@ -151,7 +151,7 @@ class TestSUMMAConfigParallel:
         """Test SUMMA parallel backend default values."""
         config = SUMMAConfig()
         assert config.parallel_backend == 'slurm'
-        assert config.cpus_per_task == 32
+        assert config.cpus_per_task == 1
 
     def test_summa_parallel_custom_values(self):
         """Test SUMMA local parallel backend values."""
