@@ -382,7 +382,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return coeff_names + self.basin_params + self.depth_params + self.mizuroute_params
         return self.local_params + self.basin_params + self.depth_params + self.mizuroute_params
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse SUMMA parameter bounds from localParamInfo.txt, etc.
 
         When regionalization is active, local parameter bounds are replaced by
@@ -391,7 +391,7 @@ class SUMMAParameterManager(BaseParameterManager):
         if self._use_regionalization:
             self._init_regionalization()
             # Coefficient bounds from regionalization (tuples → dicts)
-            bounds: Dict[str, Dict[str, float]] = {}
+            bounds: Dict[str, Dict[str, Any]] = {}
             for name, (lo, hi) in self._regionalization.get_calibration_parameters().items():
                 bounds[name] = {'min': lo, 'max': hi}
 
@@ -473,9 +473,9 @@ class SUMMAParameterManager(BaseParameterManager):
     # REGIONALIZATION HELPERS
     # ========================================================================
 
-    def _parse_non_local_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _parse_non_local_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse bounds for basin, depth, and mizuRoute params (non-local)."""
-        bounds: Dict[str, Dict[str, float]] = {}
+        bounds: Dict[str, Dict[str, Any]] = {}
 
         if self.basin_params:
             basin_param_file = self.settings_dir / 'basinParamInfo.txt'
@@ -531,9 +531,9 @@ class SUMMAParameterManager(BaseParameterManager):
     # BOUNDS PARSING
     # ========================================================================
 
-    def _parse_all_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _parse_all_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse parameter bounds from all parameter info files and allow config overrides."""
-        bounds = {}
+        bounds: Dict[str, Dict[str, Any]] = {}
 
         # Parse local parameter bounds
         if self.local_params:
@@ -565,12 +565,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
         # Config-level overrides (highest priority)
         config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
-        if config_bounds:
-            self.logger.debug(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
-            for param_name, limit_list in config_bounds.items():
-                if len(limit_list) >= 2:
-                    bounds[param_name] = {'min': float(limit_list[0]), 'max': float(limit_list[1])}
-                    self.logger.debug(f"Overrode bounds for {param_name}: {bounds[param_name]}")
+        bounds = self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 
