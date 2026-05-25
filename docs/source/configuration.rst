@@ -443,15 +443,15 @@ SUMMA Model Parameters
    * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
      - boolean
      - False
-     - Use SUMMA domain parallel execution
+     - Use SUMMA GRU-parallel execution
    * - SETTINGS_SUMMA_PARALLEL_BACKEND
      - string
      - "slurm"
-     - SUMMA domain parallel backend ("slurm", "local")
+     - SUMMA GRU-parallel backend ("slurm", "local")
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - integer
      - 1
-     - CPUs allocated per GRU-parallelized SUMMA worker
+     - CPUs allocated to each GRU-parallel SUMMA model run
    * - SETTINGS_SUMMA_GRU_PER_JOB
      - integer
      - 1

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Tests for SUMMA domain parallel execution."""
+"""Tests for SUMMA GRU-parallel execution."""
 
 import logging
 from pathlib import Path
@@ -16,7 +16,7 @@ def make_summa_runner(
     backend: str = 'local',
     cpus_per_task: int = 4,
 ) -> SummaRunner:
-    """Create a SUMMA runner with local parallel execution enabled."""
+    """Create a SUMMA runner with GRU-parallel execution enabled."""
     data_dir = tmp_path / 'data'
     code_dir = tmp_path / 'code'
     install_dir = tmp_path / 'summa_bin'
@@ -53,18 +53,18 @@ def make_summa_runner(
     return SummaRunner(config, logging.getLogger(__name__))
 
 
-def prepare_local_parallel_runner(runner: SummaRunner, tmp_path: Path) -> None:
-    """Patch expensive runner steps for focused local backend tests."""
+def prepare_local_gru_parallel_runner(runner: SummaRunner, tmp_path: Path) -> None:
+    """Patch expensive runner steps for focused local GRU-parallel tests."""
     runner.output_dir = tmp_path / 'output'
     runner.output_dir.mkdir()
     runner._pre_execution = MagicMock(return_value=True)
     runner._merge_parallel_outputs = MagicMock(return_value=runner.output_dir)
 
 
-def test_local_parallel_summa_calls_gru_split_helper(monkeypatch, tmp_path):
-    """Test local parallel SUMMA delegates to the GRU split helper."""
+def test_local_gru_parallel_summa_calls_gru_split_helper(monkeypatch, tmp_path):
+    """Test local GRU-parallel SUMMA delegates to the GRU split helper."""
     runner = make_summa_runner(tmp_path, cpus_per_task=4)
-    prepare_local_parallel_runner(runner, tmp_path)
+    prepare_local_gru_parallel_runner(runner, tmp_path)
     calls = []
 
     def fake_run_summa_gru_parallel(**kwargs):
@@ -94,10 +94,12 @@ def test_local_parallel_summa_calls_gru_split_helper(monkeypatch, tmp_path):
     assert isinstance(call['env'], dict)
 
 
-def test_local_parallel_summa_skips_merge_after_failure(monkeypatch, tmp_path):
-    """Test local parallel SUMMA fails without serial fallback."""
+def test_local_gru_parallel_summa_returns_none_after_helper_failure(
+    monkeypatch, tmp_path
+):
+    """Test local GRU-parallel SUMMA returns no output after helper failure."""
     runner = make_summa_runner(tmp_path, cpus_per_task=2)
-    prepare_local_parallel_runner(runner, tmp_path)
+    prepare_local_gru_parallel_runner(runner, tmp_path)
 
     def fake_run_summa_gru_parallel(**kwargs):
         return False
@@ -113,8 +115,8 @@ def test_local_parallel_summa_skips_merge_after_failure(monkeypatch, tmp_path):
     runner._merge_parallel_outputs.assert_not_called()
 
 
-def test_parallel_summa_slurm_backend_dispatch(tmp_path):
-    """Test SLURM backend dispatch remains available."""
+def test_gru_parallel_summa_slurm_backend_dispatches_to_slurm(tmp_path):
+    """Test GRU-parallel SUMMA dispatches to SLURM when available."""
     runner = make_summa_runner(tmp_path, backend='slurm')
     expected = tmp_path / 'slurm-output'
     runner.is_slurm_available = MagicMock(return_value=True)
@@ -129,8 +131,8 @@ def test_parallel_summa_slurm_backend_dispatch(tmp_path):
     runner._run_parallel_summa_local.assert_not_called()
 
 
-def test_parallel_summa_slurm_backend_falls_back_to_local(tmp_path):
-    """Test SLURM backend uses local GRU splitting when SLURM is unavailable."""
+def test_gru_parallel_summa_slurm_backend_falls_back_to_local(tmp_path):
+    """Test GRU-parallel SUMMA uses local splitting without SLURM."""
     runner = make_summa_runner(tmp_path, backend='slurm')
     expected = tmp_path / 'local-output'
     runner.is_slurm_available = MagicMock(return_value=False)
@@ -145,8 +147,8 @@ def test_parallel_summa_slurm_backend_falls_back_to_local(tmp_path):
     runner._run_parallel_summa_slurm.assert_not_called()
 
 
-def test_parallel_summa_unknown_backend_returns_none(tmp_path):
-    """Test unknown SUMMA parallel backend returns no output path."""
+def test_gru_parallel_summa_unknown_backend_returns_none(tmp_path):
+    """Test unknown GRU-parallel backend returns no output path."""
     runner = make_summa_runner(tmp_path)
     runner._get_config_value = MagicMock(return_value='unknown')
     runner._run_parallel_summa_local = MagicMock()

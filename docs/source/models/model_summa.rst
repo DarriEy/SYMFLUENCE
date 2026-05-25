@@ -138,10 +138,10 @@ Installation and Execution
      - Model execution timeout (seconds)
    * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
      - false
-     - Enable SUMMA domain parallel execution
+     - Enable SUMMA GRU-parallel execution
    * - SETTINGS_SUMMA_PARALLEL_BACKEND
      - slurm
-     - Domain parallel backend (``slurm`` or ``local``)
+     - GRU-parallel backend (``slurm`` or ``local``)
    * - SETTINGS_SUMMA_PARALLEL_EXE
      - summa_actors.exe
      - Parallel SUMMA executable name
@@ -253,7 +253,7 @@ For large-scale applications:
      - GRUs processed per parallel job
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - 1
-     - CPUs allocated per GRU-parallelized SUMMA worker
+     - CPUs allocated to each GRU-parallel SUMMA model run
    * - SETTINGS_SUMMA_MEM
      - 5
      - Memory per task (GB)
@@ -475,7 +475,7 @@ Parallel SUMMA for Large Domains
 --------------------------------
 
 For continental-scale or high-resolution applications, SUMMA can run GRU subsets
-through a domain parallel backend. The ``slurm`` backend submits GRU array jobs.
+through a GRU-parallel backend. The ``slurm`` backend submits GRU array jobs.
 The ``local`` backend launches multiple SUMMA subprocesses on the current
 machine.
 
@@ -493,7 +493,7 @@ SLURM backend:
    SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe
    SETTINGS_SUMMA_PARALLEL_PATH: /path/to/parallel/summa
 
-   # Configure parallel execution
+   # Configure GRU-parallel execution
    SETTINGS_SUMMA_GRU_COUNT: 1000      # Total GRUs
    SETTINGS_SUMMA_GRU_PER_JOB: 10      # GRUs per job
    SETTINGS_SUMMA_CPUS_PER_TASK: 32    # CPUs per task
@@ -504,11 +504,11 @@ Local backend:
 
 .. code-block:: yaml
 
-   # Enable local domain parallel SUMMA
+   # Enable local GRU-parallel SUMMA
    SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
    SETTINGS_SUMMA_PARALLEL_BACKEND: local
 
-   # Configure local GRU split execution
+   # Configure local GRU-parallel execution
    SETTINGS_SUMMA_CPUS_PER_TASK: 8
 
 Calibration Strategies

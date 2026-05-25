@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Local GRU-split execution for SUMMA model runs and calibration.
+"""Local GRU-parallel execution for SUMMA model runs and calibration.
 
 Splits a SUMMA domain into GRU chunks using the ``-g startGRU numGRU`` flag,
 runs those chunks as concurrent local subprocesses, then merges outputs.
@@ -332,7 +332,7 @@ def run_summa_gru_parallel(
             for future in not_done:
                 future.cancel()
             debug_info.setdefault('errors', []).append(
-                f'GRU parallel timeout: {len(not_done)} splits incomplete'
+                f'GRU-parallel timeout: {len(not_done)} splits incomplete'
             )
             return False
 
