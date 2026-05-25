@@ -349,6 +349,17 @@ class SUMMAWorker(BaseWorker):
             if not mizuroute_dir and self.needs_routing(config):
                 sim_dir = kwargs.get('sim_dir', output_dir)
                 mizuroute_dir = sim_dir / 'mizuRoute'
+                # Fall back to the standard simulations path when the
+                # optimization-dir path has no output (e.g. final evaluation
+                # redirects SUMMA output but mizuRoute still writes to simulations/)
+                if not list(mizuroute_dir.glob('*.nc')):
+                    experiment_id = config.get('EXPERIMENT_ID', '')
+                    data_dir = config.get('SYMFLUENCE_DATA_DIR', '')
+                    domain_name = config.get('DOMAIN_NAME', '')
+                    if experiment_id and data_dir and domain_name:
+                        fallback = Path(data_dir) / f"domain_{domain_name}" / 'simulations' / experiment_id / 'mizuRoute'
+                        if list(fallback.glob('*.nc')):
+                            mizuroute_dir = fallback
 
             metrics = _calculate_metrics_with_target(
                 output_dir, mizuroute_dir, config, self.logger
