@@ -41,7 +41,7 @@ Spatial Structure:
 
 Key Components:
     SummaPreProcessor: Forcing preparation, attributes, trial parameters
-    SummaRunner: Model execution with parallel support (summa_actors)
+    SummaRunner: Model execution with SLURM or local domain parallel support
     SUMMAPostprocessor: Output extraction and NetCDF processing
     SummaStructureAnalyzer: Decision ensemble analysis
     SummaForcingProcessor: Forcing file preparation
@@ -53,6 +53,8 @@ Configuration Parameters:
     SUMMA_DECISION_OPTIONS: Dictionary of decision choices for ensemble runs
     SETTINGS_SUMMA_GLACIER_MODE: Enable glacier dynamics (default: False)
     SETTINGS_SUMMA_USE_PARALLEL_SUMMA: Use parallel execution (default: False)
+    SETTINGS_SUMMA_PARALLEL_BACKEND: Domain parallel backend (default: 'slurm')
+    SETTINGS_SUMMA_LOCAL_WORKERS: Local subprocess worker count (default: 0)
     PARAMS_TO_CALIBRATE: Local parameters
         (default: 'albedo_max,albedo_min,canopy_capacity,slow_drainage')
     BASIN_PARAMS_TO_CALIBRATE: Basin-scale routing parameters
@@ -70,7 +72,7 @@ Limitations and Considerations:
     - Requires SUMMA executable (compiled with Sundials solver recommended)
     - Decision ensemble runs multiply computational cost
     - Glacier mode requires additional attribute preparation
-    - Large domains benefit from parallel execution (summa_actors)
+    - Large domains benefit from SUMMA domain parallel execution
     - Some decision combinations may be incompatible or unstable
 """
 

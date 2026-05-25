@@ -113,6 +113,8 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "SETTINGS_SUMMA_TRIALPARAM_N": ("model", "summa", "trialparam_n"),
     "SETTINGS_SUMMA_TRIALPARAM_1": ("model", "summa", "trialparam_1"),
     "SETTINGS_SUMMA_USE_PARALLEL_SUMMA": ("model", "summa", "use_parallel"),
+    "SETTINGS_SUMMA_PARALLEL_BACKEND": ("model", "summa", "parallel_backend"),
+    "SETTINGS_SUMMA_LOCAL_WORKERS": ("model", "summa", "local_workers"),
     "SETTINGS_SUMMA_CPUS_PER_TASK": ("model", "summa", "cpus_per_task"),
     "SETTINGS_SUMMA_TIME_LIMIT": ("model", "summa", "time_limit"),
     "SETTINGS_SUMMA_MEM": ("model", "summa", "mem"),
