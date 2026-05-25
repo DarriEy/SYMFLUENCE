@@ -252,8 +252,8 @@ For large-scale applications:
      - 5
      - GRUs processed per parallel job
    * - SETTINGS_SUMMA_CPUS_PER_TASK
-     - 32
-     - Number of parallel SUMMA tasks
+     - 1
+     - CPUs allocated per GRU-parallelized SUMMA worker
    * - SETTINGS_SUMMA_MEM
      - 5
      - Memory per task (GB)

@@ -450,8 +450,8 @@ SUMMA Model Parameters
      - SUMMA domain parallel backend ("slurm", "local")
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - integer
-     - 32
-     - Number of parallel SUMMA tasks
+     - 1
+     - CPUs allocated per GRU-parallelized SUMMA worker
    * - SETTINGS_SUMMA_GRU_PER_JOB
      - integer
      - 1
