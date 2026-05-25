@@ -281,7 +281,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def run_parallel_summa(self) -> Optional[Path]:
         """
-        Run SUMMA in parallel using the configured domain backend.
+        Run SUMMA in parallel across GRUs using the configured backend.
 
         The default 'slurm' backend uses SLURM job arrays, while the 'local' backend uses
         Python's ThreadPoolExecutor (also used as a fallback if SLURM is unavailable).
@@ -297,7 +297,8 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             # Use the local GRU splitter when SLURM is unavailable
             if not self.is_slurm_available():
                 self.logger.warning(
-                    "SLURM not available, falling back to local SUMMA GRU parallelization"
+                    "SLURM not available, falling back to local SUMMA "
+                    "GRU-parallel execution"
                 )
                 return self._run_parallel_summa_local()
             return self._run_parallel_summa_slurm()

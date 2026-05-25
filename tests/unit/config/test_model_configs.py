@@ -145,16 +145,16 @@ class TestSUMMAConfigGlacier:
 
 
 class TestSUMMAConfigParallel:
-    """Test SUMMA parallel execution fields."""
+    """Test SUMMA GRU-parallel execution fields."""
 
-    def test_summa_parallel_defaults(self):
-        """Test SUMMA parallel backend default values."""
+    def test_summa_gru_parallel_defaults(self):
+        """Test default SUMMA GRU-parallel backend settings."""
         config = SUMMAConfig()
         assert config.parallel_backend == 'slurm'
         assert config.cpus_per_task == 1
 
-    def test_summa_parallel_custom_values(self):
-        """Test SUMMA local parallel backend values."""
+    def test_summa_gru_parallel_custom_values(self):
+        """Test custom SUMMA GRU-parallel backend settings."""
         config = SUMMAConfig(
             SETTINGS_SUMMA_PARALLEL_BACKEND='local',
             SETTINGS_SUMMA_CPUS_PER_TASK=4

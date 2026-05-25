@@ -4230,7 +4230,7 @@ SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
 #   Type:        str
 #   Default:     slurm
 #   Source:      SUMMAConfig (model_configs.py)
-#   Description: SUMMA domain parallel backend (slurm or local)
+#   Description: SUMMA GRU-parallel backend (slurm or local)
 SETTINGS_SUMMA_PARALLEL_BACKEND: "slurm"
 
 # SETTINGS_SUMMA_PARALLEL_EXE
