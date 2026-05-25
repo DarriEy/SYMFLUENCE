@@ -4,7 +4,6 @@
 """Tests for SUMMA domain parallel execution."""
 
 import logging
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -12,7 +11,11 @@ from symfluence.core.config.models import SymfluenceConfig
 from symfluence.models.summa.runner import SummaRunner
 
 
-def make_summa_runner(tmp_path: Path, local_workers: int = 0) -> SummaRunner:
+def make_summa_runner(
+    tmp_path: Path,
+    backend: str = 'local',
+    cpus_per_task: int = 4,
+) -> SummaRunner:
     """Create a SUMMA runner with local parallel execution enabled."""
     data_dir = tmp_path / 'data'
     code_dir = tmp_path / 'code'
@@ -43,8 +46,8 @@ def make_summa_runner(tmp_path: Path, local_workers: int = 0) -> SummaRunner:
         SUMMA_INSTALL_PATH=str(install_dir),
         SETTINGS_SUMMA_PATH=str(settings_dir),
         SETTINGS_SUMMA_USE_PARALLEL_SUMMA=True,
-        SETTINGS_SUMMA_PARALLEL_BACKEND='local',
-        SETTINGS_SUMMA_LOCAL_WORKERS=local_workers,
+        SETTINGS_SUMMA_PARALLEL_BACKEND=backend,
+        SETTINGS_SUMMA_CPUS_PER_TASK=cpus_per_task,
     )
 
     return SummaRunner(config, logging.getLogger(__name__))
@@ -54,59 +57,103 @@ def prepare_local_parallel_runner(runner: SummaRunner, tmp_path: Path) -> None:
     """Patch expensive runner steps for focused local backend tests."""
     runner.output_dir = tmp_path / 'output'
     runner.output_dir.mkdir()
-    runner._count_grus = MagicMock(return_value=3)
-    runner.estimate_optimal_grus_per_job = MagicMock(return_value=2)
     runner._pre_execution = MagicMock(return_value=True)
     runner._merge_parallel_outputs = MagicMock(return_value=runner.output_dir)
 
 
-def test_local_parallel_summa_runs_one_command_per_gru(monkeypatch, tmp_path):
-    """Test local parallel SUMMA runs each GRU subset and merges outputs."""
-    runner = make_summa_runner(tmp_path, local_workers=2)
+def test_local_parallel_summa_calls_gru_split_helper(monkeypatch, tmp_path):
+    """Test local parallel SUMMA delegates to the GRU split helper."""
+    runner = make_summa_runner(tmp_path, cpus_per_task=4)
     prepare_local_parallel_runner(runner, tmp_path)
     calls = []
 
-    def fake_run(command, stdout, stderr, cwd, env, check, timeout):
-        calls.append({
-            'command': command,
-            'cwd': cwd,
-            'env': env,
-            'timeout': timeout,
-        })
-        stdout.write('ok\n')
-        return subprocess.CompletedProcess(command, 0)
+    def fake_run_summa_gru_parallel(**kwargs):
+        calls.append(kwargs)
+        return True
 
-    monkeypatch.setattr('symfluence.models.summa.runner.subprocess.run', fake_run)
+    monkeypatch.setattr(
+        'symfluence.models.summa.runner.run_summa_gru_parallel',
+        fake_run_summa_gru_parallel,
+    )
 
     result = runner.run_parallel_summa()
 
     assert result == runner.output_dir
-    runner._merge_parallel_outputs.assert_called_once()
+    runner._pre_execution.assert_called_once()
+    runner._merge_parallel_outputs.assert_not_called()
 
-    commands = sorted(calls, key=lambda call: int(call['command'][2]))
-    assert len(commands) == 3
-    for index, call in enumerate(commands, start=1):
-        command = call['command']
-        assert command[1:5] == ['-g', str(index), '1', '-m']
-        assert command[5] == str(runner.file_manager)
-        assert call['cwd'] == runner.output_dir
-        assert call['env']['OMP_NUM_THREADS'] == '1'
-        assert call['env']['MKL_NUM_THREADS'] == '1'
-        assert call['env']['OPENBLAS_NUM_THREADS'] == '1'
+    assert len(calls) == 1
+    call = calls[0]
+    assert call['summa_exe'] == runner.model_exe
+    assert call['file_manager'] == runner.file_manager
+    assert call['summa_dir'] == runner.output_dir
+    assert call['settings_dir'] == runner.settings_path
+    assert call['num_parallel'] == 4
+    assert call['timeout'] == 7200
+    assert call['debug_info'] == {'errors': []}
+    assert isinstance(call['env'], dict)
 
 
 def test_local_parallel_summa_skips_merge_after_failure(monkeypatch, tmp_path):
-    """Test local parallel SUMMA skips merge if any GRU run fails."""
-    runner = make_summa_runner(tmp_path, local_workers=2)
+    """Test local parallel SUMMA fails without serial fallback."""
+    runner = make_summa_runner(tmp_path, cpus_per_task=2)
     prepare_local_parallel_runner(runner, tmp_path)
 
-    def fake_run(command, stdout, stderr, cwd, env, check, timeout):
-        return_code = 1 if command[2] == '2' else 0
-        return subprocess.CompletedProcess(command, return_code)
+    def fake_run_summa_gru_parallel(**kwargs):
+        return False
 
-    monkeypatch.setattr('symfluence.models.summa.runner.subprocess.run', fake_run)
+    monkeypatch.setattr(
+        'symfluence.models.summa.runner.run_summa_gru_parallel',
+        fake_run_summa_gru_parallel,
+    )
 
     result = runner.run_parallel_summa()
 
     assert result is None
     runner._merge_parallel_outputs.assert_not_called()
+
+
+def test_parallel_summa_slurm_backend_dispatch(tmp_path):
+    """Test SLURM backend dispatch remains available."""
+    runner = make_summa_runner(tmp_path, backend='slurm')
+    expected = tmp_path / 'slurm-output'
+    runner.is_slurm_available = MagicMock(return_value=True)
+    runner._run_parallel_summa_slurm = MagicMock(return_value=expected)
+    runner._run_parallel_summa_local = MagicMock()
+
+    result = runner.run_parallel_summa()
+
+    assert result == expected
+    runner.is_slurm_available.assert_called_once()
+    runner._run_parallel_summa_slurm.assert_called_once()
+    runner._run_parallel_summa_local.assert_not_called()
+
+
+def test_parallel_summa_slurm_backend_falls_back_to_local(tmp_path):
+    """Test SLURM backend uses local GRU splitting when SLURM is unavailable."""
+    runner = make_summa_runner(tmp_path, backend='slurm')
+    expected = tmp_path / 'local-output'
+    runner.is_slurm_available = MagicMock(return_value=False)
+    runner._run_parallel_summa_local = MagicMock(return_value=expected)
+    runner._run_parallel_summa_slurm = MagicMock()
+
+    result = runner.run_parallel_summa()
+
+    assert result == expected
+    runner.is_slurm_available.assert_called_once()
+    runner._run_parallel_summa_local.assert_called_once()
+    runner._run_parallel_summa_slurm.assert_not_called()
+
+
+def test_parallel_summa_unknown_backend_returns_none(tmp_path):
+    """Test unknown SUMMA parallel backend returns no output path."""
+    runner = make_summa_runner(tmp_path)
+    runner._get_config_value = MagicMock(return_value='unknown')
+    runner._run_parallel_summa_local = MagicMock()
+    runner._run_parallel_summa_slurm = MagicMock()
+
+    result = runner.run_parallel_summa()
+
+    assert result is None
+    runner._run_parallel_summa_local.assert_not_called()
+    runner._run_parallel_summa_slurm.assert_not_called()

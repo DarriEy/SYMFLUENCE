@@ -448,14 +448,10 @@ SUMMA Model Parameters
      - string
      - "slurm"
      - SUMMA domain parallel backend ("slurm", "local")
-   * - SETTINGS_SUMMA_LOCAL_WORKERS
-     - integer
-     - 0
-     - Local SUMMA subprocess workers; 0 selects automatically
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - integer
-     - 1
-     - CPUs per SUMMA task (for parallel execution)
+     - 32
+     - Number of parallel SUMMA tasks
    * - SETTINGS_SUMMA_GRU_PER_JOB
      - integer
      - 1

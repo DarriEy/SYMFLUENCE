@@ -151,16 +151,16 @@ class TestSUMMAConfigParallel:
         """Test SUMMA parallel backend default values."""
         config = SUMMAConfig()
         assert config.parallel_backend == 'slurm'
-        assert config.local_workers == 0
+        assert config.cpus_per_task == 32
 
     def test_summa_parallel_custom_values(self):
         """Test SUMMA local parallel backend values."""
         config = SUMMAConfig(
             SETTINGS_SUMMA_PARALLEL_BACKEND='local',
-            SETTINGS_SUMMA_LOCAL_WORKERS=4
+            SETTINGS_SUMMA_CPUS_PER_TASK=4
         )
         assert config.parallel_backend == 'local'
-        assert config.local_workers == 4
+        assert config.cpus_per_task == 4
 
 
 class TestOptimizationConfigExtension:
