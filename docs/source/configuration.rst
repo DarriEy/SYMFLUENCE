@@ -443,7 +443,15 @@ SUMMA Model Parameters
    * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
      - boolean
      - False
-     - Use parallelized SUMMA execution
+     - Use SUMMA domain parallel execution
+   * - SETTINGS_SUMMA_PARALLEL_BACKEND
+     - string
+     - "slurm"
+     - SUMMA domain parallel backend ("slurm", "local")
+   * - SETTINGS_SUMMA_LOCAL_WORKERS
+     - integer
+     - 0
+     - Local SUMMA subprocess workers; 0 selects automatically
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - integer
      - 1

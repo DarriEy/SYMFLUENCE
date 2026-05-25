@@ -288,7 +288,15 @@ def _create_summa_schema() -> ModelConfigSchema:
                       description='Name of SUMMA file manager'),
             ConfigKey('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', ConfigKeyType.BOOLEAN, False,
                       default=False,
-                      description='Enable SLURM parallel execution'),
+                      description='Enable SUMMA domain parallel execution'),
+            ConfigKey('SETTINGS_SUMMA_PARALLEL_BACKEND', ConfigKeyType.ENUM, False,
+                      default='slurm', valid_values=['slurm', 'local'],
+                      description='SUMMA domain parallel backend'),
+            ConfigKey('SETTINGS_SUMMA_LOCAL_WORKERS', ConfigKeyType.INTEGER, False,
+                      default=0,
+                      description=(
+                          'Local SUMMA subprocess workers; 0 selects automatically'
+                      )),
             ConfigKey('EXPERIMENT_LOG_SUMMA', ConfigKeyType.PATH, False,
                       description='Path for SUMMA log files'),
             ConfigKey('EXPERIMENT_BACKUP_SETTINGS', ConfigKeyType.ENUM, False,

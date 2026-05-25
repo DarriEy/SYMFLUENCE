@@ -19,6 +19,9 @@ Refactored to use the Unified Model Execution Framework:
 Author: SYMFLUENCE Development Team
 """
 
+import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -280,10 +283,26 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def run_parallel_summa(self) -> Optional[Path]:
         """
-        Run SUMMA in parallel using SLURM arrays.
+        Run SUMMA in parallel using the configured domain backend.
 
-        This method uses the Unified Model Execution Framework for SLURM job management.
+        The default backend submits the existing SLURM array workflow. The local
+        backend runs multiple SUMMA subprocesses concurrently on the current machine.
         """
+        backend = self._get_config_value(
+            lambda: self.config.model.summa.parallel_backend, default='slurm'
+        )
+        backend = str(backend or 'slurm').lower()
+
+        if backend == 'local':
+            return self._run_parallel_summa_local()
+        if backend == 'slurm':
+            return self._run_parallel_summa_slurm()
+
+        self.logger.error(f"Unknown SUMMA parallel backend: {backend}")
+        return None
+
+    def _run_parallel_summa_slurm(self) -> Optional[Path]:
+        """Run SUMMA in parallel using SLURM arrays."""
         self.logger.info("Starting parallel SUMMA run with SLURM")
 
         # Get GRU count from shapefile
@@ -333,6 +352,134 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         else:
             self.logger.error(f"Parallel SUMMA failed: {result.error_message}")
             return None
+
+    def _run_parallel_summa_local(self) -> Optional[Path]:
+        """Run local SUMMA subprocess workers over GRU groups."""
+        self.logger.info("Starting local parallel SUMMA run")
+
+        # Get GRU count from shapefile
+        total_grus = self._count_grus()
+        self.logger.info(f"Total GRUs: {total_grus}")
+        if total_grus <= 0:
+            self.logger.error("Cannot run local parallel SUMMA with zero GRUs")
+            return None
+
+        # Calculate the same GRU grouping used by the SLURM backend
+        grus_per_job = self.estimate_optimal_grus_per_job(total_grus)
+        self.logger.info(f"GRUs per job: {grus_per_job}")
+
+        if not self._pre_execution():
+            return None
+
+        gru_groups = [
+            (gru_start, min(gru_start + grus_per_job - 1, total_grus))
+            for gru_start in range(1, total_grus + 1, grus_per_job)
+        ]
+        if not gru_groups:
+            self.logger.error("No SUMMA GRU groups were created")
+            return None
+
+        local_workers = self._get_config_value(
+            lambda: self.config.model.summa.local_workers, default=0
+        )
+        local_workers = int(local_workers or 0)
+        if local_workers <= 0:
+            local_workers = min(os.cpu_count() or 1, len(gru_groups))
+        else:
+            local_workers = min(local_workers, len(gru_groups))
+
+        self.logger.info(f"Local SUMMA workers: {local_workers}")
+        log_dir = self.get_log_path()
+        failed_groups = []
+
+        with ThreadPoolExecutor(max_workers=local_workers) as executor:
+            futures = {
+                executor.submit(
+                    self._run_local_summa_gru_group,
+                    gru_start,
+                    gru_end,
+                    log_dir,
+                ): (gru_start, gru_end)
+                for gru_start, gru_end in gru_groups
+            }
+
+            for future in as_completed(futures):
+                gru_start, gru_end = futures[future]
+                try:
+                    if not future.result():
+                        failed_groups.append((gru_start, gru_end))
+                except (OSError, subprocess.SubprocessError) as exc:
+                    self.logger.error(
+                        f"Local SUMMA group {gru_start}-{gru_end} failed: {exc}"
+                    )
+                    failed_groups.append((gru_start, gru_end))
+
+        if failed_groups:
+            self.logger.error(
+                f"Local parallel SUMMA failed for GRU groups: {failed_groups}"
+            )
+            return None
+
+        self.logger.info("Local parallel SUMMA runs completed")
+        return self._merge_parallel_outputs()
+
+    def _run_local_summa_gru_group(
+        self,
+        gru_start: int,
+        gru_end: int,
+        log_dir: Path
+    ) -> bool:
+        """Run one worker group as serial one-GRU SUMMA subprocess calls."""
+        timeout = self._get_config_value(
+            lambda: self.config.model.summa.timeout, default=7200
+        )
+
+        # Keep numerical libraries from over-subscribing each local worker
+        env = os.environ.copy()
+        env.update(self._get_environment())
+        env.update({
+            'OMP_NUM_THREADS': '1',
+            'MKL_NUM_THREADS': '1',
+            'OPENBLAS_NUM_THREADS': '1',
+        })
+
+        for gru_id in range(gru_start, gru_end + 1):
+            log_file = log_dir / f"summa_gru_{gru_id:05d}.log"
+            cmd = [
+                str(self.model_exe),
+                '-g',
+                str(gru_id),
+                '1',
+                '-m',
+                str(self.file_manager),
+            ]
+            cmd_str = " ".join(cmd)
+
+            self.logger.info(f"Executing SUMMA GRU {gru_id}: {cmd_str}")
+            with open(log_file, 'w', encoding='utf-8') as f:
+                f.write("SUMMA Local Parallel Execution Log\n")
+                f.write(f"Command: {cmd_str}\n")
+                f.write(f"GRU: {gru_id}\n")
+                f.write("=" * 50 + "\n")
+                f.flush()
+
+                result = subprocess.run(
+                    cmd,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    cwd=self.output_dir,
+                    env=env,
+                    check=False,
+                    timeout=timeout,
+                )
+
+            if result.returncode != 0:
+                self.logger.error(
+                    f"SUMMA GRU {gru_id} failed with exit code {result.returncode}"
+                )
+                return False
+
+        return True
 
     def _count_grus(self) -> int:
         """Count total GRUs from catchment shapefile."""

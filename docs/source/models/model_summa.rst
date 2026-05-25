@@ -138,7 +138,13 @@ Installation and Execution
      - Model execution timeout (seconds)
    * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
      - false
-     - Enable parallel SUMMA execution (MPI)
+     - Enable SUMMA domain parallel execution
+   * - SETTINGS_SUMMA_PARALLEL_BACKEND
+     - slurm
+     - Domain parallel backend (``slurm`` or ``local``)
+   * - SETTINGS_SUMMA_LOCAL_WORKERS
+     - 0
+     - Concurrent local SUMMA subprocess workers; 0 selects automatically
    * - SETTINGS_SUMMA_PARALLEL_EXE
      - summa_actors.exe
      - Parallel SUMMA executable name
@@ -471,12 +477,23 @@ For glacier-dominated basins:
 Parallel SUMMA for Large Domains
 --------------------------------
 
-For continental-scale or high-resolution applications:
+For continental-scale or high-resolution applications, SUMMA can run GRU subsets
+through a domain parallel backend. The default backend is ``slurm``, which keeps
+the existing SLURM array workflow. On machines without SLURM, use the ``local``
+backend to launch multiple SUMMA subprocesses on the current machine.
+
+The local backend runs commands of the form
+``SUMMA_EXE -g <gru> 1 -m <fileManager>``. It uses
+``SETTINGS_SUMMA_LOCAL_WORKERS`` to control how many subprocess workers run at
+once, and ``0`` chooses ``min(os.cpu_count(), number_of_gru_groups)``.
+
+SLURM backend:
 
 .. code-block:: yaml
 
    # Enable parallel SUMMA
    SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
+   SETTINGS_SUMMA_PARALLEL_BACKEND: slurm
    SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe
    SETTINGS_SUMMA_PARALLEL_PATH: /path/to/parallel/summa
 
@@ -486,6 +503,17 @@ For continental-scale or high-resolution applications:
    SETTINGS_SUMMA_CPUS_PER_TASK: 32    # CPUs per task
    SETTINGS_SUMMA_MEM: 16              # GB memory per task
    SETTINGS_SUMMA_TIME_LIMIT: "04:00:00"  # 4 hours
+
+Local backend:
+
+.. code-block:: yaml
+
+   # Enable local domain parallel SUMMA
+   SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
+   SETTINGS_SUMMA_PARALLEL_BACKEND: local
+
+   # Use 0 to choose automatically, or set an explicit worker count
+   SETTINGS_SUMMA_LOCAL_WORKERS: 0
 
 Calibration Strategies
 ======================
