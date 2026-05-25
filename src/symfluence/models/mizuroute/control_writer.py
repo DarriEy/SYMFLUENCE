@@ -79,6 +79,17 @@ MODEL_CONFIGS = {
         hru_var='gruId',
         comment_name='GR4J'
     ),
+    'ngen': ModelRunoffConfig(
+        output_dir_key='EXPERIMENT_OUTPUT_NGEN',
+        output_dir_name='NGEN',
+        default_var='runoff',
+        default_units='m/s',
+        default_dt='3600',
+        output_file_pattern='{experiment_id}_runoff.nc',
+        hru_dim='hru',
+        hru_var='hruId',
+        comment_name='NGEN'
+    ),
 }
 
 
@@ -171,6 +182,7 @@ class ControlFileWriter(ConfigurableMixin):
             'EXPERIMENT_OUTPUT_SUMMA': lambda: self.config.model.summa.experiment_output,
             'EXPERIMENT_OUTPUT_FUSE': lambda: self.config.model.fuse.experiment_output,
             'EXPERIMENT_OUTPUT_GR': lambda: self.config.model.gr.experiment_output,
+            'EXPERIMENT_OUTPUT_NGEN': lambda: self.config.model.ngen.experiment_output if self.config.model.ngen else None,
         }
         getter = key_to_config.get(model_config.output_dir_key)
         if getter:

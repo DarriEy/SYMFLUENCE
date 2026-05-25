@@ -938,6 +938,8 @@ src/symfluence/models/ngen/calibration/worker.py:NgenWorker.apply_parameters:exc
 src/symfluence/models/ngen/calibration/worker.py:NgenWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ngen/calibration/worker.py:NgenWorker.run_model:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ngen/plotter.py:NGENPlotter.plot_results:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._load_catchment_areas:except Exception as e:  # noqa: BLE001
+src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._load_catchment_areas:except Exception as e:  # noqa: BLE001
 src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor._read_ngen_nexus_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/postprocessor.py:NgenPostprocessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/ngen/preprocessor.py:NgenPreProcessor._create_troute_topology:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -1219,6 +1221,8 @@ src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optim
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
 src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/optimization/workers/summa/parallel_gru_execution.py:_run_single_gru_split:except Exception as e:  # noqa: BLE001
+src/symfluence/optimization/workers/summa/parallel_gru_execution.py:merge_split_outputs:except Exception as e:  # noqa: BLE001
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_individual_steps:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_workflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
