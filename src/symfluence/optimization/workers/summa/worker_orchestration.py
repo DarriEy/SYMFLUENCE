@@ -162,7 +162,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         summa_timeout = int(config.get('SUMMA_TIMEOUT', 7200))
         logger.info("Running SUMMA")
         summa_start = time.time()
-        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info, summa_settings_dir, timeout=summa_timeout):
+        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info, summa_settings_dir, timeout=summa_timeout, config=config):
             error_msg = 'SUMMA simulation failed'
             logger.error(error_msg)
             eval_runtime = time.time() - eval_start_time

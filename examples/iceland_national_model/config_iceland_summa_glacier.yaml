@@ -1,0 +1,271 @@
+# Iceland National Water Model — SUMMA + mizuRoute (Glacier Mode)
+#
+# Semi-distributed setup across all of Iceland using TauDEM delineation
+# with elevation-band HRUs, CARRA forcing, and LamaH-ICE observations.
+# Glacier mode enabled for Vatnajökull, Langjökull, Hofsjökull, etc.
+#
+# Key advantage over HYPE: SUMMA supports per-GRU parameter variation,
+# breaking through the class-level parameter ceiling (~0.13 median KGE).
+
+# ── System ──────────────────────────────────────────────────────────
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
+NUM_PROCESSES: 1
+FORCE_RUN_ALL_STEPS: false
+LOG_LEVEL: INFO
+LOG_TO_FILE: true
+LOG_FORMAT: detailed
+
+# ── Domain identification ───────────────────────────────────────────
+DOMAIN_NAME: Iceland_National
+EXPERIMENT_ID: iceland_summa_glacier_v1
+
+# ── Temporal extent ─────────────────────────────────────────────────
+# 5-year spinup (1998-2002) to fill soil, snow, and glacier stores,
+# 5 years calibration, 3 years evaluation
+EXPERIMENT_TIME_START: 1998-01-01 00:00
+EXPERIMENT_TIME_END:   2010-12-31 00:00
+SPINUP_PERIOD:         1998-01-01, 2002-12-31
+CALIBRATION_PERIOD:    2003-01-01 00:00, 2007-12-31 00:00
+EVALUATION_PERIOD:     2008-01-01 00:00, 2010-12-31 00:00
+
+# ── Spatial domain ──────────────────────────────────────────────────
+BOUNDING_BOX_COORDS: 66.6/-24.6/63.2/-13.2
+POUR_POINT_COORDS: 64.5/-18.5
+
+DOMAIN_DEFINITION_METHOD: delineate
+ROUTING_DELINEATION: distributed
+GEOFABRIC_TYPE: na
+DELINEATION_METHOD: stream_threshold
+STREAM_THRESHOLD: 5000
+LUMPED_WATERSHED_METHOD: TauDEM
+
+DELINEATE_COASTAL_WATERSHEDS: true
+DELINEATE_BY_POURPOINT: false
+MOVE_OUTLETS_MAX_DISTANCE: 200
+CLEANUP_INTERMEDIATE_FILES: false
+
+# ── Sub-grid discretization ────────────────────────────────────────
+# Elevation bands for snow/glacier dynamics — 300m bands (same as HYPE)
+DOMAIN_DISCRETIZATION: GRUs
+SUB_GRID_DISCRETIZATION: elevation
+ELEVATION_BAND_SIZE: 300
+MIN_HRU_SIZE: 4
+MIN_GRU_SIZE: 0
+
+# ── DEM & land surface data ────────────────────────────────────────
+DATA_ACCESS: cloud
+DEM_SOURCE: copdem90
+SOILGRIDS_LAYER: wrb_0-5cm_mode
+ATTRIBUTE_PROFILE: full
+
+# ── Forcing ─────────────────────────────────────────────────────────
+# CARRA (2.5km Arctic reanalysis) — much better for Iceland than ERA5
+FORCING_DATASET: CARRA
+FORCING_VARIABLES: default
+FORCING_MEASUREMENT_HEIGHT: 2
+FORCING_TIME_STEP_SIZE: 3600
+APPLY_LAPSE_RATE: true
+LAPSE_RATE: 0.0065
+PET_METHOD: oudin
+SUPPLEMENT_FORCING: false
+
+# ── Observations — LamaH-ICE ───────────────────────────────────────
+EVALUATION_DATA:
+  - streamflow
+STREAMFLOW_DATA_PROVIDER: LAMAH_ICE
+LAMAH_ICE_DOMAIN_ID: 105
+LAMAH_ICE_PATH: default
+
+# ── Multi-gauge calibration ────────────────────────────────────────
+# Same curated gauge set as HYPE baseline for direct comparison
+MULTI_GAUGE_CALIBRATION: true
+MULTI_GAUGE_OBS_DIR: /Users/darri.eythorsson/compHydro/SYMFLUENCE_data/lamah_ice/D_gauges/2_timeseries/daily
+MULTI_GAUGE_AGGREGATION: median
+MULTI_GAUGE_MIN_GAUGES: 5
+MULTI_GAUGE_KGE_FLOOR: -0.41
+MULTI_GAUGE_MAX_DISTANCE: 0.1
+MULTI_GAUGE_MIN_OVERLAP_DAYS: 365
+MULTI_GAUGE_EXCLUDE_IDS:
+  # Reservoir / hydropower
+  - 6    # Blöndulón Reservoir
+  - 43   # Hálslón Reservoir
+  - 51   # Hágöngulón Reservoir
+  - 62   # Lagarfossvirkjun
+  - 78   # Smyrlabjargaárvirkjun
+  - 104  # Þjórsárlón Reservoir
+  # Period-duplicates
+  - 99   # Norðlingaalda 1970-1980
+  - 990  # Norðlingaalda 1985-1996
+  - 101  # Dynkur 1988-1996
+  # No obs in calibration period
+  - 5    # Hylvað
+  - 10   # Dalsá
+  - 19   # Þjórsárdal
+  - 49   # Sauðafell
+  - 50   # Klifshagavellir
+  - 52   # Þveralda
+  - 53   # Við Brúarfoss
+  - 57   # Gegnt Klúku
+  - 61   # Kálfá
+  - 87   # Hrauneyjafoss
+  - 88   # Hald
+  - 89   # Faxi
+  - 100  # Sandafell
+  - 103  # Tröllkonuhlaup
+  - 107  # Þórisós
+  - 4    # Austurbugur
+  - 28   # Litla-Gljúfur
+  - 41   # Djúpárbakki
+  # Unmappable
+  - 96   # Álftafitjakvísl
+  - 82   # Hófleðurshóll
+  - 85   # Tjaldkvísl
+  - 25   # ofan Landbrotsár
+  - 94   # Víðidalsá, Kolugil
+  - 44   # Kálfseyrarvað
+  # Variance/correlation failures
+  - 64   # Helluvað
+  - 95   # Árbæjarfoss
+  - 65   # Fossbrún
+  - 90   # Efstalækjarbrú
+  - 7    # Langamýri
+  - 47   # Hóll
+  - 20   # Hjálp
+  - 14   # Tungufoss
+  - 37   # Kljáfoss
+  - 890  # Faxi (duplicate)
+  - 77   # Aldeyjarfoss
+  - 56   # Ofan Folavatns
+  - 58   # Keldnaholt
+  # Zero SLC / remapped failures from HYPE
+  - 1    # Laugafljót
+  - 24   # gamla brú
+  - 26   # Reyðarvatnsós
+  - 29   # Einstigsfoss
+  - 71   # ofan Sultarkrika
+  - 9    # Syðri-Bægisá
+  - 69   # Brúaröræfum
+  - 79   # Ásgarður
+  - 83   # ofan Ullarfossbrúar
+
+# ── Model: SUMMA ────────────────────────────────────────────────────
+HYDROLOGICAL_MODEL: SUMMA
+SUMMA_EXE: summa_sundials.exe
+SETTINGS_SUMMA_CONNECT_HRUS: true
+
+# Glacier mode disabled — installed SUMMA v4.0.0-exp-sundials doesn't
+# support initGridFile/attribGridFile. Snow physics still active.
+SETTINGS_SUMMA_GLACIER_MODE: false
+
+# Parallel GRU execution — split 696 GRUs across 8 cores
+# Each core handles ~87 GRUs, cutting runtime from ~10h to ~1.25h per iteration
+SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
+SETTINGS_SUMMA_CPUS_PER_TASK: 8
+
+# Timeout per iteration (parallel): slowest GRU split can take 4-5 hours
+SUMMA_TIMEOUT: 21600
+
+# Calibration parameters — per-GRU variation via transfer function
+# Snow: tempCritRain, frozenPrecipMultip
+# Soil: k_soil, vGn_n, theta_sat, Fcapil, k_macropore
+# Routing: routingGammaScale, routingGammaShape
+PARAMS_TO_CALIBRATE: tempCritRain,k_soil,vGn_n,theta_sat,frozenPrecipMultip,Fcapil,k_macropore
+BASIN_PARAMS_TO_CALIBRATE: routingGammaScale,routingGammaShape
+
+# Transfer function regionalization — per-GRU parameters from attributes
+PARAMETER_REGIONALIZATION: transfer_function
+
+# SUMMA decisions — cold-region & glacier-appropriate physics
+SUMMA_DECISION_OPTIONS:
+  snowIncept:
+    - lightSnow
+  compaction:
+    - anderson
+  snowLayers:
+    - CLM_2010
+  alb_method:
+    - conDecay
+  thCondSnow:
+    - smnv2000
+  vegeParTbl:
+    - MODIFIED_IGBP_MODIS_NOAH
+  soilStress:
+    - NoahType
+  stomResist:
+    - BallBerry
+  LAI_method:
+    - monTable
+  veg_traits:
+    - Raupach_BLM1994
+  canopyEmis:
+    - difTrans
+  windPrfile:
+    - logBelowCanopy
+  canopySrad:
+    - BeersLaw
+  soilCatTbl:
+    - ROSETTA
+  f_Richards:
+    - mixdform
+  groundwatr:
+    - bigBuckt
+  hc_profile:
+    - constant
+  bcLowrSoiH:
+    - drainage
+  thCondSoil:
+    - funcSoilWet
+  spatial_gw:
+    - localColumn
+  subRouting:
+    - timeDlay
+  num_method:
+    - itertive
+  fDerivMeth:
+    - analytic
+  bcUpprTdyn:
+    - nrg_flux
+  bcLowrTdyn:
+    - zeroFlux
+  bcUpprSoiH:
+    - liq_flux
+  astability:
+    - louisinv
+
+# ── Routing: mizuRoute ──────────────────────────────────────────────
+ROUTING_MODEL: mizuRoute
+INSTALL_PATH_MIZUROUTE: default
+EXE_NAME_MIZUROUTE: mizuRoute.exe
+MIZUROUTE_TIMEOUT: 7200
+MIZUROUTE_NUM_THREADS: 8
+SETTINGS_MIZU_ROUTING_DT: 3600
+SETTINGS_MIZU_ROUTING_UNITS: m/s
+SETTINGS_MIZU_ROUTING_VAR: averageRoutedRunoff
+SETTINGS_MIZU_OUTPUT_FREQ: single
+SETTINGS_MIZU_OUTPUT_VARS: 1
+SETTINGS_MIZU_NEEDS_REMAP: false
+
+# ── Optimization ────────────────────────────────────────────────────
+OPTIMIZATION_METHODS:
+  - iteration
+OPTIMIZATION_TARGET: streamflow
+CALIBRATION_TIMESTEP: daily
+ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
+NUMBER_OF_ITERATIONS: 1000
+DDS_R: 0.2
+OPTIMIZATION_METRIC: KGE
+
+# ── Shapefile field mappings ────────────────────────────────────────
+CATCHMENT_SHP_LAT: center_lat
+CATCHMENT_SHP_LON: center_lon
+CATCHMENT_SHP_AREA: HRU_area
+CATCHMENT_SHP_HRUID: HRU_ID
+CATCHMENT_SHP_GRUID: GRU_ID
+RIVER_BASIN_SHP_RM_GRUID: GRU_ID
+RIVER_BASIN_SHP_HRU_TO_SEG: gru_to_seg
+RIVER_BASIN_SHP_AREA: GRU_area
+RIVER_NETWORK_SHP_LENGTH: Length
+RIVER_NETWORK_SHP_SEGID: LINKNO
+RIVER_NETWORK_SHP_DOWNSEGID: DSLINKNO
+RIVER_NETWORK_SHP_SLOPE: Slope
