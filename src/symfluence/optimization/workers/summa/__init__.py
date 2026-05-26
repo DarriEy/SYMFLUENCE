@@ -19,6 +19,12 @@ The original summa_parallel_workers.py has been split into focused modules:
 - dds_optimization: DDS algorithm for workers
 """
 
+from symfluence.models.summa.parallel_gru_execution import (
+    compute_gru_splits,
+    merge_split_outputs,
+    run_summa_gru_parallel,
+)
+
 from .dds_optimization import (
     _denormalize_params_worker,
     _evaluate_single_solution_worker,
@@ -80,6 +86,10 @@ __all__ = [
     '_run_summa_worker',
     '_run_mizuroute_worker',
     '_needs_mizuroute_routing_worker',
+    # Parallel GRU execution
+    'run_summa_gru_parallel',
+    'compute_gru_splits',
+    'merge_split_outputs',
     # Worker orchestration
     '_evaluate_parameters_worker',
     # DDS optimization

@@ -53,6 +53,7 @@ Configuration Parameters:
     SUMMA_DECISION_OPTIONS: Dictionary of decision choices for ensemble runs
     SETTINGS_SUMMA_GLACIER_MODE: Enable glacier dynamics (default: False)
     SETTINGS_SUMMA_USE_PARALLEL_SUMMA: Use parallel execution (default: False)
+    SETTINGS_SUMMA_PARALLEL_BACKEND: Parallel backend (default: 'slurm')
     PARAMS_TO_CALIBRATE: Local parameters
         (default: 'albedo_max,albedo_min,canopy_capacity,slow_drainage')
     BASIN_PARAMS_TO_CALIBRATE: Basin-scale routing parameters

@@ -9,7 +9,7 @@ This module contains the SummaRunner class for executing the SUMMA
 
 The SummaRunner handles model execution in various modes:
 - Serial execution for single-threaded runs
-- Parallel execution using SLURM job arrays
+- Parallel execution using SLURM job arrays or local GRU-split execution
 - Point simulation mode for multiple point-based simulations
 
 Refactored to use the Unified Model Execution Framework:
@@ -30,6 +30,7 @@ from ..execution import ExecutionResult, SlurmJobConfig
 from ..registry import ModelRegistry
 from ..state import ModelState, StateCapableMixin, StateFormat, StateMetadata
 from ..templates import ModelRunResult, UnifiedModelRunner
+from .parallel_gru_execution import run_summa_gru_parallel
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
@@ -280,10 +281,33 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def run_parallel_summa(self) -> Optional[Path]:
         """
-        Run SUMMA in parallel using SLURM arrays.
+        Run SUMMA in parallel across GRUs using the configured backend.
 
-        This method uses the Unified Model Execution Framework for SLURM job management.
+        The default 'slurm' backend uses SLURM job arrays, while the 'local' backend uses
+        Python's ThreadPoolExecutor (also used as a fallback if SLURM is unavailable).
         """
+        backend = self._get_config_value(
+            lambda: self.config.model.summa.parallel_backend, default='slurm'
+        )
+        backend = str(backend or 'slurm').lower()
+
+        if backend == 'local':
+            return self._run_parallel_summa_local()
+        if backend == 'slurm':
+            # Use the local GRU splitter when SLURM is unavailable
+            if not self.is_slurm_available():
+                self.logger.warning(
+                    "SLURM not available, falling back to local SUMMA "
+                    "GRU splitting"
+                )
+                return self._run_parallel_summa_local()
+            return self._run_parallel_summa_slurm()
+
+        self.logger.error(f"Unknown SUMMA parallel backend: {backend}")
+        return None
+
+    def _run_parallel_summa_slurm(self) -> Optional[Path]:
+        """Run SUMMA in parallel using SLURM arrays."""
         self.logger.info("Starting parallel SUMMA run with SLURM")
 
         # Get GRU count from shapefile
@@ -334,18 +358,44 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             self.logger.error(f"Parallel SUMMA failed: {result.error_message}")
             return None
 
+    def _run_parallel_summa_local(self) -> Optional[Path]:
+        """Run local SUMMA subprocess workers over GRU splits."""
+        self.logger.info("Starting local parallel SUMMA run")
+
+        if not self._pre_execution():
+            return None
+
+        timeout = self._get_config_value(
+            lambda: self.config.model.summa.timeout, default=7200
+        )
+        cpus_per_task = self._get_config_value(
+            lambda: self.config.model.summa.cpus_per_task, default=32
+        )
+        debug_info: Dict[str, List[str]] = {'errors': []}
+
+        success = run_summa_gru_parallel(
+            summa_exe=self.model_exe,
+            file_manager=self.file_manager,
+            summa_dir=self.output_dir,
+            settings_dir=self.settings_path,
+            num_parallel=int(cpus_per_task),
+            logger=self.logger,
+            debug_info=debug_info,
+            timeout=int(timeout),
+            env=self._get_environment(),
+        )
+
+        if not success:
+            self.logger.error("Local parallel SUMMA failed")
+            return None
+
+        self.logger.info("Local parallel SUMMA completed")
+        return self.output_dir
+
     def _count_grus(self) -> int:
         """Count total GRUs from catchment shapefile."""
-        subbasins_name = self._get_config_value(
-            lambda: self.config.paths.catchment_name, default='default'
-        )
-        if subbasins_name == 'default':
-            subbasins_name = (
-                f"{self.domain_name}_HRUs_"
-                f"{self.sub_grid_discretization}.shp"
-            )
-
-        shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name
+        # Resolve legacy and organized catchment layouts
+        shapefile = self._get_catchment_file_path()
 
         try:
             gdf = gpd.read_file(shapefile)

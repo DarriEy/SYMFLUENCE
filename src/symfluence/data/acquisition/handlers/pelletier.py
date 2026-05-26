@@ -5,19 +5,19 @@
 Pelletier Soil/Regolith Depth Data Acquisition Handler
 
 Cloud-based acquisition of the global soil and regolith depth dataset from
-Pelletier et al. (2016) via NASA ORNL DAAC.
+Pelletier et al. (2016) via NASA Earthdata Cloud (ORNL DAAC).
 
 Provides 6 GeoTIFF grids at ~1km (30 arcsecond) resolution:
 - Upland hillslope soil thickness (m)
 - Upland hillslope regolith thickness (m)
 - Lowland sedimentary deposit thickness (m)
-- Upland valley-bottom sedimentary deposit thickness (m)
 - Average soil and sedimentary-deposit thickness (m)
 - Hillslope and valley-bottom average thickness (m)
+- Land cover mask
 
 Data Source:
     ORNL DAAC: https://doi.org/10.3334/ORNLDAAC/1304
-    Requires NASA Earthdata Login
+    Requires NASA Earthdata Login (via earthaccess, .netrc, or env vars)
 
 References:
     Pelletier, J.D., et al. (2016). A gridded global data set of soil,
@@ -26,7 +26,7 @@ References:
 
 Configuration:
     PELLETIER_VARIABLES: List of variables to download
-        (default: all 6 grids)
+        (default: all grids)
 """
 
 from pathlib import Path
@@ -38,15 +38,20 @@ from rasterio.windows import from_bounds
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
 from ..registry import AcquisitionRegistry
-from ..utils import create_robust_session, download_file_streaming
+from ..utils import create_robust_session
 
-# ORNL DAAC data URL (requires Earthdata auth)
-_ORNL_BASE = (
+# Cloud-hosted ORNL DAAC (replaces legacy daac.ornl.gov which is intermittent)
+_ORNL_CLOUD_BASE = (
+    "https://data.ornldaac.earthdata.nasa.gov/protected/global_soil/"
+    "Global_Soil_Regolith_Sediment/data"
+)
+
+# Legacy URL kept as fallback
+_ORNL_LEGACY_BASE = (
     "https://daac.ornl.gov/daacdata/global_soil/"
     "Global_Soil_Regolith_Sediment/data"
 )
 
-# Available files and their descriptions
 _PELLETIER_FILES = {
     'soil_thickness': {
         'filename': 'upland_hill-slope_soil_thickness.tif',
@@ -60,16 +65,12 @@ _PELLETIER_FILES = {
         'filename': 'upland_valley-bottom_and_lowland_sedimentary_deposit_thickness.tif',
         'description': 'Valley-bottom and lowland sedimentary deposit thickness (m)',
     },
-    'valley_bottom_thickness': {
-        'filename': 'upland_valley-bottom_sedimentary_deposit_thickness.tif',
-        'description': 'Upland valley-bottom sedimentary deposit thickness (m)',
-    },
     'average_thickness': {
         'filename': 'average_soil_and_sedimentary-deposit_thickness.tif',
         'description': 'Average soil and sedimentary-deposit thickness (m)',
     },
     'hillslope_valley_average': {
-        'filename': 'hill-slope_and_valley-bottom_average_soil_and_sedimentary-deposit_thickness.tif',
+        'filename': 'hill-slope_valley-bottom.tif',
         'description': 'Hillslope and valley-bottom average thickness (m)',
     },
 }
@@ -84,8 +85,8 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Pelletier et al. (2016) global soil/regolith depth acquisition.
 
-    Downloads global GeoTIFF grids from ORNL DAAC and subsets to the
-    domain bounding box. Requires NASA Earthdata credentials.
+    Downloads global GeoTIFF grids from NASA Earthdata Cloud (ORNL DAAC)
+    and subsets to the domain bounding box.
 
     Output:
         {project_dir}/attributes/soilclass/pelletier/
@@ -109,11 +110,7 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
             f"variables: {variables}"
         )
 
-        # Set up authenticated session
-        username, password = self._get_earthdata_credentials()
-        session = create_robust_session(max_retries=3, backoff_factor=2.0)
-        if username and password:
-            session.auth = (username, password)
+        session = self._create_earthdata_session()
 
         cache_dir = pelletier_dir / "cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -130,16 +127,12 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.logger.info(f"[{i+1}/{len(variables)}] Downloading Pelletier {var}")
 
             try:
-                # Download full global file to cache
                 cached_file = cache_dir / info['filename']
                 if not cached_file.exists():
-                    url = f"{_ORNL_BASE}/{info['filename']}"
-                    self.logger.info(f"  Downloading from ORNL DAAC: {info['filename']}")
-                    download_file_streaming(
-                        url, cached_file, session=session, timeout=600
-                    )
+                    url = f"{_ORNL_CLOUD_BASE}/{info['filename']}"
+                    self.logger.info(f"  Downloading from NASA Earthdata Cloud: {info['filename']}")
+                    self._download_with_session(session, url, cached_file)
 
-                # Subset to bbox
                 self._subset_to_bbox(cached_file, out_path)
                 output_paths[var] = out_path
                 self.logger.info(f"  Saved: {out_path}")
@@ -149,12 +142,60 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
                 continue
 
         if not output_paths:
-            raise RuntimeError("No Pelletier soil depth data could be downloaded")
+            raise RuntimeError(
+                "No Pelletier soil depth data could be downloaded. "
+                "Check NASA Earthdata credentials and network connectivity."
+            )
 
         self.logger.info(
             f"Pelletier soil/regolith acquisition complete: {len(output_paths)} files"
         )
         return pelletier_dir
+
+    def _create_earthdata_session(self):
+        """Create an authenticated session for NASA Earthdata Cloud."""
+        try:
+            import earthaccess
+            auth = earthaccess.login()
+            if auth:
+                self.logger.info("  Authenticated via earthaccess")
+                return earthaccess.get_requests_https_session()
+        except ImportError:
+            pass
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"  earthaccess login failed: {e}")
+
+        session = create_robust_session(max_retries=3, backoff_factor=2.0)
+
+        token = self._get_earthdata_token()
+        if token:
+            session.headers.update({'Authorization': f'Bearer {token}'})
+            self.logger.info("  Authenticated via EARTHDATA_TOKEN")
+            return session
+
+        username, password = self._get_earthdata_credentials()
+        if username and password:
+            session.auth = (username, password)
+            self.logger.info("  Authenticated via .netrc / env vars")
+            return session
+
+        raise RuntimeError(
+            "NASA Earthdata credentials required for Pelletier data. "
+            "Set up authentication using one of:\n"
+            "  1. pip install earthaccess && python -c "
+            "'import earthaccess; earthaccess.login(persist=True)'\n"
+            "  2. Set EARTHDATA_TOKEN environment variable\n"
+            "  3. Add entry to ~/.netrc for urs.earthdata.nasa.gov"
+        )
+
+    def _download_with_session(self, session, url: str, dst: Path):
+        """Download a file using the authenticated session with redirect handling."""
+        with session.get(url, stream=True, timeout=600, allow_redirects=True) as r:
+            r.raise_for_status()
+            with open(dst, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=65536):
+                    if chunk:
+                        f.write(chunk)
 
     def _subset_to_bbox(self, src_path: Path, dst_path: Path):
         """Subset a global GeoTIFF to the domain bounding box."""
@@ -165,7 +206,6 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
                 transform=src.transform
             )
 
-            # Clamp window to raster bounds
             window = window.intersection(
                 rasterio.windows.Window(0, 0, src.width, src.height)
             )

@@ -529,6 +529,7 @@ model:
 
     # Parallel SUMMA (actors framework)
     use_parallel_summa: false
+    parallel_backend: slurm  # Options: slurm, local
     parallel_exe: "summa_actors.exe"
     parallel_path: default
 
@@ -848,6 +849,9 @@ optimization:
 
   # Population size (PSO, DE, SCE-UA) or swarm size
   population_size: 50
+
+  # Calibration seed parameters used before warm-start files and model defaults
+  initial_guess: null
 
   # ---------------------------------------------------------------------------
   # Objective Function

@@ -57,12 +57,10 @@ class GeologyProcessor(BaseAttributeProcessor):
         results: Dict[str, Any] = {}
 
         # Define path to GLHYMPS data (configurable via GLHYMPS_PATH)
-        glhymps_path = Path(self._get_config_value(lambda: None, default=str(self.data_dir / 'geospatial' / 'glhymps' / 'raw' / 'glhymps.shp'), dict_key='GLHYMPS_PATH')
-        )
+        glhymps_path = self._find_glhymps_file()
 
-        # Check if GLHYMPS file exists
-        if not glhymps_path.exists():
-            self.logger.warning(f"GLHYMPS file not found: {glhymps_path}")
+        if glhymps_path is None:
+            self.logger.warning("GLHYMPS data not found")
             return results
 
         # Create cache directory and define cache file
@@ -323,6 +321,33 @@ class GeologyProcessor(BaseAttributeProcessor):
             self.logger.error(traceback.format_exc())
 
         return results
+
+    def _find_glhymps_file(self):
+        """Find GLHYMPS file, checking acquisition output then legacy paths."""
+        from pathlib import Path
+
+        # Acquisition output: domain_{name}_glhymps.gpkg
+        acq_dir = self.project_dir / 'data' / 'attributes' / 'geology' / 'glhymps'
+        for ext in ('*.gpkg', '*.shp'):
+            matches = list(acq_dir.glob(f"*glhymps{ext[1:]}")) if acq_dir.exists() else []
+            if matches:
+                return matches[0]
+
+        # Config-specified path
+        config_path = self._get_config_value(
+            lambda: None, default=None, dict_key='GLHYMPS_PATH'
+        )
+        if config_path and config_path != 'default':
+            p = Path(config_path)
+            if p.exists():
+                return p
+
+        # Legacy path
+        legacy = self.data_dir / 'geospatial' / 'glhymps' / 'raw' / 'glhymps.shp'
+        if legacy.exists():
+            return legacy
+
+        return None
 
     def _process_lithology_data(self) -> Dict[str, Any]:
         """

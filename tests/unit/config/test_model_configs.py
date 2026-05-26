@@ -144,6 +144,42 @@ class TestSUMMAConfigGlacier:
         assert config.glacier_coldstate == 'custom_glac_cold.nc'
 
 
+class TestSUMMAConfigParallel:
+    """Test SUMMA parallel execution fields."""
+
+    def test_summa_parallel_defaults(self):
+        """Test default SUMMA parallel backend settings."""
+        config = SUMMAConfig()
+        assert config.parallel_backend == 'slurm'
+        assert config.cpus_per_task == 32
+
+    def test_summa_parallel_custom_values(self):
+        """Test custom SUMMA parallel backend settings."""
+        config = SUMMAConfig(
+            SETTINGS_SUMMA_PARALLEL_BACKEND='local',
+            SETTINGS_SUMMA_CPUS_PER_TASK=4
+        )
+        assert config.parallel_backend == 'local'
+        assert config.cpus_per_task == 4
+
+
+class TestOptimizationConfigExtension:
+    """Test optimization config extension fields."""
+
+    def test_initial_guess_flat_to_nested_round_trip(self):
+        """Test INITIAL_GUESS maps between flat and nested config."""
+        initial_guess = {'k_soil': 5.0e-4, 'theta_sat': 0.60}
+        config = SymfluenceConfig.from_minimal(
+            domain_name='test_domain',
+            model='SUMMA',
+            EXPERIMENT_TIME_START='2020-01-01 00:00',
+            EXPERIMENT_TIME_END='2020-12-31 23:00',
+            INITIAL_GUESS=initial_guess,
+        )
+        assert config.optimization.initial_guess == initial_guess
+        assert config.to_dict(flatten=True)['INITIAL_GUESS'] == initial_guess
+
+
 class TestFUSEConfigExtension:
     """Test FUSE config subcatchment_dim field"""
 

@@ -483,8 +483,9 @@ if [ -d "extern/sloth" ] && [ -f "extern/sloth/CMakeLists.txt" ]; then
     git_clean submodule update --init --recursive 2>/dev/null || true
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
-    cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+    # Build only slothmodel — SLoTH's vendored googletest gmock is pre-1.13 and fails under conda-forge GCC 14.
+    cmake --build cmake_build --target slothmodel -j ${NCORES:-4} 2>&1
+  ) || true   # set +e inside does not rewrite the subshell's final exit code; isolate it here.
   if _lib_found extern/sloth/cmake_build/libslothmodel.*; then
     echo "SLOTH built successfully"
   else
@@ -504,7 +505,7 @@ if [ -d "extern/cfe" ] && [ -f "extern/cfe/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/cfe/cmake_build/libcfebmi.*; then
     echo "CFE built successfully"
   else
@@ -526,7 +527,7 @@ if [ -d "$_PET_SRC" ] && [ -f "$_PET_SRC/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found "$_PET_SRC"/cmake_build/libpetbmi.*; then
     echo "PET built successfully"
   else
@@ -552,7 +553,7 @@ if [ -d "extern/iso_c_fortran_bmi" ] && [ -f "extern/iso_c_fortran_bmi/CMakeList
 
     cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/iso_c_fortran_bmi/cmake_build/libiso_c_bmi.*; then
     echo "iso_c_fortran_bmi built successfully"
   else
@@ -580,7 +581,7 @@ if [ -d "extern/noah-owp-modular" ] && [ -f "extern/noah-owp-modular/CMakeLists.
 
     cmake $NOAH_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.*; then
     echo "Noah-MP built successfully"
   else
@@ -604,7 +605,7 @@ if [ -d "extern/topmodel" ] && [ -f "extern/topmodel/CMakeLists.txt" ]; then
     rm -rf cmake_build && mkdir -p cmake_build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/topmodel/cmake_build/libtopmodelbmi.*; then
     echo "TOPMODEL built successfully"
   else
@@ -630,7 +631,7 @@ if [ -d "extern/sac-sma" ] && [ -f "extern/sac-sma/CMakeLists.txt" ] && [ -n "$F
 
     cmake $SAC_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
   if _lib_found extern/sac-sma/cmake_build/libsacbmi.*; then
     echo "SAC-SMA built successfully"
   else
@@ -646,7 +647,7 @@ fi
 
 # --- Build Snow-17 (Fortran module - temperature-index snow model) ---
 # Snow-17 needs ISO_C_FORTRAN_BMI_PATH to build as a shared BMI library.
-# Library target name is snow17_bmi (produces libsnow17_bmi.{so,dylib}).
+# Library target name is snow17bmi (per upstream CMakeLists SNOW_LIB_NAME_CMAKE).
 if [ -d "extern/snow17" ] && [ -f "extern/snow17/CMakeLists.txt" ] && [ -n "$FC" ]; then
   echo "Building Snow-17 (Fortran)..."
   (
@@ -668,8 +669,8 @@ if [ -d "extern/snow17" ] && [ -f "extern/snow17/CMakeLists.txt" ] && [ -n "$FC"
 
     cmake $SNOW17_CMAKE_ARGS -S . -B cmake_build 2>&1
     cmake --build cmake_build -j ${NCORES:-4} 2>&1
-  )
-  if _lib_found extern/snow17/cmake_build/libsnow17_bmi.*; then
+  ) || true   # set +e inside does not rewrite the subshell's final exit code
+  if _lib_found extern/snow17/cmake_build/libsnow17bmi.*; then
     echo "Snow-17 built successfully"
   else
     echo "WARNING: Snow-17 build failed (non-fatal)"
@@ -770,7 +771,7 @@ echo "PET:         $(_lib_found extern/evapotranspiration/evapotranspiration/cma
 echo "Noah-MP:     $(_lib_found extern/noah-owp-modular/cmake_build/libsurfacebmi.* && echo 'OK' || echo 'Not built')"
 echo "TOPMODEL:    $(_lib_found extern/topmodel/cmake_build/libtopmodelbmi.* && echo 'OK' || echo 'Not built')"
 echo "SAC-SMA:     $(_lib_found extern/sac-sma/cmake_build/libsacbmi.* && echo 'OK' || echo 'Not built')"
-echo "Snow-17:     $(_lib_found extern/snow17/cmake_build/libsnow17_bmi.* && echo 'OK' || echo 'Not built')"
+echo "Snow-17:     $(_lib_found extern/snow17/cmake_build/libsnow17bmi.* && echo 'OK' || echo 'Not built')"
 echo "t-route:     $($PYTHON_EXE -c 'import ngen_routing; print("OK")' 2>/dev/null || echo 'Not installed')"
 echo "=============================================="
             '''.strip()

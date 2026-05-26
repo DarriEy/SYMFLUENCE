@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import geopandas as gpd
+import numpy as np
 
 from symfluence.core.config.coercion import coerce_config
 from symfluence.core.mixins import ConfigMixin
@@ -84,7 +85,6 @@ class BaseAttributeProcessor(ConfigMixin):
             catchment_path = Path(catchment_path)
 
         if catchment_name == 'default':
-            # Find the catchment shapefile based on domain discretization
             discretization = self._get_config_value(
                 lambda: self.config.domain.discretization,
                 dict_key='SUB_GRID_DISCRETIZATION'
@@ -93,7 +93,22 @@ class BaseAttributeProcessor(ConfigMixin):
         else:
             catchment_file = catchment_name
 
-        return catchment_path / catchment_file
+        # Direct path first
+        direct = catchment_path / catchment_file
+        if direct.exists():
+            return direct
+
+        # Search subdirectories (discretize_domain writes to {method}/{experiment_id}/)
+        matches = list(catchment_path.rglob(catchment_file))
+        if matches:
+            return matches[0]
+
+        # Fallback: any HRU shapefile
+        fallback = list(catchment_path.rglob(f"{self.domain_name}_HRUs_*.shp"))
+        if fallback:
+            return fallback[0]
+
+        return direct
 
     def _get_data_path(self, config_key: str, default_subfolder: str) -> Path:
         """
@@ -160,3 +175,61 @@ class BaseAttributeProcessor(ConfigMixin):
         # For distributed catchments, results are already formatted by
         # individual processors with HRU prefixes
         return results
+
+    def _write_results_csv(
+        self,
+        results: Dict[str, Any],
+        output_dir: Path,
+        filename: str,
+    ) -> Optional[Path]:
+        """Write processor results as CSV for AttributesNetCDFBuilder.
+
+        For lumped domains, writes a single-row CSV.  For distributed
+        domains (results keyed as ``HRU_{id}_var.name``), reshapes into
+        one row per HRU with columns matching the variable names — this
+        is the format expected by transfer-function regionalization.
+        """
+        if not results:
+            return None
+
+        import re
+
+        import pandas as pd
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_path = output_dir / filename
+
+        numeric = {
+            k: v for k, v in results.items()
+            if isinstance(v, (int, float, np.integer, np.floating))
+        }
+        if not numeric:
+            return None
+
+        hru_keys = [k for k in numeric if k.startswith('HRU_')]
+        if hru_keys:
+            hru_pattern = re.compile(r'^HRU_(.+?)_(.+)$')
+            hru_data: Dict[str, Dict[str, float]] = {}
+            basin_data: Dict[str, float] = {}
+            for k, v in numeric.items():
+                m = hru_pattern.match(k)
+                if m:
+                    hru_id, var_name = m.group(1), m.group(2)
+                    hru_data.setdefault(hru_id, {})[var_name] = v
+                else:
+                    basin_data[k] = v
+            if hru_data:
+                df = pd.DataFrame.from_dict(hru_data, orient='index')
+                df = df.sort_index()
+                for col, val in basin_data.items():
+                    df[col] = val
+                df.to_csv(out_path, index=False)
+                self.logger.info(
+                    f"Wrote {len(df.columns)} attributes x {len(df)} HRUs to {out_path}"
+                )
+                return out_path
+
+        df = pd.DataFrame([numeric])
+        df.to_csv(out_path, index=False)
+        self.logger.info(f"Wrote {len(numeric)} attributes to {out_path}")
+        return out_path

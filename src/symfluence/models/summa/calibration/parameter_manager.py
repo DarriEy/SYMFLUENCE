@@ -150,11 +150,32 @@ class SUMMAParameterManager(BaseParameterManager):
         )
         csv_path = Path(csv_path) if csv_path and csv_path != 'default' else None
 
+        # Auto-discover climate statistics from model-ready store
+        if csv_path is None:
+            climate_csv = self.data_dir / f"domain_{self.domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv' if hasattr(self, 'data_dir') else None
+            if climate_csv is None:
+                data_dir = self._get_config_value(lambda: self.config.system.data_dir, default=None, dict_key='SYMFLUENCE_DATA_DIR')
+                domain_name = self._get_config_value(lambda: self.config.domain.name, default=None, dict_key='DOMAIN_NAME')
+                if data_dir and domain_name:
+                    climate_csv = Path(data_dir) / f"domain_{domain_name}" / 'data' / 'attributes' / 'climate' / 'climate_statistics.csv'
+            if climate_csv and climate_csv.exists():
+                csv_path = climate_csv
+                self.logger.info(f"Auto-discovered climate attributes: {csv_path}")
+
         # Optional per-parameter config override
         param_config = self._get_config_value(
             lambda: self.config.model.summa.transfer_function_param_config,
             default=None, dict_key='TRANSFER_FUNCTION_PARAM_CONFIG'
         )
+
+        # Build extra_config for factory options (b_bounds, etc.)
+        extra_config: Dict[str, Any] = {}
+        b_bounds = self._get_config_value(
+            lambda: self.config.model.summa.transfer_function_b_bounds,
+            default=None, dict_key='TRANSFER_FUNCTION_B_BOUNDS'
+        )
+        if b_bounds:
+            extra_config['TRANSFER_FUNCTION_B_BOUNDS'] = tuple(b_bounds)
 
         self._regionalization = create_summa_regionalization(
             method=self._regionalization_method,
@@ -163,6 +184,7 @@ class SUMMAParameterManager(BaseParameterManager):
             attributes_nc_path=self.attr_file_path,
             csv_path=csv_path,
             param_config=param_config,
+            extra_config=extra_config,
             logger=self.logger,
         )
         self.logger.info(
@@ -329,6 +351,19 @@ class SUMMAParameterManager(BaseParameterManager):
                 elif 'albedoMax' in validated:
                     validated['albedoMax'] = self._format_parameter_value('albedoMax', albedo_min_w)
 
+        # 6. k_macropore >= k_soil — macropore conductivity must exceed
+        #    micropore conductivity or SUMMA resets it every timestep,
+        #    causing numerical instability and SIGSEGV on long runs
+        k_soil_val = get_scalar('k_soil', {**full_params, **validated})
+        k_macro_val = get_scalar('k_macropore', {**full_params, **validated})
+
+        if k_soil_val is not None and k_macro_val is not None:
+            if k_macro_val < k_soil_val:
+                if 'k_macropore' in validated:
+                    validated['k_macropore'] = self._format_parameter_value('k_macropore', k_soil_val)
+                elif 'k_soil' in validated:
+                    validated['k_soil'] = self._format_parameter_value('k_soil', k_macro_val)
+
         return validated
 
     # ========================================================================
@@ -347,7 +382,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return coeff_names + self.basin_params + self.depth_params + self.mizuroute_params
         return self.local_params + self.basin_params + self.depth_params + self.mizuroute_params
 
-    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse SUMMA parameter bounds from localParamInfo.txt, etc.
 
         When regionalization is active, local parameter bounds are replaced by
@@ -356,7 +391,7 @@ class SUMMAParameterManager(BaseParameterManager):
         if self._use_regionalization:
             self._init_regionalization()
             # Coefficient bounds from regionalization (tuples → dicts)
-            bounds: Dict[str, Dict[str, float]] = {}
+            bounds: Dict[str, Dict[str, Any]] = {}
             for name, (lo, hi) in self._regionalization.get_calibration_parameters().items():
                 bounds[name] = {'min': lo, 'max': hi}
 
@@ -438,9 +473,9 @@ class SUMMAParameterManager(BaseParameterManager):
     # REGIONALIZATION HELPERS
     # ========================================================================
 
-    def _parse_non_local_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _parse_non_local_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse bounds for basin, depth, and mizuRoute params (non-local)."""
-        bounds: Dict[str, Dict[str, float]] = {}
+        bounds: Dict[str, Dict[str, Any]] = {}
 
         if self.basin_params:
             basin_param_file = self.settings_dir / 'basinParamInfo.txt'
@@ -496,9 +531,9 @@ class SUMMAParameterManager(BaseParameterManager):
     # BOUNDS PARSING
     # ========================================================================
 
-    def _parse_all_bounds(self) -> Dict[str, Dict[str, float]]:
+    def _parse_all_bounds(self) -> Dict[str, Dict[str, Any]]:
         """Parse parameter bounds from all parameter info files and allow config overrides."""
-        bounds = {}
+        bounds: Dict[str, Dict[str, Any]] = {}
 
         # Parse local parameter bounds
         if self.local_params:
@@ -530,12 +565,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
         # Config-level overrides (highest priority)
         config_bounds = self._get_config_value(lambda: None, default={}, dict_key='PARAMETER_BOUNDS')
-        if config_bounds:
-            self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
-            for param_name, limit_list in config_bounds.items():
-                if len(limit_list) >= 2:
-                    bounds[param_name] = {'min': float(limit_list[0]), 'max': float(limit_list[1])}
-                    self.logger.debug(f"Overrode bounds for {param_name}: {bounds[param_name]}")
+        bounds = self._apply_config_bounds_override(bounds, config_bounds)
 
         return bounds
 

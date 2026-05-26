@@ -277,6 +277,8 @@ class ConfigurationUpdater(ConfigMixin):
         if model_upper == 'SUMMA':
             fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
             vname_qsim = 'averageRoutedRunoff'
+            sim_start_time = '00:00'
+            sim_end_time = '00:00'
         elif model_upper == 'FUSE':
             fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
             vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
@@ -365,14 +367,13 @@ class ConfigurationUpdater(ConfigMixin):
                     f"! Time interval of input runoff in seconds\n"
                 )
             elif '<dname_hruid>' in line:
-                # FUSE converter outputs 'gru' dimension, SUMMA uses 'hru'
-                dim_name = 'gru' if mizu_config['model_name'].upper() == 'FUSE' else 'hru'
+                # averageRoutedRunoff is on the 'gru' dimension for distributed SUMMA
+                dim_name = 'gru' if mizu_config['model_name'].upper() in ('FUSE', 'SUMMA') else 'hru'
                 updated_lines.append(
                     f"<dname_hruid>           {dim_name}     ! Dimension name for HM_HRU ID\n"
                 )
             elif '<vname_hruid>' in line:
-                # FUSE converter outputs 'gruId' variable, SUMMA uses 'hruId'
-                var_name = 'gruId' if mizu_config['model_name'].upper() == 'FUSE' else 'hruId'
+                var_name = 'gruId' if mizu_config['model_name'].upper() in ('FUSE', 'SUMMA') else 'hruId'
                 updated_lines.append(
                     f"<vname_hruid>           {var_name}   ! Variable name for HM_HRU ID\n"
                 )

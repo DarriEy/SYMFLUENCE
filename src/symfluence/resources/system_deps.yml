@@ -46,7 +46,7 @@ dependencies:
       apt: build-essential
       dnf: gcc gcc-c++
       brew: gcc
-      conda: gcc_linux-64
+      conda: c-compiler cxx-compiler
       msys2: mingw-w64-x86_64-gcc
       hpc_module: gcc
 
@@ -65,7 +65,7 @@ dependencies:
       apt: gfortran
       dnf: gcc-gfortran
       brew: gcc
-      conda: gfortran_linux-64
+      conda: fortran-compiler
       conda_win: gfortran
       msys2: mingw-w64-x86_64-gcc-fortran
       hpc_module: gcc

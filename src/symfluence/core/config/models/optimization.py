@@ -9,7 +9,7 @@ PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config,
 EmulationConfig, and the parent OptimizationConfig.
 """
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -73,7 +73,7 @@ class SCEUAConfig(BaseModel):
 
     number_of_complexes: int = Field(default=2, alias='NUMBER_OF_COMPLEXES')
     points_per_subcomplex: int = Field(default=5, alias='POINTS_PER_SUBCOMPLEX')
-    number_of_evolution_steps: int = Field(default=20, alias='NUMBER_OF_EVOLUTION_STEPS')
+    number_of_evolution_steps: Optional[int] = Field(default=None, alias='NUMBER_OF_EVOLUTION_STEPS')
     evolution_stagnation: int = Field(default=5, alias='EVOLUTION_STAGNATION')
     percent_change_threshold: float = Field(default=0.01, alias='PERCENT_CHANGE_THRESHOLD')
 
@@ -367,6 +367,12 @@ class OptimizationConfig(BaseModel):
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
     checkpoint_interval: int = Field(default=10, alias='CHECKPOINT_INTERVAL', ge=1)
+    initial_guess: Optional[Dict[str, Any]] = Field(
+        default=None,
+        alias='INITIAL_GUESS',
+        description="Calibration seed parameters. If set, these take precedence over "
+                    "warm-start files and model defaults."
+    )
 
     # Gradient-based optimization settings (Adam, L-BFGS)
     gradient_mode: Literal['auto', 'native', 'finite_difference'] = Field(

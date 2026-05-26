@@ -1793,6 +1793,13 @@ CLEANUP_PARALLEL_DIRS: true
 #   Usage:      Save best_params.json and iteration results every N iterations during optimization
 CHECKPOINT_INTERVAL: 10
 
+# INITIAL_GUESS
+#   Type:        dict | None
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Calibration seed parameters used before warm-start files and model defaults
+INITIAL_GUESS: null
+
 # ERROR_LOG_DIR
 #   Type:        str
 #   Default:     error_logs
@@ -3027,6 +3034,12 @@ RIVER_NETWORK_SHP_SLOPE: "Slope"
 #   Usage:      3
 SOILGRIDS_LAYER: "wrb_0-5cm_mode"
 
+# ATTRIBUTE_PROFILE - 'core', 'camels_spat', or 'full' (all available attribute datasets)
+#   Type:        Literal['core', 'camels_spat', 'full']
+#   Default:     core
+#   Source:      DomainConfig (domain.py)
+ATTRIBUTE_PROFILE: "core"
+
 # SOILGRIDS_WCS_MAP
 #   Type:        str
 #   Default:     /map/wcs/soilgrids.map
@@ -4212,6 +4225,13 @@ SETTINGS_SUMMA_MEM: 5
 #   Source:      SUMMAConfig (model_configs.py)
 #   Usage:      2
 SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
+
+# SETTINGS_SUMMA_PARALLEL_BACKEND
+#   Type:        str
+#   Default:     slurm
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: SUMMA parallel backend (slurm or local)
+SETTINGS_SUMMA_PARALLEL_BACKEND: "slurm"
 
 # SETTINGS_SUMMA_PARALLEL_EXE
 #   Type:        str
