@@ -84,6 +84,11 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
         # Open without decoding times to avoid conflicts
         ds = xr.open_dataset(input_file, decode_times=False)
 
+        if ds.sizes.get('time', 0) == 0:
+            log.error(f"Empty time dimension in {input_file} — SUMMA output incomplete (likely SIGSEGV)")
+            ds.close()
+            return
+
         log.debug(f"Original time range: {ds.time.min().values} to {ds.time.max().values}")
 
         # Convert to datetime, round, then convert back

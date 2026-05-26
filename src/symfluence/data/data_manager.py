@@ -197,11 +197,16 @@ class DataManager(BaseManager):
             if not domain_name or not data_dir:
                 return
             project_dir = Path(data_dir) / f"domain_{domain_name}"
-            from symfluence.models.fuse.calibration.multi_gauge_metrics import (
-                ensure_gauge_segment_mapping,
+            from symfluence.optimization.multi_gauge.gauge_mapping import (
+                ensure_gauge_mapping,
             )
-            ensure_gauge_segment_mapping(
-                project_dir, lamah_root, domain_name, self.logger,
+            ensure_gauge_mapping(
+                project_dir,
+                lamah_root,
+                domain_name,
+                output_subdir='mizuRoute',
+                output_filename='gauge_segment_mapping.csv',
+                logger=self.logger,
             )
         except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
             self.logger.warning(
@@ -402,15 +407,29 @@ class DataManager(BaseManager):
             self.logger,
             error_type=DataAcquisitionError
         ):
-            # Run geospatial statistics
+            # Run geospatial statistics (core: DEM, soil class, land cover)
             self.logger.debug("Running geospatial statistics")
             gs = GeospatialStatistics(self.config, self.logger)
             gs.run_statistics()
 
-            # Run forcing resampling
-            self.logger.debug("Running forcing resampling")
-            fr = ForcingResampler(self.config, self.logger)
-            fr.run_resampling()
+            # Run extended attribute processing based on profile
+            attribute_profile = self._get_config_value(
+                lambda: self.config.domain.attribute_profile,
+                default='core',
+                dict_key='ATTRIBUTE_PROFILE',
+            )
+            if isinstance(attribute_profile, str) and attribute_profile.lower() != 'core':
+                from symfluence.data.preprocessing.attribute_processor import attributeProcessor
+                ap = attributeProcessor(self.config, self.logger)
+                ap.process_profile_attributes(attribute_profile.lower())
+
+            # Run forcing resampling (non-fatal when no forcing data available)
+            try:
+                self.logger.debug("Running forcing resampling")
+                fr = ForcingResampler(self.config, self.logger)
+                fr.run_resampling()
+            except (FileNotFoundError, DataAcquisitionError) as e:
+                self.logger.warning(f"Forcing resampling skipped (no forcing data): {e}")
 
             # Apply model-agnostic elevation corrections
             from symfluence.data.preprocessing import ElevationCorrectionProcessor

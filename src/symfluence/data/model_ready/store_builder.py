@@ -9,6 +9,7 @@ and ``AttributesNetCDFBuilder`` into a single ``build_all()`` entry point.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -138,7 +139,6 @@ class ModelReadyStoreBuilder:
                 ds.close()
                 return
 
-            # Identify forcing variable names (CFIF or standard)
             precip_var = next((v for v in ['precipitation_flux', 'pptrate'] if v in ds), None)
             temp_var = next((v for v in ['air_temperature', 'airtemp'] if v in ds), None)
 
@@ -147,35 +147,90 @@ class ModelReadyStoreBuilder:
                 ds.close()
                 return
 
-            rows = []
-            for i in range(n_hru):
-                p_mean = float(ds[precip_var].isel(hru=i).mean())
-                p_mm_yr = p_mean * 86400 * 365.25
+            # Vectorized computation across all HRUs at once
+            p_mean = ds[precip_var].mean(dim='time').values  # (n_hru,)
+            p_mm_yr = p_mean * 86400 * 365.25
 
-                t_vals = ds[temp_var].isel(hru=i).values
-                t_c = t_vals - 273.15 if np.nanmean(t_vals) > 100 else t_vals
-                t_mean = float(np.nanmean(t_c))
+            t_all = ds[temp_var].values  # (time, n_hru)
+            if np.nanmean(t_all) > 100:
+                t_all = t_all - 273.15
+            t_mean = np.nanmean(t_all, axis=0)  # (n_hru,)
 
-                pet_daily = np.where(t_c > -5, 0.4 * (t_c + 5), 0.0)
-                pet_annual = float(np.nanmean(pet_daily)) * 365.25
-                aridity = pet_annual / max(p_mm_yr, 1.0)
+            pet_daily = np.where(t_all > -5, 0.4 * (t_all + 5), 0.0)
+            pet_annual = np.nanmean(pet_daily, axis=0) * 365.25  # (n_hru,)
+            aridity = pet_annual / np.maximum(p_mm_yr, 1.0)
 
-                p_vals = ds[precip_var].isel(hru=i).values
-                wet = p_vals > 1e-7
-                snow_frac = float(np.sum((t_c < 0) & wet) / max(np.sum(wet), 1))
-
-                rows.append({
-                    'precip_mm_yr': p_mm_yr,
-                    'temp_C': t_mean,
-                    'aridity': aridity,
-                    'snow_frac': snow_frac,
-                })
+            p_all = ds[precip_var].values  # (time, n_hru)
+            wet = p_all > 1e-7
+            cold_wet = (t_all < 0) & wet
+            wet_count = np.sum(wet, axis=0).astype(float)
+            snow_frac = np.sum(cold_wet, axis=0) / np.maximum(wet_count, 1.0)
 
             ds.close()
 
+            df = pd.DataFrame({
+                'precip_mm_yr': p_mm_yr,
+                'temp_C': t_mean,
+                'aridity': aridity,
+                'snow_frac': snow_frac,
+            })
+
+            # ── Enrich with mean elevation from catchment shapefile ──
+            df['elev_m'] = float('nan')
+            try:
+                import geopandas as gpd
+
+                shp_root = self.project_dir / 'shapefiles' / 'catchment'
+                shp_file = None
+                if shp_root.exists():
+                    # Collect all HRU shapefiles, prefer one matching n_hru
+                    candidates = []
+                    for dirpath, _dirnames, filenames in os.walk(shp_root):
+                        for fn in filenames:
+                            if fn.endswith('.shp') and 'HRUs' in fn:
+                                candidates.append(Path(dirpath) / fn)
+                    # Try candidates with matching HRU count first
+                    for candidate in candidates:
+                        gdf = gpd.read_file(candidate)
+                        if 'elev_mean' in gdf.columns and len(gdf) == n_hru:
+                            shp_file = candidate
+                            break
+
+                if shp_file is not None:
+                    df['elev_m'] = gdf['elev_mean'].values
+                    logger.debug("Loaded elev_mean from %s", shp_file)
+                else:
+                    logger.debug(
+                        "No HRU shapefile with elev_mean matching %d HRUs found",
+                        n_hru,
+                    )
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not load elevation from shapefile")
+
+            # ── Enrich with glacier fraction from domain_type intersection ──
+            df['glacier_fraction'] = 0.0
+            try:
+                import geopandas as gpd
+
+                glacier_shp = (
+                    self.project_dir / 'shapefiles' / 'catchment_intersection'
+                    / 'with_domain_type' / 'catchment_with_domain_type.shp'
+                )
+                if glacier_shp.exists():
+                    gdf_gl = gpd.read_file(glacier_shp)
+                    # domType_2=clean accum, domType_3=clean ablation, domType_4=debris
+                    gl_cols = [c for c in gdf_gl.columns if c.startswith('domType_') and c != 'domType_1']
+                    if gl_cols and len(gdf_gl) == n_hru:
+                        df['glacier_fraction'] = gdf_gl[gl_cols].sum(axis=1).values
+                        logger.debug("Loaded glacier_fraction from %s (mean=%.3f)", glacier_shp, df['glacier_fraction'].mean())
+                    elif gl_cols:
+                        logger.debug("Glacier shapefile row count mismatch (%d vs %d HRUs)", len(gdf_gl), n_hru)
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not load glacier fraction")
+
             out_dir = self.project_dir / 'data' / 'attributes' / 'climate'
             out_dir.mkdir(parents=True, exist_ok=True)
-            pd.DataFrame(rows).to_csv(out_dir / 'climate_statistics.csv', index=False)
+            df.to_csv(out_dir / 'climate_statistics.csv', index=False)
             logger.info("Climate statistics computed for %d HRUs", n_hru)
 
         except Exception as e:  # noqa: BLE001

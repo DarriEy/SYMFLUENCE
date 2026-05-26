@@ -40,8 +40,12 @@ class ModelManager(BaseManager):
         execution_list = []
 
         # Models that need an EXTERNAL routing step (standalone MIZUROUTE/dRoute).
-        # FUSE and GR handle routing internally in their runners (like MESH, HYPE, NGEN).
+        # FUSE and GR handle routing internally in their runners (like MESH, HYPE).
+        # NGEN: CFE has built-in GIUH routing, but SAC-SMA and TOPMODEL do not —
+        # so NGEN needs external routing when using those modules.
         routable_models = {'SUMMA'}
+        if 'NGEN' in configured_models and self._ngen_needs_external_routing():
+            routable_models.add('NGEN')
 
         # Determine which routing model to use
         routing_model = self._get_config_value(
@@ -125,6 +129,38 @@ class ModelManager(BaseManager):
                         execution_list.insert(pf_idx + 1, rt)
 
         return execution_list
+
+    def _ngen_needs_external_routing(self) -> bool:
+        """Check if the active NGEN runoff module lacks built-in routing.
+
+        CFE has a built-in GIUH (Geomorphologic Instantaneous Unit Hydrograph),
+        so it doesn't need external routing. SAC-SMA and TOPMODEL produce raw
+        runoff that requires an external routing step (mizuRoute or t-route).
+        """
+        modules_str = self._get_config_value(
+            lambda: self.config.model.ngen.modules_selected,
+            default='SLOTH,PET,CFE',
+        )
+        alias_map = {'SAC-SMA': 'SACSMA', 'SNOW-17': 'SNOW17', 'NOAH-OWP': 'NOAH'}
+        selected = set()
+        for m in str(modules_str).split(','):
+            name = m.strip().upper()
+            if name:
+                selected.add(alias_map.get(name, name))
+
+        has_cfe = 'CFE' in selected
+        has_sacsma = 'SACSMA' in selected
+        has_topmodel = 'TOPMODEL' in selected
+
+        if has_sacsma or has_topmodel:
+            self.logger.info(
+                f"NGEN using {'SAC-SMA' if has_sacsma else 'TOPMODEL'} — "
+                "no built-in routing; external routing eligible"
+            )
+            return True
+        if has_cfe:
+            self.logger.debug("NGEN using CFE with built-in GIUH — external routing not required")
+        return False
 
     def _ensure_mizuroute_in_workflow(self, execution_list: List[str], source_model: str):
         """

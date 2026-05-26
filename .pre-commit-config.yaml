@@ -60,3 +60,19 @@ repos:
         args: [--config-file=pyproject.toml]
         additional_dependencies: [types-PyYAML, types-requests, types-psutil, pandas-stubs]
         exclude: ^(tests/|examples/|paper/|src/symfluence/cli\.py$)
+
+  # Project-specific CI guards (match .github/workflows/ci.yml)
+  - repo: local
+    hooks:
+      - id: check-broad-exceptions
+        name: Guard broad Exception catches
+        entry: python scripts/check_broad_exceptions.py
+        language: python
+        pass_filenames: false
+        types: [python]
+      - id: check-version-sync
+        name: Validate version synchronization
+        entry: bash scripts/check_version_sync.sh
+        language: system
+        pass_filenames: false
+        files: (symfluence_version\.py|pyproject\.toml|setup\.cfg)

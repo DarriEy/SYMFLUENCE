@@ -27,14 +27,32 @@ from symfluence.optimization.regionalization.strategies import (
 # variation driven by the attribute); ``False`` means only the intercept
 # is calibrated (spatially uniform).
 SUMMA_DEFAULT_PARAM_CONFIG: Dict[str, Dict[str, Any]] = {
-    'frozenPrecipMultip': {'attribute': 'precip_mm_yr', 'calibrate_b': True},
-    'tempCritRain':       {'attribute': 'elev_m',       'calibrate_b': True},
-    'k_soil':             {'attribute': 'aridity',      'calibrate_b': True},
-    'theta_sat':          {'attribute': 'precip_mm_yr', 'calibrate_b': True},
-    'vGn_n':              {'attribute': 'aridity',      'calibrate_b': False},
-    'snowfrz_scale':      {'attribute': 'elev_m',       'calibrate_b': True},
-    'albedoMax':          {'attribute': 'elev_m',       'calibrate_b': False},
-    'routingGammaScale':  {'attribute': 'precip_mm_yr', 'calibrate_b': False},
+    # Snow albedo — vary with elevation (snow persistence)
+    'albedoMax':          {'attribute': 'elev_m',                       'calibrate_b': True},
+    'albedoMinWinter':    {'attribute': 'elev_m',                       'calibrate_b': True},
+    'albedoMinSpring':    {'attribute': 'elev_m',                       'calibrate_b': True},
+    'albedoMaxVisible':   {'attribute': 'elev_m',                       'calibrate_b': False},
+    'albedoDecayRate':    {'attribute': 'climate.srad_annual_mean',     'calibrate_b': True,  'fallback': 'elev_m'},
+    # Snow density — vary with snow fraction (independent of elevation)
+    'newSnowDenMin':      {'attribute': 'snow_frac',                    'calibrate_b': True},
+    'newSnowDenMult':     {'attribute': 'snow_frac',                    'calibrate_b': False},
+    'newSnowDenScal':     {'attribute': 'snow_frac',                    'calibrate_b': False},
+    # Rain/snow threshold — vary with actual temperature when available
+    'tempCritRain':       {'attribute': 'climate.tavg_annual_mean',     'calibrate_b': True,  'fallback': 'elev_m'},
+    'tempRangeTimestep':  {'attribute': 'elev_m',                       'calibrate_b': False},
+    # Soil hydraulics — vary with measured Ksat when available
+    'k_soil':             {'attribute': 'soil.ksat',                    'calibrate_b': True,  'fallback': 'aridity'},
+    'k_macropore':        {'attribute': 'soil.ksat',                    'calibrate_b': True,  'fallback': 'aridity'},
+    # Aquifer — vary with regolith thickness when available
+    'aquiferBaseflowExp': {'attribute': 'soil.regolith_thickness_mean', 'calibrate_b': True,  'fallback': 'aridity'},
+    'aquiferBaseflowRate':{'attribute': 'soil.regolith_thickness_mean', 'calibrate_b': True,  'fallback': 'aridity'},
+    # Precipitation correction — vary with snow fraction
+    'frozenPrecipMultip': {'attribute': 'snow_frac',                    'calibrate_b': True},
+    # Soil storage — vary with measured porosity when available
+    'theta_sat':          {'attribute': 'soil.porosity',                'calibrate_b': True,  'fallback': 'precip_mm_yr'},
+    'vGn_n':              {'attribute': 'aridity',                      'calibrate_b': False},
+    'snowfrz_scale':      {'attribute': 'elev_m',                       'calibrate_b': True},
+    'routingGammaScale':  {'attribute': 'precip_mm_yr',                 'calibrate_b': False},
 }
 
 
@@ -86,7 +104,6 @@ def load_hru_attributes(
         if csv_path.exists():
             csv_df = pd.read_csv(csv_path)
             if len(csv_df) == len(df):
-                # Same HRU ordering – just concat columns
                 for col in csv_df.columns:
                     if col not in df.columns:
                         df[col] = csv_df[col].values
@@ -98,18 +115,54 @@ def load_hru_attributes(
         else:
             logger.warning(f"Transfer function attributes CSV not found: {csv_path}")
 
+    # --- Auto-discover attribute profile CSVs -----------------------------
+    # Profile processors write per-HRU CSVs to standard locations under
+    # data/attributes/.  Discover and merge them so transfer functions can
+    # reference richer attributes (soil.ksat, climate.tavg_annual_mean, etc.)
+    _profile_csv_dirs = {
+        'worldclim':   ('climate',   'worldclim_attributes.csv'),
+        'soil':        ('soilclass', 'soil_extended_attributes.csv'),
+        'landcover':   ('landclass', 'landcover_extended_attributes.csv'),
+        'geology':     ('geology',   'glhymps_attributes.csv'),
+    }
+    attr_base = csv_path.parent.parent if csv_path is not None else None
+    if attr_base is not None and attr_base.is_dir():
+        for profile_name, (subdir, filename) in _profile_csv_dirs.items():
+            profile_csv = attr_base / subdir / filename
+            if not profile_csv.exists():
+                continue
+            try:
+                profile_df = pd.read_csv(profile_csv)
+                if len(profile_df) != len(df):
+                    logger.debug(
+                        f"Skipping {profile_name} attributes: "
+                        f"{len(profile_df)} rows vs {len(df)} HRUs"
+                    )
+                    continue
+                added = []
+                for col in profile_df.columns:
+                    if col not in df.columns:
+                        df[col] = profile_df[col].values
+                        added.append(col)
+                if added:
+                    logger.info(
+                        f"Merged {len(added)} {profile_name} profile attributes"
+                    )
+            except Exception:  # noqa: BLE001
+                logger.debug(f"Could not read {profile_name} attributes: {profile_csv}")
+
     # --- Derive synthetic attributes if missing ----------------------------
     if 'precip_mm_yr' not in df.columns:
         # Placeholder – should be provided via CSV in production
-        logger.info("precip_mm_yr not available; using uniform placeholder (1000)")
+        logger.debug("precip_mm_yr not available; using uniform placeholder (1000)")
         df['precip_mm_yr'] = 1000.0
 
     if 'aridity' not in df.columns:
-        logger.info("aridity not available; using uniform placeholder (1.0)")
+        logger.debug("aridity not available; using uniform placeholder (1.0)")
         df['aridity'] = 1.0
 
     if 'snow_frac' not in df.columns:
-        logger.info("snow_frac not available; using uniform placeholder (0.3)")
+        logger.debug("snow_frac not available; using uniform placeholder (0.3)")
         df['snow_frac'] = 0.3
 
     if 'temp_C' not in df.columns and 'elev_m' in df.columns:

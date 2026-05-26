@@ -36,7 +36,6 @@ from symfluence.models.fuse.calibration.model_execution import (
     resolve_fuse_paths,
     validate_fuse_inputs,
 )
-from symfluence.models.fuse.calibration.multi_gauge_metrics import MultiGaugeMetrics
 from symfluence.models.fuse.calibration.parameter_application import (
     apply_regionalization,
     update_constraints_file,
@@ -44,6 +43,7 @@ from symfluence.models.fuse.calibration.parameter_application import (
 )
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
 from symfluence.models.utilities.routing_decider import RoutingDecider
+from symfluence.optimization.multi_gauge.metrics import MultiGaugeMetrics
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 

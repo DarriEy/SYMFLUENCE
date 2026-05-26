@@ -126,7 +126,8 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             self.config,
             self.project_dir / 'settings' / 'SUMMA',
             output_dir,
-            mode='run_def'
+            mode='run_def',
+            mizuroute_dir=output_dir / 'mizuRoute',
         )
 
     def _get_final_file_manager_path(self) -> Path:

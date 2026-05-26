@@ -227,6 +227,27 @@ class HYPEGeoDataManager:
 
         base_df['elev_mean'] = base_df['subid'].apply(get_elevation)
 
+        # Load glacier fraction from domain_type intersection shapefile
+        glacier_shp = None
+        if intersect_base_path:
+            glacier_shp = Path(intersect_base_path).parent / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp is None or not glacier_shp.exists():
+            glacier_shp = Path(str(subbasins_shapefile)).parents[1] / 'catchment_intersection' / 'with_domain_type' / 'catchment_with_domain_type.shp'
+        if glacier_shp.exists():
+            try:
+                gl_gdf = gpd.read_file(glacier_shp)
+                gl_cols = [c for c in gl_gdf.columns if c.startswith('domType_') and c != 'domType_1']
+                if gl_cols:
+                    gl_frac = gl_gdf[gl_cols].sum(axis=1).values
+                    if len(gl_frac) == len(cat):
+                        gl_map = dict(zip(cat[basin_id_col].values, gl_frac))
+                        base_df['glacier_fraction'] = base_df['subid'].map(gl_map).fillna(0.0)
+                        self.logger.debug("Loaded glacier_fraction for %d sub-basins (mean=%.3f)", len(base_df), base_df['glacier_fraction'].mean())
+            except Exception as e:  # noqa: BLE001
+                self.logger.debug("Could not load glacier fraction: %s", e)
+        if 'glacier_fraction' not in base_df.columns:
+            base_df['glacier_fraction'] = 0.0
+
         # Normalize SLC fractions
         slc_cols = [col for col in base_df.columns if col.startswith('SLC_')]
         if slc_cols:
@@ -431,6 +452,9 @@ class HYPEGeoDataManager:
                 basin_soil = int(basin_soil_data[usgs_cols].idxmax(axis=1).values[0].split('_')[1]) if usgs_cols else 1
             else:
                 basin_soil = 1
+            # Match the SLC table remap: soil type 0 (Water/NoData) → 1
+            if basin_soil == 0:
+                basin_soil = 1
 
             for slc_idx, (lc, soil) in enumerate(zip(slc_df['landcover'], slc_df['soil']), 1):
                 lc_val = 0
@@ -587,13 +611,19 @@ class HYPEGeoDataManager:
         combination['Second crop cropid'] = 0
         combination['Crop rotation group'] = 0
         combination['Vegetation type'] = 1
-        combination['Special class code'] = 0
+        # IGBP 15 (Snow/Ice) → HYPE glacier class (special code 2)
+        combination['Special class code'] = combination['LULC'].apply(lambda x: 2 if x == 15 else 0)
+        soil_depths = self.config.get('HYPE_SOIL_LAYER_DEPTHS')
+        if soil_depths and len(soil_depths) == 3:
+            d1, d2, d3 = [float(d) for d in soil_depths]
+        else:
+            d1, d2, d3 = 0.091, 0.493, 2.296
         combination['Tile depth'] = 0
-        combination['Stream depth'] = 2.296
+        combination['Stream depth'] = d3
         combination['Number of soil layers'] = 3
-        combination['Soil layer depth 1'] = 0.091
-        combination['Soil layer depth 2'] = 0.493
-        combination['Soil layer depth 3'] = 2.296
+        combination['Soil layer depth 1'] = d1
+        combination['Soil layer depth 2'] = d2
+        combination['Soil layer depth 3'] = d3
 
         with open(self.output_path / 'GeoClass.txt', 'w', encoding='utf-8') as f:
             f.write(

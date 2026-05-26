@@ -177,6 +177,121 @@ For detailed troubleshooting, see the [installation guide](https://symfluence.re
 
 ---
 
+## Containerised installs
+
+The `docker/` directory contains a Dockerfile per documented install method. Each method has two files:
+
+- **`Dockerfile`** — the install method **as described in the docs**, verbatim. No workarounds. Useful for reproducing what a user following the README/installation.html would actually get.
+- **`Dockerfile.fixed`** — a copy with the minimum set of workarounds needed for a fully-working image. Each workaround is annotated with the upstream bug it papers over so it can be removed once fixed upstream.
+
+### Method matrix
+
+All eight install paths build successfully on both `linux/amd64` and `linux/arm64`. Numbers count model binaries produced by `symfluence binary install` (out of 12, except npm which bundles a different prebuilt set).
+
+| Method | Base image | `Dockerfile` (doc-faithful) | `Dockerfile.fixed` |
+|---|---|---|---|
+| pip | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| uv | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| uv-tool | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| pipx | `python:3.11-slim-bookworm` | builds; 11/12¹ | builds; 11/12¹ |
+| npm | `node:20-bookworm-slim` | builds; runtime-only (prebuilt binaries) | 21/23 binaries (ngiab + troute not bundled by npm) |
+| conda | `condaforge/miniforge3:24.11.3-2` | builds; 11/12¹ | builds; 11/12¹ (single-source conda toolchain) |
+| source | `python:3.11-slim-bookworm` | builds; 11/12¹ (bootstrap stage; clones upstream main) | builds; 12/12 (manual stage; installs from local checkout, picks up in-development ngen fixes) |
+
+¹ The 1-of-12 gap is `ngen`, which the wrapper marks as failed despite the binary being built. This is a known false-negative in published symfluence's `_build.sh` — fixed on a development branch and landing in the next release, at which point every row above reports 12/12.
+
+### Build & run
+
+`docker-compose.yaml` defines one service per install method, each wired to its `Dockerfile.fixed`. Run from the repo root:
+
+```bash
+# pip
+docker compose build pip
+docker compose run --rm pip --help
+
+# uv
+docker compose build uv
+docker compose run --rm uv --help
+
+# uv tool (isolated CLI)
+docker compose build uv-tool
+docker compose run --rm uv-tool --help
+
+# pipx (isolated CLI)
+docker compose build pipx
+docker compose run --rm pipx --help
+
+# npm (pre-built binaries, no compilation; service pins platform: linux/amd64)
+docker compose build npm
+docker compose run --rm npm --help
+
+# conda (Windows install path / macOS ARM64 GDAL workaround)
+docker compose build conda
+docker compose run --rm conda --help
+
+# source — bootstrap from upstream clone
+docker compose build source
+docker compose run --rm source --help
+
+# source — manual editable install of local checkout (Dockerfile target: manual)
+docker compose build source-manual
+docker compose run --rm source-manual --help
+```
+
+#### Building for `linux/amd64` on Apple Silicon
+
+A quick terminology note, because the names are confusing:
+
+- **arm64** (aka aarch64) — ARM 64-bit. Apple Silicon (M1/M2/M3/M4), AWS Graviton, Raspberry Pi.
+- **amd64** (aka x86_64) — Intel/AMD 64-bit. Intel Macs, most Linux servers and HPC nodes, most cloud VMs, GitHub Actions runners. The "AMD" in the name is historical; Intel chips use the same instruction set.
+
+Your Apple Silicon Mac is **arm64**. Docker images are architecture-specific, so by default `docker compose build` produces an arm64 image on Apple Silicon — fast, native, no emulation. That's the right choice for day-to-day local work on pip / uv / uv-tool / pipx / conda / source.
+
+You'd want to override to `linux/amd64` (which Docker Desktop runs under QEMU emulation, so noticeably slower) in these cases:
+
+- **Reproducing what CI sees** — GitHub Actions runners are `linux/amd64`.
+- **Matching what end users actually deploy** — most production Linux (cloud VMs, HPC, university workstations) is amd64.
+- **Running the `npm` install path** — the published prebuilt tarballs only exist for `linux/amd64` + `darwin/arm64`. There's no `linux/arm64` tarball, so the npm container has to be amd64 (this is why the `npm` service already pins amd64 in the base file).
+- **Cross-arch validation before a release** — your Mac is arm64; emulated amd64 fills in the other half of the test matrix.
+
+To force amd64, layer `docker-compose.amd64.yaml` on top of the base file. It pins every service to `platform: linux/amd64`:
+
+```bash
+# One-off per command:
+docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml build pip
+docker compose -f docker-compose.yaml -f docker-compose.amd64.yaml run --rm pip --help
+
+# Or set COMPOSE_FILE once for the shell session:
+export COMPOSE_FILE=docker-compose.yaml:docker-compose.amd64.yaml
+docker compose build pip
+docker compose run --rm pip --help
+```
+
+Source-compile methods (`source`, `source-manual`) take 30+ minutes natively and considerably longer under QEMU — plan accordingly.
+
+### Which one should I use?
+
+- **Most users**: `pip-fixed` or `uv-fixed`. Both produce 12/12 working binaries on Linux. uv is faster to install.
+- **Need pre-compiled binaries (no host build toolchain)**: `npm-fixed`. Linux x86_64 and macOS ARM64 only.
+- **Developing on the project**: `source --target manual` so the venv contains an editable install of your local checkout.
+- **Avoid for now**: the unmodified `Dockerfile` files. They are kept as a record of what the docs literally say; they're not meant to be used directly.
+
+### Upstream issues the workarounds paper over
+
+These are the bugs `Dockerfile.fixed` works around. When they are fixed upstream, the corresponding workaround can be removed.
+
+- `_build.sh` host-libc probe omits aarch64 paths (`/lib/aarch64-linux-gnu/libc.so.6`); falsely triggers a static-link "workaround" that breaks `cmake`.
+- `_build.sh` static-link fallback passes `-static-libstdc++` as a top-level CMake argument instead of via `CMAKE_EXE_LINKER_FLAGS`.
+- `ngen` `_build.sh` doesn't set `Boost_NO_SYSTEM_PATHS=ON` despite specifying `BOOST_ROOT`, so cmake picks up Debian's libboost 1.74 over the 1.79 the script downloads.
+- `fuse` Makefile assumes `-L/usr/lib -lhdf5` finds plain-named `libhdf5.so` (Debian multi-arch installs it as `libhdf5_serial.so` under `/usr/lib/<arch>/`).
+- `symfluence binary install` exits 0 even with tool failures, masking partial-build problems in CI.
+- `symfluence binary info` reports "No toolchain metadata found" even when `binary doctor` reads the same file successfully.
+- The npm package is presented in the README as a self-contained install but is actually a wrapper that needs the Python CLI installed separately.
+- The `bootstrap` install path documented in installation.html doesn't run `symfluence binary install`; users get a working CLI with no model binaries.
+- Pip-installed `h5py` and `netCDF4` wheels bundle different `libhdf5` builds, causing runtime warnings (avoidable only by switching to conda).
+
+---
+
 ## Quick Start
 
 ### Basic CLI Usage
