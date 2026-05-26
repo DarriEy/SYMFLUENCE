@@ -108,6 +108,49 @@ def _deduplicate_output_control(output_control_path: Path, logger):
         logger.warning(f"Failed to deduplicate output control: {e}")
 
 
+def _rewrite_mizuroute_control_for_run(
+    control_file: Path,
+    summa_dir: Path,
+    mizuroute_dir: Path,
+    qsim_filename: str
+) -> None:
+    """Point mizuRoute at the SUMMA output and route output for this run."""
+    def normalize_path(path: Path) -> str:
+        return str(path).replace("\\", "/").rstrip("/") + "/"
+
+    def update_control_line(line: str, key: str, value: str) -> str:
+        newline = "\n" if line.endswith("\n") else ""
+        content = line[:-1] if newline else line
+        comment = ""
+        if "!" in content:
+            comment = "!" + "!".join(content.split("!")[1:]).rstrip()
+        if comment:
+            return f"{key:<24}{value}    {comment}{newline}"
+        return f"{key:<24}{value}{newline}"
+
+    replacements = {
+        "<input_dir>": normalize_path(summa_dir),
+        "<output_dir>": normalize_path(mizuroute_dir),
+        "<fname_qsim>": qsim_filename,
+    }
+
+    with open(control_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    updated_lines = []
+    for line in lines:
+        stripped = line.strip()
+        for key, value in replacements.items():
+            if stripped.startswith(key):
+                updated_lines.append(update_control_line(line, key, value))
+                break
+        else:
+            updated_lines.append(line)
+
+    with open(control_file, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(updated_lines)
+
+
 def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None, timeout: int = 7200, config: Dict = None) -> bool:
     """SUMMA execution with iteration-aware logging.
 
@@ -387,6 +430,10 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             logger.error(error_msg)
             debug_info['errors'].append(error_msg)
             return False
+
+        _rewrite_mizuroute_control_for_run(
+            control_file, summa_dir, mizuroute_dir, time_fix_file.name
+        )
 
         debug_info['files_checked'].extend([
             f"mizuRoute exe: {mizu_exe}",
