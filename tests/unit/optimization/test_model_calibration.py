@@ -93,6 +93,52 @@ class TestSUMMACalibrationTargets:
 class TestSUMMAWorkerFunctions:
     """Tests for SUMMA model evaluation worker functions."""
 
+    def test_rewrite_mizuroute_control_for_run(self, tmp_path):
+        """Test mizuRoute control paths are rewritten for the active run."""
+        from symfluence.optimization.workers.summa.model_execution import (
+            _rewrite_mizuroute_control_for_run,
+        )
+
+        control_file = tmp_path / "mizuroute.control"
+        control_file.write_text(
+            "<input_dir>             /old/summa/    ! SUMMA input\n"
+            "<output_dir>            /old/mizuRoute/    ! mizuRoute output\n"
+            "<fname_qsim>            old_timestep.nc    ! SUMMA runoff file\n"
+            "<case_name>             keep_this_case    ! Simulation case name\n",
+            encoding="utf-8",
+        )
+
+        summa_dir = tmp_path / "final_evaluation"
+        mizuroute_dir = summa_dir / "mizuRoute"
+        _rewrite_mizuroute_control_for_run(
+            control_file,
+            summa_dir,
+            mizuroute_dir,
+            "workshop_run_summa_distributed_timestep.nc",
+        )
+
+        text = control_file.read_text(encoding="utf-8")
+        expected_summa = str(summa_dir).replace("\\", "/").rstrip("/") + "/"
+        expected_mizuroute = str(mizuroute_dir).replace("\\", "/").rstrip("/") + "/"
+        control_lines = {
+            line.split(maxsplit=1)[0]: line
+            for line in text.splitlines()
+        }
+
+        assert control_lines["<input_dir>"].split()[1] == expected_summa
+        assert control_lines["<input_dir>"].endswith("! SUMMA input")
+        assert control_lines["<output_dir>"].split()[1] == expected_mizuroute
+        assert control_lines["<output_dir>"].endswith("! mizuRoute output")
+        assert (
+            control_lines["<fname_qsim>"].split()[1]
+            == "workshop_run_summa_distributed_timestep.nc"
+        )
+        assert control_lines["<fname_qsim>"].endswith("! SUMMA runoff file")
+        assert (
+            control_lines["<case_name>"]
+            == "<case_name>             keep_this_case    ! Simulation case name"
+        )
+
     def test_summa_parameter_application(self, summa_config, test_logger, temp_project_dir):
         """Test applying parameters to SUMMA trial parameter file."""
         from symfluence.optimization.workers.summa.parameter_application import _apply_parameters_worker
