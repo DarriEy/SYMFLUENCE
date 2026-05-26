@@ -4226,6 +4226,13 @@ SETTINGS_SUMMA_MEM: 5
 #   Usage:      2
 SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
 
+# SETTINGS_SUMMA_PARALLEL_BACKEND
+#   Type:        str
+#   Default:     slurm
+#   Source:      SUMMAConfig (model_configs.py)
+#   Description: SUMMA parallel backend (slurm or local)
+SETTINGS_SUMMA_PARALLEL_BACKEND: "slurm"
+
 # SETTINGS_SUMMA_PARALLEL_EXE
 #   Type:        str
 #   Default:     summa_actors.exe

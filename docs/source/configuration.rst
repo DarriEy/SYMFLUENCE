@@ -444,6 +444,10 @@ SUMMA Model Parameters
      - boolean
      - False
      - Use parallelized SUMMA execution
+   * - SETTINGS_SUMMA_PARALLEL_BACKEND
+     - string
+     - "slurm"
+     - SUMMA parallel backend ("slurm", "local")
    * - SETTINGS_SUMMA_CPUS_PER_TASK
      - integer
      - 1

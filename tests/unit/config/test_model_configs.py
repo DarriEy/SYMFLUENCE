@@ -144,6 +144,25 @@ class TestSUMMAConfigGlacier:
         assert config.glacier_coldstate == 'custom_glac_cold.nc'
 
 
+class TestSUMMAConfigParallel:
+    """Test SUMMA parallel execution fields."""
+
+    def test_summa_parallel_defaults(self):
+        """Test default SUMMA parallel backend settings."""
+        config = SUMMAConfig()
+        assert config.parallel_backend == 'slurm'
+        assert config.cpus_per_task == 32
+
+    def test_summa_parallel_custom_values(self):
+        """Test custom SUMMA parallel backend settings."""
+        config = SUMMAConfig(
+            SETTINGS_SUMMA_PARALLEL_BACKEND='local',
+            SETTINGS_SUMMA_CPUS_PER_TASK=4
+        )
+        assert config.parallel_backend == 'local'
+        assert config.cpus_per_task == 4
+
+
 class TestOptimizationConfigExtension:
     """Test optimization config extension fields."""
 
