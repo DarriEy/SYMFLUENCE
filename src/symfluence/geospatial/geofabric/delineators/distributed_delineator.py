@@ -9,6 +9,7 @@ Fully refactored implementation using extracted stream methods and shared utilit
 Refactored from geofabric_utils.py (2026-01-01)
 """
 
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -204,6 +205,64 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             self.taudem.run_command(step)
             self.logger.info("Completed TauDEM common step")
 
+    def _find_outlet_basin_by_magnitude(
+        self,
+        rivers: gpd.GeoDataFrame,
+        snap_tolerance_m: float = 200.0,
+    ) -> Optional[Any]:
+        """
+        Identify the outlet basin using magnitude-based stream ranking.
+
+        At confluences, the snapped pour point can land on a small tributary
+        rather than the main stem. This finds all stream segments within a
+        tolerance of the snapped gauge and selects the highest-magnitude
+        (largest upstream drainage) segment, returning its GRU_ID.
+        """
+        gauges_path = self.interim_dir / "gauges.shp"
+        if not gauges_path.exists():
+            return None
+
+        gauges_gdf = GeofabricIOUtils.load_geopandas(gauges_path, self.logger)
+        if gauges_gdf.empty:
+            return None
+
+        gauge_geom = gauges_gdf.geometry.iloc[0]
+
+        if gauges_gdf.crs is not None and rivers.crs is not None and gauges_gdf.crs != rivers.crs:
+            gauges_gdf = gauges_gdf.to_crs(rivers.crs)
+            gauge_geom = gauges_gdf.geometry.iloc[0]
+
+        try:
+            utm_crs = rivers.estimate_utm_crs()
+            projected = rivers.to_crs(utm_crs)
+            gauge_proj = gpd.GeoSeries([gauge_geom], crs=rivers.crs).to_crs(utm_crs).iloc[0]
+            distances_m = projected.geometry.distance(gauge_proj)
+            candidates = rivers[distances_m <= snap_tolerance_m]
+        except Exception:  # noqa: BLE001
+            candidates = rivers[rivers.geometry.intersects(gauge_geom)]
+
+        if candidates.empty:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=".*geographic CRS.*")
+                distances = rivers.geometry.distance(gauge_geom)
+            candidates = rivers.loc[[distances.idxmin()]]
+
+        if 'Magnitude' in candidates.columns:
+            outlet_row = candidates.sort_values('Magnitude', ascending=False).iloc[0]
+        elif 'strmOrder' in candidates.columns:
+            outlet_row = candidates.sort_values('strmOrder', ascending=False).iloc[0]
+        else:
+            outlet_row = candidates.iloc[0]
+
+        basin_id = outlet_row['GRU_ID']
+
+        self.logger.info(
+            f"Magnitude-based outlet selection: GRU_ID={basin_id} "
+            f"(of {len(candidates)} candidate segment(s) within {snap_tolerance_m} m of snapped gauge)"
+        )
+
+        return basin_id
+
     def _subset_upstream_geofabric(self, pour_point_path: Path) -> Tuple[Optional[Path], Optional[Path]]:
         """
         Subset geofabric to upstream contributing area.
@@ -236,10 +295,14 @@ class GeofabricDelineator(BaseGeofabricDelineator):
                     basins, rivers, pour_point, self.logger
                 )
 
-                # Find basin containing pour point
-                downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-                    pour_point, basins, logger=self.logger,
-                )
+                # Use magnitude-based selection from the snapped gauge to
+                # pick the correct outlet at confluences, falling back to
+                # spatial join when snapped gauges are unavailable.
+                downstream_basin_id = self._find_outlet_basin_by_magnitude(rivers)
+                if downstream_basin_id is None:
+                    downstream_basin_id = CRSUtils.find_basin_for_pour_point(
+                        pour_point, basins, logger=self.logger,
+                    )
 
                 # Build river network graph
                 river_graph = self.graph.build_river_graph(rivers, self._get_fabric_config(rivers))

@@ -476,13 +476,9 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
         # from the snap point (observed on LaMAH-ICE id=102: the
         # Magnitude=478 stem sat 124 m from a Magnitude=1 snap).
         try:
-            # Project to a metric CRS for reliable distance-in-metres.
-            # ISN93 (EPSG:3057) is native for Iceland; for other regions
-            # pyproj's estimate_utm_crs would be ideal, but falling back
-            # to a synthetic local projection via `to_crs` keeps the
-            # behaviour consistent.
-            projected = rivers_gdf.to_crs("EPSG:3057")
-            gauge_proj = gpd.GeoSeries([gauge_geom], crs=gauges_gdf.crs).to_crs("EPSG:3057").iloc[0]
+            utm_crs = rivers_gdf.estimate_utm_crs()
+            projected = rivers_gdf.to_crs(utm_crs)
+            gauge_proj = gpd.GeoSeries([gauge_geom], crs=gauges_gdf.crs).to_crs(utm_crs).iloc[0]
             distances_m = projected.geometry.distance(gauge_proj)
             touching = rivers_gdf[distances_m <= SNAP_TOLERANCE_M]
         except Exception as exc:  # noqa: BLE001 — metric projection is best-effort

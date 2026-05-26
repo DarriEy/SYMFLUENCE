@@ -480,6 +480,7 @@ src/symfluence/geospatial/geofabric/delineators/coastal_delineator.py:CoastalWat
 src/symfluence/geospatial/geofabric/delineators/coastal_delineator.py:CoastalWatershedDelineator.delineate_coastal:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/geospatial/geofabric/delineators/coastal_delineator.py:CoastalWatershedDelineator.delineate_point_buffer_shape:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/geospatial/geofabric/delineators/coastal_delineator.py:CoastalWatershedDelineator.merge_small_grus:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/geospatial/geofabric/delineators/distributed_delineator.py:GeofabricDelineator._find_outlet_basin_by_magnitude:except Exception:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/distributed_delineator.py:GeofabricDelineator._subset_upstream_geofabric:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/geospatial/geofabric/delineators/distributed_delineator.py:GeofabricDelineator.delineate_geofabric:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/geospatial/geofabric/delineators/grid_delineator.py:GridDelineator._add_grid_attributes:except Exception as e:  # noqa: BLE001 — preprocessing resilience
