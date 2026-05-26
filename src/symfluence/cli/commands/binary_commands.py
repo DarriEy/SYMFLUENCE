@@ -80,12 +80,13 @@ class BinaryCommands(BaseCommand):
         if isinstance(results, dict):
             failed = results.get("failed", [])
             successful = results.get("successful", [])
+            skipped = results.get("skipped", [])
             if failed:
                 BaseCommand._console.error(
                     f"Tool installation failed for: {', '.join(failed)}"
                 )
                 return ExitCode.BINARY_ERROR
-            elif successful:
+            elif successful or skipped:
                 BaseCommand._console.success("Tool installation completed successfully")
                 return ExitCode.SUCCESS
             else:
