@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import symfluence.models.summa.runner as summa_runner
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.models.summa.runner import SummaRunner
 
@@ -72,7 +73,8 @@ def test_local_gru_parallel_summa_calls_gru_split_helper(monkeypatch, tmp_path):
         return True
 
     monkeypatch.setattr(
-        'symfluence.models.summa.runner.run_summa_gru_parallel',
+        summa_runner,
+        'run_summa_gru_parallel',
         fake_run_summa_gru_parallel,
     )
 
@@ -105,7 +107,8 @@ def test_local_gru_parallel_summa_returns_none_after_helper_failure(
         return False
 
     monkeypatch.setattr(
-        'symfluence.models.summa.runner.run_summa_gru_parallel',
+        summa_runner,
+        'run_summa_gru_parallel',
         fake_run_summa_gru_parallel,
     )
 
