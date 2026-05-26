@@ -74,8 +74,18 @@ echo "FC=${FC}, NCDF_PATH=${NCDF_PATH}, HDF_PATH=${HDF_PATH}"
 cd build
 export F_MASTER="$(cd .. && pwd)/"
 
+# Detect HDF5 library names (Debian multi-arch uses libhdf5_serial.so)
+if [ -f "${HDF5_LIB_DIR}/libhdf5.so" ] || [ -f "${HDF5_LIB_DIR}/libhdf5.dylib" ]; then
+  _HDF5_LIB="hdf5"; _HDF5_HL_LIB="hdf5_hl"
+elif [ -f "${HDF5_LIB_DIR}/libhdf5_serial.so" ]; then
+  _HDF5_LIB="hdf5_serial"; _HDF5_HL_LIB="hdf5_serial_hl"
+  echo "Debian serial HDF5 naming detected — using -l${_HDF5_LIB}"
+else
+  _HDF5_LIB="hdf5"; _HDF5_HL_LIB="hdf5_hl"
+fi
+
 # Construct library and include paths
-LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCDF_C_LIB_DIR} -lnetcdf"
+LIBS="-L${HDF5_LIB_DIR} -l${_HDF5_LIB} -l${_HDF5_HL_LIB} -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCDF_C_LIB_DIR} -lnetcdf"
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
 # =====================================================
