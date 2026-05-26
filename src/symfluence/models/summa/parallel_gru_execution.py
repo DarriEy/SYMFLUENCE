@@ -2,7 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """
-Intra-iteration parallel GRU execution for SUMMA calibration.
+Parallel GRU execution for SUMMA model execution and calibration.
 
 Splits a SUMMA domain into N chunks using the ``-g startGRU numGRU`` flag,
 runs them as concurrent subprocesses, then merges outputs.  This is
