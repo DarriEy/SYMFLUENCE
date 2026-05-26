@@ -52,7 +52,7 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
             except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Could not remove stale file {file_path}: {e}")
 
-    # Clean up stale GRU-parallel split directories
+    # Clean up stale GRU split directories
     for split_dir in output_dir.glob('gru_split_*'):
         if split_dir.is_dir():
             try:
@@ -234,9 +234,9 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         use_parallel = config.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False) if config else False
         logger.info(f"Parallel SUMMA check: config={config is not None}, use_parallel={use_parallel}, settings_dir={summa_settings_dir}")
         if use_parallel and summa_settings_dir is not None:
-            from symfluence.models.summa.parallel_execution import run_summa_gru_parallel
+            from symfluence.models.summa.parallel_gru_execution import run_summa_gru_parallel
 
-            num_parallel = int(config.get('SETTINGS_SUMMA_CPUS_PER_TASK', 1))
+            num_parallel = int(config.get('SETTINGS_SUMMA_CPUS_PER_TASK', 8))
             logger.info(f"Launching parallel SUMMA with {num_parallel} processes")
             result = run_summa_gru_parallel(
                 summa_exe=Path(summa_exe_str),

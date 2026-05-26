@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Local GRU-parallel execution for SUMMA model runs and calibration.
+"""
+Parallel GRU execution for SUMMA model execution and calibration.
 
-Splits a SUMMA domain into GRU chunks using the ``-g startGRU numGRU`` flag,
-runs those chunks as concurrent local subprocesses, then merges outputs.
+Splits a SUMMA domain into N chunks using the ``-g startGRU numGRU`` flag,
+runs them as concurrent subprocesses, then merges outputs.  This is
+orthogonal to inter-iteration parallelism (ProcessPool/MPI) — each
+calibration process can independently split its own SUMMA run.
+
+Activated when ``SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true`` in config.
+The default pathway (sequential, single-process SUMMA) is unchanged.
 """
 
 from __future__ import annotations
@@ -147,7 +153,7 @@ def _run_single_gru_split(split_args: Dict[str, Any]) -> Dict[str, Any]:
             'error': 'Timeout',
             'duration': time.time() - start,
         }
-    except (OSError, subprocess.SubprocessError, ValueError) as e:
+    except Exception as e:  # noqa: BLE001
         return {
             'split_id': split_id,
             'success': False,
@@ -211,13 +217,8 @@ def merge_split_outputs(
                 ds.close()
             merged.close()
 
-            logger.info(
-                "Merged %d splits -> %s (%d HRUs)",
-                len(split_files),
-                output_file.name,
-                total_hrus,
-            )
-        except (OSError, RuntimeError, ValueError, KeyError) as e:
+            logger.info("Merged %d splits -> %s (%d HRUs)", len(split_files), output_file.name, total_hrus)
+        except Exception as e:  # noqa: BLE001
             logger.error("Merge failed for %s files: %s", suffix, e)
             return False
 
@@ -251,10 +252,7 @@ def run_summa_gru_parallel(
     timeout: int = 7200,
     env: Optional[Dict[str, str]] = None,
 ) -> bool:
-    """Run SUMMA locally with GRU-split execution.
-
-    This launches multiple SUMMA subprocesses on the current machine. It does
-    not submit SLURM jobs.
+    """Run SUMMA with GRU-parallel execution.
 
     1. Read GRU count from attributes.nc
     2. Compute GRU splits
@@ -271,8 +269,8 @@ def run_summa_gru_parallel(
     try:
         total_grus = get_gru_count_from_attributes(settings_dir)
     except (FileNotFoundError, KeyError) as exc:
-        logger.warning("Cannot read GRU count: %s", exc)
-        return False
+        logger.warning("Cannot read GRU count (%s) — falling back to sequential", exc)
+        return False  # caller will re-try sequentially
 
     # 2. Splits
     num_parallel = max(1, min(num_parallel, total_grus))
@@ -305,9 +303,7 @@ def run_summa_gru_parallel(
             'start_gru': start_gru,
             'num_gru': num_gru,
             'output_dir': str(split_dir),
-            'log_file': str(
-                log_dir / f'summa_split_{split_id:02d}_iter{iteration:05d}.log'
-            ),
+            'log_file': str(log_dir / f'summa_split_{split_id:02d}_iter{iteration:05d}.log'),
             'timeout': timeout,
             'env': env,
             'split_id': split_id,
@@ -332,7 +328,7 @@ def run_summa_gru_parallel(
             for future in not_done:
                 future.cancel()
             debug_info.setdefault('errors', []).append(
-                f'GRU-parallel timeout: {len(not_done)} splits incomplete'
+                f'GRU parallel timeout: {len(not_done)} splits incomplete'
             )
             return False
 

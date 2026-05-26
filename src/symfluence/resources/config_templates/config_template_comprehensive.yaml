@@ -4151,10 +4151,10 @@ SETTINGS_SUMMA_CONNECT_HRUS: true
 
 # SETTINGS_SUMMA_CPUS_PER_TASK
 #   Type:        int
-#   Default:     1
+#   Default:     32
 #   Source:      SUMMAConfig (model_configs.py)
 #   Usage:      2
-SETTINGS_SUMMA_CPUS_PER_TASK: 1
+SETTINGS_SUMMA_CPUS_PER_TASK: 32
 
 # SETTINGS_SUMMA_FILEMANAGER
 #   Type:        str
@@ -4230,7 +4230,7 @@ SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
 #   Type:        str
 #   Default:     slurm
 #   Source:      SUMMAConfig (model_configs.py)
-#   Description: SUMMA GRU-parallel backend (slurm or local)
+#   Description: SUMMA parallel backend (slurm or local)
 SETTINGS_SUMMA_PARALLEL_BACKEND: "slurm"
 
 # SETTINGS_SUMMA_PARALLEL_EXE
