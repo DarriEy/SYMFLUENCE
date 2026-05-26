@@ -119,6 +119,13 @@ class SystemDiagnostics(BaseService):
 
         geo_ok = self._check_geospatial_compatibility()
 
+        # HDF5 library conflict check
+        self._console.newline()
+        self._console.info("HDF5 library consistency...")
+        self._console.rule()
+
+        hdf5_ok = self._check_hdf5_library_conflict()
+
         # Summary
         self._console.newline()
         self._console.rule()
@@ -129,6 +136,8 @@ class SystemDiagnostics(BaseService):
         self._console.indent(f"System libraries: {found_libs}/{total_libs} found")
         geo_status = "[green]OK[/green]" if geo_ok else "[yellow]Issues detected[/yellow]"
         self._console.indent(f"Geospatial libraries: {geo_status}")
+        hdf5_status = "[green]OK[/green]" if hdf5_ok else "[yellow]Conflict detected[/yellow]"
+        self._console.indent(f"HDF5 libraries: {hdf5_status}")
 
         if found_binaries == total_binaries and toolchain_found and found_libs >= 3 and geo_ok:
             self._console.newline()
@@ -195,6 +204,11 @@ class SystemDiagnostics(BaseService):
         if toolchain_path:
             self._console.newline()
             self._read_toolchain_metadata(toolchain_path)
+        else:
+            self._console.newline()
+            self._console.warning(
+                "No toolchain metadata found — run 'symfluence binary install' first"
+            )
 
         if found == 0:
             self._console.newline()
@@ -427,6 +441,44 @@ class SystemDiagnostics(BaseService):
             self._console.indent("  OR: pip install --force-reinstall rasterio fiona")
 
         return all_ok
+
+    def _check_hdf5_library_conflict(self) -> bool:
+        """Check whether pip-installed h5py and netCDF4 bundle conflicting libhdf5 builds."""
+        try:
+            from symfluence.core.hdf5_safety import _find_bundled_libhdf5
+        except ImportError:
+            self._console.indent("HDF5 conflict check: [dim]skipped (hdf5_safety not available)[/dim]")
+            return True
+
+        h5py_lib = _find_bundled_libhdf5('h5py')
+        nc4_lib = _find_bundled_libhdf5('netCDF4')
+
+        if h5py_lib is None and nc4_lib is None:
+            self._console.indent("h5py / netCDF4: no bundled libhdf5 detected (system or conda)")
+            self._console.indent("[green]OK[/green] — no conflict possible")
+            return True
+
+        if h5py_lib is None or nc4_lib is None:
+            present = "h5py" if h5py_lib else "netCDF4"
+            self._console.indent(f"Only {present} bundles libhdf5: [green]OK[/green]")
+            return True
+
+        if h5py_lib == nc4_lib:
+            self._console.indent("h5py and netCDF4 share the same libhdf5: [green]OK[/green]")
+            return True
+
+        self._console.indent("h5py and netCDF4 bundle [red]DIFFERENT[/red] libhdf5 builds:")
+        self._console.indent(f"  h5py    → {h5py_lib}", level=2)
+        self._console.indent(f"  netCDF4 → {nc4_lib}", level=2)
+        self._console.newline()
+        self._console.warning(
+            "This causes runtime warnings and can corrupt HDF5 state. "
+            "SYMFLUENCE mitigates this automatically (HDF5_DISABLE_VERSION_CHECK=1, "
+            "h5netcdf fallback disabled), but the cleanest fix is:"
+        )
+        self._console.indent("  conda: pip uninstall h5py netCDF4 -y && conda install h5py netcdf4")
+        self._console.indent("  pip:   pip install --force-reinstall --no-binary h5py --no-binary netCDF4 h5py netCDF4")
+        return False
 
     def _check_system_libraries(self) -> tuple:
         """
