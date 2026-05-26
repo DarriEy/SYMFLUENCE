@@ -102,7 +102,8 @@ fi
 
 # Search common system paths for libfl
 if [ -z "$FLEX_LDFLAGS" ]; then
-    for libdir in /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib; do
+    _rh_ma="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
+    for libdir in /usr/lib64 /usr/lib ${_rh_ma:+/usr/lib/${_rh_ma}} /lib64 /lib; do
         if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
             FLEX_LDFLAGS="-L$libdir -lfl"
             echo "Found system flex library in: $libdir"
