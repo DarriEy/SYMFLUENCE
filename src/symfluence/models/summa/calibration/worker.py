@@ -223,9 +223,17 @@ class SUMMAWorker(BaseWorker):
 
             # Run routing if needed
             if self.needs_routing(config):
-                # mizuRoute output should be alongside SUMMA, not inside it
-                # e.g., /run_1/mizuRoute not /run_1/SUMMA/mizuRoute
-                mizuroute_dir = sim_dir.parent / 'mizuRoute' if sim_dir else output_dir.parent / 'mizuRoute'
+                # Respect explicit routing output directories from callers
+                mizuroute_dir = kwargs.get('mizuroute_dir')
+                if mizuroute_dir is not None:
+                    mizuroute_dir = Path(mizuroute_dir)
+                else:
+                    # mizuRoute output should be alongside SUMMA, not inside it
+                    # e.g., /run_1/mizuRoute not /run_1/SUMMA/mizuRoute
+                    mizuroute_dir = (
+                        sim_dir.parent / 'mizuRoute' if sim_dir
+                        else output_dir.parent / 'mizuRoute'
+                    )
                 mizuroute_dir.mkdir(parents=True, exist_ok=True)
 
                 # Propagate all kwargs into task_data for legacy compatibility

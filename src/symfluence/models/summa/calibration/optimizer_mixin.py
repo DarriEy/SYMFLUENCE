@@ -360,21 +360,10 @@ class SUMMAOptimizerMixin:
     # mizuRoute Control File Updates
     # =========================================================================
 
-    @staticmethod
-    def _format_mizuroute_control_line(line: str, key: str, value: str,
-                                       fallback_comment: str) -> str:
-        """Format one mizuRoute control line while preserving inline comments."""
-        if '!' in line:
-            comment = '!' + '!'.join(line.split('!')[1:])
-            return f"{key:<24}{value}    {comment}"
-        return f"{key:<24}{value}    {fallback_comment}\n"
-
     def _update_mizuroute_control_file(self, control_path: Path) -> None:
         """Update mizuRoute control file with appropriate paths."""
         def _normalize_path(path):
             return str(path).replace("\\", "/").rstrip("/") + "/"
-
-        sim_start, sim_end = self._get_simulation_period(use_calibration_period=True)
 
         with open(control_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -385,40 +374,22 @@ class SUMMAOptimizerMixin:
                     new_path = _normalize_path(self.output_dir)
                 else:
                     new_path = _normalize_path(self.summa_sim_dir)
-                lines[i] = self._format_mizuroute_control_line(
-                    line,
-                    '<input_dir>',
-                    new_path,
-                    '! Folder that contains runoff data from SUMMA',
-                )
+                if '!' in line:
+                    comment = '!' + '!'.join(line.split('!')[1:])
+                    lines[i] = f"<input_dir>             {new_path}    {comment}"
+                else:
+                    lines[i] = f"<input_dir>             {new_path}    ! Folder that contains runoff data from SUMMA\n"
 
             elif line.strip().startswith('<output_dir>'):
                 if hasattr(self, 'use_parallel') and not self.use_parallel:
                     new_path = _normalize_path(self.output_dir / "mizuRoute")
                 else:
                     new_path = _normalize_path(self.mizuroute_sim_dir)
-                lines[i] = self._format_mizuroute_control_line(
-                    line,
-                    '<output_dir>',
-                    new_path,
-                    '! Folder that will contain mizuRoute simulations',
-                )
-
-            elif line.strip().startswith('<sim_start>'):
-                lines[i] = self._format_mizuroute_control_line(
-                    line,
-                    '<sim_start>',
-                    sim_start,
-                    '! Time of simulation start',
-                )
-
-            elif line.strip().startswith('<sim_end>'):
-                lines[i] = self._format_mizuroute_control_line(
-                    line,
-                    '<sim_end>',
-                    sim_end,
-                    '! Time of simulation end',
-                )
+                if '!' in line:
+                    comment = '!' + '!'.join(line.split('!')[1:])
+                    lines[i] = f"<output_dir>            {new_path}    {comment}"
+                else:
+                    lines[i] = f"<output_dir>            {new_path}    ! Folder that will contain mizuRoute simulations\n"
 
         with open(control_path, "w", encoding="ascii", newline="\n") as f:
             f.writelines(lines)
@@ -505,8 +476,6 @@ class SUMMAOptimizerMixin:
             return str(path).replace("\\", "/").rstrip("/") + "/"
 
         if control_file.exists():
-            sim_start, sim_end = self._get_simulation_period(use_calibration_period=True)
-
             with open(control_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
 
@@ -514,56 +483,30 @@ class SUMMAOptimizerMixin:
             for line in lines:
                 if '<input_dir>' in line:
                     input_path = _normalize_path(summa_dir)
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<input_dir>',
-                        input_path,
-                        '! Folder that contains runoff data from SUMMA',
-                    ))
+                    if '!' in line:
+                        comment = '!' + '!'.join(line.split('!')[1:])
+                        updated_lines.append(f"<input_dir>             {input_path}    {comment}")
+                    else:
+                        updated_lines.append(f"<input_dir>             {input_path}    ! Folder that contains runoff data from SUMMA\n")
                 elif '<output_dir>' in line:
                     output_path = _normalize_path(mizuroute_dir)
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<output_dir>',
-                        output_path,
-                        '! Folder that will contain mizuRoute simulations',
-                    ))
+                    if '!' in line:
+                        comment = '!' + '!'.join(line.split('!')[1:])
+                        updated_lines.append(f"<output_dir>            {output_path}    {comment}")
+                    else:
+                        updated_lines.append(f"<output_dir>            {output_path}    ! Folder that will contain mizuRoute simulations\n")
                 elif '<case_name>' in line:
-                    process_case_name = (
-                        f"proc_{proc_id:02d}_{self.algorithm_name}_opt_"
-                        f"{self.experiment_id}"
-                    )
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<case_name>',
-                        process_case_name,
-                        '! Simulation case name',
-                    ))
+                    if '!' in line:
+                        comment = '!' + '!'.join(line.split('!')[1:])
+                        updated_lines.append(f"<case_name>             proc_{proc_id:02d}_{self.algorithm_name}_opt_{self.experiment_id}    {comment}")
+                    else:
+                        updated_lines.append(f"<case_name>             proc_{proc_id:02d}_{self.algorithm_name}_opt_{self.experiment_id}    ! Simulation case name\n")
                 elif '<fname_qsim>' in line:
-                    runoff_filename = (
-                        f"proc_{proc_id:02d}_{self.algorithm_name}_opt_"
-                        f"{self.experiment_id}_timestep.nc"
-                    )
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<fname_qsim>',
-                        runoff_filename,
-                        '! netCDF name for HM_HRU runoff',
-                    ))
-                elif '<sim_start>' in line:
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<sim_start>',
-                        sim_start,
-                        '! Time of simulation start',
-                    ))
-                elif '<sim_end>' in line:
-                    updated_lines.append(self._format_mizuroute_control_line(
-                        line,
-                        '<sim_end>',
-                        sim_end,
-                        '! Time of simulation end',
-                    ))
+                    if '!' in line:
+                        comment = '!' + '!'.join(line.split('!')[1:])
+                        updated_lines.append(f"<fname_qsim>            proc_{proc_id:02d}_{self.algorithm_name}_opt_{self.experiment_id}_timestep.nc    {comment}")
+                    else:
+                        updated_lines.append(f"<fname_qsim>            proc_{proc_id:02d}_{self.algorithm_name}_opt_{self.experiment_id}_timestep.nc    ! netCDF name for HM_HRU runoff\n")
                 else:
                     updated_lines.append(line)
 
