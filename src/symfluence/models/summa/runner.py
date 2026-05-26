@@ -16,7 +16,7 @@ Refactored to use the Unified Model Execution Framework:
 - ModelExecutor: For subprocess and SLURM execution
 - SpatialOrchestrator: For routing integration
 
-Author: SYMFLUENCE xDevelopment Team
+Author: SYMFLUENCE Development Team
 """
 
 from pathlib import Path
@@ -30,7 +30,7 @@ from ..execution import ExecutionResult, SlurmJobConfig
 from ..registry import ModelRegistry
 from ..state import ModelState, StateCapableMixin, StateFormat, StateMetadata
 from ..templates import ModelRunResult, UnifiedModelRunner
-from .parallel_execution import run_summa_gru_parallel
+from .parallel_gru_execution import run_summa_gru_parallel
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
@@ -298,7 +298,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             if not self.is_slurm_available():
                 self.logger.warning(
                     "SLURM not available, falling back to local SUMMA "
-                    "GRU-parallel execution"
+                    "GRU splitting"
                 )
                 return self._run_parallel_summa_local()
             return self._run_parallel_summa_slurm()
@@ -369,7 +369,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             lambda: self.config.model.summa.timeout, default=7200
         )
         cpus_per_task = self._get_config_value(
-            lambda: self.config.model.summa.cpus_per_task, default=1
+            lambda: self.config.model.summa.cpus_per_task, default=32
         )
         debug_info: Dict[str, List[str]] = {'errors': []}
 
@@ -394,17 +394,8 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
 
     def _count_grus(self) -> int:
         """Count total GRUs from catchment shapefile."""
-        subbasins_name = self._get_config_value(
-            lambda: self.config.paths.catchment_name, default='default'
-        )
-        if subbasins_name is None or subbasins_name == 'default':
-            subbasins_name = (
-                f"{self.domain_name}_HRUs_"
-                f"{self.sub_grid_discretization}.shp"
-            )
-
         # Resolve legacy and organized catchment layouts
-        shapefile = self._get_catchment_file_path(subbasins_name)
+        shapefile = self._get_catchment_file_path()
 
         try:
             gdf = gpd.read_file(shapefile)

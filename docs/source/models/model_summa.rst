@@ -138,10 +138,10 @@ Installation and Execution
      - Model execution timeout (seconds)
    * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
      - false
-     - Enable SUMMA GRU-parallel execution
+     - Enable parallel SUMMA execution (using specified backend)
    * - SETTINGS_SUMMA_PARALLEL_BACKEND
      - slurm
-     - GRU-parallel backend (``slurm`` or ``local``)
+     - Parallel backend (``slurm`` or ``local``)
    * - SETTINGS_SUMMA_PARALLEL_EXE
      - summa_actors.exe
      - Parallel SUMMA executable name
@@ -252,8 +252,8 @@ For large-scale applications:
      - 5
      - GRUs processed per parallel job
    * - SETTINGS_SUMMA_CPUS_PER_TASK
-     - 1
-     - CPUs allocated to each GRU-parallel SUMMA model run
+     - 32
+     - CPUs allocated per task (SLURM)
    * - SETTINGS_SUMMA_MEM
      - 5
      - Memory per task (GB)
@@ -475,13 +475,8 @@ Parallel SUMMA for Large Domains
 --------------------------------
 
 For continental-scale or high-resolution applications, SUMMA can run GRU subsets
-through a GRU-parallel backend. The ``slurm`` backend submits GRU array jobs.
-The ``local`` backend launches multiple SUMMA subprocesses on the current
-machine.
-
-The local backend runs commands of the form
-``SUMMA_EXE -g <startGRU> <numGRU> -m <fileManager>``. It uses
-``SETTINGS_SUMMA_CPUS_PER_TASK`` to control how many GRU splits run at once.
+in parallel through a specified backend. The ``slurm`` backend submits job arrays, while
+the ``local`` backend launches multiple SUMMA subprocesses on the current machine.
 
 SLURM backend:
 
@@ -493,7 +488,7 @@ SLURM backend:
    SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe
    SETTINGS_SUMMA_PARALLEL_PATH: /path/to/parallel/summa
 
-   # Configure GRU-parallel execution
+   # Configure parallel execution
    SETTINGS_SUMMA_GRU_COUNT: 1000      # Total GRUs
    SETTINGS_SUMMA_GRU_PER_JOB: 10      # GRUs per job
    SETTINGS_SUMMA_CPUS_PER_TASK: 32    # CPUs per task
@@ -504,11 +499,11 @@ Local backend:
 
 .. code-block:: yaml
 
-   # Enable local GRU-parallel SUMMA
+   # Enable parallel SUMMA with local backend
    SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
    SETTINGS_SUMMA_PARALLEL_BACKEND: local
 
-   # Configure local GRU-parallel execution
+   # Configure parallel execution
    SETTINGS_SUMMA_CPUS_PER_TASK: 8
 
 Calibration Strategies

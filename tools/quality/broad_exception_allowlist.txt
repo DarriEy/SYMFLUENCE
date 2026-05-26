@@ -1098,6 +1098,8 @@ src/symfluence/models/summa/forcing_processor.py:SummaForcingProcessor._insert_n
 src/symfluence/models/summa/forcing_processor.py:SummaForcingProcessor._load_topology_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/summa/forcing_processor.py:SummaForcingProcessor._process_forcing_batches:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/summa/glacier_manager.py:GlacierAttributesManager.process_glacier_attributes:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/summa/parallel_gru_execution.py:_run_single_gru_split:except Exception as e:  # noqa: BLE001
+src/symfluence/models/summa/parallel_gru_execution.py:merge_split_outputs:except Exception as e:  # noqa: BLE001
 src/symfluence/models/summa/plotter.py:SUMMAPlotter.plot_outputs:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/postprocessor.py:SUMMAPostprocessor._extract_native_summa_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/preprocessor.py:SummaPreProcessor._get_forcing_times:except Exception as exc:  # noqa: BLE001 — model execution resilience
@@ -1221,8 +1223,6 @@ src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optim
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
 src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/workers/summa/parallel_gru_execution.py:_run_single_gru_split:except Exception as e:  # noqa: BLE001
-src/symfluence/optimization/workers/summa/parallel_gru_execution.py:merge_split_outputs:except Exception as e:  # noqa: BLE001
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_individual_steps:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_workflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract

@@ -19,7 +19,7 @@ The original summa_parallel_workers.py has been split into focused modules:
 - dds_optimization: DDS algorithm for workers
 """
 
-from symfluence.models.summa.parallel_execution import (
+from symfluence.models.summa.parallel_gru_execution import (
     compute_gru_splits,
     merge_split_outputs,
     run_summa_gru_parallel,
