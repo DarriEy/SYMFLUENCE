@@ -52,7 +52,7 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
             except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Could not remove stale file {file_path}: {e}")
 
-    # Clean up stale GRU split directories
+    # Clean up stale GRU-parallel split directories
     for split_dir in output_dir.glob('gru_split_*'):
         if split_dir.is_dir():
             try:
