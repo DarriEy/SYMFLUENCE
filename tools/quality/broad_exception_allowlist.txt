@@ -1214,6 +1214,7 @@ src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_f
 src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_from_ldasout:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/preprocessor.py:WRFHydroPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
