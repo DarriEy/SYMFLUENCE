@@ -76,14 +76,22 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         troute_out_path = self.get_experiment_output_dir()
         troute_out_path.mkdir(parents=True, exist_ok=True)
 
-        # 3. Choose execution mode
+        # 3. Choose execution mode (nwm_routing with fallback to built-in MC)
+        used_builtin = False
         if _check_troute_available():
             self.logger.info("Using compiled troute (nwm_routing) for routing.")
-            self._run_nwm_routing(settings_path, troute_out_path)
+            try:
+                self._run_nwm_routing(settings_path, troute_out_path)
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning(
+                    f"nwm_routing failed ({e}), falling back to built-in Muskingum-Cunge."
+                )
+                used_builtin = True
         else:
-            self.logger.info(
-                "Compiled troute not available. Using built-in Muskingum-Cunge routing."
-            )
+            used_builtin = True
+
+        if used_builtin:
+            self.logger.info("Using built-in Muskingum-Cunge routing.")
             self._run_builtin_muskingum_cunge(
                 runoff_filepath, topology_file, troute_out_path
             )
@@ -97,12 +105,21 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
     def _prepare_runoff_file(self) -> Path:
         """
-        Loads the hydrological model output and renames the runoff variable
-        to 'q_lateral' as required by t-route.
+        Locate and prepare the runoff file for t-route.
+
+        Creates a non-destructive copy with the variable renamed to 'q_lateral'
+        in the tRoute output directory, preserving the source model's original
+        output file.
 
         Returns:
-            Path to the (possibly renamed) runoff file.
+            Path to the prepared runoff file (copy with renamed variable).
         """
+        from symfluence.models.utilities.runoff_loader import (
+            detect_runoff_variable,
+            fix_time_precision,
+            resolve_runoff_file,
+        )
+
         self.logger.info("Preparing runoff file for t-route...")
 
         source_model = self._get_config_value(
@@ -112,41 +129,45 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         experiment_id = self._get_config_value(
             lambda: self.config.domain.experiment_id
         )
-        runoff_filepath = (
-            self.project_dir
-            / f"simulations/{experiment_id}/{source_model}/{experiment_id}_timestep.nc"
+
+        runoff_filepath = resolve_runoff_file(
+            source_model=source_model,
+            project_dir=self.project_dir,
+            experiment_id=experiment_id,
+            domain_name=self.domain_name,
+            config=self.config,
         )
+        if runoff_filepath is None:
+            raise ModelExecutionError("Could not locate runoff file for t-route")
 
         self.verify_required_files(runoff_filepath, context="t-route runoff preparation")
 
-        original_var_config = self._get_config_value(
-            lambda: self.config.model.mizuroute.routing_var if self.config.model and self.config.model.mizuroute else None,
-            default='averageRoutedRunoff'
-        )
-        if original_var_config in ('default', None, ''):
-            original_var = 'averageRoutedRunoff'
-        else:
-            original_var = original_var_config
+        # Fix time precision before routing
+        fix_time_precision(runoff_filepath, rounding_freq='h')
 
-        self.logger.debug(f"Checking for variable '{original_var}' in {runoff_filepath}")
-
+        # Detect the runoff variable for this source model
         with xr.open_dataset(runoff_filepath) as ds:
-            if original_var in ds.data_vars:
-                self.logger.info(f"Found '{original_var}', renaming to 'q_lateral'.")
-                ds_mem = ds.rename({original_var: 'q_lateral'}).load()
-            elif 'q_lateral' in ds.data_vars:
+            original_var = detect_runoff_variable(ds, source_model)
+            if original_var is None:
+                raise ValueError(f"No runoff variable found in {runoff_filepath}")
+
+            if original_var == 'q_lateral':
                 self.logger.info("Runoff variable already named 'q_lateral'.")
                 return runoff_filepath
-            else:
-                self.logger.error(
-                    f"Expected runoff variable '{original_var}' not found."
-                )
-                raise ValueError(f"Runoff variable not found in {runoff_filepath}")
 
-        ds_mem.to_netcdf(runoff_filepath, mode='w', format='NETCDF4')
+            # Create non-destructive copy with renamed variable
+            self.logger.info(f"Found '{original_var}', creating prepared copy with 'q_lateral'.")
+            ds_mem = ds.rename({original_var: 'q_lateral'}).load()
+
+        # Write to tRoute output directory (not the source model's directory)
+        troute_out_path = self.get_experiment_output_dir()
+        troute_out_path.mkdir(parents=True, exist_ok=True)
+        prepared_path = troute_out_path / 'prepared_runoff.nc'
+        ds_mem.to_netcdf(prepared_path, format='NETCDF4')
         ds_mem.close()
-        self.logger.info("Runoff variable successfully renamed.")
-        return runoff_filepath
+
+        self.logger.info(f"Prepared runoff file written to {prepared_path}")
+        return prepared_path
 
     # ------------------------------------------------------------------
     # Mode 1: nwm_routing subprocess
@@ -262,14 +283,19 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         if q_lat_vals.ndim == 1:
             q_lat_vals = q_lat_vals.reshape(-1, 1)
 
-        # Build HRU → segment inflow mapping
         q_seg = np.zeros((n_time, n_seg), dtype=np.float64)
-        for h in range(min(n_hru, len(hru_to_seg))):
-            seg_for_hru = int(hru_to_seg[h])
-            seg_idx = seg_id_to_idx.get(seg_for_hru, -1)
-            if seg_idx >= 0 and h < len(hru_areas):
-                # Convert depth rate (m/s) to volume rate (m³/s)
-                q_seg[:, seg_idx] += q_lat_vals[:, h] * hru_areas[h]
+
+        if n_hru == 1 and n_seg > 1:
+            # Lumped-to-distributed: spread single HRU runoff across all
+            # segments proportionally to subcatchment areas
+            for s in range(n_seg):
+                q_seg[:, s] = q_lat_vals[:, 0] * hru_areas[s]
+        else:
+            for h in range(min(n_hru, len(hru_to_seg))):
+                seg_for_hru = int(hru_to_seg[h])
+                seg_idx = seg_id_to_idx.get(seg_for_hru, -1)
+                if seg_idx >= 0 and h < len(hru_areas):
+                    q_seg[:, seg_idx] += q_lat_vals[:, h] * hru_areas[h]
 
         # --- Channel geometry ---
         if 'channel_width' in topo:
