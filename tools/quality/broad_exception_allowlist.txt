@@ -494,6 +494,7 @@ src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWater
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._delineate_with_taudem:except Exception as e:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._delineate_with_taudem:except Exception as e:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._delineate_with_taudem:except Exception as e:  # noqa: BLE001
+src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._delineate_with_taudem:except Exception as e:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._ensure_nonempty_streamnet_watersheds:except Exception as e:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._ensure_nonempty_streamnet_watersheds:except Exception as e:  # noqa: BLE001
 src/symfluence/geospatial/geofabric/delineators/lumped_delineator.py:LumpedWatershedDelineator._ensure_required_fields:except Exception as e:  # noqa: BLE001
@@ -1135,6 +1136,10 @@ src/symfluence/models/troute/plotter.py:TRoutePlotter._load_lateral_inflow:excep
 src/symfluence/models/troute/plotter.py:TRoutePlotter._load_observed_streamflow:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/troute/plotter.py:TRoutePlotter.plot_routing_results:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/troute/postprocessor.py:TRoutePostProcessor._extract_from_netcdf:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/troute/runner.py:TRouteRunner.run_troute:except Exception as e:  # noqa: BLE001
+src/symfluence/models/troute/topology_generator.py:TRouteTopologyGenerator._enrich_with_shapefile_data:except Exception:  # noqa: BLE001
+src/symfluence/models/troute/topology_generator.py:TRouteTopologyGenerator.write_topology_with_shapefiles:except Exception:  # noqa: BLE001
+src/symfluence/models/utilities/base_topology_generator.py:BaseTopologyGenerator._find_closest_segment_to_pour_point:except Exception as e:  # noqa: BLE001
 src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.load_forcing_data:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/vic/calibration/parameter_manager.py:VICParameterManager.copy_params_to_worker_dir:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/vic/calibration/parameter_manager.py:VICParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
