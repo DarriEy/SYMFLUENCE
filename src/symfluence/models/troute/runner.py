@@ -283,14 +283,19 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         if q_lat_vals.ndim == 1:
             q_lat_vals = q_lat_vals.reshape(-1, 1)
 
-        # Build HRU → segment inflow mapping
         q_seg = np.zeros((n_time, n_seg), dtype=np.float64)
-        for h in range(min(n_hru, len(hru_to_seg))):
-            seg_for_hru = int(hru_to_seg[h])
-            seg_idx = seg_id_to_idx.get(seg_for_hru, -1)
-            if seg_idx >= 0 and h < len(hru_areas):
-                # Convert depth rate (m/s) to volume rate (m³/s)
-                q_seg[:, seg_idx] += q_lat_vals[:, h] * hru_areas[h]
+
+        if n_hru == 1 and n_seg > 1:
+            # Lumped-to-distributed: spread single HRU runoff across all
+            # segments proportionally to subcatchment areas
+            for s in range(n_seg):
+                q_seg[:, s] = q_lat_vals[:, 0] * hru_areas[s]
+        else:
+            for h in range(min(n_hru, len(hru_to_seg))):
+                seg_for_hru = int(hru_to_seg[h])
+                seg_idx = seg_id_to_idx.get(seg_for_hru, -1)
+                if seg_idx >= 0 and h < len(hru_areas):
+                    q_seg[:, seg_idx] += q_lat_vals[:, h] * hru_areas[h]
 
         # --- Channel geometry ---
         if 'channel_width' in topo:

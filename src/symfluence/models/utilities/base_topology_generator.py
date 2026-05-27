@@ -223,12 +223,15 @@ class BaseTopologyGenerator(ABC):
             routing_suffix='delineate'
         )
 
-        catchment_path = (
-            self.pp.project_dir / 'shapefiles' / 'catchment'
-            / f"{self.pp.domain_name}_catchment_delineated.shp"
-        )
+        catchment_filename = f"{self.pp.domain_name}_catchment_delineated.shp"
+        catchment_path = self.pp.project_dir / 'shapefiles' / 'catchment' / catchment_filename
         if not catchment_path.exists():
-            raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
+            # Search subdirectories (discretization may place it in catchment/{method}/{experiment}/)
+            candidates = list((self.pp.project_dir / 'shapefiles' / 'catchment').rglob(catchment_filename))
+            if candidates:
+                catchment_path = candidates[0]
+            else:
+                raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
 
         shp_catchments = gpd.read_file(catchment_path)
         self.pp.logger.info(f"Loaded {len(shp_catchments)} delineated subcatchments")
