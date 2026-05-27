@@ -24,7 +24,7 @@ class TRoutePostProcessor(StandardModelPostprocessor):
 
     model_name = "TROUTE"
     output_file_pattern = "*.nc"  # TRoute outputs multiple timestamped NC files
-    streamflow_variable = "flowveldepth"  # TRoute flow variable
+    streamflow_variable = "flow"  # Built-in MC routing output variable
     streamflow_unit = "cms"  # TRoute outputs in m³/s
     netcdf_selections = {}  # Will be determined dynamically
 
