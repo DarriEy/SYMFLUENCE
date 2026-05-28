@@ -454,9 +454,9 @@ class SpatialOrchestrator(ABC):
             # Normalize time units format (mizuRoute expects specific format)
             mizu_ds['time'].attrs['units'] = mizu_ds['time'].attrs['units'].replace('T', ' ')
 
-        # Add gru dimension and gruId variable
+        # Add gru dimension using source coordinates to avoid xarray alignment NaN
         n_gru = data.sizes['gru']
-        mizu_ds['gru'] = xr.DataArray(range(n_gru), dims=('gru',))
+        mizu_ds['gru'] = data.gru
 
         # Convert IDs to int if possible
         try:

@@ -678,6 +678,24 @@ class ParallelExecutionMixin(ConfigMixin):
             max_workers = self.max_workers
 
         if self.use_parallel and len(tasks) > 1:
+            # --- Fast-path: skip MPI if a previous cascade already proved it unavailable ---
+            if getattr(self, '_mpi_unavailable', False):
+                try:
+                    strategy = ProcessPoolExecutionStrategy(self.logger)
+                    return strategy.execute(tasks, worker_func, max_workers)
+                except Exception as e2:  # noqa: BLE001 — must-not-raise contract
+                    self.logger.error(f"ProcessPool fallback also failed: {e2}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    return [
+                        {
+                            'individual_id': task.get('individual_id', i),
+                            'score': None,
+                            'error': str(e2)
+                        }
+                        for i, task in enumerate(tasks)
+                    ]
+
             # --- Try persistent MPI first (no repeated Python imports) ---
             try:
                 strategy = self._get_or_create_persistent_mpi_strategy(
@@ -697,6 +715,13 @@ class ParallelExecutionMixin(ConfigMixin):
                 return strategy.execute(tasks, worker_func, max_workers)
             except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.warning(f"MPI batch execution failed: {e}")
+
+            # Both MPI strategies failed — cache the decision so subsequent
+            # iterations skip straight to ProcessPool without repeating the cascade.
+            self._mpi_unavailable = True
+            self.logger.info(
+                "MPI unavailable — using ProcessPool for all remaining iterations"
+            )
 
             # --- Fallback: ProcessPool ---
             try:

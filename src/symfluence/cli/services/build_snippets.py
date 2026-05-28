@@ -323,7 +323,9 @@ fix_libgcc_glibc_mismatch() {
     # `ldd --version` because on overlay systems it reports the overlay's
     # glibc version, not the host's.
     local _host_libc=""
-    for _candidate in /usr/lib64/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6 /lib64/libc.so.6; do
+    local _multiarch
+    _multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
+    for _candidate in /usr/lib64/libc.so.6 /lib/${_multiarch:+${_multiarch}/}libc.so.6 /lib/x86_64-linux-gnu/libc.so.6 /lib/aarch64-linux-gnu/libc.so.6 /lib64/libc.so.6; do
         if [ -f "$_candidate" ]; then
             _host_libc="$_candidate"
             break
@@ -611,10 +613,12 @@ detect_hdf5() {
     HDF5_ROOT="${HDF5_ROOT:-/usr}"
 
     # Find lib directory (Ubuntu stores in hdf5/serial, others in lib64 or lib)
-    if [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial" ]; then
-        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial"
-    elif [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu" ]; then
-        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu"
+    local _ma
+    _ma="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
+    if [ -n "$_ma" ] && [ -d "${HDF5_ROOT}/lib/${_ma}/hdf5/serial" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/${_ma}/hdf5/serial"
+    elif [ -n "$_ma" ] && [ -d "${HDF5_ROOT}/lib/${_ma}" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/${_ma}"
     elif [ -d "${HDF5_ROOT}/lib64" ]; then
         HDF5_LIB_DIR="${HDF5_ROOT}/lib64"
     else
@@ -639,7 +643,7 @@ def get_netcdf_lib_detection() -> str:
     Get reusable NetCDF library path detection snippet.
 
     Sets NETCDF_LIB_DIR and NETCDF_C_LIB_DIR for linking.
-    Handles Debian/Ubuntu x86_64-linux-gnu paths and lib64 paths.
+    Handles Debian/Ubuntu multiarch lib paths (x86_64, aarch64) and lib64 paths.
 
     Returns:
         Shell script snippet for NetCDF library path detection.
@@ -647,10 +651,13 @@ def get_netcdf_lib_detection() -> str:
     return r'''
 # === NetCDF Library Path Detection ===
 detect_netcdf_lib_paths() {
+    local _ma
+    _ma="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
+
     # Find NetCDF-Fortran lib directory
-    if [ -d "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu" ] && \
-       ls "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"/libnetcdff.* >/dev/null 2>&1; then
-        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"
+    if [ -n "$_ma" ] && [ -d "${NETCDF_FORTRAN}/lib/${_ma}" ] && \
+       ls "${NETCDF_FORTRAN}/lib/${_ma}"/libnetcdff.* >/dev/null 2>&1; then
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib/${_ma}"
     elif [ -d "${NETCDF_FORTRAN}/lib64" ] && \
          ls "${NETCDF_FORTRAN}/lib64"/libnetcdff.* >/dev/null 2>&1; then
         NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib64"
@@ -659,9 +666,9 @@ detect_netcdf_lib_paths() {
     fi
 
     # Find NetCDF-C lib directory (may differ from Fortran)
-    if [ -d "${NETCDF_C}/lib/x86_64-linux-gnu" ] && \
-       ls "${NETCDF_C}/lib/x86_64-linux-gnu"/libnetcdf.* >/dev/null 2>&1; then
-        NETCDF_C_LIB_DIR="${NETCDF_C}/lib/x86_64-linux-gnu"
+    if [ -n "$_ma" ] && [ -d "${NETCDF_C}/lib/${_ma}" ] && \
+       ls "${NETCDF_C}/lib/${_ma}"/libnetcdf.* >/dev/null 2>&1; then
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib/${_ma}"
     elif [ -d "${NETCDF_C}/lib64" ] && \
          ls "${NETCDF_C}/lib64"/libnetcdf.* >/dev/null 2>&1; then
         NETCDF_C_LIB_DIR="${NETCDF_C}/lib64"
@@ -1235,7 +1242,8 @@ detect_or_build_flex() {
 
         # Check common system library paths
         if [ "$LIBFL_FOUND" != "true" ]; then
-            for libdir in /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib; do
+            _fl_ma="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
+            for libdir in /usr/lib64 /usr/lib ${_fl_ma:+/usr/lib/${_fl_ma}} /lib64 /lib; do
                 if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
                     echo "System libfl found in: $libdir"
                     LIBFL_FOUND=true

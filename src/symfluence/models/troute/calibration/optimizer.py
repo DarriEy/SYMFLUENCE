@@ -112,11 +112,11 @@ class TRouteModelOptimizer(BaseModelOptimizer):
             ds = xr.open_dataset(output_file)
             results = {}
 
-            # T-Route streamflow variable is usually 'streamflow' or 'velocity'
-            # Check variables
-            flow_var = 'streamflow'
-            if flow_var not in ds and 'velocity' in ds:
-                flow_var = 'velocity' # Fallback if flow not found (unlikely for routing)
+            flow_var = None
+            for candidate in ('flow', 'flowveldepth', 'streamflow', 'velocity'):
+                if candidate in ds:
+                    flow_var = candidate
+                    break
 
             if flow_var in ds:
                 # Return dataframe

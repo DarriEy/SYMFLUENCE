@@ -63,7 +63,7 @@ class BinaryCommands(BaseCommand):
 
         # Handle subprocess errors specifically
         try:
-            success = binary_manager.get_executables(
+            results = binary_manager.get_executables(
                 specific_tools=tools,
                 force=force,
                 patched=patched,
@@ -77,7 +77,22 @@ class BinaryCommands(BaseCommand):
                 traceback.print_exc()
             return ExitCode.BINARY_BUILD_ERROR
 
-        if success:
+        if isinstance(results, dict):
+            failed = results.get("failed", [])
+            successful = results.get("successful", [])
+            skipped = results.get("skipped", [])
+            if failed:
+                BaseCommand._console.error(
+                    f"Tool installation failed for: {', '.join(failed)}"
+                )
+                return ExitCode.BINARY_ERROR
+            elif successful or skipped:
+                BaseCommand._console.success("Tool installation completed successfully")
+                return ExitCode.SUCCESS
+            else:
+                BaseCommand._console.error("Tool installation failed or was incomplete")
+                return ExitCode.BINARY_ERROR
+        elif results:
             BaseCommand._console.success("Tool installation completed successfully")
             return ExitCode.SUCCESS
         else:
