@@ -476,13 +476,9 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
         # from the snap point (observed on LaMAH-ICE id=102: the
         # Magnitude=478 stem sat 124 m from a Magnitude=1 snap).
         try:
-            # Project to a metric CRS for reliable distance-in-metres.
-            # ISN93 (EPSG:3057) is native for Iceland; for other regions
-            # pyproj's estimate_utm_crs would be ideal, but falling back
-            # to a synthetic local projection via `to_crs` keeps the
-            # behaviour consistent.
-            projected = rivers_gdf.to_crs("EPSG:3057")
-            gauge_proj = gpd.GeoSeries([gauge_geom], crs=gauges_gdf.crs).to_crs("EPSG:3057").iloc[0]
+            utm_crs = rivers_gdf.estimate_utm_crs()
+            projected = rivers_gdf.to_crs(utm_crs)
+            gauge_proj = gpd.GeoSeries([gauge_geom], crs=gauges_gdf.crs).to_crs(utm_crs).iloc[0]
             distances_m = projected.geometry.distance(gauge_proj)
             touching = rivers_gdf[distances_m <= SNAP_TOLERANCE_M]
         except Exception as exc:  # noqa: BLE001 — metric projection is best-effort
@@ -793,76 +789,85 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
             tree_path = self.interim_dir / "basin-tree.dat"
             streamnet_watershed_raster = self.interim_dir / "elv-watersheds.tif"
             gage_watershed_raster = self.interim_dir / "watershed.tif"
-            ad8_raster = self.interim_dir / "elv-ad8.tif"
 
-            usable_streamnet_watershed_shp = self._ensure_nonempty_streamnet_watersheds(
-                interim_watershed_shp=interim_watershed_shp,
-                streamnet_watershed_raster=streamnet_watershed_raster,
-            )
-
-            if usable_streamnet_watershed_shp is not None:
-                use_streamnet_selection = False
-                if interim_river_shp.exists():
-                    try:
-                        rivers_preview = gpd.read_file(interim_river_shp)
-                        use_streamnet_selection = len(rivers_preview) > 0
-                    except Exception as e:  # noqa: BLE001
-                        self.logger.warning(
-                            f"Could not read streamnet river shapefile ({e}); will try basin-tree fallback."
-                        )
-
-                if use_streamnet_selection:
-                    watershed_gdf = self._select_lumped_basin_from_streamnet(
-                        interim_watershed_shp=usable_streamnet_watershed_shp,
-                        interim_river_shp=interim_river_shp,
-                        gauges_shp=gauges_shp
-                    )
-                    self.logger.info("Selected lumped basin from streamnet topology before dissolve")
-                else:
-                    self.logger.warning(
-                        "Streamnet river shapefile is empty; trying basin-tree-based upstream selection before any fallback."
-                    )
-                    watershed_gdf = self._select_lumped_basin_from_tree_only(
-                        interim_watershed_shp=usable_streamnet_watershed_shp,
-                        gauges_shp=gauges_shp,
-                        tree_path=tree_path
-                    )
-                    self.logger.info("Selected lumped basin from basin-tree topology before dissolve")
-            else:
+            # Primary path: polygonize the gagewatershed raster. This is the
+            # pixel-accurate drainage area to the pour point and avoids the
+            # streamnet polygon issue where the outlet sub-watershed extends
+            # downstream of the gauge.
+            watershed_gdf = None
+            if gage_watershed_raster.exists():
                 try:
-                    self.logger.warning(
-                        "Positive-ID streamnet watershed polygonization is unavailable; trying valid-mask polygonization of elv-watersheds.tif before gagewatershed fallback."
-                    )
-                    watershed_gdf = self._polygonize_valid_streamnet_watershed_mask(streamnet_watershed_raster)
-                    self.logger.info("Recovered lumped basin from valid non-nodata streamnet watershed mask")
-                except Exception as e:  # noqa: BLE001
-                    self.logger.warning(
-                        f"Valid-mask streamnet watershed recovery failed ({e}); falling back to snapped gagewatershed raster polygonization."
-                    )
                     self.gdal.raster_to_polygon(gage_watershed_raster, watershed_shp_path)
                     watershed_gdf = gpd.read_file(watershed_shp_path)
 
                     if watershed_gdf.empty:
-                        raise RuntimeError("Fallback gagewatershed polygonization produced an empty lumped basin") from None
+                        self.logger.warning("Gagewatershed polygonization produced an empty result; falling back to streamnet")
+                        watershed_gdf = None
+                    else:
+                        if watershed_gdf.crs is None:
+                            watershed_gdf = watershed_gdf.set_crs("EPSG:4326")
 
-                    if watershed_gdf.crs is None:
-                        watershed_gdf = watershed_gdf.set_crs("EPSG:4326")
-                        self.logger.info("Assigned EPSG:4326 to fallback lumped watershed polygons")
+                        if len(watershed_gdf) > 1:
+                            self.logger.info(
+                                f"Dissolving {len(watershed_gdf)} gagewatershed polygons into single lumped basin"
+                            )
+                            watershed_gdf["dissolve_key"] = 1
+                            watershed_gdf = watershed_gdf.dissolve(by="dissolve_key").reset_index(drop=True)
+                            watershed_gdf = watershed_gdf.drop(columns=["dissolve_key"], errors="ignore")
 
-                    if len(watershed_gdf) > 1:
-                        self.logger.info(
-                            f"Dissolving {len(watershed_gdf)} fallback watershed polygons into single lumped basin"
+                        self.logger.info("Selected lumped basin from gagewatershed raster (pixel-accurate drainage area)")
+                except Exception as e:  # noqa: BLE001
+                    self.logger.warning(f"Gagewatershed polygonization failed ({e}); falling back to streamnet")
+                    watershed_gdf = None
+
+            # Fallback: dissolve streamnet sub-watershed polygons upstream of
+            # the outlet. Less accurate (outlet polygon extends past gauge)
+            # but works when gagewatershed is unavailable.
+            if watershed_gdf is None:
+                usable_streamnet_watershed_shp = self._ensure_nonempty_streamnet_watersheds(
+                    interim_watershed_shp=interim_watershed_shp,
+                    streamnet_watershed_raster=streamnet_watershed_raster,
+                )
+
+                if usable_streamnet_watershed_shp is not None:
+                    use_streamnet_selection = False
+                    if interim_river_shp.exists():
+                        try:
+                            rivers_preview = gpd.read_file(interim_river_shp)
+                            use_streamnet_selection = len(rivers_preview) > 0
+                        except Exception as e:  # noqa: BLE001
+                            self.logger.warning(
+                                f"Could not read streamnet river shapefile ({e}); will try basin-tree fallback."
+                            )
+
+                    if use_streamnet_selection:
+                        watershed_gdf = self._select_lumped_basin_from_streamnet(
+                            interim_watershed_shp=usable_streamnet_watershed_shp,
+                            interim_river_shp=interim_river_shp,
+                            gauges_shp=gauges_shp
                         )
-                        watershed_gdf["dissolve_key"] = 1
-                        watershed_gdf = watershed_gdf.dissolve(by="dissolve_key").reset_index(drop=True)
-                        watershed_gdf = watershed_gdf.drop(columns=["dissolve_key"], errors="ignore")
-                        self.logger.info(f"Dissolved to {len(watershed_gdf)} feature(s)")
-
-                    self._warn_if_fallback_area_looks_inconsistent(
-                        watershed_gdf=watershed_gdf,
-                        gauges_shp=gauges_shp,
-                        ad8_raster=ad8_raster
-                    )
+                        self.logger.info("Selected lumped basin from streamnet topology (fallback)")
+                    else:
+                        self.logger.warning(
+                            "Streamnet river shapefile is empty; trying basin-tree-based upstream selection."
+                        )
+                        watershed_gdf = self._select_lumped_basin_from_tree_only(
+                            interim_watershed_shp=usable_streamnet_watershed_shp,
+                            gauges_shp=gauges_shp,
+                            tree_path=tree_path
+                        )
+                        self.logger.info("Selected lumped basin from basin-tree topology (fallback)")
+                else:
+                    try:
+                        self.logger.warning(
+                            "Streamnet watershed polygons unavailable; trying valid-mask polygonization of elv-watersheds.tif."
+                        )
+                        watershed_gdf = self._polygonize_valid_streamnet_watershed_mask(streamnet_watershed_raster)
+                        self.logger.info("Recovered lumped basin from valid non-nodata streamnet watershed mask")
+                    except Exception as e:  # noqa: BLE001
+                        raise RuntimeError(
+                            "All lumped basin delineation strategies failed: gagewatershed, streamnet, and valid-mask."
+                        ) from e
 
             if watershed_gdf.crs is None:
                 watershed_gdf = watershed_gdf.set_crs("EPSG:4326")

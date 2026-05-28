@@ -62,9 +62,13 @@ cd SYMFLUENCE
 
 # Use built-in installer
 ./scripts/symfluence-bootstrap --install
+source venv/bin/activate
+
+# Build model binaries (bootstrap installs Python deps but not binaries)
+symfluence binary install
 ```
 
-This creates a clean Python 3.11 virtual environment, installs dependencies, and builds binaries.
+This creates a clean Python 3.11 virtual environment and installs dependencies. The separate `binary install` step compiles model binaries (SUMMA, FUSE, NGEN, etc.) from source.
 For detailed instructions (ARC, FIR, Anvil, custom builds), see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
 ### npm (Optional — Experimental)
@@ -85,7 +89,8 @@ symfluence binary doctor
 - **Linux**: Ubuntu 22.04+, RHEL 9+, or Debian 12+ (x86_64)
 - **macOS**: macOS 12+ (Apple Silicon M1/M2/M3)
 
-> **Note:** The npm package is an alternative distribution channel for pre-built binaries.
+> **Note:** The npm package bundles pre-built model binaries and auto-installs the Python CLI
+> via its `postinstall` hook (requires Python 3.11+ and `pip`/`uv` on the system).
 > The Python package (`pip`/`uv`) is the primary installation method.
 
 ### System Requirements
@@ -275,20 +280,6 @@ Source-compile methods (`source`, `source-manual`) take 30+ minutes natively and
 - **Need pre-compiled binaries (no host build toolchain)**: `npm-fixed`. Linux x86_64 and macOS ARM64 only.
 - **Developing on the project**: `source --target manual` so the venv contains an editable install of your local checkout.
 - **Avoid for now**: the unmodified `Dockerfile` files. They are kept as a record of what the docs literally say; they're not meant to be used directly.
-
-### Upstream issues the workarounds paper over
-
-These are the bugs `Dockerfile.fixed` works around. When they are fixed upstream, the corresponding workaround can be removed.
-
-- `_build.sh` host-libc probe omits aarch64 paths (`/lib/aarch64-linux-gnu/libc.so.6`); falsely triggers a static-link "workaround" that breaks `cmake`.
-- `_build.sh` static-link fallback passes `-static-libstdc++` as a top-level CMake argument instead of via `CMAKE_EXE_LINKER_FLAGS`.
-- `ngen` `_build.sh` doesn't set `Boost_NO_SYSTEM_PATHS=ON` despite specifying `BOOST_ROOT`, so cmake picks up Debian's libboost 1.74 over the 1.79 the script downloads.
-- `fuse` Makefile assumes `-L/usr/lib -lhdf5` finds plain-named `libhdf5.so` (Debian multi-arch installs it as `libhdf5_serial.so` under `/usr/lib/<arch>/`).
-- `symfluence binary install` exits 0 even with tool failures, masking partial-build problems in CI.
-- `symfluence binary info` reports "No toolchain metadata found" even when `binary doctor` reads the same file successfully.
-- The npm package is presented in the README as a self-contained install but is actually a wrapper that needs the Python CLI installed separately.
-- The `bootstrap` install path documented in installation.html doesn't run `symfluence binary install`; users get a working CLI with no model binaries.
-- Pip-installed `h5py` and `netCDF4` wheels bundle different `libhdf5` builds, causing runtime warnings (avoidable only by switching to conda).
 
 ---
 

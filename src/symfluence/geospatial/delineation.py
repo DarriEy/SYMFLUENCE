@@ -537,16 +537,61 @@ class DomainDelineator(PathResolverMixin):
         """
         try:
             self.logger.info("Delineating lumped domain into subcatchments")
-            # Use GeofabricDelineator to delineate the lumped domain
+
+            # Back up original lumped shapefiles before delineation overwrites them
+            river_net_dir = self.project_dir / "shapefiles" / "river_network"
+            river_bas_dir = self.project_dir / "shapefiles" / "river_basins"
+            lumped_net = river_net_dir / f"{self.domain_name}_riverNetwork_lumped.shp"
+            lumped_bas = river_bas_dir / f"{self.domain_name}_riverBasins_lumped.shp"
+
+            import shutil
+            lumped_net_bak = lumped_net.with_suffix('.shp.bak') if lumped_net.exists() else None
+            lumped_bas_bak = lumped_bas.with_suffix('.shp.bak') if lumped_bas.exists() else None
+            if lumped_net_bak:
+                for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                    src = lumped_net.with_suffix(ext)
+                    if src.exists():
+                        shutil.copy2(src, src.with_suffix(ext + '.bak'))
+            if lumped_bas_bak:
+                for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                    src = lumped_bas.with_suffix(ext)
+                    if src.exists():
+                        shutil.copy2(src, src.with_suffix(ext + '.bak'))
+
+            # delineate_geofabric() writes to _lumped suffix (domain_definition_method)
             delineated_network, delineated_basins = self.delineator.delineate_geofabric()
 
             if delineated_network and delineated_basins:
-                self.logger.info(f"Created delineated river network: {delineated_network}")
-                self.logger.info(f"Created delineated river basins: {delineated_basins}")
+                # Rename delineated output from _lumped to _delineate suffix
+                # so topology generators can find them without conflicting with the originals
+                final_net = river_net_dir / f"{self.domain_name}_riverNetwork_delineate.shp"
+                final_bas = river_bas_dir / f"{self.domain_name}_riverBasins_delineate.shp"
+
+                for src_base, dst_base in [(delineated_network, final_net), (delineated_basins, final_bas)]:
+                    for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                        src = src_base.with_suffix(ext)
+                        if src.exists():
+                            shutil.copy2(src, dst_base.with_suffix(ext))
+
+                # Restore original lumped shapefiles
+                if lumped_net_bak:
+                    for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                        bak = lumped_net.with_suffix(ext + '.bak')
+                        if bak.exists():
+                            shutil.move(str(bak), str(lumped_net.with_suffix(ext)))
+                if lumped_bas_bak:
+                    for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
+                        bak = lumped_bas.with_suffix(ext + '.bak')
+                        if bak.exists():
+                            shutil.move(str(bak), str(lumped_bas.with_suffix(ext)))
+
+                self.logger.info(f"Delineated river network: {final_net}")
+                self.logger.info(f"Delineated river basins: {final_bas}")
+                return final_net, final_bas
             else:
                 self.logger.warning("Geofabric delineation did not produce expected outputs")
+                return None, None
 
-            return delineated_network, delineated_basins
         except Exception as e:  # noqa: BLE001 — geospatial resilience
             self.logger.error(f"Error delineating lumped domain: {str(e)}")
             import traceback
