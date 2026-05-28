@@ -39,7 +39,7 @@ jobs:
           - os: macos-latest  # ARM Mac (M1/M2)
             platform: macos-arm64
             python-version: '3.11'
-          - os: windows-latest
+          - os: windows-2022
             platform: windows-x86_64
             python-version: '3.11'
 
@@ -139,20 +139,23 @@ jobs:
         with:
           auto-update-conda: false
           channels: conda-forge
+          conda-remove-defaults: true
           python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
           # Core build dependencies (pip required — latest Miniconda no longer bundles it)
-          conda install -y pip gcc gfortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
+          # Use m2w64-* packages for native Windows compilers (conda-forge's gcc/gfortran
+          # are POSIX cross-compiler stubs that can't produce Windows binaries)
+          conda install -y pip m2w64-gcc m2w64-gcc-fortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
 
           # Expose CONDA_PREFIX so symfluence dependency checker finds conda-installed libs
           echo "CONDA_PREFIX=$CONDA_PREFIX" >> $GITHUB_ENV
 
-          echo "CC=gcc" >> $GITHUB_ENV
-          echo "CXX=g++" >> $GITHUB_ENV
-          echo "FC=gfortran" >> $GITHUB_ENV
+          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+          echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
+          echo "FC=x86_64-w64-mingw32-gfortran" >> $GITHUB_ENV
           echo "SYMFLUENCE_NO_VENV=true" >> $GITHUB_ENV
           echo "SYMFLUENCE_PYTHON=python" >> $GITHUB_ENV
 
