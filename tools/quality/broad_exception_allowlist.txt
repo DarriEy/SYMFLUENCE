@@ -190,10 +190,11 @@ src/symfluence/data/acquisition/handlers/modis_lst.py:MODISLSTAcquirer._download
 src/symfluence/data/acquisition/handlers/modis_lst.py:MODISLSTAcquirer._download_results:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/modis_lst.py:MODISLSTAcquirer._get_appeears_token:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/modis_lst.py:MODISLSTAcquirer._submit_task:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._download_ftp:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._download_ftp:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._download_http:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._rclone_copy_batch:except Exception as e:  # noqa: BLE001
+src/symfluence/data/acquisition/handlers/mswep.py:MSWEPAcquirer._verify_rclone_access:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/nex_gddp.py:NEXGDDPCHandler.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/nldas.py:NLDASAcquirer._download_day:except Exception as e:  # noqa: BLE001
+src/symfluence/data/acquisition/handlers/nldas.py:NLDASAcquirer._get_authenticated_session:except Exception:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/openet.py:OpenETAcquirer._request_timeseries:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer._create_earthdata_session:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
