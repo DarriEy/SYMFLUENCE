@@ -60,6 +60,7 @@
    :hidden:
 
    installation
+   docker
    getting_started
    examples
 
