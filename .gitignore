@@ -185,3 +185,9 @@ papers/
 settings/
 default/
 domain_domain/
+
+# Local Claude Code skills/config (not shared)
+.claude/
+
+# Local education/teaching drafts (not shared)
+education/
