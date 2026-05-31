@@ -38,6 +38,7 @@ _handler_modules = [
     'grace',
     'grdc',
     'glacier',
+    'modis',
     'modis_sca',
     'modis_et',
     'modis_lai',
@@ -81,6 +82,8 @@ _handler_modules = [
     'glwd',
     'root_zone_storage',
     'wokam',
+    # NLDAS-2
+    'nldas',
     # NWM retrospective
     'nwm3_retrospective',
     # CAMELS-SPAT profile handlers
