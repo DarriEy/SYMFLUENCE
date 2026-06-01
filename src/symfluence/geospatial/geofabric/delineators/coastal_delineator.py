@@ -201,6 +201,19 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 coastal_watersheds[coastal_cols]
             ])
 
+            # Optionally despike: the coastal-strip division (buffer/overlay in a
+            # geographic CRS) and the inherited base watersheds can carry thin
+            # tentacle artifacts. Strip them before writing the final geofabric.
+            despike = self._get_config_value(
+                lambda: self.config.geofabric.despike_basin_geometry,
+                default=False,
+                dict_key='DESPIKE_BASIN_GEOMETRY',
+            )
+            if despike:
+                n_before = len(combined_basins)
+                combined_basins = GeometryProcessor.despike_geodataframe(combined_basins)
+                self.logger.info(f"Despiked combined basin geometry ({n_before} basins)")
+
             # Save combined results
             combined_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_with_coastal.shp"
             combined_basins.to_file(combined_basins_path)
