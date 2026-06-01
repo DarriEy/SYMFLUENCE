@@ -110,6 +110,14 @@ baseflow = [
 r = [
   "rpy2>=3.5.0,<4.0.0",
 ]
+# Climate classification attributes (Koppen-Geiger, Holdridge, Thornthwaite).
+# Pulls the standalone `climaclass` package from PyPI; its bundled SYMFLUENCE
+# attribute-processor plugin is discovered automatically via the
+# `symfluence.attribute_processors` entry point during acquire_attributes.
+# Install via: uv pip install "symfluence[climate-classification]"
+climate-classification = [
+  "climaclass[symfluence]>=0.2.0",
+]
 # Development tools
 dev = [
   "ruff>=0.1.0",
