@@ -96,6 +96,53 @@ class attributeProcessor(ConfigMixin):
             current_results = {}
         return self.hydrology.enhance_river_network_analysis(current_results)
 
+    def _process_plugin_attributes(self) -> Dict[str, Any]:
+        """Run attribute processors contributed by external packages.
+
+        Plugins advertise themselves under the ``symfluence.attribute_processors``
+        entry-point group and run automatically during ``acquire_attributes``.
+        Control via config:
+
+        * ``ATTRIBUTE_PLUGINS_ENABLED`` (bool, default ``True``) - master switch.
+        * ``ATTRIBUTE_PLUGINS_EXCLUDE`` (list[str], default ``[]``) - plugin
+          names to skip.
+
+        A plugin that errors is logged and skipped; it never aborts the run.
+        """
+        results: Dict[str, Any] = {}
+
+        enabled = self._get_config_value(
+            lambda: self.config.attributes.plugins_enabled,
+            default=True,
+            dict_key='ATTRIBUTE_PLUGINS_ENABLED',
+        )
+        if not enabled:
+            return results
+
+        from .attribute_processors.plugins import discover_attribute_plugins
+
+        exclude = self._get_config_value(
+            lambda: self.config.attributes.plugins_exclude,
+            default=[],
+            dict_key='ATTRIBUTE_PLUGINS_EXCLUDE',
+        ) or []
+        exclude = set(exclude)
+
+        for name, cls in discover_attribute_plugins(self.logger):
+            if name in exclude:
+                self.logger.info(f"Skipping excluded attribute plugin '{name}'")
+                continue
+            try:
+                self.logger.info(f"Processing attributes from plugin '{name}'")
+                plugin_results = cls(self._config, self.logger).process()
+                if plugin_results:
+                    results.update(plugin_results)
+                    self.logger.info(f"Plugin '{name}' contributed {len(plugin_results)} attributes")
+            except Exception as e:  # noqa: BLE001 — a plugin must not break attribute processing
+                self.logger.warning(f"Attribute plugin '{name}' failed and was skipped: {e}")
+
+        return results
+
     # Main processing method
     def process_attributes(self) -> pd.DataFrame:
         """
@@ -141,6 +188,11 @@ class attributeProcessor(ConfigMixin):
             self.logger.info("Processing hydrological attributes")
             hydrology_results = self.hydrology.process()
             all_results.update(hydrology_results)
+
+            # Process externally-registered attribute plugins (e.g. climaclass
+            # climate classification). Discovered via entry points; opt-out only.
+            plugin_results = self._process_plugin_attributes()
+            all_results.update(plugin_results)
 
             # Convert to DataFrame
             if all_results:
