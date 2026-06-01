@@ -543,4 +543,6 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         }, path)
 
     def _load_model_checkpoint(self, path: Path):
-        return torch.load(path, map_location=self.device)
+        # weights_only=True prevents arbitrary code execution when deserializing
+        # an untrusted checkpoint (CVE-2025-32434 lineage).
+        return torch.load(path, map_location=self.device, weights_only=True)
