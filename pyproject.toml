@@ -116,7 +116,7 @@ r = [
 # `symfluence.attribute_processors` entry point during acquire_attributes.
 # Install via: uv pip install "symfluence[climate-classification]"
 climate-classification = [
-  "climaclass[symfluence]>=0.1.0",
+  "climaclass[symfluence]>=0.2.0",
 ]
 # Development tools
 dev = [
