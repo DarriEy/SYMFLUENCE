@@ -311,16 +311,36 @@ jobs:
             echo "  No lib/ directory found"
           fi
 
-          # Test binaries run without original install directory
-          echo "-> Testing SUMMA..."
-          if [ -f "./symfluence-tools/bin/summa" ] || [ -f "./symfluence-tools/bin/summa.exe" ]; then
-            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
-          fi
+          # A relocated binary is broken if it cannot resolve its shared
+          # libraries. Detect that explicitly instead of swallowing the result
+          # with `|| echo`, which hid genuine relocation failures. Covers both
+          # unix loader errors (dyld / "library not loaded" / ...) and Windows
+          # DLL-load failures ("code execution cannot proceed" / 0xC0000135,
+          # which also typically produce no stdout — caught by the empty-output
+          # branch). Non-zero --version/--help exit codes are tolerated.
+          check_relocated() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ] && [ ! -f "$bin.exe" ]; then
+              echo "  (skipping $name — not present in this build)"
+              return 0
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"; then
+              echo "::error::$name failed to load shared libraries after relocation"
+              return 1
+            fi
+            if [ -z "$out" ]; then
+              echo "::error::$name produced no output after relocation (likely failed to start / missing library)"
+              return 1
+            fi
+            echo "  ✓ $name runs after relocation"
+          }
 
-          echo "-> Testing NGEN..."
-          if [ -f "./symfluence-tools/bin/ngen" ] || [ -f "./symfluence-tools/bin/ngen.exe" ]; then
-            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
-          fi
+          # Test binaries run without their original install directory
+          echo "-> Testing SUMMA...";  check_relocated SUMMA ./symfluence-tools/bin/summa --version
+          echo "-> Testing NGEN...";   check_relocated NGEN  ./symfluence-tools/bin/ngen --help
 
           echo "Relocatability test complete"
 
@@ -585,16 +605,35 @@ jobs:
 
       - name: Test binary execution
         run: |
+          set -e
           BIN_DIR=$(symfluence path)
 
-          echo "Testing SUMMA..."
-          "$BIN_DIR/summa" --version 2>&1 | head -5 || echo "  SUMMA help displayed"
+          # Fail on loader errors (unix or Windows DLL load) or no output at all,
+          # rather than swallowing a broken binary with `|| echo`. Non-zero
+          # --version/--help exit codes are tolerated.
+          check_binary() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ] && [ ! -f "$bin.exe" ]; then
+              echo "::error::$name binary not found at $bin"
+              return 1
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"; then
+              echo "::error::$name failed to load shared libraries"
+              return 1
+            fi
+            if [ -z "$out" ]; then
+              echo "::error::$name produced no output (likely failed to start / missing library)"
+              return 1
+            fi
+            echo "  ✓ $name is executable"
+          }
 
-          echo "Testing mizuRoute..."
-          "$BIN_DIR/mizuroute" --help 2>&1 | head -5 || echo "  mizuRoute help displayed"
-
-          echo "Testing NGEN..."
-          "$BIN_DIR/ngen" --version 2>&1 | head -5 || echo "  NGEN version displayed"
+          echo "Testing SUMMA...";     check_binary SUMMA     "$BIN_DIR/summa"     --version
+          echo "Testing mizuRoute..."; check_binary mizuRoute "$BIN_DIR/mizuroute" --help
+          echo "Testing NGEN...";      check_binary NGEN      "$BIN_DIR/ngen"      --version
 
           echo "All critical binaries are executable"
 
