@@ -72,6 +72,13 @@ def main():
         return 1
     except Exception as e:  # noqa: BLE001 — top-level fallback
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
+        # Honor --debug / SYMFLUENCE_DEBUG so the traceback is recoverable on this
+        # fallback path too (the CLI's own exception decorator handles tracebacks
+        # for dispatched commands; this catch-all otherwise swallows them).
+        import os
+        if '--debug' in sys.argv or os.environ.get('SYMFLUENCE_DEBUG'):
+            import traceback
+            traceback.print_exc()
         return 1
 
 if __name__ == "__main__":

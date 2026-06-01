@@ -38,6 +38,7 @@ _handler_modules = [
     'grace',
     'grdc',
     'glacier',
+    'modis',
     'modis_sca',
     'modis_et',
     'modis_lai',
