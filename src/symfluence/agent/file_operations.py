@@ -299,12 +299,29 @@ class FileOperations:
             return (self.repo_root / file_path).resolve()
 
     def _is_allowed_read(self, full_path: Path) -> bool:
-        """Check if a path is allowed for reading."""
+        """Check if a path is allowed for reading.
+
+        A path must live inside the repo AND must not touch a blocked location.
+        Blocking is by path *component* (so files anywhere under ``.git/``,
+        ``.github/`` or a ``.env`` are caught, not only an exact filename match)
+        and by sensitive-secret glob (private keys, env files).
+        """
         try:
-            full_path.relative_to(self.repo_root)
-            return True
+            rel = full_path.relative_to(self.repo_root)
         except ValueError:
             return False
+
+        # Reject if any path component is a blocked location (catches .git/
+        # subdirectories, .github/, etc., not just a top-level filename).
+        if any(part in self.BLOCKED_FILES for part in rel.parts):
+            return False
+
+        # Reject sensitive secret files regardless of directory.
+        name = full_path.name
+        if name.endswith(('.pem', '.key')) or name == '.env' or name.startswith('.env.'):
+            return False
+
+        return True
 
     def _is_allowed_write(self, full_path: Path) -> bool:
         """Check if a path is allowed for writing."""

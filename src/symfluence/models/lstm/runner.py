@@ -674,7 +674,9 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         self.logger.info(f"Loading LSTM model from {path}")
         if not path.exists():
             raise FileNotFoundError(f"Model checkpoint not found at {path}")
-        return torch.load(path, map_location=self.device)
+        # weights_only=True prevents arbitrary code execution when deserializing
+        # an untrusted checkpoint (CVE-2025-32434 lineage).
+        return torch.load(path, map_location=self.device, weights_only=True)
 
     def _log_memory_usage(self):
         """Log current memory usage."""
