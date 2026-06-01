@@ -382,6 +382,18 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         # Process geofabric one more time to ensure consistency
         basins, rivers = self._process_geofabric(basins, rivers)
 
+        # Optionally strip thin watershed-delineation "tentacle" artifacts that
+        # gdal.Polygonize traces from 1-pixel flow-routing leaks toward the coast.
+        despike = self._get_config_value(
+            lambda: self.config.geofabric.despike_basin_geometry,
+            default=False,
+            dict_key='DESPIKE_BASIN_GEOMETRY',
+        )
+        if despike:
+            n_before = len(basins)
+            basins = GeometryProcessor.despike_geodataframe(basins)
+            self.logger.info(f"Despiked basin geometry ({n_before} basins) before saving")
+
         # Save files
         basins.to_file(basins_path)
         rivers.to_file(rivers_path)
