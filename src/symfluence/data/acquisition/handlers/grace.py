@@ -9,6 +9,8 @@ Retrieves data from NASA PO.DAAC or similar cloud-hosted repositories.
 """
 import netrc
 import os
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -17,6 +19,39 @@ import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
+
+@lru_cache(maxsize=1)
+def _ca_bundle() -> str:
+    """Path to a CA bundle of certifi roots plus vendored intermediates.
+
+    Some GRACE hosts (notably download.csr.utexas.edu) serve an incomplete
+    certificate chain that omits a valid Sectigo intermediate. Rather than
+    disabling TLS verification, we append the missing intermediate(s) — each
+    of which chains to a root already in certifi — so verification still
+    succeeds against a complete trust path. Falls back to certifi alone if the
+    vendored certs cannot be read.
+    """
+    import certifi
+
+    certs_dir = Path(__file__).resolve().parents[3] / "resources" / "certs"
+    try:
+        with open(certifi.where(), encoding="utf-8") as f:
+            bundle = f.read()
+        extra = "".join(
+            p.read_text(encoding="utf-8") for p in sorted(certs_dir.glob("*.pem"))
+        )
+        if not extra:
+            return certifi.where()
+        tmp = tempfile.NamedTemporaryFile(
+            "w", suffix=".pem", prefix="symfluence_ca_", delete=False, encoding="utf-8"
+        )
+        tmp.write(bundle + "\n" + extra)
+        tmp.flush()
+        tmp.close()
+        return tmp.name
+    except OSError:
+        return certifi.where()
 
 
 @AcquisitionRegistry.register('GRACE')
@@ -87,10 +122,10 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 session = requests.Session()
                 if earthdata_auth and center == 'jpl':
                     session.auth = earthdata_auth
-                # TLS verification is left enabled. If the upstream (e.g. CSR)
-                # server presents an untrusted certificate, resolve the trust
-                # chain (a pinned CA bundle / certifi) rather than disabling
-                # verification globally.
+                # TLS verification stays enabled. Some hosts (e.g. CSR) serve an
+                # incomplete chain, so we verify against certifi plus the vendored
+                # intermediate(s) rather than disabling verification globally.
+                session.verify = _ca_bundle()
                 with session.get(url, stream=True, timeout=120) as r:
                     r.raise_for_status()
                     with open(target_file, 'wb') as f:
