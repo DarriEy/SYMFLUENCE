@@ -350,7 +350,7 @@ jobs:
           # Install GDAL Python bindings matching system version
           # Note: Check Windows first — conda's gdal-config is not bash-compatible
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
+            conda install -c conda-forge gdal -y
           elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
@@ -359,10 +359,13 @@ jobs:
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
-            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e ".[test]" || pip install -e . || pip install .
+            # Surgically drop only the "gdal" dependency token so the TOML
+            # stays valid (a line-filter corrupts it, yielding a 0.0.0 install
+            # with no dependencies). Mirrors the unit-test job.
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll][^\"]*\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            pip install -e ".[test]"
           else
-            pip install -e ".[test]" || pip install -e .
+            pip install -e ".[test]"
           fi
 
       - name: Validate binaries
@@ -669,7 +672,7 @@ jobs:
           # Install GDAL Python bindings matching system version
           # Note: Check Windows first — conda's gdal-config is not bash-compatible
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
+            conda install -c conda-forge gdal -y
           elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
@@ -677,10 +680,13 @@ jobs:
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e ".[test]" || pip install -e . || pip install .
+            # Surgically drop only the "gdal" dependency token so the TOML
+            # stays valid (a line-filter corrupts it, yielding a 0.0.0 install
+            # with no dependencies). Mirrors the unit-test job.
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll][^\"]*\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            pip install -e ".[test]"
           else
-            pip install -e ".[test]" || pip install -e .
+            pip install -e ".[test]"
           fi
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist
