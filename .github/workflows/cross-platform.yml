@@ -119,7 +119,7 @@ jobs:
             conda activate test-env
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing tests/unit/
+          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=15 tests/unit/
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()
@@ -371,7 +371,7 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
           fi
-          pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation || echo "Binary validation completed with warnings"
+          pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation
 
       # =====================================================================
       # PHASE 1: Generate Release Artifacts (macOS only)
@@ -692,7 +692,7 @@ jobs:
             conda activate test-env
           fi
           # Run integration tests in parallel (skip slow tests that download large datasets)
-          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/ || echo "Integration tests completed"
+          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/
 
       - name: Upload test outputs (on failure)
         if: failure()

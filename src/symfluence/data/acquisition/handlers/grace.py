@@ -87,8 +87,11 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 session = requests.Session()
                 if earthdata_auth and center == 'jpl':
                     session.auth = earthdata_auth
-                # Use verify=False to bypass SSL errors (e.g. CSR)
-                with session.get(url, stream=True, timeout=120, verify=False) as r:
+                # TLS verification is left enabled. If the upstream (e.g. CSR)
+                # server presents an untrusted certificate, resolve the trust
+                # chain (a pinned CA bundle / certifi) rather than disabling
+                # verification globally.
+                with session.get(url, stream=True, timeout=120) as r:
                     r.raise_for_status()
                     with open(target_file, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=8192):
