@@ -115,8 +115,28 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             # Run TauDEM workflow
             self._run_taudem_workflow(pour_point_path)
 
-            # Convert raster watersheds to polygon shapefile
-            self.gdal.run_gdal_processing(self.interim_dir)
+            # Convert raster watersheds to polygon shapefile. For coastal domains,
+            # mask the sea (flat 0-elevation in coastal DEMs) from the watershed
+            # raster first — otherwise TauDEM routes the ocean into thin radial
+            # tentacle basins reaching the domain edge. Defaults to the coastal
+            # flag, overridable via MASK_OCEAN_WATERSHEDS.
+            mask_ocean = self._get_config_value(
+                lambda: self.config.geofabric.mask_ocean_watersheds,
+                default=None,
+                dict_key='MASK_OCEAN_WATERSHEDS',
+            )
+            if mask_ocean is None:
+                mask_ocean = self._get_config_value(
+                    lambda: self.config.domain.delineation.delineate_coastal_watersheds,
+                    default=False,
+                    dict_key='DELINEATE_COASTAL_WATERSHEDS',
+                )
+            sea_level = self._get_config_value(
+                lambda: self.config.geofabric.sea_level_threshold,
+                default=0.0,
+                dict_key='SEA_LEVEL_THRESHOLD',
+            )
+            self.gdal.run_gdal_processing(self.interim_dir, mask_ocean=bool(mask_ocean), sea_level=float(sea_level))
 
             # Subset upstream geofabric
             river_network_path, river_basins_path = self._subset_upstream_geofabric(pour_point_path)
