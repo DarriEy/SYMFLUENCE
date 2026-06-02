@@ -86,14 +86,17 @@ __all__ = [
 # Register all MHM components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "MHM",
-    preprocessor=MHMPreProcessor,
-    runner=MHMRunner,
-    result_extractor=MHMResultExtractor,
-    config_adapter=MHMConfigAdapter,
-    build_instructions_module="symfluence.models.mhm.build_instructions",
-)
+
+def register() -> None:
+    """Register MHM components with the unified registry."""
+    model_manifest(
+        "MHM",
+        preprocessor=MHMPreProcessor,
+        runner=MHMRunner,
+        result_extractor=MHMResultExtractor,
+        config_adapter=MHMConfigAdapter,
+        build_instructions_module="symfluence.models.mhm.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

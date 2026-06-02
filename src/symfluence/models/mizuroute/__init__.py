@@ -82,12 +82,15 @@ from symfluence.core.registry import model_manifest
 from .config import MizuRouteConfigAdapter
 from .extractor import MizuRouteResultExtractor
 
-model_manifest(
-    "MIZUROUTE",
-    config_adapter=MizuRouteConfigAdapter,
-    result_extractor=MizuRouteResultExtractor,
-    preprocessor=MizuRoutePreProcessor,
-    runner=MizuRouteRunner,
-    runner_method="run_mizuroute",
-    build_instructions_module="symfluence.models.mizuroute.build_instructions",
-)
+
+def register() -> None:
+    """Register MIZUROUTE components with the unified registry."""
+    model_manifest(
+        "MIZUROUTE",
+        config_adapter=MizuRouteConfigAdapter,
+        result_extractor=MizuRouteResultExtractor,
+        preprocessor=MizuRoutePreProcessor,
+        runner=MizuRouteRunner,
+        runner_method="run_mizuroute",
+        build_instructions_module="symfluence.models.mizuroute.build_instructions",
+    )

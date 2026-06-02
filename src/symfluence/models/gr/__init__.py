@@ -85,8 +85,11 @@ from symfluence.core.registry import model_manifest
 from .config import GRConfigAdapter
 from .extractor import GRResultExtractor
 
-model_manifest(
-    "GR",
-    config_adapter=GRConfigAdapter,
-    result_extractor=GRResultExtractor,
-)
+
+def register() -> None:
+    """Register GR components with the unified registry."""
+    model_manifest(
+        "GR",
+        config_adapter=GRConfigAdapter,
+        result_extractor=GRResultExtractor,
+    )

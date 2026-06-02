@@ -101,11 +101,14 @@ from .config import SUMMAConfigAdapter
 from .extractor import SUMMAResultExtractor
 from .plotter import SUMMAPlotter
 
-model_manifest(
-    "SUMMA",
-    config_adapter=SUMMAConfigAdapter,
-    result_extractor=SUMMAResultExtractor,
-    decision_analyzer=SummaStructureAnalyzer,
-    plotter=SUMMAPlotter,
-    build_instructions_module="symfluence.models.summa.build_instructions",
-)
+
+def register() -> None:
+    """Register SUMMA components with the unified registry."""
+    model_manifest(
+        "SUMMA",
+        config_adapter=SUMMAConfigAdapter,
+        result_extractor=SUMMAResultExtractor,
+        decision_analyzer=SummaStructureAnalyzer,
+        plotter=SUMMAPlotter,
+        build_instructions_module="symfluence.models.summa.build_instructions",
+    )

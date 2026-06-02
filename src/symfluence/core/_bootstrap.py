@@ -168,11 +168,25 @@ def _discover_plugins() -> None:
         # Very old importlib_metadata fallback (shouldn't happen on 3.11+)
         eps = entry_points().get(PLUGIN_ENTRY_POINT_GROUP, [])  # type: ignore[assignment]
 
+    in_tree_loaded = 0
     for ep in eps:
         try:
             plugin_fn = ep.load()
             plugin_fn()
             logger.debug("Loaded plugin %r from %s", ep.name, ep.value)
+            if ep.value.startswith("symfluence.models."):
+                in_tree_loaded += 1
+        except ImportError as exc:
+            # A missing import almost always means an optional dependency isn't
+            # installed (e.g. an MPI/GPU model on a laptop). Keep this quiet —
+            # the same models were debug-logged by the old import loop — so it
+            # doesn't drown the logs on every `import symfluence`.
+            logger.debug(
+                "Plugin %r (%s) not loaded — optional dependency missing: %s",
+                ep.name,
+                ep.value,
+                exc,
+            )
         except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
             logger.warning(
                 "Failed to load symfluence plugin %r (%s); skipping.",
@@ -180,3 +194,16 @@ def _discover_plugins() -> None:
                 ep.value,
                 exc_info=True,
             )
+
+    # In-tree models register through these same entry points (declared in
+    # SYMFLUENCE's own pyproject.toml). Discovering zero of them means the
+    # installed dist metadata predates the entry-point declarations — almost
+    # always a stale editable install. Without this signal the framework would
+    # silently come up with no runnable models. We warn loudly rather than raise
+    # so unusual-but-valid setups (e.g. partial vendoring) are not hard-blocked.
+    if in_tree_loaded == 0:
+        logger.error(
+            "No in-tree SYMFLUENCE models were discovered via entry points. The "
+            "installed package metadata is likely stale — reinstall with "
+            "`pip install -e .` to regenerate it. Model runs will fail until then."
+        )

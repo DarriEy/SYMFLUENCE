@@ -88,14 +88,17 @@ __all__ = [
 # Register all WRF-Hydro components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "WRFHYDRO",
-    preprocessor=WRFHydroPreProcessor,
-    runner=WRFHydroRunner,
-    result_extractor=WRFHydroResultExtractor,
-    config_adapter=WRFHydroConfigAdapter,
-    build_instructions_module="symfluence.models.wrfhydro.build_instructions",
-)
+
+def register() -> None:
+    """Register WRFHYDRO components with the unified registry."""
+    model_manifest(
+        "WRFHYDRO",
+        preprocessor=WRFHydroPreProcessor,
+        runner=WRFHydroRunner,
+        result_extractor=WRFHydroResultExtractor,
+        config_adapter=WRFHydroConfigAdapter,
+        build_instructions_module="symfluence.models.wrfhydro.build_instructions",
+    )
 
 # Register calibration components
 try:

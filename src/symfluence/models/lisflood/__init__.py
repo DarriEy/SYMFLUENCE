@@ -19,14 +19,17 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "LISFLOOD",
-    preprocessor=LisfloodPreProcessor,
-    runner=LisfloodRunner,
-    result_extractor=LisfloodResultExtractor,
-    config_adapter=LisfloodConfigAdapter,
-    build_instructions_module="symfluence.models.lisflood.build_instructions",
-)
+
+def register() -> None:
+    """Register LISFLOOD components with the unified registry."""
+    model_manifest(
+        "LISFLOOD",
+        preprocessor=LisfloodPreProcessor,
+        runner=LisfloodRunner,
+        result_extractor=LisfloodResultExtractor,
+        config_adapter=LisfloodConfigAdapter,
+        build_instructions_module="symfluence.models.lisflood.build_instructions",
+    )
 
 try:
     from .calibration import LisfloodModelOptimizer  # noqa: F401

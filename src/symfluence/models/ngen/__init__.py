@@ -93,10 +93,13 @@ from .config import NgenConfigAdapter
 from .extractor import NGENResultExtractor
 from .plotter import NGENPlotter
 
-model_manifest(
-    "NGEN",
-    config_adapter=NgenConfigAdapter,
-    result_extractor=NGENResultExtractor,
-    plotter=NGENPlotter,
-    build_instructions_module="symfluence.models.ngen.build_instructions",
-)
+
+def register() -> None:
+    """Register NGEN components with the unified registry."""
+    model_manifest(
+        "NGEN",
+        config_adapter=NgenConfigAdapter,
+        result_extractor=NGENResultExtractor,
+        plotter=NGENPlotter,
+        build_instructions_module="symfluence.models.ngen.build_instructions",
+    )

@@ -92,14 +92,17 @@ __all__ = [
 # Register all SWAT components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "SWAT",
-    preprocessor=SWATPreProcessor,
-    runner=SWATRunner,
-    result_extractor=SWATResultExtractor,
-    config_adapter=SWATConfigAdapter,
-    build_instructions_module="symfluence.models.swat.build_instructions",
-)
+
+def register() -> None:
+    """Register SWAT components with the unified registry."""
+    model_manifest(
+        "SWAT",
+        preprocessor=SWATPreProcessor,
+        runner=SWATRunner,
+        result_extractor=SWATResultExtractor,
+        config_adapter=SWATConfigAdapter,
+        build_instructions_module="symfluence.models.swat.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

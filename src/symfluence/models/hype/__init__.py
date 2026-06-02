@@ -91,10 +91,13 @@ from .config import HYPEConfigAdapter
 from .extractor import HYPEResultExtractor
 from .plotter import HYPEPlotter
 
-model_manifest(
-    "HYPE",
-    config_adapter=HYPEConfigAdapter,
-    result_extractor=HYPEResultExtractor,
-    plotter=HYPEPlotter,
-    build_instructions_module="symfluence.models.hype.build_instructions",
-)
+
+def register() -> None:
+    """Register HYPE components with the unified registry."""
+    model_manifest(
+        "HYPE",
+        config_adapter=HYPEConfigAdapter,
+        result_extractor=HYPEResultExtractor,
+        plotter=HYPEPlotter,
+        build_instructions_module="symfluence.models.hype.build_instructions",
+    )
