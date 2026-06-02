@@ -21,12 +21,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('CLM')
+@R.workers.add('CLM')
 class CLMWorker(BaseWorker):
     """
     Worker for CLM5 model calibration.

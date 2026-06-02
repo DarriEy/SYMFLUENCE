@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from symfluence.core.registries import R
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -462,18 +464,16 @@ class TestParFlowRegistration:
 
     def test_parflow_registered(self):
         """Verify ParFlow components are registered."""
-        from symfluence.models.registry import ModelRegistry
 
-        assert ModelRegistry.get_preprocessor('PARFLOW') is not None
-        assert ModelRegistry.get_runner('PARFLOW') is not None
-        assert ModelRegistry.get_result_extractor('PARFLOW') is not None
-        assert ModelRegistry.get_postprocessor('PARFLOW') is not None
+        assert R.preprocessors.get('PARFLOW') is not None
+        assert R.runners.get('PARFLOW') is not None
+        assert R.result_extractors.get('PARFLOW') is not None
+        assert R.postprocessors.get('PARFLOW') is not None
 
     def test_parflow_runner_method(self):
         """Verify runner method name is registered."""
-        from symfluence.models.registry import ModelRegistry
 
-        method = ModelRegistry.get_runner_method('PARFLOW')
+        method = R.runners.meta('PARFLOW').get('runner_method', 'run')
         assert method == 'run_parflow'
 
 
@@ -486,10 +486,9 @@ class TestParFlowPlotter:
 
     def test_plotter_registered(self):
         """Verify ParFlowPlotter is registered in PlotterRegistry."""
-        from symfluence.reporting.plotter_registry import PlotterRegistry
 
-        assert PlotterRegistry.has_plotter('PARFLOW')
-        plotter_cls = PlotterRegistry.get_plotter('PARFLOW')
+        assert ('PARFLOW' in R.plotters)
+        plotter_cls = R.plotters.get('PARFLOW')
         assert plotter_cls is not None
         assert plotter_cls.__name__ == 'ParFlowPlotter'
 

@@ -21,13 +21,13 @@ import pandas as pd
 import xarray as xr
 import yaml
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor, TimeWindowManager
 
 
-@ModelRegistry.register_preprocessor('NGEN')
+@R.preprocessors.add('NGEN')
 class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for NextGen Framework.

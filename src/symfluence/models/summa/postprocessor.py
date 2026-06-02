@@ -15,11 +15,12 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import RoutedModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('SUMMA')
+@R.postprocessors.add('SUMMA')
 class SUMMAPostprocessor(RoutedModelPostprocessor):
     """
     Postprocessor for SUMMA model outputs.

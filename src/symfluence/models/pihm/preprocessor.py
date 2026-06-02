@@ -30,12 +30,12 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("PIHM")
+@R.preprocessors.add("PIHM")
 class PIHMPreProcessor:
     """Generates MM-PIHM input files for lumped groundwater simulation."""
 

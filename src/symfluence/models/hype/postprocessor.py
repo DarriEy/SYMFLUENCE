@@ -11,11 +11,12 @@ Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.2).
 from pathlib import Path
 from typing import Dict
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('HYPE')
+@R.postprocessors.add('HYPE')
 class HYPEPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for HYPE model outputs within SYMFLUENCE.

@@ -16,15 +16,15 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 
+from symfluence.core.registries import R
 from symfluence.coupling.bmi_registry import BMIRegistry
 from symfluence.coupling.graph_builder import CouplingGraphBuilder
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('DCOUPLER')
+@R.workers.add('DCOUPLER')
 class DCouplerWorker(BaseWorker):
     """BaseWorker implementation that delegates to a dCoupler CouplingGraph.
 

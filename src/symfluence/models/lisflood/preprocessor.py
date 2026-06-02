@@ -13,11 +13,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor("LISFLOOD")
+@R.preprocessors.add("LISFLOOD")
 class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Prepares inputs for a LISFLOOD model run."""
 

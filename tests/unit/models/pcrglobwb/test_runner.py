@@ -1,3 +1,5 @@
+from symfluence.core.registries import R
+
 """Tests for PCR-GLOBWB runner."""
 
 
@@ -10,8 +12,7 @@ class TestPCRGLOBWBRunner:
 
     def test_runner_registered_with_registry(self):
         import symfluence.models.pcrglobwb  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'PCRGLOBWB' in ModelRegistry._runners
+        assert 'PCRGLOBWB' in R.runners
 
     def test_model_name(self):
         from symfluence.models.pcrglobwb.runner import PCRGLOBWBRunner

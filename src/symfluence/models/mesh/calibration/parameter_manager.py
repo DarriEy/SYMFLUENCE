@@ -19,13 +19,13 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
-@OptimizerRegistry.register_parameter_manager('MESH')
+@R.parameter_managers.add('MESH')
 class MESHParameterManager(BaseParameterManager):
     """Handles MESH parameter bounds, normalization, and file updates"""
 

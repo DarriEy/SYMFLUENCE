@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestMESHPostProcessorInitialization:
     """Tests for MESH postprocessor initialization."""
@@ -112,18 +114,16 @@ class TestMESHPostProcessorRegistry:
 
     def test_postprocessor_registered_with_registry(self):
         """Test MESH postprocessor is registered with model registry."""
-        from symfluence.models.registry import ModelRegistry
 
         # Check if MESH postprocessor is registered
-        postprocessors = ModelRegistry._postprocessors
+        postprocessors = R.postprocessors
         assert 'MESH' in postprocessors
 
     def test_postprocessor_is_correct_class(self):
         """Test registered postprocessor is MESHPostProcessor."""
         from symfluence.models.mesh.postprocessor import MESHPostProcessor
-        from symfluence.models.registry import ModelRegistry
 
-        postprocessor_class = ModelRegistry._postprocessors.get('MESH')
+        postprocessor_class = R.postprocessors.get('MESH')
         assert postprocessor_class == MESHPostProcessor
 
 

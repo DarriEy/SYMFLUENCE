@@ -20,14 +20,14 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 from ..parameters import PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 
 
-@OptimizerRegistry.register_worker('SWAT')
+@R.workers.add('SWAT')
 class SWATWorker(BaseWorker):
     """
     Worker for SWAT model calibration.

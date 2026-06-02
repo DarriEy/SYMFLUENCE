@@ -17,15 +17,15 @@ from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     pass
 
 
-@OptimizerRegistry.register_calibration_target('RHESSys', 'streamflow')
+@R.calibration_targets.add('RHESSYS_STREAMFLOW')
 class RHESSysStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for RHESSys ecosystem-hydrological model outputs.
 

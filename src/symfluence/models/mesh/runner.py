@@ -17,12 +17,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('MESH', method_name='run_mesh')
+@R.runners.add('MESH', runner_method='run_mesh')
 class MESHRunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner class for the MESH model.

@@ -5,11 +5,12 @@
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('CWATM')
+@R.postprocessors.add('CWATM')
 class CWatMPostProcessor(StandardModelPostprocessor):
     """Postprocessor for CWatM.
 

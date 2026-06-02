@@ -21,12 +21,12 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.profiling import ProfilerContext
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_depth_bounds, get_mizuroute_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('SUMMA')
+@R.parameter_managers.add('SUMMA')
 class SUMMAParameterManager(BaseParameterManager):
     """
     Parameter manager for SUMMA model calibration.

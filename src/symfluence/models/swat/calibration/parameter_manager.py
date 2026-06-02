@@ -20,13 +20,13 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 from ..parameters import PARAM_BOUNDS, PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 
 
-@OptimizerRegistry.register_parameter_manager('SWAT')
+@R.parameter_managers.add('SWAT')
 class SWATParameterManager(BaseParameterManager):
     """Handles SWAT parameter bounds, normalization, and file updates.
 

@@ -23,19 +23,19 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 from ..base import BaseModelPreProcessor
 from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
 
 
-@ModelRegistry.register_preprocessor('FUSE')
+@R.preprocessors.add('FUSE')
 class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.

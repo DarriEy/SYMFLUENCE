@@ -15,17 +15,17 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.plot_utils import (
     calculate_flow_duration_curve,
     calculate_metrics,
 )
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@PlotterRegistry.register_plotter('CLMPARFLOW')
+@R.plotters.add('CLMPARFLOW')
 class CLMParFlowPlotter(BasePlotter):
     """Plotter for CLMParFlow diagnostics.
 

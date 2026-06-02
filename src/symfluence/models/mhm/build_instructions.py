@@ -14,13 +14,13 @@ It requires gfortran and NetCDF-Fortran libraries.
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('mhm')
+@R.build_instructions.add('mhm')
 def get_mhm_build_instructions():
     """
     Get mHM build instructions.

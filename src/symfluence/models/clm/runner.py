@@ -13,11 +13,11 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('CLM')
+@R.runners.add('CLM')
 class CLMRunner(BaseModelRunner):
     """Runner for CLM5 via direct cesm.exe invocation."""
 

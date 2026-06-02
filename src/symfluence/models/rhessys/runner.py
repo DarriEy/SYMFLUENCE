@@ -13,11 +13,11 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('RHESSys')
+@R.runners.add('RHESSys')
 class RHESSysRunner(BaseModelRunner):
     """Runner for the RHESSys model with optional WMFire support."""
 

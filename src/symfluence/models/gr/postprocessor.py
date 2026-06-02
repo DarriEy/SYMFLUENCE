@@ -14,8 +14,9 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseModelPostProcessor
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models
@@ -38,7 +39,7 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
     localconverter = None
 
 
-@ModelRegistry.register_postprocessor('GR')
+@R.postprocessors.add('GR')
 class GRPostprocessor(BaseModelPostProcessor):
     """
     Postprocessor for GR (GR4J/CemaNeige) model outputs.

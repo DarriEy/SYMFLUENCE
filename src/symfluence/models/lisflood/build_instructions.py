@@ -3,10 +3,10 @@
 
 """LISFLOOD build instructions for SYMFLUENCE."""
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register("lisflood")
+@R.build_instructions.add("lisflood")
 def get_lisflood_build_instructions():
     """Get LISFLOOD install instructions.
 

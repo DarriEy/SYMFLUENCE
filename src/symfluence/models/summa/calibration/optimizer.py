@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .parameter_manager import SUMMAParameterManager  # noqa: F401 - trigger param manager registration
 from .worker import SUMMAWorker  # noqa: F401 - trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('SUMMA')
+@R.optimizers.add('SUMMA')
 class SUMMAModelOptimizer(BaseModelOptimizer):
     """
     SUMMA-specific optimizer using the unified BaseModelOptimizer framework.

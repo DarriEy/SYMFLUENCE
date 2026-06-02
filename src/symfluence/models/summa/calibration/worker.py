@@ -12,13 +12,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('SUMMA')
+@R.workers.add('SUMMA')
 class SUMMAWorker(BaseWorker):
     """
     Worker for SUMMA model calibration.

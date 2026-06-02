@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import netCDF4 as nc
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Mapping of FUSE decisions to the parameters they require for meaningful calibration.
 # If a decision is active but its required params are not being calibrated, the model
@@ -43,7 +43,7 @@ DECISION_REQUIRED_PARAMS = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('FUSE')
+@R.parameter_managers.add('FUSE')
 class FUSEParameterManager(BaseParameterManager):
     """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
 

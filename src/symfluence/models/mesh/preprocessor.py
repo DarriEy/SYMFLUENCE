@@ -13,8 +13,9 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.registries import R
+
 from ..base import BaseModelPreProcessor
-from ..registry import ModelRegistry
 from .preprocessing import (
     MESHConfigDefaults,
     MESHConfigGenerator,
@@ -27,7 +28,7 @@ from .preprocessing import (
 )
 
 
-@ModelRegistry.register_preprocessor('MESH')
+@R.preprocessors.add('MESH')
 class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the MESH model.

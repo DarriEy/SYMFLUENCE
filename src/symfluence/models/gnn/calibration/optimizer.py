@@ -11,11 +11,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_optimizer('GNN')
+@R.optimizers.add('GNN')
 class GNNModelOptimizer(BaseModelOptimizer):
     """
     GNN-specific optimizer using the unified BaseModelOptimizer framework.

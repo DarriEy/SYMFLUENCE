@@ -9,7 +9,7 @@ Most models can inherit from this and only define configuration attributes, redu
 boilerplate from 50-150 lines to 10-20 lines.
 
 Usage:
-    @ModelRegistry.register_postprocessor('MYMODEL')
+    @R.postprocessors.add('MYMODEL')
     class MyModelPostprocessor(StandardModelPostprocessor):
         model_name = "MYMODEL"
         output_file_pattern = "{domain}_{experiment}_output.nc"
