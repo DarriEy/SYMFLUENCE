@@ -18,6 +18,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from symfluence.core.registries import R
+
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
 
@@ -464,8 +466,7 @@ class TestSUMMAWorkerContract:
     def test_summa_worker_registered(self):
         """Test that SUMMAWorker is registered with registry."""
         from symfluence.models.summa.calibration.worker import SUMMAWorker  # noqa: F401 — triggers @register_worker
-        from symfluence.optimization.registry import OptimizerRegistry
-        worker_cls = OptimizerRegistry.get_worker('SUMMA')
+        worker_cls = R.workers.get('SUMMA')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'SUMMAWorker'
 
@@ -494,8 +495,7 @@ class TestFUSEWorkerContract:
     def test_fuse_worker_registered(self):
         """Test that FUSEWorker is registered with registry."""
         from symfluence.models.fuse.calibration.worker import FUSEWorker  # noqa: F401 — triggers @register_worker
-        from symfluence.optimization.registry import OptimizerRegistry
-        worker_cls = OptimizerRegistry.get_worker('FUSE')
+        worker_cls = R.workers.get('FUSE')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'FUSEWorker'
 
@@ -519,8 +519,7 @@ class TestNgenWorkerContract:
     def test_ngen_worker_registered(self):
         """Test that NgenWorker is registered with registry."""
         from symfluence.models.ngen.calibration.worker import NgenWorker  # noqa: F401 — triggers @register_worker
-        from symfluence.optimization.registry import OptimizerRegistry
-        worker_cls = OptimizerRegistry.get_worker('NGEN')
+        worker_cls = R.workers.get('NGEN')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'NgenWorker'
 

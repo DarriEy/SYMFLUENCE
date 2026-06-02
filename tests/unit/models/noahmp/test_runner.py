@@ -1,3 +1,5 @@
+from symfluence.core.registries import R
+
 """Tests for Noah-MP runner."""
 
 
@@ -10,8 +12,7 @@ class TestNoahMPRunner:
 
     def test_runner_registered_with_registry(self):
         import symfluence.models.noahmp  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'NOAHMP' in ModelRegistry._runners
+        assert 'NOAHMP' in R.runners
 
     def test_model_name(self):
         from symfluence.models.noahmp.runner import NoahMPRunner

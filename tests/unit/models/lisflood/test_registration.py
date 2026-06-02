@@ -5,6 +5,8 @@
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestModelRegistryRegistration:
     """Tests for LISFLOOD components in ModelRegistry."""
@@ -12,23 +14,20 @@ class TestModelRegistryRegistration:
     def test_runner_is_registered(self):
         # Trigger registration by importing the module
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
 
-        runners = ModelRegistry._runners
+        runners = R.runners
         assert "LISFLOOD" in runners
 
     def test_preprocessor_is_registered(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
 
-        preprocessors = ModelRegistry._preprocessors
+        preprocessors = R.preprocessors
         assert "LISFLOOD" in preprocessors
 
     def test_postprocessor_is_registered(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
 
-        postprocessors = ModelRegistry._postprocessors
+        postprocessors = R.postprocessors
         assert "LISFLOOD" in postprocessors
 
     def test_config_adapter_is_registered(self):
@@ -132,21 +131,18 @@ class TestOptimizerRegistry:
 
     def test_optimizer_registry_has_lisflood(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        optimizer_cls = OptimizerRegistry.get_optimizer("LISFLOOD")
+        optimizer_cls = R.optimizers.get("LISFLOOD")
         assert optimizer_cls is not None
 
     def test_worker_registry_has_lisflood(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        worker_cls = OptimizerRegistry.get_worker("LISFLOOD")
+        worker_cls = R.workers.get("LISFLOOD")
         assert worker_cls is not None
 
     def test_parameter_manager_registry_has_lisflood(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        pm_cls = OptimizerRegistry.get_parameter_manager("LISFLOOD")
+        pm_cls = R.parameter_managers.get("LISFLOOD")
         assert pm_cls is not None

@@ -309,10 +309,10 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             Path to output directory on success, None on failure.
         """
         from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-        from symfluence.models.registry import ModelRegistry
+        from symfluence.core.registries import R
 
         # --- Legacy dispatch ---
-        method_name = ModelRegistry.get_runner_method(self.model_name)
+        method_name = R.runners.meta(self.model_name).get("runner_method", "run")
         if method_name and method_name != 'run':
             run_method = getattr(self, method_name, None)
             if run_method is not None:
