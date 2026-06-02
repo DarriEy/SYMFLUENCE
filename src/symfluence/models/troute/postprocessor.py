@@ -8,11 +8,12 @@ Simplified implementation using StandardModelPostprocessor.
 Handles extraction of routed streamflow from t-route NetCDF outputs.
 """
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('TROUTE')
+@R.postprocessors.add('TROUTE')
 class TRoutePostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for TRoute model outputs.

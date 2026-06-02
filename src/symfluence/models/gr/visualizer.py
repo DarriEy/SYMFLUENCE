@@ -11,10 +11,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('GR')
+@R.visualizers.add('GR')
 def visualize_gr(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize GR model outputs.

@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("MODFLOW")
+@R.runners.add("MODFLOW")
 class MODFLOWRunner(BaseModelRunner):
     """
     Runs MODFLOW 6 via direct mf6 invocation.

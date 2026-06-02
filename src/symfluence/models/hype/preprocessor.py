@@ -16,16 +16,16 @@ from typing import Any, Dict, Optional, cast
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.hype.config_manager import HYPEConfigManager
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
 from symfluence.models.hype.geodata_manager import HYPEGeoDataManager
 
 from ..base import BaseModelPreProcessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor('HYPE')
+@R.preprocessors.add('HYPE')
 class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.

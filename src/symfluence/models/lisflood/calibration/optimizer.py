@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from xml.etree import ElementTree as ET  # nosec B405
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import LisfloodWorker  # noqa: F401
 
 
-@OptimizerRegistry.register_optimizer("LISFLOOD")
+@R.optimizers.add("LISFLOOD")
 class LisfloodModelOptimizer(BaseModelOptimizer):
     """LISFLOOD-specific optimizer using the unified BaseModelOptimizer framework."""
 

@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .parameter_manager import FUSEParameterManager  # noqa: F401 - trigger param manager registration
 from .worker import FUSEWorker  # noqa: F401 - trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('FUSE')
+@R.optimizers.add('FUSE')
 class FUSEModelOptimizer(BaseModelOptimizer):
     """
     FUSE-specific optimizer using the unified BaseModelOptimizer framework.

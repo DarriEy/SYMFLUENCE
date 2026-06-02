@@ -11,10 +11,10 @@ ParFlow is a parallel integrated hydrologic model. Pre-compiled
 binaries are available for Linux and macOS.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('parflow')
+@R.build_instructions.add('parflow')
 def get_parflow_build_instructions():
     """
     Get ParFlow build/install instructions.

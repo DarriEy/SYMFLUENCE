@@ -17,13 +17,13 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from symfluence.core.registries import R
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.troute.mixins import TRouteConfigMixin
 
 
-@ModelRegistry.register_preprocessor('TROUTE')
+@R.preprocessors.add('TROUTE')
 class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, TRouteConfigMixin):  # type: ignore[misc]
     """
     A standalone preprocessor for t-route within the SYMFLUENCE framework.

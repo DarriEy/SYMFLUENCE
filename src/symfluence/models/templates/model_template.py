@@ -12,7 +12,7 @@ New models can inherit from UnifiedModelRunner and implement only the
 model-specific methods, reducing boilerplate by ~50%.
 
 Example Implementation:
-    @ModelRegistry.register_runner('MYMODEL', method_name='run_mymodel')
+    @R.runners.add('MYMODEL', runner_method='run_mymodel')
     class MyModelRunner(UnifiedModelRunner):
         def _get_model_name(self) -> str:
             return "MYMODEL"

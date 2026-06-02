@@ -20,13 +20,13 @@ from typing import Dict, List
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_result_extractor("MODFLOW")
+@R.result_extractors.add("MODFLOW")
 class MODFLOWResultExtractor(ModelResultExtractor):
     """
     Extracts results from MODFLOW 6 output files.

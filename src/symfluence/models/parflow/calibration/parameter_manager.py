@@ -30,8 +30,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Physically-based parameter bounds for variably-saturated subsurface + overland flow
 # Domain geometry (TOP/BOT) is fixed; only soil/flow properties are calibrated.
@@ -172,7 +172,7 @@ def _write_pfidb(filepath: Path, entries: Dict[str, str]) -> None:
     filepath.write_text('\n'.join(parts) + '\n')
 
 
-@OptimizerRegistry.register_parameter_manager('PARFLOW')
+@R.parameter_managers.add('PARFLOW')
 class ParFlowParameterManager(BaseParameterManager):
     """Handles ParFlow parameter bounds, normalization, and .pfidb file updates."""
 

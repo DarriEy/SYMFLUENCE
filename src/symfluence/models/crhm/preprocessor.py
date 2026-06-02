@@ -18,14 +18,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.spatial_modes import SpatialMode
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CRHM")
+@R.preprocessors.add("CRHM")
 class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a CRHM model run.

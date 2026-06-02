@@ -5,11 +5,11 @@
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('WFLOW')
+@R.runners.add('WFLOW')
 class WflowRunner(BaseModelRunner):
     """Runner for the Wflow model (wflow_cli binary)."""
     MODEL_NAME = "WFLOW"

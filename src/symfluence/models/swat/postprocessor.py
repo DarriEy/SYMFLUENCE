@@ -16,11 +16,12 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('SWAT')
+@R.postprocessors.add('SWAT')
 class SWATPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the SWAT model.

@@ -23,13 +23,13 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models
@@ -55,7 +55,7 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
     localconverter = None
 
 
-@ModelRegistry.register_runner('GR', method_name='run_gr')
+@R.runners.add('GR', runner_method='run_gr')
 class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the GR family of models (initially GR4J).

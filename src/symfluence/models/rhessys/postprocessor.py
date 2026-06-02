@@ -12,13 +12,13 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPostProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor('RHESSys')
+@R.postprocessors.add('RHESSys')
 class RHESSysPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for RHESSys model outputs within SYMFLUENCE.

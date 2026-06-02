@@ -10,12 +10,12 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 
-@OptimizerRegistry.register_worker("LISFLOOD")
+@R.workers.add("LISFLOOD")
 class LisfloodWorker(BaseWorker):
     """Worker for LISFLOOD model calibration."""
 

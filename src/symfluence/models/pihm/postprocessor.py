@@ -14,13 +14,13 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor("PIHM")
+@R.postprocessors.add("PIHM")
 class PIHMPostProcessor(StandardModelPostprocessor):
     """
     Postprocesses PIHM output.

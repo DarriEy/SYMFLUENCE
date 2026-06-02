@@ -20,13 +20,13 @@ WMFire Integration:
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_bison_detection_and_build,
     get_common_build_environment,
     get_flex_detection_and_build,
     get_geos_proj_detection,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 from symfluence.models.rhessys.build_script import RHESSYS_BUILD_COMMAND
 
 
@@ -66,7 +66,7 @@ def _build_rhessys_definition(
     }
 
 
-@BuildInstructionsRegistry.register('rhessys')
+@R.build_instructions.add('rhessys')
 def get_rhessys_build_instructions():
     """Get RHESSys build instructions."""
     return _build_rhessys_definition(

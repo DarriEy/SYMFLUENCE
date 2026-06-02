@@ -11,11 +11,12 @@ Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.3).
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('MESH')
+@R.postprocessors.add('MESH')
 class MESHPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the MESH model.

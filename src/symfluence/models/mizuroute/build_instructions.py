@@ -13,13 +13,13 @@ mizuRoute is a river network routing model developed at NCAR.
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('mizuroute')
+@R.build_instructions.add('mizuroute')
 def get_mizuroute_build_instructions():
     """
     Get mizuRoute build instructions.

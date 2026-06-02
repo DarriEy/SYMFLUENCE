@@ -23,13 +23,13 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("SWAT")
+@R.preprocessors.add("SWAT")
 class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a SWAT model run.

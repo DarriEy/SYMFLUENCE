@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.registries import R
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ SURFACE_RUNOFF_VARIABLES = {
 }
 
 
-@OptimizerRegistry.register_worker('COUPLED_GW')
+@R.workers.add('COUPLED_GW')
 class CoupledGWWorker(BaseWorker):
     """Worker for coupled land-surface + MODFLOW calibration.
 

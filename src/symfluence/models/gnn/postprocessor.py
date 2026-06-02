@@ -15,11 +15,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('GNN')
+@R.postprocessors.add('GNN')
 class GNNPostprocessor(StandardModelPostprocessor):
     """
     Handles post-processing of GNN model results.

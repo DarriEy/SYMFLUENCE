@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('NGEN', method_name='run_ngen')
+@R.runners.add('NGEN', runner_method='run_ngen')
 class NgenRunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner for NextGen Framework simulations.

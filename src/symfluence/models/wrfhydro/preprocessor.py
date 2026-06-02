@@ -19,13 +19,13 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("WRFHYDRO")
+@R.preprocessors.add("WRFHYDRO")
 class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a WRF-Hydro model run.

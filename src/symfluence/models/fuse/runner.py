@@ -20,17 +20,17 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .subcatchment_processor import SubcatchmentProcessor
 
 
-@ModelRegistry.register_runner('FUSE', method_name='run_fuse')
+@R.runners.add('FUSE', runner_method='run_fuse')
 class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
