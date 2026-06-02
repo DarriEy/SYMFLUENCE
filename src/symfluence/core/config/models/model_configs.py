@@ -96,6 +96,69 @@ FIRE_MODEL_REGISTRY: dict[str, ConfigRegistryEntry] = {
     'IGNACIO': ('ignacio', IGNACIOConfig),
 }
 
+# Single source of truth mapping canonical model name (UPPER) -> its Pydantic
+# config schema, for every in-tree model that has a typed config. The attribute
+# name used on ``ModelConfig`` (and the ``model_specific`` key) is the lower-case
+# of the canonical name.
+#
+# These are registered into ``R.config_schemas`` at import time so the core
+# validation pipeline and the resolution helpers in
+# ``symfluence.models.config_resolution`` find in-tree schemas through the *same*
+# path an external plugin uses when it calls ``model_manifest(config_schema=...)``.
+# Before this, ``R.config_schemas`` was empty and the typed-config plugin contract
+# was notional (RTI review item 18).
+IN_TREE_CONFIG_SCHEMAS: dict[str, type[BaseModel]] = {
+    'SUMMA': SUMMAConfig,
+    'FUSE': FUSEConfig,
+    'GR': GRConfig,
+    'HYPE': HYPEConfig,
+    'NGEN': NGENConfig,
+    'MESH': MESHConfig,
+    'MIZUROUTE': MizuRouteConfig,
+    'DROUTE': DRouteConfig,
+    'TROUTE': TRouteConfig,
+    'LSTM': LSTMConfig,
+    'RHESSYS': RHESSysConfig,
+    'GNN': GNNConfig,
+    'IGNACIO': IGNACIOConfig,
+    'VIC': VICConfig,
+    'CLM': CLMConfig,
+    'MODFLOW': MODFLOWConfig,
+    'PARFLOW': ParFlowConfig,
+    'CLMPARFLOW': CLMParFlowConfig,
+    'SWAT': SWATConfig,
+    'MHM': MHMConfig,
+    'CRHM': CRHMConfig,
+    'WRFHYDRO': WRFHydroConfig,
+    'PRMS': PRMSConfig,
+    'PIHM': PIHMConfig,
+    'HYDROGEOSPHERE': HydroGeoSphereConfig,
+    'GSFLOW': GSFLOWConfig,
+    'WATFLOOD': WATFLOODConfig,
+    'WFLOW': WflowConfig,
+    'LISFLOOD': LisfloodConfig,
+    'PCRGLOBWB': PCRGLOBWBConfig,
+    'CWATM': CWatMConfig,
+    'NOAHMP': NoahMPConfig,
+}
+
+
+def _register_in_tree_config_schemas() -> None:
+    """Bridge in-tree config schemas into the unified ``R.config_schemas``.
+
+    Idempotent: skips names already registered (e.g. by a model package's
+    ``model_manifest(config_schema=...)`` call), so an explicit per-model
+    registration always wins over this bridge.
+    """
+    from symfluence.core.registries import R
+
+    for name, schema_cls in IN_TREE_CONFIG_SCHEMAS.items():
+        if name not in R.config_schemas:
+            R.config_schemas.add(name, schema_cls)
+
+
+_register_in_tree_config_schemas()
+
 
 class ModelConfig(BaseModel):
     """Hydrological model configuration"""
