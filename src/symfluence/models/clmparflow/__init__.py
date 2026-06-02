@@ -60,9 +60,12 @@ __all__ = [
 # decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "CLMPARFLOW",
-    config_adapter=CLMParFlowConfigAdapter,
-    plotter=CLMParFlowPlotter,
-    build_instructions_module="symfluence.models.clmparflow.build_instructions",
-)
+
+def register() -> None:
+    """Register CLMPARFLOW components with the unified registry."""
+    model_manifest(
+        "CLMPARFLOW",
+        config_adapter=CLMParFlowConfigAdapter,
+        plotter=CLMParFlowPlotter,
+        build_instructions_module="symfluence.models.clmparflow.build_instructions",
+    )

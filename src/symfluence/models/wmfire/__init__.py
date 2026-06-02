@@ -42,11 +42,14 @@ from .ignition import (
 )
 from .postprocessor import WMFirePostProcessor
 
-# Import build instructions to register with BuildInstructionsRegistry
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass
+
+def register() -> None:
+    """Register WMFire components with the unified registry."""
+    # Import build instructions to register with BuildInstructionsRegistry
+    try:
+        from . import build_instructions  # noqa: F401
+    except ImportError:
+        pass
 
 __all__ = [
     # Grid management

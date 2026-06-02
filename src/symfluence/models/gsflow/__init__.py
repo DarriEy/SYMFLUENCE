@@ -33,14 +33,17 @@ __all__ = [
 # Register all GSFLOW components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "GSFLOW",
-    preprocessor=GSFLOWPreProcessor,
-    runner=GSFLOWRunner,
-    result_extractor=GSFLOWResultExtractor,
-    config_adapter=GSFLOWConfigAdapter,
-    build_instructions_module="symfluence.models.gsflow.build_instructions",
-)
+
+def register() -> None:
+    """Register GSFLOW components with the unified registry."""
+    model_manifest(
+        "GSFLOW",
+        preprocessor=GSFLOWPreProcessor,
+        runner=GSFLOWRunner,
+        result_extractor=GSFLOWResultExtractor,
+        config_adapter=GSFLOWConfigAdapter,
+        build_instructions_module="symfluence.models.gsflow.build_instructions",
+    )
 
 # Register calibration components
 try:

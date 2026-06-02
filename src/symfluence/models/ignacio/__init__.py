@@ -65,17 +65,18 @@ __all__ = [
     "IGNACIOResultExtractor",
 ]
 
-# Register all IGNACIO components via unified registry
-try:
-    from symfluence.core.registry import model_manifest
+def register() -> None:
+    """Register IGNACIO components with the unified registry."""
+    try:
+        from symfluence.core.registry import model_manifest
 
-    model_manifest(
-        "IGNACIO",
-        result_extractor=IGNACIOResultExtractor,
-        build_instructions_module="symfluence.models.ignacio.build_instructions",
-    )
-except Exception:  # noqa: BLE001 — optional dependency
-    pass
+        model_manifest(
+            "IGNACIO",
+            result_extractor=IGNACIOResultExtractor,
+            build_instructions_module="symfluence.models.ignacio.build_instructions",
+        )
+    except Exception:  # noqa: BLE001 — optional dependency
+        pass
 
 # Register calibration components with OptimizerRegistry
 try:
