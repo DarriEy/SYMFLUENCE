@@ -342,7 +342,10 @@ class ForcingResampler(PathResolverMixin):
         # Merge forcings if required by dataset
         if self.dataset_handler.needs_merging():
             self.logger.debug(f"{self.forcing_dataset.upper()} requires merging of raw files")
-            self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
+            # Always use project-local merged output for downstream remapping.
+            # FORCING_PATH may point to pre-staged raw inputs, which should not
+            # be used after standardization has been executed.
+            self.merged_forcing_path = self.project_forcing_dir / 'merged_path'
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
             self.merge_forcings()
 
