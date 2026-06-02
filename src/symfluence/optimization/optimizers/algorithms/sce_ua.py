@@ -850,12 +850,6 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
                 reflection_fitness = evaluate_population(reflection_batch, iteration)
 
                 # Accept reflections / fall back to contraction / random (all batched).
-                # The lambda captures iteration and evolution_id as default arguments
-                # to avoid the late-binding closure issue: without the defaults, all
-                # lambda calls would see the values of iteration/evolution_id from the
-                # LAST loop iteration rather than the one that created the lambda.
-                _it = iteration
-                _eid = evolution_id
                 self._apply_cce_step(
                     sub_complexes, sub_fitnesses,
                     per_step_state,

@@ -228,8 +228,11 @@ class NgenParameterManager(BaseParameterManager):
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
 
-        # Normalize hyphenated module names (SNOW-17 -> SNOW17, SAC-SMA -> SACSMA, NOAH-OWP -> NOAH)
-        modules = [m.replace('-', '') for m in modules]
+        # Normalize hyphenated/underscored aliases to canonical module names
+        # (SNOW-17 -> SNOW17, SAC-SMA -> SACSMA, NOAH-OWP -> NOAH). Keep this in
+        # sync with NgenConfigAdapter._canonical_module_name.
+        _canonical = {'SNOW17': 'SNOW17', 'SACSMA': 'SACSMA', 'NOAHOWP': 'NOAH'}
+        modules = [_canonical.get(m.replace('-', '').replace('_', ''), m.replace('-', '').replace('_', '')) for m in modules]
 
         # Validate modules (filter invalid ones without mutating during iteration)
         valid_modules = ['CFE', 'NOAH', 'PET', 'TOPMODEL', 'SACSMA', 'SNOW17']
