@@ -65,7 +65,8 @@ class GeofabricIOUtils:
         rivers: gpd.GeoDataFrame,
         basins_path: Path,
         rivers_path: Path,
-        logger: Any
+        logger: Any,
+        despike_basins: bool = False,
     ):
         """
         Save basin and river shapefiles.
@@ -78,10 +79,22 @@ class GeofabricIOUtils:
             basins_path: Output path for basins shapefile
             rivers_path: Output path for rivers shapefile
             logger: Logger instance for info messages
+            despike_basins: When True, run the adaptive geometry despike
+                (:meth:`GeometryProcessor.despike_geodataframe`) over the basins
+                before writing, to strip thin watershed-delineation "tentacle"
+                artifacts. Opt-in (default False) so existing behaviour is
+                unchanged; enable via the ``DESPIKE_BASIN_GEOMETRY`` config key.
         """
         # Create parent directories
         basins_path.parent.mkdir(parents=True, exist_ok=True)
         rivers_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if despike_basins:
+            from symfluence.geospatial.geofabric.processors.geometry_processor import GeometryProcessor
+
+            n_before = len(basins)
+            basins = GeometryProcessor.despike_geodataframe(basins)
+            logger.info(f"Despiked basin geometry ({n_before} basins) before saving")
 
         # Save files
         basins.to_file(basins_path)

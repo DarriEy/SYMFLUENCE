@@ -47,7 +47,49 @@ class GDALProcessor:
             )
         self.logger = logger
 
-    def run_gdal_processing(self, interim_dir: Path):
+    def _mask_ocean_watersheds(self, interim_dir: Path, sea_level: float) -> str:
+        """Set watershed cells at/below ``sea_level`` to nodata, return new raster path.
+
+        Uses the pit-filled DEM (``elv-fel.tif``), which is co-registered with the
+        watershed grid. If the DEM is missing, returns the original raster
+        unchanged so delineation still proceeds.
+        """
+        import rasterio
+
+        ws_path = interim_dir / "elv-watersheds.tif"
+        fel_path = interim_dir / "elv-fel.tif"
+        if not fel_path.exists():
+            self.logger.warning(f"{fel_path.name} not found; cannot mask ocean, polygonizing as-is")
+            return str(ws_path)
+
+        with rasterio.open(ws_path) as src:
+            watersheds = src.read(1)
+            profile = src.profile
+            nodata = src.nodata
+        with rasterio.open(fel_path) as src:
+            elevation = src.read(1)
+
+        if nodata is None:
+            nodata = -2147483647
+            profile.update(nodata=nodata)
+
+        ocean = elevation <= sea_level
+        n_ocean = int(ocean.sum())
+        watersheds = watersheds.copy()
+        watersheds[ocean] = nodata
+
+        masked_path = interim_dir / "elv-watersheds-landmasked.tif"
+        with rasterio.open(masked_path, "w", **profile) as dst:
+            dst.write(watersheds, 1)
+
+        pct = 100.0 * n_ocean / watersheds.size if watersheds.size else 0.0
+        self.logger.info(
+            f"Masked {n_ocean} ocean cells ({pct:.1f}%, elev<={sea_level} m) from watershed "
+            f"raster before polygonization to remove cross-ocean tentacle basins"
+        )
+        return str(masked_path)
+
+    def run_gdal_processing(self, interim_dir: Path, mask_ocean: bool = False, sea_level: float = 0.0):
         """
         Convert watershed raster to polygon shapefile.
 
@@ -56,6 +98,13 @@ class GDALProcessor:
 
         Args:
             interim_dir: Directory containing interim TauDEM outputs
+            mask_ocean: When True, set watershed cells at or below ``sea_level``
+                (per the pit-filled DEM ``elv-fel.tif``) to nodata before
+                polygonizing. Coastal DEMs encode the sea as flat 0-elevation,
+                which TauDEM flow-routes in straight D8 lines to the domain edge
+                and assigns to watersheds — producing thin radial "tentacle"
+                basins across the ocean. Masking the sea removes the cause.
+            sea_level: Elevation (m) at/below which a cell is treated as ocean.
 
         Raises:
             RuntimeError: If all polygonization attempts fail
@@ -65,6 +114,9 @@ class GDALProcessor:
 
         input_raster = str(interim_dir / "elv-watersheds.tif")
         output_shapefile = str(interim_dir / "basin-watersheds.shp")
+
+        if mask_ocean:
+            input_raster = self._mask_ocean_watersheds(interim_dir, sea_level)
 
         try:
             # First attempt: Using gdal.Polygonize directly
