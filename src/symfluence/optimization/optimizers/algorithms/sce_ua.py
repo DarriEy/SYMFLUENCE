@@ -16,7 +16,7 @@ Reference:
     Water Resources Research, 28(4), 1015-1031.
 
 Parallel Execution Design
---------------------------
+---------------------------
 The original serial SCE-UA processes each complex sequentially, issuing one
 ``evaluate_solution`` call at a time.  This implementation replaces that serial
 pattern with batched evaluation via ``evaluate_population``, which dispatches
