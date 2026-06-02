@@ -228,6 +228,12 @@ class NgenParameterManager(BaseParameterManager):
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
 
+        # Normalize hyphenated/underscored aliases to canonical module names
+        # (SNOW-17 -> SNOW17, SAC-SMA -> SACSMA, NOAH-OWP -> NOAH). Keep this in
+        # sync with NgenConfigAdapter._canonical_module_name.
+        _canonical = {'SNOW17': 'SNOW17', 'SACSMA': 'SACSMA', 'NOAHOWP': 'NOAH'}
+        modules = [_canonical.get(m.replace('-', '').replace('_', ''), m.replace('-', '').replace('_', '')) for m in modules]
+
         # Validate modules (filter invalid ones without mutating during iteration)
         valid_modules = ['CFE', 'NOAH', 'PET', 'TOPMODEL', 'SACSMA', 'SNOW17']
         validated = []
@@ -991,7 +997,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             candidates = []
             if getattr(self, "hydro_id", None):
-                candidates = list(self.sacsma_dir.glob(f"cat-{self.hydro_id}_sacsma_config.txt"))
+                candidates = list(self.sacsma_dir.glob(f"cat-{self.hydro_id}_sacsma_params.txt"))
             if not candidates:
                 candidates = list(self.sacsma_dir.glob("*.txt"))
             if not candidates:
@@ -1003,24 +1009,74 @@ class NgenParameterManager(BaseParameterManager):
 
             path = candidates[0]
             lines = path.read_text(encoding='utf-8').splitlines()
+            # Keep file keys lowercase if present; match params case-insensitively.
+            params_lc = {k.lower(): v for k, v in params.items()}
 
             updated = set()
             for i, line in enumerate(lines):
-                if '=' not in line or line.strip().startswith('#'):
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
                     continue
-                k, rhs = line.split('=', 1)
-                k = k.strip()
-                if k in params:
-                    lines[i] = f"{k}={params[k]:.8g}"
-                    updated.add(k)
+
+                if '=' in line:
+                    k, _ = line.split('=', 1)
+                    key = k.strip()
+                    key_lc = key.lower()
+                    if key_lc in params_lc:
+                        lines[i] = f"{key}={params_lc[key_lc]:.8g}"
+                        updated.add(key_lc)
+                else:
+                    # Support space-delimited parameter files written by config generator.
+                    parts = stripped.split()
+                    if len(parts) < 2:
+                        continue
+                    key = parts[0].strip()
+                    key_lc = key.lower()
+                    if key_lc in params_lc:
+                        lines[i] = f"{key:<11s}{params_lc[key_lc]:.8g}"
+                        updated.add(key_lc)
 
             for p in params:
-                if p not in updated:
+                if p.lower() not in updated:
                     self.logger.warning(f"SAC-SMA parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')
                 self.logger.debug(f"Updated SAC-SMA config with {len(updated)} parameter(s)")
+
+            # Keep SAC-SMA module config consistent with this processor-local params file.
+            # Some copied configs retain an absolute base-domain path in `sac_param_file`.
+            # If left unchanged, ngen reads base params and ignores processor-updated values.
+            cfg_name = path.name.replace("_sacsma_params.txt", "_sacsma_config.txt")
+            cfg_path = path.parent / cfg_name
+            if cfg_path.exists():
+                cfg_lines = cfg_path.read_text(encoding='utf-8').splitlines()
+                desired_param_path = str(path.resolve())
+                cfg_changed = False
+                for i, cfg_line in enumerate(cfg_lines):
+                    if "sac_param_file" not in cfg_line:
+                        continue
+                    if "=" not in cfg_line:
+                        continue
+                    left, right = cfg_line.split("=", 1)
+                    indent = ""
+                    for ch in cfg_line:
+                        if ch in (" ", "\t"):
+                            indent += ch
+                        else:
+                            break
+                    key = left.strip()
+                    value = right.strip().strip('"')
+                    if value != desired_param_path:
+                        cfg_lines[i] = f"{indent}{key:<24s}= \"{desired_param_path}\""
+                        cfg_changed = True
+                    break
+
+                if cfg_changed:
+                    cfg_path.write_text("\n".join(cfg_lines) + "\n", encoding='utf-8')
+                    self.logger.debug(
+                        f"Updated SAC-SMA sac_param_file in {cfg_path.name} -> {desired_param_path}"
+                    )
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1032,7 +1088,7 @@ class NgenParameterManager(BaseParameterManager):
         try:
             candidates = []
             if getattr(self, "hydro_id", None):
-                candidates = list(self.snow17_dir.glob(f"cat-{self.hydro_id}_snow17_config.txt"))
+                candidates = list(self.snow17_dir.glob(f"cat-{self.hydro_id}_snow17_params.txt"))
             if not candidates:
                 candidates = list(self.snow17_dir.glob("*.txt"))
             if not candidates:
@@ -1044,24 +1100,74 @@ class NgenParameterManager(BaseParameterManager):
 
             path = candidates[0]
             lines = path.read_text(encoding='utf-8').splitlines()
+            # Keep file keys lowercase if present; match params case-insensitively.
+            params_lc = {k.lower(): v for k, v in params.items()}
 
             updated = set()
             for i, line in enumerate(lines):
-                if '=' not in line or line.strip().startswith('#'):
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
                     continue
-                k, rhs = line.split('=', 1)
-                k = k.strip()
-                if k in params:
-                    lines[i] = f"{k}={params[k]:.8g}"
-                    updated.add(k)
+
+                if '=' in line:
+                    k, _ = line.split('=', 1)
+                    key = k.strip()
+                    key_lc = key.lower()
+                    if key_lc in params_lc:
+                        lines[i] = f"{key}={params_lc[key_lc]:.8g}"
+                        updated.add(key_lc)
+                else:
+                    # Support space-delimited parameter files written by config generator.
+                    parts = stripped.split()
+                    if len(parts) < 2:
+                        continue
+                    key = parts[0].strip()
+                    key_lc = key.lower()
+                    if key_lc in params_lc:
+                        lines[i] = f"{key:<11s}{params_lc[key_lc]:.8g}"
+                        updated.add(key_lc)
 
             for p in params:
-                if p not in updated:
+                if p.lower() not in updated:
                     self.logger.warning(f"Snow-17 parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')
                 self.logger.debug(f"Updated Snow-17 config with {len(updated)} parameter(s)")
+
+            # Keep Snow17 module config consistent with this processor-local params file.
+            # Some copied configs retain an absolute base-domain path in `snow17_param_file`.
+            # If left unchanged, ngen reads base params and ignores processor-updated values.
+            cfg_name = path.name.replace("_snow17_params.txt", "_snow17_config.txt")
+            cfg_path = path.parent / cfg_name
+            if cfg_path.exists():
+                cfg_lines = cfg_path.read_text(encoding='utf-8').splitlines()
+                desired_param_path = str(path.resolve())
+                cfg_changed = False
+                for i, cfg_line in enumerate(cfg_lines):
+                    if "snow17_param_file" not in cfg_line:
+                        continue
+                    if "=" not in cfg_line:
+                        continue
+                    left, right = cfg_line.split("=", 1)
+                    indent = ""
+                    for ch in cfg_line:
+                        if ch in (" ", "\t"):
+                            indent += ch
+                        else:
+                            break
+                    key = left.strip()
+                    value = right.strip().strip('"')
+                    if value != desired_param_path:
+                        cfg_lines[i] = f"{indent}{key:<24s}= \"{desired_param_path}\""
+                        cfg_changed = True
+                    break
+
+                if cfg_changed:
+                    cfg_path.write_text("\n".join(cfg_lines) + "\n", encoding='utf-8')
+                    self.logger.debug(
+                        f"Updated Snow17 snow17_param_file in {cfg_path.name} -> {desired_param_path}"
+                    )
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience

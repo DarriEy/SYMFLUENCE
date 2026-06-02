@@ -907,19 +907,20 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             df = pd.DataFrame(cols)
 
-            # Precipitation unit handling depends on whether NOAH is enabled:
-            # - NOAH-OWP expects mm/s (kg m-2 s-1), outputs QINSUR in mm/s to CFE
+            # Precipitation unit handling depends on active module chain:
+            # - NOAH-OWP/SNOW17/SAC-SMA expect mm/s (kg m-2 s-1)
             # - CFE standalone expects mm/h for direct precipitation input
-            # When NOAH is enabled, keep precip in mm/s; otherwise convert to mm/h for CFE
+            # Convert to mm/h only for pure CFE mode; otherwise keep mm/s.
             precip_col = 'atmosphere_water__liquid_equivalent_precipitation_rate'
             if precip_col in df:
-                if not self._include_noah:
-                    # CFE standalone: convert mm/s → mm/h
+                use_mm_per_s = self._include_noah or self._include_snow17 or self._include_sacsma
+                if not use_mm_per_s:
+                    # Pure CFE mode: convert mm/s → mm/h
                     df[precip_col] = df[precip_col] * 3600.0
                     self.logger.debug("Converted precipitation to mm/h for CFE standalone mode")
                 else:
-                    # NOAH enabled: keep in mm/s (NOAH's expected unit)
-                    self.logger.debug("Keeping precipitation in mm/s for NOAH-OWP")
+                    # NOAH/SNOW17/SAC-SMA chain: keep in mm/s
+                    self.logger.debug("Keeping precipitation in mm/s (NOAH/SNOW17/SAC-SMA mode)")
 
             # Note: Do NOT add AORC-style aliases (APCP_surface, precip_rate).
             # These map to the same CSDMS canonical name via WellKnownFields in ngen,

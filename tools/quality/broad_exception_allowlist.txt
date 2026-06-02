@@ -390,6 +390,8 @@ src/symfluence/data/preprocessing/resampling/weight_applier.py:RemappingWeightAp
 src/symfluence/data/preprocessing/resampling/weight_applier.py:RemappingWeightApplier.apply_weights:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._align_longitudes:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._detect_variables:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._maybe_rename_with_handler:except Exception as e:  # noqa: BLE001 — defensive guard
+src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._maybe_rename_with_handler:except Exception as e:  # noqa: BLE001 — defensive guard
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._move_output_files:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:_run_easmore_with_suppressed_output:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager._validate_existing_wgs84:except Exception as e:  # noqa: BLE001 — preprocessing resilience
