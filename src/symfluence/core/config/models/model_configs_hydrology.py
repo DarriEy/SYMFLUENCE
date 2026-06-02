@@ -186,7 +186,9 @@ class NGENConfig(BaseModel):
     )
     snow17_params_to_calibrate: str = Field(
         default='SCF,MFMAX,MFMIN,TIPM,PLWHC',
-        alias='NGEN_SNOW-17_PARAMS_TO_CALIBRATE',
+        # Canonical alias is hyphen-free so it can be documented as a YAML key;
+        # the hyphenated NGEN_SNOW-17_* form is kept as a backward-compat input alias.
+        alias='NGEN_SNOW17_PARAMS_TO_CALIBRATE',
         validation_alias=AliasChoices(
             'snow-17_params_to_calibrate',
             'NGEN_SNOW-17_PARAMS_TO_CALIBRATE',

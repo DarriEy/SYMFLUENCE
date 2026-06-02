@@ -285,6 +285,8 @@ class TestFlatteningMapping:
             # MiZuRoute deprecated aliases (Phase 2 deprecation)
             ('model', 'mizuroute', 'install_path'),  # MIZUROUTE_INSTALL_PATH, INSTALL_PATH_MIZUROUTE
             ('model', 'mizuroute', 'exe'),  # MIZUROUTE_EXE, EXE_NAME_MIZUROUTE
+            # NGEN SNOW-17: hyphen-free canonical alias + hyphenated backward-compat alias
+            ('model', 'ngen', 'snow17_params_to_calibrate'),  # NGEN_SNOW17_*, NGEN_SNOW-17_*
         }
 
         # Check that any duplicates are in the known_aliases set
