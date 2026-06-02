@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 @pytest.fixture
 def logger():
@@ -32,14 +34,12 @@ class TestCFUSEParameterManagerRegistration:
     """Tests for cFUSE parameter manager registration."""
 
     def test_parameter_manager_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'CFUSE' in OptimizerRegistry._parameter_managers
+        assert 'CFUSE' in R.parameter_managers
 
     def test_parameter_manager_is_correct_class(self):
         from cfuse.calibration.parameter_manager import CFUSEParameterManager
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._parameter_managers.get('CFUSE') == CFUSEParameterManager
+        assert R.parameter_managers.get('CFUSE') == CFUSEParameterManager
 
 
 class TestCFUSEParameterManagerInstance:

@@ -46,18 +46,18 @@ class ModelDefaults:
             >>> defaults['SUMMA_EXE']
             'summa_sundials.exe'
         """
-        from symfluence.models.registries.config_registry import ConfigRegistry
+        from symfluence.models.config_resolution import get_config_defaults
 
         # Ensure model modules are imported so config adapters are registered.
         # Importing symfluence.models triggers all model __init__.py files
-        # which register their adapters with the unified registry via decorators.
+        # which register their adapters with the unified registry.
         try:
             import symfluence.models  # noqa: F401
         except (ImportError, OSError):
             pass
 
-        # Get defaults via ConfigRegistry which checks adapters first, then R.*
-        defaults = ConfigRegistry.get_config_defaults(model.upper()) or {}
+        # Resolve defaults via adapter first, then directly-registered R.config_defaults
+        defaults = get_config_defaults(model.upper()) or {}
 
         if not defaults:
             logger.warning(

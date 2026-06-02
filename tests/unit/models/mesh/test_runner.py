@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestMESHRunnerInitialization:
     """Tests for MESH runner initialization."""
@@ -163,17 +165,15 @@ class TestMESHModelRegistry:
 
     def test_runner_registered_with_registry(self):
         """Test MESH runner is registered with model registry."""
-        from symfluence.models.registry import ModelRegistry
 
         # Check if MESH is registered
-        runners = ModelRegistry._runners
+        runners = R.runners
         assert 'MESH' in runners
 
     def test_registry_method_name(self):
         """Test MESH runner method name is correct."""
-        from symfluence.models.registry import ModelRegistry
 
-        runner_info = ModelRegistry._runners.get('MESH')
+        runner_info = R.runners.get('MESH')
         assert runner_info is not None
         # The method_name should be stored in the tuple
         assert hasattr(runner_info, '__name__') or 'run_mesh' in str(runner_info)

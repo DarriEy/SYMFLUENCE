@@ -1,3 +1,5 @@
+from symfluence.core.registries import R
+
 """Tests for CWatM runner."""
 
 
@@ -10,8 +12,7 @@ class TestCWatMRunner:
 
     def test_runner_registered_with_registry(self):
         import symfluence.models.cwatm  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'CWATM' in ModelRegistry._runners
+        assert 'CWATM' in R.runners
 
     def test_model_name(self):
         from symfluence.models.cwatm.runner import CWatMRunner

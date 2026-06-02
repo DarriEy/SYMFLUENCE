@@ -11,8 +11,6 @@ This module provides:
 - Templates: Base classes for new model implementations (templates submodule)
 """
 
-from .registry import ModelRegistry
-
 # Import execution framework components
 try:
     from .execution import (
@@ -86,8 +84,6 @@ except NameError:
 
 
 __all__ = [
-    # Core
-    "ModelRegistry",
     # Execution Framework
     "ModelExecutor",
     "ExecutionResult",

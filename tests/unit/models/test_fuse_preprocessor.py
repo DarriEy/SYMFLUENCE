@@ -10,6 +10,7 @@ import pytest
 
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.registries import R
 from symfluence.models.fuse import FUSEPreProcessor
 
 
@@ -234,10 +235,9 @@ class TestFUSERegistration:
 
     def test_fuse_registered_as_preprocessor(self):
         """Test that FUSE is registered in the model registry."""
-        from symfluence.models.registry import ModelRegistry
 
         # FUSE should be registered
-        assert 'FUSE' in ModelRegistry._preprocessors
+        assert 'FUSE' in R.preprocessors
 
 
 class TestFUSEPETCalculator:

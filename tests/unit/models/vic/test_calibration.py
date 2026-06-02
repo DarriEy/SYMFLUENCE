@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestVICCalibrationRegistration:
     """Tests for VIC calibration component registration."""
@@ -13,18 +15,15 @@ class TestVICCalibrationRegistration:
     def test_optimizer_registered(self):
         # VIC calibration requires explicit import to trigger decorator registration
         from symfluence.models.vic.calibration import VICModelOptimizer  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'VIC' in OptimizerRegistry._optimizers
+        assert 'VIC' in R.optimizers
 
     def test_worker_registered(self):
         from symfluence.models.vic.calibration import VICWorker  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'VIC' in OptimizerRegistry._workers
+        assert 'VIC' in R.workers
 
     def test_parameter_manager_registered(self):
         from symfluence.models.vic.calibration import VICParameterManager  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'VIC' in OptimizerRegistry._parameter_managers
+        assert 'VIC' in R.parameter_managers
 
 
 class TestVICParameterBounds:

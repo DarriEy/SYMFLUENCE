@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from symfluence.core.registries import R
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -444,18 +446,16 @@ class TestMODFLOWRegistration:
 
     def test_modflow_registered(self):
         """Verify MODFLOW components are registered."""
-        from symfluence.models.registry import ModelRegistry
 
-        assert ModelRegistry.get_preprocessor('MODFLOW') is not None
-        assert ModelRegistry.get_runner('MODFLOW') is not None
-        assert ModelRegistry.get_result_extractor('MODFLOW') is not None
-        assert ModelRegistry.get_postprocessor('MODFLOW') is not None
+        assert R.preprocessors.get('MODFLOW') is not None
+        assert R.runners.get('MODFLOW') is not None
+        assert R.result_extractors.get('MODFLOW') is not None
+        assert R.postprocessors.get('MODFLOW') is not None
 
     def test_modflow_runner_method(self):
         """Verify runner has a run() method (direct override, no method_name dispatch)."""
-        from symfluence.models.registry import ModelRegistry
 
-        runner_cls = ModelRegistry.get_runner('MODFLOW')
+        runner_cls = R.runners.get('MODFLOW')
         assert hasattr(runner_cls, 'run'), "MODFLOWRunner must have a run() method"
 
 
@@ -468,10 +468,9 @@ class TestMODFLOWPlotter:
 
     def test_plotter_registered(self):
         """Verify MODFLOWPlotter is registered in PlotterRegistry."""
-        from symfluence.reporting.plotter_registry import PlotterRegistry
 
-        assert PlotterRegistry.has_plotter('MODFLOW')
-        plotter_cls = PlotterRegistry.get_plotter('MODFLOW')
+        assert ('MODFLOW' in R.plotters)
+        plotter_cls = R.plotters.get('MODFLOW')
         assert plotter_cls is not None
         assert plotter_cls.__name__ == 'MODFLOWPlotter'
 

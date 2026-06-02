@@ -116,8 +116,8 @@ class SymfluenceConfig(BaseModel):
         hydrological_model = values.get('HYDROLOGICAL_MODEL')
         if hydrological_model:
             try:
-                from symfluence.models.registry import ModelRegistry
-                model_transformers = ModelRegistry.get_config_transformers(hydrological_model)
+                from symfluence.models.config_resolution import get_config_transformers
+                model_transformers = get_config_transformers(hydrological_model)
                 if model_transformers:
                     combined_map.update(model_transformers)
             except (ImportError, KeyError, AttributeError):
@@ -292,11 +292,12 @@ class SymfluenceConfig(BaseModel):
         """
         Validate model-specific required fields based on HYDROLOGICAL_MODEL.
 
-        Delegates to ModelRegistry for all model-specific validation.
+        Delegates to the model config-resolution helpers for all
+        model-specific validation.
         """
         from symfluence.core.config.flattening import flatten_nested_config
         from symfluence.core.exceptions import ConfigurationError
-        from symfluence.models.registry import ModelRegistry
+        from symfluence.models.config_resolution import validate_model_config
 
         models = self._parse_models()
         flat_config = flatten_nested_config(self)
@@ -304,7 +305,7 @@ class SymfluenceConfig(BaseModel):
 
         for model_name in models:
             try:
-                ModelRegistry.validate_model_config(model_name, flat_config)
+                validate_model_config(model_name, flat_config)
             except Exception as e:  # noqa: BLE001 — configuration resilience
                 all_errors.append(f"{model_name}: {str(e)}")
 

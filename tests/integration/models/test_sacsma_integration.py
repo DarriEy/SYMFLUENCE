@@ -6,6 +6,9 @@
 import numpy as np
 import pytest
 
+from symfluence.core.registries import R
+from symfluence.models.config_resolution import get_config_adapter
+
 jsacsma = pytest.importorskip("jsacsma", reason="jsacsma package not installed")
 
 
@@ -13,26 +16,22 @@ class TestModelRegistration:
     """Test that SAC-SMA is registered correctly in the framework."""
 
     def test_runner_registered(self):
-        from symfluence.models.registry import ModelRegistry
-        runner_cls = ModelRegistry.get_runner('SACSMA')
+        runner_cls = R.runners.get('SACSMA')
         assert runner_cls is not None
         assert runner_cls.__name__ == 'SacSmaRunner'
 
     def test_preprocessor_registered(self):
-        from symfluence.models.registry import ModelRegistry
-        preprocessor_cls = ModelRegistry.get_preprocessor('SACSMA')
+        preprocessor_cls = R.preprocessors.get('SACSMA')
         assert preprocessor_cls is not None
         assert preprocessor_cls.__name__ == 'SacSmaPreProcessor'
 
     def test_config_adapter_registered(self):
-        from symfluence.models.registry import ModelRegistry
-        adapter = ModelRegistry.get_config_adapter('SACSMA')
+        adapter = get_config_adapter('SACSMA')
         assert adapter is not None
         assert type(adapter).__name__ == 'SacSmaConfigAdapter'
 
     def test_result_extractor_registered(self):
-        from symfluence.models.registry import ModelRegistry
-        extractor = ModelRegistry.get_result_extractor('SACSMA')
+        extractor = R.result_extractors.get('SACSMA')
         assert extractor is not None
         assert type(extractor).__name__ == 'SacSmaResultExtractor'
 
@@ -48,20 +47,17 @@ class TestCalibrationRegistration:
         import jsacsma.calibration.worker  # noqa: F401
 
     def test_optimizer_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        optimizer_cls = OptimizerRegistry.get_optimizer('SACSMA')
+        optimizer_cls = R.optimizers.get('SACSMA')
         assert optimizer_cls is not None
         assert optimizer_cls.__name__ == 'SacSmaModelOptimizer'
 
     def test_worker_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        worker_cls = OptimizerRegistry.get_worker('SACSMA')
+        worker_cls = R.workers.get('SACSMA')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'SacSmaWorker'
 
     def test_parameter_manager_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        pm_cls = OptimizerRegistry.get_parameter_manager('SACSMA')
+        pm_cls = R.parameter_managers.get('SACSMA')
         assert pm_cls is not None
         assert pm_cls.__name__ == 'SacSmaParameterManager'
 
