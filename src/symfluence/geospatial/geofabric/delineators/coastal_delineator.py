@@ -116,14 +116,22 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
 
             # ---------- STEP 2: DIVIDE COASTAL STRIP INTO INDIVIDUAL WATERSHEDS ---------- #
 
+            # All geometric division (Voronoi, buffers, overlays) is done in a
+            # projected CRS (metres). In geographic degrees these operations shed
+            # thin sliver/tentacle polygons, especially at high latitude where a
+            # degree of longitude and latitude differ greatly.
+            utm_crs = river_basins.estimate_utm_crs()
+            coastal_strip = coastal_strip.to_crs(utm_crs)
+            river_basins_proj = river_basins.to_crs(utm_crs)
+
             # First, create Voronoi polygons for each river basin
             try:
-                # Get centroids of each river basin
-                river_basins_centroids = river_basins.copy()
-                river_basins_centroids.geometry = river_basins.geometry.centroid
+                # Get centroids of each river basin (in projected CRS)
+                river_basins_centroids = river_basins_proj.copy()
+                river_basins_centroids.geometry = river_basins_proj.geometry.centroid
 
-                # Buffer centroids to avoid potential issues with geopandas Voronoi
-                river_basins_centroids.geometry = river_basins_centroids.geometry.buffer(0.000001)
+                # Buffer centroids slightly (1 m) to avoid geopandas Voronoi issues
+                river_basins_centroids.geometry = river_basins_centroids.geometry.buffer(1.0)
 
                 # Create Voronoi polygons
                 voronoi_gdf = self._create_voronoi_tessellation(river_basins_centroids)
@@ -131,18 +139,18 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 if voronoi_gdf is None or voronoi_gdf.empty:
                     self.logger.warning("Failed to create Voronoi tessellation. Using alternative approach.")
                     # Use watershed boundaries to create extended lines to the coast
-                    coastal_watersheds = self._divide_coastal_strip_by_extending_boundaries(coastal_strip, river_basins)
+                    coastal_watersheds = self._divide_coastal_strip_by_extending_boundaries(coastal_strip, river_basins_proj)
                 else:
                     # Intersect Voronoi polygons with coastal strip to create coastal watersheds
                     voronoi_gdf = gpd.GeoDataFrame(
                         geometry=voronoi_gdf.geometry,
-                        crs=river_basins.crs
+                        crs=utm_crs
                     )
                     coastal_watersheds = gpd.overlay(coastal_strip, voronoi_gdf, how='intersection')
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 self.logger.error(f"Error dividing coastal strip: {str(e)}")
                 # Fallback to simpler approach: use a buffer method
-                coastal_watersheds = self._divide_coastal_strip_by_buffer_method(coastal_strip, river_basins)
+                coastal_watersheds = self._divide_coastal_strip_by_buffer_method(coastal_strip, river_basins_proj)
 
             # If we still don't have valid coastal watersheds, use a simpler approach
             if coastal_watersheds is None or coastal_watersheds.empty:
@@ -434,8 +442,8 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             # Create a convex hull around the points to limit Voronoi extent
             convex_hull = points_gdf.unary_union.convex_hull
 
-            # Use a large buffer around the convex hull
-            buffer_distance = 0.1  # ~10km in decimal degrees
+            # Use a large buffer around the convex hull (projected CRS, metres)
+            buffer_distance = 10000.0  # ~10 km
             extended_hull = shapely.geometry.Polygon(convex_hull).buffer(buffer_distance)
 
             # Clip Voronoi polygons to the extended hull
@@ -487,7 +495,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
 
             # Create a convex hull around all basins and extend it outward
             convex_hull = river_basins.unary_union.convex_hull
-            ext_distance = 0.1  # ~10km in decimal degrees
+            ext_distance = 10000.0  # ~10 km (projected CRS, metres)
             shapely.geometry.Polygon(convex_hull).buffer(ext_distance)
 
             # Use a buffer-based approach to divide the coastal strip
@@ -496,8 +504,8 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
 
             for idx, basin in river_basins.iterrows():
                 try:
-                    # Create a buffer around the basin
-                    buffer_dist = 0.01  # About 1km in decimal degrees
+                    # Create a buffer around the basin (projected CRS, metres)
+                    buffer_dist = 1000.0  # ~1 km
                     buffer = basin.geometry.buffer(buffer_dist)
 
                     # Intersect with coastal strip
