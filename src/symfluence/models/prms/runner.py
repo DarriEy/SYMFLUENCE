@@ -10,11 +10,11 @@ Executes the PRMS model using prepared input files.
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('PRMS')
+@R.runners.add('PRMS')
 class PRMSRunner(BaseModelRunner):
     """Runner for the PRMS model."""
 

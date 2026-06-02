@@ -12,13 +12,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import LSTMWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('LSTM')
+@R.optimizers.add('LSTM')
 class LSTMModelOptimizer(BaseModelOptimizer):
     """
     LSTM-specific optimizer using the unified BaseModelOptimizer framework.

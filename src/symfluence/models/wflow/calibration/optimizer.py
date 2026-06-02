@@ -4,13 +4,13 @@
 """Wflow Model Optimizer."""
 from pathlib import Path
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import WflowWorker  # noqa: F401
 
 
-@OptimizerRegistry.register_optimizer('WFLOW')
+@R.optimizers.add('WFLOW')
 class WflowModelOptimizer(BaseModelOptimizer):
     """Wflow-specific optimizer using the unified BaseModelOptimizer framework."""
 

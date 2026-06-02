@@ -21,14 +21,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("MHM")
+@R.preprocessors.add("MHM")
 class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a mHM model run.

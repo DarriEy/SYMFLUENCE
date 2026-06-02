@@ -15,13 +15,13 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_calibration_target('PIHM', 'streamflow')
+@R.calibration_targets.add('PIHM_STREAMFLOW')
 class PIHMStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for PIHM integrated hydrologic model."""
 

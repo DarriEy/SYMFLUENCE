@@ -11,11 +11,12 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('VIC')
+@R.postprocessors.add('VIC')
 class VICPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the VIC model.

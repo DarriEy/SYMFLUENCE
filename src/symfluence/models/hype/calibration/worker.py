@@ -13,13 +13,13 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('HYPE')
+@R.workers.add('HYPE')
 class HYPEWorker(BaseWorker):
     """
     Worker for HYPE model calibration.

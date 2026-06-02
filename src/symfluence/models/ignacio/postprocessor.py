@@ -16,8 +16,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
-from symfluence.models.registry import ModelRegistry
 
 if TYPE_CHECKING:
     pass
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor('IGNACIO')
+@R.postprocessors.add('IGNACIO')
 class IGNACIOPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for IGNACIO fire spread model results.

@@ -19,16 +19,16 @@ import torch.nn as nn
 import torch.optim as optim
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
-from ..registry import ModelRegistry
 from .model import GNNModel
 from .postprocessor import GNNPostprocessor
 from .preprocessor import GNNPreProcessor
 
 
-@ModelRegistry.register_runner('GNN', method_name='run_gnn')
+@R.runners.add('GNN', runner_method='run_gnn')
 class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """Runner for the Spatio-Temporal GNN Hydrological Model.
 

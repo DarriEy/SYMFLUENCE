@@ -21,13 +21,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor('NOAHMP')
+@R.preprocessors.add('NOAHMP')
 class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the standalone Noah-MP land surface model.

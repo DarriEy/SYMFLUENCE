@@ -12,13 +12,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import NgenWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('NGEN')
+@R.optimizers.add('NGEN')
 class NgenModelOptimizer(BaseModelOptimizer):
     """
     NextGen-specific optimizer using the unified BaseModelOptimizer framework.

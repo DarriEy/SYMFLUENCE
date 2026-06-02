@@ -18,12 +18,12 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('RHESSys')
+@R.workers.add('RHESSys')
 class RHESSysWorker(BaseWorker):
     """
     Worker for RHESSys model calibration.

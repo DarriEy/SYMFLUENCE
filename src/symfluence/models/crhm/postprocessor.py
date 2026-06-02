@@ -11,11 +11,12 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('CRHM')
+@R.postprocessors.add('CRHM')
 class CRHMPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the CRHM model.

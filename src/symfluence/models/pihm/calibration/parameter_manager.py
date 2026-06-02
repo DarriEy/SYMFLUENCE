@@ -15,8 +15,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 PIHM_DEFAULT_BOUNDS = {
     'K_SAT': {
@@ -107,7 +107,7 @@ SCENARIO_PARAM_NAMES = {'PRCP', 'SFCTMP'}
 CALIB_ONLY_PARAM_NAMES = SNOW17_PARAM_NAMES | LSM_CALIB_PARAM_NAMES | SCENARIO_PARAM_NAMES
 
 
-@OptimizerRegistry.register_parameter_manager('PIHM')
+@R.parameter_managers.add('PIHM')
 class PIHMParameterManager(BaseParameterManager):
     """Handles PIHM parameter bounds, normalization, and input file updates."""
 

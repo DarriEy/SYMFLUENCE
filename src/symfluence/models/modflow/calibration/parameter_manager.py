@@ -24,7 +24,6 @@ import numpy as np
 
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # MODFLOW groundwater parameter bounds
 MODFLOW_DEFAULT_BOUNDS = {
@@ -46,7 +45,7 @@ MODFLOW_DEFAULT_BOUNDS = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('COUPLED_GW')
+@R.parameter_managers.add('COUPLED_GW')
 class CoupledGWParameterManager(BaseParameterManager):
     """Manages joint land-surface + MODFLOW parameter space.
 

@@ -13,13 +13,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import HYPEWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('HYPE')
+@R.optimizers.add('HYPE')
 class HYPEModelOptimizer(BaseModelOptimizer):
     """
     HYPE-specific optimizer using the unified BaseModelOptimizer framework.

@@ -29,11 +29,11 @@ warnings.filterwarnings('ignore',
                        module='xarray.*')
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import SnowEvaluator, StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_calibration_target('FUSE', 'streamflow')
+@R.calibration_targets.add('FUSE_STREAMFLOW')
 class FUSEStreamflowTarget(StreamflowEvaluator):
     """FUSE-specific streamflow evaluator handling lumped/distributed modes."""
 
@@ -120,7 +120,7 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
         return super()._get_catchment_area() / 1e6 # Base class returns m2
 
 
-@OptimizerRegistry.register_calibration_target('FUSE', 'snow')
+@R.calibration_targets.add('FUSE_SNOW')
 class FUSESnowTarget(SnowEvaluator):
     """FUSE-specific snow evaluator."""
 

@@ -5,11 +5,12 @@
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('PCRGLOBWB')
+@R.postprocessors.add('PCRGLOBWB')
 class PCRGLOBWBPostProcessor(StandardModelPostprocessor):
     """Postprocessor for the PCR-GLOBWB 2.0 model.
 

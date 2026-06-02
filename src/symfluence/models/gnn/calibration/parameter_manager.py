@@ -12,11 +12,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('ML')
+@R.parameter_managers.add('ML')
 class MLParameterManager(BaseParameterManager):
     """
     Parameter manager for ML models using config-defined bounds.

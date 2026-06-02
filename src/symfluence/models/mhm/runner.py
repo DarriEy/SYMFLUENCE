@@ -11,11 +11,11 @@ mHM is run from within the settings directory where the namelists reside.
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('MHM')
+@R.runners.add('MHM')
 class MHMRunner(BaseModelRunner):
     """Runner for the mHM model."""
 

@@ -13,11 +13,12 @@ from typing import Any, Dict
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('FUSE')
+@R.postprocessors.add('FUSE')
 class FUSEPostprocessor(StandardModelPostprocessor):
     """
     Postprocessor for FUSE model outputs.

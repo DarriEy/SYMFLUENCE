@@ -18,13 +18,13 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor('IGNACIO')
+@R.preprocessors.add('IGNACIO')
 class IGNACIOPreProcessor(BaseModelPreProcessor):
     """
     Preprocessor for IGNACIO fire spread model.

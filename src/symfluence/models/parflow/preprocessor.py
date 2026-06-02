@@ -25,12 +25,12 @@ from typing import Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("PARFLOW")
+@R.preprocessors.add("PARFLOW")
 class ParFlowPreProcessor:
     """Generates ParFlow input files for integrated hydrologic simulation."""
 

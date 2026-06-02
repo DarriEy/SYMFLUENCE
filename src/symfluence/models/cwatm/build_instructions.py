@@ -2,10 +2,10 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM build instructions for SYMFLUENCE."""
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('cwatm')
+@R.build_instructions.add('cwatm')
 def get_cwatm_build_instructions():
     """Get CWatM install instructions.
 

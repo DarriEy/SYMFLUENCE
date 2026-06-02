@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class FireDefParams:
     windmax: float = 1.0
 
 
-@ModelRegistry.register_postprocessor('WMFire')
+@R.postprocessors.add('WMFire')
 class WMFirePostProcessor:
     """
     PostProcessor for WMFire fire spread simulation results.

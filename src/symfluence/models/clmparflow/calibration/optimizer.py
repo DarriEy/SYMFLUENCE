@@ -14,14 +14,14 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .targets import CLMParFlowStreamflowTarget  # noqa: F401 - triggers target registration
 from .worker import CLMParFlowWorker  # noqa: F401 - triggers worker registration
 
 
-@OptimizerRegistry.register_optimizer('CLMPARFLOW')
+@R.optimizers.add('CLMPARFLOW')
 class CLMParFlowModelOptimizer(BaseModelOptimizer):
     """
     CLMParFlow-specific optimizer using the unified BaseModelOptimizer framework.

@@ -12,13 +12,13 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import MHMWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('MHM')
+@R.optimizers.add('MHM')
 class MHMModelOptimizer(BaseModelOptimizer):
     """
     mHM-specific optimizer using the unified BaseModelOptimizer framework.

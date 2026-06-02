@@ -28,19 +28,19 @@ except ImportError:
     HAS_DROUTE = False
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import RoutingModel, SpatialOrchestrator
 from ..mixins import SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .model import LSTMModel
 from .postprocessor import LSTMPostprocessor
 from .preprocessor import LSTMPreProcessor
 
 
-@ModelRegistry.register_runner('LSTM', method_name='run_lstm')
+@R.runners.add('LSTM', runner_method='run_lstm')
 class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.

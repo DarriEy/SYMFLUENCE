@@ -13,14 +13,14 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.mizuroute.control_writer import ControlFileWriter
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor('MIZUROUTE')
+@R.preprocessors.add('MIZUROUTE')
 class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRouteConfigMixin):  # type: ignore[misc]
     """
     Spatial preprocessor and configuration generator for the mizuRoute river routing model.

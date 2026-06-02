@@ -11,10 +11,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('HYPE')
+@R.visualizers.add('HYPE')
 def visualize_hype(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize HYPE model outputs.

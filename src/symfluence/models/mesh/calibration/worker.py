@@ -18,11 +18,10 @@ from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.mesh.runner import MESHRunner
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('MESH')
+@R.workers.add('MESH')
 class MESHWorker(BaseWorker):
     """
     Worker for MESH model calibration.

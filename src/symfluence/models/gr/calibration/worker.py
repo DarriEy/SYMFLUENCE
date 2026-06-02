@@ -14,14 +14,14 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.registries import R
 from symfluence.models.gr.runner import GRRunner
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('GR')
+@R.workers.add('GR')
 class GRWorker(BaseWorker):
     """
     Parallel worker for GR model calibration.

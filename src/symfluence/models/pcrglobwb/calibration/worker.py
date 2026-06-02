@@ -13,15 +13,15 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.lisflood.runner import _find_pcraster_site_packages
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 from .parameter_manager import PCRGLOBWBParameterManager
 
 
-@OptimizerRegistry.register_worker('PCRGLOBWB')
+@R.workers.add('PCRGLOBWB')
 class PCRGLOBWBWorker(BaseWorker):
     """Calibration worker for PCR-GLOBWB."""
 
