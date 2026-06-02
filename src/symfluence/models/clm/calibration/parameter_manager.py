@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # CLM5 parameter definitions:
 # (target_file, nc_variable_or_None, transform)
@@ -108,7 +108,7 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('CLM')
+@R.parameter_managers.add('CLM')
 class CLMParameterManager(BaseParameterManager):
     """Handles CLM5 parameter bounds, normalization, and file updates."""
 

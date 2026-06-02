@@ -12,13 +12,13 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import WATFLOODWorker  # noqa: F401
 
 
-@OptimizerRegistry.register_optimizer('WATFLOOD')
+@R.optimizers.add('WATFLOOD')
 class WATFLOODModelOptimizer(BaseModelOptimizer):
     """WATFLOOD-specific optimizer using the unified BaseModelOptimizer framework."""
 

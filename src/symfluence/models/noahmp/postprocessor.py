@@ -10,11 +10,12 @@ is the closest analogue to streamflow for a 1-D column model.
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('NOAHMP')
+@R.postprocessors.add('NOAHMP')
 class NoahMPPostProcessor(StandardModelPostprocessor):
     """Postprocessor for standalone Noah-MP.
 

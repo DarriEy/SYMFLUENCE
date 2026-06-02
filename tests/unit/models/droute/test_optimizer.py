@@ -2,6 +2,8 @@
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestDRouteOptimizerRegistration:
     """Tests for dRoute optimizer registration."""
@@ -11,28 +13,24 @@ class TestDRouteOptimizerRegistration:
         assert DRouteModelOptimizer is not None
 
     def test_optimizer_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'DROUTE' in OptimizerRegistry._optimizers
+        assert 'DROUTE' in R.optimizers
 
     def test_optimizer_is_correct_class(self):
         from droute.calibration.optimizer import DRouteModelOptimizer
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._optimizers.get('DROUTE') == DRouteModelOptimizer
+        assert R.optimizers.get('DROUTE') == DRouteModelOptimizer
 
 
 class TestDRouteWorkerRegistration:
     """Tests for dRoute worker registration."""
 
     def test_worker_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'DROUTE' in OptimizerRegistry._workers
+        assert 'DROUTE' in R.workers
 
     def test_worker_is_correct_class(self):
         from droute.calibration.worker import DRouteWorker
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._workers.get('DROUTE') == DRouteWorker
+        assert R.workers.get('DROUTE') == DRouteWorker
 
 
 class TestDRouteGradientSupport:

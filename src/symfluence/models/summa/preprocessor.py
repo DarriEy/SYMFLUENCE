@@ -16,18 +16,17 @@ from typing import Optional, Tuple
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 
 # Local imports
-from symfluence.models.registry import ModelRegistry
-
 from .attributes_manager import SummaAttributesManager
 from .config_manager import SummaConfigManager
 from .forcing_processor import SummaForcingProcessor
 from .glacier_manager import GlacierAttributesManager
 
 
-@ModelRegistry.register_preprocessor('SUMMA')
+@R.preprocessors.add('SUMMA')
 class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.

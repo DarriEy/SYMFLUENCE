@@ -13,10 +13,11 @@ Tier 2: Fall back to pre-compiled Windows binary via Wine.
 Tier 3: Manual installation guidance.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('watflood')
+@R.build_instructions.add('watflood')
 def get_watflood_build_instructions():
     """Get WATFLOOD/CHARM build instructions (native CMake build)."""
     common_env = get_common_build_environment()

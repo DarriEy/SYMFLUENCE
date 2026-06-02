@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 @pytest.fixture
 def logger():
@@ -32,14 +34,12 @@ class TestDRouteParameterManagerRegistration:
     """Tests for parameter manager registration."""
 
     def test_parameter_manager_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'DROUTE' in OptimizerRegistry._parameter_managers
+        assert 'DROUTE' in R.parameter_managers
 
     def test_parameter_manager_is_correct_class(self):
         from droute.calibration.parameter_manager import DRouteParameterManager
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._parameter_managers.get('DROUTE') == DRouteParameterManager
+        assert R.parameter_managers.get('DROUTE') == DRouteParameterManager
 
 
 class TestDRouteParameterBounds:

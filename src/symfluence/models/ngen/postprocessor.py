@@ -15,11 +15,11 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('NGEN')
+@R.postprocessors.add('NGEN')
 class NgenPostprocessor(StandardModelPostprocessor):
     """
     Postprocessor for NextGen Framework outputs.

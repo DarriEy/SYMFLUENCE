@@ -12,12 +12,12 @@ from typing import Dict, Optional
 
 import numpy as np
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
-@PlotterRegistry.register_plotter('SUMMA')
+@R.plotters.add('SUMMA')
 class SUMMAPlotter(BasePlotter):
     """
     Plotter for SUMMA model outputs.

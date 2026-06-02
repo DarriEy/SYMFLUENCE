@@ -11,11 +11,12 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('PRMS')
+@R.postprocessors.add('PRMS')
 class PRMSPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the PRMS model.

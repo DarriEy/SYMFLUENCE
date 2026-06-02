@@ -12,7 +12,7 @@ model-specific optimizers, workers, and parameter managers.
 
 from pathlib import Path
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 
 
 class TestOptimizerRegistryAfterRefactoring:
@@ -23,22 +23,22 @@ class TestOptimizerRegistryAfterRefactoring:
         # Models should register when their optimization modules are imported
 
         # Check that some optimizers are registered
-        optimizer_cls = OptimizerRegistry.get_optimizer('SUMMA')
+        optimizer_cls = R.optimizers.get('SUMMA')
         assert optimizer_cls is not None, "SUMMA optimizer should be registered"
 
     def test_worker_registry_has_models(self):
         """Test that worker registry contains registered workers."""
-        worker_cls = OptimizerRegistry.get_worker('FUSE')
+        worker_cls = R.workers.get('FUSE')
         assert worker_cls is not None, "FUSE worker should be registered"
 
     def test_parameter_manager_registry_has_models(self):
         """Test that parameter manager registry contains registered managers."""
-        pm_cls = OptimizerRegistry.get_parameter_manager('SUMMA')
+        pm_cls = R.parameter_managers.get('SUMMA')
         assert pm_cls is not None, "SUMMA parameter manager should be registered"
 
     def test_calibration_target_registry_has_models(self):
         """Test that calibration target registry contains registered targets."""
-        target_cls = OptimizerRegistry.get_calibration_target('SUMMA')
+        target_cls = R.calibration_targets.get('SUMMA_STREAMFLOW')
         # Note: May be None if not yet implemented, but registry should not error
         # This is acceptable as calibration targets are being refactored
 

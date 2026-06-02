@@ -2,10 +2,10 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB build instructions for SYMFLUENCE."""
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('pcrglobwb')
+@R.build_instructions.add('pcrglobwb')
 def get_pcrglobwb_build_instructions():
     """Get PCR-GLOBWB install instructions.
 

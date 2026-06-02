@@ -14,11 +14,11 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 
-@OptimizerRegistry.register_worker('IGNACIO')
+@R.workers.add('IGNACIO')
 class IGNACIOWorker(BaseWorker):
     """
     Worker for IGNACIO fire model parameter calibration.

@@ -31,12 +31,12 @@ from typing import Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CLMPARFLOW")
+@R.preprocessors.add("CLMPARFLOW")
 class CLMParFlowPreProcessor:
     """Generates ParFlow-CLM input files for integrated hydrologic simulation."""
 

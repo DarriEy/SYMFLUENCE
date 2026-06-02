@@ -14,11 +14,11 @@ from typing import Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('VIC')
+@R.parameter_managers.add('VIC')
 class VICParameterManager(BaseParameterManager):
     """Handles VIC parameter bounds, normalization, and file updates."""
 

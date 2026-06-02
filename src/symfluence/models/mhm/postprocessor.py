@@ -11,11 +11,12 @@ Uses StandardModelPostprocessor for reduced boilerplate.
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('MHM')
+@R.postprocessors.add('MHM')
 class MHMPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the mHM model.

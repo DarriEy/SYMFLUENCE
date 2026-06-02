@@ -18,10 +18,10 @@ in order:
   4. troute-nwm (pure Python CLI entry point)
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('troute')
+@R.build_instructions.add('troute')
 def get_troute_build_instructions():
     """
     Get t-route build instructions.

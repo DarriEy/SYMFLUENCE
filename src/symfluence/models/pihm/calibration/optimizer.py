@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .targets import PIHMStreamflowTarget  # noqa: F401 - triggers target registration
 from .worker import PIHMWorker  # noqa: F401 - triggers worker registration
 
 
-@OptimizerRegistry.register_optimizer('PIHM')
+@R.optimizers.add('PIHM')
 class PIHMModelOptimizer(BaseModelOptimizer):
     """Optimizer for PIHM calibration.
 

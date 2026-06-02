@@ -19,15 +19,15 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     pass
 
 
-@OptimizerRegistry.register_calibration_target('GR', 'streamflow')
+@R.calibration_targets.add('GR_STREAMFLOW')
 class GRStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for GR4J and GR6J conceptual rainfall-runoff models.
 

@@ -17,11 +17,11 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
+@R.runners.add('MIZUROUTE', runner_method='run_mizuroute')
 class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
     """
     A class to run the mizuRoute model.

@@ -20,16 +20,16 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 
 # Reuse ParFlow's linear reservoir routing function
 from symfluence.models.parflow.calibration.targets import _linear_reservoir_routing
-from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_calibration_target('CLMPARFLOW', 'streamflow')
+@R.calibration_targets.add('CLMPARFLOW_STREAMFLOW')
 class CLMParFlowStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for CLMParFlow integrated hydrologic model.
 

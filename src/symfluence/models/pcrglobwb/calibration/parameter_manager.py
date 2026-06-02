@@ -6,11 +6,11 @@
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('PCRGLOBWB')
+@R.parameter_managers.add('PCRGLOBWB')
 class PCRGLOBWBParameterManager(BaseParameterManager):
     """Manages calibratable parameters for PCR-GLOBWB.
 

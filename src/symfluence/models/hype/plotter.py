@@ -12,11 +12,11 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
-@PlotterRegistry.register_plotter('HYPE')
+@R.plotters.add('HYPE')
 class HYPEPlotter(BasePlotter):
     """
     Plotter for HYPE model outputs.

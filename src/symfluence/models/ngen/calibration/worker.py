@@ -15,13 +15,13 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel as PydanticBaseModel
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('NGEN')
+@R.workers.add('NGEN')
 class NgenWorker(BaseWorker):
     """
     Worker for NextGen (ngen) model calibration.
