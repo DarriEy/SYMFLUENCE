@@ -49,7 +49,6 @@ src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator._cre
 src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator._create_routing_dataset:raise ValueError(
 src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator.convert_to_routing_format:raise FileNotFoundError(f"Input file not found: {input_file}")
 src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator.convert_to_routing_format:raise FileNotFoundError(f"No NetCDF output files found in directory: {input_file}")
-src/symfluence/models/gnn/__init__.py:__getattr__:raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 src/symfluence/models/gnn/extractor.py:GNNResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/gnn/model.py:GNNModel.__init__:raise ValueError(f"dropout_rate must be in [0, 1), got {dropout_rate}")
 src/symfluence/models/gnn/model.py:GNNModel.__init__:raise ValueError(f"gnn_output_size must be positive, got {gnn_output_size}")
@@ -105,7 +104,6 @@ src/symfluence/models/lisflood/extractor.py:LisfloodResultExtractor.extract_vari
 src/symfluence/models/lisflood/preprocessor.py:LisfloodPreProcessor._extract_forcing_var:raise ValueError(f"None of {var_names} found in forcing. Available: {list(ds.data_vars)}")
 src/symfluence/models/lisflood/preprocessor.py:LisfloodPreProcessor._generate_forcing:raise FileNotFoundError(f"No forcing files found in {forcing_path}")
 src/symfluence/models/lisflood/runner.py:LisfloodRunner.run:raise FileNotFoundError(f"LISFLOOD settings not found: {settings_path}")
-src/symfluence/models/lstm/__init__.py:__getattr__:raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 src/symfluence/models/lstm/extractor.py:LSTMResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/lstm/preprocessor.py:LSTMPreProcessor.load_data:raise FileNotFoundError(f"No forcing files found in {forcing_path}")
 src/symfluence/models/lstm/preprocessor.py:LSTMPreProcessor.load_data:raise ValueError(f"Missing required variables in forcing data: {missing_vars}")

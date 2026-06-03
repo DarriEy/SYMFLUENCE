@@ -60,6 +60,17 @@ def _raised_name(exc: ast.expr | None) -> str | None:
     return None
 
 
+# (exception, enclosing function) pairs that are the documented Python data-model
+# idiom and are therefore legitimate built-in raises, not generic-exception debt.
+_PROTOCOL_EXEMPT = {
+    ("AttributeError", "__getattr__"),
+    ("AttributeError", "__getattribute__"),
+    ("KeyError", "__getitem__"),
+    ("KeyError", "__missing__"),
+    ("IndexError", "__getitem__"),
+}
+
+
 def _qualified_context(stack: List[str]) -> str:
     return ".".join(stack) if stack else MODULE_SCOPE
 
@@ -75,7 +86,8 @@ def _walk_raises(tree: ast.AST, source_lines: List[str]) -> List[Tuple[str, str]
 
         if isinstance(node, ast.Raise):
             name = _raised_name(node.exc)
-            if name in BUILTIN_EXCEPTIONS:
+            enclosing = stack[-1] if stack else ""
+            if name in BUILTIN_EXCEPTIONS and (name, enclosing) not in _PROTOCOL_EXEMPT:
                 lineno = node.lineno
                 src = (
                     source_lines[lineno - 1].strip()
