@@ -145,13 +145,15 @@ class AridityIndexAcquirer(BaseAcquisitionHandler, RetryMixin):
         self.logger.info("Extracting archive...")
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
             # Also extract any nested zips
             for nested_zip in cache_dir.rglob("*.zip"):
                 if nested_zip != zip_path:
                     try:
                         with zipfile.ZipFile(nested_zip, 'r') as zf:
-                            zf.extractall(nested_zip.parent)
+                            from symfluence.core.archive_extraction import safe_zip_extract
+                            safe_zip_extract(zf, nested_zip.parent)
                     except zipfile.BadZipFile:
                         pass
         except zipfile.BadZipFile:

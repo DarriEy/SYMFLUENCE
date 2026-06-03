@@ -253,7 +253,8 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             # Extract shapefile from zip
             import zipfile
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
 
             # Find the extracted shapefile
             for shp_file in cache_dir.glob(f"RGI2000-v7.0-G-{region_id:02d}*.shp"):
