@@ -48,13 +48,18 @@ def find_mpirun(exe: Union[str, os.PathLike, None] = None) -> Optional[str]:
         Absolute path (bundled case) or bare name resolved on ``PATH``, or
         ``None`` if no launcher is available.
     """
+    # 1. A launcher bundled next to the executable. shutil.which handles
+    #    per-platform executability (POSIX exec bit) and extensions (Windows
+    #    PATHEXT), so a bundled "mpirun.exe" is found on Windows and a
+    #    non-executable file is correctly ignored on POSIX.
     if exe:
-        exe_dir = Path(exe).resolve().parent
+        bundled_dir = str(Path(exe).resolve().parent)
         for name in _LAUNCHERS:
-            candidate = exe_dir / name
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                return str(candidate)
+            found = shutil.which(name, path=bundled_dir)
+            if found:
+                return found
 
+    # 2. The system PATH.
     for name in _LAUNCHERS:
         found = shutil.which(name)
         if found:
