@@ -25,6 +25,7 @@ import xarray as xr
 
 # Local imports
 from symfluence.core import ConfigurableMixin
+from symfluence.core.exceptions import ModelExecutionError
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -139,7 +140,7 @@ class SummaAttributesManager(ConfigurableMixin):
             )
             forcing_hruIds = [hru_id for hru_id in forcing_hruIds if hru_id in available_hru_ids]
         if len(forcing_hruIds) == 0:
-            raise ValueError("No forcing HRU IDs match catchment shapefile HRU IDs.")
+            raise ModelExecutionError("No forcing HRU IDs match catchment shapefile HRU IDs.")
         shp = shp.loc[forcing_hruIds].reset_index()
 
         # Get number of GRUs and HRUs

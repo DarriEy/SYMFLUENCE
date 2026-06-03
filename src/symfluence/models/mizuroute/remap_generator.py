@@ -21,6 +21,8 @@ import netCDF4 as nc4
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
+
 if TYPE_CHECKING:
     from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
 
@@ -33,7 +35,7 @@ def _create_easymore_instance():
         return easymore.Easymore()
     if hasattr(easymore, "easymore"):
         return easymore.easymore()
-    raise AttributeError("easymore module does not expose an Easymore class")
+    raise ModelExecutionError("easymore module does not expose an Easymore class")
 
 
 class MizuRouteRemapGenerator:

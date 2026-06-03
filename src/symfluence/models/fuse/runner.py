@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import xarray as xr
 
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError, symfluence_error_handler
 from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
@@ -249,7 +249,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         target = next((path for path in self._fuse_output_candidates(fuse_out_dir, fuse_id) if path.exists()), None)
 
         if target is None:
-            raise FileNotFoundError(
+            raise FileOperationError(
                 f"FUSE output not found. Tried: {[str(path) for path in self._fuse_output_candidates(fuse_out_dir, fuse_id)]}"
             )
 
@@ -765,7 +765,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             ids = fuse_ds[spatial_name].values
         else:
             # If both >1 (unlikely for your setup) or neither, fail loudly
-            raise ValueError(f"Could not infer subcatchment axis from dims: {fuse_ds.dims}")
+            raise ModelExecutionError(f"Could not infer subcatchment axis from dims: {fuse_ds.dims}")
 
         # --- Rename spatial dimension to 'gru'
         data = data.rename({data.dims[1]: 'gru'})

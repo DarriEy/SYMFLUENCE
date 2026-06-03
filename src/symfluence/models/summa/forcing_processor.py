@@ -24,6 +24,7 @@ import psutil
 import xarray as xr
 
 from symfluence.core.constants import PhysicalConstants
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
 
 from ..utilities import BaseForcingProcessor
 
@@ -233,7 +234,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.error(f"Missing both intersected shapefile and remapping weights in {self.intersect_path}")
                 self.logger.error(f"Expected intersect base: {intersect_base}")
                 self.logger.error(f"Expected remap file: {remap_file.name}")
-                raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
+                raise FileOperationError(f"Neither {intersect_csv} nor {intersect_shp} exist")
 
         return intersect_csv
 
@@ -310,7 +311,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         forcing_files.sort()
         self.logger.info(f"Found {len(forcing_files)} forcing files to process")
         if not forcing_files:
-            raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
+            raise FileOperationError(f"No forcing files found in {self.forcing_basin_path}")
         return forcing_files
 
     def _prepare_forcing_output_dir(self):
@@ -468,7 +469,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 dat = dat.sel(hru=valid_hru_mask)
 
                 if len(dat.hru) == 0:
-                    raise ValueError(f"File {file}: No valid HRUs found after filtering")
+                    raise ModelExecutionError(f"File {file}: No valid HRUs found after filtering")
 
             # 2. FIX NaN VALUES IN FORCING DATA
             dat = self._fix_nan_values(dat, file)
@@ -789,7 +790,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         try:
             # Check if time exists in the dataset
             if 'time' not in dataset.dims and 'time' not in dataset.coords:
-                raise ValueError("Dataset has no 'time' dimension or coordinate")
+                raise ModelExecutionError("Dataset has no 'time' dimension or coordinate")
 
             # Use bracket notation to access time safely
             time_coord = dataset['time']
@@ -877,10 +878,10 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Validate the conversion
             if len(seconds_since_ref) == 0:
-                raise ValueError("Empty time coordinate after conversion")
+                raise ModelExecutionError("Empty time coordinate after conversion")
 
             if np.any(np.isnan(seconds_since_ref)):
-                raise ValueError("NaN values in converted time coordinate")
+                raise ModelExecutionError("NaN values in converted time coordinate")
 
             # Check time step consistency (but don't force it - preserve actual data timing)
             if len(seconds_since_ref) > 1:
@@ -910,7 +911,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             self.logger.error(f"File {filename}: Error fixing time coordinate: {str(e)}")
-            raise ValueError(f"Cannot fix time coordinate in file {filename}: {str(e)}") from e
+            raise ModelExecutionError(f"Cannot fix time coordinate in file {filename}: {str(e)}") from e
 
     def _fix_nan_values(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
         """
@@ -1015,7 +1016,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
                 elif nan_percentage > 80:  # Only reject if >80% NaN for non-temperature variables
                     self.logger.error(f"File {filename}: Too many NaN values in {var} ({nan_percentage:.1f}%)")
-                    raise ValueError(f"Variable {var} has too many NaN values to interpolate reliably")
+                    raise ModelExecutionError(f"Variable {var} has too many NaN values to interpolate reliably")
 
                 else:
                     # Standard interpolation for other variables
@@ -1049,7 +1050,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 remaining_nans = np.isnan(dataset[var].values).sum()
                 if remaining_nans > 0:
                     self.logger.error(f"File {filename}: Still have {remaining_nans} NaN values in {var} after fixing")
-                    raise ValueError(f"Failed to remove all NaN values from {var}")
+                    raise ModelExecutionError(f"Failed to remove all NaN values from {var}")
 
         return dataset
 
@@ -1304,7 +1305,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     f"({', '.join(f'{v}={defaults[v]}' for v in missing_vars[:3])}...), "
                     f"but this can produce physically unrealistic results."
                 )
-                raise ValueError(error_msg)
+                raise ModelExecutionError(error_msg)
 
         return dataset
 
@@ -1408,7 +1409,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 "3. Variable naming and mapping conventions\n\n"
                 "Note: Previous versions silently clipped out-of-range values, which could hide data issues and invalidate results."
             )
-            raise ValueError(error_msg)
+            raise ModelExecutionError(error_msg)
 
         return dataset
 
@@ -1424,10 +1425,10 @@ class SummaForcingProcessor(BaseForcingProcessor):
         time_coord = dataset.time
 
         if not np.issubdtype(time_coord.dtype, np.number):
-            raise ValueError(f"File {filename}: Time coordinate is not numeric after fixing")
+            raise ModelExecutionError(f"File {filename}: Time coordinate is not numeric after fixing")
 
         if 'units' not in time_coord.attrs or 'since' not in time_coord.attrs['units']:
-            raise ValueError(f"File {filename}: Time coordinate missing proper units")
+            raise ModelExecutionError(f"File {filename}: Time coordinate missing proper units")
 
         # Check for any remaining NaN values in critical variables
         critical_vars = ['air_temperature', 'surface_air_pressure', 'specific_humidity', 'wind_speed']
@@ -1435,7 +1436,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             if var in dataset:
                 nan_count = np.isnan(dataset[var].values).sum()
                 if nan_count > 0:
-                    raise ValueError(f"File {filename}: Variable {var} still has {nan_count} NaN values")
+                    raise ModelExecutionError(f"File {filename}: Variable {var} still has {nan_count} NaN values")
 
         # Check that all arrays have consistent shapes
         expected_shape = (len(dataset.time), len(dataset.hru))
@@ -1573,7 +1574,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         if not forcing_path.exists():
             self.logger.error("Forcing SUMMA_input directory does not exist: %s", forcing_path)
-            raise FileNotFoundError(f"SUMMA forcing directory not found: {forcing_path}")
+            raise FileOperationError(f"SUMMA forcing directory not found: {forcing_path}")
 
         forcing_files = [
             f for f in os.listdir(forcing_path)
@@ -1587,7 +1588,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 forcing_path,
                 prefix,
             )
-            raise FileNotFoundError(
+            raise FileOperationError(
                 f"No {forcing_dataset} forcing files found in {forcing_path}"
             )
 
@@ -1656,5 +1657,5 @@ class SummaForcingProcessor(BaseForcingProcessor):
             )
             forcing_hru_ids = [hru_id for hru_id in forcing_hru_ids if hru_id in available_hru_ids]
         if len(forcing_hru_ids) == 0:
-            raise ValueError("No forcing HRU IDs match catchment shapefile HRU IDs.")
+            raise ModelExecutionError("No forcing HRU IDs match catchment shapefile HRU IDs.")
         return forcing_hru_ids

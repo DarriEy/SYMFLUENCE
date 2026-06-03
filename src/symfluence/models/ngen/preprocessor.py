@@ -21,6 +21,7 @@ import pandas as pd
 import xarray as xr
 import yaml
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
@@ -767,7 +768,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if actual_end < extended_end_time:
             # Check if padding will overlap the actual simulation period (not just buffer)
             if actual_end < end_time:
-                raise ValueError(
+                raise ModelExecutionError(
                     f"Forcing data ends at {actual_end} but simulation requires data until {end_time}. "
                     f"Padding within the simulation period would produce invalid results. "
                     f"Please provide forcing data that extends to at least {end_time}."
@@ -880,7 +881,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Verify directory exists before proceeding
         if not csv_dir.exists():
-            raise OSError(f"Failed to create directory: {csv_dir}")
+            raise ModelExecutionError(f"Failed to create directory: {csv_dir}")
 
         self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
@@ -935,7 +936,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 missing_wind_vars.append('northward_wind (V-component of wind)')
 
             if missing_wind_vars:
-                raise ValueError(
+                raise ModelExecutionError(
                     f"Missing required wind components for NGEN: {', '.join(missing_wind_vars)}\n"
                     f"Wind data is required for PET and NOAH-OWP energy balance calculations.\n"
                     f"Available forcing variables: {list(forcing_data.data_vars)}\n"

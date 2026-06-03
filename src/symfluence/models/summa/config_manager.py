@@ -23,6 +23,8 @@ import netCDF4 as nc4
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import ConfigValidationError
+
 # SYMFLUENCE imports
 from symfluence.core.path_resolver import PathResolverMixin
 
@@ -306,13 +308,13 @@ class SummaConfigManager(PathResolverMixin):
         try:
             experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
             if not experiment_id:
-                raise ValueError("EXPERIMENT_ID is missing from configuration")
+                raise ConfigValidationError("EXPERIMENT_ID is missing from configuration")
 
             sim_start, sim_end = self._get_simulation_times()
 
             filemanager_name = self._get_config_value(lambda: self.config.model.summa.filemanager, dict_key='SETTINGS_SUMMA_FILEMANAGER')
             if not filemanager_name:
-                raise ValueError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
+                raise ConfigValidationError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
 
             filemanager_path = self.setup_dir / filemanager_name
 
