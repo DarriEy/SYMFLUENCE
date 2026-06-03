@@ -11,8 +11,16 @@ Install dependencies: pip install "symfluence[gui]"
 Launch: symfluence gui launch
 """
 
+#: Bind addresses that keep the GUI reachable only from the local machine.
+_LOOPBACK_ADDRESSES = frozenset({"127.0.0.1", "localhost", "::1"})
 
-def serve_app(config_path=None, port=5006, show=True, demo=None):
+
+def is_loopback_address(address: str) -> bool:
+    """Return True if *address* keeps the server local-only (loopback)."""
+    return address in _LOOPBACK_ADDRESSES
+
+
+def serve_app(config_path=None, port=5006, show=True, demo=None, address="127.0.0.1"):
     """
     Build and serve the SYMFLUENCE GUI as a Panel web application.
 
@@ -25,6 +33,7 @@ def serve_app(config_path=None, port=5006, show=True, demo=None):
         port: Server port (default 5006).
         show: Open a browser tab automatically.
         demo: Optional demo name (e.g. 'bow') to load a built-in config.
+        address: Interface to bind (default 127.0.0.1, loopback only).
     """
     try:
         import panel  # noqa: F401
@@ -35,7 +44,7 @@ def serve_app(config_path=None, port=5006, show=True, demo=None):
         ) from None
 
     from .server import _serve_app
-    _serve_app(config_path=config_path, port=port, show=show, demo=demo)
+    _serve_app(config_path=config_path, port=port, show=show, demo=demo, address=address)
 
 
-__all__ = ['serve_app']
+__all__ = ['serve_app', 'is_loopback_address']
