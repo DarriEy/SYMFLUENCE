@@ -1,10 +1,12 @@
 name: Cross-Platform Testing
 
 on:
+  # Tiered: the full OS matrix runs after merge to develop/main, nightly, and on
+  # demand — NOT on every PR (the fast unit gate lives in ci.yml).
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  schedule:
+    - cron: '0 3 * * *'  # nightly full cross-platform matrix
   workflow_dispatch:
 
 defaults:
