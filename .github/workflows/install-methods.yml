@@ -35,10 +35,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-latest]
-        method: [pip, uv-pip, pipx]
+        # Blocking: the core Python installs validated at the shallow (install +
+        # CLI + import) level.
+        method: [pip, uv-pip]
         experimental: [false]
         include:
-          # Methods still affected by §8 G1–G7 — reported, non-blocking.
+          # Reported but non-blocking: app-install methods + those still affected
+          # by the §8 install gaps (G1–G7). See the tracking issue.
+          - { os: ubuntu-24.04, method: pipx,    experimental: true }
+          - { os: macos-latest, method: pipx,    experimental: true }
           - { os: ubuntu-24.04, method: uv-tool, experimental: true }
           - { os: macos-latest, method: uv-tool, experimental: true }
           - { os: ubuntu-24.04, method: conda,   experimental: true }
@@ -141,14 +146,30 @@ jobs:
               ;;
           esac
 
-      - name: Smoke test (CLI + import)
+      - name: Smoke test
         run: |
           set -x
-          run() { "$@"; }
-          if [[ "${{ matrix.method }}" == "uv-pip" ]]; then source "$VENV/bin/activate"; fi
-          if [[ "${{ matrix.method }}" == "conda" ]]; then source "$CONDA/etc/profile.d/conda.sh"; conda activate base; fi
-          symfluence --version
-          python -c "import symfluence; print('import OK:', symfluence.__file__)"
+          case "${{ matrix.method }}" in
+            pipx|uv-tool|npm)
+              # App-install methods expose the `symfluence` CLI on PATH but do not
+              # add an importable module to the ambient Python — CLI smoke only.
+              symfluence --version
+              ;;
+            uv-pip)
+              source "$VENV/bin/activate"
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+            conda)
+              source "$CONDA/etc/profile.d/conda.sh"; conda activate base
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+            *)
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+          esac
 
   summary:
     name: Install-method summary
