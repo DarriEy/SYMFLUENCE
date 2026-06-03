@@ -70,6 +70,12 @@ repos:
         language: python
         pass_filenames: false
         types: [python]
+      - id: check-resilience-logging
+        name: Guard resilience handlers log with a traceback
+        entry: python scripts/check_resilience_logging.py
+        language: python
+        pass_filenames: false
+        types: [python]
       - id: check-version-sync
         name: Validate version synchronization
         entry: bash scripts/check_version_sync.sh
