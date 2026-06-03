@@ -138,7 +138,7 @@ class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
                 self.logger.info(f"  Saved: {out_path}")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to download Pelletier {var}: {e}")
+                self.logger.warning(f"Failed to download Pelletier {var}: {e}", exc_info=True)
                 continue
 
         if not output_paths:

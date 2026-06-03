@@ -185,7 +185,7 @@ class SoilGridsPropertiesAcquirer(BaseAcquisitionHandler, RetryMixin):
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Failed to download SoilGrids {prop} {depth}: {e}"
-                    )
+                    , exc_info=True)
                     continue
 
         if not output_paths:

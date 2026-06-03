@@ -84,7 +84,7 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"GSFLOW preprocessing failed: {e}")
+            logger.error(f"GSFLOW preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False

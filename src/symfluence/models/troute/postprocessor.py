@@ -130,7 +130,7 @@ class TRoutePostProcessor(StandardModelPostprocessor):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting TRoute streamflow: {e}")
+            self.logger.error(f"Error extracting TRoute streamflow: {e}", exc_info=True)
             return None
 
     def _select_outlet_segment(self, data):

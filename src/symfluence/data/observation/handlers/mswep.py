@@ -95,7 +95,7 @@ class MSWEPHandler(BaseObservationHandler):
                 if precip is not None:
                     all_data.append(precip)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         if not all_data:
             self.logger.warning("No MSWEP data could be processed")
@@ -160,7 +160,7 @@ class MSWEPHandler(BaseObservationHandler):
         try:
             ds = xr.open_dataset(nc_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to open {nc_file}: {e}")
+            self.logger.error(f"Failed to open {nc_file}: {e}", exc_info=True)
             return None
 
         # Find precipitation variable
@@ -290,5 +290,5 @@ class MSWEPHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading MSWEP data: {e}")
+            self.logger.error(f"Error loading MSWEP data: {e}", exc_info=True)
             return None

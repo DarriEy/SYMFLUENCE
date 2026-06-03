@@ -557,7 +557,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error(f"Routing failed: {e}")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}")
+            self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}", exc_info=True)
             return None
 
     def _run_mizuroute(
@@ -606,7 +606,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("mizuRoute runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"mizuRoute execution failed: {e}")
+            self.logger.error(f"mizuRoute execution failed: {e}", exc_info=True)
             return None
 
     def _create_mizuroute_control_file(self, model_name: str) -> None:
@@ -646,7 +646,7 @@ class SpatialOrchestrator(ABC):
         except ImportError:
             self.logger.warning("MizuRoutePreProcessor not available - skipping control file creation")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error creating mizuRoute control file: {e}")
+            self.logger.error(f"Error creating mizuRoute control file: {e}", exc_info=True)
 
     def _run_troute(
         self,
@@ -676,7 +676,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("t-route runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"t-route execution failed: {e}")
+            self.logger.error(f"t-route execution failed: {e}", exc_info=True)
             return None
 
     def _run_droute(
@@ -707,7 +707,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("dRoute runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"dRoute execution failed: {e}")
+            self.logger.error(f"dRoute execution failed: {e}", exc_info=True)
             return None
 
     # =========================================================================
@@ -763,7 +763,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error(f"Missing expected column in shapefile: {e}")
             return 1
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}")
+            self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}", exc_info=True)
             return 1
 
     def normalize_spatial_output(

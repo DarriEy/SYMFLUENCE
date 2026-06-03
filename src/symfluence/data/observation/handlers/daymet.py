@@ -105,7 +105,7 @@ class DaymetHandler(BaseObservationHandler):
                 if df is not None and not df.empty:
                     all_data.append(df)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         # Process CSV files (single-pixel)
         for csv_file in csv_files:
@@ -114,7 +114,7 @@ class DaymetHandler(BaseObservationHandler):
                 if df is not None and not df.empty:
                     all_data.append(df)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {csv_file.name}: {e}")
+                self.logger.warning(f"Failed to process {csv_file.name}: {e}", exc_info=True)
 
         if not all_data:
             self.logger.warning("No Daymet data could be processed")
@@ -221,7 +221,7 @@ class DaymetHandler(BaseObservationHandler):
                     results[std_name] = series
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process variable {var_name}: {e}")
+                self.logger.warning(f"Failed to process variable {var_name}: {e}", exc_info=True)
 
         ds.close()
 
@@ -316,5 +316,5 @@ class DaymetHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading Daymet data: {e}")
+            self.logger.error(f"Error loading Daymet data: {e}", exc_info=True)
             return None

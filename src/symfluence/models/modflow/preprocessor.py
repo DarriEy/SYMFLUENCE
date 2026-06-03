@@ -111,7 +111,7 @@ class MODFLOWPreProcessor:
             self.logger.info(f"Auto-detected catchment area from shapefile: {area_km2:.1f} km2")
             return area_km2
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not auto-detect catchment area: {e}")
+            self.logger.debug(f"Could not auto-detect catchment area: {e}", exc_info=True)
             return None
 
     def _get_time_info(self):

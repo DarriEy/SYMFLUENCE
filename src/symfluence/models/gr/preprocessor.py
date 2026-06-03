@@ -263,7 +263,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."
-            )
+            , exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return ds.mean(dim='hru')

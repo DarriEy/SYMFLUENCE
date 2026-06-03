@@ -94,7 +94,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO preprocessing failed: {e}")
+            self.logger.error(f"IGNACIO preprocessing failed: {e}", exc_info=True)
             return False
 
     def _get_ignacio_config(self) -> Dict[str, Any]:
@@ -336,7 +336,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
                     ds.close()
                 except Exception as exc:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Could not load {nc_file}: {exc}")
+                    self.logger.warning(f"Could not load {nc_file}: {exc}", exc_info=True)
 
             if not chunks:
                 return None
@@ -358,7 +358,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             self.logger.warning(f"Cannot convert ERA5 data (missing dependency): {e}")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error converting ERA5 to weather CSV: {e}")
+            self.logger.error(f"Error converting ERA5 to weather CSV: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return None
@@ -534,7 +534,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
                 return 'Fall'
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error determining season from date: {e}, defaulting to 'Summer'")
+            self.logger.warning(f"Error determining season from date: {e}, defaulting to 'Summer'", exc_info=True)
             return 'Summer'
 
     def _generate_ignacio_config(

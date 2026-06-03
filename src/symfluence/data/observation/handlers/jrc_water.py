@@ -132,7 +132,7 @@ class JRCWaterHandler(BaseObservationHandler):
                 if stats:
                     results.append(stats)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {tif_file.name}: {e}")
+                self.logger.warning(f"Failed to process {tif_file.name}: {e}", exc_info=True)
 
         if not results:
             self.logger.warning(f"No JRC surface water data could be extracted from {len(tif_files)} files")
@@ -266,6 +266,6 @@ class JRCWaterHandler(BaseObservationHandler):
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             import traceback
-            self.logger.warning(f"Error computing stats for {tif_path.name}: {e}")
+            self.logger.warning(f"Error computing stats for {tif_path.name}: {e}", exc_info=True)
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")
             return None

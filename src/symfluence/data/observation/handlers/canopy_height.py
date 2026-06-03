@@ -141,7 +141,7 @@ class CanopyHeightHandler(BaseObservationHandler):
             self.logger.warning(f"GEDI acquirer not available: {e}")
             return None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GEDI acquisition failed: {e}")
+            self.logger.warning(f"GEDI acquisition failed: {e}", exc_info=True)
             return None
 
     def _acquire_meta(self, output_dir: Path, force: bool) -> Optional[Path]:
@@ -182,7 +182,7 @@ class CanopyHeightHandler(BaseObservationHandler):
             self.logger.warning(f"Meta/WRI acquirer not available: {e}")
             return None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Meta/WRI acquisition failed: {e}")
+            self.logger.warning(f"Meta/WRI acquisition failed: {e}", exc_info=True)
             return None
 
     def _acquire_glad(self, output_dir: Path, force: bool) -> Optional[Path]:
@@ -224,7 +224,7 @@ class CanopyHeightHandler(BaseObservationHandler):
             self.logger.warning(f"GLAD acquirer not available: {e}")
             return None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GLAD acquisition failed: {e}")
+            self.logger.warning(f"GLAD acquisition failed: {e}", exc_info=True)
             return None
 
     def process(self, input_path: Path) -> Path:
@@ -262,7 +262,7 @@ class CanopyHeightHandler(BaseObservationHandler):
                             f"mean: {stats['mean']:.1f}m, max: {stats['max']:.1f}m"
                         )
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Failed to process {tif_file.name}: {e}")
+                    self.logger.warning(f"Failed to process {tif_file.name}: {e}", exc_info=True)
 
         if not results:
             self.logger.warning("No canopy height data could be processed")
@@ -351,7 +351,7 @@ class CanopyHeightHandler(BaseObservationHandler):
                     )
                     data = out_image[0]  # First band
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Masking failed, using full extent: {e}")
+                    self.logger.warning(f"Masking failed, using full extent: {e}", exc_info=True)
                     data = src.read(1)
             else:
                 # Use bounding box
@@ -422,7 +422,7 @@ class CanopyHeightHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path)
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading canopy height data: {e}")
+            self.logger.error(f"Error loading canopy height data: {e}", exc_info=True)
             return None
 
     def get_mean_canopy_height(self, source: str = 'meta_wri') -> Optional[float]:

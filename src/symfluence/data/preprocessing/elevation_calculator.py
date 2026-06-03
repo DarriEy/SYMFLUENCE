@@ -95,7 +95,7 @@ class ElevationCalculator:
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Error calculating elevations for batch {batch_idx+1}: {str(e)}"
-                    )
+                    , exc_info=True)
 
             valid_count = sum(1 for elev in elevations if elev != nodata_value)
             self.logger.info(
@@ -103,7 +103,7 @@ class ElevationCalculator:
             )
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error in elevation calculation: {str(e)}")
+            self.logger.error(f"Error in elevation calculation: {str(e)}", exc_info=True)
             elevations = [nodata_value] * len(gdf)
 
         return elevations
@@ -135,7 +135,7 @@ class ElevationCalculator:
                 self.logger.info("CRS reprojection successful")
                 return gdf_projected
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                self.logger.error(f"Failed to reproject CRS: {str(e)}", exc_info=True)
                 self.logger.warning("Using original CRS - elevation calculation may fail")
                 return gdf.copy()
         else:
@@ -159,7 +159,7 @@ class ElevationCalculator:
                     return self._default_nodata
                 return nodata
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Could not read nodata value: {e}")
+            self.logger.warning(f"Could not read nodata value: {e}", exc_info=True)
             return self._default_nodata
 
 

@@ -281,7 +281,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             return subset_rivers_path, subset_basins_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error during geofabric subsetting: {str(e)}")
+            self.logger.error(f"Error during geofabric subsetting: {str(e)}", exc_info=True)
             return None, None
 
     def _process_geofabric(

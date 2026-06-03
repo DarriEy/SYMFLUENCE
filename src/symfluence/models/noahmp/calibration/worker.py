@@ -112,7 +112,7 @@ class NoahMPWorker(BaseWorker):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying Noah-MP parameters: {e}")
+            self.logger.error(f"Error applying Noah-MP parameters: {e}", exc_info=True)
             return False
 
     def _apply_namelist_params(
@@ -308,7 +308,7 @@ class NoahMPWorker(BaseWorker):
             self.logger.warning(f"Noah-MP timed out after {timeout}s")
             return False
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Noah-MP execution error: {e}")
+            self.logger.error(f"Noah-MP execution error: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -384,7 +384,7 @@ class NoahMPWorker(BaseWorker):
             )
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating Noah-MP metrics: {e}")
+            self.logger.error(f"Error calculating Noah-MP metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     @staticmethod

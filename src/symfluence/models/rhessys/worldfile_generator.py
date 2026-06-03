@@ -82,7 +82,7 @@ class RHESSysWorldfileGenerator:
                     self.generate_distributed_worldfile(gdf, world_file)
                     return
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not check for distributed domain: {e}")
+            logger.warning(f"Could not check for distributed domain: {e}", exc_info=True)
 
         # Fall back to single-patch worldfile
         logger.info("Generating single-patch worldfile")
@@ -360,7 +360,7 @@ class RHESSysWorldfileGenerator:
                     }
                 logger.info(f"Loaded attributes for {len(hru_attrs)} HRUs from {attrs_file}")
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                logger.warning(f"Could not load HRU attributes: {e}")
+                logger.warning(f"Could not load HRU attributes: {e}", exc_info=True)
 
         # Project to UTM for accurate area calculation
         utm_crs = self.pp._get_utm_crs_from_bounds(gdf)
