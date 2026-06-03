@@ -191,7 +191,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.error("This indicates the upstream model output is incomplete or corrupted")
                 self.logger.error("Please verify the model run completed successfully and produced valid output")
                 ds.close()
-                raise ValueError(f"Empty time dimension in model output: {runoff_filepath}")
+                raise ModelExecutionError(f"Empty time dimension in model output: {runoff_filepath}")
 
             self.logger.debug(f"Time range: {time_values.min()} to {time_values.max()}")
 

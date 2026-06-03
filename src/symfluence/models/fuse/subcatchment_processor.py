@@ -24,6 +24,7 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -334,7 +335,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lat_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range") from None
+                        raise ModelExecutionError(f"Subcatchment index {index} out of range") from None
 
                 # Extract data for this subcatchment but preserve the dimensional structure
                 subcat_data = ds.isel(latitude=slice(subcat_idx, subcat_idx + 1))
@@ -348,7 +349,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lon_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range") from None
+                        raise ModelExecutionError(f"Subcatchment index {index} out of range") from None
 
                 subcat_data = ds.isel(longitude=slice(subcat_idx, subcat_idx + 1))
 
@@ -359,7 +360,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     actual_dims = list(subcat_data[var].dims)
                     if actual_dims != expected_dims:
                         self.logger.error(f"Dimension mismatch for {var}: got {actual_dims}, expected {expected_dims}")
-                        raise ValueError(f"Dimension structure incorrect for {var}")
+                        raise ModelExecutionError(f"Dimension structure incorrect for {var}")
 
             # Preserve all attributes
             for var in subcat_data.data_vars:
