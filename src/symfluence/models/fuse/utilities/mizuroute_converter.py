@@ -131,7 +131,7 @@ class FuseToMizurouteConverter:
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error converting FUSE output to mizuRoute format: {e}")
+            self.logger.error(f"Error converting FUSE output to mizuRoute format: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -245,7 +245,7 @@ class FuseToMizurouteConverter:
                 time_values = time_values.tz_localize(None)
             return time_values
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not round times for mizuRoute: {e}")
+            self.logger.warning(f"Could not round times for mizuRoute: {e}", exc_info=True)
             return ds['time'].values
 
     def _find_mapping_file(

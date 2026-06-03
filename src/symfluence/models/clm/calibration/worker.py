@@ -172,7 +172,7 @@ class CLMWorker(BaseWorker):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying CLM parameters: {e}")
+            self.logger.error(f"Error applying CLM parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -655,7 +655,7 @@ class CLMWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"CLM execution error: {e}")
+            self.logger.error(f"CLM execution error: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -762,7 +762,7 @@ class CLMWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating CLM metrics: {e}")
+            self.logger.error(f"Error calculating CLM metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}

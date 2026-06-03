@@ -76,7 +76,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             return obs_series
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error loading observed data: {str(e)}")
+            self.logger.error(f"Error loading observed data: {str(e)}", exc_info=True)
             return None
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
@@ -136,7 +136,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
                                 area_km2 = area_m2 / 1e6
                                 return sim_data * area_km2 / UnitConversion.MM_DAY_TO_CMS
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.warning(f"Could not determine units from mizuRoute output: {e}")
+                    self.logger.warning(f"Could not determine units from mizuRoute output: {e}", exc_info=True)
 
                 return sim_data
             else:
@@ -233,7 +233,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
                     self.logger.debug(f"Catchment area from river_basins geometry: {area_m2:.2f} m2")
                     return float(area_m2)
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Error calculating area from river_basins: {e}")
+            self.logger.debug(f"Error calculating area from river_basins: {e}", exc_info=True)
 
         # Priority 2: Try catchment/HRU shapefile
         try:
@@ -277,7 +277,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
             else:
                 self.logger.debug(f"Catchment file not found: {catchment_file}")
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Error calculating area from shapefile: {e}")
+            self.logger.debug(f"Error calculating area from shapefile: {e}", exc_info=True)
 
         # Fallback to base logic
         area_m2 = super()._get_catchment_area()

@@ -115,7 +115,7 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.logger.info("Acquiring soil class data from HydroShare (primary source)")
             return self._download_hydroshare_soilclasses(out_p)
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"HydroShare download failed, trying SoilGrids WCS: {exc}")
+            self.logger.warning(f"HydroShare download failed, trying SoilGrids WCS: {exc}", exc_info=True)
 
         # Fallback to SoilGrids WCS
         try:

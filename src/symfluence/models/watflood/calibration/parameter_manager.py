@@ -83,7 +83,7 @@ class WATFLOODParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating .par file: {e}")
+            self.logger.error(f"Error updating .par file: {e}", exc_info=True)
             return False
 
     def _update_par_value(self, content: str, param_name: str, value: float) -> str:

@@ -463,13 +463,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
             self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
+            self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}", exc_info=True)
 
         try:
             if hasattr(ds, "close"):
                 ds.close()
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not close forcing dataset: {e}")
+            self.logger.debug(f"Could not close forcing dataset: {e}", exc_info=True)
 
         self.logger.info("Materializing FUSE forcing dataset before write")
         fuse_forcing = fuse_forcing.load()
@@ -857,7 +857,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     else:
                         self.logger.warning("Forcing file has no time values!")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
+                    self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}", exc_info=True)
             else:
                 self.logger.warning(f"Forcing file not found at {forcing_file}, using config dates.")
 

@@ -178,7 +178,7 @@ class GlacierAttributesManager(ConfigMixin):
             )
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error processing glacier attributes: {e}")
+            self.logger.error(f"Error processing glacier attributes: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False

@@ -262,7 +262,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                     self.logger.debug(f"Available metrics: {list(metrics.keys())}")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error calculating metrics: {e}")
+            self.logger.warning(f"Error calculating metrics: {e}", exc_info=True)
             self.logger.debug("Traceback: ", exc_info=True)
 
     def _load_calibrated_defaults(self) -> Dict[str, float]:
@@ -304,7 +304,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 self._calibrated_defaults_cache = dict(zip(names, param_final))
                 self.logger.debug(f"Loaded calibrated defaults for {len(names)} params from {rdata_path}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not load calibrated defaults: {e}")
+            self.logger.debug(f"Could not load calibrated defaults: {e}", exc_info=True)
 
         return self._calibrated_defaults_cache
 
@@ -551,7 +551,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in distributed GR4J execution: {str(e)}")
+            self.logger.error(f"Error in distributed GR4J execution: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -563,7 +563,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                     import shutil
                     shutil.rmtree(temp_dir)
                 except Exception as cleanup_error:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Failed to clean up temp directory {temp_dir}: {cleanup_error}")
+                    self.logger.warning(f"Failed to clean up temp directory {temp_dir}: {cleanup_error}", exc_info=True)
 
     def _save_distributed_results_for_routing(self, results_df, forcing_ds):
         """
@@ -947,7 +947,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"An error occurred: {str(e)}")
+            self.logger.error(f"An error occurred: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False

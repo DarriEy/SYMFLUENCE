@@ -136,5 +136,5 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
                 config=self.config
             )
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying parameters for final evaluation: {e}")
+            self.logger.error(f"Error applying parameters for final evaluation: {e}", exc_info=True)
             return False

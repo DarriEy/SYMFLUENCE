@@ -110,7 +110,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             try:
                 return self._download_via_earthaccess(output_dir, product_name, output_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"earthaccess failed: {e}, trying AppEEARS fallback")
+                self.logger.warning(f"earthaccess failed: {e}, trying AppEEARS fallback", exc_info=True)
                 return self._download_via_appeears(output_dir, product_name, username, password)
 
     def _download_via_earthaccess(
@@ -198,7 +198,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
                     records.append({'date': date, 'data': data})
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Error processing {h5_path.name}: {e}")
+                self.logger.debug(f"Error processing {h5_path.name}: {e}", exc_info=True)
                 continue
 
         if not records:
@@ -291,7 +291,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             response.raise_for_status()
             return response.json().get('token')
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"AppEEARS authentication failed: {e}")
+            self.logger.error(f"AppEEARS authentication failed: {e}", exc_info=True)
             return None
 
     def _submit_appeears_task(
@@ -346,7 +346,7 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
             self.logger.info(f"AppEEARS task submitted: {task_id}")
             return task_id
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to submit task: {e}")
+            self.logger.error(f"Failed to submit task: {e}", exc_info=True)
             return None
 
     def _wait_and_download(
@@ -412,4 +412,4 @@ class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
                         f.write(chunk)
                 self.logger.debug(f"Downloaded: {file_name}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Download failed: {file_name}: {e}")
+                self.logger.warning(f"Download failed: {file_name}: {e}", exc_info=True)

@@ -176,7 +176,7 @@ class IGNACIORunner(BaseModelRunner):
             self.logger.warning(f"IGNACIO FWI package not available: {e}")
             return False
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"FWI calculation failed: {e}")
+            self.logger.error(f"FWI calculation failed: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -260,7 +260,7 @@ class IGNACIORunner(BaseModelRunner):
             return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO API execution failed: {e}")
+            self.logger.error(f"IGNACIO API execution failed: {e}", exc_info=True)
             return False
 
     def _run_via_cli(self) -> bool:
@@ -316,7 +316,7 @@ class IGNACIORunner(BaseModelRunner):
             return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO CLI execution failed: {e}")
+            self.logger.error(f"IGNACIO CLI execution failed: {e}", exc_info=True)
             return False
 
     def run(self, **kwargs) -> Optional[Path]:

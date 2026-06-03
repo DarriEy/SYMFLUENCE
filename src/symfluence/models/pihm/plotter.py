@@ -45,7 +45,7 @@ class PIHMPlotter(BasePlotter):
         try:
             data = self._collect_coupling_data(experiment_id)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not collect PIHM coupling data: {e}")
+            self.logger.warning(f"Could not collect PIHM coupling data: {e}", exc_info=True)
             return None
 
         plt, _ = self._setup_matplotlib()

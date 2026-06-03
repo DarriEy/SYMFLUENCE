@@ -418,7 +418,7 @@ class RHESSysClimateGenerator:
 
                 return rh
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not calculate relative humidity: {e}")
+                self.logger.warning(f"Could not calculate relative humidity: {e}", exc_info=True)
         return None
 
     def _process_radiation(

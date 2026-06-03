@@ -92,7 +92,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
         try:
             gdf = gpd.read_file(global_shp, bbox=domain_box)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to read WOKAM shapefile: {e}")
+            self.logger.error(f"Failed to read WOKAM shapefile: {e}", exc_info=True)
             return karst_dir
 
         if gdf is None or len(gdf) == 0:
@@ -160,7 +160,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
                 break
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 last_err = e
-                self.logger.warning(f"Download attempt {attempt}/3 failed: {e}")
+                self.logger.warning(f"Download attempt {attempt}/3 failed: {e}", exc_info=True)
 
         if last_err is not None:
             self.logger.error(f"Failed to download WOKAM after 3 attempts: {last_err}")

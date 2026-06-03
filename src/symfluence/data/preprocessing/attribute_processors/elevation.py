@@ -266,6 +266,6 @@ class ElevationProcessor(BaseAttributeProcessor):
                         results[f"{prefix}{attribute_name}.{clean_stat}"] = value
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error processing elevation attributes: {str(e)}")
+            self.logger.error(f"Error processing elevation attributes: {str(e)}", exc_info=True)
 
         return results

@@ -151,7 +151,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"SWAT preprocessing failed: {e}")
+            logger.error(f"SWAT preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -211,7 +211,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         return {
             'lat': 51.0,

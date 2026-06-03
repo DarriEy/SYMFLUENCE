@@ -124,7 +124,7 @@ class CLMParFlowPostProcessor(StandardModelPostprocessor):
                 subsurface_m3hr = pd.Series(dtype=float, name='subsurface_drainage_m3hr')
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Failed to extract CLMParFlow output: {e}")
+            logger.error(f"Failed to extract CLMParFlow output: {e}", exc_info=True)
             return None
 
         return self._extract_standalone_flow(overland_m3s, subsurface_m3hr)

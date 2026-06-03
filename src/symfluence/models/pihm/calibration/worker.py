@@ -58,7 +58,7 @@ class PIHMWorker(BaseWorker):
             return pm.update_model_files(params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying PIHM parameters: {e}")
+            self.logger.error(f"Error applying PIHM parameters: {e}", exc_info=True)
             return False
 
     def run_model(
@@ -174,7 +174,7 @@ class PIHMWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"PIHM execution error: {e}")
+            self.logger.error(f"PIHM execution error: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -237,7 +237,7 @@ class PIHMWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating PIHM metrics: {e}")
+            self.logger.error(f"Error calculating PIHM metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     @staticmethod

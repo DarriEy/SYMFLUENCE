@@ -138,7 +138,7 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}")
+            self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 

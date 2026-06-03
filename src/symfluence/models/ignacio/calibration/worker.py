@@ -111,7 +111,7 @@ class IGNACIOWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying IGNACIO params: {e}")
+            self.logger.error(f"Error applying IGNACIO params: {e}", exc_info=True)
             return False
 
     def _find_config_path(self, settings_dir: Path) -> Optional[Path]:
@@ -174,7 +174,7 @@ class IGNACIOWorker(BaseWorker):
                 return result.returncode == 0
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running IGNACIO: {e}")
+            self.logger.error(f"Error running IGNACIO: {e}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return False
 
@@ -223,7 +223,7 @@ class IGNACIOWorker(BaseWorker):
             }
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating IGNACIO metrics: {e}")
+            self.logger.error(f"Error calculating IGNACIO metrics: {e}", exc_info=True)
             return {'iou': self.penalty_score, 'error': str(e)}
 
     def _find_perimeters(self, output_dir: Path) -> list:
@@ -291,5 +291,5 @@ class IGNACIOWorker(BaseWorker):
             }
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error computing spatial metrics: {e}")
+            self.logger.error(f"Error computing spatial metrics: {e}", exc_info=True)
             return {'iou': 0.0, 'dice': 0.0}

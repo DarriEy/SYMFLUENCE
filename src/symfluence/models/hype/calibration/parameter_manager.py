@@ -185,7 +185,7 @@ class HYPEParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     # ========================================================================
@@ -244,7 +244,7 @@ class HYPEParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating par.txt: {e}")
+            self.logger.error(f"Error updating par.txt: {e}", exc_info=True)
             return False
 
     def _get_default_initial_values(self) -> Dict[str, float]:

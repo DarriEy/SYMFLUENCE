@@ -217,7 +217,7 @@ class CLMParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating CLM files: {e}")
+            self.logger.error(f"Error updating CLM files: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False

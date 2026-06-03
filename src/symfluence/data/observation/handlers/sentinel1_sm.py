@@ -103,7 +103,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['soil_moisture'].extend(data['soil_moisture'])
                     results['backscatter_vv'].extend(data.get('backscatter_vv', [np.nan] * len(data['datetime'])))
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         # Process ZIP files (raw S1 products)
         for zip_file in zip_files:
@@ -114,7 +114,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['soil_moisture'].extend(data.get('soil_moisture', [np.nan] * len(data['datetime'])))
                     results['backscatter_vv'].extend(data['backscatter_vv'])
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {zip_file.name}: {e}")
+                self.logger.warning(f"Failed to process {zip_file.name}: {e}", exc_info=True)
 
         if not results['datetime']:
             self.logger.warning("No Sentinel-1 data could be processed")
@@ -246,7 +246,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                 }
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to process ZIP {zip_file}: {e}")
+            self.logger.warning(f"Failed to process ZIP {zip_file}: {e}", exc_info=True)
             return None
 
     def _find_variable(self, ds: xr.Dataset, candidates: List[str]) -> Optional[str]:
@@ -329,5 +329,5 @@ class Sentinel1SMHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading Sentinel-1 data: {e}")
+            self.logger.error(f"Error loading Sentinel-1 data: {e}", exc_info=True)
             return None

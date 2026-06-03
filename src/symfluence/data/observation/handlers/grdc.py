@@ -90,7 +90,7 @@ class GRDCHandler(BaseObservationHandler):
                 if df is not None and not df.empty:
                     all_data.append(df)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {csv_file.name}: {e}")
+                self.logger.warning(f"Failed to process {csv_file.name}: {e}", exc_info=True)
 
         if not all_data:
             self.logger.warning("No GRDC data could be processed")
@@ -215,5 +215,5 @@ class GRDCHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading GRDC data: {e}")
+            self.logger.error(f"Error loading GRDC data: {e}", exc_info=True)
             return None

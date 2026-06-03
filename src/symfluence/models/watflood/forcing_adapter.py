@@ -117,5 +117,5 @@ class WATFLOODForcingAdapter:
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error converting forcing: {e}")
+            self.logger.error(f"Error converting forcing: {e}", exc_info=True)
             return False
