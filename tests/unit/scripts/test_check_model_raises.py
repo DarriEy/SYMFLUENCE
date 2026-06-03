@@ -44,6 +44,21 @@ def test_exempts_control_flow_exceptions(tmp_path, exc):
     assert _scan(tmp_path, f"def f():\n    raise {exc}\n") == []
 
 
+@pytest.mark.parametrize(
+    "exc,method",
+    [("KeyError", "__getitem__"), ("AttributeError", "__getattr__"), ("IndexError", "__getitem__")],
+)
+def test_exempts_data_model_protocol_raises(tmp_path, exc, method):
+    body = f"class C:\n    def {method}(self, k):\n        raise {exc}(k)\n"
+    assert _scan(tmp_path, body) == []
+
+
+def test_flags_protocol_exception_outside_protocol_method(tmp_path):
+    # KeyError is only exempt inside __getitem__/__missing__, not a normal method.
+    body = "class C:\n    def lookup(self, k):\n        raise KeyError(k)\n"
+    assert len(_scan(tmp_path, body)) == 1
+
+
 def test_context_and_format(tmp_path):
     body = "class C:\n    def m(self):\n        raise RuntimeError('x')\n"
     matches = _scan(tmp_path, body)
