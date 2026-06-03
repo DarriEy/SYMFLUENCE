@@ -206,7 +206,8 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
 
             # Extract shapefile components
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
 
             # Remove zip to save space
             zip_path.unlink(missing_ok=True)
