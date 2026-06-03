@@ -18,6 +18,7 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
 from symfluence.data.utils.variable_utils import VariableHandler
 
 from ..spatial_modes import SpatialMode
@@ -149,7 +150,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             # Read and process forcing data
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
             if not forcing_files:
-                raise FileNotFoundError("No forcing files found in basin-averaged data directory")
+                raise FileOperationError("No forcing files found in basin-averaged data directory")
 
             variable_handler = VariableHandler(
                 config=self.config,
@@ -169,7 +170,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             elif spatial_mode == SpatialMode.DISTRIBUTED:
                 ds = self._prepare_distributed_forcing(ds)
             else:
-                raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+                raise ModelExecutionError(f"Unknown FUSE spatial mode: {spatial_mode}")
 
             # Resample to target resolution AFTER spatial organization
             self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")

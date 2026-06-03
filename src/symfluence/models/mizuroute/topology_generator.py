@@ -19,6 +19,8 @@ import geopandas as gpd
 import netCDF4 as nc4
 import numpy as np
 
+from symfluence.core.exceptions import FileOperationError
+
 if TYPE_CHECKING:
     from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
 
@@ -130,7 +132,7 @@ class MizuRouteTopologyGenerator:
             # Load the delineated catchments shapefile
             catchment_path = self.pp.project_dir / 'shapefiles' / 'catchment' / f"{self.pp.domain_name}_catchment_delineated.shp"
             if not catchment_path.exists():
-                raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
+                raise FileOperationError(f"Delineated catchment shapefile not found: {catchment_path}")
 
             shp_catchments = gpd.read_file(catchment_path)
             self.pp.logger.info(f"Loaded {len(shp_catchments)} delineated subcatchments")
@@ -330,7 +332,7 @@ class MizuRouteTopologyGenerator:
 
         if not grid_path.exists():
             self.pp.logger.error(f"Grid basins shapefile not found: {grid_path}")
-            raise FileNotFoundError(f"Grid basins not found: {grid_path}")
+            raise FileOperationError(f"Grid basins not found: {grid_path}")
 
         grid_gdf = gpd.read_file(grid_path)
         num_cells = len(grid_gdf)

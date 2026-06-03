@@ -70,6 +70,12 @@ repos:
         language: python
         pass_filenames: false
         types: [python]
+      - id: check-model-raises
+        name: Guard generic raises in models/
+        entry: python scripts/check_model_raises.py
+        language: python
+        pass_filenames: false
+        types: [python]
       - id: check-version-sync
         name: Validate version synchronization
         entry: bash scripts/check_version_sync.sh

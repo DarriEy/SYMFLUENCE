@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, cast
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.models.base import ModelResultExtractor
 
 
@@ -95,7 +96,7 @@ class SUMMAResultExtractor(ModelResultExtractor):
                         var = self._aggregate_spatial_dimensions(var, kwargs.get('project_dir'))
                         return cast(pd.Series, var.to_pandas())
 
-            raise ValueError(
+            raise ModelExecutionError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "
                 f"Tried: {var_names}"
             )

@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from symfluence.core.exceptions import FileOperationError
+
 if TYPE_CHECKING:
     pass
 
@@ -127,7 +129,7 @@ class SUMMAOptimizerMixin:
         source_settings_dir = self.project_dir / "settings" / "SUMMA"
 
         if not source_settings_dir.exists():
-            raise FileNotFoundError(f"Source SUMMA settings directory not found: {source_settings_dir}")
+            raise FileOperationError(f"Source SUMMA settings directory not found: {source_settings_dir}")
 
         glacier_mode = self._is_glacier_mode()
         summa_fm = self._get_summa_file_manager_name()
@@ -166,7 +168,7 @@ class SUMMAOptimizerMixin:
                 shutil.copy2(source_path, dest_path)
                 self.logger.debug(f"Copied required file: {file_name}")
             else:
-                raise FileNotFoundError(f"Required SUMMA settings file not found: {source_path}")
+                raise FileOperationError(f"Required SUMMA settings file not found: {source_path}")
 
         # Copy attributes files (glacier mode tries glacier files first)
         attr_copied = False
@@ -179,7 +181,7 @@ class SUMMAOptimizerMixin:
                 attr_copied = True
                 break
         if not attr_copied:
-            raise FileNotFoundError(f"No attributes file found in {source_settings_dir}")
+            raise FileOperationError(f"No attributes file found in {source_settings_dir}")
 
         # Copy coldState files (glacier mode tries glacier files first)
         cold_copied = False
