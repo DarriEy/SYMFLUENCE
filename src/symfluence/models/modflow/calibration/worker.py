@@ -156,7 +156,7 @@ class CoupledGWWorker(BaseWorker):
             try:
                 success = self._write_modflow_params(modflow_params, modflow_settings, config)
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Failed to apply MODFLOW parameters: {e}")
+                self.logger.error(f"Failed to apply MODFLOW parameters: {e}", exc_info=True)
                 success = False
 
         return success
@@ -261,7 +261,7 @@ class CoupledGWWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"dCoupler execution failed: {e}")
+            self.logger.error(f"dCoupler execution failed: {e}", exc_info=True)
             self.logger.info("Falling back to sequential coupling")
             return self._run_sequential(config, settings_dir, output_dir, **kwargs)
 
@@ -321,7 +321,7 @@ class CoupledGWWorker(BaseWorker):
             if result is None:
                 return False
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"MODFLOW execution failed: {e}")
+            self.logger.error(f"MODFLOW execution failed: {e}", exc_info=True)
             return False
 
         self.logger.debug(
@@ -353,7 +353,7 @@ class CoupledGWWorker(BaseWorker):
             return {'kge': self.penalty_score}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating coupled metrics: {e}")
+            self.logger.error(f"Error calculating coupled metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}

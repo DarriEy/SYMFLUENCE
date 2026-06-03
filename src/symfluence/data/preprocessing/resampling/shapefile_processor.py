@@ -74,7 +74,7 @@ class ShapefileProcessor(ConfigMixin):
                                 )
                                 return existing_path, hru_id_field
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.debug(f"Could not use existing {existing_path.name}: {e}")
+                        self.logger.debug(f"Could not use existing {existing_path.name}: {e}", exc_info=True)
 
             # Read the shapefile
             gdf = gpd.read_file(shapefile_path)
@@ -267,7 +267,7 @@ class ShapefileProcessor(ConfigMixin):
                             self.logger.info(f"WGS84 version already exists: {wgs84_shapefile.name}")
                             return wgs84_shapefile
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error reading existing WGS84 file: {e}. Recreating.")
+                    self.logger.warning(f"Error reading existing WGS84 file: {e}. Recreating.", exc_info=True)
 
             # Convert to WGS84
             self.logger.info(f"Converting {shapefile_path.name} from {current_crs} to WGS84")

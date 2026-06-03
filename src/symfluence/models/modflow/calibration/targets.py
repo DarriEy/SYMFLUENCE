@@ -92,7 +92,7 @@ class CoupledGWStreamflowTarget(StreamflowEvaluator):
         try:
             return self._extract_combined_streamflow(land_dir, modflow_dir)
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to extract combined streamflow: {e}")
+            self.logger.error(f"Failed to extract combined streamflow: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return pd.Series(dtype=float)

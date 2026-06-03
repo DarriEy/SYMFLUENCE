@@ -379,7 +379,7 @@ class AORCHandler(BaseDatasetHandler):
             try:
                 ds = xr.open_dataset(f, engine="h5netcdf")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error opening AORC file {f}: {e}")
+                self.logger.error(f"Error opening AORC file {f}: {e}", exc_info=True)
                 continue
 
             try:
@@ -407,7 +407,7 @@ class AORCHandler(BaseDatasetHandler):
                 ds_proc.to_netcdf(out_name, engine="h5netcdf")
                 self.logger.info(f"Saved processed AORC forcing: {out_name}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error processing AORC dataset from {f}: {e}")
+                self.logger.error(f"Error processing AORC dataset from {f}: {e}", exc_info=True)
             finally:
                 ds.close()
 

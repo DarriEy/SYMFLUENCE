@@ -156,7 +156,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             # Don't let validation failures prevent model initialization
-            self.logger.debug(f"Spatial mode validation skipped: {e}")
+            self.logger.debug(f"Spatial mode validation skipped: {e}", exc_info=True)
 
     def _has_routing_configured(self) -> bool:
         """

@@ -270,7 +270,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
                 return self.save_streamflow_to_results(data.to_pandas())
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}")
+            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

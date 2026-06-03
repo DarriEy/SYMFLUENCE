@@ -129,6 +129,6 @@ class VICPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting VIC streamflow: {str(e)}")
+            self.logger.error(f"Error extracting VIC streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None

@@ -195,7 +195,7 @@ class PIHMParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update PIHM files: {e}")
+            self.logger.error(f"Failed to update PIHM files: {e}", exc_info=True)
             return False
 
     def _update_soil_file(self, params: Dict[str, float]) -> None:

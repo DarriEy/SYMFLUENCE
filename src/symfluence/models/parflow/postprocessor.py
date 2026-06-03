@@ -131,7 +131,7 @@ class ParFlowPostProcessor(StandardModelPostprocessor):
                 subsurface_m3hr = pd.Series(dtype=float, name='subsurface_drainage_m3hr')
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Failed to extract ParFlow output: {e}")
+            logger.error(f"Failed to extract ParFlow output: {e}", exc_info=True)
             return None
 
         # Check for coupled mode
@@ -251,7 +251,7 @@ class ParFlowPostProcessor(StandardModelPostprocessor):
             return total_streamflow, metadata
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.")
+            logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.", exc_info=True)
             return self._extract_standalone_flow(overland_m3s, subsurface_m3hr)
 
     def _try_generate_plot(self) -> None:
@@ -268,7 +268,7 @@ class ParFlowPostProcessor(StandardModelPostprocessor):
             if result:
                 logger.debug(f"ParFlow coupling plot saved: {result}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.debug(f"Could not generate ParFlow coupling plot: {e}")
+            logger.debug(f"Could not generate ParFlow coupling plot: {e}", exc_info=True)
 
     def _get_catchment_area(self) -> float:
         """Get catchment area in km2."""
@@ -288,5 +288,5 @@ class ParFlowPostProcessor(StandardModelPostprocessor):
                 source='shapefile'
             )
         except Exception:  # noqa: BLE001 — model execution resilience
-            logger.warning("Could not determine catchment area, using default 2210 km2")
+            logger.warning("Could not determine catchment area, using default 2210 km2", exc_info=True)
             return 2210.0

@@ -657,7 +657,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                                 idx = int(np.argmax(mask))
                                 boundary_ds['mar01'] = ds.isel(time=idx).load()
                 except Exception as exc:  # noqa: BLE001 — model execution resilience
-                    self.logger.debug("Could not read %s while scanning for leap-day boundaries: %s", fname, exc)
+                    self.logger.debug("Could not read %s while scanning for leap-day boundaries: %s", fname, exc, exc_info=True)
                     continue
 
                 if len(boundary_ds) == 2:
@@ -1509,7 +1509,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             return batch_size
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not determine optimal batch size: {str(e)}. Using default.")
+            self.logger.warning(f"Could not determine optimal batch size: {str(e)}. Using default.", exc_info=True)
             return min(10, total_files)  # Conservative fallback
 
     def create_forcing_file_list(self):
@@ -1642,6 +1642,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             self.logger.warning(
                 "Unable to filter forcing HRU IDs against catchment shapefile: %s",
                 exc,
+                exc_info=True,
             )
             return forcing_hru_ids
 

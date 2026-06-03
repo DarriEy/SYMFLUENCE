@@ -96,7 +96,7 @@ class GSFLOWParameterManager(BaseParameterManager):
 
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying GSFLOW parameters: {e}")
+            self.logger.error(f"Error applying GSFLOW parameters: {e}", exc_info=True)
             return False
 
     def _update_prms_params(self, settings_dir: Path, params: Dict[str, float]) -> bool:

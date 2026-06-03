@@ -171,7 +171,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     self.spinup_days = (end_date - start_date).days
                     self.logger.debug(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}")
+                    self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}", exc_info=True)
                     self.spinup_days = 0
             else:
                 self.spinup_days = 0
@@ -343,7 +343,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             qobs_df.to_csv(qobs_path, sep='\t', index=True, float_format='%.3f')
             self.logger.debug(f"Created Qobs.txt in {self.forcing_data_dir}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not create Qobs.txt: {e}")
+            self.logger.warning(f"Could not create Qobs.txt: {e}", exc_info=True)
 
     def _link_forcing_to_settings(self) -> None:
         """Create symlinks in settings dir pointing to forcing files.

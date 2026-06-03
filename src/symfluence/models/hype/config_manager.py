@@ -161,7 +161,7 @@ class HYPEConfigManager(ConfigMixin):
                     pd.read_csv(pobs_path, sep='\t', usecols=['time']).iloc[-1, 0]
                 )
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not read Pobs.txt for period: {e}")
+                self.logger.warning(f"Could not read Pobs.txt for period: {e}", exc_info=True)
 
         # Use experiment dates if provided, otherwise use forcing dates
         start_date: pd.Timestamp
@@ -398,7 +398,7 @@ timeoutput decimals\t3
                 if land_uses is None:
                     land_uses = geoclass_df.iloc[:, 1].unique()
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not read GeoClass.txt for class counts: {e}")
+                self.logger.warning(f"Could not read GeoClass.txt for class counts: {e}", exc_info=True)
 
         # Generate dynamic land use parameters
         lu_params: dict[str, str] | None

@@ -211,7 +211,7 @@ class CoupledGWParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update MODFLOW files: {e}")
+            self.logger.error(f"Failed to update MODFLOW files: {e}", exc_info=True)
             return False
 
     def _write_npf(self, d: Path, k: float) -> None:

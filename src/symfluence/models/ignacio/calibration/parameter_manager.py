@@ -123,7 +123,7 @@ class IGNACIOParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating IGNACIO config: {e}")
+            self.logger.error(f"Error updating IGNACIO config: {e}", exc_info=True)
             return False
 
     def _find_config(self) -> Optional[Path]:

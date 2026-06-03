@@ -104,7 +104,7 @@ class CRHMWorker(BaseWorker):
             return self._update_prj_file(prj_file, params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying CRHM parameters: {e}")
+            self.logger.error(f"Error applying CRHM parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -173,7 +173,7 @@ class CRHMWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating CRHM project file: {e}")
+            self.logger.error(f"Error updating CRHM project file: {e}", exc_info=True)
             return False
 
     def run_model(
@@ -278,7 +278,7 @@ class CRHMWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running CRHM: {e}")
+            self.logger.error(f"Error running CRHM: {e}", exc_info=True)
             return False
 
     def _get_crhm_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -420,7 +420,7 @@ class CRHMWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating CRHM metrics: {e}")
+            self.logger.error(f"Error calculating CRHM metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}

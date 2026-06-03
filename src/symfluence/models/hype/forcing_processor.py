@@ -136,7 +136,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                     ds.sortby('time').to_netcdf(merged_forcing_path, engine='h5netcdf')
                 self.logger.info("Xarray merge successful")
             except Exception as xe:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Xarray merge also failed: {xe}")
+                self.logger.error(f"Xarray merge also failed: {xe}", exc_info=True)
                 return None
 
         # Handle time shift and calendar

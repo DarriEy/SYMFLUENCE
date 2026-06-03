@@ -75,7 +75,7 @@ class NGENPlotter(BasePlotter):
             return self._save_and_close(fig, plot_file)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in NGENPlotter.plot_results: {str(e)}")
+            self.logger.error(f"Error in NGENPlotter.plot_results: {str(e)}", exc_info=True)
             return None
 
     def plot(self, **kwargs) -> Optional[str]:

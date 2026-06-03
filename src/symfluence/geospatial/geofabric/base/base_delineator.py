@@ -228,7 +228,7 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(
                 f"Stream burning failed, falling back to raw DEM: {exc}"
-            )
+            , exc_info=True)
             return self.dem_path
 
     def _find_stream_burn_source(self, source: str) -> Optional[Path]:

@@ -89,7 +89,7 @@ class GSFLOWResultExtractor(ModelResultExtractor):
             if dates:
                 return pd.Series(values, index=dates, name=f'GSFLOW_{variable_type}')
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error parsing statvar: {e}")
+            logger.error(f"Error parsing statvar: {e}", exc_info=True)
         return None
 
     def extract_streamflow(

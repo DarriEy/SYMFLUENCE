@@ -207,7 +207,7 @@ class ERA5LandHandler(BaseObservationHandler):
         try:
             ds = xr.open_dataset(nc_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to open {nc_file}: {e}")
+            self.logger.error(f"Failed to open {nc_file}: {e}", exc_info=True)
             return None
 
         results = {}
@@ -236,7 +236,7 @@ class ERA5LandHandler(BaseObservationHandler):
                     results[std_name] = series
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process variable {var_name}: {e}")
+                self.logger.warning(f"Failed to process variable {var_name}: {e}", exc_info=True)
                 continue
 
         ds.close()
@@ -392,5 +392,5 @@ class ERA5LandHandler(BaseObservationHandler):
 
             return None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading ERA5-Land data: {e}")
+            self.logger.error(f"Error loading ERA5-Land data: {e}", exc_info=True)
             return None
