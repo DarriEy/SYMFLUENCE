@@ -56,12 +56,9 @@ def _register_parameter_managers():
 # Trigger registration on import
 _register_parameter_managers()
 
-# Re-export from canonical locations (avoids deprecation warnings for internal use)
-# Users who import directly from the stub modules will still see deprecation warnings
-from jhbv.calibration.parameter_manager import HBVParameterManager
-from jsacsma.calibration.parameter_manager import SacSmaParameterManager
-from jxaj.calibration.parameter_manager import XinanjiangParameterManager
-
+# Re-export in-tree parameter managers from their canonical locations.
+# (HBV / SAC-SMA / Xinanjiang come from the optional JAX plugins and are
+# re-exported lazily via __getattr__ below.)
 from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
 from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
@@ -92,3 +89,31 @@ __all__ = [
     'GSFLOWParameterManager',
     'WATFLOODParameterManager',
 ]
+
+# HBV / SAC-SMA / Xinanjiang parameter managers live in the optional JAX model
+# plugins (the ``jax`` extra). Re-export them lazily (PEP 562) so importing this
+# package never requires the plugins, while
+# ``from ...parameter_managers import HBVParameterManager`` still works when they
+# are installed. Accessing one without the plugin raises a clear ImportError.
+_OPTIONAL_JAX_PARAM_MANAGERS = {
+    'HBVParameterManager': 'jhbv.calibration.parameter_manager',
+    'SacSmaParameterManager': 'jsacsma.calibration.parameter_manager',
+    'XinanjiangParameterManager': 'jxaj.calibration.parameter_manager',
+}
+
+
+def __getattr__(name):
+    """Lazily resolve the optional JAX-plugin parameter managers (PEP 562)."""
+    module_path = _OPTIONAL_JAX_PARAM_MANAGERS.get(name)
+    if module_path is not None:
+        import importlib
+
+        try:
+            module = importlib.import_module(module_path)
+        except ImportError as exc:
+            raise ImportError(
+                f"{name} is provided by the optional JAX model plugins. "
+                'Install them with: pip install "symfluence[jax]"'
+            ) from exc
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

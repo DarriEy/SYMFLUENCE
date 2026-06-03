@@ -14,9 +14,11 @@ from typing import Any, Dict, List, Optional
 
 try:
     from openai import APIConnectionError, AuthenticationError, BadRequestError, OpenAI, RateLimitError
-except ImportError:
-    print("Error: openai package not installed. Install it with: pip install openai>=1.0.0", file=sys.stderr)
-    sys.exit(1)
+except ImportError as exc:
+    raise ImportError(
+        "The SYMFLUENCE agent requires the openai package. "
+        'Install it with: pip install "symfluence[llm]"'
+    ) from exc
 
 from . import system_prompts
 
