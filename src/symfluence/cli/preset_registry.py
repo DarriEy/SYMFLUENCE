@@ -187,9 +187,9 @@ class PresetRegistry:
         """
         import logging
 
-        from symfluence.core.constants import SupportedModels
+        from symfluence.models import model_packages_with
 
-        for model_name in SupportedModels.WITH_PRESETS:
+        for model_name in model_packages_with('init_preset'):
             try:
                 __import__(
                     f'symfluence.models.{model_name}.init_preset',

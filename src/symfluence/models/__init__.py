@@ -68,7 +68,25 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 # stale-install signal).
 
 
+def model_packages_with(submodule: str) -> tuple[str, ...]:
+    """Return the in-tree model package names that contain *submodule*``.py``.
+
+    e.g. ``model_packages_with('forcing_adapter')`` -> ``('fuse', 'gr', ...)``.
+
+    Some optional model facilities (forcing adapters, init presets) register
+    themselves as a side effect of importing a per-model submodule, so the set
+    of models that have them cannot be read from the registry those imports
+    populate — it is discovered from the source tree instead. This replaces the
+    hardcoded ``SupportedModels.WITH_*`` lists, which had drifted from reality.
+    """
+    from pathlib import Path
+
+    pkg_dir = Path(__file__).resolve().parent
+    return tuple(sorted(p.parent.name for p in pkg_dir.glob(f"*/{submodule}.py")))
+
+
 __all__ = [
+    "model_packages_with",
     # Execution Framework
     "ModelExecutor",
     "ExecutionResult",
