@@ -144,7 +144,7 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 f"({self._forcing_start} to {self._forcing_end})"
             )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error preparing Noah-MP forcing: {e}")
+            logger.error(f"Error preparing Noah-MP forcing: {e}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
 
@@ -183,7 +183,7 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("Noah-MP configuration files created")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error creating Noah-MP configs: {e}")
+            logger.error(f"Error creating Noah-MP configs: {e}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
 

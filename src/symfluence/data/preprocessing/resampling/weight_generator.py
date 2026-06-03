@@ -253,7 +253,7 @@ class RemappingWeightGenerator(ConfigMixin):
                         self.logger.debug("Shifted target shapefile longitudes to 0-360.")
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to align target longitudes: {e}")
+            self.logger.warning(f"Failed to align target longitudes: {e}", exc_info=True)
 
         return target_shp_for_easymore, disable_lon_correction
 
@@ -481,7 +481,7 @@ class RemappingWeightGenerator(ConfigMixin):
                 with xr.open_dataset(case_remap_nc, engine="h5netcdf") as ds:
                     ds.to_dataframe().to_csv(case_remap_csv)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}")
+                self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}", exc_info=True)
 
         candidate_paths = [case_remap_csv]
 

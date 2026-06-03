@@ -280,7 +280,7 @@ class RDRSHandler(BaseDatasetHandler):
                         ds = self.open_dataset(file)
                         datasets.append(ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error opening RDRS file {file}: {str(e)}")
+                        self.logger.error(f"Error opening RDRS file {file}: {str(e)}", exc_info=True)
 
                 if not datasets:
                     self.logger.warning(f"No valid RDRS datasets for {year}-{month:02d}")
@@ -293,7 +293,7 @@ class RDRSHandler(BaseDatasetHandler):
                         processed_ds = self.process_dataset(ds)
                         processed_datasets.append(processed_ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error processing RDRS dataset: {str(e)}")
+                        self.logger.error(f"Error processing RDRS dataset: {str(e)}", exc_info=True)
 
                 if not processed_datasets:
                     self.logger.warning(f"No processed RDRS datasets for {year}-{month:02d}")

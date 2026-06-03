@@ -214,7 +214,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     return flow_series.sort_index()
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading t-route outputs: {e}")
+            self.logger.error(f"Error reading t-route outputs: {e}", exc_info=True)
             self.logger.warning("Falling back to raw nexus outputs")
 
         return pd.Series(dtype=float)
@@ -267,7 +267,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             self._nexus_areas_cache = nexus_areas
             return nexus_areas
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error loading catchment areas: {e}")
+            self.logger.warning(f"Error loading catchment areas: {e}", exc_info=True)
             self._nexus_areas_cache = {}
             return {}
 
@@ -367,7 +367,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 )
                 all_streamflow.append(s)
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Error reading {nexus_file}: {e}")
+                self.logger.error(f"Error reading {nexus_file}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -441,5 +441,5 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             area_km2 = float(gdf.geometry.area.sum() / 1e6)
             return area_km2
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error calculating catchment area from {shp_path}: {e}")
+            self.logger.warning(f"Error calculating catchment area from {shp_path}: {e}", exc_info=True)
             return 100.0

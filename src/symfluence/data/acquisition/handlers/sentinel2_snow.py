@@ -214,7 +214,7 @@ class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 failed += 1
-                self.logger.debug(f"Error processing {item.id}: {e}")
+                self.logger.debug(f"Error processing {item.id}: {e}", exc_info=True)
 
         self.logger.info(
             f"Extracted snow data from {len(results)}/{total} scenes "

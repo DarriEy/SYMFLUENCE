@@ -185,5 +185,5 @@ class FLUXNETObservationHandler(BaseObservationHandler):
             return True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"FLUXNET validation error: {e}")
+            self.logger.error(f"FLUXNET validation error: {e}", exc_info=True)
             return False

@@ -633,7 +633,7 @@ class MizuRouteTopologyGenerator:
             return closest_segment_id
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.pp.logger.error(f"Error finding closest segment: {str(e)}")
+            self.pp.logger.error(f"Error finding closest segment: {str(e)}", exc_info=True)
             # Fallback to outlet segment
             outlet_mask = shp_river[self.pp.river_downsegid_col] == 0
             if outlet_mask.any():

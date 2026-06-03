@@ -164,7 +164,7 @@ class RHESSysParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     # ========================================================================
@@ -218,7 +218,7 @@ class RHESSysParameterManager(BaseParameterManager):
             return None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error reading {param_name} from {def_file}: {e}")
+            self.logger.warning(f"Error reading {param_name} from {def_file}: {e}", exc_info=True)
             return None
 
     def update_def_files(self, params: Dict[str, float]) -> bool:
@@ -255,7 +255,7 @@ class RHESSysParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating definition files: {e}")
+            self.logger.error(f"Error updating definition files: {e}", exc_info=True)
             return False
 
     def _update_single_def_file(self, def_file: Path, params: Dict[str, float]) -> bool:
@@ -298,7 +298,7 @@ class RHESSysParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating {def_file}: {e}")
+            self.logger.error(f"Error updating {def_file}: {e}", exc_info=True)
             return False
 
     def _get_default_initial_values(self) -> Dict[str, float]:
@@ -331,5 +331,5 @@ class RHESSysParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying def files to {worker_defs_dir}: {e}")
+            self.logger.error(f"Error copying def files to {worker_defs_dir}: {e}", exc_info=True)
             return False

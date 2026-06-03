@@ -221,7 +221,7 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
             return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to download HydroLAKES: {e}")
+            self.logger.error(f"Failed to download HydroLAKES: {e}", exc_info=True)
             self.logger.info(
                 "Manual download: visit https://www.hydrosheds.org/products/hydrolakes\n"
                 f"  Place the extracted shapefile in: {cache_dir}"

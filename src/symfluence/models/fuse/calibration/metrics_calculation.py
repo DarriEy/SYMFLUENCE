@@ -63,7 +63,7 @@ def load_observations(
             df_obs.index = pd.to_datetime(df_obs.index)
             log.debug("Converted observation index to DatetimeIndex")
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            log.error(f"Failed to convert observation time index to DatetimeIndex: {e}")
+            log.error(f"Failed to convert observation time index to DatetimeIndex: {e}", exc_info=True)
             return None
 
     return df_obs['discharge_cms'].resample('D').mean()
@@ -196,7 +196,7 @@ def read_routed_streamflow(
         log.error(
             f"Cannot open routed output file {sim_file_path.name}: {e}. "
             f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes"
-        )
+        , exc_info=True)
         return None
 
     with ds:
@@ -265,7 +265,7 @@ def read_fuse_streamflow(
             f"Cannot open FUSE output file {sim_file_path.name}: {e}. "
             f"File size: {sim_file_path.stat().st_size if sim_file_path.exists() else 'missing'} bytes. "
             f"FUSE may have crashed silently (Fortran STOP returns exit code 0)."
-        )
+        , exc_info=True)
         return None
 
     with ds:
@@ -314,7 +314,7 @@ def read_fuse_streamflow(
             simulated_streamflow.index = pd.to_datetime(simulated_streamflow.index)
             log.debug("Converted simulated streamflow index to DatetimeIndex")
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            log.error(f"Failed to convert time index to DatetimeIndex: {e}")
+            log.error(f"Failed to convert time index to DatetimeIndex: {e}", exc_info=True)
             return None
 
     return simulated_streamflow
@@ -441,7 +441,7 @@ def align_and_filter(
 
             log.debug(f"Filtered to calibration period {calib_start} to {calib_end}: {len(obs_aligned)} points")
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            log.warning(f"Could not parse calibration period '{calib_period}': {e}")
+            log.warning(f"Could not parse calibration period '{calib_period}': {e}", exc_info=True)
 
     common_index = obs_aligned.index.intersection(sim_aligned.index)
     return np.asarray(obs_aligned.loc[common_index].values), np.asarray(sim_aligned.loc[common_index].values)

@@ -148,5 +148,5 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading MizuRoute results: {e}")
+            self.logger.error(f"Error reading MizuRoute results: {e}", exc_info=True)
             return {}

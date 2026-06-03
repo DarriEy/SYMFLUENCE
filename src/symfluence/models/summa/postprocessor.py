@@ -108,5 +108,5 @@ class SUMMAPostprocessor(RoutedModelPostprocessor):
             return self.save_streamflow_to_results(streamflow)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting SUMMA native streamflow: {e}")
+            self.logger.error(f"Error extracting SUMMA native streamflow: {e}", exc_info=True)
             return None

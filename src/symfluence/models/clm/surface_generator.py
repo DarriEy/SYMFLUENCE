@@ -153,7 +153,7 @@ class CLMSurfaceGenerator:
                 ds.close()
                 logger.info(f"Loaded soil fractions from attributes: sand={default_sand:.1f}%, clay={default_clay:.1f}%")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.debug(f"Could not load soil attributes: {e}")
+            logger.debug(f"Could not load soil attributes: {e}", exc_info=True)
 
         return default_sand, default_clay
 

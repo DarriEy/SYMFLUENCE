@@ -127,7 +127,7 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
                 if out_file:
                     downloaded_files.append(out_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to download JRC tile {tile}: {e}")
+                self.logger.warning(f"Failed to download JRC tile {tile}: {e}", exc_info=True)
 
         if not downloaded_files:
             raise RuntimeError("No JRC Global Surface Water data could be downloaded")
@@ -224,7 +224,7 @@ class JRCWaterAcquirer(BaseAcquisitionHandler):
                 return out_file
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed {version}: {e}")
+                self.logger.debug(f"Failed {version}: {e}", exc_info=True)
                 continue
 
         self.logger.warning(f"Could not find JRC tile for {tile_name}")

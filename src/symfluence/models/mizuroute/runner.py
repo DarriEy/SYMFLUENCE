@@ -452,7 +452,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.warning("Could not determine dimensions to sync.")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error syncing control file dimensions: {e}")
+            self.logger.error(f"Error syncing control file dimensions: {e}", exc_info=True)
 
     def run_mizuroute(self):
         """

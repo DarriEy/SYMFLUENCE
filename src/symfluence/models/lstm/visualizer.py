@@ -27,4 +27,4 @@ def visualize_lstm(reporting_manager: Any, config: Dict[str, Any], project_dir: 
         reporting_manager.visualize_timeseries_results()
 
     except Exception as e:  # noqa: BLE001 — model execution resilience
-        logger.error(f"Error during LSTM visualization: {str(e)}")
+        logger.error(f"Error during LSTM visualization: {str(e)}", exc_info=True)

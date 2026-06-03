@@ -150,5 +150,5 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
             return final_result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in final evaluation: {e}")
+            self.logger.error(f"Error in final evaluation: {e}", exc_info=True)
             return None

@@ -133,7 +133,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             response.raise_for_status()
             return response.json().get('token')
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"AppEEARS authentication failed: {e}")
+            self.logger.error(f"AppEEARS authentication failed: {e}", exc_info=True)
             return None
 
     def _submit_task(
@@ -186,7 +186,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"AppEEARS task submitted: {task_id}")
             return task_id
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to submit AppEEARS task: {e}")
+            self.logger.error(f"Failed to submit AppEEARS task: {e}", exc_info=True)
             return None
 
     def _build_geo_spec(self) -> Dict[str, Any]:
@@ -268,7 +268,7 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
             response.raise_for_status()
             bundle = response.json()
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to get bundle info: {e}")
+            self.logger.error(f"Failed to get bundle info: {e}", exc_info=True)
             return
 
         files = bundle.get('files', [])
@@ -299,4 +299,4 @@ class MODISLSTAcquirer(BaseAcquisitionHandler):
                 self.logger.debug(f"Downloaded: {file_name}")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to download {file_name}: {e}")
+                self.logger.warning(f"Failed to download {file_name}: {e}", exc_info=True)

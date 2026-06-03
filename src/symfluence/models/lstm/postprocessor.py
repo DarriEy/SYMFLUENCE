@@ -76,7 +76,7 @@ class LSTMPostprocessor(StandardModelPostprocessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}")
+            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

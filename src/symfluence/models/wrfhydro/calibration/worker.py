@@ -162,7 +162,7 @@ class WRFHydroWorker(BaseWorker):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying WRF-Hydro parameters: {e}")
+            self.logger.error(f"Error applying WRF-Hydro parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -204,7 +204,7 @@ class WRFHydroWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating WRF-Hydro namelist: {e}")
+            self.logger.error(f"Error updating WRF-Hydro namelist: {e}", exc_info=True)
             return False
 
     def _format_namelist_value(self, value: float) -> str:
@@ -285,7 +285,7 @@ class WRFHydroWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating SOILPARM.TBL: {e}")
+            self.logger.error(f"Error updating SOILPARM.TBL: {e}", exc_info=True)
             return False
 
     def _update_genparm_tbl(
@@ -347,7 +347,7 @@ class WRFHydroWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating GENPARM.TBL: {e}")
+            self.logger.error(f"Error updating GENPARM.TBL: {e}", exc_info=True)
             return False
 
     def _update_namelist_path(self, namelist_file: Path, key: str, new_path: str) -> bool:
@@ -375,7 +375,7 @@ class WRFHydroWorker(BaseWorker):
             self.logger.debug(f"Updated {key} = '{new_path}'")
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating {key} in namelist: {e}")
+            self.logger.error(f"Error updating {key} in namelist: {e}", exc_info=True)
             return False
 
     def run_model(
@@ -504,7 +504,7 @@ class WRFHydroWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running WRF-Hydro: {e}")
+            self.logger.error(f"Error running WRF-Hydro: {e}", exc_info=True)
             return False
 
     def _get_wrfhydro_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -633,7 +633,7 @@ class WRFHydroWorker(BaseWorker):
                         ds.close()
 
                     except Exception as e:  # noqa: BLE001 — calibration resilience
-                        self.logger.debug(f"Error reading {chrt_file}: {e}")
+                        self.logger.debug(f"Error reading {chrt_file}: {e}", exc_info=True)
                         continue
 
                 if not dates:
@@ -673,7 +673,7 @@ class WRFHydroWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating WRF-Hydro metrics: {e}")
+            self.logger.error(f"Error calculating WRF-Hydro metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}

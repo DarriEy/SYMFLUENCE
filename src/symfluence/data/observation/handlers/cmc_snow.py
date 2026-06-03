@@ -301,6 +301,6 @@ class CMCSnowHandler(BaseObservationHandler):
                     })
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error processing {filepath.name}: {e}")
+            self.logger.warning(f"Error processing {filepath.name}: {e}", exc_info=True)
 
         return results

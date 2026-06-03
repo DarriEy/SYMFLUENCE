@@ -47,7 +47,7 @@ def _ensure_cesm_inputdata() -> None:
             urllib.request.urlretrieve(url, local)  # nosec B310 — trusted CESM inputdata URL
             logger.info(f"  Saved: {local} ({local.stat().st_size / 1e6:.1f} MB)")
         except Exception as exc:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"  Failed to download {rel_path}: {exc}")
+            logger.warning(f"  Failed to download {rel_path}: {exc}", exc_info=True)
 
 
 class CLMNuopcGenerator:

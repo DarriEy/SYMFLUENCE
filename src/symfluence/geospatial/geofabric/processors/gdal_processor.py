@@ -153,7 +153,7 @@ class GDALProcessor:
             self.logger.info("Completed GDAL polygonization using direct method")
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Direct polygonization failed: {str(e)}, trying command line method...")
+            self.logger.warning(f"Direct polygonization failed: {str(e)}, trying command line method...", exc_info=True)
             try:
                 # Second attempt: Using command line tool without MPI
                 command = [
