@@ -433,43 +433,24 @@ class UnitDetectionThresholds:
 
 
 class SupportedModels:
+    """Validity check for model names, derived from the component registry.
+
+    A model is "supported" once it has been registered with the framework via
+    an entry point / ``model_manifest`` (RTI review item 18). Registration is
+    therefore the whitelist: this no longer hardcodes a model list. The former
+    sibling lists (models with a forcing adapter / plotter / preset) were
+    likewise hardcoded and drifted from reality; those call sites now derive the
+    set directly (``symfluence.models.model_packages_with`` for submodule-based
+    discovery, or ``R.plotters`` for already-registered plotters).
     """
-    Registry of supported model names for dynamic imports.
-
-    Centralizes the whitelist of valid model names to prevent arbitrary
-    code execution via dynamic imports. All model names must be listed
-    here before they can be imported dynamically.
-    """
-
-    # Core hydrological models
-    ALL: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys',
-        'lstm', 'gnn', 'mizuroute', 'hbv'
-    )
-    """All models supported by SYMFLUENCE."""
-
-    # Models with forcing adapters
-    WITH_FORCING_ADAPTER: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys'
-    )
-    """Models that have forcing adapter modules."""
-
-    # Models with visualization plotters
-    WITH_PLOTTERS: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'lstm'
-    )
-    """Models with registered visualization plotters."""
-
-    # Models with initialization presets
-    WITH_PRESETS: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'gr', 'ngen'
-    )
-    """Models that have initialization preset modules."""
 
     @classmethod
     def is_valid(cls, model_name: str) -> bool:
-        """Check if a model name is in the supported whitelist."""
-        return model_name.lower() in cls.ALL
+        """Return True if *model_name* is a model registered with the framework."""
+        from symfluence.core.registries import R
+
+        key = model_name.upper()
+        return key in R.runners or key in R.config_schemas
 
 
 class ConfigKeys:
