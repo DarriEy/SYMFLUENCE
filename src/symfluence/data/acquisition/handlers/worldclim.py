@@ -137,7 +137,8 @@ class WorldClimAcquirer(BaseAcquisitionHandler, RetryMixin):
             if not extract_dir.exists():
                 self.logger.info(f"  Extracting {zip_name}")
                 with zipfile.ZipFile(zip_path, 'r') as zf:
-                    zf.extractall(extract_dir)
+                    from symfluence.core.archive_extraction import safe_zip_extract
+                    safe_zip_extract(zf, extract_dir)
 
             for month in range(1, 13):
                 out_name = f"wc2.1_30s_{var}_{month:02d}.tif"
