@@ -506,14 +506,14 @@ class ForcingResampler(PathResolverMixin):
                         self.logger.debug("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
                         return False
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
+                    self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.", exc_info=True)
                     return False
 
             self.logger.debug("Forcing shapefile already exists. Skipping creation.")
             return True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.")
+            self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.", exc_info=True)
             return False
 
     def remap_forcing(self):
@@ -674,7 +674,7 @@ class ForcingResampler(PathResolverMixin):
                     pbar.update(len(batch_files))
 
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}", exc_info=True)
                     pbar.update(len(batch_files))
 
                 gc.collect()

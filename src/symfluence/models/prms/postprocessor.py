@@ -108,7 +108,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting PRMS streamflow: {str(e)}")
+            self.logger.error(f"Error extracting PRMS streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 
@@ -184,7 +184,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error parsing statvar file: {e}")
+            self.logger.warning(f"Error parsing statvar file: {e}", exc_info=True)
             return None
 
     def _extract_from_netcdf(self, nc_path: Path):

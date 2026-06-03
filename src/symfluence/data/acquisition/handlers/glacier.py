@@ -191,7 +191,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
                 if region_gdf is not None and len(region_gdf) > 0:
                     all_glaciers.append(region_gdf)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to download RGI region {region_id}: {e}")
+                self.logger.warning(f"Failed to download RGI region {region_id}: {e}", exc_info=True)
                 continue
 
         if not all_glaciers:
@@ -264,7 +264,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             return self._download_from_alternative(region_id, cache_dir)
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to download from NSIDC: {e}")
+            self.logger.warning(f"Failed to download from NSIDC: {e}", exc_info=True)
             return self._download_from_alternative(region_id, cache_dir)
 
     def _download_from_alternative(self, region_id: int, cache_dir: Path) -> Optional[gpd.GeoDataFrame]:
@@ -292,7 +292,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             self.logger.info("Attempting GLIMS WFS download (may take several minutes)...")
             return self._download_from_glims_wfs()
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GLIMS WFS failed: {e}")
+            self.logger.warning(f"GLIMS WFS failed: {e}", exc_info=True)
 
         return None
 
@@ -328,7 +328,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             return gpd.GeoDataFrame.from_features(geojson_data['features'], crs='EPSG:4326')
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GLIMS WFS request failed: {e}")
+            self.logger.warning(f"GLIMS WFS request failed: {e}", exc_info=True)
             return None
 
     def _create_glacier_rasters(self, rgi_gdf: gpd.GeoDataFrame, glacier_dir: Path):
@@ -531,7 +531,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         try:
             catchment_gdf = gpd.read_file(catchment_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to read catchment shapefile: {e}")
+            self.logger.warning(f"Failed to read catchment shapefile: {e}", exc_info=True)
             return
 
         # Ensure same CRS

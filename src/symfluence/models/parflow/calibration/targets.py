@@ -241,7 +241,7 @@ class ParFlowStreamflowTarget(StreamflowEvaluator):
             return streamflow_daily
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to extract ParFlow streamflow: {e}")
+            self.logger.error(f"Failed to extract ParFlow streamflow: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return None

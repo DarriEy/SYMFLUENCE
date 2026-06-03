@@ -164,7 +164,7 @@ class TimeWindowManager:
                     if max_time is None or times.max() > max_time:
                         max_time = times.max()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Could not read time from {f}: {e}")
+                self.logger.warning(f"Could not read time from {f}: {e}", exc_info=True)
                 continue
 
         if min_time is None or max_time is None:

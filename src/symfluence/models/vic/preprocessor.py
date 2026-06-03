@@ -109,7 +109,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"VIC preprocessing failed: {e}")
+            logger.error(f"VIC preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -168,7 +168,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         # Defaults
         return {
@@ -268,7 +268,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             }
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Failed to compute elevation bands from DEM: {e}")
+            logger.warning(f"Failed to compute elevation bands from DEM: {e}", exc_info=True)
             props = self._get_catchment_properties()
             return {
                 'elevations': np.array([props.get('elev', 1000.0)]),
@@ -427,7 +427,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info(f"Created distributed domain: {mask.sum()} active cells")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Error creating distributed domain: {e}, falling back to lumped")
+            logger.warning(f"Error creating distributed domain: {e}, falling back to lumped", exc_info=True)
             self._generate_lumped_domain(domain_path, props)
 
     def _generate_parameter_file(self) -> None:
@@ -736,7 +736,7 @@ class VICPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_ds = self._load_forcing_data()
             self._write_forcing_files(forcing_ds, domain_ds, start_date, end_date)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load forcing data: {e}, using synthetic")
+            logger.warning(f"Could not load forcing data: {e}, using synthetic", exc_info=True)
             self._generate_synthetic_forcing(start_date, end_date)
 
         domain_ds.close()

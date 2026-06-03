@@ -107,5 +107,5 @@ class PIHMStreamflowTarget(StreamflowEvaluator):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to extract PIHM streamflow: {e}")
+            self.logger.error(f"Failed to extract PIHM streamflow: {e}", exc_info=True)
             return None

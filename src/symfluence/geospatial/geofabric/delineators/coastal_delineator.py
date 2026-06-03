@@ -94,7 +94,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                     crs=river_basins.crs
                 )
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error creating watersheds polygon: {str(e)}")
+                self.logger.error(f"Error creating watersheds polygon: {str(e)}", exc_info=True)
                 return river_network_path, river_basins_path
 
             # Find land areas not covered by existing watersheds
@@ -111,7 +111,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                     return river_network_path, river_basins_path
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error finding coastal strip: {str(e)}")
+                self.logger.error(f"Error finding coastal strip: {str(e)}", exc_info=True)
                 return river_network_path, river_basins_path
 
             # ---------- STEP 2: DIVIDE COASTAL STRIP INTO INDIVIDUAL WATERSHEDS ---------- #
@@ -148,7 +148,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                     )
                     coastal_watersheds = gpd.overlay(coastal_strip, voronoi_gdf, how='intersection')
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error dividing coastal strip: {str(e)}")
+                self.logger.error(f"Error dividing coastal strip: {str(e)}", exc_info=True)
                 # Fallback to simpler approach: use a buffer method
                 coastal_watersheds = self._divide_coastal_strip_by_buffer_method(coastal_strip, river_basins_proj)
 
@@ -237,7 +237,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             return river_network_path, combined_basins_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error in coastal watershed delineation: {str(e)}")
+            self.logger.error(f"Error in coastal watershed delineation: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return river_network_path, river_basins_path
@@ -340,7 +340,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             return river_network_path, river_basins_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating point buffer shape: {str(e)}")
+            self.logger.error(f"Error creating point buffer shape: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None, None
@@ -392,7 +392,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 return land_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating land polygon from DEM: {str(e)}")
+            self.logger.error(f"Error creating land polygon from DEM: {str(e)}", exc_info=True)
             return None
 
     def _create_voronoi_tessellation(self, points_gdf: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
@@ -456,7 +456,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             return voronoi_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating Voronoi tessellation: {str(e)}")
+            self.logger.error(f"Error creating Voronoi tessellation: {str(e)}", exc_info=True)
             return None
 
     def _divide_coastal_strip_by_extending_boundaries(
@@ -526,7 +526,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                                 'basin_id': basin['GRU_ID']
                             })
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error processing basin {basin['GRU_ID']}: {str(e)}")
+                    self.logger.warning(f"Error processing basin {basin['GRU_ID']}: {str(e)}", exc_info=True)
 
             # Create GeoDataFrame from divided coastal watersheds
             if divided_coastal:
@@ -543,7 +543,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error dividing coastal strip by extending boundaries: {str(e)}")
+            self.logger.error(f"Error dividing coastal strip by extending boundaries: {str(e)}", exc_info=True)
             return None
 
     def _divide_coastal_strip_by_buffer_method(
@@ -597,7 +597,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                             # Remove claimed area from remaining coastal strip
                             remaining_coastal = remaining_coastal.difference(claimed_area)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.warning(f"Error processing basin {basin['GRU_ID']} with buffer {buffer_size}: {str(e)}")
+                        self.logger.warning(f"Error processing basin {basin['GRU_ID']} with buffer {buffer_size}: {str(e)}", exc_info=True)
 
             # Handle any remaining coastal strip by assigning to nearest basin
             if not remaining_coastal.is_empty:
@@ -653,7 +653,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error dividing coastal strip by buffer method: {str(e)}")
+            self.logger.error(f"Error dividing coastal strip by buffer method: {str(e)}", exc_info=True)
             return None
 
     def _find_neighbors(self, geometry: Any, gdf: gpd.GeoDataFrame, exclude_idx: int) -> gpd.GeoDataFrame:
@@ -747,7 +747,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                             merged_count += 1
 
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.error(f"Error merging GRU {idx}: {str(e)}")
+                    self.logger.error(f"Error merging GRU {idx}: {str(e)}", exc_info=True)
 
             # Update spatial index after batch processing
             spatial_index = gru_gdf_utm.sindex

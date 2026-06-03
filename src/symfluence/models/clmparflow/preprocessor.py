@@ -308,7 +308,7 @@ class CLMParFlowPreProcessor:
             pptrate, airtemp, times = pptrate[sort_idx], airtemp[sort_idx], times[sort_idx]
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not read ERA5 forcing: {e}")
+            self.logger.warning(f"Could not read ERA5 forcing: {e}", exc_info=True)
             return None
 
         try:

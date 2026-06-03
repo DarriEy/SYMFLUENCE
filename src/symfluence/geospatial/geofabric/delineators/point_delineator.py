@@ -90,6 +90,6 @@ class PointDelineator(BaseGeofabricDelineator):
 
             return output_path
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating point domain shapefile: {str(exc)}")
+            self.logger.error(f"Error creating point domain shapefile: {str(exc)}", exc_info=True)
             self.logger.error(traceback.format_exc())
             return None

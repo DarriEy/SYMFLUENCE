@@ -267,7 +267,7 @@ class ParFlowParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update .pfidb: {e}")
+            self.logger.error(f"Failed to update .pfidb: {e}", exc_info=True)
             return False
 
     def _update_snow17_forcing(
@@ -367,7 +367,7 @@ class ParFlowParameterManager(BaseParameterManager):
                     )
                     return params
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.debug(f"Could not read initial params from .pfidb: {e}")
+                self.logger.debug(f"Could not read initial params from .pfidb: {e}", exc_info=True)
 
         # Fallback to physically-reasonable defaults
         defaults = {

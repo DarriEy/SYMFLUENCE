@@ -518,7 +518,7 @@ class SoilProcessor(BaseAttributeProcessor):
 
             return scale, offset
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error reading scale and offset: {str(e)}")
+            self.logger.error(f"Error reading scale and offset: {str(e)}", exc_info=True)
             return None, None
 
     def _check_and_set_nodata_value(self, tif: Path, nodata: int = 255) -> None:
@@ -554,7 +554,7 @@ class SoilProcessor(BaseAttributeProcessor):
             # Close the dataset
             ds = None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error checking and setting no-data value: {str(e)}")
+            self.logger.error(f"Error checking and setting no-data value: {str(e)}", exc_info=True)
 
     def _check_zonal_stats_outcomes(self, zonal_out: List[Dict], new_val: Union[float, int] = np.nan) -> List[Dict]:
         """

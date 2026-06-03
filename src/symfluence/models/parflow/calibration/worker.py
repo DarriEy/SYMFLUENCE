@@ -100,7 +100,7 @@ class ParFlowWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to apply ParFlow parameters: {e}")
+            self.logger.error(f"Failed to apply ParFlow parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -139,7 +139,7 @@ class ParFlowWorker(BaseWorker):
             return result is not None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running ParFlow in worker: {e}")
+            self.logger.error(f"Error running ParFlow in worker: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -177,7 +177,7 @@ class ParFlowWorker(BaseWorker):
                 return {'kge': self.penalty_score}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating ParFlow metrics: {e}")
+            self.logger.error(f"Error calculating ParFlow metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}

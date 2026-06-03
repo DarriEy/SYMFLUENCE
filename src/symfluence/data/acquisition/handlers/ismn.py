@@ -160,7 +160,7 @@ class ISMNAcquirer(BaseAcquisitionHandler):
                     df.to_csv(out_file, index=False)
                     downloaded += 1
                 except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Failed to download ISMN station {station_id}: {exc}")
+                    self.logger.warning(f"Failed to download ISMN station {station_id}: {exc}", exc_info=True)
 
         if downloaded == 0:
             raise RuntimeError("No ISMN station data downloaded.")
@@ -213,7 +213,7 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             resp = session.get(metadata_url, timeout=600)
             resp.raise_for_status()
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to fetch ISMN station metadata: {exc}")
+            self.logger.warning(f"Failed to fetch ISMN station metadata: {exc}", exc_info=True)
             return None
 
         content_type = resp.headers.get("Content-Type", "")
@@ -385,7 +385,7 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             resp.raise_for_status()
             payload = resp.json()
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to fetch ISMN variable list for {station_id}: {exc}")
+            self.logger.warning(f"Failed to fetch ISMN variable list for {station_id}: {exc}", exc_info=True)
             return []
         return payload.get("variables", []) if isinstance(payload, dict) else []
 

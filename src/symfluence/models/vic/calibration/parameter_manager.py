@@ -296,7 +296,7 @@ class VICParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating VIC parameter file: {e}")
+            self.logger.error(f"Error updating VIC parameter file: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -357,7 +357,7 @@ class VICParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _get_default_initial_values(self) -> Dict[str, float]:
@@ -395,5 +395,5 @@ class VICParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying params to {worker_params_dir}: {e}")
+            self.logger.error(f"Error copying params to {worker_params_dir}: {e}", exc_info=True)
             return False

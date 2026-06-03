@@ -541,7 +541,7 @@ class SummaConfigManager(PathResolverMixin):
                 self.logger.debug(f"Read {num_gru} GRU IDs from attributes file")
         except Exception as e:  # noqa: BLE001 — model execution resilience
             # Fallback: use hruIds as gruIds (one GRU per HRU)
-            self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.")
+            self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.", exc_info=True)
             gru_ids = forcing_hruIds
             num_gru = len(gru_ids)
 

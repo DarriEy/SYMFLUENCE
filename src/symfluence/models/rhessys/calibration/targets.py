@@ -69,7 +69,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             return obs_series
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error loading observed data: {str(e)}")
+            self.logger.error(f"Error loading observed data: {str(e)}", exc_info=True)
             return None
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
@@ -263,7 +263,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
                             except Exception:  # noqa: BLE001 — calibration resilience
                                 continue
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.debug(f"Failed to read basin area from {wf_path}: {e}")
+                    self.logger.debug(f"Failed to read basin area from {wf_path}: {e}", exc_info=True)
 
         return None
 
