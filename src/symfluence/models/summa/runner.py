@@ -433,7 +433,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             return self.output_dir
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error merging outputs: {e}")
+            self.logger.error(f"Error merging outputs: {e}", exc_info=True)
             return None
 
     def _merge_files(self, pattern: str, output_file: Path) -> None:
@@ -468,7 +468,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
                 ds.close()
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error processing {src_file}: {e}")
+                self.logger.warning(f"Error processing {src_file}: {e}", exc_info=True)
 
         if merged_ds is not None:
             encoding = {'time': {'dtype': 'double', '_FillValue': None}}

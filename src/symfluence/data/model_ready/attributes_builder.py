@@ -359,7 +359,7 @@ class AttributesNetCDFBuilder:
             grp.setncatts(meta.to_netcdf_attrs())
             return True
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not build climate group: %s", e)
+            logger.debug("Could not build climate group: %s", e, exc_info=True)
             return False
 
     def _build_hydrogeology_group(self, root) -> bool:
@@ -390,7 +390,7 @@ class AttributesNetCDFBuilder:
             grp.setncatts(meta.to_netcdf_attrs())
             return True
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not build hydrogeology group: %s", e)
+            logger.debug("Could not build hydrogeology group: %s", e, exc_info=True)
             return False
 
     def _build_csv_group(self, root, group_name: str, subdir: str) -> bool:
@@ -474,5 +474,5 @@ class AttributesNetCDFBuilder:
             import geopandas as gpd
             return gpd.read_file(path)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not read %s: %s", path, e)
+            logger.debug("Could not read %s: %s", path, e, exc_info=True)
             return None

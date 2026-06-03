@@ -102,7 +102,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
                     results['sca'].extend(data['sca'])
                     results['snow_albedo'].extend(data.get('snow_albedo', [np.nan] * len(data['datetime'])))
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         if not results['datetime']:
             self.logger.warning("No VIIRS snow data could be processed")
@@ -355,5 +355,5 @@ class VIIRSSnowHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading VIIRS snow data: {e}")
+            self.logger.error(f"Error loading VIIRS snow data: {e}", exc_info=True)
             return None

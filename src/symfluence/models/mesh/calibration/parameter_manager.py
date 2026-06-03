@@ -400,7 +400,7 @@ class MESHParameterManager(BaseParameterManager):
                         self.logger.debug(f"Block to NALCMS mapping: {mapping}")
                         return mapping
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.warning(f"Failed to read landcover mapping from {lc_path}: {e}")
+                    self.logger.warning(f"Failed to read landcover mapping from {lc_path}: {e}", exc_info=True)
 
         # Fallback: assume sequential mapping
         self.logger.warning("Could not determine NALCMS class mapping; multipliers may not work correctly")
@@ -694,7 +694,7 @@ class MESHParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def update_mesh_params(self, params: Dict[str, float]) -> bool:
@@ -741,7 +741,7 @@ class MESHParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating MESH parameters: {e}")
+            self.logger.error(f"Error updating MESH parameters: {e}", exc_info=True)
             return False
 
     # Parameters that have multiple values per line (one per GRU/river class)
@@ -905,7 +905,7 @@ class MESHParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating CLASS file {file_path.name}: {e}")
+            self.logger.error(f"Error updating CLASS file {file_path.name}: {e}", exc_info=True)
             return False
 
     def _update_ini_file(self, file_path: Path, params: Dict[str, float]) -> bool:
@@ -1001,7 +1001,7 @@ class MESHParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating {file_path.name}: {e}")
+            self.logger.error(f"Error updating {file_path.name}: {e}", exc_info=True)
             return False
 
     def _read_param_from_file(self, param_name: str) -> Optional[float]:
@@ -1059,7 +1059,7 @@ class MESHParameterManager(BaseParameterManager):
             return None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error reading {param_name}: {e}")
+            self.logger.warning(f"Error reading {param_name}: {e}", exc_info=True)
             return None
 
     def _get_default_initial_values(self) -> Dict[str, float]:

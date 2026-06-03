@@ -175,7 +175,7 @@ class DatasetAlignmentManager:
             return ds_aligned
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error aligning {name}: {e}")
+            self.logger.warning(f"Error aligning {name}: {e}", exc_info=True)
             return ds
 
     def align_array_to_time_length(

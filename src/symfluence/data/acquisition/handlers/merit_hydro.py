@@ -192,7 +192,7 @@ class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
                                     "or use Google Earth Engine (MERIT/Hydro/v1_0_1) as alternative."
                                 )
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.warning(f"Failed to download {tar_name}: {e}")
+                        self.logger.warning(f"Failed to download {tar_name}: {e}", exc_info=True)
                         continue
 
                 # Validate cached file is actually a tar (not an HTML login page)
@@ -240,7 +240,7 @@ class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
                                     f"Tile {tile_filename} not found in {tar_name}"
                                 )
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error processing tar {tar_name}: {e}")
+                    self.logger.warning(f"Error processing tar {tar_name}: {e}", exc_info=True)
                     continue
 
             if not tile_paths:

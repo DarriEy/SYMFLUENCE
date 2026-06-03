@@ -250,7 +250,7 @@ def _verify_para_def_write(
                         f"but file contains {actual_value:.6f} (diff={abs(actual_value - expected_value):.2e})"
                     )
     except Exception as e:  # noqa: BLE001 — calibration resilience
-        log.debug(f"Could not verify para_def.nc write: {e}")
+        log.debug(f"Could not verify para_def.nc write: {e}", exc_info=True)
 
 
 def apply_regionalization(
@@ -372,7 +372,7 @@ def apply_regionalization(
             )
 
     except Exception as e:  # noqa: BLE001 — calibration resilience
-        log.error(f"Error applying transfer functions: {e}")
+        log.error(f"Error applying transfer functions: {e}", exc_info=True)
         import traceback
         log.error(traceback.format_exc())
 

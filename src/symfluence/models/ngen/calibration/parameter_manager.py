@@ -397,7 +397,7 @@ class NgenParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating ngen config files: {e}")
+            self.logger.error(f"Error updating ngen config files: {e}", exc_info=True)
             return False
 
 
@@ -548,7 +548,7 @@ class NgenParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating CFE config: {e}")
+            self.logger.error(f"Error updating CFE config: {e}", exc_info=True)
             return False
 
 
@@ -579,7 +579,7 @@ class NgenParameterManager(BaseParameterManager):
             return self._update_noah_tbl_parameters(params, input_file)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating NOAH config: {e}")
+            self.logger.error(f"Error updating NOAH config: {e}", exc_info=True)
             return False
 
     def _update_noah_json(self, params: Dict[str, float]) -> bool:
@@ -936,7 +936,7 @@ class NgenParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating PET config: {e}")
+            self.logger.error(f"Error updating PET config: {e}", exc_info=True)
             return False
 
     def _update_topmodel_config(self, params: Dict[str, float]) -> bool:
@@ -989,7 +989,7 @@ class NgenParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating TOPMODEL config: {e}")
+            self.logger.error(f"Error updating TOPMODEL config: {e}", exc_info=True)
             return False
 
     def _update_sacsma_config(self, params: Dict[str, float]) -> bool:
@@ -1080,7 +1080,7 @@ class NgenParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating SAC-SMA config: {e}")
+            self.logger.error(f"Error updating SAC-SMA config: {e}", exc_info=True)
             return False
 
     def _update_snow17_config(self, params: Dict[str, float]) -> bool:
@@ -1171,5 +1171,5 @@ class NgenParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating Snow-17 config: {e}")
+            self.logger.error(f"Error updating Snow-17 config: {e}", exc_info=True)
             return False

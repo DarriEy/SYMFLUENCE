@@ -134,7 +134,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Successfully downloaded GRACE {center.upper()} data to {target_file}")
                 success_count += 1
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Failed to download GRACE {center.upper()} data: {e}")
+                self.logger.error(f"Failed to download GRACE {center.upper()} data: {e}", exc_info=True)
                 self.logger.warning(f"Please manually download the {center.upper()} Mascon NetCDF file and place it in the observation directory if automatic download fails.")
 
         if success_count == 0:
@@ -173,7 +173,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
         try:
             ds = xr.open_dataset(url)
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to open JPL OPeNDAP dataset: {exc}")
+            self.logger.warning(f"Failed to open JPL OPeNDAP dataset: {exc}", exc_info=True)
             return False
 
         try:
@@ -181,7 +181,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             subset.to_netcdf(target_file)
             return True
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to subset JPL dataset: {exc}")
+            self.logger.warning(f"Failed to subset JPL dataset: {exc}", exc_info=True)
             return False
         finally:
             try:
@@ -266,7 +266,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             )
             resp.raise_for_status()
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"CMR query failed: {exc}")
+            self.logger.warning(f"CMR query failed: {exc}", exc_info=True)
             return None
 
         entries = resp.json().get("feed", {}).get("entry", [])
@@ -302,5 +302,5 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                             f.write(chunk)
             return target_file
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"CMR download failed: {exc}")
+            self.logger.warning(f"CMR download failed: {exc}", exc_info=True)
             return None

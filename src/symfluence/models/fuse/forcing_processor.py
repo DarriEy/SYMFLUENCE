@@ -287,7 +287,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."
-            )
+            , exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return ds.mean(dim='hru')
@@ -416,7 +416,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             return pet
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}")
+            self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}", exc_info=True)
             catchment = gpd.read_file(self.catchment_path)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             return self._calculate_pet(ds['temp'], mean_lat, pet_method)

@@ -550,7 +550,7 @@ class MESHWorker(BaseWorker):
                         elif 'DA' in ds:
                             return float(ds['DA'].values.sum())
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.debug(f"Could not read basin area from {db_path}: {e}")
+                    self.logger.debug(f"Could not read basin area from {db_path}: {e}", exc_info=True)
 
         # Fallback: try config
         basin_area = config.get('basin_area_m2')

@@ -857,7 +857,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 self.logger.warning("Default parameter file not found - snow optimization may fail")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error copying default to best parameters: {str(e)}")
+            self.logger.error(f"Error copying default to best parameters: {str(e)}", exc_info=True)
 
     def _add_elevation_params_to_constraints(self) -> bool:
         """
@@ -1535,7 +1535,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in lumped FUSE execution: {str(e)}")
+            self.logger.error(f"Error in lumped FUSE execution: {str(e)}", exc_info=True)
             return False
 
     def backup_run_files(self):

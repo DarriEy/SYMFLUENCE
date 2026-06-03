@@ -85,7 +85,7 @@ class WATFLOODWorker(BaseWorker):
             par_path.write_text(content, encoding='utf-8')
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying WATFLOOD parameters: {e}")
+            self.logger.error(f"Error applying WATFLOOD parameters: {e}", exc_info=True)
             return False
 
     def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs) -> bool:
@@ -173,7 +173,7 @@ class WATFLOODWorker(BaseWorker):
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running WATFLOOD: {e}")
+            self.logger.error(f"Error running WATFLOOD: {e}", exc_info=True)
             return False
 
     @staticmethod
@@ -238,7 +238,7 @@ class WATFLOODWorker(BaseWorker):
                 obs_aligned, sim_aligned, metrics=['kge', 'nse']
             )
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating WATFLOOD metrics: {e}")
+            self.logger.error(f"Error calculating WATFLOOD metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     def _extract_streamflow(self, output_file: Path) -> Optional[pd.Series]:
@@ -274,7 +274,7 @@ class WATFLOODWorker(BaseWorker):
                     return pd.Series(values, index=dates, name='WATFLOOD_discharge_cms')
             return None
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error extracting WATFLOOD streamflow: {e}")
+            self.logger.error(f"Error extracting WATFLOOD streamflow: {e}", exc_info=True)
             return None
 
     @staticmethod

@@ -70,7 +70,7 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
                 if result:
                     downloads.append(result)
             except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to download SMOS {ym[0]}-{ym[1]:02d}: {exc}")
+                self.logger.warning(f"Failed to download SMOS {ym[0]}-{ym[1]:02d}: {exc}", exc_info=True)
 
         # Extract all downloaded archives
         for out_file in downloads:
@@ -80,7 +80,7 @@ class SMOSSMAcquirer(BaseAcquisitionHandler):
                 except Exception as exc:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Failed to extract SMOS archive {out_file.name}: {exc}"
-                    )
+                    , exc_info=True)
 
         self.logger.info(f"Extracted SMOS SM data to {extract_dir}")
         return extract_dir

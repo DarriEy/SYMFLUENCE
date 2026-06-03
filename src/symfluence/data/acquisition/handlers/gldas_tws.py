@@ -116,7 +116,7 @@ class GLDASAcquirer(BaseAcquisitionHandler):
                 all_data.append(row)
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {f}: {e}")
+                self.logger.warning(f"Failed to process {f}: {e}", exc_info=True)
 
         if all_data:
             df = pd.DataFrame(all_data).set_index('date').sort_index()

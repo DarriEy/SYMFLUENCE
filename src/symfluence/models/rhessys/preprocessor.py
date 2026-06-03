@@ -240,7 +240,7 @@ class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("RHESSys preprocessing complete.")
             return True
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"RHESSys preprocessing failed: {e}")
+            logger.error(f"RHESSys preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False

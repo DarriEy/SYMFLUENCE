@@ -176,7 +176,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     self.logger.warning(f"FUSE failed for subcatchment {subcat_id}")
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Error running subcatchment {subcat_id}: {str(e)}")
+                self.logger.error(f"Error running subcatchment {subcat_id}: {str(e)}", exc_info=True)
                 continue
 
         if outputs:
@@ -299,7 +299,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error executing FUSE for subcatchment {subcat_id}: {str(e)}")
+            self.logger.error(f"Error executing FUSE for subcatchment {subcat_id}: {str(e)}", exc_info=True)
             return None
 
     def extract_subcatchment_forcing(self, subcat_id: int, index: int) -> Path:
@@ -543,7 +543,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 ds.close()
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error loading output for subcatchment {subcat_id}: {str(e)}")
+                self.logger.warning(f"Error loading output for subcatchment {subcat_id}: {str(e)}", exc_info=True)
                 continue
 
         # Create combined dataset and save
@@ -612,7 +612,7 @@ class SubcatchmentProcessor(ConfigMixin):
                         self.logger.debug(f"Combined {var_name} with shape: {combined_var.shape}")
 
                     except Exception as e:  # noqa: BLE001 — model execution resilience
-                        self.logger.error(f"Error combining variable {var_name}: {str(e)}")
+                        self.logger.error(f"Error combining variable {var_name}: {str(e)}", exc_info=True)
                         continue
 
             # Add global attributes

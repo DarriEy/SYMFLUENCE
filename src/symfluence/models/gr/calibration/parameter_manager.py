@@ -152,7 +152,7 @@ class GRParameterManager(BaseParameterManager):
             return {name: val for name, val in zip(param_names, param_final)}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Could not load initial parameters from Rdata: {e}")
+            self.logger.debug(f"Could not load initial parameters from Rdata: {e}", exc_info=True)
             return None
 
     def _get_default_initial_values(self) -> Dict[str, float]:
