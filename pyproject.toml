@@ -71,15 +71,19 @@ dependencies = [
   "numexpr>=2.8.0,<3.0.0",
   "bottleneck>=1.3.0,<2.0.0",
   "networkx>=3.0.0,<4.0.0",
-  # AI/LLM integration
-  "openai>=1.0.0,<2.0.0",
   # CLI
   "rich>=13.0.0,<14.0.0",
   # Configuration models
   "pydantic>=2.0.0,<3.0.0",
   # Differentiable coupling framework
   "dcoupler>=0.2.0",
-  # JAX-based model plugins
+]
+
+[project.optional-dependencies]
+# JAX-based model plugins (Snow-17, SAC-SMA, Xinanjiang, HBV, HEC-HMS, TOPMODEL).
+# Optional: only needed to run those models, discovered via entry points at runtime.
+#   pip install "symfluence[jax]"
+jax = [
   "jsnow17>=0.1.0",
   "jsacsma>=0.1.0",
   "jxaj>=0.1.0",
@@ -87,8 +91,11 @@ dependencies = [
   "jhechms>=0.1.0",
   "jtopmodel>=0.1.0",
 ]
-
-[project.optional-dependencies]
+# LLM agent integration. Optional: only needed for `symfluence agent` features.
+#   pip install "symfluence[llm]"
+llm = [
+  "openai>=1.0.0,<2.0.0",
+]
 # GDAL Python bindings - optional, system GDAL installs are auto-detected.
 # Only needed for DEM slope/aspect generation and GeoTIFF metadata reading.
 # Install via: uv pip install "symfluence[gdal]", or rely on system install
@@ -131,6 +138,9 @@ test = [
   "pytest-cov>=4.0.0",
   "pytest-timeout>=2.0.0",
   "hypothesis>=6.0.0,<7.0.0",
+  # The test suite imports the JAX plugins and the LLM agent, so the full
+  # test extra pulls in those optional groups (the baseline install does not).
+  "symfluence[jax,llm]",
 ]
 # Documentation tools
 docs = [
@@ -165,7 +175,7 @@ hpc = [
 ]
 # All development dependencies
 all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui,alos]",
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax,llm]",
 ]
 
 [project.scripts]
