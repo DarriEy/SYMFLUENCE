@@ -11,8 +11,6 @@ name: Install Methods
 on:
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ develop ]  # TEMP: validate the matrix on this PR; remove before merge
   schedule:
     - cron: '0 4 * * 0'  # weekly (Sundays)
   workflow_dispatch:
@@ -35,23 +33,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-latest]
-        # Blocking: the core Python installs validated at the shallow (install +
-        # CLI + import) level.
-        method: [pip, uv-pip]
+        # Blocking: package-manager installs validated at the shallow (install +
+        # CLI + import) level — all green as of this PR.
+        method: [pip, uv-pip, pipx, uv-tool]
         experimental: [false]
         include:
-          # Reported but non-blocking: app-install methods + those still affected
-          # by the §8 install gaps (G1–G7). See the tracking issue.
-          - { os: ubuntu-24.04, method: pipx,    experimental: true }
-          - { os: macos-latest, method: pipx,    experimental: true }
-          - { os: ubuntu-24.04, method: uv-tool, experimental: true }
-          - { os: macos-latest, method: uv-tool, experimental: true }
-          - { os: ubuntu-24.04, method: conda,   experimental: true }
-          - { os: macos-latest, method: conda,   experimental: true }
-          - { os: ubuntu-24.04, method: npm,     experimental: true }
-          - { os: macos-latest, method: npm,     experimental: true }
-          - { os: ubuntu-24.04, method: source,  experimental: true }
-          - { os: macos-latest, method: source,  experimental: true }
+          # Reported but non-blocking: heavier methods with deep §8 install gaps
+          # (conda toolchain G5, npm bundle G6). See the G1–G7 tracking issue.
+          - { os: ubuntu-24.04, method: conda, experimental: true }
+          - { os: macos-latest, method: conda, experimental: true }
+          - { os: ubuntu-24.04, method: npm,   experimental: true }
+          - { os: macos-latest, method: npm,   experimental: true }
+        # NOTE: the source/compile path needs the full build toolchain and is
+        # validated separately by install-validate.yml, not in this lightweight matrix.
 
     steps:
       - name: Free up disk space (Linux)
