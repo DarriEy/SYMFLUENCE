@@ -188,6 +188,45 @@ symfluence = "symfluence.main_cli:main"
 #
 #   [project.entry-points."symfluence.plugins"]
 #   my_model = "my_package:register"
+#
+# In-tree models dogfood this same path: each ships a zero-arg register() in its
+# models/<name>/__init__.py, declared below.  They are also loaded by a
+# deterministic fallback loop in symfluence/models/__init__.py (idempotent), so
+# they never silently vanish from stale dist metadata.  This list must stay in
+# sync with symfluence.models.IN_TREE_MODELS — enforced by
+# tests/unit/models/test_entry_point_dogfood.py.
+[project.entry-points."symfluence.plugins"]
+symfluence_summa = "symfluence.models.summa:register"
+symfluence_fuse = "symfluence.models.fuse:register"
+symfluence_ngen = "symfluence.models.ngen:register"
+symfluence_mizuroute = "symfluence.models.mizuroute:register"
+symfluence_troute = "symfluence.models.troute:register"
+symfluence_hype = "symfluence.models.hype:register"
+symfluence_mesh = "symfluence.models.mesh:register"
+symfluence_lstm = "symfluence.models.lstm:register"
+symfluence_gr = "symfluence.models.gr:register"
+symfluence_gnn = "symfluence.models.gnn:register"
+symfluence_rhessys = "symfluence.models.rhessys:register"
+symfluence_ignacio = "symfluence.models.ignacio:register"
+symfluence_vic = "symfluence.models.vic:register"
+symfluence_clm = "symfluence.models.clm:register"
+symfluence_modflow = "symfluence.models.modflow:register"
+symfluence_parflow = "symfluence.models.parflow:register"
+symfluence_clmparflow = "symfluence.models.clmparflow:register"
+symfluence_swat = "symfluence.models.swat:register"
+symfluence_mhm = "symfluence.models.mhm:register"
+symfluence_crhm = "symfluence.models.crhm:register"
+symfluence_wrfhydro = "symfluence.models.wrfhydro:register"
+symfluence_prms = "symfluence.models.prms:register"
+symfluence_pihm = "symfluence.models.pihm:register"
+symfluence_wmfire = "symfluence.models.wmfire:register"
+symfluence_gsflow = "symfluence.models.gsflow:register"
+symfluence_watflood = "symfluence.models.watflood:register"
+symfluence_wflow = "symfluence.models.wflow:register"
+symfluence_lisflood = "symfluence.models.lisflood:register"
+symfluence_pcrglobwb = "symfluence.models.pcrglobwb:register"
+symfluence_cwatm = "symfluence.models.cwatm:register"
+symfluence_noahmp = "symfluence.models.noahmp:register"
 
 [project.urls]
 Homepage = "https://symfluence.org"

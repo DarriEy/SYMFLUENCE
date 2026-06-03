@@ -26,8 +26,9 @@ wheels/
 examples/*/data/
 .confluence_env
 mpi_*
-# Allow the permanent persistent MPI strategy module
-!**/mpi_persistent.py
+# ...but never ignore mpi_*.py source modules (e.g. mpi_persistent.py, mpi_utils.py);
+# the rule above is meant for MPI runtime artifacts (hostfiles, output), not code.
+!**/mpi_*.py
 
 
 # Pixi

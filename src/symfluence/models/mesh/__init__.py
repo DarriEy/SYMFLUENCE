@@ -81,9 +81,12 @@ from symfluence.core.registry import model_manifest
 from .config import MESHConfigAdapter
 from .extractor import MESHResultExtractor
 
-model_manifest(
-    "MESH",
-    config_adapter=MESHConfigAdapter,
-    result_extractor=MESHResultExtractor,
-    build_instructions_module="symfluence.models.mesh.build_instructions",
-)
+
+def register() -> None:
+    """Register MESH components with the unified registry."""
+    model_manifest(
+        "MESH",
+        config_adapter=MESHConfigAdapter,
+        result_extractor=MESHResultExtractor,
+        build_instructions_module="symfluence.models.mesh.build_instructions",
+    )
