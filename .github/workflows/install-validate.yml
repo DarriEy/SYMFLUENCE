@@ -1,10 +1,10 @@
 name: SYMFLUENCE - Full Install & Validate
 
 on:
+  # Tiered: install validation runs after merge to develop/main, weekly, and on
+  # demand — NOT on every PR (the fast unit gate lives in ci.yml).
   push:
     branches: [ main, develop ]  # Run on main and develop pushes
-  pull_request:
-    branches: [ main, develop ]  # Run on PRs to main/develop
   workflow_dispatch:
     inputs:
       test_level:
