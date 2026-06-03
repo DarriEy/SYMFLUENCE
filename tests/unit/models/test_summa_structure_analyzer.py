@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from symfluence.core.exceptions import ConfigValidationError
+
 
 class TestSummaStructureAnalyzerLazyLoading:
     """Test lazy loading of MizuRoute runner."""
@@ -119,8 +121,8 @@ class TestSummaStructureAnalyzerLazyLoading:
 
         analyzer = SummaStructureAnalyzer(config_no_routing, self.logger)
 
-        # Should raise RuntimeError
-        with pytest.raises(RuntimeError, match="MizuRoute runner requested but routing is not configured"):
+        # Should raise ConfigValidationError (routing not configured)
+        with pytest.raises(ConfigValidationError, match="MizuRoute runner requested but routing is not configured"):
             _ = analyzer.mizuroute_runner
 
     @patch('symfluence.models.summa.structure_analyzer.SummaRunner')
