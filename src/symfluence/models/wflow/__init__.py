@@ -18,14 +18,17 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "WFLOW",
-    preprocessor=WflowPreProcessor,
-    runner=WflowRunner,
-    result_extractor=WflowResultExtractor,
-    config_adapter=WflowConfigAdapter,
-    build_instructions_module="symfluence.models.wflow.build_instructions",
-)
+
+def register() -> None:
+    """Register WFLOW components with the unified registry."""
+    model_manifest(
+        "WFLOW",
+        preprocessor=WflowPreProcessor,
+        runner=WflowRunner,
+        result_extractor=WflowResultExtractor,
+        config_adapter=WflowConfigAdapter,
+        build_instructions_module="symfluence.models.wflow.build_instructions",
+    )
 
 try:
     from .calibration import WflowModelOptimizer  # noqa: F401

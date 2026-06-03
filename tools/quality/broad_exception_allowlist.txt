@@ -786,7 +786,7 @@ src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exce
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exception:  # noqa: BLE001
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor._create_qobs_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/visualizer.py:visualize_hype:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/ignacio/__init__.py:<module>:except Exception:  # noqa: BLE001 — optional dependency
+src/symfluence/models/ignacio/__init__.py:register:except Exception:  # noqa: BLE001 — optional dependency
 src/symfluence/models/ignacio/calibration/parameter_manager.py:IGNACIOParameterManager.update_model_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker._compute_spatial_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience

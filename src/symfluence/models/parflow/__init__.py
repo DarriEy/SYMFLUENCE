@@ -56,9 +56,12 @@ __all__ = [
 # decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "PARFLOW",
-    config_adapter=ParFlowConfigAdapter,
-    plotter=ParFlowPlotter,
-    build_instructions_module="symfluence.models.parflow.build_instructions",
-)
+
+def register() -> None:
+    """Register PARFLOW components with the unified registry."""
+    model_manifest(
+        "PARFLOW",
+        config_adapter=ParFlowConfigAdapter,
+        plotter=ParFlowPlotter,
+        build_instructions_module="symfluence.models.parflow.build_instructions",
+    )

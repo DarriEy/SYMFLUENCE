@@ -37,11 +37,14 @@ from symfluence.core.registry import model_manifest
 from .config import GNNConfigAdapter
 from .extractor import GNNResultExtractor
 
-model_manifest(
-    "GNN",
-    config_adapter=GNNConfigAdapter,
-    result_extractor=GNNResultExtractor,
-)
+
+def register() -> None:
+    """Register GNN components with the unified registry."""
+    model_manifest(
+        "GNN",
+        config_adapter=GNNConfigAdapter,
+        result_extractor=GNNResultExtractor,
+    )
 
 
 if TYPE_CHECKING:

@@ -90,14 +90,17 @@ __all__ = [
 # Register all PRMS components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "PRMS",
-    preprocessor=PRMSPreProcessor,
-    runner=PRMSRunner,
-    result_extractor=PRMSResultExtractor,
-    config_adapter=PRMSConfigAdapter,
-    build_instructions_module="symfluence.models.prms.build_instructions",
-)
+
+def register() -> None:
+    """Register PRMS components with the unified registry."""
+    model_manifest(
+        "PRMS",
+        preprocessor=PRMSPreProcessor,
+        runner=PRMSRunner,
+        result_extractor=PRMSResultExtractor,
+        config_adapter=PRMSConfigAdapter,
+        build_instructions_module="symfluence.models.prms.build_instructions",
+    )
 
 # Register calibration components
 try:
