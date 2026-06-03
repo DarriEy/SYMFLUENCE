@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ConfigValidationError
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 
@@ -514,7 +515,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             start_year = sim_start.split('-')[0] if sim_start != 'default' else None
             end_year = sim_end.split('-')[0] if sim_end != 'default' else None
             if not start_year or not end_year:
-                raise ValueError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
+                raise ConfigValidationError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
             sim_start = f"{start_year}-01-01 01:00" if sim_start == 'default' else sim_start
             sim_end = f"{end_year}-12-31 22:00" if sim_end == 'default' else sim_end
 
@@ -550,7 +551,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             datetime.strptime(sim_start, "%Y-%m-%d %H:%M")
             datetime.strptime(sim_end, "%Y-%m-%d %H:%M")
         except ValueError:
-            raise ValueError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'") from None
+            raise ConfigValidationError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'") from None
 
         return sim_start, sim_end
 

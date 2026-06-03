@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""
+Fail CI if new generic (built-in) ``raise`` statements are introduced in models/.
+
+Model adapters should raise the project's custom exception hierarchy
+(``symfluence.core.exceptions``) so failures carry the structured exit-code /
+domain contract, rather than bare ``ValueError`` / ``RuntimeError`` / etc.
+(RTI review item 11).
+
+Matches ``raise <BuiltinException>(...)`` (and ``raise <BuiltinException>``) where
+the type is a built-in exception, EXCEPT control-flow exceptions
+(StopIteration, GeneratorExit, KeyboardInterrupt, SystemExit, NotImplementedError)
+and bare ``raise`` re-raises. Custom exceptions are never flagged.
+
+Comparison is against a checked-in allowlist so existing technical debt in the
+non-adapter model packages does not fail CI, while any newly introduced generic
+raise (or a regression in the migrated adapters) does.
+
+Allowlist key format: ``path:context:source`` (same scheme as
+check_broad_exceptions.py — stable against unrelated line shifts).
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import builtins
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import List, Tuple
+
+DEFAULT_SCAN_ROOT = Path("src/symfluence/models")
+DEFAULT_ALLOWLIST = Path("tools/quality/model_raise_allowlist.txt")
+MODULE_SCOPE = "<module>"
+
+# Built-in exception names, minus control-flow ones that are legitimate to raise.
+_EXEMPT = {
+    "StopIteration", "StopAsyncIteration", "GeneratorExit",
+    "KeyboardInterrupt", "SystemExit", "NotImplementedError",
+}
+BUILTIN_EXCEPTIONS = {
+    name
+    for name in dir(builtins)
+    if isinstance(getattr(builtins, name), type)
+    and issubclass(getattr(builtins, name), BaseException)
+    and name not in _EXEMPT
+}
+
+
+def _raised_name(exc: ast.expr | None) -> str | None:
+    """Return the simple name of the raised exception type, or None."""
+    if exc is None:
+        return None  # bare ``raise`` (re-raise) — not flagged
+    target = exc.func if isinstance(exc, ast.Call) else exc
+    if isinstance(target, ast.Name):
+        return target.id
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    return None
+
+
+# (exception, enclosing function) pairs that are the documented Python data-model
+# idiom and are therefore legitimate built-in raises, not generic-exception debt.
+_PROTOCOL_EXEMPT = {
+    ("AttributeError", "__getattr__"),
+    ("AttributeError", "__getattribute__"),
+    ("KeyError", "__getitem__"),
+    ("KeyError", "__missing__"),
+    ("IndexError", "__getitem__"),
+}
+
+
+def _qualified_context(stack: List[str]) -> str:
+    return ".".join(stack) if stack else MODULE_SCOPE
+
+
+def _walk_raises(tree: ast.AST, source_lines: List[str]) -> List[Tuple[str, str]]:
+    matches: List[Tuple[str, str]] = []
+
+    def _visit(node: ast.AST, stack: List[str]) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            new_stack = stack + [node.name]
+        else:
+            new_stack = stack
+
+        if isinstance(node, ast.Raise):
+            name = _raised_name(node.exc)
+            enclosing = stack[-1] if stack else ""
+            if name in BUILTIN_EXCEPTIONS and (name, enclosing) not in _PROTOCOL_EXEMPT:
+                lineno = node.lineno
+                src = (
+                    source_lines[lineno - 1].strip()
+                    if 1 <= lineno <= len(source_lines)
+                    else ""
+                )
+                matches.append((_qualified_context(stack), src))
+
+        for child in ast.iter_child_nodes(node):
+            _visit(child, new_stack)
+
+    for child in ast.iter_child_nodes(tree):
+        _visit(child, [])
+
+    return matches
+
+
+def collect_matches(scan_root: Path) -> list[str]:
+    records: list[str] = []
+    for path in sorted(scan_root.rglob("*.py")):
+        rel = path.as_posix()
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"warning: could not read {rel}: {exc}", file=sys.stderr)
+            continue
+        try:
+            tree = ast.parse(source, filename=rel)
+        except SyntaxError as exc:
+            print(f"warning: could not parse {rel}: {exc}", file=sys.stderr)
+            continue
+        for context, line in _walk_raises(tree, source.splitlines()):
+            records.append(f"{rel}:{context}:{line}")
+    return sorted(records)
+
+
+def read_allowlist(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    out = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        text = raw.strip()
+        if text and not text.startswith("#"):
+            out.append(text)
+    return sorted(out)
+
+
+def write_allowlist(path: Path, records: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = [
+        "# Generic (built-in) raise allowlist for src/symfluence/models/",
+        "# Auto-generated by scripts/check_model_raises.py --update",
+        "# Format: relative/path.py:enclosing.scope:source",
+        "# Existing debt in non-adapter model packages is grandfathered here;",
+        "# the migrated adapters (summa/fuse/ngen/mizuroute) must stay clean.",
+        "",
+    ]
+    body = [f"{r}\n" for r in records]
+    path.write_text("\n".join(header) + "".join(body), encoding="utf-8")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scan-root", type=Path, default=DEFAULT_SCAN_ROOT)
+    parser.add_argument("--allowlist", type=Path, default=DEFAULT_ALLOWLIST)
+    parser.add_argument("--update", action="store_true", help="Regenerate allowlist")
+    args = parser.parse_args()
+
+    current = collect_matches(args.scan_root)
+
+    if args.update:
+        write_allowlist(args.allowlist, current)
+        print(f"Updated allowlist with {len(current)} entries: {args.allowlist}")
+        return 0
+
+    allowed_mset = Counter(read_allowlist(args.allowlist))
+    current_mset = Counter(current)
+    new_items = sorted((current_mset - allowed_mset).elements())
+    stale_items = sorted((allowed_mset - current_mset).elements())
+
+    if new_items:
+        print("New generic raises in models/ detected (not in allowlist):", file=sys.stderr)
+        for item in new_items:
+            print(f"  {item}", file=sys.stderr)
+        print(
+            "\nUse symfluence.core.exceptions instead. To accept intentional changes:\n"
+            "  python scripts/check_model_raises.py --update",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"Model raise guard passed ({len(current)} allowlisted matches).")
+    if stale_items:
+        print(
+            f"Note: {len(stale_items)} stale allowlist entries detected. Run --update to prune.",
+            file=sys.stderr,
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

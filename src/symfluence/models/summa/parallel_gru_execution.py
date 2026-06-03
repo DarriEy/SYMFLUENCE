@@ -24,6 +24,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+
 
 def get_gru_count_from_attributes(settings_dir: Path) -> int:
     """Read total GRU count from SUMMA attributes.nc."""
@@ -31,11 +33,11 @@ def get_gru_count_from_attributes(settings_dir: Path) -> int:
 
     attr_path = settings_dir / 'attributes.nc'
     if not attr_path.exists():
-        raise FileNotFoundError(f"attributes.nc not found in {settings_dir}")
+        raise FileOperationError(f"attributes.nc not found in {settings_dir}")
 
     with xr.open_dataset(attr_path) as ds:
         if 'gru' not in ds.sizes:
-            raise KeyError("'gru' dimension not found in attributes.nc")
+            raise ModelExecutionError("'gru' dimension not found in attributes.nc")
         return int(ds.sizes['gru'])
 
 

@@ -23,6 +23,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
 from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
@@ -368,7 +369,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
         if not forcing_files:
-            raise FileNotFoundError("No forcing files found in basin-averaged data directory")
+            raise FileOperationError("No forcing files found in basin-averaged data directory")
 
         variable_handler = VariableHandler(
             config=self.config_dict, logger=self.logger, dataset='CFIF', model='FUSE'
@@ -406,7 +407,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         elif spatial_mode == SpatialMode.DISTRIBUTED:
             ds = self._prepare_distributed_forcing(ds)
         else:
-            raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+            raise ModelExecutionError(f"Unknown FUSE spatial mode: {spatial_mode}")
         self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
 
         t5 = time.time()
@@ -1072,7 +1073,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     msg += f" Dataset {i} range: {data.time.min().values} to {data.time.max().values}."
                 else:
                     msg += f" Dataset {i} is empty or has no time."
-            raise ValueError(msg)
+            raise ModelExecutionError(msg)
 
         self.logger.info(f"Aligned data to overlapping period: {ds_a.time.min().values} to {ds_a.time.max().values}")
 
