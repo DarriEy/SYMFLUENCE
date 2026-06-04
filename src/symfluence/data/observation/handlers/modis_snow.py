@@ -255,16 +255,9 @@ class MODISSnowHandler(BaseObservationHandler):
 
     def _extract_with_catchment_mask(self, data: xr.DataArray, ds: xr.Dataset) -> pd.DataFrame:
         """Extract SCA using catchment shapefile as mask."""
-        catchment_path = self._get_config_value(lambda: self.config.domain.catchment_path, default=None)
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=None)
-
-        if not catchment_path or not catchment_name:
-            self.logger.warning("Catchment mask requested but CATCHMENT_PATH/CATCHMENT_SHP_NAME not set")
-            return self._extract_spatial_average(data)
-
-        shp_path = Path(catchment_path) / catchment_name
-        if not shp_path.exists():
-            self.logger.warning(f"Catchment shapefile not found: {shp_path}")
+        shp_path = self._resolve_catchment_shapefile()
+        if shp_path is None:
+            self.logger.warning("Catchment shapefile not found; using spatial average")
             return self._extract_spatial_average(data)
 
         try:
