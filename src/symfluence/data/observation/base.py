@@ -281,6 +281,108 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         self.logger.info(f"{obs_type} processing complete: {output_file}")
         return output_file
 
+    def _resolve_catchment_shapefile(self, required: bool = False) -> Optional[Path]:
+        """Locate the catchment/basin polygon for spatial masking or averaging.
+
+        Domain discretization writes the catchment under an experiment-scoped
+        nested layout
+        (``shapefiles/catchment/{definition_method}/{experiment_id}/
+        {domain}_HRUs_{discretization}.shp``) and may upper-case the
+        discretization suffix (GRUs -> GRUS), so a flat
+        ``{domain}_catchment.shp`` lookup never matches. Resolution order:
+
+        1. Explicit ``CATCHMENT_PATH`` / ``CATCHMENT_SHP_NAME`` (config.paths).
+        2. Canonical nested catchment layout (definition_method/experiment_id),
+           then the legacy flat ``shapefiles/catchment`` directory.
+        3. Any ``{domain}_HRUs_*.shp`` anywhere under ``shapefiles/catchment``.
+        4. The ``shapefiles/river_basins`` outline.
+
+        Args:
+            required: When True, raise FileNotFoundError if nothing is found;
+                otherwise return None.
+
+        Returns:
+            Path to the resolved shapefile, or None when not found and not
+            required.
+        """
+        # 1. Explicit user-provided path/name takes precedence. These keys live
+        #    on config.paths (NOT config.domain — a common source of silent
+        #    fall-through to defaults).
+        catchment_path_cfg = self._get_config_value(
+            lambda: self.config.paths.catchment_path, default='default', dict_key='CATCHMENT_PATH'
+        )
+        catchment_name_cfg = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME'
+        )
+        if catchment_path_cfg and catchment_path_cfg != 'default':
+            base_dir = Path(catchment_path_cfg)
+            if catchment_name_cfg and catchment_name_cfg != 'default':
+                explicit = base_dir / catchment_name_cfg
+                if explicit.exists():
+                    return explicit
+            found = sorted(base_dir.rglob("*.shp"))
+            if found:
+                return found[0]
+
+        catchment_dir = self.project_shapefiles_dir / "catchment"
+
+        # 2. Canonical nested layout, then legacy flat directory.
+        nested_dir = catchment_dir / self.domain_definition_method / self.experiment_id
+        for candidate_dir in (nested_dir, catchment_dir):
+            if not candidate_dir.exists():
+                continue
+            matches = (
+                sorted(candidate_dir.glob(f"{self.domain_name}_HRUs_*.shp"))
+                or sorted(candidate_dir.glob(f"{self.domain_name}*.shp"))
+            )
+            if not matches and candidate_dir == nested_dir:
+                # The experiment subdir is catchment-specific; any .shp there is ours.
+                matches = sorted(candidate_dir.glob("*.shp"))
+            if matches:
+                return matches[0]
+
+        # 3. Deep search anywhere under catchment/ (handles casing/name drift).
+        if catchment_dir.exists():
+            deep = sorted(catchment_dir.rglob(f"{self.domain_name}_HRUs_*.shp"))
+            if deep:
+                return deep[0]
+
+        # 4. River basins outline as a last resort.
+        river_basins_dir = self.project_shapefiles_dir / "river_basins"
+        if river_basins_dir.exists():
+            rb_matches = (
+                sorted(river_basins_dir.glob(f"{self.domain_name}_riverBasins_*.shp"))
+                or sorted(river_basins_dir.glob("*.shp"))
+            )
+            if rb_matches:
+                return rb_matches[0]
+
+        if required:
+            raise FileNotFoundError(
+                f"Catchment/basin shapefile not found. Searched '{catchment_dir}' "
+                f"(incl. {self.domain_definition_method}/{self.experiment_id}) and "
+                f"river_basins. Run define_domain + discretize_domain first, or set "
+                f"CATCHMENT_PATH/CATCHMENT_SHP_NAME explicitly."
+            )
+        return None
+
+    def _load_catchment_gdf(self, required: bool = False):
+        """Load the resolved catchment/basin shapefile as a GeoDataFrame.
+
+        Returns None (with a warning) when the shapefile cannot be resolved and
+        ``required`` is False; raises FileNotFoundError when ``required``.
+        """
+        basin_shp = self._resolve_catchment_shapefile(required=required)
+        if basin_shp is None:
+            self.logger.warning(
+                "Catchment shapefile not found; spatial masking unavailable. "
+                "Run define_domain + discretize_domain, or set CATCHMENT_PATH."
+            )
+            return None
+        import geopandas as gpd  # lazy: heavy dependency
+        self.logger.debug(f"Using catchment shapefile: {basin_shp}")
+        return gpd.read_file(basin_shp)
+
     # =========================================================================
     # Utility Methods - Data Loading
     # =========================================================================

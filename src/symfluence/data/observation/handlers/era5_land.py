@@ -168,35 +168,13 @@ class ERA5LandHandler(BaseObservationHandler):
         return output_file
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
-        """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
-        if catchment_path_cfg == 'default' or not catchment_path_cfg:
-            catchment_path = self.project_dir / "shapefiles" / "catchment"
-        else:
-            catchment_path = Path(catchment_path_cfg)
+        """Load the catchment shapefile for spatial masking.
 
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
-        if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{self.domain_name}_HRUs_GRUs.shp"
-
-        basin_shp = catchment_path / catchment_name
-        if not basin_shp.exists():
-            # Try alternate patterns
-            alt_patterns = [
-                f"{self.domain_name}*.shp",
-                "*.shp"
-            ]
-            for pattern in alt_patterns:
-                matches = list(catchment_path.glob(pattern))
-                if matches:
-                    basin_shp = matches[0]
-                    break
-
-        if basin_shp.exists():
-            return gpd.read_file(basin_shp)
-
-        self.logger.warning(f"Catchment shapefile not found: {basin_shp}")
-        return None
+        Delegates to the shared resolver, which handles the nested
+        discretization layout and river_basins fallback. Returns None when
+        no basin is found (callers fall back to the bounding box).
+        """
+        return self._load_catchment_gdf()
 
     def _process_file(
         self,
