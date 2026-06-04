@@ -353,6 +353,21 @@ class OptimizationManager(BaseManager):
                     "Using COUPLED_GW calibration pipeline "
                     "(GROUNDWATER_MODEL: MODFLOW detected)"
                 )
+            # Detect coupled routing calibration — when a *calibratable* routing
+            # model (one exposing a registered parameter manager, e.g. DROUTE) is
+            # configured alongside the land model, route to the generic COUPLED
+            # optimizer so the routing parameters join the calibration space and
+            # the land->routing run goes through the dCoupler graph. (mizuRoute /
+            # t-route expose no parameter manager and so stay land-only here.)
+            elif self._coupled_routing_requested():
+                routing_model = str(self._get_config_value(
+                    lambda: self.config.model.routing_model, '', dict_key='ROUTING_MODEL'
+                )).split(',')[0].strip().upper()
+                hydrological_models = ['COUPLED']
+                self.logger.info(
+                    "Using COUPLED calibration pipeline "
+                    f"(calibratable routing model {routing_model} detected)"
+                )
 
             results = []
 
@@ -381,6 +396,26 @@ class OptimizationManager(BaseManager):
             import traceback
             self.logger.error(traceback.format_exc())
             return None
+
+    def _coupled_routing_requested(self) -> bool:
+        """True when a calibratable dCoupler routing model is coupled to the land model.
+
+        A routing model is "calibratable" when it exposes a registered parameter manager (e.g.
+        DROUTE). mizuRoute / t-route route but expose no parameter manager, so they stay land-only.
+        Honours an explicit ``CALIBRATE_ROUTING`` opt-out.
+        """
+        routing_model = str(self._get_config_value(
+            lambda: self.config.model.routing_model, '', dict_key='ROUTING_MODEL'
+        )).split(',')[0].strip().upper()
+        if not routing_model or routing_model in ('', 'NONE', 'N/A'):
+            return False
+        if R.parameter_managers.get(routing_model) is None:
+            return False
+        calibrate = self._get_config_value(
+            lambda: self.config.calibration.calibrate_routing, default=True,
+            dict_key='CALIBRATE_ROUTING',
+        )
+        return bool(calibrate)
 
     def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
         """
