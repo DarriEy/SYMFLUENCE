@@ -397,11 +397,15 @@ def _import_model_build_instructions() -> None:
     # Resolve package root: this file is  src/symfluence/cli/external_tools_config.py
     _pkg_root = Path(__file__).resolve().parent.parent  # -> src/symfluence/
 
+    # NOTE: cfuse and droute are no longer bundled in-tree — they were extracted
+    # to standalone pip packages ("Remove duplicate model code — delegate fully
+    # to pip packages").  They now register their own build instructions via the
+    # ``symfluence.plugins`` entry-point group, so they must NOT be listed here;
+    # doing so logged a spurious "Failed to load build instructions" warning on
+    # every ``symfluence binary`` invocation.
     model_modules = [
         'symfluence.models.summa.build_instructions',
         'symfluence.models.fuse.build_instructions',
-        'symfluence.models.cfuse.build_instructions',
-        'symfluence.models.droute.build_instructions',
         'symfluence.models.mizuroute.build_instructions',
         'symfluence.models.troute.build_instructions',
         'symfluence.models.ngen.build_instructions',
