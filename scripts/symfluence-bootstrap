@@ -362,6 +362,28 @@ setup_r_environment() {
     return 0
 }
 
+# Emit arch-aware multiarch library dirs, one per line.  Debian/Ubuntu place
+# libraries under /usr/lib/<triplet> (e.g. /usr/lib/aarch64-linux-gnu), NOT the
+# /usr/lib64 used by RHEL-family distros.  Without this, ARM64 (and any Debian
+# multiarch) source build mis-probes GLIBC/HDF5 because the hardcoded
+# /usr/lib{,64} search misses the real library location.  Best-effort: prefer
+# the compiler's own answer, then dpkg, then a uname-derived triplet.
+_multiarch_lib_dirs() {
+    local triplet="" cc
+    for cc in "${CC:-}" gcc cc clang; do
+        [[ -n "$cc" ]] && command -v "$cc" >/dev/null 2>&1 || continue
+        triplet=$("$cc" -print-multiarch 2>/dev/null) && [[ -n "$triplet" ]] && break
+        triplet=""
+    done
+    if [[ -z "$triplet" ]] && command -v dpkg-architecture >/dev/null 2>&1; then
+        triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
+    fi
+    if [[ -z "$triplet" && "$(uname -s)" == "Linux" ]]; then
+        triplet="$(uname -m)-linux-gnu"
+    fi
+    [[ -n "$triplet" ]] && printf '%s\n' "/usr/lib/$triplet" "/lib/$triplet"
+}
+
 setup_rpy2_compiler_flags() {
     print_info "Setting up compiler environment for rpy2..."
     local lib_paths=()
@@ -369,6 +391,7 @@ setup_rpy2_compiler_flags() {
     if [[ -n "$LIBRARY_PATH" ]]; then IFS=':' read -ra _p <<< "$LIBRARY_PATH"; lib_paths+=("${_p[@]}"); fi
 
     local potential_lib_dirs=("/usr/lib64" "/usr/lib" "/lib64" "/lib")
+    while IFS= read -r _ma; do [[ -n "$_ma" ]] && potential_lib_dirs+=("$_ma"); done < <(_multiarch_lib_dirs)
     for d in "${potential_lib_dirs[@]}"; do [[ -d "$d" ]] && lib_paths+=("$d"); done
 
     for prog in xz bzip2; do
@@ -412,6 +435,7 @@ check_rpy2_dependencies() {
         done
     else
         local search=("/usr/lib" "/usr/lib64" "/lib" "/lib64")
+        while IFS= read -r _ma; do [[ -n "$_ma" ]] && search+=("$_ma"); done < <(_multiarch_lib_dirs)
         [[ -n "${LD_LIBRARY_PATH:-}" ]] && IFS=':' read -ra _a <<< "$LD_LIBRARY_PATH" && search+=("${_a[@]}")
         [[ -n "${LIBRARY_PATH:-}" ]] && IFS=':' read -ra _b <<< "$LIBRARY_PATH" && search+=("${_b[@]}")
 
