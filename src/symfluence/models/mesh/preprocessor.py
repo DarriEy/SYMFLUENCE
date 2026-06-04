@@ -562,6 +562,16 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 hru_shapefile = candidate
                 break
 
+        # Cross-experiment / casing drift: the elevation-band shapefile may have
+        # been written under a different experiment_id. Deep-search before giving
+        # up (kept elevation-specific so we never grab a GRUs/landclass variant).
+        if hru_shapefile is None:
+            catchment_root = self.project_dir / 'shapefiles' / 'catchment'
+            if catchment_root.exists():
+                deep = sorted(catchment_root.rglob(f'{self.domain_name}_HRUs_elevation*.shp'))
+                if deep:
+                    hru_shapefile = deep[0]
+
         if hru_shapefile is None:
             self.logger.warning(
                 f"Could not find elevation band HRU shapefile. Tried: {hru_shp_candidates}"
