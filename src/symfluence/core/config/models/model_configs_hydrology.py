@@ -429,6 +429,10 @@ class CLMConfig(BaseModel):
     # Installation
     install_path: str = Field(default='default', alias='CLM_INSTALL_PATH')
     exe: str = Field(default='cesm.exe', alias='CLM_EXE')
+    # Root for CESM inputdata downloaded on demand. 'default' resolves to
+    # <data_dir>/installs/cesm-inputdata (shared, writable scratch — same base
+    # as CLM_INSTALL_PATH). Override to point elsewhere if needed.
+    cesm_inputdata_path: str = Field(default='default', alias='CLM_CESM_INPUTDATA_PATH')
 
     # Settings
     settings_path: str = Field(default='default', alias='SETTINGS_CLM_PATH')

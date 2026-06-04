@@ -5294,6 +5294,12 @@ CLM_INSTALL_PATH: default
 #   Source:      CLMConfig (model_configs.py)
 CLM_EXE: cesm.exe
 
+# CLM_CESM_INPUTDATA_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+CLM_CESM_INPUTDATA_PATH: default
+
 # SETTINGS_CLM_PATH
 #   Type:        str
 #   Default:     default

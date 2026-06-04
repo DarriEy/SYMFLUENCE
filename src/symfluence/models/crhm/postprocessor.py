@@ -94,10 +94,13 @@ class CRHMPostProcessor(StandardModelPostprocessor):
         try:
             import pandas as pd
 
-            # Read tab-separated file, skip the units row (row index 1)
+            # Read tab-separated file, skip the units row (row index 1).
+            # CRHM (Fortran) writes its output in Latin-1, not UTF-8 — unit
+            # headers contain the degree symbol (0xba), which raises a
+            # UnicodeDecodeError under pandas' default UTF-8 decoding.
             df = pd.read_csv(
                 output_file, sep='\t', skiprows=[1],
-                index_col=0, parse_dates=True
+                index_col=0, parse_dates=True, encoding='latin-1'
             )
 
             # Find basinflow column (may include HRU index, e.g. "basinflow(1)")
