@@ -7,8 +7,6 @@ GRACE Data Acquisition Handler
 Provides cloud acquisition for GRACE/GRACE-FO Terrestrial Water Storage anomaly data.
 Retrieves data from NASA PO.DAAC or similar cloud-hosted repositories.
 """
-import netrc
-import os
 import tempfile
 from functools import lru_cache
 from pathlib import Path
@@ -19,6 +17,8 @@ import xarray as xr
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from ..utils import resolve_earthdata_token
+from .merra2 import _EarthdataSession
 
 
 @lru_cache(maxsize=1)
@@ -87,7 +87,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
         }
 
         success_count = 0
-        earthdata_auth = self._get_earthdata_auth()
+        earthdata_token = resolve_earthdata_token(self.config if isinstance(self.config, dict) else None)
 
         for center, info in datasets.items():
             target_file = output_dir / info['filename']
@@ -103,28 +103,35 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 success_count += 1
                 continue
 
-            self.logger.info(f"Downloading {center.upper()} from {url}")
             try:
-                if subset_enabled and center == 'jpl':
-                    if self._download_jpl_subset(url, subset_file):
-                        self.logger.info(f"Successfully downloaded GRACE {center.upper()} subset to {subset_file}")
-                        success_count += 1
-                        continue
-                    self.logger.warning("JPL subset download failed; falling back to full file download.")
-
+                # JPL is auth-gated on NASA Earthdata and is resolved dynamically
+                # via CMR (the legacy podaac-opendap.jpl.nasa.gov host has been
+                # decommissioned, so there is no static-URL fallback).
                 if center == 'jpl':
-                    cmr_path = self._download_jpl_from_cmr(output_dir, earthdata_auth, force_download)
-                    if cmr_path is not None:
-                        self.logger.info(f"Successfully downloaded GRACE {center.upper()} data to {cmr_path}")
-                        success_count += 1
-                        continue
+                    if subset_enabled:
+                        if self._download_jpl_subset(url, subset_file):
+                            self.logger.info(f"Successfully downloaded GRACE JPL subset to {subset_file}")
+                            success_count += 1
+                            continue
+                        self.logger.warning("JPL subset download failed; falling back to CMR.")
 
-                session = requests.Session()
-                if earthdata_auth and center == 'jpl':
-                    session.auth = earthdata_auth
+                    cmr_path = self._download_jpl_from_cmr(output_dir, earthdata_token, force_download)
+                    if cmr_path is None:
+                        raise RuntimeError(
+                            "JPL GRACE download via CMR failed — verify NASA Earthdata "
+                            "credentials (~/.netrc for urs.earthdata.nasa.gov, or "
+                            "EARTHDATA_TOKEN / EARTHDATA_USERNAME+PASSWORD)."
+                        )
+                    self.logger.info(f"Successfully downloaded GRACE JPL data to {cmr_path}")
+                    success_count += 1
+                    continue
+
+                # CSR / GSFC: public hosts, no Earthdata auth required.
                 # TLS verification stays enabled. Some hosts (e.g. CSR) serve an
                 # incomplete chain, so we verify against certifi plus the vendored
                 # intermediate(s) rather than disabling verification globally.
+                self.logger.info(f"Downloading {center.upper()} from {url}")
+                session = requests.Session()
                 session.verify = _ca_bundle()
                 with session.get(url, stream=True, timeout=120) as r:
                     r.raise_for_status()
@@ -146,24 +153,6 @@ class GRACEAcquirer(BaseAcquisitionHandler):
         if isinstance(value, str):
             return value.strip().lower() in {'true', '1', 'yes', 'y'}
         return bool(value)
-
-    def _get_earthdata_auth(self) -> Optional[Tuple[str, str]]:
-        user = os.environ.get("EARTHDATA_USERNAME")
-        password = os.environ.get("EARTHDATA_PASSWORD")
-        if user and password:
-            return (user, password)
-
-        try:
-            auth_info = netrc.netrc()
-        except (FileNotFoundError, netrc.NetrcParseError):
-            return None
-
-        for host in ("urs.earthdata.nasa.gov", "podaac-opendap.jpl.nasa.gov", "opendap.earthdata.nasa.gov"):
-            auth = auth_info.authenticators(host)
-            if auth:
-                return (auth[0], auth[2])
-
-        return None
 
     def _download_jpl_subset(self, url: str, target_file: Path) -> bool:
         if not self.bbox:
@@ -236,7 +225,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
     def _download_jpl_from_cmr(
         self,
         output_dir: Path,
-        earthdata_auth: Optional[Tuple[str, str]],
+        earthdata_token: Optional[str],
         force_download: bool,
     ) -> Optional[Path]:
         collection_id = self._get_config_value(
@@ -250,9 +239,12 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             collection_id,
         )
 
-        session = requests.Session()
-        if earthdata_auth:
-            session.auth = earthdata_auth
+        # Redirect-aware session: the granule download on archive.podaac is
+        # 302-redirected to urs.earthdata.nasa.gov for OAuth, and the stock
+        # requests session strips the Authorization header on that cross-host
+        # hop (→ 401). _EarthdataSession re-applies the token / .netrc creds at
+        # the URS host so the redirect chain authenticates correctly.
+        session = _EarthdataSession(token=earthdata_token)
 
         try:
             resp = session.get(
