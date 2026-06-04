@@ -310,7 +310,14 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                         actual_id_level = fallback
                         break
 
-            df = series.unstack(level=actual_id_level)
+            if actual_id_level in series.index.names:
+                df = series.unstack(level=actual_id_level)
+            else:
+                # Lumped domain: the forcing has no spatial/ID dimension, so the
+                # series is indexed by time alone and there is nothing to unstack.
+                # Emit a single subbasin column (id 0; the +1 shift below promotes
+                # it to 1, since HYPE requires subid > 0).
+                df = series.to_frame(name=0)
 
             # Map column indices to actual hruId values if we have the mapping
             if hru_id_mapping is not None:
