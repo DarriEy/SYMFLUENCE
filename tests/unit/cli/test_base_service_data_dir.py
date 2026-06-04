@@ -49,7 +49,7 @@ class TestResolveDataDir:
 
     def test_existing_workspace_at_cwd_is_reused(self, service, monkeypatch, tmp_path):
         workspace = tmp_path / "SYMFLUENCE_data"
-        workspace.mkdir()
+        (workspace / "installs").mkdir(parents=True)  # marker: real workspace
         monkeypatch.chdir(tmp_path)
         path, reason = service._resolve_data_dir({})
         assert path == workspace
@@ -57,12 +57,23 @@ class TestResolveDataDir:
 
     def test_existing_workspace_above_cwd_is_reused(self, service, monkeypatch, tmp_path):
         workspace = tmp_path / "SYMFLUENCE_data"
-        workspace.mkdir()
+        (workspace / "domain_test").mkdir(parents=True)  # marker: real workspace
         nested = tmp_path / "project" / "sub"
         nested.mkdir(parents=True)
         monkeypatch.chdir(nested)
         path, _ = service._resolve_data_dir({})
         assert path == workspace
+
+    def test_empty_named_dir_is_not_adopted(self, service, monkeypatch, tmp_path):
+        """A SYMFLUENCE_data dir with no workspace marker is NOT reused."""
+        (tmp_path / "SYMFLUENCE_data").mkdir()  # no markers
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(BaseService, "_running_from_repo", staticmethod(lambda: False))
+        path, reason = service._resolve_data_dir({})
+        # Falls through to the ad-hoc cwd path, which happens to be the same dir
+        # name — but the reason proves it was created fresh, not "adopted".
+        assert path == tmp_path / "SYMFLUENCE_data"
+        assert "current working directory" in reason.lower()
 
     def test_adhoc_install_infers_cwd(self, service, monkeypatch, tmp_path):
         """No env/config/repo/workspace -> <cwd>/SYMFLUENCE_data, not cwd.parent."""
@@ -117,12 +128,25 @@ class TestHelpers:
         assert BaseService._find_existing_data_dir() is None
 
     def test_find_existing_data_dir_respects_depth_limit(self, monkeypatch, tmp_path):
-        (tmp_path / "SYMFLUENCE_data").mkdir()
+        ws = tmp_path / "SYMFLUENCE_data"
+        (ws / "installs").mkdir(parents=True)  # a real workspace, but far away
         deep = tmp_path.joinpath(*[f"l{i}" for i in range(8)])
         deep.mkdir(parents=True)
         monkeypatch.chdir(deep)
         # The workspace is more than max_levels above cwd -> not found.
         assert BaseService._find_existing_data_dir(max_levels=3) is None
+
+    def test_looks_like_workspace_requires_marker(self, tmp_path):
+        plain = tmp_path / "SYMFLUENCE_data"
+        plain.mkdir()
+        assert BaseService._looks_like_workspace(plain) is False
+        (plain / "installs").mkdir()
+        assert BaseService._looks_like_workspace(plain) is True
+
+    def test_looks_like_workspace_accepts_domain_marker(self, tmp_path):
+        ws = tmp_path / "SYMFLUENCE_data"
+        (ws / "domain_bow").mkdir(parents=True)
+        assert BaseService._looks_like_workspace(ws) is True
 
     def test_get_data_dir_returns_path_only(self, service, monkeypatch, tmp_path):
         monkeypatch.setenv("SYMFLUENCE_DATA_DIR", str(tmp_path / "d"))
