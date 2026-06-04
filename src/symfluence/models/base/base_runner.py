@@ -608,6 +608,17 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             # Standard behavior - combine into full path
             exe_path = install_dir / exe_name
 
+        # npm fallback: pre-built tools shipped via `npm install -g symfluence`
+        # live in a flat dist/bin under canonical names (summa, mizuroute, ...),
+        # NOT under the source-install layout (installs/summa/bin/summa_sundials.exe).
+        # When the source path is absent, look the binary up in the npm bundle so
+        # workflows run against npm-only installs instead of failing here. (#156 G6)
+        if not exe_path.exists():
+            npm_exe = self._resolve_npm_executable(exe_name, default_install_subpath)
+            if npm_exe is not None:
+                self.logger.info(f"Using npm-bundled binary: {npm_exe}")
+                exe_path = npm_exe
+
         # Optional validation
         if must_exist and not exe_path.exists():
             if candidates:
@@ -632,6 +643,93 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         self._resolved_executables.append((label, exe_path))
 
         return exe_path
+
+    @staticmethod
+    def _find_npm_bin_dir() -> Optional[Path]:
+        """Locate the npm-bundled binary directory (``dist/bin``), if present.
+
+        Resolution order:
+          1. ``SYMFLUENCE_NPM_DIST_BIN`` env override (explicit; also used in tests).
+          2. ``$(npm root -g)/symfluence/dist/bin`` for a global ``npm install``.
+
+        Returns the directory, or ``None`` when no npm bundle is available. The
+        ``npm root -g`` subprocess is only reached on the executable-not-found
+        path, so the cost is paid solely when a source install is missing.
+        """
+        import os
+
+        override = os.getenv("SYMFLUENCE_NPM_DIST_BIN")
+        if override:
+            override_path = Path(override)
+            return override_path if override_path.is_dir() else None
+
+        import subprocess  # noqa: PLC0415 — lazy, failure-path only
+
+        try:
+            result = subprocess.run(
+                ["npm", "root", "-g"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (subprocess.SubprocessError, FileNotFoundError, OSError, ValueError):
+            return None
+
+        if result.returncode != 0:
+            return None
+        try:
+            npm_bin_dir = Path(result.stdout.strip()) / "symfluence" / "dist" / "bin"
+        except (ValueError, OSError):
+            return None
+        return npm_bin_dir if npm_bin_dir.is_dir() else None
+
+    def _resolve_npm_executable(
+        self, exe_name: Optional[str], default_install_subpath: str
+    ) -> Optional[Path]:
+        """Resolve a model executable from the npm bundle's flat ``dist/bin``.
+
+        The npm release stages binaries under canonical names (the build-registry
+        tool key, e.g. ``summa``, ``mizuroute``) rather than the source-install
+        filename (``summa_sundials.exe``). This maps the requested tool to that
+        canonical name via the build registry, then falls back to ``.exe``-stripped
+        / lowercased variants of ``exe_name``.
+
+        Returns the resolved path inside the npm bundle, or ``None``.
+        """
+        npm_bin_dir = self._find_npm_bin_dir()
+        if npm_bin_dir is None:
+            return None
+
+        candidates: List[str] = []
+
+        # Authoritative mapping: build-registry tool key == npm staged filename.
+        try:
+            from symfluence.cli.services.build_registry import BuildInstructionsRegistry
+
+            for name, info in BuildInstructionsRegistry.get_all_instructions().items():
+                if (
+                    info.get("default_path_suffix") == default_install_subpath
+                    or (exe_name and info.get("default_exe") == exe_name)
+                ):
+                    candidates.append(name)
+                    break
+        except (ImportError, AttributeError, KeyError, OSError):
+            # Registry mapping is best-effort; fall back to exe-name variants.
+            pass
+
+        # Generic fallbacks derived from the source exe name.
+        if exe_name:
+            candidates.append(exe_name)
+            if exe_name.endswith(".exe"):
+                stem = exe_name[:-4]
+                candidates.extend([stem, stem.lower()])
+            candidates.append(exe_name.lower())
+
+        for candidate in dict.fromkeys(c for c in candidates if c):
+            path = npm_bin_dir / candidate
+            if path.is_file():
+                return path
+        return None
 
     # =========================================================================
     # File Verification
