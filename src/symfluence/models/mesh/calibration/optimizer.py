@@ -97,7 +97,11 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
             # Run MESH model
             if not self._run_model_for_final_evaluation(final_output_dir):
-                self.logger.error("MESH run failed during final evaluation")
+                self.logger.error(
+                    "MESH run failed during final evaluation "
+                    "(see the MESH output/coverage message above — often the forcing ends "
+                    "before the configured simulation end date)"
+                )
                 return None
 
             # MESH writes output to forcing/MESH_input/results/
