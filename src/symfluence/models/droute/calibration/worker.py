@@ -204,6 +204,55 @@ class DRouteWorker(BaseWorker):
                  obs=np.array([g['obs'] for g in gauges]))
         return True
 
+    def materialize_metric_inputs(self, graph_outputs: Dict[str, Any], output_dir: Path,
+                                  settings_dir: Path, config: Dict[str, Any]) -> bool:
+        """Graph->metrics handoff: turn the dCoupler routing-component discharge tensor into the
+        per-gauge ``droute_streamflow.npz`` that :meth:`calculate_metrics` reads.
+
+        The dCoupler graph emits raw flux tensors (``{component: {flux: tensor}}``); the routing
+        component's ``discharge`` is ``[n_days, n_reach]`` (m^3/s) over the full routed window. This
+        slices the evaluation window + the gauge reaches (reusing the same gauge/obs metadata and
+        spin-up offset as the standalone routing run) so the objective is computed identically
+        whether routing ran via the in-memory graph or the sequential file path.
+        """
+        discharge = self._extract_discharge(graph_outputs)
+        if discharge is None:
+            self.logger.error("dCoupler graph outputs contained no 'discharge' flux; "
+                              "cannot materialize dRoute metric inputs")
+            return False
+        inp = self._load_inputs(Path(settings_dir))
+        i0 = int(inp['i_eval0'])
+        gauges = inp['gauges']
+        n_eval = discharge.shape[0] - i0
+        if n_eval <= 0:
+            self.logger.error(f"Routed discharge ({discharge.shape[0]} days) shorter than the "
+                              f"spin-up offset ({i0}); cannot evaluate")
+            return False
+        Q = np.array([discharge[i0:i0 + n_eval, g['ridx']] for g in gauges])
+        obs = np.array([g['obs'][:n_eval] for g in gauges])
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        np.savez(Path(output_dir) / 'droute_streamflow.npz',
+                 ridx=np.array([g['ridx'] for g in gauges]),
+                 stations=np.array([g['station'] for g in gauges]),
+                 Q=Q, obs=obs)
+        return True
+
+    @staticmethod
+    def _extract_discharge(graph_outputs: Dict[str, Any]) -> Optional[np.ndarray]:
+        """Pull the [n_days, n_reach] discharge array out of the graph outputs (prefer 'routing')."""
+        def _to_np(t):
+            return t.detach().cpu().numpy() if hasattr(t, 'detach') else np.asarray(t)
+        if not isinstance(graph_outputs, dict):
+            return None
+        for key in ('routing', 'droute', 'DROUTE'):
+            comp = graph_outputs.get(key)
+            if isinstance(comp, dict) and 'discharge' in comp:
+                return _to_np(comp['discharge'])
+        for comp in graph_outputs.values():
+            if isinstance(comp, dict) and 'discharge' in comp:
+                return _to_np(comp['discharge'])
+        return None
+
     def calculate_metrics(self, output_dir: Path, config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         z = np.load(Path(output_dir) / 'droute_streamflow.npz', allow_pickle=True)
         Q, obs, stations = z['Q'], z['obs'], z['stations']
