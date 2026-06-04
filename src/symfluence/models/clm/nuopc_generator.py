@@ -36,21 +36,42 @@ _REQUIRED_INPUTDATA = [
 
 
 def _resolve_cesm_inputdata(preprocessor) -> Path:
-    """Resolve the CESM inputdata root from config, falling back to the default.
+    """Resolve the CESM inputdata root, defaulting to a SYMFLUENCE-managed dir.
 
-    Reads ``CLM_CESM_INPUTDATA_PATH`` (``config.model.clm.cesm_inputdata_path``);
-    the sentinel ``'default'`` (or empty) resolves to ``DEFAULT_CESM_INPUTDATA``.
-    Lets users point CESM inputdata at a writable location (e.g. scratch) on
-    HPC systems where the home directory is not writable from compute nodes.
+    Precedence:
+
+    1. ``CLM_CESM_INPUTDATA_PATH`` (``config.model.clm.cesm_inputdata_path``)
+       when set to anything other than the ``'default'`` sentinel.
+    2. Otherwise a writable, SYMFLUENCE-managed location alongside the model
+       installs (``<data_dir>/installs/cesm-inputdata``), resolved the same way
+       as ``CLM_INSTALL_PATH: default``. This shares the (large, static)
+       inputdata across domains and avoids the home directory, which is often
+       not writable from HPC compute nodes — so no manual override is needed.
+    3. As a last resort (no project/data dir available), the home-directory
+       default. This keeps the function total even outside a real project.
     """
     configured = preprocessor._get_config_value(
         lambda: preprocessor.config.model.clm.cesm_inputdata_path,
         default='default',
         dict_key='CLM_CESM_INPUTDATA_PATH',
     )
-    if not configured or str(configured).strip().lower() == 'default':
+    if configured and str(configured).strip().lower() != 'default':
+        return Path(configured).expanduser()
+
+    # Mirror CLMPreProcessor._get_install_path() so inputdata lands next to the
+    # model installs under the SYMFLUENCE data dir (writable scratch on HPC).
+    code_dir = preprocessor._get_config_value(
+        lambda: preprocessor.config.system.code_dir,
+        default=None,
+        dict_key='SYMFLUENCE_CODE_DIR',
+    )
+    if code_dir:
+        code_path = Path(code_dir)
+        return code_path.parent / (code_path.name + '_data') / 'installs' / 'cesm-inputdata'
+    try:
+        return preprocessor.project_dir.parents[1] / 'installs' / 'cesm-inputdata'
+    except (AttributeError, IndexError):
         return DEFAULT_CESM_INPUTDATA
-    return Path(configured).expanduser()
 
 
 def _ensure_cesm_inputdata(root: Path) -> None:
