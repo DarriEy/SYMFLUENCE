@@ -166,6 +166,9 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                     mesh_exe_in_forcing.unlink()
                 return self.output_dir
             else:
+                reason = getattr(self, '_last_verify_reason', None)
+                if reason:
+                    self.logger.error(f"MESH produced no usable output — {reason}")
                 self.logger.debug(f"MESH simulation failed with code {result.return_code}")
                 # Log the end of the log file for easier debugging
                 if log_file.exists():
@@ -264,6 +267,9 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
         """
         is_lumped = self._is_lumped_mode()
         expected_days = self._get_expected_days()
+        # Records why verification failed so callers (run_mesh / final evaluation)
+        # can report a specific cause instead of a bare "MESH run failed".
+        self._last_verify_reason: Optional[str] = None
         if is_lumped:
             # Lumped mode (noroute or run_def): accept water balance or streamflow.
             # Basin_average is preferred (avoids self-referential routing artifacts).
@@ -302,9 +308,14 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                         return False
                     if expected_days is not None:
                         if not self._has_full_coverage(path, data_rows, expected_days):
-                            self.logger.debug(
-                                f"Output time series appears truncated: {path} "
-                                f"(rows={data_rows}, expected_days={expected_days})"
+                            self._last_verify_reason = (
+                                f"output '{path.name}' is truncated ({data_rows} data rows; "
+                                f"the run needs ~{expected_days} days of coverage) — the forcing "
+                                f"likely ends before the configured simulation end date"
+                            )
+                            self.logger.warning(
+                                f"MESH output coverage check failed for {path}: "
+                                f"{self._last_verify_reason}"
                             )
                             return False
                     return True
@@ -329,10 +340,12 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                 break
 
         if not found_any:
-            if is_lumped:
-                self.logger.debug("No lumped water balance outputs found (Basin_average or GRU).")
-            else:
-                self.logger.warning("No routed MESH streamflow outputs found in expected locations.")
+            if not self._last_verify_reason:
+                checked = ', '.join(str(d) for d in check_dirs)
+                self._last_verify_reason = (
+                    f"no MESH output file found (looked for {output_candidates} in {checked})"
+                )
+            self.logger.warning(f"MESH output verification failed: {self._last_verify_reason}")
             return False
 
         return True
