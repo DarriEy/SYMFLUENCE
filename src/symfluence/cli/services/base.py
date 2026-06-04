@@ -71,10 +71,8 @@ class BaseService:
         """
         Get SYMFLUENCE data directory from environment or config.
 
-        Priority:
-        1. SYMFLUENCE_DATA_DIR environment variable
-        2. Config value (if not 'default')
-        3. Sibling SYMFLUENCE_data directory next to the repo root
+        Thin wrapper over :meth:`_resolve_data_dir` that discards the
+        human-readable reason. See that method for the full resolution order.
 
         Args:
             config: Configuration dictionary.
@@ -82,19 +80,130 @@ class BaseService:
         Returns:
             Path to data directory.
         """
-        # Check environment variables
+        return self._resolve_data_dir(config)[0]
+
+    def _resolve_data_dir(self, config: Dict[str, Any]) -> tuple[Path, str]:
+        """
+        Resolve the SYMFLUENCE data directory and explain how it was chosen.
+
+        Priority:
+        1. SYMFLUENCE_DATA_DIR / SYMFLUENCE_DATA environment variable (explicit).
+        2. Config value (if not the 'default' sentinel).
+        3. An existing ``SYMFLUENCE_data`` workspace at or above the current
+           working directory (so ad-hoc installs land in a workspace the user
+           is already sitting in).
+        4. Sibling ``SYMFLUENCE_data`` next to a *real* repo checkout, when one
+           is detected and the location is writable (developer default).
+        5. ``<cwd>/SYMFLUENCE_data`` for ad-hoc installs (no repo, no env/config),
+           or when the repo-sibling default is not writable.
+
+        Every candidate after the explicit env/config values is validated for
+        writability; non-writable candidates are skipped with a fallback.
+
+        Args:
+            config: Configuration dictionary.
+
+        Returns:
+            A ``(path, reason)`` tuple. ``reason`` is a short phrase suitable for
+            surfacing to the user (e.g. in the installer's location banner).
+        """
+        # 1. Explicit environment variable — honour verbatim (even if awkward).
         data_dir = os.getenv("SYMFLUENCE_DATA_DIR") or os.getenv("SYMFLUENCE_DATA")
         if data_dir:
-            return Path(data_dir)
+            return Path(data_dir), "SYMFLUENCE_DATA_DIR environment variable"
 
-        # Check config value (skip 'default' sentinel)
+        # 2. Explicit config value (skip 'default' sentinel).
         config_val = config.get("SYMFLUENCE_DATA_DIR")
         if config_val and config_val != "default":
-            return Path(config_val)
+            return Path(config_val), "config SYMFLUENCE_DATA_DIR"
 
-        # Resolve from repo root: sibling SYMFLUENCE_data directory
+        # 3. Reuse an existing workspace found at or above the current directory.
+        existing = self._find_existing_data_dir()
+        if existing is not None and self._is_writable_dir(existing):
+            return existing, "existing workspace near the current directory"
+
+        # 4. Repo-sibling default — only when running from a real checkout and
+        #    the location is actually writable.
         from symfluence.core.config.factories import _resolve_default_data_dir
-        return Path(_resolve_default_data_dir())
+        if self._running_from_repo():
+            sibling = Path(_resolve_default_data_dir())
+            if self._is_writable_dir(sibling):
+                return sibling, "sibling of the SYMFLUENCE repository"
+
+        # 5. Ad-hoc install (no env, no config, no repo) — infer from cwd.
+        cwd = Path.cwd()
+        if cwd.name == ".ipynb_checkpoints":
+            cwd = cwd.parent
+        cwd_data = cwd / "SYMFLUENCE_data"
+        if self._is_writable_dir(cwd_data):
+            return cwd_data, "current working directory (ad-hoc install)"
+
+        # Last resort: the computed default, even if not writable, so callers
+        # have a concrete path to report against.
+        return Path(_resolve_default_data_dir()), "default data directory"
+
+    @staticmethod
+    def _find_existing_data_dir(max_levels: int = 6) -> Optional[Path]:
+        """
+        Look for an existing ``SYMFLUENCE_data`` directory at or above cwd.
+
+        Walks up at most ``max_levels`` directories so an ad-hoc install run from
+        inside (or just below) a workspace reuses it instead of creating a new
+        store. Matches either a directory literally named ``SYMFLUENCE_data`` or
+        one containing a ``SYMFLUENCE_data`` child.
+
+        Returns:
+            The existing data directory, or ``None`` if none is found nearby.
+        """
+        start = Path.cwd()
+        if start.name == ".ipynb_checkpoints":
+            start = start.parent
+        for depth, directory in enumerate([start, *start.parents]):
+            if depth > max_levels:
+                break
+            if directory.name == "SYMFLUENCE_data" and directory.is_dir():
+                return directory
+            candidate = directory / "SYMFLUENCE_data"
+            if candidate.is_dir():
+                return candidate
+        return None
+
+    @staticmethod
+    def _running_from_repo() -> bool:
+        """
+        Detect whether SYMFLUENCE is running from a real source checkout.
+
+        Returns True when the installed package sits inside a directory tree that
+        contains a ``pyproject.toml`` or ``.git`` (a developer checkout), and
+        False for an installed/site-packages ("ad-hoc") install.
+        """
+        try:
+            import symfluence
+
+            candidate = Path(symfluence.__file__).parent
+            for _ in range(5):
+                candidate = candidate.parent
+                if (candidate / "pyproject.toml").exists() or (candidate / ".git").exists():
+                    return True
+        except (ImportError, AttributeError, OSError, TypeError):
+            pass
+        return False
+
+    @staticmethod
+    def _is_writable_dir(path: Path) -> bool:
+        """
+        Check whether ``path`` is (or could be) created as a writable directory.
+
+        Walks up to the nearest existing ancestor and tests write access there,
+        so a not-yet-created target is judged by whether it *could* be made.
+        """
+        probe = path
+        while not probe.exists():
+            parent = probe.parent
+            if parent == probe:  # reached filesystem root without an existing dir
+                return False
+            probe = parent
+        return os.access(probe, os.W_OK)
 
     def _ensure_valid_config_paths(
         self, config: Dict[str, Any], config_path: Path
