@@ -469,9 +469,11 @@ class ToolInstaller(BaseService):
         }
 
         config = self._load_config(symfluence_instance)
-        install_base_dir = self._get_data_dir(config) / "installs"
+        data_dir, data_dir_reason = self._resolve_data_dir(config)
+        install_base_dir = data_dir / "installs"
 
         self._console.info(f"Installation directory: {install_base_dir}")
+        self._console.indent(f"(location: {data_dir_reason})")
 
         if not dry_run:
             install_base_dir.mkdir(parents=True, exist_ok=True)
