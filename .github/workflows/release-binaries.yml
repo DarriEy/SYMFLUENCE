@@ -33,7 +33,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
+          # linux-x86_64 is built INSIDE an old-glibc container (ubuntu:20.04,
+          # glibc 2.31) so the bundled GCC/netCDF/HDF5 runtimes don't carry a
+          # too-new GLIBC_2.3x symbol requirement. This lowers the release floor
+          # from the host's 2.39 to 2.31 — covering RHEL/Rocky 9 (2.34),
+          # Debian 11/12, Ubuntu 20.04+. The host runner only hosts the
+          # container. (#156 G6 release-pipeline glibc floor.)
+          # NOTE: container build not yet exercised in CI — expect minor
+          # iteration (focal toolchain versions) on the first tagged run.
+          - os: ubuntu-22.04
+            container: ubuntu:20.04
             platform: linux-x86_64
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -44,6 +53,8 @@ jobs:
             python-version: '3.11'
 
     runs-on: ${{ matrix.os }}
+    # Empty for macOS/Windows rows -> the job runs directly on the host runner.
+    container: ${{ matrix.container || '' }}
     timeout-minutes: 120
 
     env:
@@ -52,6 +63,17 @@ jobs:
       SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
 
     steps:
+      # The ubuntu:20.04 container is minimal: install what the JS actions and
+      # later steps need (git for `checkout --submodules`, sudo for the apt
+      # steps, file for the bundling step) BEFORE checkout. Runs as root.
+      - name: Bootstrap build container (old-glibc Linux)
+        if: matrix.container != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            sudo git ca-certificates curl wget xz-utils file build-essential
+          git config --global --add safe.directory '*'
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -62,6 +84,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      # focal ships cmake 3.16; several model builds need >= 3.20. Use the pip
+      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH by the
+      # setup-python environment.
+      - name: Upgrade build tools in container (old-glibc Linux)
+        if: matrix.container != ''
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cmake>=3.22" ninja
 
       # ========================================================================
       # Pre-Release Validation
