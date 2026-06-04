@@ -242,6 +242,13 @@ class BaseService:
             if parent == probe:  # reached filesystem root without an existing dir
                 return False
             probe = parent
+        # If the only existing ancestor is the filesystem root/anchor itself
+        # while the requested target is deeper, treat it as not writable:
+        # creating a brand-new top-level directory at the root isn't a valid
+        # data-dir location (and on Windows a bare "/foo" is drive-relative, so
+        # the current drive root spuriously satisfies os.access(..., W_OK)).
+        if probe != path and probe == Path(probe.anchor):
+            return False
         return os.access(probe, os.W_OK)
 
     def _ensure_valid_config_paths(
