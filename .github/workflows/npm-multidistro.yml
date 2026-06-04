@@ -71,7 +71,9 @@ jobs:
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs
           else
-            dnf install -y nodejs npm tar curl which
+            # curl-minimal ships in EL9/Fedora base and conflicts with the curl
+            # package — use --allowerasing and don't request curl (Node has https).
+            dnf install -y --allowerasing nodejs npm tar which
           fi
           echo "node: $(node --version), npm: $(npm --version)"
 
