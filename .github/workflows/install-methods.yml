@@ -1,0 +1,177 @@
+name: Install Methods
+
+# Review item 16: build SYMFLUENCE via each documented install method in a clean
+# environment and smoke-test it (`symfluence --version` + `import symfluence`).
+# Tiered (not on PRs): runs after merge to develop, weekly, and on demand.
+#
+# Methods proven to work in CI gate the matrix; methods that still hit the §8
+# install gaps (G1–G7) are marked experimental (continue-on-error) so the grid
+# reports their status honestly without blocking. See the G1–G7 tracking issue.
+
+on:
+  push:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 4 * * 0'  # weekly (Sundays)
+  workflow_dispatch:
+
+concurrency:
+  group: install-methods-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  install-method:
+    name: ${{ matrix.method }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+        # Blocking: package-manager installs validated at the shallow (install +
+        # CLI + import) level — all green as of this PR.
+        method: [pip, uv-pip, pipx, uv-tool]
+        experimental: [false]
+        include:
+          # Reported but non-blocking: heavier methods with deep §8 install gaps
+          # (conda toolchain G5, npm bundle G6). See the G1–G7 tracking issue.
+          - { os: ubuntu-24.04, method: conda, experimental: true }
+          - { os: macos-latest, method: conda, experimental: true }
+          - { os: ubuntu-24.04, method: npm,   experimental: true }
+          - { os: macos-latest, method: npm,   experimental: true }
+        # NOTE: the source/compile path needs the full build toolchain and is
+        # validated separately by install-validate.yml, not in this lightweight matrix.
+
+    steps:
+      - name: Free up disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        if: matrix.method != 'conda'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node (npm method)
+        if: matrix.method == 'npm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Miniconda (conda method)
+        if: matrix.method == 'conda'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: '3.11'
+          auto-activate-base: true
+          channels: conda-forge
+
+      - name: Install documented system dependencies
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y gdal-bin libgdal-dev libnetcdf-dev cdo
+          else
+            brew install gdal netcdf cdo || true
+          fi
+
+      - name: Install GDAL Python bindings (system-pinned)
+        if: matrix.method != 'npm'
+        run: |
+          # G3: pin the osgeo bindings to the system libgdal so setup_project works.
+          if command -v gdal-config >/dev/null 2>&1; then
+            GV=$(gdal-config --version)
+            python -m pip install --upgrade pip 2>/dev/null || true
+            pip install "gdal==${GV}" 2>/dev/null || pip install "gdal>=${GV%.*}" || true
+          fi
+
+      - name: Install via ${{ matrix.method }}
+        run: |
+          set -x
+          case "${{ matrix.method }}" in
+            pip)
+              python -m pip install --upgrade pip
+              pip install .
+              ;;
+            uv-pip)
+              pip install --upgrade uv
+              uv venv .venv
+              source .venv/bin/activate
+              uv pip install .
+              echo "VENV=$PWD/.venv" >> "$GITHUB_ENV"
+              ;;
+            pipx)
+              pip install --upgrade pipx
+              pipx install .
+              ;;
+            uv-tool)
+              pip install --upgrade uv
+              uv tool install .
+              ;;
+            conda)
+              source "$CONDA/etc/profile.d/conda.sh"
+              conda activate base
+              conda install -y -c conda-forge gdal netcdf4 || true
+              pip install .
+              ;;
+            npm)
+              # Local npm packaging path (publishes the prebuilt-binary distribution).
+              npm pack 2>/dev/null || true
+              npm install -g . || npm install . || true
+              ;;
+            source)
+              chmod +x scripts/symfluence-bootstrap
+              ./scripts/symfluence-bootstrap --install
+              ;;
+          esac
+
+      - name: Smoke test
+        run: |
+          set -x
+          case "${{ matrix.method }}" in
+            pipx|uv-tool|npm)
+              # App-install methods expose the `symfluence` CLI on PATH but do not
+              # add an importable module to the ambient Python — CLI smoke only.
+              symfluence --version
+              ;;
+            uv-pip)
+              source "$VENV/bin/activate"
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+            conda)
+              source "$CONDA/etc/profile.d/conda.sh"; conda activate base
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+            *)
+              symfluence --version
+              python -c "import symfluence; print('import OK:', symfluence.__file__)"
+              ;;
+          esac
+
+  summary:
+    name: Install-method summary
+    needs: install-method
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report
+        run: |
+          echo "Install-method matrix finished. Non-blocking (experimental) methods may"
+          echo "fail pending the §8 G1–G7 install-gap fixes — see the tracking issue."
