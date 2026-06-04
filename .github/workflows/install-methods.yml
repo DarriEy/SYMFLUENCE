@@ -11,7 +11,6 @@ name: Install Methods
 on:
   push:
     branches: [ main, develop ]
-  pull_request:  # TEMP: validate stronger pipx/uv-tool smoke on #149; remove before merge
   schedule:
     - cron: '0 4 * * 0'  # weekly (Sundays)
   workflow_dispatch:
