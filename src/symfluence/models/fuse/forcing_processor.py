@@ -19,6 +19,7 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.path_resolver import find_catchment_subfile
 from symfluence.data.utils.variable_utils import VariableHandler
 
 from ..spatial_modes import SpatialMode
@@ -483,10 +484,17 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
     def _load_subcatchment_data(self) -> np.ndarray:
         """Load subcatchment information for semi-distributed mode"""
-        # Check if delineated catchments exist (for distributed routing)
-        delineated_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.domain_name}_catchment_delineated.shp"
+        # Check if delineated catchments exist (for distributed routing).
+        # Discretization writes this under the nested experiment layout.
+        delineated_path = find_catchment_subfile(
+            self.project_dir / 'shapefiles',
+            self.domain_definition_method,
+            self.experiment_id,
+            f"{self.domain_name}_catchment_delineated.shp",
+            logger=self.logger,
+        )
 
-        if delineated_path.exists():
+        if delineated_path is not None:
             self.logger.info("Using delineated subcatchments")
             subcatchments = gpd.read_file(delineated_path)
             return subcatchments['GRU_ID'].values.astype(int)

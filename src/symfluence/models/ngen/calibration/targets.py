@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 
@@ -423,13 +424,16 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         if cfg_area:
             return float(cfg_area)
 
-        domain_dir = self.project_dir
-        shp_dir = domain_dir / "shapefiles" / "catchment"
-        if not shp_dir.exists():
-            return 100.0
-
-        candidates = sorted(shp_dir.glob("*HRUs_GRUs.shp")) + sorted(shp_dir.glob("*.shp"))
-        shp_path = next((p for p in candidates if p.exists()), None)
+        # Shared finder handles the nested layout and GRUs/GRUS casing drift
+        # (the old glob "*HRUs_GRUs.shp" was case-sensitive and non-recursive).
+        shp_path = find_basin_shapefile(
+            self.project_dir / "shapefiles",
+            self.domain_name,
+            self.domain_definition_method,
+            self.experiment_id,
+            include_river_basins=False,
+            logger=self.logger,
+        )
         if not shp_path:
             return 100.0
 
