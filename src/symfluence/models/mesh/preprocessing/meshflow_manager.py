@@ -231,10 +231,14 @@ class MESHFlowManager:
             self.logger.info("Meshflow preprocessing completed successfully")
 
         except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-            self.logger.error(f"Meshflow preprocessing failed: {e}")
-            self.logger.debug(traceback.format_exc())
+            # Include the exception type — meshflow can raise exceptions whose
+            # str() is empty, which would otherwise produce an opaque
+            # "Meshflow preprocessing failed: " with no cause.
+            detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            self.logger.error(f"Meshflow preprocessing failed: {detail}")
+            self.logger.error(traceback.format_exc())
             from symfluence.core.exceptions import ModelExecutionError
-            raise ModelExecutionError(f"Meshflow preprocessing failed: {e}") from e
+            raise ModelExecutionError(f"Meshflow preprocessing failed: {detail}") from e
 
     def _check_required_files(self) -> None:
         """Check that required input files exist."""
