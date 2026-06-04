@@ -245,21 +245,33 @@ function hostGlibcVersion() {
 }
 
 /**
- * Max GLIBC_x.y symbol version a binary actually requires, via objdump/readelf.
- * @returns {number[]|null} [major, minor] or null if it can't be determined
+ * Max GLIBC_x.y symbol version required across one or more ELF files.
+ *
+ * Scans every supplied file — the real baseline is driven by the bundled shared
+ * libraries (e.g. libgfortran.so.5), not just the main executable, so callers
+ * must pass dist/lib/*.so too or the result understates the true requirement.
+ *
+ * @param {string[]} files - ELF binaries/libraries to inspect
+ * @returns {number[]|null} max [major, minor] or null if undeterminable
  */
-function requiredGlibcVersion(binary) {
-  for (const tool of ['objdump -T', 'readelf -V']) {
-    try {
-      const out = execSync(
-        `${tool} "${binary}" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\\.[0-9]+' | sort -V | tail -1`,
-        { encoding: 'utf8', timeout: 10000 }
-      ).trim();
-      const v = parseVersionPair(out.replace('GLIBC_', ''));
-      if (v) return v;
-    } catch { /* try next tool */ }
+function requiredGlibcVersion(files) {
+  let max = null;
+  for (const f of files) {
+    for (const tool of ['objdump -T', 'readelf -V']) {
+      try {
+        const out = execSync(
+          `${tool} "${f}" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\\.[0-9]+' | sort -V | tail -1`,
+          { encoding: 'utf8', timeout: 10000 }
+        ).trim();
+        const v = parseVersionPair(out.replace('GLIBC_', ''));
+        if (v) {
+          if (max === null || cmpVersion(v, max) > 0) max = v;
+          break; // got a value from this tool; move to next file
+        }
+      } catch { /* try next tool */ }
+    }
   }
-  return null;
+  return max;
 }
 
 /**
@@ -332,10 +344,21 @@ function verifyBundledBinaries(distDir) {
     );
   }
 
-  // glibc baseline (Linux only) — read what the binary actually requires.
+  // glibc baseline (Linux only) — read what the binary AND its bundled shared
+  // libraries actually require (libgfortran etc. usually drive the baseline).
   if (process.platform === 'linux') {
     const host = hostGlibcVersion();
-    const required = requiredGlibcVersion(present[0]);
+    let elfFiles = [present[0]];
+    try {
+      if (fs.existsSync(libDir)) {
+        elfFiles = elfFiles.concat(
+          fs.readdirSync(libDir)
+            .filter((f) => f.includes('.so'))
+            .map((f) => path.join(libDir, f))
+        );
+      }
+    } catch { /* best-effort */ }
+    const required = requiredGlibcVersion(elfFiles);
     if (host && required && cmpVersion(host, required) < 0) {
       console.warn(
         `\n⚠️  Host glibc ${host.join('.')} is older than the binaries' baseline ` +
