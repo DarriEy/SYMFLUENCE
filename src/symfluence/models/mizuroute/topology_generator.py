@@ -20,6 +20,7 @@ import netCDF4 as nc4
 import numpy as np
 
 from symfluence.core.exceptions import FileOperationError
+from symfluence.core.path_resolver import find_catchment_subfile
 
 if TYPE_CHECKING:
     from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
@@ -129,10 +130,18 @@ class MizuRouteTopologyGenerator:
             # Enable remapping: map single lumped SUMMA GRU to 25 routing HRUs with area weights
             self.pp.needs_remap_lumped_distributed = True
 
-            # Load the delineated catchments shapefile
-            catchment_path = self.pp.project_dir / 'shapefiles' / 'catchment' / f"{self.pp.domain_name}_catchment_delineated.shp"
-            if not catchment_path.exists():
-                raise FileOperationError(f"Delineated catchment shapefile not found: {catchment_path}")
+            # Load the delineated catchments shapefile (nested experiment layout)
+            catchment_path = find_catchment_subfile(
+                self.pp.project_dir / 'shapefiles',
+                self.pp.domain_definition_method,
+                self.pp.experiment_id,
+                f"{self.pp.domain_name}_catchment_delineated.shp",
+                logger=self.pp.logger,
+            )
+            if catchment_path is None:
+                raise FileOperationError(
+                    f"Delineated catchment shapefile not found for {self.pp.domain_name}"
+                )
 
             shp_catchments = gpd.read_file(catchment_path)
             self.pp.logger.info(f"Loaded {len(shp_catchments)} delineated subcatchments")
