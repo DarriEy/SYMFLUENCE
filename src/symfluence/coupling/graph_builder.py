@@ -32,6 +32,9 @@ UNIT_CONVERSIONS = {
     ("SUMMA", "MIZUROUTE"): 1.0,
     # SUMMA runoff (kg/m2/s) -> t-route lateral inflow (m3/s)
     ("SUMMA", "TROUTE"): 1.0,
+    # SUMMA runoff (kg/m2/s) -> dRoute (Saint-Venant + lakes) lateral inflow (m3/s)
+    # Placeholder 1.0; the spatial remapper handles HRU-area weighting + HRU->reach mapping.
+    ("SUMMA", "DROUTE"): 1.0,
     # Snow-17 rain_plus_melt (mm/dt) -> XAJ precip (mm/dt)
     ("SNOW17", "XAJ"): 1.0,
     ("SNOW17", "XINANJIANG"): 1.0,
