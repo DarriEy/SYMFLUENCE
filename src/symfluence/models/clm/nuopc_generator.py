@@ -16,8 +16,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# CESM inputdata root (downloaded on demand)
-CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
+# Default CESM inputdata root (downloaded on demand). Configurable via
+# CLM_CESM_INPUTDATA_PATH — see _resolve_cesm_inputdata().
+DEFAULT_CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
 
 # Base URL for CESM inputdata SVN server
 _CESM_INPUTDATA_URL = (
@@ -34,10 +35,28 @@ _REQUIRED_INPUTDATA = [
 ]
 
 
-def _ensure_cesm_inputdata() -> None:
+def _resolve_cesm_inputdata(preprocessor) -> Path:
+    """Resolve the CESM inputdata root from config, falling back to the default.
+
+    Reads ``CLM_CESM_INPUTDATA_PATH`` (``config.model.clm.cesm_inputdata_path``);
+    the sentinel ``'default'`` (or empty) resolves to ``DEFAULT_CESM_INPUTDATA``.
+    Lets users point CESM inputdata at a writable location (e.g. scratch) on
+    HPC systems where the home directory is not writable from compute nodes.
+    """
+    configured = preprocessor._get_config_value(
+        lambda: preprocessor.config.model.clm.cesm_inputdata_path,
+        default='default',
+        dict_key='CLM_CESM_INPUTDATA_PATH',
+    )
+    if not configured or str(configured).strip().lower() == 'default':
+        return DEFAULT_CESM_INPUTDATA
+    return Path(configured).expanduser()
+
+
+def _ensure_cesm_inputdata(root: Path) -> None:
     """Download required CESM inputdata files if missing."""
     for rel_path in _REQUIRED_INPUTDATA:
-        local = CESM_INPUTDATA / rel_path
+        local = root / rel_path
         if local.exists() and local.stat().st_size > 0:
             continue
         local.parent.mkdir(parents=True, exist_ok=True)
@@ -62,10 +81,11 @@ class CLMNuopcGenerator:
 
     def __init__(self, preprocessor):
         self.pp = preprocessor
+        self.cesm_inputdata = _resolve_cesm_inputdata(preprocessor)
 
     def generate_nuopc_runtime(self) -> None:
         """Generate all NUOPC runtime configuration files."""
-        _ensure_cesm_inputdata()
+        _ensure_cesm_inputdata(self.cesm_inputdata)
         logger.info("Generating NUOPC runtime configuration files")
 
         lat, lon, area_km2 = self.pp.domain_generator.get_catchment_centroid()
@@ -655,13 +675,13 @@ WAV_attributes::
         hist_nhtfrq = ctx['hist_nhtfrq']
         hist_mfilt = ctx['hist_mfilt']
         # SNICAR data paths (from CESM inputdata)
-        snicar_dir = CESM_INPUTDATA / 'lnd' / 'clm2' / 'snicardata'
+        snicar_dir = self.cesm_inputdata / 'lnd' / 'clm2' / 'snicardata'
         fsnowaging = snicar_dir / 'snicar_drdt_bst_fit_60_c070416.nc'
         fsnowoptics = snicar_dir / 'snicar_optics_5bnd_c013122.nc'
 
         # MEGAN emissions (from CESM inputdata)
         # Urban stream data (from CESM inputdata)
-        urban_dir = CESM_INPUTDATA / 'lnd' / 'clm2' / 'urbandata'
+        urban_dir = self.cesm_inputdata / 'lnd' / 'clm2' / 'urbandata'
         urban_tv = urban_dir / 'CLM50_tbuildmax_Oleson_2016_0.9x1.25_simyr1849-2106_c160923.nc'
         urban_mesh = urban_dir / 'CLM50_tbuildmax_Oleson_2016_0.9x1_ESMFmesh_cdf5_100621.nc'
 
@@ -984,7 +1004,7 @@ WAV_attributes::
 
     def _write_drv_flds_in(self) -> None:
         """Generate drv_flds_in."""
-        megan_file = (CESM_INPUTDATA / 'atm' / 'cam' / 'chem'
+        megan_file = (self.cesm_inputdata / 'atm' / 'cam' / 'chem'
                       / 'trop_mozart' / 'emis'
                       / 'megan21_emis_factors_78pft_c20161108.nc')
 

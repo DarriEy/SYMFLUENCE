@@ -36,6 +36,7 @@ def bootstrap() -> None:
 
     _bootstrap_delineation_aliases(R)
     _bootstrap_bmi_adapters(R)
+    _bootstrap_model_aliases(R)
     _bootstrap_metrics(R)
     _discover_plugins()
 
@@ -82,6 +83,44 @@ def _bootstrap_bmi_adapters(R: type) -> None:  # noqa: N803
     R.bmi_adapters.alias("XINANJIANG", "XAJ")
     R.bmi_adapters.alias("SAC-SMA", "SACSMA")
     R.bmi_adapters.alias("HEC-HMS", "HECHMS")
+
+
+def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
+    """Alias hyphenated model names to their canonical registry keys.
+
+    Some models ship as standalone pip plugins that register their components
+    under a hyphen-free canonical name (e.g. ``jhechms`` registers ``HECHMS``,
+    ``jsacsma`` registers ``SACSMA``).  A config using the conventional
+    hyphenated spelling (``HYDROLOGICAL_MODEL: HEC-HMS``) would otherwise fail
+    to resolve a runner.  Aliases are resolved lazily at lookup time, so they
+    may be declared here before the plugin entry points register the canonical
+    keys.
+
+    Only hyphenated spellings whose hyphen-free form is the *actual* canonical
+    registration are aliased here. Note this differs from the BMI-adapter
+    aliases above: e.g. the BMI adapter is registered as ``XAJ`` whereas the
+    standalone runner is registered as ``XINANJIANG``, so no runner-level alias
+    is added for it. The guard below additionally refuses to shadow a real
+    registration with an alias.
+    """
+    # alias -> canonical, applied across every model-component registry
+    model_aliases = {
+        "HEC-HMS": "HECHMS",
+        "SAC-SMA": "SACSMA",
+    }
+    component_registries = (
+        R.runners,
+        R.preprocessors,
+        R.postprocessors,
+        R.optimizers,
+        R.workers,
+    )
+    for alias_key, canonical in model_aliases.items():
+        for registry in component_registries:
+            # Never let an alias shadow a real registration of the same name.
+            if alias_key.upper() in registry.keys():
+                continue
+            registry.alias(alias_key, canonical)
 
 
 def _bootstrap_metrics(R: type) -> None:  # noqa: N803
