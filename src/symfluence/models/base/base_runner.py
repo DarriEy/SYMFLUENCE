@@ -648,40 +648,14 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
     def _find_npm_bin_dir() -> Optional[Path]:
         """Locate the npm-bundled binary directory (``dist/bin``), if present.
 
-        Resolution order:
-          1. ``SYMFLUENCE_NPM_DIST_BIN`` env override (explicit; also used in tests).
-          2. ``$(npm root -g)/symfluence/dist/bin`` for a global ``npm install``.
-
-        Returns the directory, or ``None`` when no npm bundle is available. The
-        ``npm root -g`` subprocess is only reached on the executable-not-found
-        path, so the cost is paid solely when a source install is missing.
+        Thin delegate to :func:`symfluence.core.npm_bundle.npm_bundle_bin` — the
+        single source of truth for the npm bundle location (honours
+        ``SYMFLUENCE_NPM_DIST_BIN`` then ``npm root -g``). The subprocess is only
+        reached on the executable-not-found path.
         """
-        import os
+        from symfluence.core.npm_bundle import npm_bundle_bin
 
-        override = os.getenv("SYMFLUENCE_NPM_DIST_BIN")
-        if override:
-            override_path = Path(override)
-            return override_path if override_path.is_dir() else None
-
-        import subprocess  # noqa: PLC0415 — lazy, failure-path only
-
-        try:
-            result = subprocess.run(
-                ["npm", "root", "-g"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-        except (subprocess.SubprocessError, FileNotFoundError, OSError, ValueError):
-            return None
-
-        if result.returncode != 0:
-            return None
-        try:
-            npm_bin_dir = Path(result.stdout.strip()) / "symfluence" / "dist" / "bin"
-        except (ValueError, OSError):
-            return None
-        return npm_bin_dir if npm_bin_dir.is_dir() else None
+        return npm_bundle_bin()
 
     def _resolve_npm_executable(
         self, exe_name: Optional[str], default_install_subpath: str
@@ -691,8 +665,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         The npm release stages binaries under canonical names (the build-registry
         tool key, e.g. ``summa``, ``mizuroute``) rather than the source-install
         filename (``summa_sundials.exe``). This maps the requested tool to that
-        canonical name via the build registry, then falls back to ``.exe``-stripped
-        / lowercased variants of ``exe_name``.
+        canonical name via the build-instructions registry, then falls back to
+        ``.exe``-stripped / lowercased variants of ``exe_name``.
 
         Returns the resolved path inside the npm bundle, or ``None``.
         """
@@ -702,16 +676,28 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
 
         candidates: List[str] = []
 
-        # Authoritative mapping: build-registry tool key == npm staged filename.
+        # Authoritative mapping: build-instructions tool key == npm staged
+        # filename. Read R.build_instructions (core) directly rather than the
+        # cli accessor, so the models layer does not depend on cli. Entries may
+        # be unresolved provider callables — resolve each one defensively.
         try:
-            from symfluence.cli.services.build_registry import BuildInstructionsRegistry
+            from symfluence.core.registries import R
 
-            for name, info in BuildInstructionsRegistry.get_all_instructions().items():
+            # Same failure modes a provider callable can raise as the cli accessor.
+            _resolve_errors = (ImportError, AttributeError, KeyError, OSError,
+                               TypeError, ValueError, RuntimeError)
+            for name, value in list(R.build_instructions.items()):
+                try:
+                    info = value() if callable(value) and not isinstance(value, type) else value
+                except _resolve_errors:  # one bad provider must not block resolution
+                    continue
+                if not isinstance(info, dict):
+                    continue
                 if (
                     info.get("default_path_suffix") == default_install_subpath
                     or (exe_name and info.get("default_exe") == exe_name)
                 ):
-                    candidates.append(name)
+                    candidates.append(name.lower())
                     break
         except (ImportError, AttributeError, KeyError, OSError):
             # Registry mapping is best-effort; fall back to exe-name variants.
