@@ -88,3 +88,10 @@ repos:
         language: system
         pass_filenames: false
         files: (symfluence_version\.py|pyproject\.toml|setup\.cfg)
+      - id: check-manifest-consistency
+        name: Guard install-manifest consistency
+        entry: python scripts/check_manifest_consistency.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: (pyproject\.toml|pixi\.toml|environment\.yml)
