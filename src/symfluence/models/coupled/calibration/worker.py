@@ -122,6 +122,15 @@ class CoupledModelWorker(BaseWorker):
             cdir = Path(output_dir) / comp_name.upper(); cdir.mkdir(parents=True, exist_ok=True)
             for flux_name, tensor in comp_outputs.items():
                 torch.save(tensor, cdir / f"{flux_name}.pt")
+        # Graph->metrics handoff: the dCoupler graph returns raw flux tensors, but each model's
+        # calculate_metrics reads its own on-disk format. Let the objective model materialize its
+        # metric inputs from the graph outputs (optional hook) so calculate_metrics works unchanged.
+        obj_worker = self._worker(self.objective_model)
+        materialize = getattr(obj_worker, 'materialize_metric_inputs', None)
+        if callable(materialize):
+            obj_dir = Path(output_dir) / self.objective_model
+            obj_dir.mkdir(parents=True, exist_ok=True)
+            materialize(outputs, obj_dir, self._settings_for(settings_dir, self.objective_model), config)
         self.logger.info(f"Coupled run via dCoupler completed over {self._models}")
         return True
 
