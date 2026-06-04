@@ -189,6 +189,171 @@ function commandExists(cmd) {
 }
 
 /**
+ * Verify the external tooling install.js itself shells out to is present.
+ *
+ * Node provides https/crypto for download + checksum, but extraction relies on
+ * the system `tar`. A missing `tar` previously surfaced as an opaque
+ * "Extraction failed" only after a multi-hundred-MB download. Fail fast with an
+ * actionable message instead. (#156 G6 — undeclared install-time tooling)
+ *
+ * @throws {Error} if a hard-required tool is missing
+ */
+function assertInstallTooling() {
+  const tarCmd = process.platform === 'win32' ? 'tar --version' : 'tar --version';
+  if (!commandExists(tarCmd)) {
+    throw new Error(
+      "'tar' was not found on PATH.\n" +
+      '   tar is required to extract the pre-built binary tarball.\n' +
+      (process.platform === 'win32'
+        ? '   Windows 10+ ships bsdtar; ensure C:\\Windows\\System32 is on PATH.\n'
+        : '   Install it via your package manager (e.g. apt-get install tar).\n')
+    );
+  }
+  // curl is only needed for the optional pixi download; note it but don't fail.
+  if (process.platform !== 'win32' && !commandExists('curl --version')) {
+    console.log('   Note: curl not found — the optional pixi bootstrap will be skipped.');
+  }
+}
+
+/**
+ * Parse a "major.minor" version string into a comparable [major, minor] tuple.
+ * @returns {number[]|null}
+ */
+function parseVersionPair(text) {
+  const m = String(text).match(/(\d+)\.(\d+)/);
+  return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
+}
+
+/** Compare two [major, minor] tuples. Returns <0, 0, or >0. */
+function cmpVersion(a, b) {
+  return a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1];
+}
+
+/**
+ * Best-effort host glibc version (Linux only).
+ * @returns {number[]|null} [major, minor] or null
+ */
+function hostGlibcVersion() {
+  for (const cmd of ['getconf GNU_LIBC_VERSION 2>/dev/null', 'ldd --version 2>/dev/null']) {
+    try {
+      const out = execSync(cmd, { encoding: 'utf8', timeout: 5000 }).split('\n')[0];
+      const v = parseVersionPair(out);
+      if (v) return v;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+/**
+ * Max GLIBC_x.y symbol version a binary actually requires, via objdump/readelf.
+ * @returns {number[]|null} [major, minor] or null if it can't be determined
+ */
+function requiredGlibcVersion(binary) {
+  for (const tool of ['objdump -T', 'readelf -V']) {
+    try {
+      const out = execSync(
+        `${tool} "${binary}" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\\.[0-9]+' | sort -V | tail -1`,
+        { encoding: 'utf8', timeout: 10000 }
+      ).trim();
+      const v = parseVersionPair(out.replace('GLIBC_', ''));
+      if (v) return v;
+    } catch { /* try next tool */ }
+  }
+  return null;
+}
+
+/**
+ * Shared libraries a binary cannot resolve, honouring the bundled dist/lib
+ * (which the runtime wrapper also prepends to LD_LIBRARY_PATH). Linux only.
+ * @returns {string[]} unresolved "lib... => not found" lines
+ */
+function unresolvedLibraries(binary, distLibDir) {
+  if (process.platform !== 'linux') return [];
+  const env = {
+    ...process.env,
+    LD_LIBRARY_PATH: `${distLibDir}${path.delimiter}${process.env.LD_LIBRARY_PATH || ''}`,
+  };
+  let out = '';
+  try {
+    out = execSync(`ldd "${binary}" 2>&1`, { encoding: 'utf8', timeout: 15000, env });
+  } catch (err) {
+    out = (err.stdout || '').toString() + (err.stderr || '').toString();
+  }
+  return out
+    .split('\n')
+    .filter((line) => /not found/i.test(line))
+    .map((line) => line.trim());
+}
+
+/**
+ * Post-extract sanity check of the bundled native binaries.
+ *
+ * Surfaces the two distro-portability failure modes G6 calls out — a libnetcdff
+ * (or HDF5) soname the host doesn't provide, and a host glibc older than the
+ * binaries were built against — at install time with actionable guidance,
+ * instead of as an opaque loader error on first model run. Non-fatal: the npm
+ * shim's built-in commands still work, and pixi/system-dep install may yet
+ * provide the missing libraries.
+ */
+function verifyBundledBinaries(distDir) {
+  if (process.platform === 'win32') return; // libs bundled in the tarball
+
+  const binDir = path.join(distDir, 'bin');
+  const libDir = path.join(distDir, 'lib');
+  if (!fs.existsSync(binDir)) return;
+
+  // Prefer the Fortran models that link libnetcdff/HDF5 — they exercise the
+  // soname-variance path. Fall back to whatever is present.
+  const preferred = ['summa', 'mizuroute', 'fuse'];
+  const present = preferred
+    .map((n) => path.join(binDir, n))
+    .filter((p) => fs.existsSync(p));
+  if (present.length === 0) return;
+
+  console.log('\n🔎 Verifying bundled binaries link cleanly on this host...');
+
+  const missing = new Set();
+  for (const bin of present) {
+    for (const line of unresolvedLibraries(bin, libDir)) {
+      // keep just the soname (e.g. "libnetcdff.so.7")
+      missing.add(line.split('=>')[0].trim() || line);
+    }
+  }
+
+  if (missing.size > 0) {
+    console.warn('\n⚠️  Some bundled binaries are missing shared libraries on this system:');
+    for (const lib of missing) console.warn(`     - ${lib}`);
+    console.warn(
+      '\n   This is usually a libnetcdff/HDF5 soname that differs across distros.\n' +
+      '   Fixes (any one):\n' +
+      '     • Install the matching dev packages (e.g. apt-get install libnetcdff-dev libhdf5-dev),\n' +
+      '     • or use the pixi-managed environment (do NOT set SYMFLUENCE_SKIP_PIXI=1),\n' +
+      '     • or build from source: symfluence binary install\n'
+    );
+  }
+
+  // glibc baseline (Linux only) — read what the binary actually requires.
+  if (process.platform === 'linux') {
+    const host = hostGlibcVersion();
+    const required = requiredGlibcVersion(present[0]);
+    if (host && required && cmpVersion(host, required) < 0) {
+      console.warn(
+        `\n⚠️  Host glibc ${host.join('.')} is older than the binaries' baseline ` +
+        `(glibc ${required.join('.')}).\n` +
+        '   The pre-built Linux binaries will fail to load. Use a newer distro,\n' +
+        '   the pixi environment, or build from source: symfluence binary install\n'
+      );
+    } else if (host && required) {
+      console.log(`   glibc ${host.join('.')} ≥ required ${required.join('.')} ✓`);
+    }
+  }
+
+  if (missing.size === 0) {
+    console.log('   ✅ Bundled binaries resolve their libraries.');
+  }
+}
+
+/**
  * Runtime C/Fortran libraries required by SYMFLUENCE models (SUMMA, FUSE, etc.)
  * Each entry lists one or more detection commands and per-package-manager names.
  */
@@ -616,6 +781,14 @@ async function install() {
   console.log(`📍 Platform: ${getPlatformName()} (${platform})`);
   console.log(`📦 Version: ${PACKAGE_VERSION}\n`);
 
+  // Fail fast on missing install-time tooling before a large download.
+  try {
+    assertInstallTooling();
+  } catch (err) {
+    console.error('❌', err.message);
+    process.exit(1);
+  }
+
   const url = getDownloadUrl(platform);
   const checksumUrl = `${url}.sha256`;
 
@@ -644,6 +817,9 @@ async function install() {
 
     // Cleanup tarball
     fs.unlinkSync(tarballPath);
+
+    // Surface distro-portability issues (soname / glibc) now, not at first run.
+    verifyBundledBinaries(distDir);
 
     // Try pixi-managed Python environment (preferred — single libhdf5)
     const pixiOk = tryPixiBootstrap(distDir);
@@ -708,3 +884,15 @@ async function install() {
 if (require.main === module) {
   install();
 }
+
+// Exported for testing / reuse (e.g. the multi-distro CI matrix). Requiring
+// this module does not run install() — that only happens when run directly.
+module.exports = {
+  assertInstallTooling,
+  parseVersionPair,
+  cmpVersion,
+  hostGlibcVersion,
+  requiredGlibcVersion,
+  unresolvedLibraries,
+  verifyBundledBinaries,
+};
