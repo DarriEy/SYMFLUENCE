@@ -42,6 +42,14 @@ def test_sacsma_hyphen_alias_resolves_runner():
     assert R.runners.get("SAC-SMA") is canonical
 
 
+def test_clmparflow_hyphen_alias_resolves_runner_and_optimizer():
+    """`CLM-ParFlow` (-> CLM-PARFLOW) resolves to the canonical CLMPARFLOW."""
+    canonical = R.runners.get("CLMPARFLOW")
+    assert canonical is not None, "CLMPARFLOW runner should be registered"
+    assert R.runners.get("CLM-PARFLOW") is canonical
+    assert R.optimizers.get("CLM-PARFLOW") is R.optimizers.get("CLMPARFLOW")
+
+
 def test_aliases_do_not_shadow_real_registrations():
     """An alias is never added for a name that is already a real runner entry.
 

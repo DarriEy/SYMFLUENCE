@@ -88,10 +88,11 @@ def _bootstrap_bmi_adapters(R: type) -> None:  # noqa: N803
 def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
     """Alias hyphenated model names to their canonical registry keys.
 
-    Some models ship as standalone pip plugins that register their components
-    under a hyphen-free canonical name (e.g. ``jhechms`` registers ``HECHMS``,
-    ``jsacsma`` registers ``SACSMA``).  A config using the conventional
-    hyphenated spelling (``HYDROLOGICAL_MODEL: HEC-HMS``) would otherwise fail
+    Some models register their components under a hyphen-free canonical name
+    (e.g. ``jhechms`` registers ``HECHMS``, ``jsacsma`` registers ``SACSMA``,
+    and the coupled land-surface/subsurface runner registers ``CLMPARFLOW``).
+    A config using the conventional hyphenated spelling
+    (``HYDROLOGICAL_MODEL: HEC-HMS`` or ``CLM-ParFlow``) would otherwise fail
     to resolve a runner.  Aliases are resolved lazily at lookup time, so they
     may be declared here before the plugin entry points register the canonical
     keys.
@@ -107,6 +108,7 @@ def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
     model_aliases = {
         "HEC-HMS": "HECHMS",
         "SAC-SMA": "SACSMA",
+        "CLM-PARFLOW": "CLMPARFLOW",
     }
     component_registries = (
         R.runners,
