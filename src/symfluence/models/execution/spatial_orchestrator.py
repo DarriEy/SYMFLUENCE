@@ -41,6 +41,7 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import GeospatialError, ModelExecutionError
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.models.spatial_modes import SpatialMode
 
 
@@ -727,15 +728,20 @@ class SpatialOrchestrator(ABC):
         import geopandas as gpd
 
         if shapefile_path is None:
-            catchment_name = self._get_config_value(
-                lambda: None, default='default', dict_key='CATCHMENT_SHP_NAME')
-            if catchment_name == 'default':
-                discretization = self._get_config_value(
-                    lambda: self.config.domain.discretization, default='catchment')
-                catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-            shapefile_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
+            shapefile_path = find_basin_shapefile(
+                self.project_dir / 'shapefiles',
+                self.domain_name,
+                self._get_config_value(
+                    lambda: self.config.domain.definition_method, default='lumped',
+                    dict_key='DOMAIN_DEFINITION_METHOD'),
+                self._get_config_value(
+                    lambda: self.config.domain.experiment_id, default='run_1',
+                    dict_key='EXPERIMENT_ID'),
+                include_river_basins=False,
+                logger=self.logger,
+            )
 
-        if not shapefile_path.exists():
+        if shapefile_path is None or not shapefile_path.exists():
             self.logger.warning(f"Shapefile not found: {shapefile_path}")
             return 1
 

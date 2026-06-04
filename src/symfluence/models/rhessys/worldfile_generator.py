@@ -89,24 +89,13 @@ class RHESSysWorldfileGenerator:
 
         # Get domain properties from shapefile
         try:
-            catchment_path = self.pp.get_catchment_path()
-
-            # If catchment path doesn't exist, search other experiment dirs
-            if not catchment_path.exists():
-                catchment_dir = self.pp.project_dir / 'shapefiles' / 'catchment'
-                if catchment_dir.exists():
-                    for shp_file in catchment_dir.rglob('*.shp'):
-                        if self.pp.domain_name in shp_file.name:
-                            catchment_path = shp_file
-                            logger.info(f"Found catchment shapefile in alternate location: {shp_file}")
-                            break
-
-            if not catchment_path.exists():
+            # Shared resolver: nested layout, casing drift, river_basins fallback.
+            catchment_path = self.pp._find_basin_shapefile(include_river_basins=False)
+            if catchment_path is None:
                 raise FileNotFoundError(
-                    f"Catchment shapefile not found at {catchment_path} or any alternate location. "
-                    f"Searched: {self.pp.project_dir / 'shapefiles' / 'catchment'}. "
+                    f"Catchment shapefile not found for {self.pp.domain_name}. "
                     f"Cannot determine basin area - this would cause incorrect unit conversions. "
-                    f"Run geospatial preprocessing first or verify shapefile paths."
+                    f"Run geospatial preprocessing first or set CATCHMENT_PATH."
                 )
 
             gdf = gpd.read_file(catchment_path)

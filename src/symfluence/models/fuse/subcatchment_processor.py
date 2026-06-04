@@ -27,6 +27,7 @@ import xarray as xr
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import find_basin_shapefile, find_catchment_subfile
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
@@ -107,28 +108,37 @@ class SubcatchmentProcessor(ConfigMixin):
         Returns:
             np.ndarray: Array of integer subcatchment IDs (GRU_ID values).
         """
-        # Check if delineated catchments exist (for distributed routing)
-        delineated_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.domain_name}_catchment_delineated.shp"
+        # Check if delineated catchments exist (for distributed routing).
+        # Discretization writes this under the nested experiment layout.
+        delineated_path = find_catchment_subfile(
+            self.project_dir / 'shapefiles',
+            self.domain_definition_method,
+            self.experiment_id,
+            f"{self.domain_name}_catchment_delineated.shp",
+            logger=self.logger,
+        )
 
-        if delineated_path.exists():
+        if delineated_path is not None:
             self.logger.info("Using delineated subcatchments")
             subcatchments = gpd.read_file(delineated_path)
             return subcatchments['GRU_ID'].values.astype(int)
         else:
-            # Use regular HRUs
-            catchment_path = self._get_catchment_path()
-            discretization = self._get_config_value(
-                lambda: self.config.domain.discretization,
-                default='GRUs',
-                dict_key='SUB_GRID_DISCRETIZATION'
-            )
-
-            if catchment_name_col == 'default':
-                catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+            # Use regular HRUs. Honour an explicit catchment_name_col, else
+            # resolve via the shared finder (nested layout + casing drift).
+            if catchment_name_col != 'default':
+                catchment_file = self._get_catchment_path() / catchment_name_col
             else:
-                catchment_name = catchment_name_col
+                catchment_file = find_basin_shapefile(
+                    self.project_dir / 'shapefiles',
+                    self.domain_name,
+                    self.domain_definition_method,
+                    self.experiment_id,
+                    include_river_basins=False,
+                    required=True,
+                    logger=self.logger,
+                )
 
-            catchment = gpd.read_file(catchment_path / catchment_name)
+            catchment = gpd.read_file(catchment_file)
             if 'GRU_ID' in catchment.columns:
                 return catchment['GRU_ID'].values.astype(int)
             else:
