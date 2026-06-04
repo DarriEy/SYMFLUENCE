@@ -126,7 +126,9 @@ class CRHMResultExtractor(ModelResultExtractor):
         var_names = self.get_variable_names(variable_type)
 
         try:
-            df = pd.read_csv(output_file, parse_dates=True, index_col=0)
+            # CRHM (Fortran) output is Latin-1 encoded (unit headers contain the
+            # degree symbol 0xba), so decode as latin-1 rather than UTF-8.
+            df = pd.read_csv(output_file, parse_dates=True, index_col=0, encoding='latin-1')
 
             # Find the variable column
             found_col = None
@@ -234,7 +236,9 @@ class CRHMResultExtractor(ModelResultExtractor):
         Returns:
             Basin-aggregated time series
         """
-        df = pd.read_csv(output_file, parse_dates=True, index_col=0)
+        # CRHM (Fortran) output is Latin-1 encoded (unit headers contain the
+        # degree symbol 0xba), so decode as latin-1 rather than UTF-8.
+        df = pd.read_csv(output_file, parse_dates=True, index_col=0, encoding='latin-1')
         var_names = self.get_variable_names(variable_type)
 
         # Find matching columns
