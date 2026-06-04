@@ -144,9 +144,21 @@ jobs:
         run: |
           set -x
           case "${{ matrix.method }}" in
-            pipx|uv-tool|npm)
-              # App-install methods expose the `symfluence` CLI on PATH but do not
-              # add an importable module to the ambient Python — CLI smoke only.
+            pipx)
+              # App-install: the module isn't on the ambient Python, so import is
+              # verified inside pipx's isolated venv (where the package + deps live).
+              symfluence --version
+              PIPX_VENVS="$(pipx environment --value PIPX_LOCAL_VENVS)"
+              "${PIPX_VENVS}/symfluence/bin/python" -c "import symfluence; print('pipx venv import OK:', symfluence.__file__)"
+              ;;
+            uv-tool)
+              symfluence --version
+              UV_TOOLS="$(uv tool dir)"
+              "${UV_TOOLS}/symfluence/bin/python" -c "import symfluence; print('uv-tool venv import OK:', symfluence.__file__)"
+              ;;
+            npm)
+              # npm ships a prebuilt CLI/binary distribution, not an importable
+              # Python module — CLI smoke only.
               symfluence --version
               ;;
             uv-pip)
