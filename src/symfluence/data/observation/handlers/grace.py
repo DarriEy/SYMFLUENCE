@@ -72,31 +72,79 @@ class GRACEHandler(BaseObservationHandler):
 
         return grace_dir
 
+    def _resolve_basin_shapefile(self) -> Path:
+        """Locate the basin polygon used for GRACE spatial averaging.
+
+        Discretization writes the catchment under a nested, experiment-scoped
+        layout (``shapefiles/catchment/{definition_method}/{experiment_id}/
+        {domain}_HRUs_{discretization}.shp``) — and may upper-case the
+        discretization suffix (GRUs -> GRUS) — so a flat
+        ``{domain}_catchment.shp`` lookup never matches. Honour an explicit
+        ``CATCHMENT_PATH`` / ``CATCHMENT_SHP_NAME`` first, then fall back to the
+        canonical nested catchment layout, and finally the river_basins
+        outline. Any single-polygon basin works for TWS averaging.
+        """
+        # 1. Explicit user-provided path/name takes precedence.
+        catchment_path_cfg = self._get_config_value(
+            lambda: self.config.paths.catchment_path, default='default', dict_key='CATCHMENT_PATH'
+        )
+        catchment_name_cfg = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME'
+        )
+        if catchment_path_cfg and catchment_path_cfg != 'default':
+            base = Path(catchment_path_cfg)
+            if catchment_name_cfg and catchment_name_cfg != 'default':
+                explicit = base / catchment_name_cfg
+                if explicit.exists():
+                    return explicit
+            # Path given but no (or missing) name: search it.
+            found = sorted(base.rglob("*.shp"))
+            if found:
+                self.logger.info(f"Using basin shapefile from CATCHMENT_PATH: {found[0]}")
+                return found[0]
+
+        catchment_dir = self.project_shapefiles_dir / "catchment"
+
+        # 2. Canonical nested catchment layout (definition_method/experiment_id).
+        nested_dir = catchment_dir / self.domain_definition_method / self.experiment_id
+        for candidate_dir in (nested_dir, catchment_dir):
+            if not candidate_dir.exists():
+                continue
+            # Prefer the discretized HRU shapefile; fall back to any .shp.
+            hru_matches = sorted(candidate_dir.glob(f"{self.domain_name}_HRUs_*.shp"))
+            if not hru_matches and candidate_dir is nested_dir:
+                hru_matches = sorted(candidate_dir.glob("*.shp"))
+            if hru_matches:
+                self.logger.info(f"Found catchment shapefile for GRACE averaging: {hru_matches[0]}")
+                return hru_matches[0]
+
+        # 3. Deep search anywhere under catchment/ (handles casing/name drift).
+        deep = sorted(catchment_dir.rglob(f"{self.domain_name}_HRUs_*.shp")) if catchment_dir.exists() else []
+        if deep:
+            self.logger.info(f"Found catchment shapefile in subdirectory: {deep[0]}")
+            return deep[0]
+
+        # 4. River basins outline as a last resort.
+        river_basins_dir = self.project_shapefiles_dir / "river_basins"
+        if river_basins_dir.exists():
+            rb_matches = sorted(river_basins_dir.glob(f"{self.domain_name}_riverBasins_*.shp")) \
+                or sorted(river_basins_dir.glob("*.shp"))
+            if rb_matches:
+                self.logger.info(f"Using river_basins outline for GRACE averaging: {rb_matches[0]}")
+                return rb_matches[0]
+
+        raise FileNotFoundError(
+            f"Basin shapefile not found for GRACE. Searched catchment dir "
+            f"'{catchment_dir}' (incl. {self.domain_definition_method}/{self.experiment_id}) "
+            f"and river_basins. Run define_domain + discretize_domain first, or set "
+            f"CATCHMENT_PATH/CATCHMENT_SHP_NAME explicitly."
+        )
+
     def process(self, input_path: Path) -> Path:
         """Process GRACE data for the current domain."""
         self.logger.info(f"Processing GRACE TWS for domain: {self.domain_name}")
 
-        # Load basin shapefile - resolve 'default' to standard location
-        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
-        if catchment_path_cfg == 'default' or not catchment_path_cfg:
-            catchment_path = self.project_shapefiles_dir / "catchment"
-        else:
-            catchment_path = Path(catchment_path_cfg)
-
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
-        if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{self.domain_name}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, default='GRUs')}.shp"
-
-        basin_shp = catchment_path / catchment_name
-        if not basin_shp.exists():
-            # Search subdirectories for the shapefile
-            found = list(catchment_path.rglob(catchment_name))
-            if found:
-                basin_shp = found[0]
-                self.logger.info(f"Found basin shapefile in subdirectory: {basin_shp}")
-            else:
-                raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")
-
+        basin_shp = self._resolve_basin_shapefile()
         basin_gdf = gpd.read_file(basin_shp)
         basin_area_km2 = self._calculate_area(basin_gdf)
         self.logger.info(f"Basin area: {basin_area_km2:.1f} km²")
