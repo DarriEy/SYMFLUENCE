@@ -171,6 +171,51 @@ class TestRegistryYAML:
             assert "mingw-w64" in pkg, f"{dep_id} msys2 should be mingw-w64 prefixed"
 
 
+class TestInstallPathDepGaps:
+    """Regression coverage for the §8 install-path gaps (issue #150, G2/G5).
+
+    pkg-config, boost, expat and wget were previously absent from the registry,
+    so source builds that rely on them could not be diagnosed or auto-installed.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _load_registry(self):
+        self.registry = _fresh_registry()
+
+    def test_new_deps_registered(self):
+        deps = self.registry._registry["dependencies"]
+        for dep_id in ("pkg_config", "boost", "expat", "wget"):
+            assert dep_id in deps, f"{dep_id} missing from registry"
+
+    def test_new_deps_have_package_names_per_manager(self):
+        deps = self.registry._registry["dependencies"]
+        for dep_id in ("pkg_config", "boost", "expat", "wget"):
+            pkgs = deps[dep_id].get("packages", {})
+            for mgr in ("apt", "dnf", "brew", "conda"):
+                assert mgr in pkgs and pkgs[mgr], f"{dep_id} missing {mgr} package name"
+
+    def test_pkg_config_required_for_source_builds(self):
+        """pkg-config locates HDF5/NetCDF/PROJ during C/Fortran source builds."""
+        treq = self.registry._registry["tool_requirements"]
+        for tool in ("summa", "fuse", "mizuroute", "mesh", "vic", "clm", "ngen", "taudem"):
+            assert "pkg_config" in treq[tool]["required"], \
+                f"{tool} should require pkg_config"
+
+    def test_optional_geospatial_deps_wired(self):
+        treq = self.registry._registry["tool_requirements"]
+        assert "boost" in treq["ngen"]["optional"]
+        assert "expat" in treq["taudem"]["optional"]
+        assert "expat" in treq["gistool"]["optional"]
+
+    def test_no_dangling_tool_requirement_refs(self):
+        """Every dep referenced by a tool must exist in the dependencies map."""
+        reg = self.registry._registry
+        dep_ids = set(reg["dependencies"])
+        for tool, req in reg["tool_requirements"].items():
+            for dep in req.get("required", []) + req.get("optional", []):
+                assert dep in dep_ids, f"{tool} references unknown dep {dep!r}"
+
+
 # ── Install command generation ───────────────────────────────────────────
 
 class TestGetInstallCommand:
