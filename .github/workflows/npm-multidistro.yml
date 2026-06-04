@@ -1,0 +1,138 @@
+name: npm bundle - multi-distro validation
+
+# Issue #156, gap G6 (follow-up to #150 / #155).
+#
+# The npm path downloads pre-built per-platform tarballs from GitHub Releases.
+# The open G6 questions — glibc baseline, libnetcdff/HDF5 soname compatibility,
+# and binary-path/filename variance — can only be answered by installing the
+# RELEASED tarball on a spread of Linux distros and confirming the bundled
+# Fortran binaries actually load. This workflow is that validation.
+#
+# For each distro it does a clean `npm install -g symfluence@<version>` with the
+# Python/pixi/system-dep paths disabled (SYMFLUENCE_OPTIONAL_PYTHON / SKIP_PIXI /
+# SKIP_SYSTEM_DEPS), so it tests ONLY the bundled binary tarball — then asserts,
+# per distro, that summa/mizuroute/fuse resolve their shared libraries
+# (LD_LIBRARY_PATH includes dist/lib, as the runtime wrapper sets it) and that
+# the binary loads. The distro spread spans glibc 2.31 → 2.39 and apt/dnf
+# libnetcdff sonames.
+#
+# Needs a PUBLISHED release tarball, so it is NOT run on PRs/pushes — only on
+# demand and weekly. `fail-fast: false` so each distro reports independently
+# (e.g. an intentionally-old baseline like debian:11 surfaces the glibc floor
+# rather than masking the others).
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_version:
+        description: 'npm package version/tag to validate (e.g. 0.8.5 or latest)'
+        required: false
+        default: 'latest'
+        type: string
+  schedule:
+    - cron: '0 5 * * 0'  # weekly, Sundays 05:00 UTC
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: npm-multidistro-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  npm-install:
+    name: ${{ matrix.distro }} (${{ matrix.family }})
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'ubuntu-22.04', image: 'ubuntu:22.04', family: 'apt' }
+          - { distro: 'ubuntu-24.04', image: 'ubuntu:24.04', family: 'apt' }
+          - { distro: 'debian-12',    image: 'debian:12',    family: 'apt' }
+          # Deliberate glibc floor probe (glibc 2.31): reports the minimum the
+          # released binaries support rather than masking it.
+          - { distro: 'debian-11',    image: 'debian:11',    family: 'apt' }
+          - { distro: 'fedora-40',    image: 'fedora:40',    family: 'dnf' }
+          - { distro: 'rocky-9',      image: 'rockylinux:9', family: 'dnf' }
+
+    steps:
+      - name: Install Node.js + base tooling
+        run: |
+          set -e
+          if [ "${{ matrix.family }}" = "apt" ]; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y curl ca-certificates tar xz-utils gnupg
+            # NodeSource gives a consistent, recent Node across apt distros.
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            apt-get install -y nodejs
+          else
+            # curl-minimal ships in EL9/Fedora base and conflicts with the curl
+            # package — use --allowerasing and don't request curl (Node has https).
+            dnf install -y --allowerasing nodejs npm tar which
+          fi
+          echo "node: $(node --version), npm: $(npm --version)"
+
+      - name: Report host glibc
+        run: |
+          echo "Distro: ${{ matrix.distro }}"
+          (getconf GNU_LIBC_VERSION 2>/dev/null || ldd --version 2>/dev/null | head -1) || true
+
+      - name: Install symfluence from npm (binary tarball only)
+        env:
+          # Test ONLY the bundled binary tarball — skip the heavy Python/pixi
+          # paths and the apt/dnf auto-install of runtime libs, so a clean pass
+          # means the tarball is self-contained on this distro.
+          SYMFLUENCE_OPTIONAL_PYTHON: '1'
+          SYMFLUENCE_SKIP_PIXI: '1'
+          SYMFLUENCE_SKIP_SYSTEM_DEPS: '1'
+        run: |
+          set -e
+          VERSION="${{ github.event.inputs.npm_version || 'latest' }}"
+          echo "Installing symfluence@${VERSION}"
+          npm install -g "symfluence@${VERSION}"
+
+      - name: Assert bundled binaries resolve their libraries
+        run: |
+          set -e
+          ROOT="$(npm root -g)/symfluence"
+          BIN="$ROOT/dist/bin"
+          LIB="$ROOT/dist/lib"
+          echo "Bundle bin dir: $BIN"
+          if [ ! -d "$BIN" ]; then
+            echo "::error::no dist/bin after install on ${{ matrix.distro }}"
+            exit 1
+          fi
+          ls -1 "$BIN" || true
+
+          fail=0
+          for tool in summa mizuroute fuse; do
+            [ -f "$BIN/$tool" ] || { echo "(skip $tool — not in bundle)"; continue; }
+            echo "== ldd $tool =="
+            LD_LIBRARY_PATH="$LIB:${LD_LIBRARY_PATH:-}" ldd "$BIN/$tool" || true
+            if LD_LIBRARY_PATH="$LIB:${LD_LIBRARY_PATH:-}" ldd "$BIN/$tool" 2>&1 | grep -qi "not found"; then
+              echo "::error::$tool has unresolved libraries on ${{ matrix.distro }}"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Smoke-run a bundled binary through the npm shim
+        run: |
+          set -e
+          # The npm shim sets LD_LIBRARY_PATH to dist/lib itself.
+          if command -v summa >/dev/null 2>&1; then
+            out="$(summa --version 2>&1 | head -5 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "error while loading|cannot open shared object|not found"; then
+              echo "::error::summa failed to load on ${{ matrix.distro }}"
+              exit 1
+            fi
+            echo "  ✓ summa loaded on ${{ matrix.distro }}"
+          else
+            echo "summa shim not on PATH — skipping run smoke"
+          fi
