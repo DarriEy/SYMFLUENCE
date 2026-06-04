@@ -178,6 +178,13 @@ class DRouteComponent(DifferentiableComponent, BMIMixin):
         return GradientMethod.ENZYME
 
     @property
+    def requires_batch(self) -> bool:
+        # dRoute records the whole trajectory in one CVODES/Enzyme pass; it must be driven over the
+        # full lateral-inflow sequence (a stepwise graph would rebuild the solver every timestep and
+        # break the batch adjoint), so the coupling graph runs it via _forward_batch.
+        return True
+
+    @property
     def input_fluxes(self) -> List[FluxSpec]:
         return [FluxSpec("lateral_inflow", "m3/s", FluxDirection.INPUT, "reach", 3600,
                          ("time", "reach"))]
