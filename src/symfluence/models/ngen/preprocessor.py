@@ -192,20 +192,14 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self._include_snow17 = False
 
     def _detect_npm_lib_dir(self) -> Optional[Path]:
-        """Detect the npm-installed symfluence dist/lib/ directory."""
-        import subprocess as _sp
-        try:
-            result = _sp.run(
-                ["npm", "root", "-g"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                lib_dir = Path(result.stdout.strip()) / "symfluence" / "dist" / "lib"
-                if lib_dir.is_dir():
-                    return lib_dir
-        except (FileNotFoundError, OSError, _sp.TimeoutExpired, _sp.SubprocessError):
-            pass
-        return None
+        """Detect the npm-installed symfluence dist/lib/ directory.
+
+        Delegates to the shared :func:`symfluence.core.npm_bundle.npm_bundle_lib`
+        locator (single source of truth for the bundle location).
+        """
+        from symfluence.core.npm_bundle import npm_bundle_lib
+
+        return npm_bundle_lib()
 
     def _resolve_ngen_lib_paths(self) -> Dict[str, Path]:
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
