@@ -36,6 +36,7 @@ Model-specific calibration targets:
 Factory function for registry-based target creation:
 - create_calibration_target(): Creates targets using registry with fallback
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

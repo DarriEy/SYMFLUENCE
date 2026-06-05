@@ -10,6 +10,7 @@ This module implements the MULTIVARIATE objective that allows simultaneous
 calibration against multiple data streams (streamflow, snow, evapotranspiration, etc.)
 with user-defined weights to reflect relative importance.
 """
+from __future__ import annotations
 
 from typing import Dict
 

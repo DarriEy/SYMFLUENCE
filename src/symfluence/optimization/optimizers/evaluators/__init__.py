@@ -6,6 +6,7 @@ Population Evaluators Module
 
 Components for batch evaluation of parameter populations.
 """
+from __future__ import annotations
 
 from .population_evaluator import PopulationEvaluator
 from .task_builder import TaskBuilder

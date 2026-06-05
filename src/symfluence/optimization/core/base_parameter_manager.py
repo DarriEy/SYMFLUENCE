@@ -29,6 +29,7 @@ Usage:
             # Read initial params from files or defaults
             pass
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

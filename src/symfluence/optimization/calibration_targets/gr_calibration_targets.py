@@ -7,6 +7,7 @@ GR Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.gr.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.gr.calibration.targets import GRStreamflowTarget
 

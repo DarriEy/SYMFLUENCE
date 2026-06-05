@@ -35,6 +35,7 @@ Reference:
     Monte Carlo method for approximate Bayesian computation. Statistics and
     Computing, 22(5), 1009-1020.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Tuple
 

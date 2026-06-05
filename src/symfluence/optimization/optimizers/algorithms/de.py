@@ -15,6 +15,7 @@ Reference:
     Efficient Heuristic for Global Optimization over Continuous Spaces.
     Journal of Global Optimization, 11(4), 341-359.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

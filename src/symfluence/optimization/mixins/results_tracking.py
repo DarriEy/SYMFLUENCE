@@ -7,6 +7,7 @@ Results Tracking Mixin
 Provides results persistence and tracking for optimization runs.
 Handles iteration history, best solution tracking, and results file I/O.
 """
+from __future__ import annotations
 
 import json
 import logging

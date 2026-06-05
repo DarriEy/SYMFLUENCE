@@ -6,6 +6,7 @@ Multi-objective Optimization Module
 
 Components for multi-objective optimization algorithms.
 """
+from __future__ import annotations
 
 from .nsga2_operators import NSGA2Operators
 

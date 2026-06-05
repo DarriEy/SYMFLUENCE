@@ -11,6 +11,7 @@ Reusable mixin classes that provide common functionality for optimizers:
 - GradientOptimizationMixin: ADAM/LBFGS gradient-based optimization
 - SUMMAOptimizerMixin: SUMMA-specific functionality (extracted from legacy BaseOptimizer)
 """
+from __future__ import annotations
 
 from .gradient_optimization import GradientOptimizationMixin
 from .parallel_execution import ParallelExecutionMixin

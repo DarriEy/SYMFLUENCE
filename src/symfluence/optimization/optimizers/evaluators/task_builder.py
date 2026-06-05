@@ -7,6 +7,7 @@ Task Builder for Optimization Evaluations
 Constructs task dictionaries for parallel worker execution.
 Eliminates duplicated task dict construction across evaluation methods.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -26,6 +26,7 @@ Reference:
     Beven, K. (2006). A manifesto for the equifinality thesis. Journal of
     Hydrology, 320(1-2), 18-36.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 

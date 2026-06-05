@@ -7,6 +7,7 @@ Transfer Function Classes for Parameter Regionalization.
 Model-agnostic transfer function forms that map catchment attributes to
 local parameter values.
 """
+from __future__ import annotations
 
 from typing import List, Tuple
 

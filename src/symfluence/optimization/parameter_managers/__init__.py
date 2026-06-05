@@ -21,6 +21,7 @@ decorators.  This module auto-discovers all model packages at import time
 so that every ``calibration/parameter_manager.py`` is imported and its
 decorator fires.
 """
+from __future__ import annotations
 
 
 def _register_parameter_managers():

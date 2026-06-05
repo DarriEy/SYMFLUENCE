@@ -26,6 +26,8 @@ Example:
     >>> objective = ObjectiveRegistry.get_objective('CUSTOM_OBJECTIVE', config, logger)
     >>> score = objective.calculate(eval_results)
 """
+from __future__ import annotations
+
 import warnings
 from typing import TYPE_CHECKING, Any, Dict, Optional
 

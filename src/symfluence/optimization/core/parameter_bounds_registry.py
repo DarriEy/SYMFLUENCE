@@ -45,6 +45,7 @@ Usage:
     # Get bounds for a list of parameters
     bounds = registry.get_bounds_for_params(['MBASE', 'MFMAX', 'maxsmc'])
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional

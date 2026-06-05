@@ -7,6 +7,7 @@ Coordinates calibration runs by selecting algorithms and model-specific
 optimizers. Keeps orchestration lean; algorithm details and examples are in
 ``docs/source/calibration`` and optimizer pages.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
