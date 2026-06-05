@@ -236,7 +236,7 @@ class SymfluenceConfig(BaseModel):
     def validate_coordinates(self):
         """Validate coordinate formats and bounds"""
         from symfluence.core.exceptions import ConfigurationError, ValidationError
-        from symfluence.core.validation import validate_bounding_box
+        from symfluence.core.validation import parse_pour_point_coords, validate_bounding_box
 
         # Validate pour point coordinates
         if self.domain.pour_point_coords:
@@ -256,6 +256,14 @@ class SymfluenceConfig(BaseModel):
                 raise ConfigurationError(
                     f"POUR_POINT_COORDS must be 'lat/lon' format, got '{self.domain.pour_point_coords}'"
                 ) from None
+
+        # Validate additional interior outlet coordinates (one or many 'lat/lon').
+        # parse_pour_point_coords raises ConfigurationError on any malformed/out-of-range pair.
+        if self.domain.pour_point_additional_coords:
+            parse_pour_point_coords(
+                self.domain.pour_point_additional_coords,
+                context='POUR_POINT_ADDITIONAL_COORDS',
+            )
 
         # Validate bounding box coordinates
         if self.domain.bounding_box_coords:
