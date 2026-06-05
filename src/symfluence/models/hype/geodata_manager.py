@@ -333,7 +333,7 @@ class HYPEGeoDataManager:
             gdf_projected = gdf.to_crs(aea_proj)
             areas = gdf_projected.geometry.area.values
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Equal-area projection failed ({e}), falling back to EPSG:3857")
+            self.logger.warning(f"Equal-area projection failed ({e}), falling back to EPSG:3857", exc_info=True)
             gdf_projected = gdf.to_crs(epsg=3857)
             areas = gdf_projected.geometry.area.values
 
@@ -550,7 +550,7 @@ class HYPEGeoDataManager:
                     G.remove_edge(from_node, max_downstream)
                     self.logger.warning(f"Breaking cycle at edge: {from_node} -> {max_downstream}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not check for cycles: {e}")
+            self.logger.warning(f"Could not check for cycles: {e}", exc_info=True)
 
         try:
             # Use networkx topological sort - this guarantees upstream before downstream
@@ -598,7 +598,7 @@ class HYPEGeoDataManager:
             self.logger.error("Graph has cycles that could not be resolved")
             return geodata
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error during topological sorting: {str(e)}")
+            self.logger.error(f"Error during topological sorting: {str(e)}", exc_info=True)
             return geodata
 
     def _write_geoclass(self, slc_df: pd.DataFrame) -> None:

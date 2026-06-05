@@ -26,14 +26,15 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..execution import ExecutionResult, SlurmJobConfig
-from ..registry import ModelRegistry
 from ..state import ModelState, StateCapableMixin, StateFormat, StateMetadata
 from ..templates import ModelRunResult, UnifiedModelRunner
 from .parallel_gru_execution import run_summa_gru_parallel
 
 
-@ModelRegistry.register_runner('SUMMA', method_name='run_summa')
+@R.runners.add('SUMMA', runner_method='run_summa')
 class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
     """
     A class to run the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
@@ -432,7 +433,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
             return self.output_dir
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error merging outputs: {e}")
+            self.logger.error(f"Error merging outputs: {e}", exc_info=True)
             return None
 
     def _merge_files(self, pattern: str, output_file: Path) -> None:
@@ -467,7 +468,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
                 ds.close()
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error processing {src_file}: {e}")
+                self.logger.warning(f"Error processing {src_file}: {e}", exc_info=True)
 
         if merged_ds is not None:
             encoding = {'time': {'dtype': 'double', '_FillValue': None}}

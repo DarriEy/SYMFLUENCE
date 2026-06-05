@@ -54,7 +54,9 @@ rich = ">=13.0,<14"
 pydantic = ">=2.0,<3"
 salib = ">=1.4,<2"
 pvlib-python = "*"
-cdsapi = ">=0.6,<1"
+# cdsapi >=0.7 speaks the post-Sept-2024 CDS endpoint; <0.7 silently 404s.
+# Keep in sync with pyproject.toml (enforced by check_manifest_consistency.py).
+cdsapi = ">=0.7,<1"
 
 # Build tools (for compiling external models)
 cmake = "*"

@@ -14,13 +14,13 @@ from typing import Dict, Optional, Tuple
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor("CLM")
+@R.postprocessors.add("CLM")
 class CLMPostProcessor(StandardModelPostprocessor):
     """
     Postprocesses CLM5 output.
@@ -146,5 +146,5 @@ class CLMPostProcessor(StandardModelPostprocessor):
                 source='shapefile'
             )
         except Exception:  # noqa: BLE001 — model execution resilience
-            logger.warning("Could not determine catchment area, using default 2210 km2")
+            logger.warning("Could not determine catchment area, using default 2210 km2", exc_info=True)
             return 2210.0

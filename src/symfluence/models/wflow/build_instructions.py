@@ -2,10 +2,10 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow build instructions for SYMFLUENCE."""
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('wflow')
+@R.build_instructions.add('wflow')
 def get_wflow_build_instructions():
     """Get Wflow install instructions.
 

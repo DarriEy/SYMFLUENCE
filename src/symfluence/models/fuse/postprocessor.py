@@ -13,11 +13,12 @@ from typing import Any, Dict
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('FUSE')
+@R.postprocessors.add('FUSE')
 class FUSEPostprocessor(StandardModelPostprocessor):
     """
     Postprocessor for FUSE model outputs.
@@ -124,7 +125,7 @@ class FUSEPostprocessor(StandardModelPostprocessor):
                         # Variable doesn't have param_set but dataset does
                         selections['param_set'] = 0
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not auto-detect param_set: {e}, defaulting to 0")
+            self.logger.debug(f"Could not auto-detect param_set: {e}, defaulting to 0", exc_info=True)
             selections['param_set'] = 0
 
         return selections

@@ -73,22 +73,12 @@ class RHESSysFlowTableGenerator:
             flow_file: Output path for the flow table file.
         """
         try:
-            catchment_path = self.pp.get_catchment_path()
-
-            # Search alternate experiment dirs if not found
-            if not catchment_path.exists():
-                catchment_dir = self.pp.project_dir / 'shapefiles' / 'catchment'
-                if catchment_dir.exists():
-                    for shp_file in catchment_dir.rglob('*.shp'):
-                        if self.pp.domain_name in shp_file.name:
-                            catchment_path = shp_file
-                            logger.info(f"Found catchment shapefile in alternate location: {shp_file}")
-                            break
-
-            if not catchment_path.exists():
+            # Shared resolver: nested layout, casing drift, river_basins fallback.
+            catchment_path = self.pp._find_basin_shapefile(include_river_basins=False)
+            if catchment_path is None:
                 raise FileNotFoundError(
-                    f"Catchment shapefile not found for flow table generation. "
-                    f"Searched: {self.pp.project_dir / 'shapefiles' / 'catchment'}"
+                    f"Catchment shapefile not found for flow table generation "
+                    f"({self.pp.domain_name}). Run geospatial preprocessing first."
                 )
 
             gdf = gpd.read_file(catchment_path)

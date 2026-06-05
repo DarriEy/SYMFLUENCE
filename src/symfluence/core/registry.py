@@ -46,61 +46,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class _RegistryProxy(dict):
-    """Dict-like proxy that reads from a :class:`Registry` instance.
-
-    Used as a backward-compatibility shim so that code which accesses
-    ``OldRegistry._internal_dict`` (e.g. ``'SUMMA' in ComponentRegistry._preprocessors``)
-    continues to work after Phase 4 removed the real dicts.
-
-    The proxy is read-only from the ``dict`` interface — writes go nowhere.
-    All reads are forwarded to the underlying ``Registry``.
-    """
-
-    def __init__(self, registry: "Registry") -> None:
-        # Do NOT call super().__init__() with data — keep the real dict empty.
-        super().__init__()
-        object.__setattr__(self, "_registry", registry)
-
-    # --- read operations proxied to Registry ---
-    def __contains__(self, key: object) -> bool:
-        return key in self._registry  # type: ignore[operator]
-
-    def __getitem__(self, key: str) -> Any:
-        return self._registry[key]
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._registry.get(key, default)
-
-    def keys(self):  # type: ignore[override]
-        return self._registry.keys()
-
-    def values(self):  # type: ignore[override]
-        return [v for _, v in self._registry.items()]
-
-    def items(self):  # type: ignore[override]
-        return self._registry.items()
-
-    def __iter__(self) -> Iterator:
-        return iter(self._registry)
-
-    def __len__(self) -> int:
-        return len(self._registry)
-
-    def __repr__(self) -> str:
-        return dict(self._registry.items()).__repr__()
-
-    def __bool__(self) -> bool:
-        return len(self._registry) > 0
-
-    # --- write operations are no-ops (R.* is the source of truth) ---
-    def __setitem__(self, key: str, value: Any) -> None:
-        pass  # silently ignored — use R.* directly
-
-    def __delitem__(self, key: str) -> None:
-        pass
-
-
 class _LazyEntry:
     """Sentinel wrapping an import path for deferred resolution."""
 

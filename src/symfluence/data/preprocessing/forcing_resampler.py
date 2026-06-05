@@ -342,7 +342,10 @@ class ForcingResampler(PathResolverMixin):
         # Merge forcings if required by dataset
         if self.dataset_handler.needs_merging():
             self.logger.debug(f"{self.forcing_dataset.upper()} requires merging of raw files")
-            self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
+            # Always use project-local merged output for downstream remapping.
+            # FORCING_PATH may point to pre-staged raw inputs, which should not
+            # be used after standardization has been executed.
+            self.merged_forcing_path = self.project_forcing_dir / 'merged_path'
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
             self.merge_forcings()
 
@@ -503,14 +506,14 @@ class ForcingResampler(PathResolverMixin):
                         self.logger.debug("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
                         return False
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
+                    self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.", exc_info=True)
                     return False
 
             self.logger.debug("Forcing shapefile already exists. Skipping creation.")
             return True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.")
+            self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.", exc_info=True)
             return False
 
     def remap_forcing(self):
@@ -671,7 +674,7 @@ class ForcingResampler(PathResolverMixin):
                     pbar.update(len(batch_files))
 
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}", exc_info=True)
                     pbar.update(len(batch_files))
 
                 gc.collect()

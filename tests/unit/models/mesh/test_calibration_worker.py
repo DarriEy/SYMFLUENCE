@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestMESHWorkerInitialization:
     """Tests for MESH worker initialization."""
@@ -38,17 +40,15 @@ class TestMESHWorkerRegistry:
 
     def test_worker_registered_with_registry(self):
         """Test MESH worker is registered with optimizer registry."""
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        workers = OptimizerRegistry._workers
+        workers = R.workers
         assert 'MESH' in workers
 
     def test_registered_worker_is_correct_class(self):
         """Test registered worker is MESHWorker."""
         from symfluence.models.mesh.calibration.worker import MESHWorker
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        worker_class = OptimizerRegistry._workers.get('MESH')
+        worker_class = R.workers.get('MESH')
         assert worker_class == MESHWorker
 
 

@@ -21,16 +21,16 @@ import numpy as np
 import pandas as pd
 
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
 # Reuse ParFlow's .pfb reader
+from symfluence.core.registries import R
 from symfluence.models.parflow.extractor import _read_pfb
 
 
-@ModelRegistry.register_result_extractor("CLMPARFLOW")
+@R.result_extractors.add("CLMPARFLOW")
 class CLMParFlowResultExtractor(ModelResultExtractor):
     """
     Extracts results from ParFlow-CLM .pfb output files.

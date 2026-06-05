@@ -37,13 +37,16 @@ __all__ = [
 # Register all TRoute components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "TROUTE",
-    config_adapter=TRouteConfigAdapter,
-    result_extractor=TRouteResultExtractor,
-    plotter=TRoutePlotter,
-    build_instructions_module="symfluence.models.troute.build_instructions",
-)
+
+def register() -> None:
+    """Register TROUTE components with the unified registry."""
+    model_manifest(
+        "TROUTE",
+        config_adapter=TRouteConfigAdapter,
+        result_extractor=TRouteResultExtractor,
+        plotter=TRoutePlotter,
+        build_instructions_module="symfluence.models.troute.build_instructions",
+    )
 
 # Register calibration components
 try:

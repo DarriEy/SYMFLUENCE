@@ -156,7 +156,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             # Don't let validation failures prevent model initialization
-            self.logger.debug(f"Spatial mode validation skipped: {e}")
+            self.logger.debug(f"Spatial mode validation skipped: {e}", exc_info=True)
 
     def _has_routing_configured(self) -> bool:
         """
@@ -309,10 +309,10 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             Path to output directory on success, None on failure.
         """
         from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-        from symfluence.models.registry import ModelRegistry
+        from symfluence.core.registries import R
 
         # --- Legacy dispatch ---
-        method_name = ModelRegistry.get_runner_method(self.model_name)
+        method_name = R.runners.meta(self.model_name).get("runner_method", "run")
         if method_name and method_name != 'run':
             run_method = getattr(self, method_name, None)
             if run_method is not None:
@@ -608,6 +608,17 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             # Standard behavior - combine into full path
             exe_path = install_dir / exe_name
 
+        # npm fallback: pre-built tools shipped via `npm install -g symfluence`
+        # live in a flat dist/bin under canonical names (summa, mizuroute, ...),
+        # NOT under the source-install layout (installs/summa/bin/summa_sundials.exe).
+        # When the source path is absent, look the binary up in the npm bundle so
+        # workflows run against npm-only installs instead of failing here. (#156 G6)
+        if not exe_path.exists():
+            npm_exe = self._resolve_npm_executable(exe_name, default_install_subpath)
+            if npm_exe is not None:
+                self.logger.info(f"Using npm-bundled binary: {npm_exe}")
+                exe_path = npm_exe
+
         # Optional validation
         if must_exist and not exe_path.exists():
             if candidates:
@@ -632,6 +643,79 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         self._resolved_executables.append((label, exe_path))
 
         return exe_path
+
+    @staticmethod
+    def _find_npm_bin_dir() -> Optional[Path]:
+        """Locate the npm-bundled binary directory (``dist/bin``), if present.
+
+        Thin delegate to :func:`symfluence.core.npm_bundle.npm_bundle_bin` — the
+        single source of truth for the npm bundle location (honours
+        ``SYMFLUENCE_NPM_DIST_BIN`` then ``npm root -g``). The subprocess is only
+        reached on the executable-not-found path.
+        """
+        from symfluence.core.npm_bundle import npm_bundle_bin
+
+        return npm_bundle_bin()
+
+    def _resolve_npm_executable(
+        self, exe_name: Optional[str], default_install_subpath: str
+    ) -> Optional[Path]:
+        """Resolve a model executable from the npm bundle's flat ``dist/bin``.
+
+        The npm release stages binaries under canonical names (the build-registry
+        tool key, e.g. ``summa``, ``mizuroute``) rather than the source-install
+        filename (``summa_sundials.exe``). This maps the requested tool to that
+        canonical name via the build-instructions registry, then falls back to
+        ``.exe``-stripped / lowercased variants of ``exe_name``.
+
+        Returns the resolved path inside the npm bundle, or ``None``.
+        """
+        npm_bin_dir = self._find_npm_bin_dir()
+        if npm_bin_dir is None:
+            return None
+
+        candidates: List[str] = []
+
+        # Authoritative mapping: build-instructions tool key == npm staged
+        # filename. Read R.build_instructions (core) directly rather than the
+        # cli accessor, so the models layer does not depend on cli. Entries may
+        # be unresolved provider callables — resolve each one defensively.
+        try:
+            from symfluence.core.registries import R
+
+            # Same failure modes a provider callable can raise as the cli accessor.
+            _resolve_errors = (ImportError, AttributeError, KeyError, OSError,
+                               TypeError, ValueError, RuntimeError)
+            for name, value in list(R.build_instructions.items()):
+                try:
+                    info = value() if callable(value) and not isinstance(value, type) else value
+                except _resolve_errors:  # one bad provider must not block resolution
+                    continue
+                if not isinstance(info, dict):
+                    continue
+                if (
+                    info.get("default_path_suffix") == default_install_subpath
+                    or (exe_name and info.get("default_exe") == exe_name)
+                ):
+                    candidates.append(name.lower())
+                    break
+        except (ImportError, AttributeError, KeyError, OSError):
+            # Registry mapping is best-effort; fall back to exe-name variants.
+            pass
+
+        # Generic fallbacks derived from the source exe name.
+        if exe_name:
+            candidates.append(exe_name)
+            if exe_name.endswith(".exe"):
+                stem = exe_name[:-4]
+                candidates.extend([stem, stem.lower()])
+            candidates.append(exe_name.lower())
+
+        for candidate in dict.fromkeys(c for c in candidates if c):
+            path = npm_bin_dir / candidate
+            if path.is_file():
+                return path
+        return None
 
     # =========================================================================
     # File Verification

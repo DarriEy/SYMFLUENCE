@@ -13,12 +13,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
-
-from .worker import LSTMWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('LSTM')
+# NOTE: LSTM is a self-training model — its weights are learned during the run
+# step (run_lstm), not via an external DDS/PSO parameter search. It therefore
+# registers no optimizer/worker; OptimizationManager skips it (see
+# _SELF_TRAINING_MODELS). This class is retained for potential gradient-based
+# (ADAM/LBFGS) experimentation but is intentionally not registered.
 class LSTMModelOptimizer(BaseModelOptimizer):
     """
     LSTM-specific optimizer using the unified BaseModelOptimizer framework.

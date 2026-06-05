@@ -20,6 +20,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConverter
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.evaluation.registry import EvaluationRegistry
@@ -754,10 +755,17 @@ class StreamflowEvaluator(ModelEvaluator):
         # Priority 3: Try catchment shapefile
         try:
             import geopandas as gpd
-            catchment_path = self.project_dir / "shapefiles" / "catchment"
-            catchment_files = list(catchment_path.glob("*.shp"))
-            if catchment_files:
-                gdf = gpd.read_file(catchment_files[0])
+            # Resolve the nested discretized catchment (river_basins already
+            # handled in priority 2).
+            catchment_shp = find_basin_shapefile(
+                self.project_dir / "shapefiles",
+                self.domain_name,
+                self.domain_definition_method,
+                self.experiment_id,
+                include_river_basins=False,
+            )
+            if catchment_shp is not None:
+                gdf = gpd.read_file(catchment_shp)
                 area_col = self._get_config_value(
                     lambda: self.config.geospatial.catchment_area_column,
                     default='HRU_area',

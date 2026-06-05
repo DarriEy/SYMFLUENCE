@@ -92,7 +92,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
         try:
             gdf = gpd.read_file(global_shp, bbox=domain_box)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to read WOKAM shapefile: {e}")
+            self.logger.error(f"Failed to read WOKAM shapefile: {e}", exc_info=True)
             return karst_dir
 
         if gdf is None or len(gdf) == 0:
@@ -160,7 +160,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
                 break
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 last_err = e
-                self.logger.warning(f"Download attempt {attempt}/3 failed: {e}")
+                self.logger.warning(f"Download attempt {attempt}/3 failed: {e}", exc_info=True)
 
         if last_err is not None:
             self.logger.error(f"Failed to download WOKAM after 3 attempts: {last_err}")
@@ -169,7 +169,8 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
         self.logger.info("Download complete, extracting...")
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
         except zipfile.BadZipFile:
             self.logger.error("Downloaded file is not a valid zip archive")
             zip_path.unlink(missing_ok=True)

@@ -197,7 +197,8 @@ class HydroSHEDSAcquirer(BaseAcquisitionHandler, RetryMixin):
 
                 self.logger.info(f"Extracting {description}")
                 with zipfile.ZipFile(zip_path, 'r') as zf:
-                    zf.extractall(output_dir)
+                    from symfluence.core.archive_extraction import safe_zip_extract
+                    safe_zip_extract(zf, output_dir)
 
                 self.logger.info(f"Downloaded and extracted {description}")
             finally:

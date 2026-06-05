@@ -18,12 +18,12 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('RHESSys')
+@R.workers.add('RHESSys')
 class RHESSysWorker(BaseWorker):
     """
     Worker for RHESSys model calibration.
@@ -98,7 +98,7 @@ class RHESSysWorker(BaseWorker):
             return result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying RHESSys parameters: {e}")
+            self.logger.error(f"Error applying RHESSys parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -381,7 +381,7 @@ class RHESSysWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running RHESSys: {e}")
+            self.logger.error(f"Error running RHESSys: {e}", exc_info=True)
             return False
 
     def _binary_supports_subsurfacegw(self, exe: Path) -> bool:
@@ -878,7 +878,7 @@ class RHESSysWorker(BaseWorker):
                 return {'kge': self.penalty_score, 'error': str(e)}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating RHESSys metrics: {e}")
+            self.logger.error(f"Error calculating RHESSys metrics: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return {'kge': self.penalty_score}

@@ -50,12 +50,15 @@ from .config import LSTMConfigAdapter
 from .extractor import LSTMResultExtractor
 from .plotter import LSTMPlotter
 
-model_manifest(
-    "LSTM",
-    config_adapter=LSTMConfigAdapter,
-    result_extractor=LSTMResultExtractor,
-    plotter=LSTMPlotter,
-)
+
+def register() -> None:
+    """Register LSTM components with the unified registry."""
+    model_manifest(
+        "LSTM",
+        config_adapter=LSTMConfigAdapter,
+        result_extractor=LSTMResultExtractor,
+        plotter=LSTMPlotter,
+    )
 
 
 if TYPE_CHECKING:

@@ -7,11 +7,12 @@ from typing import Optional
 
 import numpy as np
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('WFLOW')
+@R.postprocessors.add('WFLOW')
 class WflowPostProcessor(StandardModelPostprocessor):
     """Postprocessor for the Wflow model.
 

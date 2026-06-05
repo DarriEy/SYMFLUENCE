@@ -18,8 +18,8 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ SURFACE_RUNOFF_VARIABLES = {
 }
 
 
-@OptimizerRegistry.register_calibration_target('COUPLED_GW', 'streamflow')
+@R.calibration_targets.add('COUPLED_GW_STREAMFLOW')
 class CoupledGWStreamflowTarget(StreamflowEvaluator):
     """Streamflow target for coupled land-surface + MODFLOW calibration.
 
@@ -92,7 +92,7 @@ class CoupledGWStreamflowTarget(StreamflowEvaluator):
         try:
             return self._extract_combined_streamflow(land_dir, modflow_dir)
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to extract combined streamflow: {e}")
+            self.logger.error(f"Failed to extract combined streamflow: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return pd.Series(dtype=float)

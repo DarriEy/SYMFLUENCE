@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestIGNACIOWorkerRegistration:
     """Tests for IGNACIO worker registration."""
@@ -14,13 +16,11 @@ class TestIGNACIOWorkerRegistration:
         assert IGNACIOWorker is not None
 
     def test_worker_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'IGNACIO' in OptimizerRegistry._workers
+        assert 'IGNACIO' in R.workers
 
     def test_worker_is_correct_class(self):
         from symfluence.models.ignacio.calibration.worker import IGNACIOWorker
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._workers.get('IGNACIO') == IGNACIOWorker
+        assert R.workers.get('IGNACIO') == IGNACIOWorker
 
 
 class TestIGNACIOWorkerProperties:

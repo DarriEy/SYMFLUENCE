@@ -11,10 +11,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('LSTM')
+@R.visualizers.add('LSTM')
 def visualize_lstm(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize LSTM model outputs.
@@ -27,4 +27,4 @@ def visualize_lstm(reporting_manager: Any, config: Dict[str, Any], project_dir: 
         reporting_manager.visualize_timeseries_results()
 
     except Exception as e:  # noqa: BLE001 — model execution resilience
-        logger.error(f"Error during LSTM visualization: {str(e)}")
+        logger.error(f"Error during LSTM visualization: {str(e)}", exc_info=True)

@@ -22,6 +22,12 @@ if TYPE_CHECKING:
     pass
 
 
+# Models whose "calibration" is internal training (gradient descent during the
+# run step), not an external DDS/PSO parameter search. They register no
+# optimizer/worker and are skipped by the registry calibration path.
+_SELF_TRAINING_MODELS = frozenset({'LSTM', 'GNN'})
+
+
 class OptimizationManager(BaseManager):
     """Facade over model-specific optimizers for iterative calibration.
 
@@ -314,6 +320,21 @@ class OptimizationManager(BaseManager):
                     hydrological_models = [m for m in hydrological_models if m != 'FUSE']
                     if not hydrological_models:
                         return None
+
+            # Skip external optimization for self-training models (ML).
+            # LSTM/GNN learn their weights during the run step (run_lstm/run_gnn)
+            # via gradient descent — there are no physical parameters for the
+            # DDS/PSO loop to calibrate, so they register no optimizer/worker.
+            self_training = [m for m in hydrological_models if m in _SELF_TRAINING_MODELS]
+            if self_training:
+                self.logger.info(
+                    "Skipping external optimization for %s — these models train "
+                    "internally during run_model; no parameter calibration is performed.",
+                    ', '.join(self_training),
+                )
+                hydrological_models = [m for m in hydrological_models if m not in _SELF_TRAINING_MODELS]
+                if not hydrological_models:
+                    return None
 
             # Detect coupled groundwater calibration — when a GROUNDWATER_MODEL
             # is configured alongside the land-surface model, route to the

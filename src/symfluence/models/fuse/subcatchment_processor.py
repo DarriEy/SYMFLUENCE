@@ -24,8 +24,10 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import find_basin_shapefile, find_catchment_subfile
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
@@ -106,28 +108,37 @@ class SubcatchmentProcessor(ConfigMixin):
         Returns:
             np.ndarray: Array of integer subcatchment IDs (GRU_ID values).
         """
-        # Check if delineated catchments exist (for distributed routing)
-        delineated_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.domain_name}_catchment_delineated.shp"
+        # Check if delineated catchments exist (for distributed routing).
+        # Discretization writes this under the nested experiment layout.
+        delineated_path = find_catchment_subfile(
+            self.project_dir / 'shapefiles',
+            self.domain_definition_method,
+            self.experiment_id,
+            f"{self.domain_name}_catchment_delineated.shp",
+            logger=self.logger,
+        )
 
-        if delineated_path.exists():
+        if delineated_path is not None:
             self.logger.info("Using delineated subcatchments")
             subcatchments = gpd.read_file(delineated_path)
             return subcatchments['GRU_ID'].values.astype(int)
         else:
-            # Use regular HRUs
-            catchment_path = self._get_catchment_path()
-            discretization = self._get_config_value(
-                lambda: self.config.domain.discretization,
-                default='GRUs',
-                dict_key='SUB_GRID_DISCRETIZATION'
-            )
-
-            if catchment_name_col == 'default':
-                catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+            # Use regular HRUs. Honour an explicit catchment_name_col, else
+            # resolve via the shared finder (nested layout + casing drift).
+            if catchment_name_col != 'default':
+                catchment_file = self._get_catchment_path() / catchment_name_col
             else:
-                catchment_name = catchment_name_col
+                catchment_file = find_basin_shapefile(
+                    self.project_dir / 'shapefiles',
+                    self.domain_name,
+                    self.domain_definition_method,
+                    self.experiment_id,
+                    include_river_basins=False,
+                    required=True,
+                    logger=self.logger,
+                )
 
-            catchment = gpd.read_file(catchment_path / catchment_name)
+            catchment = gpd.read_file(catchment_file)
             if 'GRU_ID' in catchment.columns:
                 return catchment['GRU_ID'].values.astype(int)
             else:
@@ -175,7 +186,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     self.logger.warning(f"FUSE failed for subcatchment {subcat_id}")
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Error running subcatchment {subcat_id}: {str(e)}")
+                self.logger.error(f"Error running subcatchment {subcat_id}: {str(e)}", exc_info=True)
                 continue
 
         if outputs:
@@ -298,7 +309,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error executing FUSE for subcatchment {subcat_id}: {str(e)}")
+            self.logger.error(f"Error executing FUSE for subcatchment {subcat_id}: {str(e)}", exc_info=True)
             return None
 
     def extract_subcatchment_forcing(self, subcat_id: int, index: int) -> Path:
@@ -334,7 +345,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lat_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range") from None
+                        raise ModelExecutionError(f"Subcatchment index {index} out of range") from None
 
                 # Extract data for this subcatchment but preserve the dimensional structure
                 subcat_data = ds.isel(latitude=slice(subcat_idx, subcat_idx + 1))
@@ -348,7 +359,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     if index < len(lon_coords):
                         subcat_idx = index
                     else:
-                        raise ValueError(f"Subcatchment index {index} out of range") from None
+                        raise ModelExecutionError(f"Subcatchment index {index} out of range") from None
 
                 subcat_data = ds.isel(longitude=slice(subcat_idx, subcat_idx + 1))
 
@@ -359,7 +370,7 @@ class SubcatchmentProcessor(ConfigMixin):
                     actual_dims = list(subcat_data[var].dims)
                     if actual_dims != expected_dims:
                         self.logger.error(f"Dimension mismatch for {var}: got {actual_dims}, expected {expected_dims}")
-                        raise ValueError(f"Dimension structure incorrect for {var}")
+                        raise ModelExecutionError(f"Dimension structure incorrect for {var}")
 
             # Preserve all attributes
             for var in subcat_data.data_vars:
@@ -542,7 +553,7 @@ class SubcatchmentProcessor(ConfigMixin):
                 ds.close()
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error loading output for subcatchment {subcat_id}: {str(e)}")
+                self.logger.warning(f"Error loading output for subcatchment {subcat_id}: {str(e)}", exc_info=True)
                 continue
 
         # Create combined dataset and save
@@ -611,7 +622,7 @@ class SubcatchmentProcessor(ConfigMixin):
                         self.logger.debug(f"Combined {var_name} with shape: {combined_var.shape}")
 
                     except Exception as e:  # noqa: BLE001 — model execution resilience
-                        self.logger.error(f"Error combining variable {var_name}: {str(e)}")
+                        self.logger.error(f"Error combining variable {var_name}: {str(e)}", exc_info=True)
                         continue
 
             # Add global attributes

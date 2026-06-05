@@ -14,13 +14,13 @@ which supports NetCDF input/output for distributed simulations.
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('vic')
+@R.build_instructions.add('vic')
 def get_vic_build_instructions():
     """
     Get VIC build instructions.

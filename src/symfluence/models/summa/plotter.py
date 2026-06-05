@@ -12,12 +12,12 @@ from typing import Dict, Optional
 
 import numpy as np
 
+from symfluence.core.path_resolver import find_basin_shapefile
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.core.shapefile_helper import resolve_default_name
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
-@PlotterRegistry.register_plotter('SUMMA')
+@R.plotters.add('SUMMA')
 class SUMMAPlotter(BasePlotter):
     """
     Plotter for SUMMA model outputs.
@@ -53,13 +53,12 @@ class SUMMAPlotter(BasePlotter):
             plot_dir = self._ensure_output_dir('summa_outputs', experiment_id)
             ds = xr.open_dataset(summa_file)
 
-            hru_name = resolve_default_name(
-                self.config,
-                'CATCHMENT_SHP_NAME',
-                '{domain}_HRUs_{discretization}.shp'
+            hru_shp = find_basin_shapefile(
+                self.project_dir / 'shapefiles', self.domain_name,
+                self.domain_definition_method, self.experiment_id,
+                include_river_basins=False,
             )
-            hru_path = self.project_dir / 'shapefiles' / 'catchment' / hru_name
-            hru_gdf = gpd.read_file(hru_path) if hru_path.exists() else None
+            hru_gdf = gpd.read_file(hru_shp) if hru_shp is not None else None
 
             skip_vars = {'hru', 'time', 'gru', 'dateId', 'latitude', 'longitude', 'hruId', 'gruId'}
 
@@ -92,7 +91,7 @@ class SUMMAPlotter(BasePlotter):
             ds.close()
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in SUMMAPlotter.plot_outputs: {str(e)}")
+            self.logger.error(f"Error in SUMMAPlotter.plot_outputs: {str(e)}", exc_info=True)
 
         return plot_paths
 

@@ -143,7 +143,7 @@ class ObservationLoaderMixin:
                     if _ds.data_vars:
                         candidates.append(model_ready_obs)
             except Exception:  # noqa: BLE001 — model execution resilience
-                self.logger.debug(f"Model-ready observations file has no streamflow group: {model_ready_obs}")
+                self.logger.debug(f"Model-ready observations file has no streamflow group: {model_ready_obs}", exc_info=True)
 
         # Strategy 1: Explicit path in config
         obs_path = self._get_config_value(
@@ -402,7 +402,7 @@ class ObservationLoaderMixin:
                 return area_km2
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Could not determine catchment area: {e}")
+            self.logger.error(f"Could not determine catchment area: {e}", exc_info=True)
 
         return None
 

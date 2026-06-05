@@ -23,19 +23,20 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 from ..base import BaseModelPreProcessor
 from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
 
 
-@ModelRegistry.register_preprocessor('FUSE')
+@R.preprocessors.add('FUSE')
 class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
@@ -368,7 +369,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
         if not forcing_files:
-            raise FileNotFoundError("No forcing files found in basin-averaged data directory")
+            raise FileOperationError("No forcing files found in basin-averaged data directory")
 
         variable_handler = VariableHandler(
             config=self.config_dict, logger=self.logger, dataset='CFIF', model='FUSE'
@@ -406,7 +407,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         elif spatial_mode == SpatialMode.DISTRIBUTED:
             ds = self._prepare_distributed_forcing(ds)
         else:
-            raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+            raise ModelExecutionError(f"Unknown FUSE spatial mode: {spatial_mode}")
         self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
 
         t5 = time.time()
@@ -462,13 +463,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
             self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
+            self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}", exc_info=True)
 
         try:
             if hasattr(ds, "close"):
                 ds.close()
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not close forcing dataset: {e}")
+            self.logger.debug(f"Could not close forcing dataset: {e}", exc_info=True)
 
         self.logger.info("Materializing FUSE forcing dataset before write")
         fuse_forcing = fuse_forcing.load()
@@ -856,7 +857,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     else:
                         self.logger.warning("Forcing file has no time values!")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
+                    self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}", exc_info=True)
             else:
                 self.logger.warning(f"Forcing file not found at {forcing_file}, using config dates.")
 
@@ -1072,7 +1073,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     msg += f" Dataset {i} range: {data.time.min().values} to {data.time.max().values}."
                 else:
                     msg += f" Dataset {i} is empty or has no time."
-            raise ValueError(msg)
+            raise ModelExecutionError(msg)
 
         self.logger.info(f"Aligned data to overlapping period: {ds_a.time.min().values} to {ds_a.time.max().values}")
 

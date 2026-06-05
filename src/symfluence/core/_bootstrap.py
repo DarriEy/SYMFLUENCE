@@ -36,6 +36,7 @@ def bootstrap() -> None:
 
     _bootstrap_delineation_aliases(R)
     _bootstrap_bmi_adapters(R)
+    _bootstrap_model_aliases(R)
     _bootstrap_metrics(R)
     _discover_plugins()
 
@@ -82,6 +83,46 @@ def _bootstrap_bmi_adapters(R: type) -> None:  # noqa: N803
     R.bmi_adapters.alias("XINANJIANG", "XAJ")
     R.bmi_adapters.alias("SAC-SMA", "SACSMA")
     R.bmi_adapters.alias("HEC-HMS", "HECHMS")
+
+
+def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
+    """Alias hyphenated model names to their canonical registry keys.
+
+    Some models register their components under a hyphen-free canonical name
+    (e.g. ``jhechms`` registers ``HECHMS``, ``jsacsma`` registers ``SACSMA``,
+    and the coupled land-surface/subsurface runner registers ``CLMPARFLOW``).
+    A config using the conventional hyphenated spelling
+    (``HYDROLOGICAL_MODEL: HEC-HMS`` or ``CLM-ParFlow``) would otherwise fail
+    to resolve a runner.  Aliases are resolved lazily at lookup time, so they
+    may be declared here before the plugin entry points register the canonical
+    keys.
+
+    Only hyphenated spellings whose hyphen-free form is the *actual* canonical
+    registration are aliased here. Note this differs from the BMI-adapter
+    aliases above: e.g. the BMI adapter is registered as ``XAJ`` whereas the
+    standalone runner is registered as ``XINANJIANG``, so no runner-level alias
+    is added for it. The guard below additionally refuses to shadow a real
+    registration with an alias.
+    """
+    # alias -> canonical, applied across every model-component registry
+    model_aliases = {
+        "HEC-HMS": "HECHMS",
+        "SAC-SMA": "SACSMA",
+        "CLM-PARFLOW": "CLMPARFLOW",
+    }
+    component_registries = (
+        R.runners,
+        R.preprocessors,
+        R.postprocessors,
+        R.optimizers,
+        R.workers,
+    )
+    for alias_key, canonical in model_aliases.items():
+        for registry in component_registries:
+            # Never let an alias shadow a real registration of the same name.
+            if alias_key.upper() in registry.keys():
+                continue
+            registry.alias(alias_key, canonical)
 
 
 def _bootstrap_metrics(R: type) -> None:  # noqa: N803
@@ -168,11 +209,25 @@ def _discover_plugins() -> None:
         # Very old importlib_metadata fallback (shouldn't happen on 3.11+)
         eps = entry_points().get(PLUGIN_ENTRY_POINT_GROUP, [])  # type: ignore[assignment]
 
+    in_tree_loaded = 0
     for ep in eps:
         try:
             plugin_fn = ep.load()
             plugin_fn()
             logger.debug("Loaded plugin %r from %s", ep.name, ep.value)
+            if ep.value.startswith("symfluence.models."):
+                in_tree_loaded += 1
+        except ImportError as exc:
+            # A missing import almost always means an optional dependency isn't
+            # installed (e.g. an MPI/GPU model on a laptop). Keep this quiet —
+            # the same models were debug-logged by the old import loop — so it
+            # doesn't drown the logs on every `import symfluence`.
+            logger.debug(
+                "Plugin %r (%s) not loaded — optional dependency missing: %s",
+                ep.name,
+                ep.value,
+                exc,
+            )
         except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
             logger.warning(
                 "Failed to load symfluence plugin %r (%s); skipping.",
@@ -180,3 +235,16 @@ def _discover_plugins() -> None:
                 ep.value,
                 exc_info=True,
             )
+
+    # In-tree models register through these same entry points (declared in
+    # SYMFLUENCE's own pyproject.toml). Discovering zero of them means the
+    # installed dist metadata predates the entry-point declarations — almost
+    # always a stale editable install. Without this signal the framework would
+    # silently come up with no runnable models. We warn loudly rather than raise
+    # so unusual-but-valid setups (e.g. partial vendoring) are not hard-blocked.
+    if in_tree_loaded == 0:
+        logger.error(
+            "No in-tree SYMFLUENCE models were discovered via entry points. The "
+            "installed package metadata is likely stale — reinstall with "
+            "`pip install -e .` to regenerate it. Model runs will fail until then."
+        )

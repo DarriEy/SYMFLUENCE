@@ -13,11 +13,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('WATFLOOD')
+@R.parameter_managers.add('WATFLOOD')
 class WATFLOODParameterManager(BaseParameterManager):
     """Parameter manager for WATFLOOD .par files."""
 
@@ -83,7 +83,7 @@ class WATFLOODParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating .par file: {e}")
+            self.logger.error(f"Error updating .par file: {e}", exc_info=True)
             return False
 
     def _update_par_value(self, content: str, param_name: str, value: float) -> str:

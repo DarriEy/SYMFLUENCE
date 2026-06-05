@@ -20,15 +20,18 @@ __all__ = [
 # Register Noah-MP config adapter via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "NOAHMP",
-    preprocessor=NoahMPPreProcessor,
-    runner=NoahMPRunner,
-    result_extractor=NoahMPResultExtractor,
-    config_adapter=NoahMPConfigAdapter,
-    postprocessor=NoahMPPostProcessor,
-    build_instructions_module="symfluence.models.noahmp.build_instructions",
-)
+
+def register() -> None:
+    """Register NOAHMP components with the unified registry."""
+    model_manifest(
+        "NOAHMP",
+        preprocessor=NoahMPPreProcessor,
+        runner=NoahMPRunner,
+        result_extractor=NoahMPResultExtractor,
+        config_adapter=NoahMPConfigAdapter,
+        postprocessor=NoahMPPostProcessor,
+        build_instructions_module="symfluence.models.noahmp.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

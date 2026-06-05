@@ -19,18 +19,18 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import xarray as xr
 
-from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .subcatchment_processor import SubcatchmentProcessor
 
 
-@ModelRegistry.register_runner('FUSE', method_name='run_fuse')
+@R.runners.add('FUSE', runner_method='run_fuse')
 class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
@@ -249,7 +249,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         target = next((path for path in self._fuse_output_candidates(fuse_out_dir, fuse_id) if path.exists()), None)
 
         if target is None:
-            raise FileNotFoundError(
+            raise FileOperationError(
                 f"FUSE output not found. Tried: {[str(path) for path in self._fuse_output_candidates(fuse_out_dir, fuse_id)]}"
             )
 
@@ -765,7 +765,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             ids = fuse_ds[spatial_name].values
         else:
             # If both >1 (unlikely for your setup) or neither, fail loudly
-            raise ValueError(f"Could not infer subcatchment axis from dims: {fuse_ds.dims}")
+            raise ModelExecutionError(f"Could not infer subcatchment axis from dims: {fuse_ds.dims}")
 
         # --- Rename spatial dimension to 'gru'
         data = data.rename({data.dims[1]: 'gru'})
@@ -857,7 +857,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 self.logger.warning("Default parameter file not found - snow optimization may fail")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error copying default to best parameters: {str(e)}")
+            self.logger.error(f"Error copying default to best parameters: {str(e)}", exc_info=True)
 
     def _add_elevation_params_to_constraints(self) -> bool:
         """
@@ -1535,7 +1535,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in lumped FUSE execution: {str(e)}")
+            self.logger.error(f"Error in lumped FUSE execution: {str(e)}", exc_info=True)
             return False
 
     def backup_run_files(self):

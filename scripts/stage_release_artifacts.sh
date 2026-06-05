@@ -756,8 +756,23 @@ if [ "$OS_BUNDLE" = "Darwin" ]; then
     print_success "Dependency bundling complete ($BUNDLE_ROUND rounds)"
 
 elif [ "$OS_BUNDLE" = "Linux" ]; then
-    # Linux: bundle non-system shared libraries (e.g. from conda, /opt, etc.)
+    # Linux: bundle the FULL recursive closure of non-system shared libraries so
+    # the tarball is self-contained on a clean distro.
+    #
+    # The previous approach excluded everything under /usr/lib and then
+    # force-bundled a hardcoded allowlist (libnetcdf, libcurl, ...). That missed
+    # transitive deps that live in system paths but are NOT guaranteed present on
+    # the target distro — e.g. libcurl-gnutls pulls libxml2/libssh/libldap/
+    # liblber/librtmp/libpsl, none of which were bundled, so the binaries failed
+    # to load on Debian/RHEL. (#156 G6 release-pipeline finding.)
+    #
+    # Correct policy: bundle EVERY resolved dependency except the core
+    # glibc/loader set, which must always come from the host (bundling libc/libm/
+    # ld-linux would break the dynamic linker). The round loop re-scans newly
+    # bundled libs so the transitive closure is pulled in.
     if command -v ldd >/dev/null 2>&1; then
+        # Core glibc/loader libraries — never bundle these.
+        SYSTEM_LIB_RE='^(linux-vdso|ld-linux.*|libc|libm|libdl|libpthread|librt|libresolv|libutil|libnsl|libanl|libBrokenLocale|libmvec)\.so'
         BUNDLE_ROUND=0
         BUNDLE_CHANGED=1
         while [ $BUNDLE_CHANGED -eq 1 ]; do
@@ -770,31 +785,24 @@ elif [ "$OS_BUNDLE" = "Linux" ]; then
                 [ -L "$elf" ] && continue
                 file "$elf" | grep -q "ELF" || continue
 
-                # Find non-system dependencies
-                DEPS="$(ldd "$elf" 2>/dev/null | grep '=>' | awk '{print $3}' \
-                    | grep -vE '^(/usr/lib|/lib/|/lib64/)' \
-                    || true)"
-
-                # Also force-bundle specific libs that live in system paths
-                # but aren't universally available across Linux distros
-                FORCE_BUNDLE="libopenblas|liblapack|libgfortran|libgomp|libquadmath|libnetcdf|libnetcdff|libhdf5|libhdf5_hl|libsz|libaec|libcurl|libz"
-                FORCE_DEPS="$(ldd "$elf" 2>/dev/null | grep '=>' | awk '{print $3}' \
-                    | grep -E "($FORCE_BUNDLE)" \
-                    || true)"
-                DEPS="$(printf '%s\n%s' "$DEPS" "$FORCE_DEPS" | sort -u | grep -v '^$' || true)"
-
-                for dep in $DEPS; do
+                # Every resolved dependency path (column 3 of "name => /path (0x..)").
+                while IFS= read -r dep; do
                     [ -z "$dep" ] && continue
                     dep_basename="$(basename "$dep")"
-                    [ -f "lib/$dep_basename" ] && continue
 
-                    if [ -f "$dep" ]; then
-                        cp -L "$dep" "lib/$dep_basename"
-                        chmod +x "lib/$dep_basename"
-                        BUNDLE_CHANGED=1
-                        print_success "Bundled $dep_basename (from $dep)"
+                    # Skip the core glibc/loader libs (must come from the host).
+                    if printf '%s' "$dep_basename" | grep -qE "$SYSTEM_LIB_RE"; then
+                        continue
                     fi
-                done
+
+                    [ -f "lib/$dep_basename" ] && continue
+                    [ -f "$dep" ] || continue
+
+                    cp -L "$dep" "lib/$dep_basename"
+                    chmod +x "lib/$dep_basename"
+                    BUNDLE_CHANGED=1
+                    print_success "Bundled $dep_basename (from $dep)"
+                done < <(ldd "$elf" 2>/dev/null | awk '/=>/ && $3 ~ /^\// {print $3}')
             done
         done
         print_success "Dependency bundling complete ($BUNDLE_ROUND rounds)"

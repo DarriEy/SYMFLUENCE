@@ -168,5 +168,5 @@ class MESHConfigGenerator(ConfigMixin):
             return np.asarray(df[q_col].values)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to load observed streamflow: {e}")
+            self.logger.warning(f"Failed to load observed streamflow: {e}", exc_info=True)
             return None

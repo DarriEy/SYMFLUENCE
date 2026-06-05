@@ -12,12 +12,12 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('IGNACIO')
+@R.parameter_managers.add('IGNACIO')
 class IGNACIOParameterManager(BaseParameterManager):
     """
     Parameter manager for IGNACIO FBP calibration.
@@ -123,7 +123,7 @@ class IGNACIOParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating IGNACIO config: {e}")
+            self.logger.error(f"Error updating IGNACIO config: {e}", exc_info=True)
             return False
 
     def _find_config(self) -> Optional[Path]:

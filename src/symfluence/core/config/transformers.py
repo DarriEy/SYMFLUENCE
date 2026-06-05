@@ -175,8 +175,8 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     hydrological_model = flat_config.get('HYDROLOGICAL_MODEL')
     if hydrological_model:
         try:
-            from symfluence.models.registries.config_registry import ConfigRegistry
-            model_transformers = ConfigRegistry.get_config_transformers(hydrological_model)
+            from symfluence.models.config_resolution import get_config_transformers
+            model_transformers = get_config_transformers(hydrological_model)
             if model_transformers:
                 # Model-specific transformers override base mapping
                 combined_mapping.update(model_transformers)

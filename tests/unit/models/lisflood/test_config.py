@@ -253,27 +253,25 @@ class TestLisfloodConfigAdapter:
 
 
 class TestLisfloodInRegistry:
-    """Tests for LISFLOOD presence in configuration registries."""
+    """Tests for LISFLOOD presence in the unified config-schema registry."""
 
-    def test_lisflood_in_hydrological_model_registry(self):
-        from symfluence.core.config.models.model_configs import HYDROLOGICAL_MODEL_REGISTRY
+    def test_lisflood_registered_in_config_schemas(self):
+        import symfluence.core.config.models.model_configs  # noqa: F401 - triggers registration
+        from symfluence.core.registries import R
 
-        assert "LISFLOOD" in HYDROLOGICAL_MODEL_REGISTRY
+        assert "LISFLOOD" in R.config_schemas
 
-    def test_lisflood_registry_entry_has_correct_field_name(self):
-        from symfluence.core.config.models.model_configs import HYDROLOGICAL_MODEL_REGISTRY
-
-        field_name, _ = HYDROLOGICAL_MODEL_REGISTRY["LISFLOOD"]
-        assert field_name == "lisflood"
-
-    def test_lisflood_registry_entry_has_correct_config_class(self):
-        from symfluence.core.config.models.model_configs import HYDROLOGICAL_MODEL_REGISTRY
+    def test_lisflood_schema_is_lisflood_config(self):
+        import symfluence.core.config.models.model_configs  # noqa: F401 - triggers registration
         from symfluence.core.config.models.model_configs_hydrology import LisfloodConfig
+        from symfluence.core.registries import R
 
-        _, config_cls = HYDROLOGICAL_MODEL_REGISTRY["LISFLOOD"]
-        assert config_cls is LisfloodConfig
+        assert R.config_schemas.get("LISFLOOD") is LisfloodConfig
 
-    def test_model_config_has_lisflood_field(self):
+    def test_model_config_resolves_lisflood(self):
         from symfluence.core.config.models.model_configs import ModelConfig
 
-        assert "lisflood" in ModelConfig.model_fields
+        cfg = ModelConfig(HYDROLOGICAL_MODEL="LISFLOOD")
+        # Resolved via __getattr__ against model_specific (no static field anymore).
+        assert type(cfg.lisflood).__name__ == "LisfloodConfig"
+        assert "lisflood" in cfg.model_specific

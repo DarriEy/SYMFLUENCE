@@ -16,7 +16,7 @@ Reference:
     Water Resources Research, 28(4), 1015-1031.
 
 Parallel Execution Design
---------------------------
+---------------------------
 The original serial SCE-UA processes each complex sequentially, issuing one
 ``evaluate_solution`` call at a time.  This implementation replaces that serial
 pattern with batched evaluation via ``evaluate_population``, which dispatches
@@ -486,6 +486,11 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
             log_initial_population: Optional callback after initial population.
             **kwargs: Accepts 'results_dir' (Path) and 'experiment_id' (str)
                       injected by BaseModelOptimizer for CSV tracking.
+            evaluate_solution: Single-solution callback (not used internally;
+                               present for interface compatibility).
+            evaluate_population: Batch evaluation callback.
+                                  Signature: (population, iteration) -> scores.
+            denormalize_params: Convert normalised params to a human-readable dict.
 
         Returns:
             dict with keys:

@@ -88,11 +88,14 @@ from .config import FUSEConfigAdapter
 from .extractor import FUSEResultExtractor
 from .plotter import FUSEPlotter
 
-model_manifest(
-    "FUSE",
-    config_adapter=FUSEConfigAdapter,
-    result_extractor=FUSEResultExtractor,
-    decision_analyzer=FuseStructureAnalyzer,
-    plotter=FUSEPlotter,
-    build_instructions_module="symfluence.models.fuse.build_instructions",
-)
+
+def register() -> None:
+    """Register FUSE components with the unified registry."""
+    model_manifest(
+        "FUSE",
+        config_adapter=FUSEConfigAdapter,
+        result_extractor=FUSEResultExtractor,
+        decision_analyzer=FuseStructureAnalyzer,
+        plotter=FUSEPlotter,
+        build_instructions_module="symfluence.models.fuse.build_instructions",
+    )

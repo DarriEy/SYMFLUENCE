@@ -19,16 +19,16 @@ import torch.nn as nn
 import torch.optim as optim
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
-from ..registry import ModelRegistry
 from .model import GNNModel
 from .postprocessor import GNNPostprocessor
 from .preprocessor import GNNPreProcessor
 
 
-@ModelRegistry.register_runner('GNN', method_name='run_gnn')
+@R.runners.add('GNN', runner_method='run_gnn')
 class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """Runner for the Spatio-Temporal GNN Hydrological Model.
 
@@ -455,7 +455,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                     self._save_model_checkpoint(checkpoint_path, adj_matrix)
                     self.logger.info(f"Checkpoint saved at epoch {epoch+1}: {checkpoint_path}")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}")
+                    self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}", exc_info=True)
 
     def _simulate(self, X: torch.Tensor, common_dates: pd.DatetimeIndex, hru_ids: List[int]) -> pd.DataFrame:
         """Run full forward simulation and return streamflow time series.
@@ -543,4 +543,6 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         }, path)
 
     def _load_model_checkpoint(self, path: Path):
-        return torch.load(path, map_location=self.device)
+        # weights_only=True prevents arbitrary code execution when deserializing
+        # an untrusted checkpoint (CVE-2025-32434 lineage).
+        return torch.load(path, map_location=self.device, weights_only=True)

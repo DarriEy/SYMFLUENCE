@@ -42,7 +42,7 @@ class FLUXCOMETHandler(BaseObservationHandler):
             acquirer = FLUXCOMETAcquirer(self.config, self.logger)
             acquirer.download(self.project_observations_dir)
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}")
+            self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}", exc_info=True)
 
         return et_dir
 

@@ -107,7 +107,7 @@ class ForcingDataProcessor:
                 compat='override'
             )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"open_mfdataset failed ({e}), falling back to manual concat")
+            self.logger.warning(f"open_mfdataset failed ({e}), falling back to manual concat", exc_info=True)
             datasets = [xr.open_dataset(f) for f in forcing_files]
             ds = xr.concat(datasets, dim=concat_dim, data_vars=data_vars)
             for d in datasets:

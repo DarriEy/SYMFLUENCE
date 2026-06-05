@@ -9,7 +9,7 @@ Most models can inherit from this and only define configuration attributes, redu
 boilerplate from 50-150 lines to 10-20 lines.
 
 Usage:
-    @ModelRegistry.register_postprocessor('MYMODEL')
+    @R.postprocessors.add('MYMODEL')
     class MyModelPostprocessor(StandardModelPostprocessor):
         model_name = "MYMODEL"
         output_file_pattern = "{domain}_{experiment}_output.nc"
@@ -220,7 +220,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
         try:
             return self.read_netcdf_streamflow(file_path, variable, **selections)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading NetCDF: {e}")
+            self.logger.error(f"Error reading NetCDF: {e}", exc_info=True)
             return None
 
     def _get_netcdf_selections(self) -> Dict[str, Any]:
@@ -274,7 +274,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             return df[flow_column]
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading text file: {e}")
+            self.logger.error(f"Error reading text file: {e}", exc_info=True)
             return None
 
     def _get_flow_column(self, df: pd.DataFrame) -> Optional[str]:
@@ -436,7 +436,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
                     all_streamflow.append(df)
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error processing {file_path}: {e}")
+                self.logger.warning(f"Error processing {file_path}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -504,7 +504,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             return result
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading {file_path}: {e}")
+            self.logger.error(f"Error reading {file_path}: {e}", exc_info=True)
             return None
 
 
@@ -571,5 +571,5 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading routing output: {e}")
+            self.logger.error(f"Error reading routing output: {e}", exc_info=True)
             return None

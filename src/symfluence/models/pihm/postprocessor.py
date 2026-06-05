@@ -14,13 +14,13 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor("PIHM")
+@R.postprocessors.add("PIHM")
 class PIHMPostProcessor(StandardModelPostprocessor):
     """
     Postprocesses PIHM output.
@@ -73,7 +73,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
                 start_date=str(start_date),
             )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Failed to extract PIHM river flux: {e}")
+            logger.error(f"Failed to extract PIHM river flux: {e}", exc_info=True)
             return None
 
         if river_flux.empty:
@@ -162,7 +162,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
             return total_streamflow, metadata
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.")
+            logger.error(f"Coupled extraction failed: {e}. Falling back to standalone.", exc_info=True)
             return self._extract_standalone_baseflow(river_flux)
 
     def _try_generate_plot(self) -> None:
@@ -179,7 +179,7 @@ class PIHMPostProcessor(StandardModelPostprocessor):
             if result:
                 logger.debug(f"PIHM coupling plot saved: {result}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.debug(f"Could not generate PIHM coupling plot: {e}")
+            logger.debug(f"Could not generate PIHM coupling plot: {e}", exc_info=True)
 
     def _get_catchment_area(self) -> float:
         """Get catchment area in km2."""
@@ -199,5 +199,5 @@ class PIHMPostProcessor(StandardModelPostprocessor):
                 source='shapefile'
             )
         except Exception:  # noqa: BLE001 — model execution resilience
-            logger.warning("Could not determine catchment area, using default 2210 km2")
+            logger.warning("Could not determine catchment area, using default 2210 km2", exc_info=True)
             return 2210.0

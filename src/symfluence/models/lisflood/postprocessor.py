@@ -8,11 +8,12 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor("LISFLOOD")
+@R.postprocessors.add("LISFLOOD")
 class LisfloodPostProcessor(StandardModelPostprocessor):
     """Postprocessor for the LISFLOOD model.
 

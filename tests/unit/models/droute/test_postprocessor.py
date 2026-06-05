@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestDRoutePostProcessorImport:
     """Tests for dRoute postprocessor import and registration."""
@@ -12,14 +14,12 @@ class TestDRoutePostProcessorImport:
         assert DRoutePostProcessor is not None
 
     def test_postprocessor_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'DROUTE' in ModelRegistry._postprocessors
+        assert 'DROUTE' in R.postprocessors
 
     def test_postprocessor_is_correct_class(self):
         from droute.postprocessor import DRoutePostProcessor
 
-        from symfluence.models.registry import ModelRegistry
-        assert ModelRegistry._postprocessors.get('DROUTE') == DRoutePostProcessor
+        assert R.postprocessors.get('DROUTE') == DRoutePostProcessor
 
     def test_model_name(self):
         from droute.postprocessor import DRoutePostProcessor

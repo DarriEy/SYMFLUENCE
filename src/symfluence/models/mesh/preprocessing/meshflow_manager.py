@@ -131,7 +131,7 @@ def _patch_meshflow_network_bug():
     except Exception as e:  # noqa: BLE001 — model execution resilience
         # If patching fails, log warning but don't prevent import
         logger = logging.getLogger(__name__)
-        logger.warning(f"Failed to apply meshflow network.py patch: {e}")
+        logger.warning(f"Failed to apply meshflow network.py patch: {e}", exc_info=True)
 
 
 # Import meshflow and apply patch
@@ -146,7 +146,7 @@ except Exception as e:  # noqa: BLE001 — model execution resilience
     MESHWorkflow = None
     _meshflow_import_error = str(e)
     # Use debug level since this is an optional dependency most users don't need
-    logging.getLogger(__name__).debug(f"meshflow import failed; MESH preprocessing disabled: {e}")
+    logging.getLogger(__name__).debug(f"meshflow import failed; MESH preprocessing disabled: {e}", exc_info=True)
 
 
 class MESHFlowManager:
@@ -231,10 +231,14 @@ class MESHFlowManager:
             self.logger.info("Meshflow preprocessing completed successfully")
 
         except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-            self.logger.error(f"Meshflow preprocessing failed: {e}")
-            self.logger.debug(traceback.format_exc())
+            # Include the exception type — meshflow can raise exceptions whose
+            # str() is empty, which would otherwise produce an opaque
+            # "Meshflow preprocessing failed: " with no cause.
+            detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            self.logger.error(f"Meshflow preprocessing failed: {detail}")
+            self.logger.error(traceback.format_exc())
             from symfluence.core.exceptions import ModelExecutionError
-            raise ModelExecutionError(f"Meshflow preprocessing failed: {e}") from e
+            raise ModelExecutionError(f"Meshflow preprocessing failed: {detail}") from e
 
     def _check_required_files(self) -> None:
         """Check that required input files exist."""

@@ -987,3 +987,106 @@ class TestRunnerHierarchyBackwardCompat:
         assert hasattr(runner, 'create_slurm_script')
         assert hasattr(runner, 'run_with_retry')
         assert hasattr(runner, 'execute_in_mode')
+
+
+class TestNpmExecutableFallback:
+    """Tests for npm-bundle executable resolution in get_model_executable (#156 G6).
+
+    The npm release stages binaries under canonical names (`summa`, `mizuroute`)
+    in a flat `dist/bin`, not the source-install layout
+    (`installs/summa/bin/summa_sundials.exe`). When the source path is absent the
+    runner must fall back to the npm bundle so workflows run on npm-only installs.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_npm_env(self, monkeypatch):
+        monkeypatch.delenv("SYMFLUENCE_NPM_DIST_BIN", raising=False)
+
+    def test_source_install_preferred_over_npm(self, runner, temp_dir, monkeypatch):
+        """When the source-install exe exists, the npm bundle is not consulted."""
+        src = temp_dir / "data" / "installs" / "summa" / "bin"
+        src.mkdir(parents=True)
+        (src / "summa_sundials.exe").write_text("#!/bin/sh\n")
+
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)
+        (npm_bin / "summa").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+
+        result = runner.get_model_executable(
+            "SUMMA_INSTALL_PATH", "installs/summa/bin",
+            default_exe_name="summa_sundials.exe",
+        )
+        assert result.resolve() == (src / "summa_sundials.exe").resolve()
+
+    def test_npm_canonical_name_resolved_when_source_absent(self, runner, temp_dir, monkeypatch):
+        """Source missing -> resolve the registry-canonical npm name (summa)."""
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)
+        (npm_bin / "summa").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+
+        result = runner.get_model_executable(
+            "SUMMA_INSTALL_PATH", "installs/summa/bin",
+            default_exe_name="summa_sundials.exe",
+        )
+        assert result.resolve() == (npm_bin / "summa").resolve()
+
+    def test_npm_mizuroute_canonical_name(self, runner, temp_dir, monkeypatch):
+        """mizuRoute's installs/mizuRoute/route/bin maps to npm 'mizuroute'."""
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)
+        (npm_bin / "mizuroute").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+
+        result = runner.get_model_executable(
+            "MIZUROUTE_INSTALL_PATH", "installs/mizuRoute/route/bin",
+            default_exe_name="mizuRoute.exe",
+        )
+        assert result.resolve() == (npm_bin / "mizuroute").resolve()
+
+    def test_npm_exe_name_variant_fallback(self, runner, temp_dir, monkeypatch):
+        """Unknown tool (not in registry) falls back to .exe-stripped exe name."""
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)
+        (npm_bin / "customtool").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+
+        result = runner.get_model_executable(
+            "CUSTOM_INSTALL_PATH", "installs/customtool/bin",
+            default_exe_name="customtool.exe",
+        )
+        assert result.resolve() == (npm_bin / "customtool").resolve()
+
+    def test_must_exist_raises_when_neither_source_nor_npm(self, runner, temp_dir, monkeypatch):
+        """must_exist still raises if neither source nor npm has the binary."""
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)  # empty bundle
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+
+        with pytest.raises(FileNotFoundError):
+            runner.get_model_executable(
+                "SUMMA_INSTALL_PATH", "installs/summa/bin",
+                default_exe_name="summa_sundials.exe", must_exist=True,
+            )
+
+    def test_no_npm_bundle_returns_source_path(self, runner, temp_dir, monkeypatch):
+        """With no npm bundle available, the (non-existent) source path is returned."""
+        # Override points at a non-directory -> _find_npm_bin_dir returns None.
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(temp_dir / "does-not-exist"))
+        result = runner.get_model_executable(
+            "SUMMA_INSTALL_PATH", "installs/summa/bin",
+            default_exe_name="summa_sundials.exe",
+        )
+        expected = temp_dir / "data" / "installs" / "summa" / "bin" / "summa_sundials.exe"
+        assert result.resolve() == expected.resolve()
+
+    def test_find_npm_bin_dir_env_override_non_dir(self, monkeypatch, temp_dir):
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(temp_dir / "nope"))
+        assert BaseModelRunner._find_npm_bin_dir() is None
+
+    def test_find_npm_bin_dir_env_override_valid(self, monkeypatch, temp_dir):
+        d = temp_dir / "bin"
+        d.mkdir()
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(d))
+        assert BaseModelRunner._find_npm_bin_dir() == d

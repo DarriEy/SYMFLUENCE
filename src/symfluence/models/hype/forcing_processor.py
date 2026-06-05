@@ -136,7 +136,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                     ds.sortby('time').to_netcdf(merged_forcing_path, engine='h5netcdf')
                 self.logger.info("Xarray merge successful")
             except Exception as xe:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Xarray merge also failed: {xe}")
+                self.logger.error(f"Xarray merge also failed: {xe}", exc_info=True)
                 return None
 
         # Handle time shift and calendar
@@ -310,7 +310,14 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                         actual_id_level = fallback
                         break
 
-            df = series.unstack(level=actual_id_level)
+            if actual_id_level in series.index.names:
+                df = series.unstack(level=actual_id_level)
+            else:
+                # Lumped domain: the forcing has no spatial/ID dimension, so the
+                # series is indexed by time alone and there is nothing to unstack.
+                # Emit a single subbasin column (id 0; the +1 shift below promotes
+                # it to 1, since HYPE requires subid > 0).
+                df = series.to_frame(name=0)
 
             # Map column indices to actual hruId values if we have the mapping
             if hru_id_mapping is not None:

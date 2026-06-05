@@ -1,10 +1,10 @@
 name: SYMFLUENCE - Full Install & Validate
 
 on:
+  # Tiered: install validation runs after merge to develop/main, weekly, and on
+  # demand — NOT on every PR (the fast unit gate lives in ci.yml).
   push:
     branches: [ main, develop ]  # Run on main and develop pushes
-  pull_request:
-    branches: [ main, develop ]  # Run on PRs to main/develop
   workflow_dispatch:
     inputs:
       test_level:
@@ -416,21 +416,38 @@ jobs:
           cd /tmp/symfluence-test
           tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
 
-          # Test binaries run without original install directory
-          echo "-> Testing SUMMA..."
-          if [ -f "./symfluence-tools/bin/summa" ]; then
-            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
-          fi
+          # A relocated binary is broken if it cannot resolve its shared
+          # libraries. Detect that explicitly instead of swallowing the result
+          # with `|| echo`, which hid genuine relocation failures.
+          check_relocated() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ]; then
+              echo "  (skipping $name — not present in this build)"
+              return 0
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found"; then
+              echo "::error::$name failed to load shared libraries after relocation"
+              return 1
+            fi
+            if [ -z "$out" ]; then
+              echo "::error::$name produced no output after relocation (likely failed to start)"
+              return 1
+            fi
+            echo "  ✓ $name runs after relocation"
+          }
 
-          echo "-> Testing NGEN..."
-          if [ -f "./symfluence-tools/bin/ngen" ]; then
-            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
-          fi
+          # Test binaries run without their original install directory
+          echo "-> Testing SUMMA...";  check_relocated SUMMA ./symfluence-tools/bin/summa --version
+          echo "-> Testing NGEN...";   check_relocated NGEN  ./symfluence-tools/bin/ngen --help
 
           echo "-> Testing mizuRoute..."
           if [ -f "./symfluence-tools/bin/mizuroute" ]; then
             # mizuRoute doesn't have --version, just check it exists and is executable
-            [ -x "./symfluence-tools/bin/mizuroute" ] && echo "  mizuRoute is executable"
+            [ -x "./symfluence-tools/bin/mizuroute" ] || { echo "::error::mizuRoute is not executable"; exit 1; }
+            echo "  ✓ mizuRoute is executable"
           fi
 
           echo "Relocatability test complete"

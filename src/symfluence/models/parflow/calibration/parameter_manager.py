@@ -30,8 +30,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Physically-based parameter bounds for variably-saturated subsurface + overland flow
 # Domain geometry (TOP/BOT) is fixed; only soil/flow properties are calibrated.
@@ -172,7 +172,7 @@ def _write_pfidb(filepath: Path, entries: Dict[str, str]) -> None:
     filepath.write_text('\n'.join(parts) + '\n')
 
 
-@OptimizerRegistry.register_parameter_manager('PARFLOW')
+@R.parameter_managers.add('PARFLOW')
 class ParFlowParameterManager(BaseParameterManager):
     """Handles ParFlow parameter bounds, normalization, and .pfidb file updates."""
 
@@ -267,7 +267,7 @@ class ParFlowParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update .pfidb: {e}")
+            self.logger.error(f"Failed to update .pfidb: {e}", exc_info=True)
             return False
 
     def _update_snow17_forcing(
@@ -367,7 +367,7 @@ class ParFlowParameterManager(BaseParameterManager):
                     )
                     return params
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.debug(f"Could not read initial params from .pfidb: {e}")
+                self.logger.debug(f"Could not read initial params from .pfidb: {e}", exc_info=True)
 
         # Fallback to physically-reasonable defaults
         defaults = {

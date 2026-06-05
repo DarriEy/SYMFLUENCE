@@ -2,6 +2,8 @@
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestCFUSEWorkerRegistration:
     """Tests for cFUSE worker registration."""
@@ -11,14 +13,12 @@ class TestCFUSEWorkerRegistration:
         assert CFUSEWorker is not None
 
     def test_worker_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'CFUSE' in OptimizerRegistry._workers
+        assert 'CFUSE' in R.workers
 
     def test_worker_is_correct_class(self):
         from cfuse.calibration.worker import CFUSEWorker
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._workers.get('CFUSE') == CFUSEWorker
+        assert R.workers.get('CFUSE') == CFUSEWorker
 
 
 class TestCFUSEWorkerProperties:

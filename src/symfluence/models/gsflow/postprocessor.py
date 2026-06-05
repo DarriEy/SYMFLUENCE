@@ -75,5 +75,5 @@ class GSFLOWPostProcessor(StandardModelPostprocessor):
                 if dates:
                     return pd.Series(values, index=dates, name='GSFLOW_discharge_cms')
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error extracting streamflow: {e}")
+            logger.error(f"Error extracting streamflow: {e}", exc_info=True)
         return None

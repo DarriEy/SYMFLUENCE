@@ -93,7 +93,7 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
                 if out_file:
                     downloaded_files.append(out_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to download SSEBop for {date.strftime('%Y-%m-%d')}: {e}")
+                self.logger.debug(f"Failed to download SSEBop for {date.strftime('%Y-%m-%d')}: {e}", exc_info=True)
 
         if not downloaded_files:
             raise RuntimeError("No SSEBop CONUS data could be downloaded")
@@ -181,7 +181,7 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
                 if out_file:
                     downloaded_files.append(out_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to download SSEBop for {month.strftime('%Y-%m')}: {e}")
+                self.logger.debug(f"Failed to download SSEBop for {month.strftime('%Y-%m')}: {e}", exc_info=True)
 
         if not downloaded_files:
             raise RuntimeError("No SSEBop global data could be downloaded")
@@ -323,7 +323,7 @@ class SSEBopAcquirer(BaseAcquisitionHandler):
                         datasets.append(da)
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to process {f.name}: {e}")
+                self.logger.debug(f"Failed to process {f.name}: {e}", exc_info=True)
 
         if not datasets:
             raise RuntimeError("No SSEBop data could be processed")

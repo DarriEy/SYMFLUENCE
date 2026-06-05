@@ -15,13 +15,13 @@ Hydrological Institute).
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('hype')
+@R.build_instructions.add('hype')
 def get_hype_build_instructions():
     """
     Get HYPE build instructions.

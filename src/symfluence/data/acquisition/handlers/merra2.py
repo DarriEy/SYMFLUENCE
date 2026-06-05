@@ -389,7 +389,7 @@ class MERRA2Acquirer(
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(
                             f"Failed to download MERRA-2 {key} for {date.strftime('%Y-%m-%d')}: {e}"
-                        )
+                        , exc_info=True)
                         continue
 
                 if day_datasets:

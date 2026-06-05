@@ -253,7 +253,7 @@ class RemappingWeightGenerator(ConfigMixin):
                         self.logger.debug("Shifted target shapefile longitudes to 0-360.")
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to align target longitudes: {e}")
+            self.logger.warning(f"Failed to align target longitudes: {e}", exc_info=True)
 
         return target_shp_for_easymore, disable_lon_correction
 
@@ -344,7 +344,7 @@ class RemappingWeightGenerator(ConfigMixin):
                     'surface_air_pressure', 'surface_downwelling_longwave_flux',
                     'surface_downwelling_shortwave_flux', 'precipitation_flux',
                     'air_temperature', 'specific_humidity', 'wind_speed',
-                    'relative_humidity',
+                    'relative_humidity', 'eastward_wind', 'northward_wind',
                 ]
                 available_vars = [v for v in all_cfif_vars if v in ds]
 
@@ -357,7 +357,17 @@ class RemappingWeightGenerator(ConfigMixin):
                     available_vars = [v for v in all_legacy_vars if v in ds]
 
                 if not available_vars:
-                    raise ValueError(f"No forcing variables found in {sample_file}")
+                    # Defensive guard: if raw handler-specific names are present,
+                    # materialize an in-place standardized copy before remapping.
+                    handler_vars = self._maybe_rename_with_handler(sample_file, ds)
+                    if handler_vars:
+                        available_vars = handler_vars
+
+                if not available_vars:
+                    raise ValueError(
+                        f"No forcing variables found in {sample_file}. "
+                        f"Available variables: {list(ds.variables.keys())}"
+                    )
 
                 self.logger.info(
                     f"Detected {len(available_vars)} "
@@ -403,6 +413,55 @@ class RemappingWeightGenerator(ConfigMixin):
 
         return available_vars, source_nc_resolution
 
+    def _maybe_rename_with_handler(self, sample_file: Path, ds: xr.Dataset) -> list:
+        """Apply dataset-handler standardization in-place if raw names are present."""
+        if self.dataset_handler is None:
+            return []
+
+        rename_map = {}
+        if hasattr(self.dataset_handler, 'get_variable_mapping'):
+            try:
+                full_map = self.dataset_handler.get_variable_mapping() or {}
+                rename_map = {k: v for k, v in full_map.items() if k in ds.variables}
+            except Exception as e:  # noqa: BLE001 — defensive guard
+                self.logger.debug(f"get_variable_mapping failed during weight detection: {e}")
+
+        if not rename_map:
+            return []
+
+        self.logger.warning(
+            "Raw forcing variable names detected during weight generation; "
+            "applying dataset handler standardization in-place so remapping can proceed."
+        )
+
+        try:
+            ds_load = xr.open_dataset(sample_file, engine="h5netcdf").load()
+            try:
+                ds_proc = self.dataset_handler.process_dataset(ds_load)
+                tmp = sample_file.with_suffix(sample_file.suffix + '.cfif_tmp')
+                ds_proc.to_netcdf(tmp)
+            finally:
+                ds_load.close()
+            tmp.replace(sample_file)
+        except Exception as e:  # noqa: BLE001 — defensive guard
+            self.logger.error(
+                f"Failed to materialize standardized forcing file for {sample_file}: {e}"
+            )
+            return []
+
+        with xr.open_dataset(sample_file, engine="h5netcdf") as ds2:
+            cfif_now = [
+                v for v in (
+                    'surface_air_pressure', 'surface_downwelling_longwave_flux',
+                    'surface_downwelling_shortwave_flux', 'precipitation_flux',
+                    'air_temperature', 'specific_humidity', 'wind_speed',
+                    'relative_humidity', 'eastward_wind', 'northward_wind',
+                )
+                if v in ds2
+            ]
+        self.logger.info(f"Standardized forcing variables now available: {cfif_now}")
+        return cfif_now
+
     def _move_output_files(
         self,
         temp_dir: Path,
@@ -422,7 +481,7 @@ class RemappingWeightGenerator(ConfigMixin):
                 with xr.open_dataset(case_remap_nc, engine="h5netcdf") as ds:
                     ds.to_dataframe().to_csv(case_remap_csv)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}")
+                self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}", exc_info=True)
 
         candidate_paths = [case_remap_csv]
 

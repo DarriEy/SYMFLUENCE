@@ -1,4 +1,4 @@
-name: CI - Lint Only
+name: CI
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
       - name: Install minimal deps for linting
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install ruff pyyaml
 
       - name: Lint with ruff
         run: |
@@ -44,6 +44,18 @@ jobs:
         run: |
           python scripts/check_broad_exceptions.py
 
+      - name: Guard resilience handlers log with a traceback
+        run: |
+          python scripts/check_resilience_logging.py
+
+      - name: Guard generic raises in models/
+        run: |
+          python scripts/check_model_raises.py
+
+      - name: Guard install-manifest consistency
+        run: |
+          python scripts/check_manifest_consistency.py
+
       - name: Type check with mypy
         continue-on-error: false
         run: |
@@ -51,3 +63,55 @@ jobs:
           pip install mypy pandas-stubs types-PyYAML types-requests types-psutil
           # Run mypy on source directory
           mypy src/symfluence
+
+  # Fast unit-test gate (ubuntu/3.11). The full OS matrix lives in
+  # cross-platform.yml (develop/nightly/release); this keeps PRs quick while
+  # still gating on tests + coverage.
+  unit-tests:
+    name: Unit Tests (ubuntu, Python 3.11)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev cdo
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if command -v gdal-config >/dev/null 2>&1; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+          fi
+          # CPU-only torch to save space/time
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Package + test extras (pytest, pytest-xdist, hypothesis, jax/llm) from pyproject
+          pip install -e ".[test]"
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest -v --tb=short -m "unit" -n auto \
+            --cov --cov-report=term-missing --cov-fail-under=15 tests/unit/
+
+      - name: Package import smoke test
+        run: |
+          python -c "import symfluence; from symfluence.core.registries import R; \
+            assert R.runners.get('SUMMA') is not None, 'SUMMA not registered via entry points'; \
+            print('import + entry-point registration OK')"

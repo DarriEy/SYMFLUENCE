@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.registries import R
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ SURFACE_RUNOFF_VARIABLES = {
 }
 
 
-@OptimizerRegistry.register_worker('COUPLED_GW')
+@R.workers.add('COUPLED_GW')
 class CoupledGWWorker(BaseWorker):
     """Worker for coupled land-surface + MODFLOW calibration.
 
@@ -157,7 +156,7 @@ class CoupledGWWorker(BaseWorker):
             try:
                 success = self._write_modflow_params(modflow_params, modflow_settings, config)
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Failed to apply MODFLOW parameters: {e}")
+                self.logger.error(f"Failed to apply MODFLOW parameters: {e}", exc_info=True)
                 success = False
 
         return success
@@ -262,7 +261,7 @@ class CoupledGWWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"dCoupler execution failed: {e}")
+            self.logger.error(f"dCoupler execution failed: {e}", exc_info=True)
             self.logger.info("Falling back to sequential coupling")
             return self._run_sequential(config, settings_dir, output_dir, **kwargs)
 
@@ -322,7 +321,7 @@ class CoupledGWWorker(BaseWorker):
             if result is None:
                 return False
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"MODFLOW execution failed: {e}")
+            self.logger.error(f"MODFLOW execution failed: {e}", exc_info=True)
             return False
 
         self.logger.debug(
@@ -354,7 +353,7 @@ class CoupledGWWorker(BaseWorker):
             return {'kge': self.penalty_score}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating coupled metrics: {e}")
+            self.logger.error(f"Error calculating coupled metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}
