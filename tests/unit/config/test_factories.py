@@ -6,6 +6,7 @@ Tests the three factory methods for creating SymfluenceConfig instances:
 - from_preset(): Load from named preset
 - from_minimal(): Create minimal config with smart defaults
 """
+from __future__ import annotations
 
 import os
 import tempfile

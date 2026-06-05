@@ -1,4 +1,5 @@
 """Unit tests for wizard prompt wrappers."""
+from __future__ import annotations
 
 from io import StringIO
 from pathlib import Path

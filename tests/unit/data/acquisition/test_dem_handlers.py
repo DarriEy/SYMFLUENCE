@@ -3,6 +3,7 @@
 Tests for CopDEM90, SRTM, ETOPO2022, Mapzen, and ALOS acquirers.
 All tests mock HTTP/network responses -- no real network calls.
 """
+from __future__ import annotations
 
 import gzip
 import io

@@ -8,6 +8,7 @@ Verifies:
 4. Edge cases: mismatched dimensions, NaN/inf handling, extreme values
 5. All activation functions (tanh, relu, sigmoid)
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

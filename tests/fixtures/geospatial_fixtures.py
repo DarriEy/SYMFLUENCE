@@ -9,6 +9,7 @@ Provides domain-specific synthetic data generators for testing geospatial operat
 
 Following the pattern established in synthetic_data.py.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

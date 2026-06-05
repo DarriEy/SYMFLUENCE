@@ -4,6 +4,7 @@ Custom assertion helpers for SYMFLUENCE tests.
 Provides domain-specific assertion functions for validating
 SYMFLUENCE outputs and behaviors.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

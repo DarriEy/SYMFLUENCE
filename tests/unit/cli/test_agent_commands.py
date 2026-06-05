@@ -1,4 +1,5 @@
 """Unit tests for agent command handlers."""
+from __future__ import annotations
 
 from argparse import Namespace
 from unittest.mock import MagicMock, patch

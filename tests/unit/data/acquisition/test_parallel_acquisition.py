@@ -2,6 +2,7 @@
 
 Tests _run_parallel_tasks() helper and the MAX_ACQUISITION_WORKERS config field.
 """
+from __future__ import annotations
 
 import logging
 import sys

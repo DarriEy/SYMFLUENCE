@@ -16,6 +16,7 @@ Pin the fix: _merge_tiles now accepts a ``bounds`` argument and
 the Copernicus acquirers pass the request bbox through, so the
 merged output is tight to the bbox.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

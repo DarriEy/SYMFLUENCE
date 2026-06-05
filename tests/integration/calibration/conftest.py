@@ -3,6 +3,7 @@ Calibration test fixtures.
 
 Fixtures specific to calibration and optimization tests.
 """
+from __future__ import annotations
 
 import pytest
 

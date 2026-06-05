@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     import droute  # noqa: F401
 except ImportError:

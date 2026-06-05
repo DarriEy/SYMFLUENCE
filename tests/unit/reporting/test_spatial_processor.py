@@ -3,6 +3,7 @@ Unit tests for SpatialProcessor.
 
 Tests spatial operations for reporting and configuration.
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

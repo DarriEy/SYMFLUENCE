@@ -1,4 +1,5 @@
 """Tests for ATTRIBUTE_PROFILE config flag and profile-driven acquisition."""
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -4,6 +4,7 @@ Tests for DEM stream burning.
 Tests the StreamBurner processor and the base delineator integration
 (_condition_dem, _burn_streams_into_dem, _find_stream_burn_source).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

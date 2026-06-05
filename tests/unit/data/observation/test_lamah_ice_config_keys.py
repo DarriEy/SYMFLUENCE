@@ -14,6 +14,7 @@ Pin the fix: the handler accepts ``LAMAH_ICE_DOMAIN_ID`` as the
 primary key, falls back to ``STATION_ID`` for backwards compat,
 and raises a message that names both keys when neither is set.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock

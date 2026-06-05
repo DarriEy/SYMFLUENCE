@@ -10,6 +10,7 @@ Tests cover:
 - Worker initialization and gradient computation
 - Lumped and distributed mode simulation
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

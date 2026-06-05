@@ -8,6 +8,7 @@ Tests the abstract base class functionality:
 - Skip-if-exists logic
 - Credential resolution
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

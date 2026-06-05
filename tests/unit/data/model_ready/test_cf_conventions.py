@@ -1,4 +1,5 @@
 """Tests for CF convention helpers."""
+from __future__ import annotations
 
 import pytest
 

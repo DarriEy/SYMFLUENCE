@@ -3,6 +3,7 @@ Unit tests for BaseModelPreProcessor.
 
 Tests the base class functionality shared across all model preprocessors.
 """
+from __future__ import annotations
 
 import shutil
 from unittest.mock import Mock

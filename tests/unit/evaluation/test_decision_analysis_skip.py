@@ -24,6 +24,7 @@ These tests pin that AnalysisManager.run_decision_analysis now:
 3. SUMMA (which does have a registered analyzer) still runs
    normally and is recorded with ``skipped`` unset.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock, patch

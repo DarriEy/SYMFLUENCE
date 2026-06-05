@@ -9,6 +9,7 @@ Workers are responsible for:
 2. Running the hydrological model
 3. Calculating performance metrics from model output
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

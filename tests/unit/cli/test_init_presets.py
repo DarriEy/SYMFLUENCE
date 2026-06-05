@@ -1,4 +1,5 @@
 """Unit tests for init_presets module."""
+from __future__ import annotations
 
 import pytest
 

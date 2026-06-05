@@ -10,6 +10,7 @@ without any edit to ``core/config/``. Before the registry migration Phase B,
 ``R.config_schemas`` was never read by ``core/config/`` and this path was
 notional.
 """
+from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field

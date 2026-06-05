@@ -1,4 +1,5 @@
 """Tests for symfluence.core.base_manager module."""
+from __future__ import annotations
 
 import logging
 import shutil

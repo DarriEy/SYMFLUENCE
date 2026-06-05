@@ -6,6 +6,7 @@ These tests verify that:
 2. Native gradients are significantly faster
 3. Both methods converge to similar optima
 """
+from __future__ import annotations
 
 import logging
 import time

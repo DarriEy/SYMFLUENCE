@@ -28,6 +28,7 @@ Pin the fixes:
     non-finiteness, logs a specific WARNING naming the parameter and
     likely cause, and records -999 instead of NaN.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock, patch

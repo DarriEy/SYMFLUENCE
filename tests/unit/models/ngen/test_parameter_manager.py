@@ -6,6 +6,7 @@ Tests NextGen-specific parameter handling including:
 - JSON configuration file operations
 - Module.param naming convention
 """
+from __future__ import annotations
 
 import logging
 

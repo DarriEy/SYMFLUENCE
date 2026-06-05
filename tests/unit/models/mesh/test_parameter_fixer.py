@@ -4,6 +4,7 @@ Tests for MESH parameter fixer.
 Tests cover run options fixes, GRU count mismatch handling,
 DDB operations, CLASS file operations, and safe forcing creation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch

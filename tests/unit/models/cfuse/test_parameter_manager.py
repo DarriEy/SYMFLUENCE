@@ -1,4 +1,5 @@
 """Tests for cFUSE parameter manager."""
+from __future__ import annotations
 
 import logging
 import tempfile

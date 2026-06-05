@@ -15,6 +15,7 @@ Two fixes pinned here:
    combination produced NaN, so the outer workflow step isn't marked
    complete on zero output.
 """
+from __future__ import annotations
 
 import csv
 import logging

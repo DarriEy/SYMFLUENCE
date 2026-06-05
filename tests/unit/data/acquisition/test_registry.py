@@ -7,6 +7,7 @@ Tests the registry pattern implementation:
 - Case-insensitive lookups
 - Error handling
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

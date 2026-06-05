@@ -3,6 +3,7 @@ Unit tests for ModelComparisonPlotter.
 
 Tests the model comparison overview visualization functionality.
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

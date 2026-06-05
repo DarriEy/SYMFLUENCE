@@ -11,6 +11,7 @@ Tests for the shared model runner infrastructure including:
 - Experiment directory management
 - Legacy path aliases
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -4,6 +4,7 @@ Unit tests for BaseParameterManager.
 Tests the shared normalization, denormalization, and validation logic
 that will be inherited by all model-specific parameter managers.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

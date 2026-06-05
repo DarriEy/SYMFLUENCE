@@ -3,6 +3,7 @@ Shared fixtures for reporting unit tests.
 
 Provides common test fixtures for plotters, processors, and the reporting manager.
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path

@@ -1,4 +1,6 @@
 """Unit tests for WMFire FuelCalculator and FuelMoistureModel classes."""
+from __future__ import annotations
+
 import numpy as np
 import pytest
 

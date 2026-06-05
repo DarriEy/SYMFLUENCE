@@ -5,6 +5,7 @@ Tests dict-like access methods (get, __getitem__, __contains__) and to_dict()
 to ensure the new hierarchical config system maintains compatibility with
 existing code expecting flat dictionaries.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

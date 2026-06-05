@@ -1,4 +1,5 @@
 """Tests for symfluence.core.validation module."""
+from __future__ import annotations
 
 import math
 from unittest.mock import MagicMock

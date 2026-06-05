@@ -1,4 +1,5 @@
 """Tests for Snow-17 BMI interface."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

@@ -8,6 +8,8 @@ writes the catchment under ``catchment/{definition_method}/{experiment_id}/
 {domain}_HRUs_{disc}.shp`` (suffix sometimes upper-cased, GRUs -> GRUS), and
 the river-basins outline flat under ``river_basins/{domain}_riverBasins_*.shp``.
 """
+from __future__ import annotations
+
 import pytest
 
 from symfluence.core.path_resolver import (

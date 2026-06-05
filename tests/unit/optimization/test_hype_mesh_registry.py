@@ -3,6 +3,7 @@ Test HYPE and MESH optimizer/worker registration
 
 Verifies that the new components are properly registered and can be instantiated.
 """
+from __future__ import annotations
 
 import logging
 import tempfile

@@ -5,6 +5,7 @@ Tests:
 - generate_slope_and_aspect() - DEM processing with GDAL
 - _process_elevation_attributes() - Statistics calculation
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

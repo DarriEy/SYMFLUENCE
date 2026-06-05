@@ -1,4 +1,5 @@
 """Unit tests for config command handlers."""
+from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path

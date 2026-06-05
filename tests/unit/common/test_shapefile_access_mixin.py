@@ -1,4 +1,5 @@
 """Unit tests for ShapefileAccessMixin."""
+from __future__ import annotations
 
 from symfluence.core.mixins.shapefile import ShapefileAccessMixin
 
