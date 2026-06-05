@@ -5,7 +5,7 @@
 SWAT model postprocessor.
 
 Handles extraction and processing of SWAT model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 
 SWAT outputs streamflow in output.rch as fixed-width text with columns
 including RCH, GIS, MON, AREAkm2, FLOW_OUTcms, etc.
@@ -18,11 +18,11 @@ import pandas as pd
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('SWAT')
-class SWATPostProcessor(StandardModelPostprocessor):
+class SWATPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the SWAT model.
 

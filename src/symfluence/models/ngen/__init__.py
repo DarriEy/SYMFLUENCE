@@ -41,7 +41,7 @@ Key Components:
     NgenPreProcessor: Hydrofabric processing, forcing preparation
     NgenConfigGenerator: Generates module configs (CFE, PET, Noah) and realization JSON
     NgenRunner: Model execution with catchment parallelization
-    NgenPostprocessor: Output aggregation and result extraction
+    NgenPostProcessor: Output aggregation and result extraction
 
 Configuration Parameters:
     NGEN_MODULES_TO_CALIBRATE: Which modules to calibrate (default: 'CFE')
@@ -63,7 +63,7 @@ Typical Workflow:
     3. Create realization JSON defining module coupling
     4. Prepare forcing data in NGEN-compatible format
     5. Execute NGEN via NgenRunner
-    6. Extract and aggregate results via NgenPostprocessor
+    6. Extract and aggregate results via NgenPostProcessor
 
 Limitations and Considerations:
     - Requires NGEN executable and BMI module libraries
@@ -73,7 +73,7 @@ Limitations and Considerations:
 """
 
 from .config_generator import NgenConfigGenerator
-from .postprocessor import NgenPostprocessor
+from .postprocessor import NgenPostProcessor
 from .preprocessor import NgenPreProcessor
 from .runner import NgenRunner
 from .visualizer import visualize_ngen
@@ -81,7 +81,7 @@ from .visualizer import visualize_ngen
 __all__ = [
     'NgenPreProcessor',
     'NgenRunner',
-    'NgenPostprocessor',
+    'NgenPostProcessor',
     'NgenConfigGenerator',
     'visualize_ngen'
 ]
@@ -103,3 +103,6 @@ def register() -> None:
         plotter=NGENPlotter,
         build_instructions_module="symfluence.models.ngen.build_instructions",
     )
+
+# Deprecated pre-1.0 spelling (RTI item 23) — use NgenPostProcessor.
+NgenPostprocessor = NgenPostProcessor

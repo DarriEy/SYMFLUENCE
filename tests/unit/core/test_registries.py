@@ -40,7 +40,7 @@ class _FakeRunner:
     pass
 
 
-class _FakePostprocessor:
+class _FakePostProcessor:
     pass
 
 
@@ -153,7 +153,7 @@ class TestCrossCutting:
     def test_validate_model_valid(self):
         R.preprocessors.add("TEST", _FakePreprocessor)
         R.runners.add("TEST", _FakeRunner)
-        R.postprocessors.add("TEST", _FakePostprocessor)
+        R.postprocessors.add("TEST", _FakePostProcessor)
 
         v = Registries.validate_model("TEST")
         assert v["valid"] is True
@@ -170,7 +170,7 @@ class TestCrossCutting:
     def test_validate_model_optional(self):
         R.preprocessors.add("TEST", _FakePreprocessor)
         R.runners.add("TEST", _FakeRunner)
-        R.postprocessors.add("TEST", _FakePostprocessor)
+        R.postprocessors.add("TEST", _FakePostProcessor)
 
         v = Registries.validate_model("TEST")
         assert "visualizers" in v["optional_missing"]

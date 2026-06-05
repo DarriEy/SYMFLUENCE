@@ -5,7 +5,7 @@
 NGen Model Postprocessor.
 
 Processes simulation outputs from the NOAA NextGen Framework (ngen).
-Migrated to use StandardModelPostprocessor with multi-file support (Phase 1.5).
+Migrated to use StandardModelPostProcessor with multi-file support (Phase 1.5).
 """
 
 import json
@@ -16,16 +16,16 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.models.base import StandardModelPostprocessor
+from symfluence.models.base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('NGEN')
-class NgenPostprocessor(StandardModelPostprocessor):
+class NgenPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for NextGen Framework outputs.
 
     Handles extraction and analysis of simulation results from multiple nexus
-    output files. Uses StandardModelPostprocessor with multi-file aggregation.
+    output files. Uses StandardModelPostProcessor with multi-file aggregation.
 
     NGEN outputs streamflow to multiple nex-*_output.csv files, one per nexus.
     This postprocessor aggregates them based on CALIBRATION_NEXUS_ID config

@@ -24,7 +24,7 @@ from symfluence.core.registries import R
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
 from .model import GNNModel
-from .postprocessor import GNNPostprocessor
+from .postprocessor import GNNPostProcessor
 from .preprocessor import GNNPreProcessor
 
 
@@ -50,7 +50,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     Attributes:
         device: torch.device (cuda if available, else cpu)
         preprocessor: GNNPreProcessor for data loading and normalization
-        postprocessor: GNNPostprocessor for result formatting
+        postprocessor: GNNPostProcessor for result formatting
         model: GNNModel instance (None until initialized)
         hru_ids: List of HRU identifiers in model
         outlet_indices: List of node indices at watersheds outlets
@@ -101,7 +101,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             self.project_dir,
             self.device
         )
-        self.postprocessor = GNNPostprocessor(
+        self.postprocessor = GNNPostProcessor(
             self.config_dict,
             self.logger,
             reporting_manager=self.reporting_manager

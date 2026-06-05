@@ -46,7 +46,7 @@ class _MockRunner:
         return None
 
 
-class _MockPostprocessor:
+class _MockPostProcessor:
     MODEL_NAME = "MOCK"
 
     def extract_streamflow(self):
@@ -105,7 +105,7 @@ class TestModelManifest:
             preprocessor=_MockPreprocessor,
             runner=_MockRunner,
             runner_method="run_mock",
-            postprocessor=_MockPostprocessor,
+            postprocessor=_MockPostProcessor,
             config_adapter=_MockConfigAdapter,
             result_extractor=_MockExtractor,
             decision_analyzer=_MockDecisionAnalyzer,
@@ -120,7 +120,7 @@ class TestModelManifest:
 
         assert R.preprocessors["MOCK"] is _MockPreprocessor
         assert R.runners["MOCK"] is _MockRunner
-        assert R.postprocessors["MOCK"] is _MockPostprocessor
+        assert R.postprocessors["MOCK"] is _MockPostProcessor
         assert R.config_adapters["MOCK"] is _MockConfigAdapter
         assert R.result_extractors["MOCK"] is _MockExtractor
         assert R.decision_analyzers["MOCK"] is _MockDecisionAnalyzer
@@ -182,7 +182,7 @@ class TestModelManifest:
             "MOCK",
             preprocessor=_MockPreprocessor,
             runner=_MockRunner,
-            postprocessor=_MockPostprocessor,
+            postprocessor=_MockPostProcessor,
         )
         v = Registries.validate_model("MOCK")
         assert v["valid"] is True

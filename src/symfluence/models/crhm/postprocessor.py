@@ -5,7 +5,7 @@
 CRHM model postprocessor.
 
 Handles extraction and processing of CRHM model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 """
 
 from pathlib import Path
@@ -13,11 +13,11 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('CRHM')
-class CRHMPostProcessor(StandardModelPostprocessor):
+class CRHMPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the CRHM model.
 

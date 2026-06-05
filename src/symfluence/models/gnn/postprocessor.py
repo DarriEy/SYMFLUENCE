@@ -16,15 +16,15 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.registries import R
-from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
+from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 
 @R.postprocessors.add('GNN')
-class GNNPostprocessor(StandardModelPostprocessor):
+class GNNPostProcessor(StandardModelPostProcessor):
     """
     Handles post-processing of GNN model results.
 
-    Extends StandardModelPostprocessor with GNN-specific outlet selection logic.
+    Extends StandardModelPostProcessor with GNN-specific outlet selection logic.
     Supports three-level fallback for outlet identification:
     1. Config-specified outlet HRU IDs (from NetCDF attributes)
     2. Pour point shapefile intersection with river network
@@ -38,7 +38,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
         outlet_selection_method: "config" with custom fallback logic
     """
 
-    # StandardModelPostprocessor configuration
+    # StandardModelPostProcessor configuration
     model_name = "GNN"
     output_file_pattern = "{experiment}_GNN_output.nc"
     streamflow_variable = "predicted_streamflow"
@@ -238,7 +238,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
         """
         Extract streamflow from GNN output NetCDF.
 
-        Uses StandardModelPostprocessor pattern with custom outlet selection
+        Uses StandardModelPostProcessor pattern with custom outlet selection
         logic for distributed GNN outputs.
 
         Returns:
