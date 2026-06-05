@@ -232,6 +232,15 @@ def from_file_factory(
             normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
             config_dict.update(normalized_overrides)
 
+        # Tiered validation of unrecognized keys (RTI review item 21):
+        # warn by default, raise under STRICT_CONFIG / SYMFLUENCE_STRICT_CONFIG.
+        # Runs on the fully-resolved flat user config before transformation, so
+        # the allowlist already includes any plugin-registered schema keys.
+        from symfluence.core.config.key_validation import validate_known_flat_keys
+        from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+        known_keys = build_combined_flat_to_nested_map(config_dict.get('HYDROLOGICAL_MODEL'))
+        validate_known_flat_keys(config_dict, known_keys, source=str(path))
+
         # Transform flat dict to nested structure
         nested_config = transform_flat_to_nested(config_dict)
 
