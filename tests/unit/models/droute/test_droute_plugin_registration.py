@@ -9,6 +9,7 @@ the plugin registers its components through the entry-point/``model_manifest`` p
 dCoupler adapter no longer shadows the registered worker with an in-tree copy (the migration fixed a
 bug where importing ``symfluence.models.droute.calibration.worker`` overwrote the canonical worker).
 """
+from __future__ import annotations
 
 import importlib.util
 

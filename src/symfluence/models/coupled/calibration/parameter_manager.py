@@ -11,6 +11,7 @@ participating model keeps its own standalone manager (e.g. SUMMA, DROUTE, MODFLO
 this class only orchestrates the union/split. This generalizes the SUMMA+MODFLOW ``COUPLED_GW``
 manager to an arbitrary set of coupled standalone models.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

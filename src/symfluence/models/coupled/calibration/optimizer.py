@@ -11,6 +11,7 @@ sequential delegation fallback). This generalizes the SUMMA+MODFLOW ``COUPLED_GW
 coupled model chain; activation is handled by optimization_manager when a coupled, calibratable
 setup is detected.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
