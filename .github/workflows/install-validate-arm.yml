@@ -235,7 +235,10 @@ jobs:
               echo "::warning::$name not present at $bin (skipped)"; return 0
             fi
             echo "-> $name: $bin"
-            file "$bin" | tee /tmp/filetype
+            # Follow symlinks (-L): summa.exe is a symlink to summa_sundials.exe,
+            # so `file` on the link reports "symbolic link to ..." instead of the
+            # ELF architecture, which would spuriously fail the aarch64 check.
+            file -L "$bin" | tee /tmp/filetype
             if ! grep -qiE "aarch64|arm64" /tmp/filetype; then
               echo "::error::$name is not an aarch64 binary"; return 1
             fi
