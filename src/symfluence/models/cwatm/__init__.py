@@ -18,11 +18,14 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "CWATM",
-    preprocessor=CWatMPreProcessor,
-    runner=CWatMRunner,
-    result_extractor=CWatMResultExtractor,
-    config_adapter=CWatMConfigAdapter,
-    build_instructions_module="symfluence.models.cwatm.build_instructions",
-)
+
+def register() -> None:
+    """Register CWATM components with the unified registry."""
+    model_manifest(
+        "CWATM",
+        preprocessor=CWatMPreProcessor,
+        runner=CWatMRunner,
+        result_extractor=CWatMResultExtractor,
+        config_adapter=CWatMConfigAdapter,
+        build_instructions_module="symfluence.models.cwatm.build_instructions",
+    )

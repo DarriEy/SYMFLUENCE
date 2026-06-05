@@ -17,12 +17,12 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('PRMS')
+@R.workers.add('PRMS')
 class PRMSWorker(BaseWorker):
     """
     Worker for PRMS model calibration.
@@ -100,7 +100,7 @@ class PRMSWorker(BaseWorker):
             return self._update_parameter_file(param_file, params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying PRMS parameters: {e}")
+            self.logger.error(f"Error applying PRMS parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -143,7 +143,7 @@ class PRMSWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating PRMS parameter file: {e}")
+            self.logger.error(f"Error updating PRMS parameter file: {e}", exc_info=True)
             return False
 
     def _replace_block_values(self, block: str, param_name: str, value: float) -> str:
@@ -244,7 +244,7 @@ class PRMSWorker(BaseWorker):
 
             control_path.write_text('####\n'.join(updated_blocks), encoding='utf-8')
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Could not update control.dat paths: {e}")
+            self.logger.warning(f"Could not update control.dat paths: {e}", exc_info=True)
 
     def run_model(
         self,
@@ -338,7 +338,7 @@ class PRMSWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running PRMS: {e}")
+            self.logger.error(f"Error running PRMS: {e}", exc_info=True)
             return False
 
     def _get_prms_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -433,7 +433,7 @@ class PRMSWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating PRMS metrics: {e}")
+            self.logger.error(f"Error calculating PRMS metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}
@@ -478,7 +478,7 @@ class PRMSWorker(BaseWorker):
             return None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error extracting PRMS streamflow: {e}")
+            self.logger.error(f"Error extracting PRMS streamflow: {e}", exc_info=True)
             return None
 
     @staticmethod

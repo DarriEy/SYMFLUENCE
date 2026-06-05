@@ -96,5 +96,5 @@ class FileValidator:
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(
                 f"{worker_str}Error validating file {file_path.name}: {str(e)}"
-            )
+            , exc_info=True)
             return False

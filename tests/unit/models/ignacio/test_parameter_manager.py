@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from symfluence.core.registries import R
+
 
 @pytest.fixture
 def logger():
@@ -32,13 +34,11 @@ class TestIGNACIOParameterManagerRegistration:
     """Tests for parameter manager registration."""
 
     def test_parameter_manager_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'IGNACIO' in OptimizerRegistry._parameter_managers
+        assert 'IGNACIO' in R.parameter_managers
 
     def test_parameter_manager_is_correct_class(self):
         from symfluence.models.ignacio.calibration.parameter_manager import IGNACIOParameterManager
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._parameter_managers.get('IGNACIO') == IGNACIOParameterManager
+        assert R.parameter_managers.get('IGNACIO') == IGNACIOParameterManager
 
 
 class TestIGNACIOParameterBounds:

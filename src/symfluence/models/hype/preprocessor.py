@@ -16,16 +16,16 @@ from typing import Any, Dict, Optional, cast
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.hype.config_manager import HYPEConfigManager
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
 from symfluence.models.hype.geodata_manager import HYPEGeoDataManager
 
 from ..base import BaseModelPreProcessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor('HYPE')
+@R.preprocessors.add('HYPE')
 class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
@@ -171,7 +171,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     self.spinup_days = (end_date - start_date).days
                     self.logger.debug(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}")
+                    self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}", exc_info=True)
                     self.spinup_days = 0
             else:
                 self.spinup_days = 0
@@ -343,7 +343,7 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             qobs_df.to_csv(qobs_path, sep='\t', index=True, float_format='%.3f')
             self.logger.debug(f"Created Qobs.txt in {self.forcing_data_dir}")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not create Qobs.txt: {e}")
+            self.logger.warning(f"Could not create Qobs.txt: {e}", exc_info=True)
 
     def _link_forcing_to_settings(self) -> None:
         """Create symlinks in settings dir pointing to forcing files.

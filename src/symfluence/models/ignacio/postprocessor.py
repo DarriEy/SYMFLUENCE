@@ -16,8 +16,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
-from symfluence.models.registry import ModelRegistry
 
 if TYPE_CHECKING:
     pass
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor('IGNACIO')
+@R.postprocessors.add('IGNACIO')
 class IGNACIOPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for IGNACIO fire spread model results.
@@ -100,7 +100,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO postprocessing failed: {e}")
+            self.logger.error(f"IGNACIO postprocessing failed: {e}", exc_info=True)
             return False
 
     def _collect_perimeters(self) -> List[Path]:
@@ -162,7 +162,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
                     total_area += area_ha
 
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Could not read {perimeter_path}: {e}")
+                    self.logger.warning(f"Could not read {perimeter_path}: {e}", exc_info=True)
 
             stats['total_area_ha'] = total_area
             stats['perimeter_areas_ha'] = areas
@@ -257,7 +257,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"WMFire comparison failed: {e}")
+            self.logger.error(f"WMFire comparison failed: {e}", exc_info=True)
             return None
 
     def _get_observed_perimeter_path(self) -> Optional[Path]:
@@ -342,7 +342,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Validation failed: {e}")
+            self.logger.error(f"Validation failed: {e}", exc_info=True)
             return None
 
     def _write_summary(

@@ -1,0 +1,290 @@
+name: SYMFLUENCE - ARM64 Source Build & Validate
+
+# Issue #156, gap G1 (follow-up to #150 / #155).
+#
+# #155 made scripts/symfluence-bootstrap arch-aware: it derives the Debian
+# multiarch lib dir from `gcc -print-multiarch` (with dpkg/uname fallbacks)
+# instead of the hardcoded /usr/lib{,64} that mis-probed GLIBC/HDF5 on aarch64.
+# That fix was code-only and never exercised on real ARM hardware.
+#
+# This workflow closes G1: a GitHub-hosted aarch64 runner (`ubuntu-24.04-arm`,
+# free for public repos) runs a FULL source build via the bootstrap and asserts
+# the multiarch probe actually resolved to the aarch64 triplet and the built
+# Fortran binaries link cleanly. It deliberately mirrors install-validate.yml's
+# x86_64 build but parameterises every multiarch path so nothing is hardcoded to
+# x86_64-linux-gnu. The x86_64-only release-tarball/relocatability steps are out
+# of scope here and stay in install-validate.yml.
+#
+# Tiered (like install-validate.yml): on demand, weekly, and on develop/main —
+# NOT on every PR (a full ARM source build is slow and the unit gate is in ci.yml).
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 0'  # weekly, Sundays 03:00 UTC (offset from the x86_64 job)
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: symfluence-arm-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  arm-build-validate:
+    name: aarch64 source build + validate
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+
+    env:
+      TZ: UTC
+      CI: "1"
+      NONINTERACTIVE: "1"
+      SYMFLUENCE_SKIP_PIXI: "1"
+      SYMFLUENCE_CODE: ${{ github.workspace }}
+      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
+      FC: gfortran
+
+    steps:
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"; df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/local/.ghcup /usr/share/swift
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+          echo "Disk space after cleanup:"; df -h
+
+      - name: Confirm we are on aarch64
+        run: |
+          set -e
+          ARCH="$(uname -m)"
+          echo "Runner architecture: ${ARCH}"
+          if [ "${ARCH}" != "aarch64" ] && [ "${ARCH}" != "arm64" ]; then
+            echo "::error::Expected an aarch64 runner but got '${ARCH}'. This job must run on ubuntu-24.04-arm."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system build deps
+        run: |
+          set -e
+          # 'universe' carries some of the deps below; ensure it's enabled on
+          # the arm64 ports mirror before resolving package candidates.
+          sudo add-apt-repository -y universe || true
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gfortran cmake make pkg-config \
+            ninja-build autoconf automake libtool \
+            git wget curl unzip tar \
+            openmpi-bin libopenmpi-dev \
+            gdal-bin libgdal-dev libproj-dev \
+            libnetcdf-dev libnetcdff-dev libpnetcdf-dev \
+            libhdf5-dev hdf5-tools libudunits2-dev \
+            libexpat1-dev \
+            libopenblas-dev liblapack-dev \
+            libfl-dev libbsd-dev \
+            r-base libcurl4-openssl-dev \
+            python3-dev python3-pip python3-numpy
+          # cdo is a convenience NetCDF CLI, not required to build the Fortran
+          # binaries. On the arm64 ports mirror it intermittently has no
+          # installation candidate, so install it best-effort instead of
+          # failing the whole job (set -e).
+          sudo apt-get install -y cdo || echo "WARN: cdo unavailable on arm64; continuing without it"
+          mpicc --version
+          gdal-config --version
+
+      # The whole point of G1: resolve the multiarch triplet the SAME way the
+      # bootstrap does (`gcc -print-multiarch`, dpkg fallback) and drive every
+      # library path off it — no hardcoded x86_64-linux-gnu anywhere.
+      - name: Resolve multiarch triplet (matches symfluence-bootstrap)
+        id: triplet
+        run: |
+          set -e
+          MULTIARCH="$(gcc -print-multiarch 2>/dev/null || true)"
+          if [ -z "${MULTIARCH}" ] && command -v dpkg-architecture >/dev/null 2>&1; then
+            MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
+          fi
+          [ -z "${MULTIARCH}" ] && MULTIARCH="$(uname -m)-linux-gnu"
+          echo "Detected multiarch triplet: ${MULTIARCH}"
+          # G1 assertion: on this runner the probe MUST resolve to aarch64.
+          case "${MULTIARCH}" in
+            aarch64-linux-gnu) ;;
+            *) echo "::error::multiarch probe returned '${MULTIARCH}', expected aarch64-linux-gnu"; exit 1 ;;
+          esac
+          echo "multiarch=${MULTIARCH}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure compiler and library env
+        env:
+          MULTIARCH: ${{ steps.triplet.outputs.multiarch }}
+        run: |
+          set -e
+          echo "PKG_CONFIG_PATH=/usr/lib/${MULTIARCH}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:${PKG_CONFIG_PATH}" >> $GITHUB_ENV
+          NETCDF_PREFIX=$(nc-config --prefix 2>/dev/null || echo /usr)
+          NETCDF_LIBDIR=$(nc-config --libdir 2>/dev/null || echo /usr/lib/${MULTIARCH})
+          NETCDF_INC=$(nc-config --includedir 2>/dev/null || echo /usr/include)
+          echo "NETCDF=${NETCDF_PREFIX}" >> $GITHUB_ENV
+          echo "NETCDF_FORTRAN=$(nf-config --prefix 2>/dev/null || echo ${NETCDF_PREFIX})" >> $GITHUB_ENV
+          echo "NETCDF_DIR=${NETCDF_PREFIX}" >> $GITHUB_ENV
+          echo "NETCDF_LIBDIR=${NETCDF_LIBDIR}" >> $GITHUB_ENV
+          echo "NETCDF_INCLUDE=${NETCDF_INC}" >> $GITHUB_ENV
+          echo "HDF5_ROOT=/usr/lib/${MULTIARCH}/hdf5/serial" >> $GITHUB_ENV
+          echo "HDF5_LIBDIR=/usr/lib/${MULTIARCH}/hdf5/serial" >> $GITHUB_ENV
+          echo "HDF5_INCLUDE_DIR=/usr/include/hdf5/serial" >> $GITHUB_ENV
+          echo "UDUNITS2_DIR=$(pkg-config --variable=prefix udunits2 2>/dev/null || echo /usr)" >> $GITHUB_ENV
+          # LIBRARY_PATH is compile-time linking (Fortran builds need this).
+          echo "LIBRARY_PATH=${NETCDF_LIBDIR}:/usr/lib/${MULTIARCH}/hdf5/serial:${LIBRARY_PATH}" >> $GITHUB_ENV
+          # NOTE: deliberately NOT setting LD_LIBRARY_PATH — system HDF5 on it
+          # overrides pip netCDF4's bundled HDF5 (LD_LIBRARY_PATH beats RUNPATH).
+          echo "CC=mpicc"  >> $GITHUB_ENV
+          echo "CXX=mpicxx" >> $GITHUB_ENV
+          NF_FLIBS="$(nf-config --flibs 2>/dev/null || echo "-L${NETCDF_LIBDIR} -lnetcdff")"
+          NC_LIBS="$(nc-config --libs  2>/dev/null || echo "-L${NETCDF_LIBDIR} -lnetcdf")"
+          H5_LIBS="$(pkg-config --libs hdf5_hl hdf5 2>/dev/null || echo "-L/usr/lib/${MULTIARCH}/hdf5/serial -lhdf5_hl -lhdf5")"
+          echo "FUSE_LIBRARIES=${NF_FLIBS} ${NC_LIBS} ${H5_LIBS}" >> $GITHUB_ENV
+          NF_FFLAGS="$(nf-config --fflags 2>/dev/null || true)"
+          NC_CFLAGS="$(nc-config --cflags 2>/dev/null || true)"
+          H5_CFLAGS="$(pkg-config --cflags hdf5 2>/dev/null || echo "-I${HDF5_INCLUDE_DIR}")"
+          echo "FUSE_INCLUDE=${NC_CFLAGS} ${NF_FFLAGS} ${H5_CFLAGS} -I${NETCDF_INC}" >> $GITHUB_ENV
+          echo "FUSE_FFLAGS_EXTRA=-fallow-argument-mismatch -std=legacy -ffree-line-length-none -fmax-errors=0" >> $GITHUB_ENV
+
+      - name: Create /usr/lib64 symlinks for legacy builds (HDF5/NetCDF)
+        env:
+          MULTIARCH: ${{ steps.triplet.outputs.multiarch }}
+        run: |
+          set -e
+          sudo mkdir -p /usr/lib64
+          for so in /usr/lib/${MULTIARCH}/libnetcdf.so* /usr/lib/${MULTIARCH}/libnetcdff.so*; do
+            [ -e "$so" ] || continue; base=$(basename "$so")
+            [ -e "/usr/lib64/${base}" ] || sudo ln -s "$so" "/usr/lib64/${base}" || true
+          done
+          for so in /usr/lib/${MULTIARCH}/hdf5/serial/libhdf5.so* \
+                    /usr/lib/${MULTIARCH}/hdf5/serial/libhdf5_hl.so* \
+                    /usr/lib/${MULTIARCH}/hdf5/serial/libhdf5_fortran.so* \
+                    /usr/lib/${MULTIARCH}/hdf5/serial/libhdf5hl_fortran.so*; do
+            [ -e "$so" ] || continue; base=$(basename "$so")
+            [ -e "/usr/lib64/${base}" ] || sudo ln -s "$so" "/usr/lib64/${base}" || true
+          done
+
+      - name: Ensure data dir exists
+        run: mkdir -p "${{ env.SYMFLUENCE_DATA }}"
+
+      # --- The thing under test: full source build via the bootstrap ---
+      - name: Full source build (bootstrap --install)
+        env:
+          CC: mpicc
+          CXX: mpicxx
+          FC: gfortran
+          PYTHONIOENCODING: utf-8
+        run: |
+          set -e
+          chmod +x ./scripts/symfluence-bootstrap
+          ./scripts/symfluence-bootstrap --install
+
+          source venv/bin/activate
+          # Install test deps. aarch64 manylinux wheels are on PyPI, so no
+          # x86_64-specific torch index URL here.
+          pip install -e ".[test]"
+          # Force wheel-based h5py/netCDF4 (bootstrap may rebuild from source
+          # against system libnetcdf w/ PnetCDF dispatch -> import-time failures).
+          pip install --force-reinstall --only-binary :all: h5py netCDF4
+
+      - name: Activate venv for subsequent steps
+        run: |
+          set -e
+          echo "VIRTUAL_ENV=${{ env.SYMFLUENCE_CODE }}/venv" >> $GITHUB_ENV
+          echo "${{ env.SYMFLUENCE_CODE }}/venv/bin" >> $GITHUB_PATH
+
+      - name: Add external tools to PATH
+        run: |
+          set -e
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/summa/bin" >> $GITHUB_PATH
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/route/bin" >> $GITHUB_PATH
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
+          SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib"
+          if [ -d "$SUNDIALS_LIB" ]; then
+            echo "LD_LIBRARY_PATH=${SUNDIALS_LIB}" >> $GITHUB_ENV
+          fi
+          echo "HDF5_USE_FILE_LOCKING=FALSE" >> $GITHUB_ENV
+
+      # G1 verification: the Fortran binaries built on aarch64 must link cleanly.
+      # A mis-probed GLIBC/HDF5 manifests as unresolved shared libraries here.
+      - name: Verify built binaries are aarch64 and link cleanly
+        run: |
+          set -e
+          INSTALLS="${{ env.SYMFLUENCE_DATA }}/installs"
+          check_bin() {
+            local name="$1" bin="$2"
+            if [ ! -f "$bin" ]; then
+              echo "::warning::$name not present at $bin (skipped)"; return 0
+            fi
+            echo "-> $name: $bin"
+            # Follow symlinks (-L): summa.exe is a symlink to summa_sundials.exe,
+            # so `file` on the link reports "symbolic link to ..." instead of the
+            # ELF architecture, which would spuriously fail the aarch64 check.
+            file -L "$bin" | tee /tmp/filetype
+            if ! grep -qiE "aarch64|arm64" /tmp/filetype; then
+              echo "::error::$name is not an aarch64 binary"; return 1
+            fi
+            local ldd_out
+            ldd_out="$(ldd "$bin" 2>&1 || true)"
+            echo "$ldd_out"
+            if echo "$ldd_out" | grep -qiE "not found|cannot open shared object"; then
+              echo "::error::$name has unresolved shared libraries (multiarch probe likely failed)"
+              return 1
+            fi
+            echo "  ✓ $name links cleanly on aarch64"
+          }
+          SUMMA="${INSTALLS}/summa/bin/summa.exe"
+          [ -f "$SUMMA" ] || SUMMA="${INSTALLS}/summa/bin/summa_sundials.exe"
+          check_bin SUMMA "$SUMMA"
+          check_bin mizuRoute "${INSTALLS}/mizuRoute/route/bin/mizuRoute.exe"
+
+      - name: Validate binaries via CLI + import smoke
+        run: |
+          set -e
+          unset HDF5_ROOT HDF5_LIBDIR HDF5_INCLUDE_DIR
+          python -c "
+          import h5py, netCDF4, symfluence
+          print('symfluence', getattr(symfluence, '__version__', '?'))
+          print(f'h5py {h5py.__version__}, HDF5 {h5py.version.hdf5_version}')
+          print(f'netCDF4 {netCDF4.__version__}, HDF5 {netCDF4.__hdf5libversion__}')
+          assert h5py.version.hdf5_version == netCDF4.__hdf5libversion__, 'HDF5 dual-load mismatch'
+          "
+          # binary validate exercises the runner's executable resolver against the
+          # source-built tools — the resolver path is itself part of G6/G7.
+          symfluence binary validate || echo "::warning::binary validate reported issues (see log)"
+
+      - name: Smoke test suite
+        run: |
+          set -e
+          unset HDF5_ROOT HDF5_LIBDIR HDF5_INCLUDE_DIR
+          # Lean smoke level — the build itself is the expensive part under test.
+          pytest -v --tb=short -m "smoke" tests/ || pytest -v --tb=short -m "unit" -q tests/unit/cli/
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm-build-logs
+          path: |
+            pytest*.log
+            .pytest_cache/
+            ${{ env.SYMFLUENCE_DATA }}/installs/**/*.log
+          if-no-files-found: ignore

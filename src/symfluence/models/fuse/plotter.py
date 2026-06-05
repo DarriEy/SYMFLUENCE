@@ -12,12 +12,12 @@ from typing import List, Optional, Tuple
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
-@PlotterRegistry.register_plotter('FUSE')
+@R.plotters.add('FUSE')
 class FUSEPlotter(BasePlotter):
     """
     Plotter for FUSE model outputs.
@@ -116,7 +116,7 @@ class FUSEPlotter(BasePlotter):
             return self._save_and_close(fig, plot_filename)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in FUSEPlotter.plot_streamflow: {str(e)}")
+            self.logger.error(f"Error in FUSEPlotter.plot_streamflow: {str(e)}", exc_info=True)
             return None
 
     def plot(self, **kwargs) -> Optional[str]:

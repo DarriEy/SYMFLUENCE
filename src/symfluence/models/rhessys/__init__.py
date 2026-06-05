@@ -86,9 +86,12 @@ from symfluence.core.registry import model_manifest
 from .config import RHESSysConfigAdapter
 from .extractor import RHESSysResultExtractor
 
-model_manifest(
-    "RHESSYS",
-    config_adapter=RHESSysConfigAdapter,
-    result_extractor=RHESSysResultExtractor,
-    build_instructions_module="symfluence.models.rhessys.build_instructions",
-)
+
+def register() -> None:
+    """Register RHESSYS components with the unified registry."""
+    model_manifest(
+        "RHESSYS",
+        config_adapter=RHESSysConfigAdapter,
+        result_extractor=RHESSysResultExtractor,
+        build_instructions_module="symfluence.models.rhessys.build_instructions",
+    )

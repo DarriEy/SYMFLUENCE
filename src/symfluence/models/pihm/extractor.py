@@ -18,13 +18,13 @@ from typing import Dict, List
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_result_extractor("PIHM")
+@R.result_extractors.add("PIHM")
 class PIHMResultExtractor(ModelResultExtractor):
     """
     Extracts results from PIHM output files.

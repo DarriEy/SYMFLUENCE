@@ -21,13 +21,14 @@ import pandas as pd
 import xarray as xr
 import yaml
 
+from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor, TimeWindowManager
 
 
-@ModelRegistry.register_preprocessor('NGEN')
+@R.preprocessors.add('NGEN')
 class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for NextGen Framework.
@@ -191,20 +192,14 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self._include_snow17 = False
 
     def _detect_npm_lib_dir(self) -> Optional[Path]:
-        """Detect the npm-installed symfluence dist/lib/ directory."""
-        import subprocess as _sp
-        try:
-            result = _sp.run(
-                ["npm", "root", "-g"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                lib_dir = Path(result.stdout.strip()) / "symfluence" / "dist" / "lib"
-                if lib_dir.is_dir():
-                    return lib_dir
-        except (FileNotFoundError, OSError, _sp.TimeoutExpired, _sp.SubprocessError):
-            pass
-        return None
+        """Detect the npm-installed symfluence dist/lib/ directory.
+
+        Delegates to the shared :func:`symfluence.core.npm_bundle.npm_bundle_lib`
+        locator (single source of truth for the bundle location).
+        """
+        from symfluence.core.npm_bundle import npm_bundle_lib
+
+        return npm_bundle_lib()
 
     def _resolve_ngen_lib_paths(self) -> Dict[str, Path]:
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
@@ -767,7 +762,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if actual_end < extended_end_time:
             # Check if padding will overlap the actual simulation period (not just buffer)
             if actual_end < end_time:
-                raise ValueError(
+                raise ModelExecutionError(
                     f"Forcing data ends at {actual_end} but simulation requires data until {end_time}. "
                     f"Padding within the simulation period would produce invalid results. "
                     f"Please provide forcing data that extends to at least {end_time}."
@@ -880,7 +875,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Verify directory exists before proceeding
         if not csv_dir.exists():
-            raise OSError(f"Failed to create directory: {csv_dir}")
+            raise ModelExecutionError(f"Failed to create directory: {csv_dir}")
 
         self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
@@ -907,19 +902,20 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             df = pd.DataFrame(cols)
 
-            # Precipitation unit handling depends on whether NOAH is enabled:
-            # - NOAH-OWP expects mm/s (kg m-2 s-1), outputs QINSUR in mm/s to CFE
+            # Precipitation unit handling depends on active module chain:
+            # - NOAH-OWP/SNOW17/SAC-SMA expect mm/s (kg m-2 s-1)
             # - CFE standalone expects mm/h for direct precipitation input
-            # When NOAH is enabled, keep precip in mm/s; otherwise convert to mm/h for CFE
+            # Convert to mm/h only for pure CFE mode; otherwise keep mm/s.
             precip_col = 'atmosphere_water__liquid_equivalent_precipitation_rate'
             if precip_col in df:
-                if not self._include_noah:
-                    # CFE standalone: convert mm/s → mm/h
+                use_mm_per_s = self._include_noah or self._include_snow17 or self._include_sacsma
+                if not use_mm_per_s:
+                    # Pure CFE mode: convert mm/s → mm/h
                     df[precip_col] = df[precip_col] * 3600.0
                     self.logger.debug("Converted precipitation to mm/h for CFE standalone mode")
                 else:
-                    # NOAH enabled: keep in mm/s (NOAH's expected unit)
-                    self.logger.debug("Keeping precipitation in mm/s for NOAH-OWP")
+                    # NOAH/SNOW17/SAC-SMA chain: keep in mm/s
+                    self.logger.debug("Keeping precipitation in mm/s (NOAH/SNOW17/SAC-SMA mode)")
 
             # Note: Do NOT add AORC-style aliases (APCP_surface, precip_rate).
             # These map to the same CSDMS canonical name via WellKnownFields in ngen,
@@ -934,7 +930,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 missing_wind_vars.append('northward_wind (V-component of wind)')
 
             if missing_wind_vars:
-                raise ValueError(
+                raise ModelExecutionError(
                     f"Missing required wind components for NGEN: {', '.join(missing_wind_vars)}\n"
                     f"Wind data is required for PET and NOAH-OWP energy balance calculations.\n"
                     f"Available forcing variables: {list(forcing_data.data_vars)}\n"
@@ -1145,7 +1141,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         try:
             river_gdf = gpd.read_file(river_network_file)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to read river network: {e}")
+            self.logger.warning(f"Failed to read river network: {e}", exc_info=True)
             return None
 
         seg_id_col = self._get_config_value(
@@ -1304,7 +1300,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 gpkg_file = None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to create hydrofabric GeoPackage: {e}. Using GeoJSON only.")
+            self.logger.warning(f"Failed to create hydrofabric GeoPackage: {e}. Using GeoJSON only.", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             gpkg_file = None

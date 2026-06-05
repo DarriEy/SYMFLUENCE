@@ -26,14 +26,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .targets import CoupledGWStreamflowTarget  # noqa: F401 - triggers target registration
 from .worker import CoupledGWWorker  # noqa: F401 - triggers worker registration
 
 
-@OptimizerRegistry.register_optimizer('COUPLED_GW')
+@R.optimizers.add('COUPLED_GW')
 class CoupledGWModelOptimizer(BaseModelOptimizer):
     """Optimizer for coupled land-surface + MODFLOW calibration.
 

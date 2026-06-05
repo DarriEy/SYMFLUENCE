@@ -88,6 +88,26 @@ dependencies:
       msys2: make
       hpc_module: make
 
+  pkg_config:
+    display_name: pkg-config
+    category: build_toolchain
+    required: true
+    needed_for: [summa, fuse, mizuroute, mesh, vic, clm, ngen, taudem]
+    check:
+      command: pkg-config
+      version_flag: "--version"
+      version_regex: "(\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: [pkgconf]
+    packages:
+      apt: pkg-config
+      dnf: pkgconf-pkg-config
+      brew: pkg-config
+      conda: pkg-config
+      conda_win: pkg-config
+      msys2: mingw-w64-x86_64-pkg-config
+      hpc_module: pkg-config
+    notes: "Required to locate HDF5/NetCDF/PROJ/GEOS/OpenBLAS during source builds."
+
   # ── Core Libraries ──────────────────────────────────────────────────
 
   netcdf:
@@ -379,6 +399,67 @@ dependencies:
       hpc_module: julia
     notes: "Required for Wflow (wflow_sbm). Install from https://julialang.org/downloads/"
 
+  boost:
+    display_name: Boost C++ Libraries
+    category: optional
+    required: false
+    needed_for: [ngen]
+    check:
+      command: ""
+      version_flag: ""
+      version_regex: ""
+      conda_header: include/boost/version.hpp
+    packages:
+      apt: libboost-all-dev
+      dnf: boost-devel
+      brew: boost
+      conda: boost
+      conda_win: boost
+      msys2: mingw-w64-x86_64-boost
+      hpc_module: boost
+    notes: "Header dependency for NextGen (ngen) and some geospatial builds."
+
+  expat:
+    display_name: Expat XML
+    category: optional
+    required: false
+    needed_for: [gistool, datatool, taudem]
+    check:
+      command: ""
+      version_flag: ""
+      version_regex: ""
+      pkg_config: expat
+      conda_header: include/expat.h
+    packages:
+      apt: libexpat1-dev
+      dnf: expat-devel
+      brew: expat
+      conda: expat
+      conda_win: expat
+      msys2: mingw-w64-x86_64-expat
+      hpc_module: expat
+    notes: "XML parser pulled in transitively by GDAL/PROJ; declared so it can be auto-installed."
+
+  wget:
+    display_name: Wget
+    category: optional
+    required: false
+    needed_for: [datatool, gistool]
+    check:
+      command: wget
+      version_flag: "--version"
+      version_regex: "Wget (\\d+\\.\\d+(?:\\.\\d+)?)"
+      alternatives: [curl]
+    packages:
+      apt: wget
+      dnf: wget
+      brew: wget
+      conda: wget
+      conda_win: wget
+      msys2: wget
+      hpc_module: wget
+    notes: "Used by datatool/gistool fetch scripts (curl is an accepted alternative)."
+
 # ── Tool Requirements ──────────────────────────────────────────────────
 #
 # Maps each buildable tool to its system dependency requirements.
@@ -388,15 +469,15 @@ dependencies:
 tool_requirements:
 
   summa:
-    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas, mpi]
+    required: [cmake, gfortran, make, pkg_config, netcdf, netcdf_fortran, hdf5, blas, mpi]
     optional: []
 
   fuse:
-    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas]
+    required: [cmake, gfortran, make, pkg_config, netcdf, netcdf_fortran, hdf5, blas]
     optional: []
 
   mizuroute:
-    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, mpi]
+    required: [cmake, gfortran, make, pkg_config, netcdf, netcdf_fortran, hdf5, mpi]
     optional: []
 
   sundials:
@@ -404,23 +485,23 @@ tool_requirements:
     optional: []
 
   taudem:
-    required: [cmake, gcc, mpi, gdal, proj, geos]
-    optional: []
+    required: [cmake, gcc, mpi, pkg_config, gdal, proj, geos]
+    optional: [expat]
 
   gistool:
     required: [gdal, proj]
-    optional: [udunits2, cdo]
+    optional: [udunits2, cdo, expat, wget]
 
   datatool:
     required: [gdal]
-    optional: [udunits2, cdo]
+    optional: [udunits2, cdo, expat, wget]
 
   ngen:
-    required: [cmake, gcc, make, netcdf, hdf5, mpi]
-    optional: []
+    required: [cmake, gcc, make, pkg_config, netcdf, hdf5, mpi]
+    optional: [boost]
 
   mesh:
-    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, blas, mpi]
+    required: [cmake, gfortran, make, pkg_config, netcdf, netcdf_fortran, hdf5, blas, mpi]
     optional: []
 
   rhessys:
@@ -428,11 +509,11 @@ tool_requirements:
     optional: []
 
   vic:
-    required: [gcc, gfortran, make, netcdf, mpi]
+    required: [gcc, gfortran, make, pkg_config, netcdf, mpi]
     optional: []
 
   clm:
-    required: [cmake, gfortran, make, netcdf, netcdf_fortran, hdf5, mpi, perl]
+    required: [cmake, gfortran, make, pkg_config, netcdf, netcdf_fortran, hdf5, mpi, perl]
     optional: []
 
   hype:

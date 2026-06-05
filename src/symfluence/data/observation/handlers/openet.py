@@ -91,7 +91,7 @@ class OpenETHandler(BaseObservationHandler):
                 if df is not None and not df.empty:
                     all_data.append(df)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {csv_file.name}: {e}")
+                self.logger.warning(f"Failed to process {csv_file.name}: {e}", exc_info=True)
 
         if not all_data:
             self.logger.warning("No OpenET data could be processed")
@@ -125,7 +125,7 @@ class OpenETHandler(BaseObservationHandler):
         try:
             df = pd.read_csv(csv_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Could not parse {csv_file}: {e}")
+            self.logger.warning(f"Could not parse {csv_file}: {e}", exc_info=True)
             return None
 
         # Standardize column names
@@ -181,5 +181,5 @@ class OpenETHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading OpenET data: {e}")
+            self.logger.error(f"Error loading OpenET data: {e}", exc_info=True)
             return None

@@ -15,11 +15,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('GNN')
+@R.postprocessors.add('GNN')
 class GNNPostprocessor(StandardModelPostprocessor):
     """
     Handles post-processing of GNN model results.
@@ -270,7 +270,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
                 return self.save_streamflow_to_results(data.to_pandas())
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}")
+            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

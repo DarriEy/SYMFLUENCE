@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, TextIO, Union
 
+from symfluence.core.exceptions import ConfigValidationError
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -145,7 +146,7 @@ class ControlFileWriter(ConfigurableMixin):
         """
         model_type = model_type.lower()
         if model_type not in MODEL_CONFIGS:
-            raise ValueError(f"Unknown model type: {model_type}. Expected one of: {list(MODEL_CONFIGS.keys())}")
+            raise ConfigValidationError(f"Unknown model type: {model_type}. Expected one of: {list(MODEL_CONFIGS.keys())}")
 
         model_config = MODEL_CONFIGS[model_type]
         mizu_config = mizu_config or {}
@@ -318,6 +319,26 @@ class ControlFileWriter(ConfigurableMixin):
             domain_name=self.domain_name
         )
 
+        # Self-heal a stale/incorrect runoff variable name (analogous to the FUSE
+        # path, PR #69). A config carrying a FUSE-style 'q_routed' in a SUMMA run
+        # otherwise produces a control file mizuRoute cannot read ("Variable not
+        # found"). When the model output already exists — routing runs after the
+        # model — detect the variable that is actually present and override.
+        detected_var = self._detect_runoff_variable(model_config, routing_var)
+        if detected_var and detected_var != routing_var:
+            self.logger.warning(
+                f"mizuRoute control: configured runoff variable '{routing_var}' not found in "
+                f"{model_config.comment_name} output; using detected variable '{detected_var}'. "
+                f"Resetting runoff units/dt to {model_config.comment_name} defaults "
+                f"('{model_config.default_units}', {model_config.default_dt}s)."
+            )
+            routing_var = detected_var
+            # The configured variable name was wrong for this model, so any units/dt
+            # overrides alongside it are equally untrustworthy — fall back to the
+            # model's known-good defaults to avoid a silent magnitude error.
+            routing_units = model_config.default_units
+            routing_dt = model_config.default_dt
+
         # Determine HRU dimension/variable (can be overridden for distributed SUMMA)
         hru_dim = model_config.hru_dim
         hru_var = model_config.hru_var
@@ -335,6 +356,48 @@ class ControlFileWriter(ConfigurableMixin):
         cf.write(f"<dname_hruid>           {hru_dim}     ! Dimension name for HM_HRU ID \n")
         cf.write(f"<vname_hruid>           {hru_var}   ! Variable name for HM_HRU ID \n")
         cf.write("<calendar>              standard    ! Calendar of the nc file \n")
+
+    def _detect_runoff_variable(self, model_config: ModelRunoffConfig, configured_var: str) -> Optional[str]:
+        """Return the runoff variable actually present in the model output file.
+
+        Inspects the source model's runoff NetCDF and reconciles it with the
+        configured ``SETTINGS_MIZU_ROUTING_VAR``. This is the SUMMA-side analogue
+        of the FUSE runner's variable self-healing (PR #69).
+
+        Returns:
+            - ``configured_var`` if it exists in the output (respect user config),
+            - a detected variable name if ``configured_var`` is absent,
+            - ``None`` if the output file is unavailable — e.g. the control file is
+              written during preprocessing, before the model has run — in which
+              case the caller keeps the configured value.
+        """
+        try:
+            from symfluence.models.utilities.runoff_loader import (
+                detect_runoff_variable,
+                resolve_runoff_file,
+            )
+
+            # output_dir_name ('SUMMA'/'FUSE'/'GR'/'NGEN') is the canonical source
+            # key understood by both resolve_runoff_file and detect_runoff_variable.
+            source_model = model_config.output_dir_name
+            runoff_file = resolve_runoff_file(
+                source_model=source_model,
+                project_dir=self.project_dir,
+                experiment_id=self.experiment_id,
+                domain_name=self.domain_name,
+                config=self.config,
+            )
+            if not runoff_file or not runoff_file.exists():
+                return None
+
+            import xarray as xr
+            with xr.open_dataset(runoff_file, decode_times=False) as ds:
+                if configured_var in ds.data_vars:
+                    return configured_var
+                return detect_runoff_variable(ds, source_model=source_model)
+        except Exception as e:  # noqa: BLE001 — detection is best-effort; keep config on failure
+            self.logger.debug(f"Runoff variable auto-detection skipped: {e}")
+            return None
 
     def _write_remapping(self, cf: TextIO, mizu_config: Dict[str, Any]) -> None:
         """Write runoff remapping section."""

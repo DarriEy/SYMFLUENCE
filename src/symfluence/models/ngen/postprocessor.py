@@ -15,11 +15,11 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('NGEN')
+@R.postprocessors.add('NGEN')
 class NgenPostprocessor(StandardModelPostprocessor):
     """
     Postprocessor for NextGen Framework outputs.
@@ -134,7 +134,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
                     all_streamflow.append(df)
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Error processing {nexus_file}: {e}")
+                self.logger.error(f"Error processing {nexus_file}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -234,7 +234,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
             })
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading {nexus_file}: {e}")
+            self.logger.error(f"Error reading {nexus_file}: {e}", exc_info=True)
             return None
 
     def _calculate_nse(self, observed: np.ndarray, simulated: np.ndarray) -> float:

@@ -12,11 +12,11 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 
-@PlotterRegistry.register_plotter('HYPE')
+@R.plotters.add('HYPE')
 class HYPEPlotter(BasePlotter):
     """
     Plotter for HYPE model outputs.
@@ -64,7 +64,7 @@ class HYPEPlotter(BasePlotter):
             return self._save_and_close(fig, plot_file)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error in HYPEPlotter.plot_streamflow: {str(e)}")
+            self.logger.error(f"Error in HYPEPlotter.plot_streamflow: {str(e)}", exc_info=True)
             return None
 
     def plot(self, **kwargs) -> Optional[str]:

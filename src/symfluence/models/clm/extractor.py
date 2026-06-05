@@ -14,8 +14,8 @@ from typing import Dict, List, Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ CLM_VARIABLES = {
 }
 
 
-@ModelRegistry.register_result_extractor("CLM")
+@R.result_extractors.add("CLM")
 class CLMResultExtractor(ModelResultExtractor):
     """
     Extracts results from CLM5 history output.

@@ -317,6 +317,7 @@ src/symfluence/data/observation/handlers/ssebop.py:SSEBopHandler._process_netcdf
 src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.acquire:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.get_processed_data:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/observation/handlers/viirs_snow.py:VIIRSSnowHandler.process:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/preprocessing/attribute_processor.py:attributeProcessor._process_plugin_attributes:except Exception as e:  # noqa: BLE001 — a plugin must not break attribute processing
 src/symfluence/data/preprocessing/attribute_processor.py:attributeProcessor.process_attributes:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/preprocessing/attribute_processor.py:attributeProcessor.process_profile_attributes:except Exception as e:  # noqa: BLE001
 src/symfluence/data/preprocessing/attribute_processors/elevation.py:ElevationProcessor.generate_slope_and_aspect:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -325,6 +326,7 @@ src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyPro
 src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyProcessor.calculate_streamflow_signatures:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/hydrology.py:HydrologyProcessor.calculate_water_balance:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/landcover.py:LandCoverProcessor._process_lai_from_netcdf:except Exception as e:  # noqa: BLE001
+src/symfluence/data/preprocessing/attribute_processors/plugins.py:discover_attribute_plugins:except Exception as exc:  # noqa: BLE001 - a bad plugin must not break the run
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._check_and_set_nodata_value:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._read_scale_and_offset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/dataset_alignment_manager.py:DatasetAlignmentManager._align_single_dataset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -388,6 +390,8 @@ src/symfluence/data/preprocessing/resampling/weight_applier.py:RemappingWeightAp
 src/symfluence/data/preprocessing/resampling/weight_applier.py:RemappingWeightApplier.apply_weights:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._align_longitudes:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._detect_variables:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._maybe_rename_with_handler:except Exception as e:  # noqa: BLE001 — defensive guard
+src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._maybe_rename_with_handler:except Exception as e:  # noqa: BLE001 — defensive guard
 src/symfluence/data/preprocessing/resampling/weight_generator.py:RemappingWeightGenerator._move_output_files:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/weight_generator.py:_run_easmore_with_suppressed_output:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager._validate_existing_wgs84:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -782,7 +786,7 @@ src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exce
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exception:  # noqa: BLE001
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor._create_qobs_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/visualizer.py:visualize_hype:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/ignacio/__init__.py:<module>:except Exception:  # noqa: BLE001 — optional dependency
+src/symfluence/models/ignacio/__init__.py:register:except Exception:  # noqa: BLE001 — optional dependency
 src/symfluence/models/ignacio/calibration/parameter_manager.py:IGNACIOParameterManager.update_model_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker._compute_spatial_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -905,6 +909,7 @@ src/symfluence/models/mixins/observation_loader.py:ObservationLoaderMixin.load_s
 src/symfluence/models/mixins/subprocess_execution.py:SubprocessExecutionMixin.execute_model_subprocess:except Exception as read_error:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mizuroute/calibration/optimizer.py:MizuRouteModelOptimizer._get_simulation_results:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mizuroute/calibration/optimizer.py:MizuRouteModelOptimizer._update_model_parameters:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/models/mizuroute/control_writer.py:ControlFileWriter._detect_runoff_variable:except Exception as e:  # noqa: BLE001 — detection is best-effort; keep config on failure
 src/symfluence/models/mizuroute/runner.py:MizuRouteRunner.fix_time_precision:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/mizuroute/runner.py:MizuRouteRunner.sync_control_file_dimensions:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mizuroute/topology_generator.py:MizuRouteTopologyGenerator._find_closest_segment_to_pour_point:except Exception as e:  # noqa: BLE001 — model execution resilience

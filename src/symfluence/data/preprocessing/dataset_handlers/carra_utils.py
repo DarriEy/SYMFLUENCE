@@ -226,7 +226,7 @@ class CARRAHandler(BaseDatasetHandler):
                     self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
                     self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}")
+                    self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}", exc_info=True)
                     self.logger.warning("Will create shapefile for full domain (may be slow)")
 
             # Create geometries

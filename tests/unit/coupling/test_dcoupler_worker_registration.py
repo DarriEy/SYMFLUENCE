@@ -7,6 +7,8 @@ import numpy as np
 import pytest
 import torch
 
+from symfluence.core.registries import R
+
 
 class TestDCouplerWorkerRegistration:
     """Test that DCouplerWorker is properly registered with OptimizerRegistry."""
@@ -14,16 +16,14 @@ class TestDCouplerWorkerRegistration:
     def test_registry_returns_dcoupler_worker(self):
         # Import triggers registration via decorator
         from symfluence.coupling.worker import DCouplerWorker
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        worker_cls = OptimizerRegistry.get_worker('DCOUPLER')
+        worker_cls = R.workers.get('DCOUPLER')
         assert worker_cls is DCouplerWorker
 
     def test_dcoupler_in_worker_list(self):
         from symfluence.coupling.worker import DCouplerWorker  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        workers = OptimizerRegistry.list_workers()
+        workers = R.workers.keys()
         assert 'DCOUPLER' in workers
 
 

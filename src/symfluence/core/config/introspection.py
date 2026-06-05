@@ -169,18 +169,32 @@ def generate_flat_to_nested_map(
                     issubclass(base_type, BaseModel)):
                     walk_model(base_type, (section_name,))
 
+    # Model-specific configs are no longer static ModelConfig fields; they are
+    # registered dynamically in ``R.config_schemas`` (in-tree at import, plugins
+    # at bootstrap). Walk each schema under the ('model', <name>) prefix so their
+    # flat-key aliases (e.g. SUMMA_EXE -> ('model', 'summa', 'exe')) are still
+    # discovered for the flat<->nested transform.
+    try:
+        from symfluence.core.registries import R
+        for schema_name, schema_cls in R.config_schemas.items():
+            if isinstance(schema_cls, type) and issubclass(schema_cls, BaseModel):
+                walk_model(schema_cls, ('model', schema_name.lower()))
+    except (ImportError, KeyError, AttributeError, TypeError, ValueError, RuntimeError) as e:
+        logger.debug(f"Could not walk R.config_schemas for model aliases: {e}")
+
     # Add model-specific transformer overrides if requested
     if include_model_overrides:
         try:
-            from symfluence.models.registries.config_registry import ConfigRegistry
+            from symfluence.core.registries import R
+            from symfluence.models.config_resolution import get_config_transformers
 
             # Get all registered model names from config adapters
-            model_names = list(ConfigRegistry._config_adapters.keys())
+            model_names = list(R.config_adapters.keys())
 
             for model_name in model_names:
                 try:
                     # Get model-specific transformers via adapter fallback
-                    model_transformers = ConfigRegistry.get_config_transformers(model_name)
+                    model_transformers = get_config_transformers(model_name)
 
                     if model_transformers:
                         # Override base mappings with model-specific ones

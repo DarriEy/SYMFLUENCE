@@ -44,8 +44,15 @@ class GUICommands(BaseCommand):
         port = BaseCommand.get_arg(args, 'port', 5006)
         no_browser = BaseCommand.get_arg(args, 'no_browser', False)
         demo = BaseCommand.get_arg(args, 'demo', None)
+        address = BaseCommand.get_arg(args, 'address', '127.0.0.1')
 
-        BaseCommand._console.info(f"Launching SYMFLUENCE GUI on port {port}...")
+        from symfluence.gui import is_loopback_address
+
+        BaseCommand._console.info(f"Launching SYMFLUENCE GUI on {address}:{port}...")
+        if not is_loopback_address(address):
+            BaseCommand._console.indent(
+                f"Warning: binding to {address} exposes the GUI on the network."
+            )
         if demo:
             BaseCommand._console.indent(f"Demo mode: {demo}")
         if config_path:
@@ -56,6 +63,7 @@ class GUICommands(BaseCommand):
             port=port,
             show=not no_browser,
             demo=demo,
+            address=address,
         )
 
         return ExitCode.SUCCESS

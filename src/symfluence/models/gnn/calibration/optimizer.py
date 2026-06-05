@@ -12,10 +12,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_optimizer('GNN')
+# NOTE: GNN is a self-training model — its weights are learned during the run
+# step (run_gnn), not via an external DDS/PSO parameter search. It therefore
+# registers no optimizer/worker; OptimizationManager skips it (see
+# _SELF_TRAINING_MODELS). This class is retained but intentionally not registered.
 class GNNModelOptimizer(BaseModelOptimizer):
     """
     GNN-specific optimizer using the unified BaseModelOptimizer framework.

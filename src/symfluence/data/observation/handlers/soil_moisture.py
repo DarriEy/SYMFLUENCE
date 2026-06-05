@@ -565,7 +565,7 @@ class SMOSSMHandler(BaseObservationHandler):
 
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Error processing SMOS file {nc_file.name}: {e}")
+                self.logger.warning(f"Error processing SMOS file {nc_file.name}: {e}", exc_info=True)
                 continue
 
         if not all_data:
@@ -737,7 +737,7 @@ class ASCATSMHandler(BaseObservationHandler):
 
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Error processing ASCAT file {nc_file.name}: {e}")
+                self.logger.warning(f"Error processing ASCAT file {nc_file.name}: {e}", exc_info=True)
                 continue
 
         if not all_data:

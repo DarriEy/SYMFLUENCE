@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.registries import R
 
 # Reuse ParFlow's .pfidb utilities and parameter constants
 from symfluence.models.parflow.calibration.parameter_manager import (
@@ -44,7 +45,6 @@ from symfluence.models.parflow.calibration.parameter_manager import (
     _write_pfidb,
 )
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Same physically-based parameter bounds as ParFlow
 CLMPARFLOW_DEFAULT_BOUNDS = {
@@ -133,7 +133,7 @@ CLMPARFLOW_DEFAULT_BOUNDS = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('CLMPARFLOW')
+@R.parameter_managers.add('CLMPARFLOW')
 class CLMParFlowParameterManager(BaseParameterManager):
     """Handles CLMParFlow parameter bounds, normalization, and .pfidb file updates."""
 
@@ -234,7 +234,7 @@ class CLMParFlowParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update .pfidb: {e}")
+            self.logger.error(f"Failed to update .pfidb: {e}", exc_info=True)
             return False
 
     def _update_snow17_forcing(
@@ -334,7 +334,7 @@ class CLMParFlowParameterManager(BaseParameterManager):
                     )
                     return params
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.debug(f"Could not read initial params from .pfidb: {e}")
+                self.logger.debug(f"Could not read initial params from .pfidb: {e}", exc_info=True)
 
         # Fallback to physically-reasonable defaults
         defaults = {

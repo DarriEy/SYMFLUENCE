@@ -18,14 +18,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.spatial_modes import SpatialMode
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CRHM")
+@R.preprocessors.add("CRHM")
 class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a CRHM model run.
@@ -85,7 +85,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"CRHM preprocessing failed: {e}")
+            logger.error(f"CRHM preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -140,7 +140,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         # Defaults for cold-region catchment
         return {
@@ -182,7 +182,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_ds = self._load_forcing_data()
             self._write_obs_file(forcing_ds, obs_path, start_date, end_date)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load forcing data: {e}, using synthetic")
+            logger.warning(f"Could not load forcing data: {e}, using synthetic", exc_info=True)
             self._generate_synthetic_obs(obs_path, start_date, end_date)
 
         logger.info(f"Observation file written: {obs_path}")

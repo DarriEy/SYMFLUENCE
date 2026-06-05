@@ -15,12 +15,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 from symfluence.models.base import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('LSTM')
+@R.postprocessors.add('LSTM')
 class LSTMPostprocessor(StandardModelPostprocessor):
     """
     Handles postprocessing for the LSTM model.
@@ -76,7 +76,7 @@ class LSTMPostprocessor(StandardModelPostprocessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}")
+            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

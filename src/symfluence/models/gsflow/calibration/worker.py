@@ -18,12 +18,12 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('GSFLOW')
+@R.workers.add('GSFLOW')
 class GSFLOWWorker(BaseWorker):
     """Worker for GSFLOW model calibration."""
 
@@ -72,7 +72,7 @@ class GSFLOWWorker(BaseWorker):
 
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying GSFLOW parameters: {e}")
+            self.logger.error(f"Error applying GSFLOW parameters: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -111,7 +111,7 @@ class GSFLOWWorker(BaseWorker):
             self.logger.debug(f"Updated MODFLOW UPW: {params}")
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating UPW: {e}")
+            self.logger.error(f"Error updating UPW: {e}", exc_info=True)
             return False
 
     @staticmethod
@@ -149,7 +149,7 @@ class GSFLOWWorker(BaseWorker):
             param_file.write_text('####\n'.join(updated_blocks), encoding='utf-8')
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating parameter file: {e}")
+            self.logger.error(f"Error updating parameter file: {e}", exc_info=True)
             return False
 
     def _replace_block_values(self, block: str, param_name: str, value: float) -> str:
@@ -249,7 +249,7 @@ class GSFLOWWorker(BaseWorker):
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running GSFLOW: {e}")
+            self.logger.error(f"Error running GSFLOW: {e}", exc_info=True)
             return False
 
     def _localize_control_paths(self, settings_dir: Path, sim_dir: Path,
@@ -370,7 +370,7 @@ class GSFLOWWorker(BaseWorker):
                 obs_aligned, sim_aligned, metrics=['kge', 'nse']
             )
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating GSFLOW metrics: {e}")
+            self.logger.error(f"Error calculating GSFLOW metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     def _extract_streamflow_from_statvar(self, statvar_file: Path) -> Optional[pd.Series]:
@@ -394,7 +394,7 @@ class GSFLOWWorker(BaseWorker):
                 return pd.Series(values, index=dates, name='GSFLOW_discharge_cms')
             return None
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error extracting GSFLOW streamflow: {e}")
+            self.logger.error(f"Error extracting GSFLOW streamflow: {e}", exc_info=True)
             return None
 
     @staticmethod

@@ -12,10 +12,10 @@ Integrated Hydrologic Model. Pre-compiled binaries may be available for
 Linux and macOS.
 """
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('pihm')
+@R.build_instructions.add('pihm')
 def get_pihm_build_instructions():
     """
     Get PIHM (MM-PIHM) build/install instructions.

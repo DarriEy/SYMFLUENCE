@@ -18,6 +18,8 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.path_resolver import find_catchment_subfile
 from symfluence.data.utils.variable_utils import VariableHandler
 
 from ..spatial_modes import SpatialMode
@@ -149,7 +151,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             # Read and process forcing data
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
             if not forcing_files:
-                raise FileNotFoundError("No forcing files found in basin-averaged data directory")
+                raise FileOperationError("No forcing files found in basin-averaged data directory")
 
             variable_handler = VariableHandler(
                 config=self.config,
@@ -169,7 +171,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             elif spatial_mode == SpatialMode.DISTRIBUTED:
                 ds = self._prepare_distributed_forcing(ds)
             else:
-                raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+                raise ModelExecutionError(f"Unknown FUSE spatial mode: {spatial_mode}")
 
             # Resample to target resolution AFTER spatial organization
             self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
@@ -286,7 +288,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."
-            )
+            , exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return ds.mean(dim='hru')
@@ -415,7 +417,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             return pet
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}")
+            self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}", exc_info=True)
             catchment = gpd.read_file(self.catchment_path)
             mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             return self._calculate_pet(ds['temp'], mean_lat, pet_method)
@@ -482,10 +484,17 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
     def _load_subcatchment_data(self) -> np.ndarray:
         """Load subcatchment information for semi-distributed mode"""
-        # Check if delineated catchments exist (for distributed routing)
-        delineated_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.domain_name}_catchment_delineated.shp"
+        # Check if delineated catchments exist (for distributed routing).
+        # Discretization writes this under the nested experiment layout.
+        delineated_path = find_catchment_subfile(
+            self.project_dir / 'shapefiles',
+            self.domain_definition_method,
+            self.experiment_id,
+            f"{self.domain_name}_catchment_delineated.shp",
+            logger=self.logger,
+        )
 
-        if delineated_path.exists():
+        if delineated_path is not None:
             self.logger.info("Using delineated subcatchments")
             subcatchments = gpd.read_file(delineated_path)
             return subcatchments['GRU_ID'].values.astype(int)

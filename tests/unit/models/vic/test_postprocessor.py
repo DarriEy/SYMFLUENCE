@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
+from symfluence.core.registries import R
+
 
 class TestVICPostProcessorImport:
     """Tests for VIC postprocessor import and registration."""
@@ -15,13 +17,11 @@ class TestVICPostProcessorImport:
         assert VICPostProcessor is not None
 
     def test_postprocessor_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'VIC' in ModelRegistry._postprocessors
+        assert 'VIC' in R.postprocessors
 
     def test_postprocessor_is_correct_class(self):
-        from symfluence.models.registry import ModelRegistry
         from symfluence.models.vic.postprocessor import VICPostProcessor
-        assert ModelRegistry._postprocessors.get('VIC') == VICPostProcessor
+        assert R.postprocessors.get('VIC') == VICPostProcessor
 
     def test_model_name(self):
         from symfluence.models.vic.postprocessor import VICPostProcessor

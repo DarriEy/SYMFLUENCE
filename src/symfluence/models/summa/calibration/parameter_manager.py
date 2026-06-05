@@ -21,12 +21,12 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.profiling import ProfilerContext
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_depth_bounds, get_mizuroute_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('SUMMA')
+@R.parameter_managers.add('SUMMA')
 class SUMMAParameterManager(BaseParameterManager):
     """
     Parameter manager for SUMMA model calibration.
@@ -608,7 +608,7 @@ class SUMMAParameterManager(BaseParameterManager):
                             self.logger.error(f"Could not parse bounds for {param_name}: {str(e)}")
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading parameter file {file_path}: {str(e)}")
+            self.logger.error(f"Error reading parameter file {file_path}: {str(e)}", exc_info=True)
 
         return bounds
 
@@ -682,7 +682,7 @@ class SUMMAParameterManager(BaseParameterManager):
                             except ValueError:
                                 continue
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error parsing defaults from {file_path}: {str(e)}")
+            self.logger.error(f"Error parsing defaults from {file_path}: {str(e)}", exc_info=True)
 
         return defaults
 
@@ -719,7 +719,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return expanded_defaults
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error expanding defaults: {str(e)}")
+            self.logger.error(f"Error expanding defaults: {str(e)}", exc_info=True)
             return defaults
 
     def _expand_to_hru_count(self, value: float) -> np.ndarray:
@@ -749,7 +749,7 @@ class SUMMAParameterManager(BaseParameterManager):
                     return ds.variables['mLayerDepth'][:, 0].copy()
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error loading original depths: {str(e)}")
+            self.logger.error(f"Error loading original depths: {str(e)}", exc_info=True)
 
         return None
 
@@ -789,7 +789,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating soil depths: {str(e)}")
+            self.logger.error(f"Error updating soil depths: {str(e)}", exc_info=True)
             return False
 
     def _calculate_new_depths(self, total_mult: float, shape_factor: float) -> Optional[np.ndarray]:
@@ -857,7 +857,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating mizuRoute parameters: {str(e)}")
+            self.logger.error(f"Error updating mizuRoute parameters: {str(e)}", exc_info=True)
             return False
 
     # ========================================================================
@@ -934,7 +934,7 @@ class SUMMAParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error generating trial params file: {str(e)}")
+            self.logger.error(f"Error generating trial params file: {str(e)}", exc_info=True)
             return False
 
 

@@ -16,18 +16,18 @@ from typing import Optional, Tuple
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ConfigValidationError
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
 
 # Local imports
-from symfluence.models.registry import ModelRegistry
-
 from .attributes_manager import SummaAttributesManager
 from .config_manager import SummaConfigManager
 from .forcing_processor import SummaForcingProcessor
 from .glacier_manager import GlacierAttributesManager
 
 
-@ModelRegistry.register_preprocessor('SUMMA')
+@R.preprocessors.add('SUMMA')
 class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
@@ -197,7 +197,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     project_dir=self.project_dir
                 )
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.debug(f"Glacier manager initialization skipped: {e}")
+                self.logger.debug(f"Glacier manager initialization skipped: {e}", exc_info=True)
                 return None
         return self._glacier_manager
 
@@ -296,7 +296,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self._create_glacier_files()
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Glacier preprocessing failed: {e}")
+            self.logger.warning(f"Glacier preprocessing failed: {e}", exc_info=True)
             self.logger.info("Continuing without glacier-specific files - using base SUMMA configuration")
             # Don't raise - allow the workflow to continue without glacier files
 
@@ -511,7 +511,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             start_year = sim_start.split('-')[0] if sim_start != 'default' else None
             end_year = sim_end.split('-')[0] if sim_end != 'default' else None
             if not start_year or not end_year:
-                raise ValueError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
+                raise ConfigValidationError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
             sim_start = f"{start_year}-01-01 01:00" if sim_start == 'default' else sim_start
             sim_end = f"{end_year}-12-31 22:00" if sim_end == 'default' else sim_end
 
@@ -547,7 +547,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             datetime.strptime(sim_start, "%Y-%m-%d %H:%M")
             datetime.strptime(sim_end, "%Y-%m-%d %H:%M")
         except ValueError:
-            raise ValueError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'") from None
+            raise ConfigValidationError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'") from None
 
         return sim_start, sim_end
 
@@ -579,7 +579,7 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     else:
                         times = pd.to_datetime(time_raw)
             except Exception as exc:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Failed to read forcing times from {forcing_file}: {exc}")
+                self.logger.warning(f"Failed to read forcing times from {forcing_file}: {exc}", exc_info=True)
                 continue
 
             if len(times) == 0:

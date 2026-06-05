@@ -206,7 +206,8 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
 
             # Extract shapefile components
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
 
             # Remove zip to save space
             zip_path.unlink(missing_ok=True)
@@ -220,7 +221,7 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
             return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to download HydroLAKES: {e}")
+            self.logger.error(f"Failed to download HydroLAKES: {e}", exc_info=True)
             self.logger.info(
                 "Manual download: visit https://www.hydrosheds.org/products/hydrolakes\n"
                 f"  Place the extracted shapefile in: {cache_dir}"

@@ -15,12 +15,12 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('HYPE')
+@R.parameter_managers.add('HYPE')
 class HYPEParameterManager(BaseParameterManager):
     """Handles HYPE parameter bounds, normalization, and file updates"""
 
@@ -185,7 +185,7 @@ class HYPEParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     # ========================================================================
@@ -244,7 +244,7 @@ class HYPEParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating par.txt: {e}")
+            self.logger.error(f"Error updating par.txt: {e}", exc_info=True)
             return False
 
     def _get_default_initial_values(self) -> Dict[str, float]:

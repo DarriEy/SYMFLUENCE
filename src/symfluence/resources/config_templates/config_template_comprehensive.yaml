@@ -224,6 +224,33 @@ NGEN_NOAH_PARAM_BOUNDS: null
 #   Source:      NGENConfig (model_configs.py)
 NGEN_PET_PARAM_BOUNDS: null
 
+# NGEN_SNOW17_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SNOW17_PARAM_BOUNDS: null
+
+# NGEN_SACSMA_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SACSMA_PARAMS_TO_CALIBRATE: "UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE"
+
+# NGEN_SNOW17_PARAMS_TO_CALIBRATE
+#   Description: SNOW-17 parameters to calibrate. The hyphenated NGEN_SNOW-17_PARAMS_TO_CALIBRATE
+#                form is accepted as a backward-compatible alias.
+#   Type:        str
+#   Default:     SCF,MFMAX,MFMIN,TIPM,PLWHC
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SNOW17_PARAMS_TO_CALIBRATE: "SCF,MFMAX,MFMIN,TIPM,PLWHC"
+
+# NGEN_CSV_OUTPUT_IS_FLOW
+#   Description: Whether NGEN CSV output column represents flow (m3/s) rather than depth.
+#   Type:        bool
+#   Default:     False
+#   Source:      NGENConfig (model_configs.py)
+NGEN_CSV_OUTPUT_IS_FLOW: false
+
 # NGEN_EXE
 #   Type:        str
 #   Default:     ngen
@@ -5266,6 +5293,12 @@ CLM_INSTALL_PATH: default
 #   Default:     cesm.exe
 #   Source:      CLMConfig (model_configs.py)
 CLM_EXE: cesm.exe
+
+# CLM_CESM_INPUTDATA_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+CLM_CESM_INPUTDATA_PATH: default
 
 # SETTINGS_CLM_PATH
 #   Type:        str

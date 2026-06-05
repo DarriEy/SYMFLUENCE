@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class FireDefParams:
     windmax: float = 1.0
 
 
-@ModelRegistry.register_postprocessor('WMFire')
+@R.postprocessors.add('WMFire')
 class WMFirePostProcessor:
     """
     PostProcessor for WMFire fire spread simulation results.
@@ -164,7 +164,7 @@ class WMFirePostProcessor:
                 return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"WMFire postprocessing failed: {e}")
+            self.logger.error(f"WMFire postprocessing failed: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -218,7 +218,7 @@ class WMFirePostProcessor:
                 windmax=params.get('windmax', 1.0),
             )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error creating FireDefParams: {e}")
+            self.logger.error(f"Error creating FireDefParams: {e}", exc_info=True)
             return None
 
     def _parse_fire_sizes(self) -> List[FireEvent]:
@@ -257,7 +257,7 @@ class WMFirePostProcessor:
                                 continue
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error parsing {fsf}: {e}")
+                self.logger.warning(f"Error parsing {fsf}: {e}", exc_info=True)
 
         return events
 
@@ -295,7 +295,7 @@ class WMFirePostProcessor:
             except ImportError:
                 self.logger.warning("rasterio not available, using default metadata")
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error reading patch_grid.tif: {e}")
+                self.logger.warning(f"Error reading patch_grid.tif: {e}", exc_info=True)
 
         # Fall back to text file dimensions
         if metadata['n_rows'] is None:

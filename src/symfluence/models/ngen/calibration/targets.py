@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 
@@ -214,7 +215,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     return flow_series.sort_index()
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading t-route outputs: {e}")
+            self.logger.error(f"Error reading t-route outputs: {e}", exc_info=True)
             self.logger.warning("Falling back to raw nexus outputs")
 
         return pd.Series(dtype=float)
@@ -267,7 +268,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             self._nexus_areas_cache = nexus_areas
             return nexus_areas
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error loading catchment areas: {e}")
+            self.logger.warning(f"Error loading catchment areas: {e}", exc_info=True)
             self._nexus_areas_cache = {}
             return {}
 
@@ -367,7 +368,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 )
                 all_streamflow.append(s)
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Error reading {nexus_file}: {e}")
+                self.logger.error(f"Error reading {nexus_file}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -423,13 +424,16 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         if cfg_area:
             return float(cfg_area)
 
-        domain_dir = self.project_dir
-        shp_dir = domain_dir / "shapefiles" / "catchment"
-        if not shp_dir.exists():
-            return 100.0
-
-        candidates = sorted(shp_dir.glob("*HRUs_GRUs.shp")) + sorted(shp_dir.glob("*.shp"))
-        shp_path = next((p for p in candidates if p.exists()), None)
+        # Shared finder handles the nested layout and GRUs/GRUS casing drift
+        # (the old glob "*HRUs_GRUs.shp" was case-sensitive and non-recursive).
+        shp_path = find_basin_shapefile(
+            self.project_dir / "shapefiles",
+            self.domain_name,
+            self.domain_definition_method,
+            self.experiment_id,
+            include_river_basins=False,
+            logger=self.logger,
+        )
         if not shp_path:
             return 100.0
 
@@ -441,5 +445,5 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             area_km2 = float(gdf.geometry.area.sum() / 1e6)
             return area_km2
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error calculating catchment area from {shp_path}: {e}")
+            self.logger.warning(f"Error calculating catchment area from {shp_path}: {e}", exc_info=True)
             return 100.0

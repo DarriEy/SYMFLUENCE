@@ -11,11 +11,11 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager("LISFLOOD")
+@R.parameter_managers.add("LISFLOOD")
 class LisfloodParameterManager(BaseParameterManager):
     """Handles LISFLOOD parameter bounds, normalization, and file updates.
 

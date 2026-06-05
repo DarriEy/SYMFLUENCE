@@ -23,11 +23,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor("CWATM")
+@R.preprocessors.add("CWATM")
 class CWatMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Prepares inputs for a CWatM model run.
 

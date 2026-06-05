@@ -233,7 +233,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return grid_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating grid from bounding box: {str(e)}")
+            self.logger.error(f"Error creating grid from bounding box: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -299,7 +299,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return clipped
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error clipping grid to watershed: {str(e)}")
+            self.logger.error(f"Error clipping grid to watershed: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return grid_gdf
@@ -350,7 +350,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return d8_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error computing D8 flow directions: {str(e)}")
+            self.logger.error(f"Error computing D8 flow directions: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -447,7 +447,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return grid_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error extracting D8 topology: {str(e)}")
+            self.logger.error(f"Error extracting D8 topology: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             # Set all cells as outlets on error
@@ -546,7 +546,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return grid_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error adding grid attributes: {str(e)}")
+            self.logger.error(f"Error adding grid attributes: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             # Add default values on error
@@ -608,7 +608,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return network_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating river network: {str(e)}")
+            self.logger.error(f"Error creating river network: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             # Return empty network on error
@@ -772,7 +772,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return grid_gdf
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error creating native grid: {str(e)}")
+            self.logger.error(f"Error creating native grid: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -919,7 +919,7 @@ class GridDelineator(BaseGeofabricDelineator):
             return clipped
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error subsetting grid from geofabric: {str(e)}")
+            self.logger.error(f"Error subsetting grid from geofabric: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None

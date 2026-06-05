@@ -12,13 +12,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('CLMPARFLOW')
+@R.workers.add('CLMPARFLOW')
 class CLMParFlowWorker(BaseWorker):
     """
     Parallel worker for CLMParFlow model calibration.
@@ -95,7 +95,7 @@ class CLMParFlowWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to apply CLMParFlow parameters: {e}")
+            self.logger.error(f"Failed to apply CLMParFlow parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -127,7 +127,7 @@ class CLMParFlowWorker(BaseWorker):
             return result is not None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running CLMParFlow in worker: {e}")
+            self.logger.error(f"Error running CLMParFlow in worker: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -160,7 +160,7 @@ class CLMParFlowWorker(BaseWorker):
                 return {'kge': self.penalty_score}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating CLMParFlow metrics: {e}")
+            self.logger.error(f"Error calculating CLMParFlow metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}

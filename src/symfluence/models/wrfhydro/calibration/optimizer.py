@@ -11,13 +11,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import WRFHydroWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('WRFHYDRO')
+@R.optimizers.add('WRFHYDRO')
 class WRFHydroModelOptimizer(BaseModelOptimizer):
     """
     WRF-Hydro-specific optimizer using the unified BaseModelOptimizer framework.
@@ -137,7 +137,7 @@ class WRFHydroModelOptimizer(BaseModelOptimizer):
             return final_result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in final evaluation: {e}")
+            self.logger.error(f"Error in final evaluation: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None

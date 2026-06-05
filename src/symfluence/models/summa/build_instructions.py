@@ -16,10 +16,11 @@ land surface model that uses SUNDIALS for solving differential equations.
 
 import sys
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('summa')
+@R.build_instructions.add('summa')
 def get_summa_build_instructions():
     """
     Get SUMMA build instructions.

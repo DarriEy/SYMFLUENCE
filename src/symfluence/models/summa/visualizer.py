@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('SUMMA')
+@R.visualizers.add('SUMMA')
 def visualize_summa(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize SUMMA model outputs.

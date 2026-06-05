@@ -14,15 +14,15 @@ rainfall-runoff modeling framework.
 """
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_hdf5_detection,
     get_netcdf_detection,
     get_netcdf_lib_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('fuse')
+@R.build_instructions.add('fuse')
 def get_fuse_build_instructions():
     """
     Get FUSE build instructions.

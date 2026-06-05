@@ -20,13 +20,13 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 from ..parameters import PARAM_BOUNDS, PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 
 
-@OptimizerRegistry.register_parameter_manager('SWAT')
+@R.parameter_managers.add('SWAT')
 class SWATParameterManager(BaseParameterManager):
     """Handles SWAT parameter bounds, normalization, and file updates.
 
@@ -145,7 +145,7 @@ class SWATParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating SWAT parameter files: {e}")
+            self.logger.error(f"Error updating SWAT parameter files: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -195,7 +195,7 @@ class SWATParameterManager(BaseParameterManager):
                 self.logger.debug(f"Updated basin file: {bsn_file}")
 
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Error updating {bsn_file}: {e}")
+                self.logger.error(f"Error updating {bsn_file}: {e}", exc_info=True)
                 return False
 
         return True
@@ -248,7 +248,7 @@ class SWATParameterManager(BaseParameterManager):
                     f.writelines(new_lines)
 
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Error updating {target_file}: {e}")
+                self.logger.error(f"Error updating {target_file}: {e}", exc_info=True)
                 success = False
 
         self.logger.debug(f"Updated {len(target_files)} {ext} files")
@@ -364,7 +364,7 @@ class SWATParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _read_param_from_file(self, param_name: str, ext: str) -> Optional[float]:
@@ -434,5 +434,5 @@ class SWATParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying TxtInOut to {worker_txtinout_dir}: {e}")
+            self.logger.error(f"Error copying TxtInOut to {worker_txtinout_dir}: {e}", exc_info=True)
             return False

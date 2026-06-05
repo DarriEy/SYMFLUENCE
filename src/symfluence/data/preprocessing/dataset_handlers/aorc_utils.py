@@ -45,7 +45,11 @@ class AORCHandler(BaseDatasetHandler):
         Uses centralized VariableStandardizer for consistency across the codebase.
         """
         standardizer = VariableStandardizer(self.logger)
-        return standardizer.get_rename_map('AORC')
+        mapping = standardizer.get_rename_map('AORC')
+        # Accept NWM3-native variable names when forcing.dataset is AORC but
+        # users provide pre-staged NWM3 files via forcing_path.
+        mapping.update(standardizer.get_rename_map('NWM3_RETROSPECTIVE'))
+        return mapping
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
@@ -188,7 +192,7 @@ class AORCHandler(BaseDatasetHandler):
 
             if any(k in units_no_space for k in accum_keywords):
                 p_rate = p / dt_seconds
-            elif any(k in units_no_space for k in ['kgm-2s-1', 'kgm^-2s^-1', 'kg/m^2s']):
+            elif any(k in units_no_space for k in ['kgm-2s-1', 'kgm^-2s^-1', 'kg/m^2s', 'mm/s']):
                 p_rate = p    # already a rate
             else:
                 self.logger.warning(
@@ -317,11 +321,16 @@ class AORCHandler(BaseDatasetHandler):
         # CloudForcingDownloader._download_aorc currently writes:
         #   <DOMAIN_NAME>_AORC_<startYear>-<endYear>.nc
         # e.g., paradise_AORC_2000-2002.nc
-        # but we also support potential future patterns.
+        # but we also support potential future patterns and NWM3-style
+        # pre-staged forcing names when forcing.dataset is configured as AORC.
         patterns = [
             f"{self.domain_name}_AORC_*.nc",          # paradise_AORC_2000-2002.nc (current)
             f"domain_{self.domain_name}_AORC_*.nc",   # domain_paradise_AORC_*.nc (future-proof)
             "*AORC*.nc",                              # last-resort catch-all
+            f"{self.domain_name}_NWM3_forcing_*.nc",  # domain-specific NWM3 naming
+            f"domain_{self.domain_name}_NWM3_*.nc",   # alternate domain-prefixed NWM3 naming
+            "*NWM3*forcing*.nc",                      # common NWM3 forcing naming
+            "*NWM3*.nc",                              # broad NWM3 catch-all
         ]
 
         files: list[Path] = []
@@ -370,7 +379,7 @@ class AORCHandler(BaseDatasetHandler):
             try:
                 ds = xr.open_dataset(f, engine="h5netcdf")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error opening AORC file {f}: {e}")
+                self.logger.error(f"Error opening AORC file {f}: {e}", exc_info=True)
                 continue
 
             try:
@@ -398,7 +407,7 @@ class AORCHandler(BaseDatasetHandler):
                 ds_proc.to_netcdf(out_name, engine="h5netcdf")
                 self.logger.info(f"Saved processed AORC forcing: {out_name}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error processing AORC dataset from {f}: {e}")
+                self.logger.error(f"Error processing AORC dataset from {f}: {e}", exc_info=True)
             finally:
                 ds.close()
 

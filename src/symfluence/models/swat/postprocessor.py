@@ -16,11 +16,12 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_postprocessor('SWAT')
+@R.postprocessors.add('SWAT')
 class SWATPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for the SWAT model.
@@ -90,7 +91,7 @@ class SWATPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting SWAT streamflow: {str(e)}")
+            self.logger.error(f"Error extracting SWAT streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 
@@ -203,5 +204,5 @@ class SWATPostProcessor(StandardModelPostprocessor):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error parsing output.rch: {e}")
+            self.logger.error(f"Error parsing output.rch: {e}", exc_info=True)
             return None

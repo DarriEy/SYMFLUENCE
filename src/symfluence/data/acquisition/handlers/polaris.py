@@ -179,7 +179,7 @@ class POLARISAcquirer(BaseAcquisitionHandler, RetryMixin):
                             self.logger.warning(
                                 f"Failed to download POLARIS tile {tile_name} "
                                 f"for {variable}/{depth}: {e}"
-                            )
+                            , exc_info=True)
                             continue
 
                 if not tile_paths:
