@@ -92,7 +92,9 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "SETTINGS_TROUTE_TOPOLOGY": ("model", "troute", "topology_file"),
     "SETTINGS_TROUTE_CONFIG_FILE": ("model", "troute", "config_file"),
     "SETTINGS_TROUTE_DT_SECONDS": ("model", "troute", "dt_seconds"),
-    "SETTINGS_DROUTE_PATH": ("model", "droute", "settings_path"),
+    # NOTE: SETTINGS_DROUTE_PATH is NOT declared here — dRoute is an external plugin package
+    # (like the JAX models) and declares its own config aliases via DRouteConfig +
+    # model_manifest(config_schema=...). Keeping it here would duplicate the plugin's declaration.
     "SETTINGS_FUSE_PATH": ("model", "fuse", "settings_path"),
     "SETTINGS_GR_PATH": ("model", "gr", "settings_path"),
     "SETTINGS_GSFLOW_PATH": ("model", "gsflow", "settings_path"),

@@ -59,78 +59,10 @@ class MizuRouteConfig(BaseModel):
         return str(v)
 
 
-class DRouteConfig(BaseModel):
-    """dRoute routing model configuration (EXPERIMENTAL)
-
-    dRoute is a C++ river routing library with Python bindings that offers:
-    - Multiple routing methods (Muskingum-Cunge, IRF, Lag, Diffusive Wave, KWT)
-    - Native automatic differentiation for gradient-based calibration
-    - mizuRoute-compatible network topology format
-    """
-    model_config = FROZEN_CONFIG
-
-    # Execution settings
-    execution_mode: Literal['python', 'subprocess'] = Field(
-        default='python',
-        alias='DROUTE_EXECUTION_MODE',
-        description='Execution mode: python API (preferred) or subprocess fallback'
-    )
-    install_path: str = Field(default='default', alias='DROUTE_INSTALL_PATH')
-    exe: str = Field(default='droute', alias='DROUTE_EXE')
-    settings_path: str = Field(default='default', alias='SETTINGS_DROUTE_PATH')
-
-    # Routing configuration
-    routing_method: Literal['muskingum_cunge', 'irf', 'lag', 'diffusive_wave', 'kwt'] = Field(
-        default='muskingum_cunge',
-        alias='DROUTE_ROUTING_METHOD',
-        description='Routing scheme to use'
-    )
-    routing_dt: int = Field(
-        default=3600,
-        alias='DROUTE_ROUTING_DT',
-        ge=60,
-        le=86400,
-        description='Routing timestep in seconds'
-    )
-
-    # Gradient/AD settings
-    enable_gradients: bool = Field(
-        default=False,
-        alias='DROUTE_ENABLE_GRADIENTS',
-        description='Enable automatic differentiation for gradient-based calibration'
-    )
-    ad_backend: Literal['codipack', 'enzyme'] = Field(
-        default='codipack',
-        alias='DROUTE_AD_BACKEND',
-        description='AD backend (requires dRoute compiled with AD support)'
-    )
-
-    # Topology configuration
-    topology_file: str = Field(default='topology.nc', alias='DROUTE_TOPOLOGY_FILE')
-    topology_format: Literal['netcdf', 'geojson', 'csv'] = Field(
-        default='netcdf',
-        alias='DROUTE_TOPOLOGY_FORMAT'
-    )
-    config_file: str = Field(default='droute_config.yaml', alias='DROUTE_CONFIG_FILE')
-
-    # Integration settings
-    from_model: str = Field(
-        default='default',
-        alias='DROUTE_FROM_MODEL',
-        description='Source model for runoff input (SUMMA, FUSE, GR, etc.)'
-    )
-
-    # Output settings
-    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_DROUTE')
-    experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_DROUTE')
-
-    # Calibration settings
-    params_to_calibrate: str = Field(
-        default='velocity,diffusivity',
-        alias='DROUTE_PARAMS_TO_CALIBRATE'
-    )
-    calibrate: bool = Field(default=False, alias='CALIBRATE_DROUTE')
-    timeout: int = Field(default=3600, alias='DROUTE_TIMEOUT', ge=60, le=86400)
+# NOTE: DRouteConfig moved to the external ``droute`` package (python/droute/config.py) and is
+# registered with SYMFLUENCE via ``model_manifest(config_schema=DRouteConfig)`` in
+# ``droute.register()`` — matching the JAX-model plugin pattern where the model package owns its
+# own typed config schema.
 
 
 class TRouteConfig(BaseModel):
@@ -227,6 +159,5 @@ class TRouteConfig(BaseModel):
 
 __all__ = [
     'MizuRouteConfig',
-    'DRouteConfig',
     'TRouteConfig',
 ]
