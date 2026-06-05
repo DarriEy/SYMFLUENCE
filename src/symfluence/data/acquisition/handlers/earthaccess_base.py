@@ -18,6 +18,7 @@ References:
 - earthaccess: https://github.com/nsidc/earthaccess
 - CMR API: https://cmr.earthdata.nasa.gov/search/
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

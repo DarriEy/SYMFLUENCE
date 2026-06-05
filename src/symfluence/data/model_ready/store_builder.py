@@ -7,6 +7,7 @@ Orchestrator for building the complete model-ready data store.
 Coordinates ``ForcingsStoreBuilder``, ``ObservationsNetCDFBuilder``,
 and ``AttributesNetCDFBuilder`` into a single ``build_all()`` entry point.
 """
+from __future__ import annotations
 
 import logging
 import os

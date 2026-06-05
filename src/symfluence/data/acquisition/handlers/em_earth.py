@@ -7,6 +7,7 @@ EM-Earth climate forcing data acquisition from AWS S3.
 Provides automated download of EM-Earth reanalysis data with support for
 deterministic and probabilistic variants, multi-year coverage, and spatial subsetting.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

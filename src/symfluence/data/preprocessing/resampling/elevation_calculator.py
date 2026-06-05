@@ -6,6 +6,7 @@ Elevation Calculator
 
 Calculates elevation statistics for geometries using DEM data.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

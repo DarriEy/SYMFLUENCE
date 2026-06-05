@@ -15,6 +15,7 @@ via the AcquisitionRegistry and support various data sources including:
 - GRACE/GRACE-FO (PO.DAAC)
 - NEX-GDDP-CMIP6 (NASA THREDDS)
 """
+from __future__ import annotations
 
 import logging as _logging
 from typing import Any

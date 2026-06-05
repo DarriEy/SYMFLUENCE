@@ -22,6 +22,8 @@ References:
 - VNP10A1F: https://nsidc.org/data/vnp10a1f
 - earthaccess: https://github.com/nsidc/earthaccess
 """
+from __future__ import annotations
+
 import re
 import time
 from datetime import datetime, timedelta

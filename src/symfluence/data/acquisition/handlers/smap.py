@@ -24,6 +24,7 @@ Note:
     granules directly from the cloud, extracting only the pixels within
     the bounding box. This avoids downloading full global files (~600MB each).
 """
+from __future__ import annotations
 
 import re
 from pathlib import Path

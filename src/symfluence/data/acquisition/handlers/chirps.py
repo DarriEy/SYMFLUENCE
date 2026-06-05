@@ -22,6 +22,7 @@ Data Access:
 URL Structure:
     https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p05/
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List

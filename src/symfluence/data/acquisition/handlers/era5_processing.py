@@ -7,6 +7,7 @@ ERA5 Processing Utilities for SYMFLUENCE.
 This module provides shared functions for processing ERA5 data from both
 ARCO (Google Cloud Zarr) and CDS (Copernicus Climate Data Store) pathways.
 """
+from __future__ import annotations
 
 import logging
 from typing import Optional

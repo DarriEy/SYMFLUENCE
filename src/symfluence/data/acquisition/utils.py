@@ -10,6 +10,7 @@ Provides common utilities for data acquisition handlers:
 - Atomic file operations
 - Credential resolution
 """
+from __future__ import annotations
 
 import logging
 import netrc

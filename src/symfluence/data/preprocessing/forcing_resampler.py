@@ -178,6 +178,7 @@ See Also:
     - FileProcessor: Batch file processing
     - DataManager: High-level data workflow coordination
 """
+from __future__ import annotations
 
 import logging
 import multiprocessing as mp

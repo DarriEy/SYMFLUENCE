@@ -33,6 +33,7 @@ References:
       river systems. Hydrological Processes, 27(15), 2171-2186.
     - Lehner, B. (2014). HydroBASINS Technical Documentation. WWF.
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

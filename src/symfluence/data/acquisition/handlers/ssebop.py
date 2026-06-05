@@ -23,6 +23,7 @@ URL Patterns:
     CONUS: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/uswem/web/conus/
     Global: https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/fews/web/global/
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path

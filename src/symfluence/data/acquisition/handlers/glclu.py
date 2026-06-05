@@ -28,6 +28,7 @@ References:
     within natural land cover using Landsat data. Environ. Res. Lett.,
     17, 034050.
 """
+from __future__ import annotations
 
 import math
 from pathlib import Path

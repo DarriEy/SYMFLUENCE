@@ -7,6 +7,7 @@ EM-Earth data integrator for remapping and basin averaging.
 Handles EM-Earth reanalysis data processing including spatial remapping,
 basin-averaged value calculations, and temporal alignment.
 """
+from __future__ import annotations
 
 import calendar
 import logging

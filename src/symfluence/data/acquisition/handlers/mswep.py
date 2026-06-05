@@ -30,6 +30,8 @@ References:
     Beck, H.E., et al. (2019). MSWEP V2 Global 3-Hourly 0.1 deg Precipitation.
     Bull. Am. Meteorol. Soc., 100, 473-500.
 """
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess

@@ -14,6 +14,7 @@ This module handles:
 - Padding datasets with fill values or last valid values
 - Reindexing datasets to common time coordinates
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, List, Optional, Tuple, Union

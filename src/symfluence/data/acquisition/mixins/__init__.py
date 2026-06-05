@@ -9,6 +9,7 @@ Provides reusable mixin classes for data acquisition handlers:
 - ChunkedDownloadMixin: Temporal chunking and parallel downloads
 - SpatialSubsetMixin: Spatial subsetting operations
 """
+from __future__ import annotations
 
 from .chunked import ChunkedDownloadMixin
 from .retry import RetryMixin

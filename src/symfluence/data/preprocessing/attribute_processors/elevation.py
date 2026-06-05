@@ -6,6 +6,7 @@ Elevation attribute processor.
 
 Handles DEM processing, slope/aspect generation, and elevation statistics calculation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

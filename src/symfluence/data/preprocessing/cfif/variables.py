@@ -20,6 +20,7 @@ Standard Units (SI-based, CF-compliant):
     - Humidity: kg kg-1 (specific) or % (relative)
     - Wind: m s-1 (meters per second)
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, List, Optional

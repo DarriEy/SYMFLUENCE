@@ -17,6 +17,7 @@ JRC Global Surface Water Overview:
 Output Format:
     CSV with spatial statistics: mean, std, min, max water occurrence/extent
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

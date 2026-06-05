@@ -13,6 +13,7 @@ residence time, and upstream drainage area.
 
 Data source: https://www.hydrosheds.org/products/hydrolakes
 """
+from __future__ import annotations
 
 import logging
 import zipfile

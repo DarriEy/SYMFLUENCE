@@ -7,6 +7,7 @@ Hydrology attribute processor.
 Handles water balance calculations, streamflow signatures, baseflow analysis,
 and river network characteristics.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

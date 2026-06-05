@@ -30,6 +30,7 @@ Usage:
     handler.merge_forcings(...)
     handler.create_shapefile(...)
 """
+from __future__ import annotations
 
 import importlib as _importlib
 import logging as _logging

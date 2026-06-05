@@ -209,6 +209,7 @@ See Also:
     - AttributeProcessors: Downstream processing of extracted attributes
     - DataManager: High-level data workflow coordination
 """
+from __future__ import annotations
 
 import gc
 import warnings

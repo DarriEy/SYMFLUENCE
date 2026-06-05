@@ -8,6 +8,7 @@ preprocessing. Keeps orchestration thin while services handle the heavy
 lifting. See docs under ``docs/source/configuration`` and ``docs/source/data``
 for full workflows.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional

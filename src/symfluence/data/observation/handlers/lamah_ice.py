@@ -8,6 +8,8 @@ Provides handlers for LamaH-ICE (Iceland) streamflow data, with
 optional auto-download from HydroShare when the local dataset is
 missing.
 """
+from __future__ import annotations
+
 import logging
 import shutil
 import zipfile

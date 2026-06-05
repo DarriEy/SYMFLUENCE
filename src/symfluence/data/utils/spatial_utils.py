@@ -19,6 +19,7 @@ Usage:
     # xarray operations
     ds_subset = subset_xarray_to_bbox(ds, bbox, lat_dim='latitude', lon_dim='longitude')
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

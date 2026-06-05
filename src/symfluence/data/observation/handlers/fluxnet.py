@@ -12,6 +12,8 @@ Provides flux tower observations for ET calibration:
 
 Wraps the FLUXNET acquisition handler for the observation pipeline.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional

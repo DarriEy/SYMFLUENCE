@@ -6,6 +6,7 @@ Remapping Weight Generator
 
 Creates EASYMORE remapping weights for forcing data.
 """
+from __future__ import annotations
 
 import gc
 import logging

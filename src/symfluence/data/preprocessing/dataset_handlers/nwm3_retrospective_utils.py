@@ -18,6 +18,7 @@ Variable mapping (NWM3 → CFIF):
     U2D      → eastward_wind
     V2D      → northward_wind
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

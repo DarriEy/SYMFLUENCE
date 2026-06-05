@@ -11,6 +11,7 @@ Handles land cover and vegetation attributes including:
 - Irrigation attributes
 - Composite ecological groupings and diversity metrics
 """
+from __future__ import annotations
 
 import pickle  # nosec B403
 from pathlib import Path
