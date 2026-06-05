@@ -7,6 +7,7 @@ Regression tests for external build-tool registrations.
 Pins reproducibility-critical properties (e.g. TauDEM pinned to a tagged
 release) so that accidental reversions to floating HEAD are caught in CI.
 """
+from __future__ import annotations
 
 import pytest
 

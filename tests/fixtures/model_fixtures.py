@@ -3,6 +3,7 @@ Model Fixtures for SYMFLUENCE Tests
 
 Provides fixtures for model execution and validation.
 """
+from __future__ import annotations
 
 import pytest
 

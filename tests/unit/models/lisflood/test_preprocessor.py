@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Tests for LISFLOOD model preprocessor."""
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import Mock, PropertyMock, patch

@@ -4,6 +4,7 @@ Tests for Model Result Extractors.
 Verifies that model-specific result extraction adapters are properly
 registered and provide expected interfaces.
 """
+from __future__ import annotations
 
 import pytest
 

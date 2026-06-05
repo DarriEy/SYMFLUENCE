@@ -11,6 +11,8 @@ Additional fixtures are loaded via pytest_plugins from tests/fixtures/.
 # The HDF5 library reads this environment variable at initialization time,
 # so if any import loads libhdf5 before this is set, it's too late.
 # ============================================================================
+from __future__ import annotations
+
 import os
 import sys
 

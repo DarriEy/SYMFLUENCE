@@ -7,6 +7,7 @@ Synthetic pipeline:
   4. Run post-adapter (map back, export to toFews/)
   5. Verify toFews/ contains valid output + diagnostics
 """
+from __future__ import annotations
 
 import textwrap
 

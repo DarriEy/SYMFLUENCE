@@ -1,4 +1,5 @@
 """Tests for PCR-GLOBWB result extractor."""
+from __future__ import annotations
 
 
 class TestPCRGLOBWBResultExtractor:

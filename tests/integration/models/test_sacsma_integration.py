@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Integration tests for SAC-SMA + Snow-17 model in SYMFLUENCE framework."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

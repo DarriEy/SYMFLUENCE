@@ -1,4 +1,5 @@
 """Tests for symfluence.core.provenance."""
+from __future__ import annotations
 
 import json
 import platform

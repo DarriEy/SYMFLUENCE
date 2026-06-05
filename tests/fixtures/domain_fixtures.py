@@ -3,6 +3,7 @@ Domain Fixtures for SYMFLUENCE Tests
 
 Provides fixtures for domain creation and management.
 """
+from __future__ import annotations
 
 import pytest
 

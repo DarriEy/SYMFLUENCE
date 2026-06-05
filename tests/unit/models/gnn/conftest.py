@@ -1,6 +1,7 @@
 """
 Shared fixtures for GNN model tests.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

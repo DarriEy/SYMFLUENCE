@@ -11,6 +11,8 @@ Tests will be skipped if the API is not accessible.
 
 These tests require internet access to the Hub'Eau API.
 """
+from __future__ import annotations
+
 import shutil
 import tempfile
 from datetime import datetime

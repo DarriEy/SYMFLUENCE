@@ -7,6 +7,7 @@ Tests the shared NASA Earthdata Cloud functionality:
 - Earthaccess download orchestration
 - Granule counting utility
 """
+from __future__ import annotations
 
 import json
 from pathlib import Path

@@ -1,4 +1,5 @@
 """Tests for VIC configuration adapter."""
+from __future__ import annotations
 
 import pytest
 

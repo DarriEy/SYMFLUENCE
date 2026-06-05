@@ -1,6 +1,7 @@
 """
 Tests for GNN result extractor.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 

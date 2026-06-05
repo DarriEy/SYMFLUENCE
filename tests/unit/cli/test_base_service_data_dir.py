@@ -7,6 +7,7 @@ Covers the cwd-inference + writability-validation behaviour added so that
 ``symfluence binary install`` lands in a deterministic, writable location for
 ad-hoc installs, while preserving the explicit env/config/repo-sibling paths.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Unit tests for GeometryProcessor.remove_spikes / despike_geodataframe."""
+from __future__ import annotations
 
 import pytest
 

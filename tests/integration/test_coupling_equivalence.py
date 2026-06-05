@@ -8,6 +8,7 @@ Note: Some tests require external model executables and data, so they may
 be skipped in CI environments. Tests requiring dCoupler are skipped when
 it is not installed.
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

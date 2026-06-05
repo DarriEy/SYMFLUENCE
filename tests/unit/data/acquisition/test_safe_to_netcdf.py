@@ -1,4 +1,5 @@
 """Tests for _safe_to_netcdf with engine fallback and temp-file workaround."""
+from __future__ import annotations
 
 import logging
 import os

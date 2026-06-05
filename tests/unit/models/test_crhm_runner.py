@@ -10,6 +10,8 @@ to crash with SIGSEGV after printing "No model output selected".
 This test generates a corrected .prj file in /tmp and verifies
 the model runs to completion with output.
 """
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess

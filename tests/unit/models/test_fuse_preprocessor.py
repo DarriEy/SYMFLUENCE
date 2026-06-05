@@ -3,6 +3,7 @@ Unit tests for FUSE preprocessor.
 
 Tests FUSE-specific preprocessing functionality.
 """
+from __future__ import annotations
 
 from unittest.mock import patch
 

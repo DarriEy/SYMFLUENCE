@@ -1,6 +1,7 @@
 """
 Tests for the ConversationManager class.
 """
+from __future__ import annotations
 
 from unittest.mock import Mock, patch
 

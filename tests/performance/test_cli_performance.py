@@ -3,6 +3,7 @@ CLI Performance Tests
 
 Measures import time and CLI command execution time for performance tracking.
 """
+from __future__ import annotations
 
 import subprocess
 import sys

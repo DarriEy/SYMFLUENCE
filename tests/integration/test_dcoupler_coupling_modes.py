@@ -10,6 +10,7 @@ Exercises every coupling path:
   5. Finite-difference gradient estimation for process components
   6. Graph builder integration for all supported model combinations
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

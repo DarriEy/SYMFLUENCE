@@ -6,6 +6,7 @@
 Covers GitHub issue #90: USE_LOCAL_SCRATCH silently ignored due to
 Pydantic validation fallback and SLURM_TMPDIR timing.
 """
+from __future__ import annotations
 
 import logging
 import os

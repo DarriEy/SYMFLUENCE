@@ -7,6 +7,7 @@ Tests the MPR-style transfer function framework:
 - Coefficient-to-parameter conversion
 - Spatial variation summary
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

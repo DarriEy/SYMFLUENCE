@@ -7,6 +7,7 @@ Covers the mechanism only: warn-by-default, strict opt-in (config key and
 ``SYMFLUENCE_STRICT_CONFIG`` env var), the ``ALLOW_UNKNOWN_KEYS`` escape hatch,
 "did you mean?" suggestions, and that core / legacy / plugin keys are accepted.
 """
+from __future__ import annotations
 
 import logging
 

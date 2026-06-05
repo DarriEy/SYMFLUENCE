@@ -3,6 +3,7 @@
 These tests verify that the SAC-SMA package correctly imports Snow-17
 from the shared ``symfluence.models.snow17`` module.
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

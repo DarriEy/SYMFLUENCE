@@ -1,6 +1,7 @@
 """
 Tests for MESH postprocessor.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch

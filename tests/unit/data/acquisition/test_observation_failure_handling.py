@@ -18,6 +18,7 @@ observations (GRACE, SNOTEL, etc.) remain best-effort and continue to
 log warnings so a missing optional dataset doesn't break a streamflow-
 only calibration.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import patch

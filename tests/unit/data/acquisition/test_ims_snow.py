@@ -8,6 +8,7 @@ Tests IMS snow cover data acquisition:
 - Output dataset creation
 - File listing and parsing
 """
+from __future__ import annotations
 
 import math
 from datetime import datetime

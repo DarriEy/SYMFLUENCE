@@ -3,6 +3,7 @@ Helper functions for SYMFLUENCE tests.
 
 Configuration management utilities for loading and writing test configs.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

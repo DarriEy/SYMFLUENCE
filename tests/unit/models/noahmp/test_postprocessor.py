@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from symfluence.core.registries import R
 
 """Tests for Noah-MP postprocessor."""

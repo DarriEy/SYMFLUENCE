@@ -5,6 +5,7 @@ Demonstration of SUMMA calibration with observational data.
 This test runs a quick calibration demo for both Elliðaár and Fyris catchments
 using observational discharge data.
 """
+from __future__ import annotations
 
 import platform
 import shutil

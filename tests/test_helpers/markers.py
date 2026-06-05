@@ -4,6 +4,7 @@ Pytest marker utilities for SYMFLUENCE tests.
 Provides helper functions for working with pytest markers and
 organizing test categories.
 """
+from __future__ import annotations
 
 import pytest
 

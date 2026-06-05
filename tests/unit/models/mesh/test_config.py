@@ -1,6 +1,7 @@
 """
 Tests for MESH configuration.
 """
+from __future__ import annotations
 
 import pytest
 

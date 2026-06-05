@@ -15,6 +15,7 @@ up-front so the new layout wins on fresh projects.
 Legacy projects continue to work via the existing backward-compat
 fallback in ``resolve_data_subdir``.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

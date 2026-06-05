@@ -1,4 +1,5 @@
 """Tests for Noah-MP calibration components."""
+from __future__ import annotations
 
 import pytest
 

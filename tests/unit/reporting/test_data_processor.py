@@ -3,6 +3,7 @@ Unit tests for DataProcessor.
 
 Tests data loading and preparation functionality for visualization.
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

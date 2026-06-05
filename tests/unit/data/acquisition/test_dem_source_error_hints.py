@@ -18,6 +18,7 @@ previously said ``DEM_SOURCE: MERIT`` were also updated to
 ``copernicus`` in the same PR; this test only pins the error-message
 contract on the code side.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import patch

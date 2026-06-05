@@ -9,6 +9,7 @@ Tests that the optimization infrastructure still works correctly after:
 This test ensures OptimizerRegistry can still discover and instantiate
 model-specific optimizers, workers, and parameter managers.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

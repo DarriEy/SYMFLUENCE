@@ -10,6 +10,7 @@ Tests the JAX transfer function framework:
 
 Note: Tests that require JAX/jFUSE are skipped if those packages are not installed.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

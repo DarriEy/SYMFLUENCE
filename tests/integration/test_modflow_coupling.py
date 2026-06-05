@@ -8,6 +8,7 @@ Tests:
     4. SUMMA → MODFLOW coupling (recharge extraction + conversion)
     5. Combined flow (surface + baseflow)
 """
+from __future__ import annotations
 
 import math
 import shutil

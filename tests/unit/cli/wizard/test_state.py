@@ -1,4 +1,5 @@
 """Unit tests for wizard state management."""
+from __future__ import annotations
 
 import pytest
 

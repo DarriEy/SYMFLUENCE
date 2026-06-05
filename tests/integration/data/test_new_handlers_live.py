@@ -14,6 +14,8 @@ Usage:
     # Run specific handler test
     pytest tests/integration/data/test_new_handlers_live.py::test_daymet_live -v
 """
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path

@@ -6,6 +6,7 @@ Tests that the MESH parameter manager can:
 2. Normalize and denormalize parameters correctly
 3. Handle parameter initialization
 """
+from __future__ import annotations
 
 import logging
 import tempfile

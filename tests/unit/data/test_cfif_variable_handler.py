@@ -10,6 +10,7 @@ SUMMA short names (airtemp, pptrate, …) — but model-agnostic
 preprocessing produces files with the canonical CF names
 (air_temperature, precipitation_flux, …). Pin both forms.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock

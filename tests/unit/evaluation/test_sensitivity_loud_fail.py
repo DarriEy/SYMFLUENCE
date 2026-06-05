@@ -22,6 +22,7 @@ These tests pin two behaviours:
    so the workflow step is marked FAILED instead of silently
    'complete with no output'.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock

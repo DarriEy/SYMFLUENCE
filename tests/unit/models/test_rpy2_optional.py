@@ -12,6 +12,7 @@ non-fatal. These tests pin two invariants:
   2. GR's deferred-import ImportError stays actionable when rpy2 is
      unavailable, telling the user how to install it manually.
 """
+from __future__ import annotations
 
 import sys
 from importlib import import_module

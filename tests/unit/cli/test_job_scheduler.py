@@ -1,4 +1,5 @@
 """Unit tests for JobScheduler."""
+from __future__ import annotations
 
 import subprocess
 from unittest.mock import MagicMock, mock_open, patch

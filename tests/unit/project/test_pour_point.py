@@ -10,6 +10,7 @@ are written into the same outlets shapefile so TauDEM breaks the stream network 
 each, aligning subbasin/GRU boundaries with interior gauges. Additional outlets
 only apply to semidistributed/distributed delineation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

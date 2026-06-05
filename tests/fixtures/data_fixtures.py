@@ -3,6 +3,7 @@ Data Fixtures for SYMFLUENCE Tests
 
 Provides fixtures for downloading and managing test data bundles from GitHub releases.
 """
+from __future__ import annotations
 
 import shutil
 import zipfile
