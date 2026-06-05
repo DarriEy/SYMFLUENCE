@@ -31,7 +31,7 @@ Spatial Modes:
 Key Components:
     FUSEPreProcessor: Forcing preparation, spatial setup, file manager generation
     FUSERunner: Model execution with structure selection and parameter mapping
-    FUSEPostprocessor: Output extraction and result formatting
+    FUSEPostProcessor: Output extraction and result formatting
     FuseStructureAnalyzer: Ensemble analysis comparing different model structures
 
 Configuration Parameters:
@@ -62,7 +62,7 @@ from .elevation_band_manager import FuseElevationBandManager
 
 # Import manager classes (for advanced usage)
 from .forcing_processor import FuseForcingProcessor
-from .postprocessor import FUSEPostprocessor
+from .postprocessor import FUSEPostProcessor
 from .preprocessor import FUSEPreProcessor
 from .runner import FUSERunner
 from .structure_analyzer import FuseStructureAnalyzer
@@ -73,7 +73,7 @@ __all__ = [
     # Main classes (public API)
     'FUSEPreProcessor',
     'FUSERunner',
-    'FUSEPostprocessor',
+    'FUSEPostProcessor',
     'FuseStructureAnalyzer',
     # Manager classes (advanced usage)
     'FuseForcingProcessor',
@@ -99,3 +99,6 @@ def register() -> None:
         plotter=FUSEPlotter,
         build_instructions_module="symfluence.models.fuse.build_instructions",
     )
+
+# Deprecated pre-1.0 spelling (RTI item 23) — use FUSEPostProcessor.
+FUSEPostprocessor = FUSEPostProcessor

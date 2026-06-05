@@ -70,7 +70,7 @@ src/symfluence/models/gr/calibration/targets.py:GRStreamflowTarget._extract_dist
 src/symfluence/models/gr/extractor.py:GRResultExtractor._extract_from_csv:raise ValueError(f"Failed to parse GR CSV output {output_file}: {e}") from e
 src/symfluence/models/gr/extractor.py:GRResultExtractor._extract_from_netcdf:raise ValueError(f"No suitable streamflow variable found in {output_file}")
 src/symfluence/models/gr/extractor.py:GRResultExtractor.extract_variable:raise ValueError(f"Unsupported file format: {output_file.suffix}")
-src/symfluence/models/gr/postprocessor.py:GRPostprocessor._setup_model_specific_paths:raise ImportError(
+src/symfluence/models/gr/postprocessor.py:GRPostProcessor._setup_model_specific_paths:raise ImportError(
 src/symfluence/models/gr/preprocessor.py:GRPreProcessor.__init__:raise ImportError(
 src/symfluence/models/gr/preprocessor.py:GRPreProcessor._prepare_lumped_forcing:raise FileNotFoundError(
 src/symfluence/models/gr/preprocessor.py:GRPreProcessor._prepare_lumped_forcing:raise FileNotFoundError(

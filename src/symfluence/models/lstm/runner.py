@@ -36,7 +36,7 @@ from ..mixins import SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..spatial_modes import SpatialMode
 from .model import LSTMModel
-from .postprocessor import LSTMPostprocessor
+from .postprocessor import LSTMPostProcessor
 from .preprocessor import LSTMPreProcessor
 
 
@@ -94,7 +94,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
             self.project_dir,
             self.device
         )
-        self.postprocessor = LSTMPostprocessor(
+        self.postprocessor = LSTMPostProcessor(
             self.config,
             self.logger,
             reporting_manager=self.reporting_manager

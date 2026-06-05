@@ -10,11 +10,11 @@ import pandas as pd
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add("LISFLOOD")
-class LisfloodPostProcessor(StandardModelPostprocessor):
+class LisfloodPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the LISFLOOD model.
 
     LISFLOOD outputs discharge in m³/s in NetCDF format (dis*.nc) or as
