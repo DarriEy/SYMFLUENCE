@@ -6,6 +6,7 @@ FUSE Model Utilities
 
 Model-specific utility functions for FUSE preprocessing and conversion.
 """
+from __future__ import annotations
 
 from .mizuroute_converter import FuseToMizurouteConverter
 

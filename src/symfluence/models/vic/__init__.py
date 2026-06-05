@@ -66,6 +66,8 @@ References:
 
     https://github.com/UW-Hydro/VIC
 """
+from __future__ import annotations
+
 from .config import VICConfigAdapter
 from .extractor import VICResultExtractor
 from .postprocessor import VICPostProcessor

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM calibration optimizer."""
+from __future__ import annotations
 
 import re
 from pathlib import Path

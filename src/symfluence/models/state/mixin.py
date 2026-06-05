@@ -8,6 +8,7 @@ Provides an opt-in mixin that model runners can inherit to declare
 support for state save/restore operations. Models implement the abstract
 methods to define how their internal state is persisted and loaded.
 """
+from __future__ import annotations
 
 from abc import abstractmethod
 from pathlib import Path

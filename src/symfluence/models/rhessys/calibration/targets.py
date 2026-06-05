@@ -11,6 +11,7 @@ Provides calibration target classes for RHESSys ecosystem-hydrological model.
 Handles RHESSys output formats (CSV results, basin.daily) with daily resampling
 of observations to match RHESSys output frequency.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional

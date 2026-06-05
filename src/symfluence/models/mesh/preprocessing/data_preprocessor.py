@@ -6,6 +6,7 @@ MESH Data Preprocessor
 
 Handles shapefile and landcover data preparation.
 """
+from __future__ import annotations
 
 import logging
 import os

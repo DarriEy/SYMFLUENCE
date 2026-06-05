@@ -24,6 +24,7 @@ References:
     forecasting system: Utility of numerical weather prediction model,
     data assimilation and satellite-based rainfall. J. Hydrology.
 """
+from __future__ import annotations
 
 from typing import Dict
 

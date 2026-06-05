@@ -7,6 +7,8 @@ CLM Result Extractor
 Extracts multi-variable results from CLM5 history output.
 Supports streamflow, ET, snow, and soil moisture extraction.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional

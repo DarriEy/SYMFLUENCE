@@ -9,6 +9,8 @@ Handles preparation of PRMS model inputs including:
 - Parameter file (params.dat) with HRU definitions and soil parameters
 - Data file (data.dat) with forcing time series
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path

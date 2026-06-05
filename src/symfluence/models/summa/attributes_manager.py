@@ -10,6 +10,8 @@ and land/soil classifications.
 """
 
 # Standard library imports
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union

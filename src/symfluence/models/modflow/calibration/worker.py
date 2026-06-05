@@ -19,6 +19,7 @@ Config keys:
     GROUNDWATER_MODEL: Must be MODFLOW
     COUPLING_MODE: 'dcoupler' or 'sequential' (default: auto-detect)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

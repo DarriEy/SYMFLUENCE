@@ -7,6 +7,7 @@ NGEN Model Plotter
 Model-specific visualization for NGEN outputs including streamflow comparisons
 and flow duration curves.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

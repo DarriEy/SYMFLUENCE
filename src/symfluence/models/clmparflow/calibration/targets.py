@@ -12,6 +12,7 @@ metric calculation during calibration.
 Same approach as ParFlow targets but reads from CLMPARFLOW output directory
 and uses CLMPARFLOW_* config keys.
 """
+from __future__ import annotations
 
 import json
 import logging

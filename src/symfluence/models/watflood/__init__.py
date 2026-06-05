@@ -22,6 +22,8 @@ References:
     Kouwen, N. (2018): WATFLOOD/WATROUTE Hydrological Model Routing
     & Flood Forecasting System. University of Waterloo.
 """
+from __future__ import annotations
+
 from .config import WATFLOODConfigAdapter
 from .extractor import WATFLOODResultExtractor
 from .postprocessor import WATFLOODPostProcessor

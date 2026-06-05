@@ -7,6 +7,7 @@ NGen Model Preprocessor.
 Handles spatial preprocessing and configuration generation for the NOAA NextGen Framework.
 Uses shared utilities for time window management and forcing data processing.
 """
+from __future__ import annotations
 
 import json
 import logging

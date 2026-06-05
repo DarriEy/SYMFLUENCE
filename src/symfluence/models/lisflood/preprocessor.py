@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Model Preprocessor."""
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

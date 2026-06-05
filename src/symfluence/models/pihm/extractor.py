@@ -11,6 +11,7 @@ Extracts results from PIHM output files:
 
 PIHM output files are tab-delimited text with a time column (epoch seconds).
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

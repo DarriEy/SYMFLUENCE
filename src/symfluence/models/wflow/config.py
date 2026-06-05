@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow Model Configuration."""
+from __future__ import annotations
+
 from typing import Any, Dict
 
 from symfluence.core.config.models.model_configs import WflowConfig

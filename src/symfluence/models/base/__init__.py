@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Base classes for model preprocessors, runners, postprocessors, config adapters, and result extractors."""
+from __future__ import annotations
 
 from symfluence.core.exceptions import ConfigValidationError
 

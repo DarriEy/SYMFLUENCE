@@ -7,6 +7,7 @@ FUSE Forcing Adapter.
 Converts CFIF (CF-Intermediate Format) forcing data to FUSE format.
 FUSE uses a simplified set of forcing variables.
 """
+from __future__ import annotations
 
 from typing import Callable, Dict, List
 

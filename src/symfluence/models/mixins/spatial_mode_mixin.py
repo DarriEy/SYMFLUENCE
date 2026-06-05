@@ -8,6 +8,7 @@ Provides consistent spatial mode detection across all model preprocessors and ru
 Consolidates the 3-step detection pattern that was previously duplicated across HBV,
 GR, FUSE, LSTM, and other model components.
 """
+from __future__ import annotations
 
 import logging
 from typing import Optional

@@ -7,6 +7,7 @@ CLMParFlow Worker
 Worker implementation for CLMParFlow model optimization.
 Handles .pfidb parameter updates, CLMParFlow execution, and metric extraction.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

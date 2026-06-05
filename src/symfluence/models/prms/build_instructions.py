@@ -12,6 +12,7 @@ This module defines how to build PRMS from source, including:
 PRMS is built from Fortran source code using make + gfortran. The build
 produces the prms executable for watershed-scale hydrological simulations.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import get_common_build_environment
 from symfluence.core.registries import R

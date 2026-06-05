@@ -8,6 +8,7 @@ Executes the ParFlow binary from a prepared simulation directory.
 ParFlow reads its .pfidb database file and writes .pfb binary output.
 Rainfall forcing is applied via OverlandFlow BC in the .pfidb (monthly cycle).
 """
+from __future__ import annotations
 
 import logging
 import os

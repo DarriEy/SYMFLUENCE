@@ -11,6 +11,7 @@ In GSFLOW, coupling is handled internally by the GSFLOW binary. This module
 provides utilities for configuring SFR/UZF package parameters and managing
 the PRMS↔MODFLOW-NWT exchange configuration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

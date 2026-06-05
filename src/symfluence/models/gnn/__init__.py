@@ -6,6 +6,7 @@
 Combines LSTM temporal processing with directed-graph spatial propagation
 along the river network DAG for distributed streamflow forecasting.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

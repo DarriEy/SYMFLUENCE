@@ -7,6 +7,7 @@ RHESSys Model Optimizer
 RHESSys-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with RHESSys.
 """
+from __future__ import annotations
 
 import logging
 import shutil

@@ -17,6 +17,7 @@ Usage:
         streamflow_unit = "mm_per_day"  # or "cms"
         netcdf_selections = {"hru": 0}  # Optional dimension selections
 """
+from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta

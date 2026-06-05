@@ -6,6 +6,7 @@ HYPE Model Plotter
 
 Model-specific visualization for HYPE outputs including streamflow comparisons.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

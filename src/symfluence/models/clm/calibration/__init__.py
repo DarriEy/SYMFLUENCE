@@ -8,6 +8,7 @@ This module provides:
 - CLMParameterManager: Handles 26 CLM parameter bounds and updates
 - CLMWorker: Worker for CLM model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import CLMModelOptimizer
 from .parameter_manager import CLMParameterManager

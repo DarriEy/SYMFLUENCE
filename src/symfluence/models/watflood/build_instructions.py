@@ -12,6 +12,7 @@ Tier 1: Build native binary from source (kasra-keshavarz/watflood fork with
 Tier 2: Fall back to pre-compiled Windows binary via Wine.
 Tier 3: Manual installation guidance.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import get_common_build_environment
 from symfluence.core.registries import R

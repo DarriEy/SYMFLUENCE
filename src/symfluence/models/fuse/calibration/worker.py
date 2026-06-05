@@ -8,6 +8,7 @@ Worker implementation for FUSE model optimization.
 Thin orchestrator delegating to focused modules for parameter application,
 model execution, metrics calculation, and file manager updates.
 """
+from __future__ import annotations
 
 import logging
 import warnings

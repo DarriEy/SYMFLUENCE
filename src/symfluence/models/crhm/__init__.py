@@ -66,6 +66,8 @@ References:
 
     https://github.com/CentreForHydrology/CRHM
 """
+from __future__ import annotations
+
 from .config import CRHMConfigAdapter
 from .extractor import CRHMResultExtractor
 from .postprocessor import CRHMPostProcessor

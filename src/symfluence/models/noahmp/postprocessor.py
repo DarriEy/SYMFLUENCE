@@ -7,6 +7,8 @@ noah-owp-modular writes a single ``output.nc`` containing all water and
 energy variables on the model time axis.  Runoff (surface + subsurface)
 is the closest analogue to streamflow for a 1-D column model.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 

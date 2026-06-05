@@ -7,6 +7,7 @@ TRoute Result Extractor.
 Handles extraction of simulation results from t-route model outputs
 for integration with the evaluation framework.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

@@ -7,6 +7,7 @@ MizuRoute-specific configuration mixins.
 Provides standardized access to mizuRoute configuration values via properties,
 replacing scattered config_dict.get() calls with typed accessors.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 

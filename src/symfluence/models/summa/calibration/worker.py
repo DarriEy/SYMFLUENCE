@@ -7,6 +7,7 @@ SUMMA Worker
 Worker implementation for SUMMA model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -8,6 +8,7 @@ Executes MODFLOW 6 (mf6) from a prepared simulation directory.
 MODFLOW 6 reads mfsim.nam from the current working directory to
 discover all model packages and input files.
 """
+from __future__ import annotations
 
 import logging
 import os

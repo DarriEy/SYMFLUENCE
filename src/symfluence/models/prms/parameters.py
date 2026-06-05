@@ -28,6 +28,7 @@ References:
     Hay, L.E., et al. (2006): Sensitivity Analysis for Calibration of a
     Conceptual Rainfall-Runoff Model.
 """
+from __future__ import annotations
 
 from typing import Dict
 

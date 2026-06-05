@@ -7,6 +7,7 @@ VIC model postprocessor.
 Handles extraction and processing of VIC model simulation results.
 Uses StandardModelPostProcessor for reduced boilerplate.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

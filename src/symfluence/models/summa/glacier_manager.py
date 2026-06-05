@@ -9,6 +9,7 @@ data into SUMMA-compatible NetCDF files for glacier simulations.
 
 Based on Ashley Medin's glacier preprocessing workflow.
 """
+from __future__ import annotations
 
 import logging
 import shutil

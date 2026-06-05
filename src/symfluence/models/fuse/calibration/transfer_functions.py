@@ -6,6 +6,7 @@
 Transfer function base classes have moved to:
     symfluence.optimization.regionalization.transfer_functions
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

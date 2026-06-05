@@ -7,6 +7,7 @@ Drainage Database File Manager
 Handles all operations on the MESH drainage database NetCDF file (GRU columns,
 normalization, spatial dimensions).
 """
+from __future__ import annotations
 
 import logging
 import os

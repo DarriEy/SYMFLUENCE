@@ -6,6 +6,7 @@ PRMS Model Optimizer
 
 PRMS-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 import shutil

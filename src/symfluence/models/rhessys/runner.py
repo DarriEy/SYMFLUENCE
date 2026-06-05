@@ -6,6 +6,7 @@ RHESSys Model Runner.
 
 Executes the RHESSys model using prepared input files.
 """
+from __future__ import annotations
 
 import sys
 from pathlib import Path

@@ -6,6 +6,7 @@ WRF-Hydro Model Runner.
 
 Executes the WRF-Hydro model using prepared input files.
 """
+from __future__ import annotations
 
 import re
 import shutil

@@ -7,6 +7,7 @@ FUSE Model Optimizer
 FUSE-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with FUSE.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

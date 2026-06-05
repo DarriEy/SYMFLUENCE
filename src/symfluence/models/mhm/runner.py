@@ -7,6 +7,7 @@ mHM Model Runner.
 Executes the mHM (mesoscale Hydrological Model) using prepared input files.
 mHM is run from within the settings directory where the namelists reside.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

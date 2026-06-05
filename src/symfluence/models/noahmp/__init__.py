@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Noah-MP (noah-owp-modular) — NOAA-OWP Standalone Land Surface Model."""
+from __future__ import annotations
 
 from .config import NoahMPConfigAdapter
 from .extractor import NoahMPResultExtractor

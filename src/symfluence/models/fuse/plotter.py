@@ -6,6 +6,7 @@ FUSE Model Plotter
 
 Model-specific visualization for FUSE outputs including streamflow comparisons.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional, Tuple

@@ -6,6 +6,7 @@ Run Options Configuration Builder
 
 Handles all modifications to MESH_input_run_options.ini.
 """
+from __future__ import annotations
 
 import logging
 import re

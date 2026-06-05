@@ -7,6 +7,7 @@ FUSE-specific parameter regionalization defaults.
 The framework classes have moved to:
     symfluence.optimization.regionalization.strategies
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

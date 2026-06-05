@@ -10,6 +10,8 @@ NaN value handling, and data validation for SUMMA model compatibility.
 """
 
 # Standard library imports
+from __future__ import annotations
+
 import gc
 import os
 from datetime import datetime

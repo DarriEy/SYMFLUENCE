@@ -7,6 +7,7 @@ PIHM Model Postprocessor
 Extracts river flux (baseflow) from PIHM output and optionally
 combines with SUMMA surface runoff for total streamflow.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

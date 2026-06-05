@@ -8,6 +8,7 @@ This module provides:
 - MHMParameterManager: Handles mHM parameter bounds and namelist updates
 - MHMWorker: Worker for mHM model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import MHMModelOptimizer
 from .parameter_manager import MHMParameterManager

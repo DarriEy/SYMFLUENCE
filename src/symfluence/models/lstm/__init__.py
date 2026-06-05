@@ -7,6 +7,7 @@ Uses recurrent neural networks to learn temporal patterns in forcing data
 (precipitation, temperature) for hydrological prediction. Supports optional
 attention mechanism and configurable architecture.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

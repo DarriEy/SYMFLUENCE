@@ -10,6 +10,7 @@ This module defines supported spatial modes, model capabilities, and validation 
 Phase 3 Addition: Centralizes spatial mode validation that was previously scattered
 across individual model runners.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum

@@ -6,6 +6,7 @@ HYPE model runner.
 
 Handles HYPE model execution and run-time management.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

@@ -17,6 +17,7 @@ t-route is NOAA's channel routing model that provides:
 - Integration with NWM and other hydrologic models
 - Support for large-scale river network routing
 """
+from __future__ import annotations
 
 from .config import TRouteConfigAdapter
 from .extractor import TRouteResultExtractor

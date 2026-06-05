@@ -31,6 +31,8 @@ References:
 
     https://github.com/MODFLOW-ORG/modflow6
 """
+from __future__ import annotations
+
 from .config import MODFLOWConfigAdapter
 from .extractor import MODFLOWResultExtractor
 from .plotter import MODFLOWPlotter

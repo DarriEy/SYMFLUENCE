@@ -7,6 +7,7 @@ MizuRoute Model Runner.
 Manages the execution of the mizuRoute routing model.
 Refactored to use the Unified Model Execution Framework.
 """
+from __future__ import annotations
 
 import logging
 import traceback

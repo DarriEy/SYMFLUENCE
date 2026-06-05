@@ -13,6 +13,7 @@ Prepares the full GSFLOW input file suite:
 For a lumped domain the MODFLOW grid is a single cell representing
 the bulk aquifer.  The SFR package provides stream-aquifer coupling.
 """
+from __future__ import annotations
 
 import logging
 import os

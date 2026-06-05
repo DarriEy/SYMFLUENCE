@@ -58,6 +58,8 @@ Limitations and Considerations:
 """
 
 # Import main classes
+from __future__ import annotations
+
 from .elevation_band_manager import FuseElevationBandManager
 
 # Import manager classes (for advanced usage)

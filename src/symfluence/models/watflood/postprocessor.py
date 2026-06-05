@@ -6,6 +6,7 @@ WATFLOOD Post-Processor.
 
 Extracts and processes WATFLOOD model outputs.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -6,6 +6,7 @@
 Provides execute_subprocess (canonical), execute_model_subprocess (deprecated),
 and run_with_retry for all model runners via mixin inheritance.
 """
+from __future__ import annotations
 
 import logging
 import os

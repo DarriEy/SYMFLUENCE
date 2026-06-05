@@ -7,6 +7,7 @@ Mixin for converting model outputs to routing formats.
 Provides utilities for converting model output files to formats compatible
 with routing models like mizuRoute.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

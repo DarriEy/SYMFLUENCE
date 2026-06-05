@@ -8,6 +8,7 @@ This module provides:
 - PRMSParameterManager: Handles PRMS parameter bounds and file updates
 - PRMSWorker: Worker for PRMS model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import PRMSModelOptimizer
 from .parameter_manager import PRMSParameterManager

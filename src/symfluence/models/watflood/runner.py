@@ -6,6 +6,7 @@ WATFLOOD Model Runner.
 
 Executes WATFLOOD from a working directory (copy exe pattern, like MESH).
 """
+from __future__ import annotations
 
 import logging
 import os

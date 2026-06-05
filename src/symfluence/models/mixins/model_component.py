@@ -7,6 +7,7 @@ Mixin for shared model component initialization.
 Provides common initialization logic for BaseModelRunner, BaseModelPreProcessor,
 and BaseModelPostProcessor to eliminate code duplication.
 """
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union

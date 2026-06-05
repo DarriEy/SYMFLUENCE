@@ -10,6 +10,7 @@ calculations for SUMMA local and basin parameters.
 This module was refactored from core/parameter_manager.py to follow the
 registry pattern used by all other model parameter managers.
 """
+from __future__ import annotations
 
 import logging
 import re

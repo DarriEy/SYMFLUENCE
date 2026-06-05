@@ -10,6 +10,7 @@ Handles extraction and processing of IGNACIO fire simulation results:
 - Comparison with WMFire results
 - Validation against observed fire perimeters
 """
+from __future__ import annotations
 
 import json
 import logging

@@ -7,6 +7,7 @@ CRHM Parameter Manager
 Handles CRHM parameter bounds, normalization, and parameter file updates.
 CRHM uses a text-based .prj (project) file with key-value parameter format.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

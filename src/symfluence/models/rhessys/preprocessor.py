@@ -16,6 +16,8 @@ Sub-modules:
 - definitions_generator: Default parameter file generation
 - fire_generator: WMFire fire spread input generation
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Tuple

@@ -10,6 +10,7 @@ observation loading, and NetCDF formatting for FUSE model compatibility.
 
 Uses shared utilities from symfluence.models.utilities for common operations.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

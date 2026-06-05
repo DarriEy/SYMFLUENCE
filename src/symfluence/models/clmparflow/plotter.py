@@ -8,6 +8,7 @@ Generates a multi-panel overview figure showing CLMParFlow results:
 flow separation hydrograph, pressure head, flow duration curves,
 and performance metrics.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional

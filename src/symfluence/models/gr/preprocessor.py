@@ -10,6 +10,8 @@ Uses shared utilities for forcing data processing and data quality handling.
 """
 
 # Optional R/rpy2 support - only needed for GR models
+from __future__ import annotations
+
 from importlib.util import find_spec
 from pathlib import Path
 

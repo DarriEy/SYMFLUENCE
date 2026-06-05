@@ -8,6 +8,7 @@ Handles all operations on the MESH CLASS parameter file (CLASS.ini).
 Manages GRU blocks, NM parameter, vegetation corrections, initial
 conditions, and elevation band block creation.
 """
+from __future__ import annotations
 
 import logging
 import re

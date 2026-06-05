@@ -8,6 +8,7 @@ Extracts overland flow and subsurface drainage from ParFlow-CLM output
 and combines them into total streamflow. No external coupling needed —
 CLM handles ET/snow internally within the ParFlow simulation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

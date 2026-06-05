@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to HYPE format.
 HYPE uses different variable names and may require temporal aggregation
 from hourly to daily data.
 """
+from __future__ import annotations
 
 from typing import Callable, Dict, List
 

@@ -35,6 +35,8 @@ References:
 
     https://github.com/parflow/parflow
 """
+from __future__ import annotations
+
 from .config import ParFlowConfigAdapter
 from .extractor import ParFlowResultExtractor
 from .plotter import ParFlowPlotter

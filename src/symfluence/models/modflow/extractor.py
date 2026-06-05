@@ -12,6 +12,7 @@ Extracts results from MODFLOW 6 output files:
 MODFLOW 6 binary file format:
     Each record: header (text + kstp/kper/pertim/totim/ncol/nrow/nlay) + float64 array
 """
+from __future__ import annotations
 
 import logging
 import struct

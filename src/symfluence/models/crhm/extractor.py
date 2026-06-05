@@ -7,6 +7,7 @@ CRHM Result Extractor.
 Handles extraction of simulation results from CRHM model outputs.
 CRHM outputs are in CSV format with standard variable names.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

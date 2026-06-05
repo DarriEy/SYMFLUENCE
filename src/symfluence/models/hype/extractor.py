@@ -8,6 +8,7 @@ Handles extraction of simulation results from HYPE model outputs.
 HYPE outputs are primarily text-based (timeCOUT.txt) but may also
 use mizuRoute for routing.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

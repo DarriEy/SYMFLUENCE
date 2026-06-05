@@ -6,6 +6,7 @@ MizuRoute Model Optimizer.
 
 Implements the BaseModelOptimizer for the MizuRoute routing model.
 """
+from __future__ import annotations
 
 import logging
 import re

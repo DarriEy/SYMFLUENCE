@@ -10,6 +10,7 @@ SUMMA Structure Analyzer
 This module implements the Structure Ensemble Analysis for the SUMMA model,
 often coupled with mizuRoute for routing.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -7,6 +7,7 @@ FUSE Result Extractor.
 Handles extraction of simulation results from FUSE (Framework for Understanding
 Structural Errors) model outputs.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

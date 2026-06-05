@@ -65,6 +65,7 @@ Limitations and Considerations:
     - KWT and DW schemes are slower but more accurate than IRF
     - Lake/reservoir routing requires additional configuration
 """
+from __future__ import annotations
 
 from .mixins import MizuRouteConfigMixin
 from .preprocessor import MizuRoutePreProcessor
