@@ -256,9 +256,23 @@ class GeofabricDelineator(BaseGeofabricDelineator):
                     basins, rivers, pour_point, self.logger
                 )
 
-                # Find basin containing pour point
+                # The outlets shapefile may carry interior outlets (id > 0) used only
+                # to break the stream network at gauges. The domain extent is defined
+                # by the primary outlet (id 0), so anchor the upstream subset there.
+                if 'id' in pour_point.columns and (pour_point['id'] == 0).any():
+                    primary_outlet = pour_point[pour_point['id'] == 0]
+                    if len(pour_point) > 1:
+                        self.logger.info(
+                            f"{len(pour_point)} outlets present; subsetting upstream of "
+                            f"the primary outlet (id 0). Interior outlets only refine "
+                            f"subbasin boundaries."
+                        )
+                else:
+                    primary_outlet = pour_point
+
+                # Find basin containing the primary pour point
                 downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-                    pour_point, basins, logger=self.logger,
+                    primary_outlet, basins, logger=self.logger,
                 )
 
                 # Build river network graph
