@@ -7,6 +7,7 @@ CONUS404 Data Acquisition Handler.
 Provides access to the CONUS404 high-resolution (4km) regional climate
 dataset for the contiguous United States via the HyTEST data catalog.
 """
+from __future__ import annotations
 
 import time
 from pathlib import Path

@@ -28,6 +28,7 @@ Data Access:
     Primary: GES DISC OPeNDAP/HTTPS subsetting
     Fallback: CMR granule-by-granule download
 """
+from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path

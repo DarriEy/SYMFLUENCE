@@ -25,6 +25,8 @@ Configuration:
     MODIS_LAI_QC: True (default) - Apply QC filtering
     MODIS_LAI_CONVERT_TO_DAILY: True (default) - Interpolate 8-day to daily
 """
+from __future__ import annotations
+
 import os
 import re
 import time

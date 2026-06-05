@@ -17,6 +17,7 @@ SSEBop Overview:
 Output Format:
     CSV with columns: datetime, et_mm_day
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

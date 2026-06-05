@@ -14,6 +14,7 @@ Conservative caching approach:
 - Limited TTL (30 days default)
 - LRU eviction when cache exceeds size limit
 """
+from __future__ import annotations
 
 import hashlib
 import json

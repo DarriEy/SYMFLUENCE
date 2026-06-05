@@ -7,6 +7,7 @@ CERRA Dataset Handler for SYMFLUENCE
 This module provides the CERRA-specific implementation for forcing data processing.
 CERRA (Copernicus European Regional Reanalysis) covers Europe at 5.5 km resolution.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Tuple

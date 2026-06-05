@@ -26,6 +26,7 @@ References:
     Luojus, K., et al. (2021). GlobSnow v3.0 Northern Hemisphere snow water
     equivalent dataset. Scientific Data, 8, 163.
 """
+from __future__ import annotations
 
 import traceback
 from pathlib import Path

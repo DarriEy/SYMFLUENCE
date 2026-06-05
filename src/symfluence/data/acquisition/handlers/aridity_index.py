@@ -23,6 +23,7 @@ References:
 Configuration:
     ARIDITY_INDEX_VARIABLES: ['ai', 'et0'] (default: both)
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

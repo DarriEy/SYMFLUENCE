@@ -30,6 +30,7 @@ Variables in NetCDF:
     - station_id: Unique station identifier
     - time: Observation timestamp
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List

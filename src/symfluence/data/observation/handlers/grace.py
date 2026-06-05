@@ -7,6 +7,7 @@ GRACE total water storage observation handler.
 Provides acquisition and preprocessing of GRACE/GRACE-FO satellite data
 for total water storage anomaly validation with adaptive basin extraction.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional

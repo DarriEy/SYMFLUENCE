@@ -6,6 +6,7 @@ Retry Mixin for Data Acquisition Handlers.
 
 Provides exponential backoff retry logic for network operations.
 """
+from __future__ import annotations
 
 import logging
 import time

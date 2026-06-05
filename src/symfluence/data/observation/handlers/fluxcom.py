@@ -7,6 +7,7 @@ FLUXCOM evapotranspiration observation handler.
 Provides acquisition and preprocessing of FLUXCOM machine learning-based
 evapotranspiration products for model validation and calibration.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

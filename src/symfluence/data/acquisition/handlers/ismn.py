@@ -19,6 +19,7 @@ Authentication:
     - Environment: ISMN_USERNAME / ISMN_PASSWORD
     - netrc file with ismn.earth entry
 """
+from __future__ import annotations
 
 import os
 import re

@@ -10,6 +10,7 @@ Provides shared infrastructure for all attribute processing modules including:
 - Catchment shapefile access
 - Common utilities
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

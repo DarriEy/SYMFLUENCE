@@ -111,6 +111,7 @@ References:
     - SoilGrids: Poggio et al. (2021) Scientific Data
     - MODIS: Justice et al. (2002) Remote Sensing Reviews
 """
+from __future__ import annotations
 
 import concurrent.futures
 import logging

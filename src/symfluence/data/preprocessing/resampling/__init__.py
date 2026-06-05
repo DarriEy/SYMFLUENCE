@@ -6,6 +6,7 @@ Resampling Module
 
 Components for forcing data remapping using EASYMORE.
 """
+from __future__ import annotations
 
 from .elevation_calculator import ElevationCalculator
 from .file_processor import FileProcessor

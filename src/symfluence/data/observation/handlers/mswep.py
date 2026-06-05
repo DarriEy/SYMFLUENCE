@@ -9,6 +9,8 @@ use in hydrological modeling validation and calibration. MSWEP provides
 high-quality merged precipitation estimates combining gauge, satellite,
 and reanalysis data.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

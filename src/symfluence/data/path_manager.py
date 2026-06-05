@@ -25,6 +25,7 @@ Usage:
     forcing_dir = paths.forcing_dir
     observations_dir = paths.observations_dir
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union

@@ -8,6 +8,8 @@ Provides cloud acquisition for GLDAS-2.1 Noah Land Surface Model monthly data.
 TWS = Soil Moisture (4 layers) + SWE + Canopy Water Storage.
 Uses earthaccess for NASA GES DISC authentication.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import earthaccess

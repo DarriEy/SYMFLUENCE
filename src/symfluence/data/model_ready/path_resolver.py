@@ -9,6 +9,7 @@ Provides a ``resolve_model_ready_path`` helper that returns the new
 legacy locations otherwise.  This follows the established "new first,
 old fallback" pattern from ``core.path_resolver._get_catchment_file_path``.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

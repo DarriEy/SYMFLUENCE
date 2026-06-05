@@ -6,6 +6,7 @@ Remapping Weight Applier
 
 Applies pre-computed EASYMORE weights to forcing files.
 """
+from __future__ import annotations
 
 import gc
 import logging

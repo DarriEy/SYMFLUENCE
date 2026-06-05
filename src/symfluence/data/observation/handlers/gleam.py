@@ -7,6 +7,7 @@ GLEAM evapotranspiration observation handler.
 Provides acquisition and preprocessing of GLEAM ET products for
 evapotranspiration model validation and multivariate calibration.
 """
+from __future__ import annotations
 
 import tarfile
 import zipfile

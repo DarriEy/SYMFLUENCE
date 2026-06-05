@@ -18,6 +18,7 @@ SNODAS Overview:
 Output Format:
     CSV with columns: datetime, swe_m (or snow_depth_m, etc.)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

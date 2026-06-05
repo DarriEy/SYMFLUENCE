@@ -8,6 +8,8 @@ Processes OpenET ensemble evapotranspiration data for hydrological
 model calibration and validation. OpenET provides high-resolution
 (30m) ET estimates using an ensemble of 6 satellite-based ET models.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 

@@ -16,6 +16,8 @@ GRDC features:
 Data access requires registration at:
 https://portal.grdc.bafg.de/
 """
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple

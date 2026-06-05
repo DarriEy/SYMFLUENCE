@@ -9,6 +9,7 @@ and writes a single grouped NetCDF4 file at
 ``data/model_ready/attributes/{domain}_attributes.nc`` with groups for
 topology, terrain, soil, landcover, climate, and hydrogeology.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -9,6 +9,7 @@ Uses mixins for:
 - ChunkedDownloadMixin: Monthly temporal chunking and parallel downloads
 - SpatialSubsetMixin: Bbox format conversion for CDS
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

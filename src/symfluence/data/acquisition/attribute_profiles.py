@@ -35,6 +35,7 @@ Knoben, W. J. M., et al. (2025). Catchment Attributes and MEteorology
 for Large-Sample SPATially distributed analysis (CAMELS-SPAT). Hydrol.
 Earth Syst. Sci., 29, 5791-5833.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional

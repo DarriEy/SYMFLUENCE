@@ -7,6 +7,7 @@ Archive utilities for SYMFLUENCE data management.
 Provides functions for creating compressed archives of processed data
 directories to reduce storage footprint while preserving data integrity.
 """
+from __future__ import annotations
 
 import logging
 import shutil

@@ -24,6 +24,7 @@ References:
   - https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a
   - https://sentinels.copernicus.eu/web/sentinel/technical-guides/sentinel-2-msi/level-2a/algorithm-overview
 """
+from __future__ import annotations
 
 import os
 from datetime import datetime

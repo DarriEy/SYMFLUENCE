@@ -20,6 +20,7 @@ Two cloud sources are supported:
    - No NaN values (land-only grid)
    - Coverage: Feb 1979 – Jan 2023
 """
+from __future__ import annotations
 
 from pathlib import Path
 

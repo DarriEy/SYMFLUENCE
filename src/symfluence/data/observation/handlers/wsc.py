@@ -7,6 +7,8 @@ WSC Observation Handlers
 Provides handlers for Water Survey of Canada (WSC) streamflow data.
 Supports both local HYDAT SQLite database extraction and web API acquisition.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd

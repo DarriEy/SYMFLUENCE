@@ -40,6 +40,7 @@ NWM3_FEATURE_IDS : str
     Comma-separated NHD feature (reach) IDs for channel routing data.
     Required when ``NWM3_OUTPUT_TYPE`` is ``chrtout``.
 """
+from __future__ import annotations
 
 from pathlib import Path
 
