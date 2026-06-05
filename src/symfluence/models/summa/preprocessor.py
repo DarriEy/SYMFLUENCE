@@ -276,8 +276,6 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         This method creates glacier-specific files required for SUMMA glacier simulations:
         - Glacier attributes file (attributes_glac.nc)
         - Glacier initial conditions (coldState_glac.nc)
-        - Glacier surface topography (coldState_glacSurfTopo.nc) - optional
-        - Glacier bed topography (attributes_glacBedTopo.nc) - optional
 
         The glacier preprocessing is triggered when SETTINGS_SUMMA_GLACIER_MODE is True
         or when the file manager name contains 'glac'.
@@ -366,8 +364,6 @@ class SummaPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         glacier_files = [
             'attributes_glac.nc',
             'coldState_glac.nc',
-            'attributes_glacBedTopo.nc',
-            'coldState_glacSurfTopo.nc'
         ]
         for gf in glacier_files:
             path = self.setup_dir / gf

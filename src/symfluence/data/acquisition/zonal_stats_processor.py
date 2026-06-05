@@ -169,6 +169,7 @@ from typing import Any, Dict
 
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import rasterio
 from rasterstats import zonal_stats
 
@@ -441,6 +442,54 @@ class DataPreProcessor(ConfigMixin):
             affine = src.transform
             dem_data = src.read(1)
 
+            cell_size_x = abs(affine[0])
+            cell_size_y = abs(affine[4])
+
+            if src.crs is not None and src.crs.is_geographic:
+                bounds = src.bounds
+                center_lat = (bounds.bottom + bounds.top) / 2
+                meters_per_degree_lat = 111000.0
+                meters_per_degree_lon = 111000.0 * np.cos(np.radians(center_lat))
+                cell_size_x = cell_size_x * meters_per_degree_lon
+                cell_size_y = cell_size_y * meters_per_degree_lat
+
+            dy, dx = np.gradient(dem_data.astype(np.float64), cell_size_y, cell_size_x)
+
+            slope_magnitude = np.sqrt(dx * dx + dy * dy)
+            min_slope = 1e-6
+            max_tan_slope = float(np.tan(np.radians(80.0)))
+            tan_slope = np.maximum(slope_magnitude, min_slope)
+            tan_slope = np.minimum(tan_slope, max_tan_slope)
+
+            slope_nodata = -9999.0
+            tan_slope_for_stats = np.where(np.isfinite(tan_slope), tan_slope, slope_nodata)
+
+            n_clipped = int(np.sum((tan_slope_for_stats != slope_nodata) & (tan_slope_for_stats >= max_tan_slope)))
+            tan_slope_for_stats = np.where(tan_slope_for_stats >= max_tan_slope, max_tan_slope, tan_slope_for_stats)
+            if n_clipped > 0:
+                print(f"Clipped {n_clipped} DEM cells to max tan_slope {max_tan_slope:.3f} to suppress artifacts")
+
+            aspect_rad = np.arctan2(-dy, dx)
+            aspect_deg = np.degrees(aspect_rad)
+            aspect_deg = (90 - aspect_deg) % 360
+
+            flat_threshold = 1e-6
+            flat_mask = slope_magnitude < flat_threshold
+            aspect_deg[flat_mask] = -1
+
+            aspect_nodata = -9999.0
+            valid_aspect_mask = np.isfinite(aspect_deg) & (aspect_deg >= 0)
+            sin_aspect = np.where(valid_aspect_mask, np.sin(np.radians(aspect_deg)), aspect_nodata)
+            cos_aspect = np.where(valid_aspect_mask, np.cos(np.radians(aspect_deg)), aspect_nodata)
+
+        # Should do per domain
+        #for domain_type in range(1, 6): # currently only 5 domain types
+        #   domain_mask = type_data == domain_type
+        #   dem_domain_data = np.where(domain_mask, dem_data, nodata_value)
+        #   tan_slope_domain_data = np.where(domain_mask, tan_slope_for_stats, slope_nodata)
+        #   sin_aspect_domain_data = np.where(domain_mask, sin_aspect, aspect_nodata)
+        #   cos_aspect_domain_data = np.where(domain_mask, cos_aspect, aspect_nodata)
+
         stats = zonal_stats(catchment_gdf, dem_data, affine=affine, stats=['mean'], nodata=nodata_value)
         result_df = pd.DataFrame(stats).rename(columns={'mean': 'elev_mean_new'})
 
@@ -450,6 +499,22 @@ class DataPreProcessor(ConfigMixin):
             catchment_gdf['elev_mean'] = result_df['elev_mean_new']
 
         result_df = result_df.drop(columns=['elev_mean_new'])
+
+        tsl_stats = zonal_stats(catchment_gdf, tan_slope_for_stats, affine=affine, stats=['mean'], nodata=slope_nodata)
+        sin_stats = zonal_stats(catchment_gdf, sin_aspect, affine=affine, stats=['mean'], nodata=aspect_nodata)
+        cos_stats = zonal_stats(catchment_gdf, cos_aspect, affine=affine, stats=['mean'], nodata=aspect_nodata)
+        #catchment_gdf[f'tsl_mean_{domain_type}'] = pd.DataFrame(tsl_stats)['mean']
+
+        asp_values = []
+        for sin_stat, cos_stat in zip(sin_stats, cos_stats):
+            mean_sin = sin_stat['mean']
+            mean_cos = cos_stat['mean']
+            if mean_sin is None or mean_cos is None or np.isnan(mean_sin) or np.isnan(mean_cos):
+                asp_values.append(np.nan)
+            else:
+                asp_values.append(float(np.degrees(np.arctan2(mean_sin, mean_cos)) % 360))
+        #catchment_gdf[f'asp_mean_{domain_type}'] = asp_values
+
         catchment_gdf.to_file(intersect_path)
 
     def calculate_soil_stats(self):
