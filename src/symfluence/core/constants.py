@@ -444,6 +444,12 @@ class SupportedModels:
     discovery, or ``R.plotters`` for already-registered plotters).
     """
 
+    #: Models whose "calibration" is internal training (gradient descent during
+    #: the run step), not an external DDS/PSO parameter search. They register no
+    #: optimizer/worker and have no calibrated parameters, so both the calibration
+    #: and sensitivity-analysis paths skip them rather than reporting a failure.
+    SELF_TRAINING = frozenset({'LSTM', 'GNN'})
+
     @classmethod
     def is_valid(cls, model_name: str) -> bool:
         """Return True if *model_name* is a model registered with the framework."""

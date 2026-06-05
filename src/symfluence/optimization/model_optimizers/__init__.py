@@ -23,29 +23,16 @@ def _register_optimizers():
 
     Scans ``symfluence.models.*`` for sub-packages that contain a
     ``calibration.optimizer`` module and imports each one to trigger its
-    ``@register_optimizer`` decorator.  Models whose dependencies are not
-    installed are silently skipped.
+    ``@register_optimizer`` decorator.  Models with no calibration support are
+    skipped silently; models whose optimizer module *exists but fails to
+    import* are surfaced at WARNING (see ``discover_calibration_components``)
+    so a missing dependency no longer masquerades as "No optimizer registered".
     """
-    import importlib
     import logging
-    import pkgutil
 
-    logger = logging.getLogger(__name__)
+    from symfluence.optimization._autodiscover import discover_calibration_components
 
-    try:
-        import symfluence.models as models_pkg
-    except ImportError:
-        return
-
-    for _importer, model_name, is_pkg in pkgutil.iter_modules(models_pkg.__path__):
-        if not is_pkg:
-            continue
-        module_path = f'symfluence.models.{model_name}.calibration.optimizer'
-        try:
-            importlib.import_module(module_path)
-        except (ImportError, ModuleNotFoundError, AttributeError):
-            # Expected for models without calibration support or missing deps
-            logger.debug("Skipped optimizer for %s", model_name)
+    discover_calibration_components('optimizer', logging.getLogger(__name__))
 
 
 # Trigger registration on import

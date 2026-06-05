@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.constants import SupportedModels
 from symfluence.core.exceptions import EvaluationError, symfluence_error_handler
 from symfluence.core.mixins import ConfigurableMixin
 from symfluence.core.registries import R
@@ -423,6 +424,27 @@ class AnalysisManager(ConfigurableMixin):
             ''
         )
         hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
+
+        # Self-training models (LSTM/GNN) learn their weights during run_model and
+        # expose no calibrated parameters, so there is nothing to perturb for a
+        # sensitivity analysis. Skip them here — exactly as the calibration path
+        # does — rather than letting them fail and drag the whole step to "no
+        # results for any configured model".
+        skipped_self_training = [m for m in hydrological_models if m in SupportedModels.SELF_TRAINING]
+        if skipped_self_training:
+            self.logger.info(
+                "Skipping sensitivity analysis for %s — these models train internally "
+                "during run_model and have no parameters to perturb.",
+                ', '.join(skipped_self_training),
+            )
+            hydrological_models = [m for m in hydrological_models if m not in SupportedModels.SELF_TRAINING]
+
+        if not hydrological_models:
+            self.logger.info(
+                "No models with calibratable parameters configured; "
+                "skipping sensitivity analysis."
+            )
+            return None
 
         for model in hydrological_models:
             try:
