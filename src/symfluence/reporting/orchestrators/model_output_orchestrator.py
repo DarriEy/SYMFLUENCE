@@ -7,6 +7,7 @@ Extracted from ``ReportingManager`` — handles registry-based model plotter
 dispatch (``visualize_model_results``) and the individual
 ``visualize_*_outputs`` methods.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple

@@ -6,6 +6,7 @@ Snow visualization plotter.
 
 Handles plotting of snow water equivalent (SWE) comparisons and metrics.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

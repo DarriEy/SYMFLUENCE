@@ -33,6 +33,7 @@ Configuration:
     GW_AUTO_ALIGN: Auto-align simulated mean to observed (default: True)
     GRACE_PROCESSING_CENTER: GRACE center ('csr', 'jpl', 'gsfc', default: 'csr')
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

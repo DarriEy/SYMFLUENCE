@@ -7,6 +7,7 @@ Data processors for reporting and visualization.
 This module provides processors for preparing data for visualization,
 calculating metrics, and handling spatial data processing.
 """
+from __future__ import annotations
 
 from .data_processor import DataProcessor
 from .metrics_processor import MetricsProcessor

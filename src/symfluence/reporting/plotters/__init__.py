@@ -4,6 +4,7 @@
 """
 Plotting modules for SYMFLUENCE reporting.
 """
+from __future__ import annotations
 
 from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
 from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter

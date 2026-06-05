@@ -7,6 +7,7 @@ Workflow diagnostic plotter for SYMFLUENCE.
 Generates validation-focused diagnostic plots at the end of each workflow step
 to help users verify data correctness for subsequent steps.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

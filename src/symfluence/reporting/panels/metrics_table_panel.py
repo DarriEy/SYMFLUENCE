@@ -6,6 +6,7 @@ Metrics table panel for model comparison visualizations.
 
 Renders performance metrics as a formatted table.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

@@ -6,6 +6,8 @@ Evaluation Registry for SYMFLUENCE
 
 Provides a central registry for performance evaluation handlers.
 """
+from __future__ import annotations
+
 import logging
 import warnings
 from pathlib import Path

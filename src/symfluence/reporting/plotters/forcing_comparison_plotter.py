@@ -7,6 +7,7 @@ Forcing comparison plotter for raw vs. remapped data visualization.
 Provides side-by-side map visualization comparing raw gridded forcing data
 with HRU-remapped forcing data.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional
