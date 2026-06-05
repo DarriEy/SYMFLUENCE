@@ -7,6 +7,7 @@ Custom exception hierarchy for SYMFLUENCE.
 This module defines a hierarchy of exceptions that provide clear, specific
 error types for different failure modes throughout the SYMFLUENCE framework.
 """
+from __future__ import annotations
 
 import logging
 from contextlib import contextmanager

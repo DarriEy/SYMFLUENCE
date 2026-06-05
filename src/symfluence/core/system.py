@@ -14,6 +14,8 @@ Example:
     >>> s = SYMFLUENCE("config.yaml")
     >>> s.run_workflow()
 """
+from __future__ import annotations
+
 try:
     from symfluence.symfluence_version import __version__
 except ImportError:

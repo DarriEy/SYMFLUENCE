@@ -37,6 +37,7 @@ Example
 ...             # do work...
 ...             pass
 """
+from __future__ import annotations
 
 import warnings
 

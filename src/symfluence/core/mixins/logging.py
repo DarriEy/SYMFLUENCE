@@ -6,6 +6,7 @@ Logging mixin for SYMFLUENCE modules.
 
 Provides standardized logger access for classes.
 """
+from __future__ import annotations
 
 import logging
 

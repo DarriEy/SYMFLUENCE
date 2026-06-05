@@ -7,6 +7,7 @@ Path resolution utilities for SYMFLUENCE configuration management.
 Provides standardized path resolution with default fallback handling to eliminate
 code duplication across model preprocessors, managers, and utilities.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
