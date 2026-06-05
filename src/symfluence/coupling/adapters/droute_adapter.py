@@ -204,7 +204,7 @@ class DRouteComponent(DifferentiableComponent, BMIMixin):
         return 0  # dRoute carries its own internal state across the recorded route
 
     def initialize(self, config: dict) -> None:
-        from symfluence.models.droute.calibration.worker import DRouteWorker  # reuse input loader
+        from droute.calibration.worker import DRouteWorker  # reuse input loader (canonical package)
         self._config = {**self._config, **config}
         w = DRouteWorker(self._config, logger)
         from pathlib import Path
