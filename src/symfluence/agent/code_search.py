@@ -7,6 +7,7 @@ Code search module for the SYMFLUENCE AI agent.
 Provides ripgrep-based code search capabilities for finding patterns,
 definitions, and usages across the codebase.
 """
+from __future__ import annotations
 
 import shutil
 import subprocess

@@ -13,6 +13,7 @@ Key Components:
     - DelineationArtifacts: Tracking of delineation outputs
     - Exceptions: Geospatial-specific error types
 """
+from __future__ import annotations
 
 from symfluence.geospatial.delineation import (
     DelineationArtifacts,

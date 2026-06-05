@@ -38,6 +38,7 @@ Tools Defined in Model Directories:
     - MESH: src/symfluence/models/mesh/build_instructions.py
     - RHESSys: src/symfluence/models/rhessys/build_instructions.py
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

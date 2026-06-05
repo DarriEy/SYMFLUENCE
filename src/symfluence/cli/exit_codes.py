@@ -8,6 +8,7 @@ This module defines standard exit codes for consistent error reporting
 across all CLI commands. Using specific exit codes allows scripts and
 CI/CD systems to distinguish between different failure modes.
 """
+from __future__ import annotations
 
 from enum import IntEnum
 

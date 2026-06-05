@@ -6,6 +6,7 @@ System diagnostics service for SYMFLUENCE.
 
 Provides system health checks, toolchain information, and library detection.
 """
+from __future__ import annotations
 
 import json
 import shutil
