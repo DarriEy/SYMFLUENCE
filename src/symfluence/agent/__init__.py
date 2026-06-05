@@ -35,6 +35,7 @@ Environment Variables:
     OPENAI_API_BASE: Base URL for API (optional)
     OPENAI_MODEL: Model name to use (optional)
 """
+from __future__ import annotations
 
 from .agent_manager import AgentManager
 from .api_client import APIClient

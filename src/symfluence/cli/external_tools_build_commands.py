@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Shell command payloads for infrastructure external tools."""
+from __future__ import annotations
 
 SUNDIALS_BUILD_COMMAND = r'''
 # Build SUNDIALS from release tarball (shared libs OK; SUMMA will link).

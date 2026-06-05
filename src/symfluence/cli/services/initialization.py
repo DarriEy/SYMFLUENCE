@@ -7,6 +7,7 @@ Initialization service for SYMFLUENCE project setup.
 Handles project initialization including config generation,
 template management, and project scaffolding.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional

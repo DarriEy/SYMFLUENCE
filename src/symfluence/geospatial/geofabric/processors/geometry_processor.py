@@ -9,6 +9,7 @@ Used primarily by coastal delineation methods.
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from typing import Any, Optional
 

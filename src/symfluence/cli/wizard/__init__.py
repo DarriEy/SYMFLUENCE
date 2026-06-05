@@ -16,6 +16,7 @@ Example:
     >>> wizard = ProjectWizard()
     >>> exit_code = wizard.run(output_dir='./', scaffold=True)
 """
+from __future__ import annotations
 
 from .project_wizard import ProjectWizard
 from .prompts import WizardPrompts

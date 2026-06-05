@@ -6,6 +6,7 @@ Test runner module for executing pytest and parsing results.
 
 Runs tests on modified code and provides formatted results.
 """
+from __future__ import annotations
 
 import subprocess
 from pathlib import Path

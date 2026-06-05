@@ -7,6 +7,7 @@ Wizard state management for SYMFLUENCE project initialization.
 This module provides state tracking for the interactive wizard,
 including answer storage, phase management, and navigation history.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto

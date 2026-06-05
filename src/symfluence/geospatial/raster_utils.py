@@ -7,6 +7,7 @@ Raster processing utilities for geospatial analysis.
 Provides functions for land cover mode calculation, aspect and radiation
 derivation from DEMs, and raster value analysis for discretization.
 """
+from __future__ import annotations
 
 import glob
 import logging

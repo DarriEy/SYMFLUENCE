@@ -8,6 +8,7 @@ Provides validation functions for configuration and file inputs.
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from pathlib import Path
 

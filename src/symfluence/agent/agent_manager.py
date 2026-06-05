@@ -10,6 +10,7 @@ API calls, tool execution, and conversation management.
 Supports parallel tool execution for improved performance when the LLM
 requests multiple independent tool calls.
 """
+from __future__ import annotations
 
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed

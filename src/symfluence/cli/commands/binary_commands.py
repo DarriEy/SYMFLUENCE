@@ -7,6 +7,7 @@ Binary/tool management command handlers for SYMFLUENCE CLI.
 This module implements handlers for external tool installation and validation,
 plus a pass-through ``exec_binary()`` for running bundled binaries directly.
 """
+from __future__ import annotations
 
 import subprocess
 import sys

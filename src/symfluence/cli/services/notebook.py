@@ -6,6 +6,7 @@ Notebook service for launching Jupyter examples.
 
 Handles Jupyter notebook discovery and launching with proper kernel setup.
 """
+from __future__ import annotations
 
 import os
 import re

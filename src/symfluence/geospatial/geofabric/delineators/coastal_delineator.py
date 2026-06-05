@@ -9,6 +9,7 @@ and creation of point buffer shapes for point-scale simulations.
 
 Extracted from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

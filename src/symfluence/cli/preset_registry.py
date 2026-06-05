@@ -11,6 +11,7 @@ hardcoding them in the central init_presets.py file.
 Phase 4 delegation shim: resolved presets live in ``R.presets``.  The
 ``_preset_loaders`` dict is kept locally for lazy loader execution.
 """
+from __future__ import annotations
 
 import logging
 import warnings

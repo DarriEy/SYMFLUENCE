@@ -7,6 +7,7 @@ PR management module for staging and proposing code changes.
 Generates PR titles, descriptions, and manages git staging.
 Supports fuzzy matching for code edits and automated PR creation via gh CLI.
 """
+from __future__ import annotations
 
 import re
 import shutil
