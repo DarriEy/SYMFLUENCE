@@ -185,9 +185,15 @@ jobs:
           #   - Fortran binaries (SUMMA, mizuRoute) run as separate subprocesses
           #   - LD_LIBRARY_PATH does NOT include system HDF5 paths at test time
           #   - Wheel RUNPATH correctly resolves to bundled libraries
-          # Pin h5py<3.16 so its bundled HDF5 (1.14.6) matches netCDF4 1.7.4;
-          # 3.16.0 bundles HDF5 2.0.0 and would dual-load a second libhdf5.
-          pip install --force-reinstall --only-binary :all: 'h5py<3.16' netCDF4
+          # Pin h5py>=3.16 on x86_64: its wheel bundles HDF5 2.0.0, deliberately
+          # DIFFERENT from netCDF4 1.7.4's bundled HDF5 1.14.6. The two private
+          # libhdf5 copies then export differently-versioned symbols and stay
+          # isolated. Forcing them to the SAME version (h5py<3.16 -> 1.14.6)
+          # makes their identical un-versioned globals interpose, corrupting
+          # HDF5 dimscales at write time ("NetCDF: Problem with HDF5 dimscales").
+          # NOTE: arm64 wheels behave oppositely and DO need matching versions
+          # (h5py<3.16) — see install-validate-arm.yml. Do not unify these pins.
+          pip install --force-reinstall --only-binary :all: 'h5py>=3.16' netCDF4
 
 
       - name: Add external tools to PATH
@@ -618,9 +624,11 @@ jobs:
 
           # Force wheel-based h5py/netCDF4 (bootstrap may have rebuilt from source
           # against system libnetcdf which has PnetCDF — causes pfnc_inq_vardimid)
-          # Pin h5py<3.16 so its bundled HDF5 (1.14.6) matches netCDF4 1.7.4;
-          # 3.16.0 bundles HDF5 2.0.0 and would dual-load a second libhdf5.
-          pip install --force-reinstall --only-binary :all: 'h5py<3.16' netCDF4
+          # Pin h5py>=3.16 on x86_64: bundled HDF5 2.0.0 must stay DIFFERENT from
+          # netCDF4 1.7.4's 1.14.6 so the two private libhdf5 copies don't
+          # interpose and corrupt HDF5 dimscales at write time. arm64 needs the
+          # opposite (matching) pin — see install-validate-arm.yml.
+          pip install --force-reinstall --only-binary :all: 'h5py>=3.16' netCDF4
 
       - name: Add external tools to PATH
         run: |
