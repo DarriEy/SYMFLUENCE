@@ -3,14 +3,35 @@ Installation
 
 Overview
 --------
-SYMFLUENCE can be installed via npm (with pre-built model binaries), pip (Python
-framework only), or from source for development. HPC environments vary; use the
-module recipes on your cluster as needed.
+SYMFLUENCE installs via ``pip`` (the primary, recommended method); the external
+model binaries are then provided by ``symfluence binary install``. Alternative
+methods — npm (bundled pre-built binaries), Docker, and a source/bootstrap path
+for development — are documented below and on the :doc:`docker` page. HPC
+environments vary; use the module recipes on your cluster as needed.
 
 Quick Install
 -------------
 
-**Option 1: npm (recommended — includes pre-built binaries)**
+**Option 1: pip (recommended)**
+
+.. code-block:: bash
+
+   # Install the Python framework
+   pip install symfluence
+
+   # Install the external model binaries (SUMMA, mizuRoute, FUSE, NGEN, TauDEM, ...)
+   symfluence binary install
+
+   # Verify the binaries
+   symfluence binary doctor
+
+.. note::
+
+   **Python 3.11–3.13 only.** Key geospatial dependencies (Fiona, rasterio,
+   GDAL) do not yet ship wheels for Python 3.14+. If you are on 3.14, create a
+   3.11 or 3.12 environment instead (``python3.11 -m venv venv``).
+
+**Option 2: npm (bundled pre-built binaries)**
 
 .. code-block:: bash
 
@@ -27,21 +48,10 @@ Requirements: Linux (Ubuntu 22.04+, RHEL 9+, Debian 12+ x86_64) or macOS 12+
 (Apple Silicon). System libraries NetCDF and HDF5 must be installed via your
 package manager.
 
-.. note::
+**Option 3: Docker**
 
-   **Python 3.11–3.13 only.** Key geospatial dependencies (Fiona, rasterio,
-   GDAL) do not yet ship wheels for Python 3.14+. If you are on 3.14, create a
-   3.11 or 3.12 environment instead (``python3.11 -m venv venv``).
-
-**Option 2: pip (Python framework only)**
-
-.. code-block:: bash
-
-   # Install Python framework
-   pip install symfluence
-
-   # Install modeling tools separately
-   symfluence binary install
+Per-method Dockerfiles are provided for reproducible builds across all install
+paths; see the :doc:`docker` page.
 
 Development Installation
 ------------------------
