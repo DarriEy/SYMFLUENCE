@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
+from symfluence.core.constants import SupportedModels
 from symfluence.core.registries import R
 from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.optimization_results_manager import OptimizationResultsManager
@@ -24,8 +25,9 @@ if TYPE_CHECKING:
 
 # Models whose "calibration" is internal training (gradient descent during the
 # run step), not an external DDS/PSO parameter search. They register no
-# optimizer/worker and are skipped by the registry calibration path.
-_SELF_TRAINING_MODELS = frozenset({'LSTM', 'GNN'})
+# optimizer/worker and are skipped by the registry calibration path. Canonical
+# definition lives in SupportedModels so the sensitivity-analysis path shares it.
+_SELF_TRAINING_MODELS = SupportedModels.SELF_TRAINING
 
 
 class OptimizationManager(BaseManager):
