@@ -7,6 +7,7 @@ Provides ``WorkerTask``, ``WorkerResult`` dataclasses and the ``BaseWorker``
 abstract class implementing Template Method: apply_parameters → run_model →
 calculate_metrics, with exponential-backoff retry for transient failures.
 """
+from __future__ import annotations
 
 import logging
 import time

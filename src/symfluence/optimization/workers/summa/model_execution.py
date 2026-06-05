@@ -10,6 +10,7 @@ Model Execution for SUMMA Workers
 This module contains functions for executing SUMMA and mizuRoute
 models in worker processes.
 """
+from __future__ import annotations
 
 import os
 import subprocess

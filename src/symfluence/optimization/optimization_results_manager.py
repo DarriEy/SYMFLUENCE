@@ -7,6 +7,7 @@ Optimization results persistence and management.
 Handles saving, loading, and querying of optimization trial results
 with CSV-based storage and score tracking.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

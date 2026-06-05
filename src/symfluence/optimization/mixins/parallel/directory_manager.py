@@ -6,6 +6,7 @@ Directory Manager
 
 Manages parallel processing directories for model optimization.
 """
+from __future__ import annotations
 
 import logging
 import shutil

@@ -22,6 +22,8 @@ Migration Context:
 """
 
 # Backward compatibility re-export
+from __future__ import annotations
+
 from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
 
 __all__ = ['StreamflowMetrics']

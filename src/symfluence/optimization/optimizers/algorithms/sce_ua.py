@@ -106,6 +106,7 @@ This companion CSV writes one row per evolution step with:
 This file is designed for quick monotonic-progress inspection without filtering
 by stage or accepted flag.
 """
+from __future__ import annotations
 
 import csv
 from datetime import datetime

@@ -27,6 +27,7 @@ References:
     Liu, D.C. and Nocedal, J. (1989). On the limited memory BFGS method for
     large scale optimization. Mathematical Programming, 45, 503-528.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

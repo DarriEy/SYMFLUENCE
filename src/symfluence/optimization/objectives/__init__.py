@@ -18,6 +18,7 @@ Usage:
     >>> objective = ObjectiveRegistry.get_objective('MULTIVARIATE', config, logger)
     >>> score = objective.calculate(evaluation_results)
 """
+from __future__ import annotations
 
 from .base import BaseObjective
 from .multivariate import MultivariateObjective

@@ -6,6 +6,7 @@ Sequential Execution Strategy
 
 Executes tasks one at a time in the current process.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Callable, Dict, List

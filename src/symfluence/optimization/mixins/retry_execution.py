@@ -7,6 +7,7 @@ Retry Execution Mixin
 Provides retry logic with exponential backoff for model evaluations.
 Handles transient failures like stale file handles and I/O errors.
 """
+from __future__ import annotations
 
 import logging
 import os

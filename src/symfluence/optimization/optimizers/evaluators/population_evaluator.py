@@ -6,6 +6,7 @@ Population Evaluator for Optimization
 
 Handles batch evaluation of parameter populations with parallel execution.
 """
+from __future__ import annotations
 
 import logging
 import sys

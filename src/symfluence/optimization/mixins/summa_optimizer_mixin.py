@@ -24,6 +24,8 @@ Migration Context:
 """
 
 # Backward compatibility re-export
+from __future__ import annotations
+
 from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 
 __all__ = ['SUMMAOptimizerMixin']

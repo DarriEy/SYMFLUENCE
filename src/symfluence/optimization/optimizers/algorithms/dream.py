@@ -28,6 +28,7 @@ Reference:
     software package: Theory, concepts, and MATLAB implementation.
     Environmental Modelling & Software, 75, 273-316.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 

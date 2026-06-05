@@ -21,6 +21,7 @@ Optional Overrides:
     _create_parameter_manager(), _create_calibration_target(), _create_worker(),
     _apply_best_parameters_for_final(), _get_settings_directory()
 """
+from __future__ import annotations
 
 import logging
 import random

@@ -24,6 +24,7 @@ Note: Model-specific workers have been moved to their canonical locations under
 symfluence.models/{model}/calibration/worker.py. Use the registry or direct
 import from the canonical location.
 """
+from __future__ import annotations
 
 from .base_worker import BaseWorker, WorkerResult, WorkerTask
 from .inmemory_worker import InMemoryModelWorker

@@ -15,6 +15,7 @@ Reference:
     elitist multiobjective genetic algorithm: NSGA-II. IEEE Transactions
     on Evolutionary Computation, 6(2), 182-197.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

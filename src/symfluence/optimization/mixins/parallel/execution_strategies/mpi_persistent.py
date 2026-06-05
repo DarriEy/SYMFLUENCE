@@ -11,6 +11,7 @@ metadata storms that cause Lustre IOPS spikes when fresh processes are
 spawned every batch, while avoiding the fragility of piping data through
 mpirun's stdin/stdout relay.
 """
+from __future__ import annotations
 
 import logging
 import os

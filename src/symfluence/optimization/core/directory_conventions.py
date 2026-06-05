@@ -11,6 +11,7 @@ maintaining a consistent interface for the optimization framework.
 Each model can register its directory conventions, and the framework
 uses these conventions when setting up optimization directories.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
