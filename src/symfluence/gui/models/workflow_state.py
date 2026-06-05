@@ -8,6 +8,7 @@ WorkflowState is a param.Parameterized class that holds the current config,
 workflow progress, log output, and map coordinates. All components watch
 these parameters and react to changes.
 """
+from __future__ import annotations
 
 import logging
 import threading

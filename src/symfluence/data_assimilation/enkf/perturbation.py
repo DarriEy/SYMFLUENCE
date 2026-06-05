@@ -7,6 +7,7 @@ Perturbation strategies for ensemble generation.
 Provides methods for perturbing model parameters, forcing data, and
 state variables to create diverse ensemble members.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional

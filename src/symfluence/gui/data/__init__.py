@@ -8,6 +8,7 @@ Provides uniform access to hydrometric station metadata from multiple
 networks (WSC, USGS, SMHI, LamaH-ICE) with local CSV caching, plus
 a results loader for project output visualization.
 """
+from __future__ import annotations
 
 from .gauge_provider import (
     GaugeProvider,

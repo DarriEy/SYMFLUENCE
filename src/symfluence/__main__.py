@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Allow running SYMFLUENCE as ``python -m symfluence``."""
+from __future__ import annotations
 
 import sys
 

@@ -15,6 +15,7 @@ References:
     ensemble Kalman filter: an alternative to ensemble square root filters.
     Tellus A, 60, 361-371.
 """
+from __future__ import annotations
 
 import logging
 

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """TUI screen modules."""
+from __future__ import annotations
 
 from .calibration import CalibrationScreen
 from .command_palette import CommandPaletteScreen

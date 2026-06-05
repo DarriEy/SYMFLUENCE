@@ -4,6 +4,7 @@
 """
 Dashboard screen — domain overview and quick stats.
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding

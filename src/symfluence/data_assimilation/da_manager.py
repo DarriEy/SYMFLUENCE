@@ -8,6 +8,7 @@ Top-level orchestrator for the EnKF data assimilation workflow.
 Coordinates ensemble initialization, forecast–analysis cycling,
 and output writing.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

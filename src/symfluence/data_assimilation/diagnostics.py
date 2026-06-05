@@ -11,6 +11,7 @@ Provides verification metrics for ensemble forecasting quality:
 - Innovation consistency
 - Open-loop comparison
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict

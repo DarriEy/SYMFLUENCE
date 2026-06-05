@@ -8,6 +8,7 @@ GaugeStationStore aggregates results from all gauge providers, caches them
 as CSV files under ``{SYMFLUENCE_DATA_DIR}/cache/gauge_stations/`` with
 a 30-day expiry, and provides viewport-filtered retrieval.
 """
+from __future__ import annotations
 
 import logging
 import os

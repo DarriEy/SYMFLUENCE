@@ -6,6 +6,7 @@ Service for parsing _workLog run summary JSON files.
 
 Provides run history browsing across one or more domains.
 """
+from __future__ import annotations
 
 import json
 import logging

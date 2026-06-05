@@ -5,6 +5,7 @@
 Parameterized wrapper exposing the most common SYMFLUENCE config fields
 as typed, widget-ready params for the Panel config editor sidebar.
 """
+from __future__ import annotations
 
 import param
 

@@ -8,6 +8,7 @@ Each provider fetches station metadata from its upstream source and returns
 a uniform DataFrame with columns:
     station_id, name, lat, lon, river_name, network, country
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

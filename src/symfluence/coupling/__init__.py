@@ -10,6 +10,7 @@ calibration through the dCoupler CouplingGraph.
 dCoupler is an optional dependency. When not installed, SYMFLUENCE falls
 back to its built-in sequential coupling implementations.
 """
+from __future__ import annotations
 
 import logging
 

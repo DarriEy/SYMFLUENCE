@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """SYMFLUENCE model adapters for dCoupler components."""
+from __future__ import annotations
 
 __all__: list = []
 
