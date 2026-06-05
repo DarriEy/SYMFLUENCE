@@ -4,7 +4,7 @@
 """
 FUSE (Framework for Understanding Structural Errors) model postprocessor.
 
-Simplified implementation using StandardModelPostprocessor.
+Simplified implementation using StandardModelPostProcessor.
 """
 
 from pathlib import Path
@@ -15,11 +15,11 @@ import xarray as xr
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('FUSE')
-class FUSEPostprocessor(StandardModelPostprocessor):
+class FUSEPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for FUSE model outputs.
 

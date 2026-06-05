@@ -17,11 +17,11 @@ import xarray as xr
 
 from symfluence.core.registries import R
 
-from ..base import RoutedModelPostprocessor
+from ..base import RoutedModelPostProcessor
 
 
 @R.postprocessors.add('SUMMA')
-class SUMMAPostprocessor(RoutedModelPostprocessor):
+class SUMMAPostProcessor(RoutedModelPostProcessor):
     """
     Postprocessor for SUMMA model outputs.
 

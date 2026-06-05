@@ -5,7 +5,7 @@
 PRMS model postprocessor.
 
 Handles extraction and processing of PRMS model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 """
 
 from pathlib import Path
@@ -13,11 +13,11 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('PRMS')
-class PRMSPostProcessor(StandardModelPostprocessor):
+class PRMSPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the PRMS model.
 

@@ -13,12 +13,12 @@ from typing import Optional
 
 import pandas as pd
 
-from symfluence.models.base import StandardModelPostprocessor
+from symfluence.models.base import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class WATFLOODPostProcessor(StandardModelPostprocessor):
+class WATFLOODPostProcessor(StandardModelPostProcessor):
     """Post-processor for WATFLOOD model outputs."""
 
     model_name = "WATFLOOD"

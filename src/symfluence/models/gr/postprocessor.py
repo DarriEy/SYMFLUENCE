@@ -40,7 +40,7 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
 
 
 @R.postprocessors.add('GR')
-class GRPostprocessor(BaseModelPostProcessor):
+class GRPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for GR (GR4J/CemaNeige) model outputs.
     Handles extraction and processing of simulation results.

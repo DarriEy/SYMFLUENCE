@@ -7,11 +7,11 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('CWATM')
-class CWatMPostProcessor(StandardModelPostprocessor):
+class CWatMPostProcessor(StandardModelPostProcessor):
     """Postprocessor for CWatM.
 
     CWatM outputs discharge in NetCDF or TSS format.

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 _LAZY_IMPORTS = {
     'LSTMRunner': ('.runner', 'LSTMRunner'),
     'LSTMPreProcessor': ('.preprocessor', 'LSTMPreProcessor'),
-    'LSTMPostprocessor': ('.postprocessor', 'LSTMPostprocessor'),
+    'LSTMPostProcessor': ('.postprocessor', 'LSTMPostProcessor'),
     'LSTMModel': ('.model', 'LSTMModel'),
     'visualize_lstm': ('.visualizer', 'visualize_lstm'),
 }
@@ -24,7 +24,10 @@ _LAZY_ALIASES = {
     'FLASH': ('.runner', 'LSTMRunner'),
     'FlashRunner': ('.runner', 'LSTMRunner'),
     'FlashPreProcessor': ('.preprocessor', 'LSTMPreProcessor'),
-    'FlashPostprocessor': ('.postprocessor', 'LSTMPostprocessor'),
+    'FlashPostProcessor': ('.postprocessor', 'LSTMPostProcessor'),
+    # Deprecated pre-1.0 spellings (RTI item 23) — use *PostProcessor.
+    'LSTMPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
+    'FlashPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
 }
 
 
@@ -63,14 +66,14 @@ def register() -> None:
 
 if TYPE_CHECKING:
     from .model import LSTMModel
-    from .postprocessor import LSTMPostprocessor
+    from .postprocessor import LSTMPostProcessor
     from .preprocessor import LSTMPreProcessor
     from .runner import LSTMRunner
     from .visualizer import visualize_lstm
 
 
 __all__ = [
-    'LSTMRunner', 'LSTMPreProcessor', 'LSTMPostprocessor', 'LSTMModel',
+    'LSTMRunner', 'LSTMPreProcessor', 'LSTMPostProcessor', 'LSTMModel',
     'visualize_lstm',
-    'FLASH', 'FlashRunner', 'FlashPreProcessor', 'FlashPostprocessor',
+    'FLASH', 'FlashRunner', 'FlashPreProcessor', 'FlashPostProcessor',
 ]

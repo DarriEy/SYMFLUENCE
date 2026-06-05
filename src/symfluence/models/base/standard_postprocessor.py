@@ -10,7 +10,7 @@ boilerplate from 50-150 lines to 10-20 lines.
 
 Usage:
     @R.postprocessors.add('MYMODEL')
-    class MyModelPostprocessor(StandardModelPostprocessor):
+    class MyModelPostProcessor(StandardModelPostProcessor):
         model_name = "MYMODEL"
         output_file_pattern = "{domain}_{experiment}_output.nc"
         streamflow_variable = "discharge"
@@ -29,7 +29,7 @@ import xarray as xr
 from .base_postprocessor import BaseModelPostProcessor
 
 
-class StandardModelPostprocessor(BaseModelPostProcessor):
+class StandardModelPostProcessor(BaseModelPostProcessor):
     """
     Simplified postprocessor for models with standard extraction patterns.
 
@@ -64,7 +64,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
         aggregation_method: str - "sum", "mean", or "concat"
 
     Example:
-        >>> class FUSEPostprocessor(StandardModelPostprocessor):
+        >>> class FUSEPostProcessor(StandardModelPostProcessor):
         ...     model_name = "FUSE"
         ...     output_file_pattern = "{domain}_{experiment}_runs_best.nc"
         ...     streamflow_variable = "q_routed"
@@ -508,7 +508,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             return None
 
 
-class RoutedModelPostprocessor(StandardModelPostprocessor):
+class RoutedModelPostProcessor(StandardModelPostProcessor):
     """
     Specialized postprocessor for models that use mizuRoute routing.
 
@@ -516,7 +516,7 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
     and selecting the outlet reach.
 
     Example:
-        >>> class SUMMAPostprocessor(RoutedModelPostprocessor):
+        >>> class SUMMAPostProcessor(RoutedModelPostProcessor):
         ...     model_name = "SUMMA"
     """
 
@@ -573,3 +573,13 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading routing output: {e}", exc_info=True)
             return None
+
+
+# ---------------------------------------------------------------------------
+# Deprecated pre-1.0 spellings. The canonical class name is *PostProcessor
+# (matching BaseModelPostProcessor). These aliases keep existing
+# imports/subclasses working through the 1.0 transition and should be removed
+# at v1.0 (see RTI review item 23 / open question 1).
+# ---------------------------------------------------------------------------
+StandardModelPostprocessor = StandardModelPostProcessor
+RoutedModelPostprocessor = RoutedModelPostProcessor
