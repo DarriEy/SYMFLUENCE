@@ -31,8 +31,6 @@ class GlacierAttributesManager(ConfigMixin):
 
     Handles the transformation of glacier data into SUMMA-compatible
     NetCDF files including:
-    - attributes_glac.nc (HRU-scale glacier attributes)
-    - attributes_glacBedTopo.nc (grid-scale bed topography)
     - coldState_glac.nc (HRU-scale initial glacier state)
     - coldState_glacSurfTopo.nc (grid-scale surface topography)
 
@@ -98,6 +96,7 @@ class GlacierAttributesManager(ConfigMixin):
             intersect_base = self.project_dir / 'shapefiles' / 'catchment_intersection'
             domain_type_shp = intersect_base / 'with_domain_type' / 'catchment_with_domain_type.shp'
             dem_domain_shp = intersect_base / 'with_dem_domain' / 'catchment_with_dem_domain.shp'
+            debris_thick_shp = intersect_base / 'with_debris_thickness' / 'catchment_with_debris.shp'
 
             if domain_type_shp.exists() and dem_domain_shp.exists():
                 # Check if these have domain type columns
@@ -163,10 +162,11 @@ class GlacierAttributesManager(ConfigMixin):
                 intersect_base = self.project_dir / 'shapefiles' / 'catchment_intersection'
                 domain_type_shp = intersect_base / 'with_domain_type' / 'catchment_with_domain_type.shp'
                 dem_domain_shp = intersect_base / 'with_dem_domain' / 'catchment_with_dem_domain.shp'
+                debris_thick_shp = intersect_base / 'with_debris_thickness' / 'catchment_with_debris.shp'
 
-                if domain_type_shp.exists() and dem_domain_shp.exists():
+                if domain_type_shp.exists() and dem_domain_shp.exists() and debris_thick_shp.exists():
                     return self._process_from_shapefiles(
-                        domain_type_shp, dem_domain_shp, glacier_dir,
+                        domain_type_shp, dem_domain_shp, debris_thick_shp,
                         settings_dir, base_attributes_file, base_coldstate_file,
                         hru_ids, gru_ids, hru_areas, hru_elevs, hru2gru
                     )
@@ -186,6 +186,7 @@ class GlacierAttributesManager(ConfigMixin):
     def _process_from_shapefiles(
         self,
         domain_type_shp: Path,
+        debris_thick_shp: Path,
         dem_domain_shp: Path,
         glacier_dir: Path,
         settings_dir: Path,
@@ -205,6 +206,7 @@ class GlacierAttributesManager(ConfigMixin):
         # Load shapefiles
         shp_area = gpd.read_file(domain_type_shp)
         shp_elev = gpd.read_file(dem_domain_shp)
+        shp_debris = gpd.read_file(debris_thick_shp)
 
         hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID')
         num_hru = len(hru_ids)
@@ -223,6 +225,9 @@ class GlacierAttributesManager(ConfigMixin):
         ndom0 = 5  # Maximum possible domains
         DOMarea = np.zeros((1, num_hru, ndom0), dtype='f8')
         DOMelev = np.full((1, num_hru, ndom0), -9999.0, dtype='f8')
+        DOMtan_slope = np.full((1, num_hru, ndom0), -9999.0, dtype='f8')
+        DOMaspect = np.full((1, num_hru, ndom0), -9999.0, dtype='f8')
+        DOMcontourLength = np.zeros((1, num_hru, ndom0), dtype='f8')
         domType = np.zeros((1, num_hru, ndom0), dtype='i4')
 
         ndom = 0
@@ -230,13 +235,14 @@ class GlacierAttributesManager(ConfigMixin):
             ind = 0
             shp_mask = shp_elev[hru_id_col].astype(int) == hru_id
             shp_mask_count = shp_area[hru_id_col].astype(int) == hru_id
-
             if not shp_mask.any():
                 continue
 
             for domain_type in range(1, ndom0 + 1):
                 elev_col = f'elv_mean_{domain_type}'
                 area_col = f'domType_{domain_type}'
+                tan_slope_col = f'tsl_mean_{domain_type}'
+                aspect_col = f'asp_mean_{domain_type}'
 
                 # Check if column exists and has valid value
                 valid = False
@@ -250,25 +256,19 @@ class GlacierAttributesManager(ConfigMixin):
                     DOMelev[0, i, ind] = shp_elev.loc[shp_mask, elev_col].values[0]
                     if area_col in shp_area.columns:
                         DOMarea[0, i, ind] = shp_area.loc[shp_mask_count, area_col].values[0]
+                    DOMtan_slope[0,i,ind] = shp_elev.loc[shp_mask, tan_slope_col].values[0]
+                    DOMaspect[0,i,ind] = shp_elev.loc[shp_mask, aspect_col].values[0]
                     domType[0, i, ind] = domain_type
                     ind += 1
                 else:
                     # Ashley's rules for including empty domains
-                    if domain_type == 1:  # Always include upland
+                    # always include upland, 
+                    # if has glacier debris, also have clean zone so debris can move and have valid debris zone
+                    if domain_type == 1 or (domain_type == 2 and has_debris and not has_clean) or (domain_type == 4 and has_debris): 
                         DOMelev[0, i, ind] = -9999.0
                         DOMarea[0, i, ind] = 0
-                        domType[0, i, ind] = domain_type
-                        ind += 1
-                    elif domain_type == 2 and has_debris and not has_clean:
-                        # Need clean zone if debris exists
-                        DOMelev[0, i, ind] = -9999.0
-                        DOMarea[0, i, ind] = 0
-                        domType[0, i, ind] = domain_type
-                        ind += 1
-                    elif domain_type == 4 and has_debris:
-                        # Need debris zone if debris exists
-                        DOMelev[0, i, ind] = -9999.0
-                        DOMarea[0, i, ind] = 0
+                        DOMtan_slope[0, i, ind] = -9999.0
+                        DOMaspect[0, i, ind] = -9999.0
                         domType[0, i, ind] = domain_type
                         ind += 1
 
@@ -286,6 +286,12 @@ class GlacierAttributesManager(ConfigMixin):
         scalarAblFrac = np.zeros((1, num_hru, ndom0), dtype='f8')
         scalarAblFrac[(domType == self.DOMAIN_GLACIER_CLEAN_2) | (domType == self.DOMAIN_GLACIER_DEBRIS)] = 1.0
 
+        def _weighted_circular_mean_deg(values, weights):
+            angles = np.radians(values)
+            sin_sum = np.sum(np.sin(angles) * weights)
+            cos_sum = np.sum(np.cos(angles) * weights)
+            return float(np.degrees(np.arctan2(sin_sum, cos_sum)) % 360)
+
         for i in range(num_hru):
             # Find indices of domains 2 and 3
             dom2_idx = np.where(domType[0, i, :] == self.DOMAIN_GLACIER_CLEAN_1)[0]
@@ -299,11 +305,16 @@ class GlacierAttributesManager(ConfigMixin):
                     total_area = DOMarea[0, i, idx2] + DOMarea[0, i, idx3]
                     DOMelev[0, i, idx2] = (DOMelev[0, i, idx2] * DOMarea[0, i, idx2] +
                                            DOMelev[0, i, idx3] * DOMarea[0, i, idx3]) / total_area
+                    DOMtan_slope[0, i, idx2] = (DOMtan_slope[0, i, idx2] * DOMarea[0, i, idx2] +
+                                                 DOMtan_slope[0, i, idx3] * DOMarea[0, i, idx3]) / total_area
+                    DOMaspect[0, i, idx2] = _weighted_circular_mean_deg([DOMaspect[0, i, idx2], DOMaspect[0, i, idx3]], [DOMarea[0, i, idx2], DOMarea[0, i, idx3]])
                     scalarAblFrac[0, i, idx2] = (scalarAblFrac[0, i, idx2] * DOMarea[0, i, idx2] +
                                                   scalarAblFrac[0, i, idx3] * DOMarea[0, i, idx3]) / total_area
                     DOMarea[0, i, idx2] = total_area
                 elif DOMarea[0, i, idx3] > 0:
                     DOMelev[0, i, idx2] = DOMelev[0, i, idx3]
+                    DOMtan_slope[0, i, idx2] = DOMtan_slope[0, i, idx3]
+                    DOMaspect[0, i, idx2] = DOMaspect[0, i, idx3]
                     scalarAblFrac[0, i, idx2] = scalarAblFrac[0, i, idx3]
                     DOMarea[0, i, idx2] = DOMarea[0, i, idx3]
 
@@ -311,11 +322,15 @@ class GlacierAttributesManager(ConfigMixin):
                 for j in range(idx3, ndom - 1):
                     DOMelev[0, i, j] = DOMelev[0, i, j + 1]
                     DOMarea[0, i, j] = DOMarea[0, i, j + 1]
+                    DOMtan_slope[0, i, j] = DOMtan_slope[0, i, j + 1]
+                    DOMaspect[0, i, j] = DOMaspect[0, i, j + 1]
                     domType[0, i, j] = domType[0, i, j + 1]
                     scalarAblFrac[0, i, j] = scalarAblFrac[0, i, j + 1]
                 # Clear last slot
                 DOMelev[0, i, ndom - 1] = -9999.0
                 DOMarea[0, i, ndom - 1] = 0
+                DOMtan_slope[0, i, ndom - 1] = -9999.0
+                DOMaspect[0, i, ndom - 1] = -9999.0
                 domType[0, i, ndom - 1] = 0
                 scalarAblFrac[0, i, ndom - 1] = 0
 
@@ -331,27 +346,45 @@ class GlacierAttributesManager(ConfigMixin):
         # Trim to actual number of domains
         DOMarea = DOMarea[:, :, :ndom]
         DOMelev = DOMelev[:, :, :ndom]
+        DOMtan_slope = DOMtan_slope[:, :, :ndom]
+        DOMaspect = DOMaspect[:, :, :ndom]
         domType = domType[:, :, :ndom]
         scalarAblFrac = scalarAblFrac[:, :, :ndom]
+        # contour length sqroot of area for now, could be improved with actual contour length for upland (sqroot good for debris or circle/square lake, not used in clean glacier)
+        DOMcontourLength = np.sqrt(DOMarea)
 
         self.logger.info(f"Using {ndom} domain types")
+
+        # Get debris thickness for debris-covered glaciers
+        debris_thick = np.zeros(num_hru, dtype='f8')
+        for i, hru_id in enumerate(hru_ids):
+            ind = 0
+            shp_mask = shp_debris[hru_id_col].astype(int) == hru_id
+            if any(shp_mask):
+                column = 'debris_mean'
+                # if the column exists with a valid value
+                if column in shp_debris.columns:
+                    valid = True
+                    if shp_debris[column][shp_mask].values[0] is None: valid = False
+                    elif np.isnan(shp_debris[column][shp_mask].values[0]): valid = False
+                    elif shp_debris[column][shp_mask].values[0] < 0: valid = False
+                else:
+                    valid = False
+                if valid: 
+                    debris_thick[i] = shp_debris[column][shp_mask].values[0]
+                else:
+                    debris_thick[i] = 0.01 # still need to set a value to get layers in case debris advects in
 
         # Calculate glacier grid info from rasters
         grid_info = self._calculate_grid_info(glacier_dir, hru_ids, gru_ids, hru2gru)
 
         # Create output files
-        self._create_attributes_glac_from_shp(
-            settings_dir, base_attributes_file, grid_info['nGrid']
+        self._create_attributes_glac_from_rasters(
+            settings_dir, base_attributes_file, glacier_dir, gru_ids, grid_info
         )
-        self._create_attributes_glacBedTopo_from_rasters(
-            settings_dir, glacier_dir, gru_ids, grid_info
-        )
-        self._create_coldState_glac_from_shp(
+        self._create_coldState_glac_from_shp_rasters(
             settings_dir, base_coldstate_file,
-            hru_ids, gru_ids, ndom, domType, DOMarea, DOMelev, scalarAblFrac, grid_info
-        )
-        self._create_coldState_glacSurfTopo_from_rasters(
-            settings_dir, glacier_dir, gru_ids
+            hru_ids, gru_ids, ndom, domType, DOMarea, DOMelev, DOMtan_slope, DOMaspect, DOMcontourLength, scalarAblFrac, glacier_dir, grid_info, debris_thick
         )
 
         self.logger.info("Successfully created all glacier NetCDF files")
@@ -444,15 +477,66 @@ class GlacierAttributesManager(ConfigMixin):
             'basin__GlacierStorage': basin__GlacierStorage
         }
 
-    def _create_attributes_glac_from_shp(
+    def _create_attributes_glac_from_rasters(
         self,
         settings_dir: Path,
         base_attributes_file: Path,
-        nGrid: np.ndarray
+        nGrid: np.ndarray,
+        glacier_dir: Path,
+        gru_ids: np.ndarray,
+        grid_info: Dict[str, Any]
     ) -> None:
-        """Create attributes_glac.nc by extending base attributes."""
+        """Create attributes_glac.nc by extending base attributes and raster data."""
         output_file = settings_dir / 'attributes_glac.nc'
         shutil.copy2(base_attributes_file, output_file)
+        nGrid = grid_info['nGrid']
+
+        # Load rasters
+        domain_type_path = self._get_raster_path(glacier_dir, 'domain_type.tif')
+        hru_path = self._get_raster_path(glacier_dir, 'hru_id.tif')
+
+        if domain_type_path is None:
+            self.logger.warning("No domain_type raster, skipping glacBedTopo")
+        else:
+
+            with rasterio.open(domain_type_path) as src:
+                domain_data = src.read(1)
+                transform = src.transform
+                ygrid, xgrid = src.shape
+                dx = abs(transform[0])
+                dy = abs(transform[4])
+
+                # Convert to meters if geographic
+                if src.crs and src.crs.is_geographic:
+                    bounds = src.bounds
+                    center_lat = (bounds.bottom + bounds.top) / 2
+                    m_per_deg_x = 111000 * np.cos(np.radians(center_lat))
+                    m_per_deg_y = 111000
+                    dx = dx * m_per_deg_x
+                    dy = dy * m_per_deg_y
+
+            # Glacier mask (domain_type > 1 is glacier)
+            glacier_mask = (domain_data > 1).astype(np.int32)
+
+            # Load HRU mapping
+            if hru_path:
+                with rasterio.open(hru_path) as src:
+                    cell2hru = src.read(1).astype(np.int64)
+            else:
+                cell2hru = np.ones((ygrid, xgrid), dtype=np.int64)
+
+            # Load bed elevation from DEM
+            if self.dem_path.exists():
+                with rasterio.open(self.dem_path) as src:
+                    bed_elev = src.read(1).astype(np.float64)
+                    if bed_elev.shape != (ygrid, xgrid):
+                        bed_elev = self._resample_to_grid(bed_elev, (ygrid, xgrid))
+            else:
+                bed_elev = np.zeros((ygrid, xgrid), dtype=np.float64)
+
+
+        num_gru = len(gru_ids)
+        num_grid = nGrid
 
         with nc4.Dataset(output_file, 'r+') as ds:
             len(ds.dimensions['gru'])
@@ -467,78 +551,16 @@ class GlacierAttributesManager(ConfigMixin):
                 ds.createVariable('nWtld', 'i4', ('gru',), fill_value=-999)
             ds['nWtld'][:] = 0
 
-            ds.setncattr('History', f'Created {datetime.now().strftime("%Y/%m/%d %H:%M:%S")} - Glacier attributes added')
+            if domain_type_path is None:
+                return
 
-        self.logger.info(f"Created attributes_glac.nc with nGlac={nGrid}")
-
-    def _create_attributes_glacBedTopo_from_rasters(
-        self,
-        settings_dir: Path,
-        glacier_dir: Path,
-        gru_ids: np.ndarray,
-        grid_info: Dict[str, Any]
-    ) -> None:
-        """Create attributes_glacBedTopo.nc from raster data."""
-        output_file = settings_dir / 'attributes_glacBedTopo.nc'
-
-        # Load rasters
-        domain_type_path = self._get_raster_path(glacier_dir, 'domain_type.tif')
-        hru_path = self._get_raster_path(glacier_dir, 'hru_id.tif')
-
-        if domain_type_path is None:
-            self.logger.warning("No domain_type raster, skipping glacBedTopo")
-            return
-
-        with rasterio.open(domain_type_path) as src:
-            domain_data = src.read(1)
-            transform = src.transform
-            ygrid, xgrid = src.shape
-            dx = abs(transform[0])
-            dy = abs(transform[4])
-
-            # Convert to meters if geographic
-            if src.crs and src.crs.is_geographic:
-                bounds = src.bounds
-                center_lat = (bounds.bottom + bounds.top) / 2
-                m_per_deg_x = 111000 * np.cos(np.radians(center_lat))
-                m_per_deg_y = 111000
-                dx = dx * m_per_deg_x
-                dy = dy * m_per_deg_y
-
-        # Glacier mask (domain_type > 1 is glacier)
-        glacier_mask = (domain_data > 1).astype(np.int32)
-
-        # Load HRU mapping
-        if hru_path:
-            with rasterio.open(hru_path) as src:
-                cell2hru = src.read(1).astype(np.int64)
-        else:
-            cell2hru = np.ones((ygrid, xgrid), dtype=np.int64)
-
-        # Load bed elevation from DEM
-        if self.dem_path.exists():
-            with rasterio.open(self.dem_path) as src:
-                bed_elev = src.read(1).astype(np.float64)
-                if bed_elev.shape != (ygrid, xgrid):
-                    bed_elev = self._resample_to_grid(bed_elev, (ygrid, xgrid))
-        else:
-            bed_elev = np.zeros((ygrid, xgrid), dtype=np.float64)
-
-        num_gru = len(gru_ids)
-        num_grid = 1
-
-        with nc4.Dataset(output_file, 'w', format='NETCDF4') as ds:
-            ds.createDimension('gru', num_gru)
             ds.createDimension('grid', num_grid)
             ds.createDimension('xgrid', xgrid)
             ds.createDimension('ygrid', ygrid)
 
-            gruId_var = ds.createVariable('gruId', 'i8', ('gru',), fill_value=-999)
-            gruId_var.long_name = 'GRU ID'
-            gruId_var[:] = gru_ids
 
             nGrid_var = ds.createVariable('nGrid', 'i4', ('gru',), fill_value=-999)
-            nGrid_var[:] = grid_info['nGrid']
+            nGrid_var[:] = nGrid
 
             gridId_var = ds.createVariable('gridId', 'i8', ('grid', 'gru'), fill_value=-999)
             gridId_var[:, :] = grid_info['gridId'][0:1, :]
@@ -564,9 +586,9 @@ class GlacierAttributesManager(ConfigMixin):
             cell2hru_var = ds.createVariable('cell2hruId', 'i8', ('ygrid', 'xgrid', 'grid', 'gru'), fill_value=-999)
             cell2hru_var[:, :, 0, 0] = cell2hru
 
-        self.logger.info(f"Created attributes_glacBedTopo.nc: grid={xgrid}x{ygrid}")
+        self.logger.info(f"Created attributes_glac.nc with nGlac={nGrid}, grid={xgrid}x{ygrid}")
 
-    def _create_coldState_glac_from_shp(
+    def _create_coldState_glac_from_shp_rasters(
         self,
         settings_dir: Path,
         base_coldstate_file: Optional[Path],
@@ -576,8 +598,13 @@ class GlacierAttributesManager(ConfigMixin):
         domType: np.ndarray,
         DOMarea: np.ndarray,
         DOMelev: np.ndarray,
+        DOMtan_slope: np.ndarray,
+        DOMaspect: np.ndarray,
+        DOMcontourLength: np.ndarray,
         scalarAblFrac: np.ndarray,
-        grid_info: Dict[str, Any]
+        grid_info: Dict[str, Any],
+        glacier_dir: Path,
+        debris_thick0: np.ndarray
     ) -> None:
         """Create coldState_glac.nc following Ashley's methodology."""
         output_file = settings_dir / 'coldState_glac.nc'
@@ -585,6 +612,7 @@ class GlacierAttributesManager(ConfigMixin):
         num_hru = len(hru_ids)
         num_gru = len(gru_ids)
         num_glac = max(int(grid_info['nGrid'].max()), 1)
+        num_grid = num_glac
 
         # Layer dimensions
         scalarv = 1
@@ -635,7 +663,9 @@ class GlacierAttributesManager(ConfigMixin):
                     iLayerHeight[:self.N_GLCE_LAYERS + 1, i, j] = np.concatenate([[0], np.cumsum(self.ICE_LAYER_DEPTHS)])
                 elif dt == self.DOMAIN_GLACIER_DEBRIS:
                     # Soil + ice layers - use Ashley's debris soil depths
-                    debris_soil_depths = np.array([0.014, 0.042, 0.07])  # Approximate Ashley's values
+                    debris_soil_depths = np.zeros(self.N_SOIL_GLAC)
+                    for layer in range(self.N_SOIL_GLAC):
+                        debris_soil_depths[layer] = debris_thick0[i] * ( ( (layer+1) ** 2 -layer ** 2 )/ self.N_SOIL_GLAC ** 2)
                     depths = np.concatenate([debris_soil_depths, self.ICE_LAYER_DEPTHS])
                     n_layers = min(ifcToto, len(depths) + 1)
                     iLayerHeight[:n_layers, i, j] = np.concatenate([[0], np.cumsum(depths)])[:n_layers]
@@ -672,6 +702,33 @@ class GlacierAttributesManager(ConfigMixin):
             'dt_init': 3600.0,
         }
 
+        # Load domain type for grid dimensions
+        domain_type_path = self._get_raster_path(glacier_dir, 'domain_type.tif')
+        if domain_type_path is None:
+            self.logger.warning("No domain_type raster, skipping glacSurfTopo")
+        else:
+            with rasterio.open(domain_type_path) as src:
+                ygrid, xgrid = src.shape
+
+            # Load surface elevation from DEM
+            if self.dem_path.exists():
+                with rasterio.open(self.dem_path) as src:
+                    surface_elev = src.read(1).astype(np.float64)
+                    if surface_elev.shape != (ygrid, xgrid):
+                        surface_elev = self._resample_to_grid(surface_elev, (ygrid, xgrid))
+            else:
+                surface_elev = np.zeros((ygrid, xgrid), dtype=np.float64)
+
+            # Load debris thickness
+            debris_path = self._get_raster_path(glacier_dir, 'debris_thickness.tif')
+            if debris_path:
+                with rasterio.open(debris_path) as src:
+                    debris_thick = src.read(1).astype(np.float64)
+                    if debris_thick.shape != (ygrid, xgrid):
+                        debris_thick = self._resample_to_grid(debris_thick, (ygrid, xgrid))
+            else:
+                debris_thick = np.zeros((ygrid, xgrid), dtype=np.float64)
+
         with nc4.Dataset(output_file, 'w', format='NETCDF4') as ds:
             # Create dimensions
             ds.createDimension('hru', num_hru)
@@ -706,6 +763,9 @@ class GlacierAttributesManager(ConfigMixin):
             ds.createVariable('domType', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = domType.astype('f8')
             ds.createVariable('DOMarea', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = DOMarea
             ds.createVariable('DOMelev', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = DOMelev
+            ds.createVariable('DOMtan_slope', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = DOMtan_slope
+            ds.createVariable('DOMaspect', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = DOMaspect
+            ds.createVariable('DOMcontourLength', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = DOMcontourLength
             ds.createVariable('scalarAblFrac', 'f8', ('scalarv', 'hru', 'dom'), fill_value=-999.)[:] = scalarAblFrac
 
             # Glacier variables
@@ -738,57 +798,12 @@ class GlacierAttributesManager(ConfigMixin):
             ds.createVariable('mLayerVolFracLiq', 'f8', ('midToto', 'hru', 'dom'), fill_value=-999.)[:] = mLayerVolFracLiq
             ds.createVariable('mLayerMatricHead', 'f8', ('midSoil', 'hru', 'dom'), fill_value=-999.)[:] = -1.0
 
-        self.logger.info(f"Created coldState_glac.nc: {num_hru} HRUs, {ndom} domains, {num_glac} glaciers")
+            if domain_type_path is None:
+                return
 
-    def _create_coldState_glacSurfTopo_from_rasters(
-        self,
-        settings_dir: Path,
-        glacier_dir: Path,
-        gru_ids: np.ndarray
-    ) -> None:
-        """Create coldState_glacSurfTopo.nc from raster data."""
-        output_file = settings_dir / 'coldState_glacSurfTopo.nc'
-
-        # Load domain type for grid dimensions
-        domain_type_path = self._get_raster_path(glacier_dir, 'domain_type.tif')
-        if domain_type_path is None:
-            self.logger.warning("No domain_type raster, skipping glacSurfTopo")
-            return
-
-        with rasterio.open(domain_type_path) as src:
-            ygrid, xgrid = src.shape
-
-        # Load surface elevation from DEM
-        if self.dem_path.exists():
-            with rasterio.open(self.dem_path) as src:
-                surface_elev = src.read(1).astype(np.float64)
-                if surface_elev.shape != (ygrid, xgrid):
-                    surface_elev = self._resample_to_grid(surface_elev, (ygrid, xgrid))
-        else:
-            surface_elev = np.zeros((ygrid, xgrid), dtype=np.float64)
-
-        # Load debris thickness
-        debris_path = self._get_raster_path(glacier_dir, 'debris_thickness.tif')
-        if debris_path:
-            with rasterio.open(debris_path) as src:
-                debris_thick = src.read(1).astype(np.float64)
-                if debris_thick.shape != (ygrid, xgrid):
-                    debris_thick = self._resample_to_grid(debris_thick, (ygrid, xgrid))
-        else:
-            debris_thick = np.zeros((ygrid, xgrid), dtype=np.float64)
-
-        num_gru = len(gru_ids)
-        num_grid = 1
-
-        with nc4.Dataset(output_file, 'w', format='NETCDF4') as ds:
-            ds.createDimension('gru', num_gru)
             ds.createDimension('grid', num_grid)
             ds.createDimension('xgrid', xgrid)
             ds.createDimension('ygrid', ygrid)
-
-            gruId_var = ds.createVariable('gruId', 'i8', ('gru',), fill_value=-999)
-            gruId_var.long_name = 'GRU ID'
-            gruId_var[:] = gru_ids
 
             gridId_var = ds.createVariable('gridId', 'i8', ('grid', 'gru'), fill_value=-999)
             gridId_var[:, :] = 1
@@ -798,8 +813,7 @@ class GlacierAttributesManager(ConfigMixin):
 
             debris_var = ds.createVariable('debris_thick', 'f8', ('ygrid', 'xgrid', 'grid', 'gru'), fill_value=-999.)
             debris_var[:, :, 0, 0] = debris_thick
-
-        self.logger.info(f"Created coldState_glacSurfTopo.nc: grid={xgrid}x{ygrid}")
+        self.logger.info(f"Created coldState_glac.nc: {num_hru} HRUs, {ndom} domains, {num_glac} glaciers, grid={xgrid}x{ygrid}")
 
     def _process_from_rasters(
         self,
