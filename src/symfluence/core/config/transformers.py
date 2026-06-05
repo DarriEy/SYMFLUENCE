@@ -107,6 +107,34 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
 # ========================================
 
 
+def build_combined_flat_to_nested_map(
+    hydrological_model: Optional[str] = None,
+) -> Dict[str, Tuple[str, ...]]:
+    """Return the full flat->nested mapping used to recognize flat config keys.
+
+    Unions the auto-generated core aliases, registered plugin schemas, and
+    legacy aliases (via :func:`get_flat_to_nested_map`) with the model-specific
+    transformer overrides for the selected ``hydrological_model``. This is the
+    single source of truth for "which flat keys does SYMFLUENCE recognize",
+    shared by :func:`transform_flat_to_nested` and the unrecognized-key
+    validator in :mod:`symfluence.core.config.key_validation`.
+    """
+    combined_mapping = get_flat_to_nested_map().copy()
+
+    if hydrological_model:
+        try:
+            from symfluence.models.config_resolution import get_config_transformers
+            model_transformers = get_config_transformers(hydrological_model)
+            if model_transformers:
+                # Model-specific transformers override base mapping
+                combined_mapping.update(model_transformers)
+        except (ImportError, KeyError, AttributeError):
+            # If ConfigRegistry not available or model not registered, just use base mapping
+            pass
+
+    return combined_mapping
+
+
 def _set_nested_value(d: Dict[str, Any], path: Tuple[str, ...], value: Any) -> None:
     """Helper to set value at nested path in dict.
 
@@ -168,21 +196,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
         'fews': {},
     }
 
-    # Build combined mapping: auto-generated from Pydantic aliases (with fallback)
-    combined_mapping = get_flat_to_nested_map().copy()
-
-    # Try to get model-specific transformers from ModelRegistry
-    hydrological_model = flat_config.get('HYDROLOGICAL_MODEL')
-    if hydrological_model:
-        try:
-            from symfluence.models.config_resolution import get_config_transformers
-            model_transformers = get_config_transformers(hydrological_model)
-            if model_transformers:
-                # Model-specific transformers override base mapping
-                combined_mapping.update(model_transformers)
-        except (ImportError, KeyError, AttributeError):
-            # If ConfigRegistry not available or model not registered, just use base mapping
-            pass
+    # Build combined mapping: auto-generated core aliases + plugin schemas +
+    # legacy aliases + model-specific transformers for the selected model.
+    combined_mapping = build_combined_flat_to_nested_map(flat_config.get('HYDROLOGICAL_MODEL'))
 
     # Build reverse map: nested_path -> list of flat keys that map to it
     # This helps identify when multiple flat keys (canonical + deprecated) map to same path
