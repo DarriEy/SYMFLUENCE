@@ -74,6 +74,7 @@ See Also
 - models.mixins : PETCalculatorMixin, ObservationLoaderMixin, etc.
 - data.acquisition.mixins : RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 """
+from __future__ import annotations
 
 from .config import ConfigMixin
 from .configurable import ConfigurableMixin

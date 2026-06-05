@@ -6,6 +6,7 @@ Timing mixin for SYMFLUENCE modules.
 
 Provides timing and profiling utilities for measuring code execution time.
 """
+from __future__ import annotations
 
 import logging
 import time

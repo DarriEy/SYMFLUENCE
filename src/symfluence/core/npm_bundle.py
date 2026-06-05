@@ -16,6 +16,7 @@ Resolution honours the ``SYMFLUENCE_NPM_DIST_BIN`` environment override (an
 explicit path to the bundle's ``bin`` dir), which is also how tests point at a
 fixture bundle without a real npm install.
 """
+from __future__ import annotations
 
 import os
 import subprocess

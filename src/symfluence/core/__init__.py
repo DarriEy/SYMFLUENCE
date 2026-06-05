@@ -4,6 +4,8 @@
 """Common utilities and core system components."""
 
 # CoordinateUtilsMixin is in geospatial module but re-exported here for convenience
+from __future__ import annotations
+
 from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 from .base_manager import BaseManager

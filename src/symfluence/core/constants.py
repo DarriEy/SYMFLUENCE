@@ -7,6 +7,7 @@ Physical constants and unit conversion factors for SYMFLUENCE.
 Centralizes all hardcoded constants to eliminate duplication and
 improve maintainability across the codebase.
 """
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
