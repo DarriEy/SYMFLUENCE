@@ -7,6 +7,7 @@ mHM Parameter Manager
 Handles mHM parameter bounds, normalization, and Fortran namelist file updates.
 Parameters are updated using regex-based parsing of .nml files.
 """
+from __future__ import annotations
 
 import logging
 import re

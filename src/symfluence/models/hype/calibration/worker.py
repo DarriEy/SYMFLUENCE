@@ -6,6 +6,7 @@ HYPE Worker
 
 Worker implementation for HYPE model optimization.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

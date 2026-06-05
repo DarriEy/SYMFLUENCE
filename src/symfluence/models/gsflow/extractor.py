@@ -7,6 +7,7 @@ GSFLOW Result Extractor.
 Extracts results from GSFLOW output files including PRMS statvar
 output and MODFLOW listing/head files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

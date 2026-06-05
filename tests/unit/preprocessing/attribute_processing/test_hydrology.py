@@ -7,6 +7,7 @@ Tests:
 - calculate_baseflow_attributes() - Eckhardt method
 - enhance_river_network_analysis() - Stream order, bifurcation
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 

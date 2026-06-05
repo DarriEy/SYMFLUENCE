@@ -22,6 +22,7 @@ the old bare ``except ... : logger.debug(...)`` so misleading:
   registry and the user later saw a baffling ``No optimizer registered for
   model: X``. We now surface these at WARNING with the actual cause.
 """
+from __future__ import annotations
 
 import importlib
 import logging

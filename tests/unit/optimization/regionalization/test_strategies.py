@@ -4,6 +4,7 @@ Unit Tests for model-agnostic parameter regionalization strategies.
 Tests the shared regionalization framework at
 symfluence.optimization.regionalization.strategies.
 """
+from __future__ import annotations
 
 import logging
 

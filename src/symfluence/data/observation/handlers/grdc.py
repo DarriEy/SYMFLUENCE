@@ -7,6 +7,8 @@ GRDC (Global Runoff Data Centre) Streamflow Observation Handler
 Processes GRDC streamflow data for use in hydrological model calibration
 and validation. GRDC is the primary global archive for river discharge data.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 

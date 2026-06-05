@@ -13,6 +13,7 @@ HYPE (Hydrological Predictions for the Environment) is a semi-distributed
 hydrological model developed by SMHI (Swedish Meteorological and
 Hydrological Institute).
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
     get_common_build_environment,

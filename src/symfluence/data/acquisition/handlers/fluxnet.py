@@ -28,6 +28,8 @@ References:
 - FLUXNET2015: https://fluxnet.org/data/fluxnet2015-dataset/
 - ICOS: https://www.icos-cp.eu/
 """
+from __future__ import annotations
+
 import os
 import time
 import zipfile

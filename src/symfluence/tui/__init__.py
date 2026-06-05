@@ -11,6 +11,7 @@ and results comparison — all from an SSH terminal.
 Install dependencies: pip install "symfluence[tui]"
 Launch: symfluence tui launch
 """
+from __future__ import annotations
 
 
 def launch_tui(config_path=None, demo=None):

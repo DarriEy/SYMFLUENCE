@@ -20,6 +20,7 @@ Configuration Options:
     STOP_ON_MODEL_FAILURE: bool - Halt optimization on first failure
     ERROR_LOG_DIR: str - Subdirectory name for error artifacts
 """
+from __future__ import annotations
 
 import json
 import logging

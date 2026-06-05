@@ -10,6 +10,8 @@ Handles preparation of VIC model inputs including:
 - Forcing files (meteorological data)
 - Global parameter file (model control settings)
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path

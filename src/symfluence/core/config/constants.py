@@ -7,6 +7,7 @@ Single source of truth for valid algorithm names, metric names, and domain
 definition methods. Consumed by Pydantic validators (root.py) and manager
 validation methods so the same lists are never duplicated.
 """
+from __future__ import annotations
 
 VALID_OPTIMIZATION_ALGORITHMS = frozenset({
     'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS',

@@ -7,6 +7,7 @@ FEWS state file exchange.
 Copies warm-start NetCDF state files between the FEWS state directories
 and the model's internal state directory.
 """
+from __future__ import annotations
 
 import logging
 import shutil

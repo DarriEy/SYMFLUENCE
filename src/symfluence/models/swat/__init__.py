@@ -75,6 +75,8 @@ References:
 
     https://github.com/WatershedModels/SWAT
 """
+from __future__ import annotations
+
 from .config import SWATConfigAdapter
 from .extractor import SWATResultExtractor
 from .postprocessor import SWATPostProcessor

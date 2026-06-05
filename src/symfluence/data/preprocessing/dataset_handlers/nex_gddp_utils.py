@@ -7,6 +7,7 @@ NEX-GDDP-CMIP6 dataset handler for climate projections.
 Processes downscaled climate model outputs with variable standardization,
 coordinate transformation, and multi-model ensemble support.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

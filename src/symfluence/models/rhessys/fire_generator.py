@@ -11,6 +11,8 @@ Handles generation of WMFire (Wildfire Module) inputs for RHESSys, including:
 
 Extracted from RHESSysPreProcessor for modularity.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 

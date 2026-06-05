@@ -6,6 +6,7 @@ VIC Parameter Manager
 
 Handles VIC parameter bounds, normalization, and parameter file updates.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

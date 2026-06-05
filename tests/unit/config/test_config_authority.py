@@ -8,6 +8,7 @@ These tests ensure that:
 4. Configuration stays synchronized with Pydantic models
 5. All Pydantic model fields have corresponding YAML entries
 """
+from __future__ import annotations
 
 import re
 from pathlib import Path

@@ -7,6 +7,7 @@ CLM Worker
 Worker implementation for CLM5 model optimization.
 Handles parameter application, CLM execution, and metric calculation.
 """
+from __future__ import annotations
 
 import logging
 import os

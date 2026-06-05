@@ -7,6 +7,7 @@ Glacier Data Acquisition Handler.
 Acquires glacier data from the Randolph Glacier Inventory (RGI) 7.0
 and processes it into rasters for SUMMA glacier simulations.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -14,6 +14,7 @@ Supported products:
     - SMOS: ESA L-band passive microwave (~25 km, 2010-present)
     - ASCAT: EUMETSAT C-band active microwave (~25 km, 2007-present)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional

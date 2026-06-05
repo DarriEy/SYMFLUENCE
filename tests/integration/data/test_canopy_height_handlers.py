@@ -6,6 +6,8 @@ Tests cover:
 - Meta/WRI global canopy height (10m resolution)
 - GLAD/UMD tree height (Landsat-based)
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch

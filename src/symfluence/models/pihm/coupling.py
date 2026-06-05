@@ -13,6 +13,7 @@ Unit conversions:
     SUMMA scalarSurfaceRunoff: kg/m2/s → m/s (÷ 1000)
     PIHM river flux: m3/s (direct)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

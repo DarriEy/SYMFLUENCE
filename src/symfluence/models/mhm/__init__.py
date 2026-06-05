@@ -69,6 +69,8 @@ References:
 
     https://git.ufz.de/mhm/mhm
 """
+from __future__ import annotations
+
 from .config import MHMConfigAdapter
 from .extractor import MHMResultExtractor
 from .postprocessor import MHMPostProcessor

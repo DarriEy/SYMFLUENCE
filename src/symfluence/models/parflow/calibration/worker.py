@@ -7,6 +7,7 @@ ParFlow Worker
 Worker implementation for ParFlow model optimization.
 Handles .pfidb parameter updates, ParFlow execution, and metric extraction.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

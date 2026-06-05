@@ -6,6 +6,7 @@ mHM Worker
 
 Worker implementation for mHM model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os

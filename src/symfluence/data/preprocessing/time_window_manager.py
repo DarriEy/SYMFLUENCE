@@ -8,6 +8,7 @@ Shared utility for handling simulation time windows across model preprocessors.
 Consolidates time parsing, validation, and alignment logic that was previously
 duplicated in SUMMA, FUSE, NGEN, and GR preprocessors.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

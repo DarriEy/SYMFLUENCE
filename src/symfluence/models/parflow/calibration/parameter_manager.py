@@ -22,6 +22,7 @@ cached hourly ERA5 data using the new snow model parameters.
     MANNINGS_N-> Mannings.Geom.domain.Value
     SNOW17_*  -> regenerates daily BC values via Snow-17
 """
+from __future__ import annotations
 
 import json
 import logging

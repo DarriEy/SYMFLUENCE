@@ -8,6 +8,7 @@ Handles extraction of simulation results from SUMMA model outputs.
 Encapsulates SUMMA-specific logic for variable names, units, spatial
 dimensions, and file patterns.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, cast

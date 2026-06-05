@@ -25,6 +25,7 @@ References:
     distribution of carbonate rocks and karst water resources.
     Hydrogeology Journal, 28, 1661-1677.
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

@@ -11,6 +11,7 @@ The app is served as a factory function so each browser session gets
 its own instance with the Panel event loop running for periodic
 log flushing.
 """
+from __future__ import annotations
 
 import logging
 

@@ -7,6 +7,7 @@ CRHM Model Runner.
 Executes the CRHM (Cold Regions Hydrological Model) using prepared input files.
 CRHM is driven by a .prj project file and reads forcing from a .obs file.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

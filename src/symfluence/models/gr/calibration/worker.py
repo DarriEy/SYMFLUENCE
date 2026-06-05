@@ -9,6 +9,7 @@ GR Worker
 
 Worker implementation for GR model optimization.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -4,6 +4,7 @@ SYMFLUENCE Distributed Basin Integration Tests
 Tests the elevation-based distributed workflow from notebook 02c for SUMMA.
 Reuses data from the semi-distributed example when available.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

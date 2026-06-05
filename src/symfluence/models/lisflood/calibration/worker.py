@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Worker."""
+from __future__ import annotations
 
 import shutil
 import subprocess

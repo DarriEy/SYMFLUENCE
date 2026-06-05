@@ -7,6 +7,7 @@ mHM Result Extractor.
 Handles extraction of simulation results from mHM model outputs.
 mHM outputs are in NetCDF format with discharge and fluxes/states.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

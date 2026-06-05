@@ -13,6 +13,7 @@ This module defines how to build SUMMA from source, including:
 SUMMA (Structure for Unifying Multiple Modeling Alternatives) is a
 land surface model that uses SUNDIALS for solving differential equations.
 """
+from __future__ import annotations
 
 import sys
 

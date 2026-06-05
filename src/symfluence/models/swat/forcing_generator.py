@@ -7,6 +7,8 @@ SWAT Forcing File Generator
 Generates SWAT precipitation (.pcp) and temperature (.tmp) forcing files
 from ERA5 NetCDF data, including unit conversion and daily resampling.
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 

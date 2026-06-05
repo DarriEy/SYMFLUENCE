@@ -11,6 +11,7 @@ aliases from ``legacy_aliases.py``.
 The exported names (``CANONICAL_FLAT_TO_NESTED_MAP`` and ``FLAT_TO_NESTED_MAP``)
 are kept for backward compatibility with any code that imports them directly.
 """
+from __future__ import annotations
 
 import logging
 import threading

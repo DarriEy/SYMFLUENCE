@@ -7,6 +7,7 @@ Workflow orchestration for SYMFLUENCE hydrological modeling pipeline.
 Coordinates the execution sequence of modeling steps including domain definition,
 data preprocessing, model execution, optimization, and analysis phases.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

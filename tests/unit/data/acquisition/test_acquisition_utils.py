@@ -7,6 +7,7 @@ Tests the utility functions:
 - download_file_streaming(): successful download, atomic write cleanup
 - atomic_write(): context manager for safe file writes
 """
+from __future__ import annotations
 
 import os
 import tempfile

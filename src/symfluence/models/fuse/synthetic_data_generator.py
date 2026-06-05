@@ -8,6 +8,7 @@ This module contains the FuseSyntheticDataGenerator class which creates
 realistic synthetic hydrographs when observations are not available,
 particularly useful for snow-dominated catchments during model calibration.
 """
+from __future__ import annotations
 
 import numpy as np
 

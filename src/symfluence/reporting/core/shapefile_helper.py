@@ -7,6 +7,7 @@ Centralized shapefile loading utilities.
 This module provides a unified interface for loading and caching geospatial
 shapefiles used throughout the reporting module.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

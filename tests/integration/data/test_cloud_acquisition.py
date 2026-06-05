@@ -4,6 +4,7 @@ SYMFLUENCE Cloud Data Acquisition Integration Tests
 Uses the Paradise point-scale setup to validate cloud attribute acquisition
 and multiple cloud forcing datasets with short time windows.
 """
+from __future__ import annotations
 
 import multiprocessing
 import os

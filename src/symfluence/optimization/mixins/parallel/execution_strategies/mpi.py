@@ -6,6 +6,7 @@ MPI Execution Strategy
 
 Executes tasks using MPI (mpirun) for distributed computing.
 """
+from __future__ import annotations
 
 import logging
 import os

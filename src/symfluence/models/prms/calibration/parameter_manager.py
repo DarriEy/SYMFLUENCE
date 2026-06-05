@@ -7,6 +7,7 @@ PRMS Parameter Manager
 Handles PRMS parameter bounds, normalization, and parameter file updates.
 Parameters are updated by rewriting sections of the PRMS params.dat file.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

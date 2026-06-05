@@ -7,6 +7,7 @@ WRF-Hydro model postprocessor.
 Handles extraction and processing of WRF-Hydro model simulation results.
 Uses StandardModelPostProcessor for reduced boilerplate.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

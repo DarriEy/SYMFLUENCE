@@ -7,6 +7,7 @@ MESH model postprocessor.
 Handles extraction and processing of MESH model simulation results.
 Migrated to use StandardModelPostProcessor for reduced boilerplate (Phase 1.3).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

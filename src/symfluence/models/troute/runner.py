@@ -11,6 +11,7 @@ Supports two modes:
 
 The built-in mode is used as fallback when troute is not installed.
 """
+from __future__ import annotations
 
 import logging
 import sys

@@ -17,6 +17,7 @@ Example:
     ...     ema.update(params)
     >>> final_params = ema.get()
 """
+from __future__ import annotations
 
 from typing import Any
 

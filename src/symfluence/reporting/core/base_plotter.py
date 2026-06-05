@@ -7,6 +7,7 @@ Abstract base class for all plotters.
 This module provides common functionality shared across all plotting classes,
 eliminating code duplication and providing consistent behavior.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

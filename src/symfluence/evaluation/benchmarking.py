@@ -7,6 +7,7 @@ Hydrological model benchmarking using HydroBM library.
 Provides benchmark calculation against simple models (mean flow, rainfall-runoff
 ratios, etc.) with configurable calibration/validation period splitting.
 """
+from __future__ import annotations
 
 import json
 from datetime import datetime

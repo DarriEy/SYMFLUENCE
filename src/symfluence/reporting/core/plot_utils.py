@@ -7,6 +7,7 @@ Pure utility functions for plotting.
 This module provides standalone functions for common plotting operations
 like metrics calculation, data alignment, and flow duration curves.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple, cast
 

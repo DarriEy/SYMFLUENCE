@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to WATFLOOD .met format.
 WATFLOOD only requires precipitation and temperature forcing (simplified
 energy balance).
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

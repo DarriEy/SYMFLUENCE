@@ -6,6 +6,7 @@ PRMS Model Runner.
 
 Executes the PRMS model using prepared input files.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

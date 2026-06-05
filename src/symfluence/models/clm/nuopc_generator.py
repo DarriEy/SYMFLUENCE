@@ -9,6 +9,8 @@ single-point run, including nuopc.runconfig, nuopc.runseq, lnd_in,
 datm_in, datm.streams.xml, drv_in, drv_flds_in, fd.yaml, CASEROOT,
 and user_nl_clm.
 """
+from __future__ import annotations
+
 import logging
 import shutil
 import urllib.request

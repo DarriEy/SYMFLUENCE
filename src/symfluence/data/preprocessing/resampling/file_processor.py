@@ -6,6 +6,7 @@ File Processor
 
 Handles parallel and serial processing of forcing files.
 """
+from __future__ import annotations
 
 import gc
 import logging

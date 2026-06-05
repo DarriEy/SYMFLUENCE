@@ -25,6 +25,7 @@ Reference:
     problem: An efficient simulation algorithm. Journal of Optimization
     Theory and Applications, 45(1), 41-51.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

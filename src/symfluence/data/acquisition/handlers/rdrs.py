@@ -13,6 +13,7 @@ Data sources:
   - Fallback: ECCC GPSC-C daily NetCDF files (CaSR v3.2)
   - Legacy:   PAVICS THREDDS OPeNDAP (RDRS v2.1, 1980-2018, hourly)
 """
+from __future__ import annotations
 
 import concurrent.futures
 from datetime import datetime

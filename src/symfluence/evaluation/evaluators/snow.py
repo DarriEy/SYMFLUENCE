@@ -9,6 +9,7 @@
 Evaluates snow water equivalent (SWE) and snow-covered area (SCA) from model outputs.
 Supports multi-target calibration with automatic target selection.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

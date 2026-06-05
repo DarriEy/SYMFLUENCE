@@ -10,6 +10,7 @@ Handles soil properties including:
 - USDA texture classification
 - Soil depth from Pelletier dataset
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union

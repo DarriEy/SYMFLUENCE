@@ -6,6 +6,7 @@ Residual analysis panel for model comparison visualizations.
 
 Renders residual/bias analysis visualizations.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List
 

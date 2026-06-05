@@ -18,6 +18,8 @@ Key design features:
 
 # Root config - the main entry point
 # FEWS adapter config
+from __future__ import annotations
+
 from symfluence.fews.config import FEWSConfig
 
 # Data configs

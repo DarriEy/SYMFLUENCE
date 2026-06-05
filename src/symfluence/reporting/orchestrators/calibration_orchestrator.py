@@ -7,6 +7,7 @@ Extracted from ``ReportingManager`` — handles the complex calibration-target
 dispatch logic in ``visualize_calibration_results()`` and the model comparison
 overview generation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional

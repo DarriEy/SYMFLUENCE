@@ -15,6 +15,7 @@ subsurface flow is not explicitly routed to the outlet, the linear reservoir
 post-processor provides recession behaviour and baseflow that ParFlow's
 lumped cell cannot represent.
 """
+from __future__ import annotations
 
 import json
 import logging

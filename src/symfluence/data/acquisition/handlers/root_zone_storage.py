@@ -25,6 +25,7 @@ References:
 Configuration:
     ROOT_ZONE_VARIABLES: ['cwdx80', 'zroot_cwd80'] (default: both)
 """
+from __future__ import annotations
 
 from pathlib import Path
 

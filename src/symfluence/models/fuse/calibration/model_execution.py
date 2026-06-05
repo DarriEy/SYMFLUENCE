@@ -7,6 +7,7 @@ FUSE Model Execution
 Standalone functions for executing the FUSE model subprocess,
 managing input file symlinks, and validating output.
 """
+from __future__ import annotations
 
 import logging
 import os

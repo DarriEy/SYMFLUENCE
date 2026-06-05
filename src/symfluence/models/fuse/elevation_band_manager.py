@@ -7,6 +7,7 @@ Elevation band management for FUSE model.
 This module contains the FuseElevationBandManager class which handles creation
 of elevation bands for both lumped and distributed spatial configurations.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

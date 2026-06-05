@@ -7,6 +7,8 @@ CLM Model Postprocessor
 Extracts streamflow and other variables from CLM5 history output.
 CLM outputs QRUNOFF in mm/s which is converted to m3/s for evaluation.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple

@@ -7,6 +7,7 @@ HRRR (High-Resolution Rapid Refresh) dataset handler.
 Processes HRRR atmospheric forecast data with Lambert conformal projection
 handling, variable extraction, and unit conversions.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

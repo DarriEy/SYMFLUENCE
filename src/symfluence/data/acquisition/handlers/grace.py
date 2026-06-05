@@ -7,6 +7,8 @@ GRACE Data Acquisition Handler
 Provides cloud acquisition for GRACE/GRACE-FO Terrestrial Water Storage anomaly data.
 Retrieves data from NASA PO.DAAC or similar cloud-hosted repositories.
 """
+from __future__ import annotations
+
 import tempfile
 from functools import lru_cache
 from pathlib import Path

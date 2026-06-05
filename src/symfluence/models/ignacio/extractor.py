@@ -7,6 +7,7 @@ IGNACIO Result Extractor.
 Handles extraction of simulation results from IGNACIO fire model outputs.
 IGNACIO outputs are shapefiles (fire perimeters) and JSON summaries.
 """
+from __future__ import annotations
 
 import json
 from pathlib import Path

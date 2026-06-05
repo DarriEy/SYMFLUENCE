@@ -11,6 +11,7 @@ Modules covered:
     - symfluence.evaluation.metric_transformer  (optimisation direction)
     - symfluence.geospatial.coordinate_utils    (lon/lat normalisation)
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

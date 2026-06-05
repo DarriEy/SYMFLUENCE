@@ -9,6 +9,7 @@ attribute processing system. The original monolithic attributeProcessor class
 has been split into specialized processors, but this wrapper maintains the
 original interface for existing code.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

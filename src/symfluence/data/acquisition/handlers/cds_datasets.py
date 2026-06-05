@@ -8,6 +8,7 @@ Provides acquisition handlers for CARRA (Arctic) and CERRA (European) datasets
 from the Copernicus Climate Data Store, using a shared base class to eliminate
 code duplication.
 """
+from __future__ import annotations
 
 import concurrent.futures
 import gc

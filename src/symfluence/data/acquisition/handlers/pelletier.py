@@ -28,6 +28,7 @@ Configuration:
     PELLETIER_VARIABLES: List of variables to download
         (default: all grids)
 """
+from __future__ import annotations
 
 from pathlib import Path
 

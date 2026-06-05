@@ -4,6 +4,7 @@ Unit tests for the constants module.
 Tests the UnitConversion and PhysicalConstants classes to ensure
 all conversion factors and physical constants are correct.
 """
+from __future__ import annotations
 
 import pytest
 

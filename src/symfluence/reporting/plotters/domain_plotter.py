@@ -6,6 +6,7 @@ Domain visualization plotter.
 
 Handles plotting of domain boundaries, discretization, and spatial features.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional

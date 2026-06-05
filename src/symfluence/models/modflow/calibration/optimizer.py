@@ -20,6 +20,7 @@ Config keys:
     LAND_SURFACE_MODEL: SUMMA, CLM, MESH, etc.
     GROUNDWATER_MODEL: MODFLOW
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

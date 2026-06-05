@@ -11,6 +11,7 @@ MM-PIHM is the actively maintained multi-module variant of the Penn State
 Integrated Hydrologic Model. Pre-compiled binaries may be available for
 Linux and macOS.
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

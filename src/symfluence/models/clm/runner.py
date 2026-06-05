@@ -8,6 +8,7 @@ Executes CLM5 (cesm.exe) with prepared namelists and input files.
 At runtime, CIME is bypassed -- cesm.exe is invoked directly from
 the run directory where namelists are placed.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

@@ -7,6 +7,7 @@ MizuRoute Control File Writer
 Unified control file generation for different source models (SUMMA, FUSE, GR).
 Eliminates code duplication by using configuration-driven templates.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

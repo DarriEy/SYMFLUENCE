@@ -6,6 +6,7 @@ FUSE Model Visualizer.
 
 Provides model-specific visualization registration for FUSE.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

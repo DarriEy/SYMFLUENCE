@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to SUMMA format.
 Since CFIF was designed with SUMMA-compatible conventions, this adapter
 primarily handles variable renaming.
 """
+from __future__ import annotations
 
 from typing import Dict, List
 

@@ -6,6 +6,7 @@ Project context mixin for SYMFLUENCE modules.
 
 Provides standard project context attributes like paths and directories.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Union

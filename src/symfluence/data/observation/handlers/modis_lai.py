@@ -18,6 +18,8 @@ LAI is critical for:
 - Vegetation phenology tracking
 - Carbon cycle modeling
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

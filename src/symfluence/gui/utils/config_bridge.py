@@ -7,6 +7,7 @@ Bridge between SymfluenceConfig (Pydantic) and BasicConfigParams (param).
 Provides two-way conversion so the GUI widgets stay in sync with the
 underlying typed config model.
 """
+from __future__ import annotations
 
 
 def config_to_params(config) -> dict:

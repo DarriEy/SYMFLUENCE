@@ -25,6 +25,7 @@ Variables:
     - snowmelt_runoff: Snowmelt runoff at base of snow pack (m)
     - sublimation: Sublimation from the snow pack (m)
 """
+from __future__ import annotations
 
 import gzip
 import tarfile

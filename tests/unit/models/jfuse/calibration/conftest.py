@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     import jfuse  # noqa: F401
 except ImportError:

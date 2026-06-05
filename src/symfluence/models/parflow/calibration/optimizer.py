@@ -8,6 +8,7 @@ ParFlow-specific optimizer inheriting from BaseModelOptimizer.
 Calibrates van Genuchten parameters, saturated hydraulic conductivity,
 Manning's roughness, and domain geometry via DDS or other algorithms.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

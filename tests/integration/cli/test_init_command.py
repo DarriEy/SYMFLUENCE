@@ -1,4 +1,5 @@
 """Integration tests for --init CLI command."""
+from __future__ import annotations
 
 import contextlib
 import io

@@ -11,6 +11,8 @@ data for use in hydrological modeling. LST is critical for:
 - Energy balance calculations
 - Model temperature validation
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

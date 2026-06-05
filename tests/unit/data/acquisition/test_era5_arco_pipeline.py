@@ -5,6 +5,7 @@ Verifies that the full flow — from raw ARCO-style ERA5 data through
 era5_to_summa_schema() and ERA5Handler.process_dataset() — produces
 correct output variables, units, coordinate conventions, and value ranges.
 """
+from __future__ import annotations
 
 import logging
 

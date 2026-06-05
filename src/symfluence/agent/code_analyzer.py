@@ -6,6 +6,7 @@ Code analysis module for understanding project structure.
 
 Provides analysis of project layout, file relationships, and code structure.
 """
+from __future__ import annotations
 
 import ast
 from pathlib import Path

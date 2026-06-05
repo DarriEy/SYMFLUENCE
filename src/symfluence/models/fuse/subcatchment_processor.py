@@ -12,6 +12,7 @@ Handles distributed FUSE execution for subcatchment-based workflows:
 
 Extracted from FUSERunner for better maintainability and testability.
 """
+from __future__ import annotations
 
 import logging
 import shutil

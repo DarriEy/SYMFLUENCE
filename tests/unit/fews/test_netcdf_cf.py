@@ -1,4 +1,5 @@
 """Tests for FEWS NetCDF-CF reader and writer."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

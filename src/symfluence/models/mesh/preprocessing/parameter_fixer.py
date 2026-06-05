@@ -13,6 +13,7 @@ Facade that coordinates MESH parameter file fixes via composed helpers:
 Also retains hydrology, reservoir, forcing, and lumped-output methods
 directly (they don't belong to any single helper).
 """
+from __future__ import annotations
 
 import logging
 import re

@@ -3,6 +3,7 @@ Tests for SUMMA Structure Analyzer lazy loading and routing logic.
 
 Tests the refactored lazy loading pattern that prevents circular dependencies.
 """
+from __future__ import annotations
 
 from unittest.mock import Mock, patch
 

@@ -27,6 +27,8 @@ Usage:
 """
 
 # Trigger objective registration
+from __future__ import annotations
+
 from . import objectives
 from .objectives import ObjectiveRegistry
 from .optimizers.base_model_optimizer import BaseModelOptimizer

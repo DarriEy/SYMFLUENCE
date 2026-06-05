@@ -7,6 +7,7 @@ Tests lumped watershed delineation including:
 - River network creation
 - Required field validation
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

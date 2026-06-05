@@ -13,6 +13,7 @@ methods:
     - v__ (value replacement): new_value = change
     - a__ (absolute): new_value = original_value + change
 """
+from __future__ import annotations
 
 import logging
 import re

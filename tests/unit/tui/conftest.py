@@ -1,4 +1,5 @@
 """TUI test fixtures and utilities."""
+from __future__ import annotations
 
 import csv
 import json

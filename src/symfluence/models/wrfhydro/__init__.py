@@ -71,6 +71,8 @@ References:
 
     https://github.com/NCAR/wrf_hydro_nwm_public
 """
+from __future__ import annotations
+
 from .config import WRFHydroConfigAdapter
 from .extractor import WRFHydroResultExtractor
 from .postprocessor import WRFHydroPostProcessor

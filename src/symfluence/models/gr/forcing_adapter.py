@@ -7,6 +7,7 @@ GR Forcing Adapter.
 Converts CFIF (CF-Intermediate Format) forcing data to GR model format.
 GR models (GR4J, GR5J, etc.) use simple daily forcing variables.
 """
+from __future__ import annotations
 
 from typing import Callable, Dict, List
 

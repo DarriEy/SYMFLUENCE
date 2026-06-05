@@ -3,6 +3,7 @@ Unit test fixtures and configuration.
 
 Fixtures specific to unit tests (fast, isolated tests).
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

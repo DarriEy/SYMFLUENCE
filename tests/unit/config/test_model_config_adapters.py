@@ -8,6 +8,7 @@ Tests the new ModelRegistry-based config system to verify:
 4. Validation is properly delegated to models
 5. Core config system integration works
 """
+from __future__ import annotations
 
 import pytest
 

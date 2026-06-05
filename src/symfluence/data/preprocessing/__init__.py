@@ -11,6 +11,7 @@ This module provides:
 - RemappingWeightGenerator/Applier: EASYMORE weight operations
 - GeospatialStatistics: Catchment attribute computation
 """
+from __future__ import annotations
 
 import logging as _logging
 from typing import Any

@@ -6,6 +6,7 @@ Data assimilation output writer.
 
 Writes EnKF results to CF-1.6 compliant NetCDF files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -27,6 +27,7 @@ References:
     the Conterminous United States. USDA NRCS.
     https://gdg.sc.egov.usda.gov/
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

@@ -7,6 +7,7 @@ MESH Meshflow Manager
 Handles meshflow execution for MESH preprocessing.
 Meshflow is the single required pathway - no fallbacks.
 """
+from __future__ import annotations
 
 import logging
 import traceback

@@ -1,6 +1,7 @@
 """
 Tests for GNN model runner.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 

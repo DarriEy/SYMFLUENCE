@@ -10,6 +10,7 @@ though POUR_POINT_COORDS is set. The resolver auto-derives a small
 square bbox around the pour point for point domains so these configs
 work out of the box.
 """
+from __future__ import annotations
 
 import logging
 

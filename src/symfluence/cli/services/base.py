@@ -9,6 +9,7 @@ Provides shared functionality for all CLI services including:
 - Configuration loading
 - Data directory resolution
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

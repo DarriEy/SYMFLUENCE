@@ -6,6 +6,7 @@ must satisfy. When adding a new model optimizer, it should pass all these tests.
 
 This ensures consistent behavior across SUMMA, FUSE, NGEN, and any future optimizers.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

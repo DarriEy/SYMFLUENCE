@@ -28,6 +28,7 @@ Usage:
     >>> raw_data = handler.acquire()
     >>> processed = handler.process(raw_data)
 """
+from __future__ import annotations
 
 from . import handlers
 from .base import (

@@ -6,6 +6,7 @@
 Inverse of ``transform_flat_to_nested`` — used for backward compatibility
 with legacy code that expects flat configs.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Tuple

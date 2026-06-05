@@ -8,6 +8,7 @@ IGNACIO-specific optimizer inheriting from BaseModelOptimizer.
 Uses spatial metrics (IoU/Dice) as objective function for fire
 perimeter calibration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -18,6 +18,7 @@ Categories:
     - agent: AI assistant interface
     - doctor: System diagnostics
 """
+from __future__ import annotations
 
 import argparse
 from typing import List, Optional

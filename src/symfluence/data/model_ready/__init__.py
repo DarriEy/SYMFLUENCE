@@ -7,6 +7,7 @@ Model-ready data store — CF-1.8 compliant, self-describing data packages.
 Materializes forcings, observations, and attributes into a structured
 ``data/model_ready/`` directory with full provenance metadata.
 """
+from __future__ import annotations
 
 from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .path_resolver import resolve_model_ready_path

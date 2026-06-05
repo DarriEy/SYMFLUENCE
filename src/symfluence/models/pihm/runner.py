@@ -16,6 +16,7 @@ The binary is invoked as:
 
 from {sim_dir} as the working directory.
 """
+from __future__ import annotations
 
 import logging
 import os

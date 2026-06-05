@@ -7,6 +7,7 @@ CONUS404 WRF reanalysis dataset handler.
 Processes CONUS404 high-resolution atmospheric reanalysis data from
 the HyTEST catalog with spatial subsetting and variable mapping.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

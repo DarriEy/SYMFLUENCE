@@ -14,6 +14,7 @@ for a lumped single-cell basin:
   - Streamflow obs        (_str.tb0)
   - Directory structure   (basin/, event/, raing/, tempg/, strfw/, results/, debug/)
 """
+from __future__ import annotations
 
 import calendar
 import logging

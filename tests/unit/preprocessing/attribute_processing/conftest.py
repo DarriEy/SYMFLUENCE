@@ -4,6 +4,7 @@ Shared fixtures for attribute_processing tests.
 Provides mock data, test configurations, and utilities for testing
 the attributeProcessor class and its methods.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -14,6 +14,8 @@ Canopy height is important for:
 - Snow interception modeling
 - Forest type classification
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict, Optional
 

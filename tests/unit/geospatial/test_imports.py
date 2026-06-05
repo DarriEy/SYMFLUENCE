@@ -7,6 +7,7 @@ or circular import issues.
 This test file serves as a canary for import problems - if imports fail here,
 they will fail for users of the module.
 """
+from __future__ import annotations
 
 import importlib
 import sys

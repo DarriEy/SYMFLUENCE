@@ -16,6 +16,7 @@ Output:
     settings/PARFLOW/<runname>.pfidb       -- ParFlow database file
     settings/PARFLOW/daily_rainfall.npy    -- daily net rainfall [m/hr]
 """
+from __future__ import annotations
 
 import logging
 import math

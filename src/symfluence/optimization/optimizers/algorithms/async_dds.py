@@ -11,6 +11,7 @@ An asynchronous parallel variant of DDS that maintains a pool of best solutions
 and generates batches of trials by selecting from the pool. More efficient
 for parallel execution than synchronous DDS.
 """
+from __future__ import annotations
 
 import random
 from typing import Any, Callable, Dict, Optional

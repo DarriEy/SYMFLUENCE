@@ -11,6 +11,7 @@ Daymet provides: tmax, tmin, prcp, srad, vp, dayl, swe
 Daymet does NOT provide: longwave radiation, pressure, specific humidity, wind speed.
 These are estimated from available variables when possible.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

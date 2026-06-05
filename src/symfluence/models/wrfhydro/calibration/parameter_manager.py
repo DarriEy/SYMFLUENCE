@@ -7,6 +7,7 @@ WRF-Hydro Parameter Manager
 Handles WRF-Hydro parameter bounds, normalization, and Fortran namelist updates.
 Parameters are applied to hydro.namelist and namelist.hrldas using regex-based parsing.
 """
+from __future__ import annotations
 
 import logging
 import re

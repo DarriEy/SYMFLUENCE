@@ -13,6 +13,7 @@ Handles both lumped FUSE output and distributed FUSE + mizuRoute output.
 Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
+from __future__ import annotations
 
 import logging
 import warnings

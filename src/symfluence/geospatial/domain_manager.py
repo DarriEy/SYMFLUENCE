@@ -7,6 +7,7 @@ Domain management facade for SYMFLUENCE geospatial operations.
 Coordinates domain definition, delineation, and discretization workflows
 with integrated visualization and artifact tracking.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -4,6 +4,7 @@ Unit tests for configuration normalization and validation.
 Tests the config_loader module's ability to handle aliases, type coercion,
 and validation of configuration dictionaries.
 """
+from __future__ import annotations
 
 import pytest
 import yaml

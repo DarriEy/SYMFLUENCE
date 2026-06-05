@@ -9,6 +9,8 @@ file creation and management for SUMMA model runs.
 """
 
 # Standard library imports
+from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path

@@ -3,6 +3,7 @@ Unit tests for PETCalculatorMixin.
 
 Tests the PET calculation methods provided by the mixin.
 """
+from __future__ import annotations
 
 from unittest.mock import Mock
 

@@ -6,6 +6,7 @@ Provides reusable mock factories for testing data acquisition handlers:
 - MockResponseFactory: Create HTTP response mocks
 - MockSessionFactory: Create mock requests.Session with response mapping
 """
+from __future__ import annotations
 
 import io
 import logging

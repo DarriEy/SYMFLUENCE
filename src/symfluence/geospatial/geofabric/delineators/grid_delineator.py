@@ -9,6 +9,7 @@ direction routing via mizuRoute.
 
 Refactored from plan (2026-01-06)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple

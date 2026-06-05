@@ -7,6 +7,7 @@ PRMS Result Extractor.
 Handles extraction of simulation results from PRMS model outputs.
 PRMS outputs are typically in statvar text or NetCDF format.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

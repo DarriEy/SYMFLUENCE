@@ -7,6 +7,7 @@ File and directory utilities for SYMFLUENCE.
 Provides standardized file operations with consistent logging and error handling
 to eliminate boilerplate code across the codebase.
 """
+from __future__ import annotations
 
 import logging
 import shutil

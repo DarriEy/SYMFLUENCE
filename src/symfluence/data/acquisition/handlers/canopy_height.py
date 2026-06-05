@@ -25,6 +25,7 @@ References:
     - Meta/WRI: https://sustainability.fb.com/blog/2023/04/canopy-height-map/
     - GLAD: https://glad.umd.edu/
 """
+from __future__ import annotations
 
 import math
 import time

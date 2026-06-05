@@ -14,6 +14,8 @@ MODIS LST features:
 - Global coverage
 - Terra (MOD) since 2000, Aqua (MYD) since 2002
 """
+from __future__ import annotations
+
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional

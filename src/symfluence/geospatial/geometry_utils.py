@@ -10,6 +10,7 @@ Provides common geometry operations including:
 - Area calculations with automatic CRS detection
 - Spatial aggregation utilities
 """
+from __future__ import annotations
 
 import logging
 from typing import Optional, Tuple, Union

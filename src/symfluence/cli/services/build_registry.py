@@ -31,6 +31,7 @@ Example Usage:
     all_tools = BuildInstructionsRegistry.get_all_instructions()
     summa_config = BuildInstructionsRegistry.get_instructions('summa')
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional

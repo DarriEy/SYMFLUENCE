@@ -7,6 +7,7 @@ Forcing Adapter Registry for SYMFLUENCE.
 This module provides a registry for model forcing adapters,
 enabling dynamic discovery and instantiation without hardcoded model names.
 """
+from __future__ import annotations
 
 import logging
 import warnings

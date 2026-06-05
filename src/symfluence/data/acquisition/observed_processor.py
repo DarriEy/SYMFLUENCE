@@ -7,6 +7,7 @@ Observed data processor for streamflow and hydrological observations.
 Handles data acquisition from USGS, WSC, SMHI, and LAMAH-ICE providers
 with standardized output formatting for model calibration.
 """
+from __future__ import annotations
 
 import csv
 from pathlib import Path

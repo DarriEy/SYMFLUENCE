@@ -7,6 +7,7 @@ NGen Model Postprocessor.
 Processes simulation outputs from the NOAA NextGen Framework (ngen).
 Migrated to use StandardModelPostProcessor with multi-file support (Phase 1.5).
 """
+from __future__ import annotations
 
 import json
 from pathlib import Path

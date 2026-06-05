@@ -6,6 +6,7 @@ Execution Strategies
 
 Different strategies for parallel task execution.
 """
+from __future__ import annotations
 
 from .base import ExecutionStrategy
 from .mpi import MPIExecutionStrategy

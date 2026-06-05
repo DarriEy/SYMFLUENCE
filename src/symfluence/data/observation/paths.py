@@ -6,6 +6,7 @@
 This module centralizes canonical and legacy observation file naming conventions
 used by workflow orchestration and evaluator path resolution.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Sequence

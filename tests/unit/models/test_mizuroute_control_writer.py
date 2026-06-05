@@ -9,6 +9,7 @@ inspecting the actual model output NetCDF (the SUMMA-side analogue of the FUSE
 runner fix, PR #69), while still respecting a correct config and falling back
 gracefully when the output file does not exist yet.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

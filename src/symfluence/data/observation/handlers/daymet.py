@@ -8,6 +8,8 @@ Processes Daymet daily surface weather data for use in hydrological
 modeling. Daymet provides high-resolution (1km) gridded climate data
 across North America.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

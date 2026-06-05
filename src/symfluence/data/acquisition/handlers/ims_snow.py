@@ -28,6 +28,7 @@ References:
 - Product: https://nsidc.org/data/g02156
 - Documentation: https://nsidc.org/sites/default/files/g02156-v001-userguide_1_1.pdf
 """
+from __future__ import annotations
 
 import gzip
 import math

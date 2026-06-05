@@ -11,6 +11,7 @@ Provides shared infrastructure for all model preprocessing modules including:
 - Common directory structure
 - Settings file copying
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

@@ -8,6 +8,7 @@ This module executes CLI commands/tools called by the LLM and returns
 structured results. It integrates with the existing CLI manager to avoid
 code duplication.
 """
+from __future__ import annotations
 
 import io
 import sys

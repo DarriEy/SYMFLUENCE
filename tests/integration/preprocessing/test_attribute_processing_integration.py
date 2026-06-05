@@ -7,6 +7,7 @@ Tests the refactored modular attribute processing architecture including:
 - Backward compatibility with original interface
 - Both lumped and distributed catchment configurations
 """
+from __future__ import annotations
 
 import warnings
 from pathlib import Path

@@ -6,6 +6,7 @@ MizuRoute Model Preprocessor.
 
 Handles spatial preprocessing and configuration generation for the mizuRoute routing model.
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -7,6 +7,8 @@ CLM Surface Data and Parameter Generator
 Generates the CLM5 surface data file (surfdata_clm.nc) and copies
 the default parameter file (clm5_params.nc).
 """
+from __future__ import annotations
+
 import logging
 import shutil
 

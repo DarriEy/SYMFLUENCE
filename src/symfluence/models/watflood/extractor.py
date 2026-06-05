@@ -7,6 +7,7 @@ WATFLOOD Result Extractor.
 Extracts results from WATFLOOD output files including .tb0 (time-bin)
 format and CSV files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

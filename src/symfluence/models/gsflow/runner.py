@@ -6,6 +6,7 @@ GSFLOW Model Runner.
 
 Executes the GSFLOW binary which internally couples PRMS and MODFLOW-NWT.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

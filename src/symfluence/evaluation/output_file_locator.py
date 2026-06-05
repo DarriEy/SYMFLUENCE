@@ -21,6 +21,7 @@ Usage:
     files = locator.find_hype_output(sim_dir)
     files = locator.find_rhessys_output(sim_dir)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

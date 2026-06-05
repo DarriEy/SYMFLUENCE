@@ -23,6 +23,7 @@ optional acquisition dependencies happen to be installed in the test
 environment — a handler whose heavy dependency (e.g. ``cdsapi``) is absent
 still *should* be wired into the import list, and that is what we verify.
 """
+from __future__ import annotations
 
 import re
 from pathlib import Path

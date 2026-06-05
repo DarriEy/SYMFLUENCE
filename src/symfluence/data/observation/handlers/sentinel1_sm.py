@@ -8,6 +8,8 @@ Processes Sentinel-1 SAR-derived soil moisture data for hydrological
 modeling. Sentinel-1 provides high-resolution (~1 km) soil moisture
 estimates that complement coarser passive microwave products.
 """
+from __future__ import annotations
+
 import zipfile
 from pathlib import Path
 from typing import List, Optional

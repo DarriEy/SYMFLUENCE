@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Shared fixtures for LISFLOOD model tests."""
+from __future__ import annotations
 
 import logging
 import shutil

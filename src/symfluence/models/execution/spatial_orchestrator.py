@@ -27,6 +27,7 @@ Usage:
             if self.requires_routing():
                 output = self.route_model_output(output)
 """
+from __future__ import annotations
 
 import shutil
 import subprocess

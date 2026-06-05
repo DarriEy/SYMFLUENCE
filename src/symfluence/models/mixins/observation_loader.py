@@ -8,6 +8,7 @@ Provides standardized loading, parsing, and unit conversion for streamflow
 observations across preprocessing and calibration workflows. Eliminates code
 duplication and provides a consistent interface.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union

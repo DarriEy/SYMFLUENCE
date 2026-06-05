@@ -8,6 +8,7 @@ Manages the lifecycle and execution of ensemble members for the EnKF.
 Provides base class and model-specific implementations for HBV
 (in-memory) and subprocess-based models (SUMMA, etc.).
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

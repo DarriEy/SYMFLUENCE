@@ -17,6 +17,7 @@ Example:
     ...     loss, grads = val_grad_fn(params)
     ...     params = optimizer.step(params, grads)
 """
+from __future__ import annotations
 
 from typing import Any
 

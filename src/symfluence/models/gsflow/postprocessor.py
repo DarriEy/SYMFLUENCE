@@ -6,6 +6,7 @@ GSFLOW Post-Processor.
 
 Extracts and processes GSFLOW model outputs.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

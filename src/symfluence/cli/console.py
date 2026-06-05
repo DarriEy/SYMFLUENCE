@@ -8,6 +8,7 @@ This module provides a unified interface for all CLI output, using the rich
 library for colors, progress bars, and structured output. This replaces
 direct print() calls throughout the codebase.
 """
+from __future__ import annotations
 
 import sys
 from contextlib import contextmanager

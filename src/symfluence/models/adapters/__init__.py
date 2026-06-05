@@ -23,6 +23,7 @@ See Also:
     - ForcingAdapter: Abstract base class for adapters
     - ForcingAdapterRegistry: Registry for adapter discovery
 """
+from __future__ import annotations
 
 from .adapter_registry import ForcingAdapterRegistry
 from .base_adapter import ForcingAdapter

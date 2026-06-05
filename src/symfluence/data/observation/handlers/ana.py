@@ -24,6 +24,7 @@ Configuration:
     STREAMFLOW_DATA_PROVIDER: 'ANA'
     DOWNLOAD_ANA_DATA: True (default, downloads from Zenodo if not cached)
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

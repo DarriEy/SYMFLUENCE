@@ -16,6 +16,8 @@ Supports multiple hydrological variables:
 - Evaporation (total_evaporation, potential_evaporation)
 - Runoff (surface_runoff, subsurface_runoff)
 """
+from __future__ import annotations
+
 import calendar
 from datetime import datetime
 from pathlib import Path

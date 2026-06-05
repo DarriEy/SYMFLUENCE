@@ -7,6 +7,7 @@ Optimizer Component Factory
 Registry-based factory for creating parameter managers, workers,
 and calibration targets using convention-over-configuration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

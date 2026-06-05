@@ -19,6 +19,7 @@ IMS Snow Overview:
 Output Format:
     CSV with columns: datetime, sca_fraction
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

@@ -8,6 +8,7 @@ Generates a 2x2 multi-panel overview figure showing t-route routing results:
 routed vs observed hydrograph, performance metrics table, flow duration
 curves, and routing attenuation (lateral inflow vs routed discharge).
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional

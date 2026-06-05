@@ -25,6 +25,7 @@ Example Implementation:
                 return ModelRunResult(success=True, output_path=self.output_dir)
             return ModelRunResult(success=False, error=result.error_message)
 """
+from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass, field

@@ -3,6 +3,7 @@ Tests for RoutingDecider utility.
 
 Tests routing decision logic for various model configurations.
 """
+from __future__ import annotations
 
 from symfluence.models.utilities.routing_decider import RoutingDecider, needs_routing
 

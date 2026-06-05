@@ -36,6 +36,7 @@ Configuration:
     SM_USE_QUALITY_CONTROL: Enable QC filtering (default: True)
     SM_MIN_VALID_PIXELS: Minimum valid pixels for SMAP QC (default: 10)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -6,6 +6,7 @@ Tool installation service for SYMFLUENCE.
 
 Handles cloning repositories, running build commands, and verifying installations.
 """
+from __future__ import annotations
 
 import os
 import shutil

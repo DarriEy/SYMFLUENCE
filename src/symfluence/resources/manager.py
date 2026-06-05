@@ -6,6 +6,7 @@
 Handles loading base_settings and config_templates from package data
 in both development (editable install) and production (site-packages) modes.
 """
+from __future__ import annotations
 
 import shutil
 import sys

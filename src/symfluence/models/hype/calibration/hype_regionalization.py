@@ -17,6 +17,7 @@ class as a spatial "unit":
 The adapter composes separate ParameterRegionalization instances
 (one per parameter group) and presents a unified coefficient interface.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

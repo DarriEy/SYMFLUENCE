@@ -6,6 +6,7 @@ Decorators for the reporting module.
 
 Provides reusable decorators for common patterns in visualization methods.
 """
+from __future__ import annotations
 
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, get_type_hints

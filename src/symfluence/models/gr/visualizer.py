@@ -6,6 +6,7 @@ GR Model Visualizer.
 
 Provides model-specific visualization registration for GR.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Geofabric delineators module."""
+from __future__ import annotations
 
 from .coastal_delineator import CoastalWatershedDelineator
 from .distributed_delineator import GeofabricDelineator

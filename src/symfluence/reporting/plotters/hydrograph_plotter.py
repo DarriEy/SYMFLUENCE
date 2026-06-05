@@ -7,6 +7,7 @@ Hydrograph and streamflow visualization.
 This module provides specialized plotting for hydrograph comparisons,
 flow duration curves, and streamflow analysis.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

@@ -8,6 +8,8 @@ Processes ERA5-Land reanalysis data for use as observation/validation data
 in hydrological modeling. Provides basin-averaged time series for multiple
 variables including precipitation, temperature, snow, soil moisture, and ET.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

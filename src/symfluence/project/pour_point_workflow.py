@@ -8,6 +8,7 @@ Provides functionality to create a new SYMFLUENCE domain from pour point
 coordinates, generating configuration files and defining initial workflow steps
 for watershed delineation and discretization.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path

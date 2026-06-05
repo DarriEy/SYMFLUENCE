@@ -30,6 +30,7 @@ References:
     Miralles et al. (2011): Global land-surface evaporation. Hydrology and
     Earth System Sciences.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

@@ -7,6 +7,7 @@ Optimization results tracking, history management, and visualization.
 Handles storage, retrieval, and plotting of optimization trial history
 for calibration experiments.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

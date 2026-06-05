@@ -9,6 +9,7 @@ Standalone functions for applying calibration parameters to FUSE files:
 - fuse_zConstraints_snow.txt (Fortran fixed-width constraints file)
 - Regionalized parameters via transfer functions
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

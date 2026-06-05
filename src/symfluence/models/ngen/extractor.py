@@ -7,6 +7,7 @@ NGEN Result Extractor.
 Handles extraction of simulation results from NextGen framework outputs.
 NGEN outputs can come from troute (routing) or catchment-level results.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

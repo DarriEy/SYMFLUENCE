@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Unit tests for external attribute-processor plugin discovery and dispatch."""
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock, patch

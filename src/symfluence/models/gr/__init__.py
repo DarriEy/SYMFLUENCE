@@ -65,6 +65,7 @@ Limitations and Considerations:
     - Parameter bounds should respect physical constraints (X1, X3 > 0)
     - For distributed mode, subcatchment areas needed for routing
 """
+from __future__ import annotations
 
 from .postprocessor import GRPostProcessor
 from .preprocessor import GRPreProcessor

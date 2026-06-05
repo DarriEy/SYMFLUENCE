@@ -6,6 +6,7 @@ IGNACIO Model Runner for SYMFLUENCE
 
 Executes the IGNACIO fire spread model using the ignacio Python package.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

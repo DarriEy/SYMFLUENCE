@@ -12,6 +12,7 @@ to the Terminal widget. This approach is robust across threading
 contexts -- it works regardless of whether log appends originate
 from the Tornado event loop, daemon threads, or direct calls.
 """
+from __future__ import annotations
 
 import panel as pn
 import param

@@ -7,6 +7,8 @@ WMFire Fire Definition Generator Module
 Generates fire.def parameter files for RHESSys WMFire integration
 with dynamic grid dimensions and configurable coefficients.
 """
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path

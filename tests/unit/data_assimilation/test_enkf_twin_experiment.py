@@ -6,6 +6,7 @@ Runs the full EnKF loop using HBV model components:
 3. Run EnKF from perturbed initial conditions
 4. Verify ensemble mean converges toward truth
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

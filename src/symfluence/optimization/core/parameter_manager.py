@@ -18,6 +18,7 @@ SUMMA Parameter Manager - Deprecated Location
 
 This file provides backward compatibility by re-exporting from the new location.
 """
+from __future__ import annotations
 
 import warnings
 

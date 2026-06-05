@@ -9,6 +9,8 @@ Tests:
 - ParFlow model registration in ModelRegistry
 - ParFlow plotter registration and PNG generation
 """
+from __future__ import annotations
+
 import shutil
 import subprocess
 from pathlib import Path

@@ -7,6 +7,7 @@ Dataset Registry for SYMFLUENCE
 Provides a central registry for dataset preprocessing handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
+from __future__ import annotations
 
 from typing import Dict, List, Type
 

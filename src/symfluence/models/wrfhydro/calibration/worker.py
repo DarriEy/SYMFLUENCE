@@ -6,6 +6,7 @@ WRF-Hydro Worker
 
 Worker implementation for WRF-Hydro model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os

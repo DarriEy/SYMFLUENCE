@@ -13,6 +13,7 @@ Heavy lifting is delegated to three orchestrators:
 - ``CalibrationOrchestrator``: post-calibration target dispatch and comparison plots
 - ``DiagnosticsOrchestrator``: per-workflow-step diagnostic validation plots
 """
+from __future__ import annotations
 
 from functools import cached_property
 from pathlib import Path

@@ -7,6 +7,7 @@ Sensitivity analysis of model parameters using multiple statistical methods.
 Provides parameter sensitivity analysis using Sobol, RBD-FAST, and correlation
 methods on calibration results, with visualization and reporting support.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

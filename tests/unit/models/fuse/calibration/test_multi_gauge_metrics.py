@@ -9,6 +9,7 @@ Tests multi-gauge calibration metrics:
 - Aggregation methods
 - Configuration helper
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

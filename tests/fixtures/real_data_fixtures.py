@@ -4,6 +4,8 @@ Real data fixtures using tests/data/domain_Bow_at_Banff/.
 These fixtures provide lightweight real data for unit tests,
 replacing file I/O mocks with actual file structures.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest

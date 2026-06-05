@@ -8,6 +8,7 @@ Generates a multi-panel overview figure showing SUMMA+PIHM coupling:
 flow separation hydrograph, groundwater head, recharge vs baseflow,
 and performance metrics.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional

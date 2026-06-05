@@ -10,6 +10,7 @@ flow direction to follow mapped streams, improving delineation on flat terrain.
 
 Used as step 0 in the TauDEM pipeline when DEM_CONDITIONING_METHOD = 'burn_streams'.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any

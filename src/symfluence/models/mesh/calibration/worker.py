@@ -6,6 +6,7 @@ MESH Worker
 
 Worker implementation for MESH model optimization.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -10,6 +10,7 @@ DDS Optimization for SUMMA Workers
 This module contains the DDS (Dynamically Dimensioned Search) algorithm
 implementation for running within worker processes.
 """
+from __future__ import annotations
 
 import logging
 import os

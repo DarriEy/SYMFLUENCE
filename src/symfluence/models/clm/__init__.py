@@ -40,6 +40,8 @@ References:
 
     https://github.com/ESCOMP/CTSM
 """
+from __future__ import annotations
+
 from .config import CLMConfigAdapter
 from .extractor import CLMResultExtractor
 from .postprocessor import CLMPostProcessor

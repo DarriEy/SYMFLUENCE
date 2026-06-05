@@ -12,6 +12,7 @@ Orchestrates the pre-processing phase of a FEWS General Adapter run:
   5. Import warm-start state files
   6. Write forcing to model input directory
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

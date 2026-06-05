@@ -7,6 +7,7 @@ Tests raster processing utilities including:
 - Radiation calculations
 - Scipy mode compatibility
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

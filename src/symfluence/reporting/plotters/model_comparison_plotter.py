@@ -9,6 +9,7 @@ Public API remains stable at:
 Implementation now lives in the dedicated package:
     symfluence.reporting.plotters.model_comparison
 """
+from __future__ import annotations
 
 from symfluence.reporting.plotters.model_comparison.plotter import ModelComparisonPlotter
 

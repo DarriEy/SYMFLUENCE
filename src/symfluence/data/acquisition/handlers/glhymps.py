@@ -23,6 +23,7 @@ References:
 Configuration:
     GLHYMPS_VERSION: '2.0' (default) or '1.0'
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

@@ -17,6 +17,7 @@ Example:
     ...     lr = scheduler.get_lr(i)
     ...     optimizer.lr = lr
 """
+from __future__ import annotations
 
 import numpy as np
 

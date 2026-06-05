@@ -7,6 +7,7 @@ SLURM job management service for the TUI.
 Wraps squeue/scancel subprocess calls with timeout handling.
 Only active when running on an HPC system with SLURM available.
 """
+from __future__ import annotations
 
 import logging
 import os

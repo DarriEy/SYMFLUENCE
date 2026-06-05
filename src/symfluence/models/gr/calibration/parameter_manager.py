@@ -11,6 +11,7 @@ Handles GR parameter bounds, normalization, and configuration updates.
 Since GR doesn't use parameter files but receives them via config/runner,
 this manager simply prepares the parameters for the GRRunner.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
