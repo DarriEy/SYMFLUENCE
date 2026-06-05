@@ -141,12 +141,17 @@ class ProjectManager(ConfigurableMixin):
 
     def create_pour_point(self) -> Optional[Path]:
         """
-        Create pour point shapefile from coordinates if specified.
+        Create the outlet (pour point) shapefile from coordinates if specified.
 
-        If pour point coordinates are specified in the configuration, creates
-        a GeoDataFrame with a single point geometry and saves it as a shapefile
-        at the appropriate location. If 'default' is specified, assumes a
-        user-provided pour point shapefile exists.
+        Writes a GeoDataFrame of one or more point geometries and saves it as a
+        shapefile. ``POUR_POINT_COORDS`` is the primary, most-downstream outlet
+        that defines the domain extent (id 0). Any ``POUR_POINT_ADDITIONAL_COORDS``
+        are written as additional interior outlets (id 1..N) so TauDEM breaks the
+        stream network at each, forcing subbasin/GRU boundaries to align with
+        interior gauges. Additional outlets only apply to ``semidistributed`` /
+        ``distributed`` delineation; they are ignored (with a warning) for other
+        methods, where a single basin is delineated. If ``POUR_POINT_COORDS`` is
+        'default', assumes a user-provided pour point shapefile exists.
 
         Returns:
             Optional[Path]: Path to the created pour point shapefile if successful,
@@ -156,6 +161,8 @@ class ProjectManager(ConfigurableMixin):
             ValueError: If the pour point coordinates are in an invalid format
             Exception: For other errors during shapefile creation
         """
+        from symfluence.core.validation import parse_pour_point_coords
+
         # Check if using user-provided shapefile
         pour_point_coords = self._get_config_value(
             lambda: self.config.domain.pour_point_coords,
@@ -166,12 +173,46 @@ class ProjectManager(ConfigurableMixin):
             return None
 
         try:
-            # Parse coordinates
+            # Parse the primary outlet (id 0).
             lat, lon = map(float, str(pour_point_coords).split('/'))
-            point = Point(lon, lat)  # Note: Point takes (lon, lat) order
+            points = [Point(lon, lat)]  # Note: Point takes (lon, lat) order
 
-            # Create GeoDataFrame
-            gdf = gpd.GeoDataFrame({'geometry': [point]}, crs="EPSG:4326")
+            # Append additional interior outlets, but only for distributed methods —
+            # for lumped/point a single basin is delineated and extra outlets would
+            # produce multiple/ambiguous watersheds.
+            additional = self._get_config_value(
+                lambda: self.config.domain.pour_point_additional_coords,
+                default=None,
+                dict_key='POUR_POINT_ADDITIONAL_COORDS',
+            )
+            if additional:
+                method = str(self._get_config_value(
+                    lambda: self.config.domain.definition_method,
+                    default='lumped',
+                    dict_key='DOMAIN_DEFINITION_METHOD',
+                )).lower()
+                if method in ('semidistributed', 'distributed'):
+                    extra_pairs = parse_pour_point_coords(
+                        additional, context='POUR_POINT_ADDITIONAL_COORDS'
+                    )
+                    points.extend(Point(p_lon, p_lat) for p_lat, p_lon in extra_pairs)
+                    self.logger.info(
+                        f"Added {len(extra_pairs)} interior outlet(s) to the pour "
+                        f"point shapefile for subbasin-aligned delineation."
+                    )
+                else:
+                    self.logger.warning(
+                        f"POUR_POINT_ADDITIONAL_COORDS is set but DOMAIN_DEFINITION_METHOD "
+                        f"is '{method}'; additional outlets only apply to "
+                        f"'semidistributed'/'distributed' and will be ignored."
+                    )
+
+            # Create GeoDataFrame with a stable integer 'id' (0 = primary outlet)
+            # that survives the TauDEM round-trip for later gauge<->subbasin mapping.
+            gdf = gpd.GeoDataFrame(
+                {'id': list(range(len(points))), 'geometry': points},
+                crs="EPSG:4326",
+            )
 
             # Determine output path
             output_path = self.project_dir / "shapefiles" / "pour_point"
