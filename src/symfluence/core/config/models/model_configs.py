@@ -48,7 +48,10 @@ from .model_configs_integrated import (
     PIHMConfig,
 )
 from .model_configs_ml_fire import GNNConfig, IGNACIOConfig, LSTMConfig, WMFireConfig
-from .model_configs_routing import DRouteConfig, MizuRouteConfig, TRouteConfig
+
+# DROUTE config schema now lives in the external ``droute`` package and registers itself via
+# ``model_manifest(config_schema=DRouteConfig)`` (JAX-model plugin pattern).
+from .model_configs_routing import MizuRouteConfig, TRouteConfig
 
 # Single source of truth mapping canonical model name (UPPER) -> its Pydantic
 # config schema, for every in-tree model that has a typed config. The attribute
@@ -69,7 +72,7 @@ IN_TREE_CONFIG_SCHEMAS: dict[str, type[BaseModel]] = {
     'NGEN': NGENConfig,
     'MESH': MESHConfig,
     'MIZUROUTE': MizuRouteConfig,
-    'DROUTE': DRouteConfig,
+    # 'DROUTE' is contributed by the external droute plugin via model_manifest(config_schema=...)
     'TROUTE': TRouteConfig,
     'LSTM': LSTMConfig,
     'RHESSYS': RHESSysConfig,
@@ -298,7 +301,6 @@ __all__ = [
     'NGENConfig',
     'MESHConfig',
     'MizuRouteConfig',
-    'DRouteConfig',
     'TRouteConfig',
     'LSTMConfig',
     'WMFireConfig',

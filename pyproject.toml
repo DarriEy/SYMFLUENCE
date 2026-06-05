@@ -91,6 +91,12 @@ jax = [
   "jhechms>=0.1.0",
   "jtopmodel>=0.1.0",
 ]
+# dRoute differentiable river routing plugin (C++ engine + SYMFLUENCE integration).
+# Optional: only needed to run dRoute routing/calibration, discovered via entry points at runtime.
+#   pip install "symfluence[droute]"
+droute = [
+  "droute>=0.6.0",
+]
 # LLM agent integration. Optional: only needed for `symfluence agent` features.
 #   pip install "symfluence[llm]"
 llm = [
