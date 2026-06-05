@@ -28,29 +28,16 @@ def _register_parameter_managers():
 
     Scans ``symfluence.models.*`` for sub-packages that contain a
     ``calibration.parameter_manager`` module and imports each one to
-    trigger its ``@register_parameter_manager`` decorator.  Models whose
-    dependencies are not installed are silently skipped.
+    trigger its ``@register_parameter_manager`` decorator.  Models with no
+    calibration support are skipped silently; models whose parameter-manager
+    module *exists but fails to import* are surfaced at WARNING (see
+    ``discover_calibration_components``) instead of vanishing silently.
     """
-    import importlib
     import logging
-    import pkgutil
 
-    logger = logging.getLogger(__name__)
+    from symfluence.optimization._autodiscover import discover_calibration_components
 
-    try:
-        import symfluence.models as models_pkg
-    except ImportError:
-        return
-
-    for _importer, model_name, is_pkg in pkgutil.iter_modules(models_pkg.__path__):
-        if not is_pkg:
-            continue
-        module_path = f'symfluence.models.{model_name}.calibration.parameter_manager'
-        try:
-            importlib.import_module(module_path)
-        except (ImportError, ModuleNotFoundError, AttributeError):
-            # Expected for models without calibration support or missing deps
-            logger.debug("Skipped parameter manager for %s", model_name)
+    discover_calibration_components('parameter_manager', logging.getLogger(__name__))
 
 
 # Trigger registration on import

@@ -55,11 +55,18 @@ def __getattr__(name):
         try:
             module = import_module(worker_mapping[name])
             return getattr(module, name)
-        except (ImportError, AttributeError):
+        except ImportError as exc:
+            # Surface the real cause (e.g. a missing optional dependency) rather
+            # than collapsing every failure into a generic "not found".
             raise AttributeError(
-                f"Worker '{name}' not found. Ensure the model package is installed "
-                f"and the worker is defined in {worker_mapping[name]}"
-            ) from None
+                f"Worker '{name}' could not be imported from '{worker_mapping[name]}' "
+                f"({type(exc).__name__}: {exc}). Ensure the model package and its "
+                f"dependencies are installed."
+            ) from exc
+        except AttributeError as exc:
+            raise AttributeError(
+                f"Worker class '{name}' is not defined in '{worker_mapping[name]}'."
+            ) from exc
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
