@@ -10,6 +10,7 @@ file-based delegation in graph order (each downstream model's standalone worker 
 upstream model's output). The objective is delegated to the objective model's worker (the routing
 model when present, else the land model) -- e.g. multi-gauge streamflow KGE for SUMMA+dRoute.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
