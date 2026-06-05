@@ -31,4 +31,6 @@ Calibration loop (per DDS iteration, summary):
     6. Combine surface runoff + drain discharge → total streamflow
     7. KGE against observed → return to DDS
 """
+from __future__ import annotations
+
 from .targets import CoupledGWStreamflowTarget  # noqa: F401 - triggers target registration

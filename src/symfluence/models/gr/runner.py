@@ -9,6 +9,7 @@ Supports both lumped and distributed spatial modes with optional mizuRoute routi
 
 Refactored to use the Unified Model Execution Framework.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

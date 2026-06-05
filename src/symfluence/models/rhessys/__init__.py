@@ -74,6 +74,8 @@ Limitations and Considerations:
     - Computationally intensive for large watersheds
     - Patch-level output can generate very large files
 """
+from __future__ import annotations
+
 from .postprocessor import RHESSysPostProcessor
 from .preprocessor import RHESSysPreProcessor
 from .runner import RHESSysRunner

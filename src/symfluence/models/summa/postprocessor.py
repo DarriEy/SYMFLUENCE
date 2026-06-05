@@ -8,6 +8,7 @@ Handles both routed (mizuRoute) and non-routed (native SUMMA) output.
 For lumped domains without routing, reads averageRoutedRunoff from SUMMA
 output and converts from m/s to m³/s using HRU area.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

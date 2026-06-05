@@ -10,6 +10,8 @@ Handles preparation of mHM model inputs including:
 - Directory structure setup
 - Grid and morphological input preparation
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path

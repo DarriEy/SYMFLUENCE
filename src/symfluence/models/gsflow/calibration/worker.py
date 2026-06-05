@@ -6,6 +6,7 @@ GSFLOW Worker.
 
 Worker implementation for GSFLOW model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os

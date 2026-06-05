@@ -10,6 +10,7 @@ Extracted from RHESSysPreprocessor for better organization and testability.
 RHESSys uses text-based climate files with format:
     year month day hour value
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

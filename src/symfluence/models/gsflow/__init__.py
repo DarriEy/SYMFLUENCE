@@ -16,6 +16,8 @@ References:
     Markstrom, S.L., et al. (2008): GSFLOW---Coupled Ground-Water and
     Surface-Water Flow Model. USGS Techniques and Methods 6-D1.
 """
+from __future__ import annotations
+
 from .config import GSFLOWConfigAdapter
 from .extractor import GSFLOWResultExtractor
 from .postprocessor import GSFLOWPostProcessor

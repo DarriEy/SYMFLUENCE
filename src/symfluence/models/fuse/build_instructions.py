@@ -12,6 +12,7 @@ This module defines how to build FUSE from source, including:
 FUSE (Framework for Understanding Structural Errors) is a modular
 rainfall-runoff modeling framework.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
     get_common_build_environment,

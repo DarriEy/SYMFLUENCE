@@ -10,6 +10,7 @@ spread simulation with Richards' elliptical wave propagation.
 
 Unlike compiled tools, IGNACIO is installed via pip as an editable package.
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

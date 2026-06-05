@@ -10,6 +10,7 @@ Uses StandardModelPostProcessor for reduced boilerplate.
 SWAT outputs streamflow in output.rch as fixed-width text with columns
 including RCH, GIS, MON, AREAkm2, FLOW_OUTcms, etc.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

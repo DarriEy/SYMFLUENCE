@@ -7,6 +7,7 @@ ML Parameter Manager
 Generic parameter manager for ML-based models (LSTM/GNN).
 Uses config-defined parameter lists and bounds.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

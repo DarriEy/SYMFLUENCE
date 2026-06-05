@@ -7,6 +7,8 @@ WMFire Ignition Point and Fire Perimeter Module
 Handles ignition point management and fire perimeter comparison
 for WMFire fire spread modeling validation.
 """
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime

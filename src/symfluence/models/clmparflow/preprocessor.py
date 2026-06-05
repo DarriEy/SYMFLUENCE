@@ -22,6 +22,7 @@ Output:
     data/forcing/CLMPARFLOW_input/forcing.1d            -- Met forcing for CLM
     data/forcing/CLMPARFLOW_input/daily_rainfall.npy    -- daily net rainfall [m/hr]
 """
+from __future__ import annotations
 
 import logging
 import math

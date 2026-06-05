@@ -8,6 +8,7 @@ Handles extraction of simulation results from RHESSys (Regional Hydro-Ecologic
 Simulation System) model outputs. RHESSys outputs are primarily in text format
 (.daily files) rather than NetCDF.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

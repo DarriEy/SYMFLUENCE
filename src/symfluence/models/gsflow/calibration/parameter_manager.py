@@ -7,6 +7,7 @@ GSFLOW Parameter Manager.
 Manages parameters for both PRMS (####-delimited params.dat) and
 MODFLOW-NWT (UPW package) components of GSFLOW.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

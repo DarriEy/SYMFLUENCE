@@ -71,6 +71,7 @@ Limitations and Considerations:
     - CFE is simplified; full NWM fidelity requires Noah-OWP-M
     - Multi-catchment runs benefit from parallel execution
 """
+from __future__ import annotations
 
 from .config_generator import NgenConfigGenerator
 from .postprocessor import NgenPostProcessor

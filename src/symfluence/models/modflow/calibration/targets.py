@@ -11,6 +11,7 @@ The land surface model is determined by LAND_SURFACE_MODEL config key.
 Uses SUMMAToMODFLOWCoupler for recharge extraction and flow combination,
 and MODFLOWResultExtractor for drain discharge from .bud files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

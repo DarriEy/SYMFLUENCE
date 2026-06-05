@@ -7,6 +7,7 @@ MESH Model Optimizer
 MESH-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with MESH.
 """
+from __future__ import annotations
 
 import logging
 import shutil

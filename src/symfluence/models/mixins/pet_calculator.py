@@ -11,6 +11,7 @@ Provides three PET calculation methods for use in hydrological model preprocesso
 
 All methods automatically detect and handle temperature units (Kelvin or Celsius).
 """
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd

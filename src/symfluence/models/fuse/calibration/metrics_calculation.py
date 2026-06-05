@@ -8,6 +8,7 @@ Standalone functions for calculating calibration metrics from FUSE output.
 Handles observation loading, simulation reading (both direct FUSE and routed),
 time alignment, and metric computation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -8,6 +8,7 @@ Extracts simulated streamflow from PIHM .rivflx output (river flux)
 and compares against observed streamflow for metric calculation
 during calibration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

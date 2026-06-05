@@ -10,6 +10,7 @@ Manages 26 parameters across 3 target files:
 - params.nc (clm5_params.nc): snow + PFT parameters
 - surfdata (surfdata_clm.nc): soil hydraulic multipliers
 """
+from __future__ import annotations
 
 import logging
 import math

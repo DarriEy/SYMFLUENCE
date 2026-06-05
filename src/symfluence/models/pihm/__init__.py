@@ -31,6 +31,8 @@ References:
 
     https://github.com/PSUmodeling/MM-PIHM
 """
+from __future__ import annotations
+
 from .config import PIHMConfigAdapter
 from .extractor import PIHMResultExtractor
 from .plotter import PIHMPlotter

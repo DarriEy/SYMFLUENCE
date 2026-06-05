@@ -8,6 +8,7 @@ This module provides:
 - WRFHydroParameterManager: Handles WRF-Hydro parameter bounds and namelist updates
 - WRFHydroWorker: Worker for WRF-Hydro model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import WRFHydroModelOptimizer
 from .parameter_manager import WRFHydroParameterManager

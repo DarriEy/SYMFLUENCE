@@ -16,6 +16,8 @@ Flow table format (per construct_routing_topology.c):
 
 Extracted from RHESSysPreProcessor for modularity.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 

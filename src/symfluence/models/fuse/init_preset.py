@@ -7,6 +7,7 @@ FUSE initialization presets.
 This module registers FUSE-specific presets with the PresetRegistry,
 keeping model-specific configuration within the model directory.
 """
+from __future__ import annotations
 
 from symfluence.cli.preset_registry import PresetRegistry
 

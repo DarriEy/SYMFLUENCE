@@ -7,6 +7,7 @@ SUMMA Model Plotter
 Model-specific visualization for SUMMA outputs including spatial and temporal
 plots of hydrological variables.
 """
+from __future__ import annotations
 
 from typing import Dict, Optional
 

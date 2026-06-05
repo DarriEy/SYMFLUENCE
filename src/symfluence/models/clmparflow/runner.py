@@ -8,6 +8,7 @@ Executes the ParFlow-CLM binary from a prepared simulation directory.
 Same execution pattern as standalone ParFlow, but reads from
 settings/CLMPARFLOW/ and verifies both .pfb and CLM output files.
 """
+from __future__ import annotations
 
 import logging
 import os

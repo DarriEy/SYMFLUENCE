@@ -7,6 +7,7 @@ MESH Result Extractor.
 Handles extraction of simulation results from MESH (Modélisation
 Environmentale Communautaire - Surface and Hydrology) model outputs.
 """
+from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta

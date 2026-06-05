@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM (Community Water Model) — IIASA Global Hydrological Model."""
+from __future__ import annotations
+
 from .config import CWatMConfigAdapter
 from .extractor import CWatMResultExtractor
 from .postprocessor import CWatMPostProcessor

@@ -11,6 +11,7 @@ Provides shared infrastructure for all model postprocessing modules including:
 - Common data extraction patterns
 - Unit conversion utilities
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

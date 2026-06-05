@@ -6,6 +6,7 @@ GSFLOW Model Optimizer.
 
 GSFLOW-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 import shutil

@@ -15,6 +15,7 @@ creates approximate elliptical perimeters based on:
 The elliptical approximation follows FBP-style fire shape assumptions
 where fires spread as ellipses elongated in the wind direction.
 """
+from __future__ import annotations
 
 import json
 import logging

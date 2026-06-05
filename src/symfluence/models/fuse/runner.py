@@ -7,6 +7,7 @@ FUSE Runner Module
 Refactored to use the model execution framework:
 - SpatialOrchestrator: Combined execution and spatial orchestration
 """
+from __future__ import annotations
 
 import logging
 import os

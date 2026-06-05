@@ -10,6 +10,7 @@ across multiple model preprocessors (SUMMA, FUSE, NGEN, GR, MESH).
 
 Also includes RoutingDecider for unified routing decision logic across models.
 """
+from __future__ import annotations
 
 from symfluence.data.preprocessing.dataset_alignment_manager import DatasetAlignmentManager, align_forcing_datasets
 from symfluence.data.preprocessing.time_window_manager import TimeWindowManager

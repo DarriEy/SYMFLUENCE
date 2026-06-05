@@ -25,6 +25,7 @@ since CLMParFlow uses the same .pfidb format.
     MANNINGS_N-> Mannings.Geom.domain.Value
     SNOW17_*  -> regenerates daily BC values via Snow-17
 """
+from __future__ import annotations
 
 import json
 import logging

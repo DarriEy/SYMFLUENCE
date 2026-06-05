@@ -7,6 +7,8 @@ SWAT Routing and Control File Generator
 Generates the master control file (file.cio), watershed routing file (fig.fig),
 reach routing files (.rte, .swq), and database stub files for SWAT.
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 

@@ -7,6 +7,7 @@ WATFLOOD Parameter Manager.
 Manages parameters in WATFLOOD .par files which use per-land-class
 parameter blocks.
 """
+from __future__ import annotations
 
 import logging
 import re

@@ -10,6 +10,7 @@ Tier 2 (fallback): Build from source using CMake.
 ParFlow is a parallel integrated hydrologic model. Pre-compiled
 binaries are available for Linux and macOS.
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

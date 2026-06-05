@@ -8,6 +8,7 @@ Worker implementation for Noah-MP model optimization.
 Handles parameter application to namelist.input and SOILPARM.TBL,
 model execution, and metric calculation from output.nc.
 """
+from __future__ import annotations
 
 import logging
 import os

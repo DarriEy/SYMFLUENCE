@@ -6,6 +6,7 @@ FUSE (Framework for Understanding Structural Errors) model postprocessor.
 
 Simplified implementation using StandardModelPostProcessor.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

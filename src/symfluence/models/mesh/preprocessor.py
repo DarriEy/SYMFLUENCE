@@ -7,6 +7,7 @@ MESH model preprocessor.
 Handles data preparation using meshflow library for MESH model setup.
 Uses meshflow exclusively for all preprocessing - both lumped and distributed modes.
 """
+from __future__ import annotations
 
 import logging
 from datetime import timedelta

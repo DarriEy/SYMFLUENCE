@@ -26,6 +26,7 @@ The actual fire simulation logic is in the ignacio package:
 References:
     IGNACIO: https://github.com/KatherineHopeReece/Fire-Engine-Framework
 """
+from __future__ import annotations
 
 import logging
 

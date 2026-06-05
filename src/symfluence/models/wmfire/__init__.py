@@ -23,6 +23,8 @@ an eco-hydrological model. International Journal of Wildland Fire. 26(8): 706-71
 """
 
 # Import core classes
+from __future__ import annotations
+
 from .fire_def_generator import (
     FireDefGenerator,
     FireDefParameters,

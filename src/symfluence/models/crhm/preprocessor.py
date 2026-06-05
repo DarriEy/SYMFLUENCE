@@ -8,6 +8,8 @@ Handles preparation of CRHM model inputs including:
 - Observation file (.obs) with meteorological forcing data
 - Project file (.prj) with model configuration and parameters
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path

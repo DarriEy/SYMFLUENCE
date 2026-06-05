@@ -12,6 +12,7 @@ Extracts results from ParFlow .pfb binary output files:
 Uses parflowio for .pfb reading (lazy import). Falls back to struct-based
 reader when parflowio is not available.
 """
+from __future__ import annotations
 
 import logging
 import struct

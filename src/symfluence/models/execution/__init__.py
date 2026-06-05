@@ -16,6 +16,7 @@ Components:
     - ModelExecutor: **Deprecated** empty shim (kept for MRO compatibility)
     - UnifiedModelExecutor: **Deprecated** thin wrapper around SpatialOrchestrator
 """
+from __future__ import annotations
 
 from .model_executor import (
     ExecutionMode,

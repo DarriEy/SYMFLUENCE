@@ -39,6 +39,8 @@ References:
 
     https://github.com/parflow/parflow
 """
+from __future__ import annotations
+
 from .config import CLMParFlowConfigAdapter
 from .extractor import CLMParFlowResultExtractor
 from .plotter import CLMParFlowPlotter

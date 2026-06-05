@@ -8,6 +8,7 @@ This module defines the abstract base class for forcing data adapters.
 Each hydrological model implements its own adapter to convert CFIF
 (CF-Intermediate Format) data to its specific format.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

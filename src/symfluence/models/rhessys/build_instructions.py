@@ -18,6 +18,7 @@ WMFire Integration:
     RHESSys will be built with fire spread support (wmfire=T). Build WMFire
     first to enable this capability. WMFire requires Boost headers.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
     get_bison_detection_and_build,

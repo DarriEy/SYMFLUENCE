@@ -15,6 +15,7 @@ Config keys:
     GROUNDWATER_MODEL: Must be MODFLOW
     MODFLOW_PARAMS_TO_CALIBRATE: Comma-separated MODFLOW params (default: K,SY,DRAIN_CONDUCTANCE)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

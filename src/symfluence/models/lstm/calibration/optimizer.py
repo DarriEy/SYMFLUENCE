@@ -7,6 +7,7 @@ LSTM Model Optimizer
 LSTM-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with LSTM.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -9,6 +9,7 @@ forcing, and writes a single NetCDF output file.
 
 Reference repository: https://github.com/NOAA-OWP/noah-owp-modular
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

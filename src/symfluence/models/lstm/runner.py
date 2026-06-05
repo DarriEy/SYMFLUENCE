@@ -7,6 +7,7 @@ LSTM (Flow and Snow Hydrological LSTM) model runner.
 An LSTM-based model for hydrological predictions, specifically for streamflow
 and snow water equivalent (SWE).
 """
+from __future__ import annotations
 
 import logging
 import pickle  # nosec B403 - Used for trusted internal model serialization

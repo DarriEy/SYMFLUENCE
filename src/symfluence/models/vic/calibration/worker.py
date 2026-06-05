@@ -6,6 +6,7 @@ VIC Worker
 
 Worker implementation for VIC model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os

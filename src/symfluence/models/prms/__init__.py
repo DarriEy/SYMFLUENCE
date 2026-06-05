@@ -73,6 +73,8 @@ References:
 
     https://github.com/nhm-usgs/prms
 """
+from __future__ import annotations
+
 from .config import PRMSConfigAdapter
 from .extractor import PRMSResultExtractor
 from .postprocessor import PRMSPostProcessor

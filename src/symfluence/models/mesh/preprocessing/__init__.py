@@ -6,6 +6,7 @@ MESH Preprocessing Module
 
 Components for MESH model preprocessing using meshflow.
 """
+from __future__ import annotations
 
 from .class_file_manager import CLASSFileManager
 from .config_defaults import MESHConfigDefaults, is_elevation_band_mode, should_force_single_gru

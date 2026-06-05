@@ -11,6 +11,7 @@ Provides calibration target classes specifically designed for SUMMA model output
 SUMMA is the default model for the base StreamflowEvaluator, so these targets
 primarily provide explicit naming and registration for consistency with other models.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

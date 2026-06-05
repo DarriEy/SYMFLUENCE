@@ -9,6 +9,7 @@ KGE aggregation from the shared MultiGaugeMetrics base class, overriding
 only the simulated-flow extraction to read HYPE's timeCOUT.txt format
 instead of mizuRoute NetCDF.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -8,6 +8,7 @@ Shared utility for loading, subsetting, resampling, and transforming forcing dat
 across model preprocessors. Consolidates logic previously duplicated in FUSE,
 NGEN, GR, and SUMMA preprocessors.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

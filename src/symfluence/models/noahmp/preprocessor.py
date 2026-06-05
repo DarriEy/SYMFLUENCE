@@ -10,6 +10,7 @@ noah-owp-modular model (NOAA-OWP).  Forcing is converted from NetCDF
 parameter tables (GENPARM.TBL, SOILPARM.TBL, MPTABLE.TBL) plus
 a Fortran namelist (namelist.input) are written to the settings directory.
 """
+from __future__ import annotations
 
 import logging
 import shutil

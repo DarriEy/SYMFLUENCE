@@ -7,6 +7,8 @@ WMFire Fuel Calculator Module
 Handles conversion of RHESSys litter carbon pools to fuel loads
 and implements the Nelson (2000) dead fuel moisture model.
 """
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Union

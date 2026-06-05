@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM Model Runner."""
+from __future__ import annotations
 
 import os
 import sys

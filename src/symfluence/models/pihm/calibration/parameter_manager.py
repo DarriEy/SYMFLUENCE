@@ -10,6 +10,7 @@ Parameters are written into PIHM .soil, .calib, and .lc files.
 Snow-17 parameters (SCF, MFMAX, PXTEMP) are also supported for
 forcing regeneration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

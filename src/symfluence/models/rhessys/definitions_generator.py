@@ -10,6 +10,8 @@ vegetation (stratum), and landuse.
 
 Extracted from RHESSysPreProcessor for modularity.
 """
+from __future__ import annotations
+
 import logging
 
 logger = logging.getLogger(__name__)

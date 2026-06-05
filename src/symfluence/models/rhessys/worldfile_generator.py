@@ -9,6 +9,8 @@ spatial structure: world > basin > hillslope > zone > patch > stratum.
 
 Extracted from RHESSysPreProcessor for modularity.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 

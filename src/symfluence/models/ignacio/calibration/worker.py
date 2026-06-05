@@ -8,6 +8,7 @@ Worker implementation for IGNACIO fire model FBP parameter calibration.
 Uses spatial metrics (IoU/Dice) between simulated and observed fire
 perimeters as objective functions.
 """
+from __future__ import annotations
 
 import logging
 import traceback

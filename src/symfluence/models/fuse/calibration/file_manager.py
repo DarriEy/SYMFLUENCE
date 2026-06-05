@@ -7,6 +7,7 @@ FUSE File Manager Utilities
 Handles updates to FUSE file manager (fm_catch.txt) for parallel execution
 and path isolation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

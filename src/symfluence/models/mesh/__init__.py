@@ -62,6 +62,7 @@ Limitations and Considerations:
     - DDB preparation can be complex for new domains
     - Primarily tested for Canadian applications
 """
+from __future__ import annotations
 
 from .postprocessor import MESHPostProcessor
 from .preprocessor import MESHPreProcessor

@@ -9,6 +9,7 @@ Calibrates van Genuchten parameters, saturated hydraulic conductivity,
 Manning's roughness, Snow-17 snow parameters, and routing parameters
 via DDS or other algorithms.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
