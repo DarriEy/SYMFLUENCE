@@ -6,6 +6,7 @@ Observation operators for the EnKF.
 
 Maps from model state space to observation space (the H matrix).
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 

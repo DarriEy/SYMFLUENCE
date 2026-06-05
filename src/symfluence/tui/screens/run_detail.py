@@ -6,6 +6,7 @@ Run Detail screen — drill-in view for a single run.
 
 Shows config snapshot, completed steps, errors, and log excerpts.
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding

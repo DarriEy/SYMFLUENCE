@@ -4,6 +4,7 @@
 """
 Filterable DataTable of run summary JSONs across domains.
 """
+from __future__ import annotations
 
 from typing import List, Optional
 

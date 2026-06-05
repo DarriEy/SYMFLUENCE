@@ -4,6 +4,7 @@
 """
 Auto-scrolling log panel with thread-safe write support.
 """
+from __future__ import annotations
 
 import logging
 from typing import Callable, Optional

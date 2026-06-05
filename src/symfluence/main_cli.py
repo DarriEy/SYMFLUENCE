@@ -15,6 +15,7 @@ in pyproject.toml and is responsible for:
 - Dispatching to appropriate command handlers
 - Handling interrupts and exceptions gracefully
 """
+from __future__ import annotations
 
 
 def main():

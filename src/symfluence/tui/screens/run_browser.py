@@ -4,6 +4,7 @@
 """
 Run Browser screen — filterable list of all runs across domains.
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical

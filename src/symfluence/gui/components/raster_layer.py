@@ -6,6 +6,7 @@ Utility for reading GeoTIFF rasters and preparing them for Bokeh image overlays.
 
 Reprojects to Web Mercator (EPSG:3857) and downsamples for browser performance.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

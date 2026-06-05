@@ -7,6 +7,7 @@ Project management for SYMFLUENCE hydrological modeling setups.
 Handles project directory structure creation, pour point generation,
 and project metadata management for hydrological model domains.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

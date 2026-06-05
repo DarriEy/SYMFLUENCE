@@ -6,6 +6,7 @@ Service for scanning SYMFLUENCE_DATA_DIR for domain directories.
 
 Provides domain discovery and metadata without requiring a loaded config.
 """
+from __future__ import annotations
 
 import json
 import os

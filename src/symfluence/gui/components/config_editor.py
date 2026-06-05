@@ -7,6 +7,7 @@ Configuration editor component.
 Basic mode: auto-generated widgets from BasicConfigParams.
 Advanced mode: Ace code editor with YAML syntax highlighting.
 """
+from __future__ import annotations
 
 import logging
 

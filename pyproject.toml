@@ -312,6 +312,10 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["symfluence", "test_helpers"]
+# Enforce PEP 563 lazy annotations tree-wide (RTI review open question 10).
+# I002 adds this to every new module automatically; docstring-only modules are
+# exempted by ruff (nothing to annotate).
+required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can have more relaxed rules for imports and unused variables

@@ -8,6 +8,7 @@ Handles domain name, experiment, pour point, bounding box,
 model/forcing selection, and "Initialize & Acquire" button.
 Domain definition (delineation/discretization) lives in DomainPanel.
 """
+from __future__ import annotations
 
 import logging
 import os

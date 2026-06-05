@@ -7,6 +7,7 @@ Data assimilation for SYMFLUENCE.
 Provides ensemble-based data assimilation methods (EnKF) for real-time
 state updating in operational hydrological forecasting.
 """
+from __future__ import annotations
 
 from .config import DataAssimilationConfig, EnKFConfig
 

@@ -11,6 +11,7 @@ records and routes them to WorkflowState.log_text via pn.state.execute.
 Steps are executed individually so the progress indicator can update
 between each step.
 """
+from __future__ import annotations
 
 import logging
 import threading
