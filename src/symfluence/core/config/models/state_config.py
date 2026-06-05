@@ -8,6 +8,7 @@ Contains StateConfig for model state save/restore, EnKFConfig for
 Ensemble Kalman Filter settings, and DataAssimilationConfig as the
 parent container.
 """
+from __future__ import annotations
 
 from typing import Literal, Optional
 

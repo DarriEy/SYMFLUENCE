@@ -16,6 +16,7 @@ Three categories of aliases are defined here:
 3. **Legacy flat-to-nested aliases** (``LEGACY_FLAT_TO_NESTED_ALIASES``):
    flat keys that map to nested config paths for backward compatibility.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Mapping, Tuple
 

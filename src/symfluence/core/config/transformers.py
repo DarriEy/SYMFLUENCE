@@ -15,6 +15,7 @@ Phase 2 Addition (Configuration Key Standardization):
 - Standardized naming for MizuRoute keys (MIZUROUTE_INSTALL_PATH, MIZUROUTE_EXE)
 - Deprecation warnings for legacy keys (INSTALL_PATH_MIZUROUTE, EXE_NAME_MIZUROUTE)
 """
+from __future__ import annotations
 
 import logging
 import threading

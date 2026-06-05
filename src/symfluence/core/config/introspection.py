@@ -11,6 +11,7 @@ for manual maintenance of the 497-line FLAT_TO_NESTED_MAP.
 The auto-generated mapping is validated against the manual mapping during
 tests to ensure backward compatibility.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional, Tuple, Type, Union, get_args, get_origin
