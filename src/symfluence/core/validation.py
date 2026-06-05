@@ -7,6 +7,7 @@ Validation utilities for SYMFLUENCE.
 Provides standardized validation helpers for configuration, files, directories,
 geospatial data, NetCDF files, and numeric parameters.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

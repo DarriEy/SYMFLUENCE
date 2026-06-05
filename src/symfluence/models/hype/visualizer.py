@@ -6,6 +6,7 @@ HYPE Model Visualizer.
 
 Provides model-specific visualization registration for HYPE.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -6,6 +6,7 @@ LSTM Optimization Worker
 
 Handles individual model evaluations for LSTM calibration.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

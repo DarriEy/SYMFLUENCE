@@ -7,6 +7,7 @@ Provenance tracking for SYMFLUENCE workflow runs.
 Captures framework version, git state, dependency versions, platform details,
 and per-step timing into a self-documenting run manifest (JSON).
 """
+from __future__ import annotations
 
 import hashlib
 import json

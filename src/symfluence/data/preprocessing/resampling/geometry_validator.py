@@ -6,6 +6,7 @@ Geometry Validator
 
 Validates and repairs geometries in GeoDataFrames.
 """
+from __future__ import annotations
 
 import logging
 

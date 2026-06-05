@@ -7,6 +7,7 @@ Tests the gradient callback infrastructure, including:
 - Unified gradient function creation (_create_gradient_function)
 - Gradient chain rule transformation (physical -> normalized space)
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional, Tuple

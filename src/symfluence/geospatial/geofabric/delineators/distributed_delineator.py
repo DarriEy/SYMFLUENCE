@@ -8,6 +8,7 @@ Fully refactored implementation using extracted stream methods and shared utilit
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple

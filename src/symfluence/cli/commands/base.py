@@ -7,6 +7,7 @@ Base command class for SYMFLUENCE CLI commands.
 This module provides the base class that all command handlers inherit from,
 providing common utilities and interfaces.
 """
+from __future__ import annotations
 
 import functools
 import os

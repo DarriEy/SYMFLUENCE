@@ -8,6 +8,7 @@ Orchestrates state operations across models and external systems
 (e.g. FEWS). Handles serialization for transport, ensemble state
 management, and FEWS import/export bridging.
 """
+from __future__ import annotations
 
 import logging
 import shutil

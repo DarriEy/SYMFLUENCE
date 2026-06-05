@@ -7,6 +7,7 @@ TRoute Model Preprocessor.
 Handles spatial preprocessing and configuration generation for the t-route routing model.
 Supports all domain types: distributed, grid-based, point-scale, and lumped-to-distributed.
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -27,6 +27,7 @@ Architecture:
                 ├── CFUSEWorker   (C++/PyTorch FUSE)
                 └── HBVWorker     (JAX-based HBV)
 """
+from __future__ import annotations
 
 import logging
 from abc import abstractmethod

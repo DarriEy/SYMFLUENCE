@@ -6,6 +6,7 @@ Configuration Updater
 
 Updates model configuration files for parallel process directories.
 """
+from __future__ import annotations
 
 import logging
 import re

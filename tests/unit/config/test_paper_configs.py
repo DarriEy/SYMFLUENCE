@@ -9,6 +9,7 @@ examples/paper_case_studies/configs/configs_nested/* so that accidental
 removal of required fields (e.g. random_seed on stochastic experiments)
 is caught in CI rather than in downstream reproducibility runs.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

@@ -9,6 +9,7 @@ Provides common utilities for data processing:
 - Variable standardization and unit conversion
 - Archive utilities
 """
+from __future__ import annotations
 
 import logging as _logging
 from typing import Any

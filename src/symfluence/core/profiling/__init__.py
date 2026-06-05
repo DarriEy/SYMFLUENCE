@@ -38,6 +38,7 @@ Usage:
     profiler.generate_report("/path/to/python_io_report.json")
     sys_profiler.generate_report("/path/to/system_io_report.json")
 """
+from __future__ import annotations
 
 from .io_profiler import IOOperation, IOProfiler
 from .profiler_context import (

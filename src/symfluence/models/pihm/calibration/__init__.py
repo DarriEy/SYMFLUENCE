@@ -12,4 +12,6 @@ Components:
     worker: PIHMWorker — model execution and metric calculation
     targets: PIHMStreamflowTarget — streamflow extraction for calibration
 """
+from __future__ import annotations
+
 from .targets import PIHMStreamflowTarget  # noqa: F401 - triggers target registration

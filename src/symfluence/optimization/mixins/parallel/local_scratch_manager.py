@@ -16,6 +16,7 @@ Key improvements in this version:
 - Results staged back mirror the non-scratch structure exactly
 - Handles parallel_proc_XX subdirectories correctly
 """
+from __future__ import annotations
 
 import hashlib
 import logging

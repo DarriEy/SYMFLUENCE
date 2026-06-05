@@ -20,6 +20,8 @@ Example:
     >>> registry = EvaluationRegistry()
     >>> registry.register_evaluator('streamflow', streamflow_evaluator)
 """
+from __future__ import annotations
+
 from . import evaluators
 from .analysis_registry import AnalysisRegistry
 from .koopman_analysis import KoopmanAnalyzer

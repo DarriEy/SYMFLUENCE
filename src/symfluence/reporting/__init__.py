@@ -4,6 +4,7 @@
 """
 Reporting and visualization utilities for SYMFLUENCE.
 """
+from __future__ import annotations
 
 from .reporting_manager import ReportingManager
 

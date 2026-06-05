@@ -20,6 +20,7 @@ Strategies:
 - zones - group units into zones with shared parameters
 - distributed - independent parameter per unit (needs regularization)
 """
+from __future__ import annotations
 
 from symfluence.optimization.regionalization.strategies import (
     DistributedRegionalization,

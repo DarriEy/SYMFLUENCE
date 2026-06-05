@@ -1,4 +1,5 @@
 """Tests for FEWS state file exchange."""
+from __future__ import annotations
 
 import pytest
 

@@ -23,6 +23,7 @@ Configuration:
     GLWD_FORMAT: 'tif' (default) or 'gdb' - Download format
     GLWD_PRODUCT: 'combined' (default), 'area_pct', 'area_ha'
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

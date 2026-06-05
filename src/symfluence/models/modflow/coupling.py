@@ -13,6 +13,7 @@ Unit conversions:
     SUMMA scalarSurfaceRunoff: m/s → m3/s (× area_m2)
     MODFLOW drain discharge: m3/d → m3/s (÷ 86400)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

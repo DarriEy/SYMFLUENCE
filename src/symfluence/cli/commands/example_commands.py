@@ -6,6 +6,7 @@ Example notebook command handlers for SYMFLUENCE CLI.
 
 This module implements handlers for launching and managing example Jupyter notebooks.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path

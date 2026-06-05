@@ -11,6 +11,7 @@ References:
 - FLUXNET2015: https://fluxnet.org/data/fluxnet2015-dataset/
 - AmeriFlux: https://ameriflux.lbl.gov/
 """
+from __future__ import annotations
 
 from typing import Dict, List, Optional, Union
 

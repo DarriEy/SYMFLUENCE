@@ -7,6 +7,7 @@ Data acquisition command handlers for SYMFLUENCE CLI.
 This module implements handlers for standalone data download, listing,
 and inspection — a thin CLI layer over the AcquisitionRegistry.
 """
+from __future__ import annotations
 
 import logging
 from argparse import Namespace

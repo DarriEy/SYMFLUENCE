@@ -1,4 +1,5 @@
 """Sync tests for workflow step metadata across frontends and orchestrator."""
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

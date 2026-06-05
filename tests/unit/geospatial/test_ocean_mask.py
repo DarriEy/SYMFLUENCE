@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Unit test for GDALProcessor._mask_ocean_watersheds (coastal tentacle fix)."""
+from __future__ import annotations
 
 import logging
 

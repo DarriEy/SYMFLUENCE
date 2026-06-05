@@ -6,6 +6,7 @@ Tests FUSE-specific parameter handling including:
 - FUSE parameter bounds
 - Parameter update methods
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock, Mock, patch

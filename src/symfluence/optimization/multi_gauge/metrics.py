@@ -12,6 +12,7 @@ spatially distributed calibration of hydrological models.
 Originally housed under the FUSE model package, these utilities are
 model-agnostic and are used by multiple model backends (FUSE, HYPE, etc.).
 """
+from __future__ import annotations
 
 import logging
 import warnings

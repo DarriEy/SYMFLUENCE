@@ -27,6 +27,7 @@ Usage
 >>> if MetricTransformer.get_direction('MAE') == 'minimize':
 ...     print("MAE is a minimization metric")
 """
+from __future__ import annotations
 
 from typing import Optional
 

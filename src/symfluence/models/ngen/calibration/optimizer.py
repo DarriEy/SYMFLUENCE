@@ -7,6 +7,7 @@ NextGen Model Optimizer
 NGEN-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with NextGen.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

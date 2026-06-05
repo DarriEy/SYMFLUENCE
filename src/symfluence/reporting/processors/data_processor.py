@@ -7,6 +7,7 @@ Processor for loading and preparing data for visualization.
 This module centralizes data loading logic for observations and model outputs,
 handling various file formats and data transformations.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

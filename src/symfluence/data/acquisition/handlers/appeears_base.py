@@ -9,6 +9,7 @@ used by MODIS MOD16 (ET), MOD10A1/MYD10A1 (SCA), and other AppEEARS-based handle
 
 AppEEARS: https://appeears.earthdatacloud.nasa.gov/
 """
+from __future__ import annotations
 
 import os
 import shutil

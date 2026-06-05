@@ -18,6 +18,7 @@ The classes here provide backward compatibility by aliasing evaluators as "Targe
 - SnowTarget (alias for SnowEvaluator)
 - etc.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

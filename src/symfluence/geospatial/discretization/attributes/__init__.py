@@ -14,6 +14,7 @@ Import submodules directly to access their discretize functions:
     from symfluence.geospatial.discretization.attributes import elevation
     result = elevation.discretize(discretizer)
 """
+from __future__ import annotations
 
 from . import aspect, combined, elevation, grus, landclass, radiation, soilclass
 

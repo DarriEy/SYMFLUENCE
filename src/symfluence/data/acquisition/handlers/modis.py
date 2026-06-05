@@ -6,6 +6,8 @@ MODIS Data Acquisition Handler
 
 Provides cloud acquisition for MODIS products (Snow Cover, ET, etc.) via THREDDS/NCSS.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import requests

@@ -6,6 +6,7 @@ File Validator
 
 Validates forcing files for proper structure and content.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -23,6 +23,7 @@ Architecture:
     1. Raw data (ERA5, CONUS404, etc.) → Dataset handlers → CFIF format
     2. CFIF format → Model adapters → Model-specific format (SUMMA, HYPE, etc.)
 """
+from __future__ import annotations
 
 from .units import (
     UnitConverter,

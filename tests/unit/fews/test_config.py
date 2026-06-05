@@ -1,4 +1,5 @@
 """Tests for FEWS adapter configuration models."""
+from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError

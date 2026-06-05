@@ -4,6 +4,7 @@ Unit tests for the GeospatialUtilsMixin.
 Tests centroid calculation with various CRS configurations,
 geometric shapes, and edge cases.
 """
+from __future__ import annotations
 
 from unittest.mock import Mock
 

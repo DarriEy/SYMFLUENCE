@@ -13,6 +13,7 @@ When SUMMA+ParFlow coupling is active, the postprocessor:
 3. Combines into total streamflow
 4. Writes combined output to results CSV
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -6,6 +6,7 @@ MESH Drainage Database Handler
 
 Handles drainage database topology fixes, completeness, and normalization.
 """
+from __future__ import annotations
 
 import logging
 import os

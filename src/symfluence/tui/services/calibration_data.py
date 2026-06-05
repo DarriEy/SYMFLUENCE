@@ -7,6 +7,7 @@ Wrapper around gui.data.ResultsLoader for TUI calibration views.
 Provides experiment listing, optimization history, best parameters,
 and metric calculation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

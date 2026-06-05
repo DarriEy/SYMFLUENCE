@@ -1,4 +1,5 @@
 """Shared fixtures for FEWS adapter unit tests."""
+from __future__ import annotations
 
 import textwrap
 from pathlib import Path

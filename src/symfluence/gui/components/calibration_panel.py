@@ -7,6 +7,7 @@ Calibration panel for configuring and launching iterative calibration.
 Visible after model run completes (gui_phase >= 'model_ready').
 Reuses the flatten-merge-reconstruct pattern from IterativeRunPanel.
 """
+from __future__ import annotations
 
 import logging
 

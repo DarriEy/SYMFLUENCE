@@ -19,6 +19,7 @@ CMC Snow Overview:
 Output Format:
     CSV with columns: datetime, swe_mm
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

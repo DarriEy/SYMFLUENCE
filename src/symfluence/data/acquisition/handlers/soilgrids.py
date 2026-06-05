@@ -34,6 +34,7 @@ References:
     - ISRIC SoilGrids: https://www.soilgrids.org/
     - HydroShare: https://www.hydroshare.org/
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

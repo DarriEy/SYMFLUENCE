@@ -29,6 +29,8 @@ Module parameter categories:
 # ---------------------------------------------------------------------------
 # Only parameters that should be varied during calibration are listed.
 # Keys match the CRHM .prj parameter names.
+from __future__ import annotations
+
 PARAM_BOUNDS = {
     # -- Shared --
     'basin_area':       {'min': 1.0,   'max': 10000.0},   # km2

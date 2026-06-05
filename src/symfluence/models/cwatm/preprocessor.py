@@ -13,6 +13,7 @@ The preprocessor generates:
 - A settings.ini with CWatM's custom $(SECTION:OPTION) interpolation
 - CWatM reads its own static parameter files from the CWatM-Earth dataset
 """
+from __future__ import annotations
 
 import math
 from datetime import datetime

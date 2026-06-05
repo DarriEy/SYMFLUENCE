@@ -11,6 +11,8 @@ Handles preparation of WRF-Hydro model inputs including:
 - Fulldom routing grid (channel network)
 - Forcing files (LDASIN NetCDF)
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path

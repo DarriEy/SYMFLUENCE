@@ -29,6 +29,7 @@ URL Pattern:
     gs://global-surface-water/downloads3/
     https://storage.googleapis.com/global-surface-water/downloads2021/
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional, Tuple

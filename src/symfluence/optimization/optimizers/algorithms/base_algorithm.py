@@ -9,6 +9,7 @@ Base Algorithm Interface
 
 Abstract base class for optimization algorithms using the Strategy pattern.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union

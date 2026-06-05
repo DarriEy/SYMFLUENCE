@@ -7,6 +7,7 @@ I/O Profiler for SYMFLUENCE.
 Tracks file I/O operations, timing, and resource usage to help diagnose
 IOPS bottlenecks on HPC shared filesystems during large calibration jobs.
 """
+from __future__ import annotations
 
 import json
 import logging

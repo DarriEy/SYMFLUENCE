@@ -5,6 +5,7 @@ Verifies that model-specific forcing adapters are properly registered
 and provide expected interfaces for converting CFIF (CF-Intermediate Format)
 data to model-specific formats.
 """
+from __future__ import annotations
 
 import pytest
 

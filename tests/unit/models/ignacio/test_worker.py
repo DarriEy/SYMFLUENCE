@@ -1,4 +1,5 @@
 """Tests for IGNACIO calibration worker."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

@@ -8,6 +8,7 @@ Manages parameter bounds, normalization, and file updates for Noah-MP
 calibration.  Parameters are split between namelist.input (scalar knobs)
 and SOILPARM.TBL (soil hydraulic properties).
 """
+from __future__ import annotations
 
 import logging
 import math

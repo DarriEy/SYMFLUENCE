@@ -29,6 +29,7 @@ Example:
     ...         if not config.get('SUMMA_EXE'):
     ...             raise ConfigurationError("SUMMA_EXE required")
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type

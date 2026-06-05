@@ -4,6 +4,7 @@ Unit tests for model-specific calibration components.
 Tests calibration targets, worker functions, and parameter management
 for SUMMA, FUSE, and NGEN models.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch

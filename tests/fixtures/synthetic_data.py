@@ -8,6 +8,7 @@ Provides domain-specific synthetic data generators for testing:
 - dem_array(): Elevation raster data
 - forcing_dataset(): Generic meteorological forcing data
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

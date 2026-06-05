@@ -16,6 +16,7 @@ Reference:
     algorithm for computationally efficient watershed model calibration.
     Water Resources Research, 43(1).
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

@@ -13,6 +13,7 @@ Provides shared infrastructure for all model execution modules including:
 - Subprocess and SLURM execution
 - Spatial mode validation (Phase 3)
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC

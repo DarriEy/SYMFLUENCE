@@ -17,6 +17,7 @@ param_config mapping parameters to physical attributes.
 Configuration key:
     PARAMETER_REGIONALIZATION: lumped | transfer_function | zones | distributed
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

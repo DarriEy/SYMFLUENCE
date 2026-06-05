@@ -10,6 +10,7 @@ Handles geological and hydrogeological attributes including:
 - Structural features
 - Derived hydrogeological properties
 """
+from __future__ import annotations
 
 import pickle  # nosec B403 - used for caching geology lookup tables, not untrusted data
 from pathlib import Path

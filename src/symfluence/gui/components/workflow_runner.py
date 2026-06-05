@@ -7,6 +7,7 @@ Workflow runner component.
 Displays all 16 workflow steps as cards with status icons.
 Provides Run Full / Run Step / Force-rerun controls.
 """
+from __future__ import annotations
 
 import logging
 

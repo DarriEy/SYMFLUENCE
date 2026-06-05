@@ -7,6 +7,7 @@ Analysis management for SYMFLUENCE model evaluation workflows.
 Coordinates benchmarking, sensitivity analysis, and decision analysis for
 evaluating hydrological model performance and parameter importance.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

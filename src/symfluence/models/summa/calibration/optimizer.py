@@ -7,6 +7,7 @@ SUMMA Model Optimizer
 SUMMA-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with SUMMA.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

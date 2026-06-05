@@ -7,6 +7,7 @@ IGNACIO Parameter Manager.
 Handles FBP parameter bounds, normalization, and configuration file updates
 for IGNACIO fire model calibration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

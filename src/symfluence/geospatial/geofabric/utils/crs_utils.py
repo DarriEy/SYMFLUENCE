@@ -9,6 +9,7 @@ Eliminates code duplication across GeofabricDelineator and GeofabricSubsetter.
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 import warnings
 from typing import Any, Optional, Tuple

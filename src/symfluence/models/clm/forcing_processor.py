@@ -8,6 +8,7 @@ Converts basin-averaged forcing data to CLM DATM stream format.
 Generates one NetCDF per year with variables mapped to CLM naming
 conventions and a DATM streams file pointing to these.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

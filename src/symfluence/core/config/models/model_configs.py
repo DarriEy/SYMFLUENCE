@@ -7,6 +7,7 @@ This module preserves the historical import path
 ``symfluence.core.config.models.model_configs`` while delegating concrete
 model-specific class definitions to focused modules.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 

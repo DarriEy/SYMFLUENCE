@@ -4,7 +4,7 @@ Unit tests for model-specific configuration classes.
 Tests the new model configuration classes (RHESSysConfig, GNNConfig) and
 verifies the transformer mappings work correctly.
 """
-
+from __future__ import annotations
 
 from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 from symfluence.core.config.models import (

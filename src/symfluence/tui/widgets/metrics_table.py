@@ -4,6 +4,7 @@
 """
 Color-coded performance metrics table widget.
 """
+from __future__ import annotations
 
 from typing import Dict, List
 

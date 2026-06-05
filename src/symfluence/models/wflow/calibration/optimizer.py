@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow Model Optimizer."""
+from __future__ import annotations
+
 from pathlib import Path
 
 from symfluence.core.registries import R

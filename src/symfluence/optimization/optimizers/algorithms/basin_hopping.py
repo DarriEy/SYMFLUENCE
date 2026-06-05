@@ -31,6 +31,7 @@ Reference:
     multiple-minima problem in protein folding. Proceedings of the National
     Academy of Sciences, 84(19), 6611-6615.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

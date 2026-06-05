@@ -6,6 +6,7 @@ Verifies that:
 3. Model simulate() functions accept coupling_mode parameter
 4. Model manager falls back to sequential execution gracefully
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 

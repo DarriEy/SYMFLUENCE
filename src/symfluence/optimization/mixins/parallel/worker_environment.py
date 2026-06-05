@@ -11,6 +11,7 @@ This module provides a class-based interface to the centralized HDF5 safety
 configuration in core.hdf5_safety, allowing for custom overrides while
 maintaining consistency across the codebase.
 """
+from __future__ import annotations
 
 import os
 from typing import Dict

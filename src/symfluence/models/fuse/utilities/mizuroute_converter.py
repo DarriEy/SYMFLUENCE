@@ -7,6 +7,7 @@ FUSE to mizuRoute Format Conversion Utilities
 Handles conversion of FUSE model output to mizuRoute-compatible format.
 Extracted from FUSEWorker for reusability and testability.
 """
+from __future__ import annotations
 
 import logging
 import warnings

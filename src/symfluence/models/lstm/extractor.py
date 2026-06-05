@@ -8,6 +8,7 @@ Handles extraction of simulation results from LSTM (Long Short-Term Memory) mode
 LSTM is a data-driven surrogate model that predicts streamflow and possibly other
 hydrological variables based on meteorological forcings.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

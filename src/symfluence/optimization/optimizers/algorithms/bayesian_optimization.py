@@ -25,6 +25,7 @@ Reference:
     Optimization of Expensive Black-Box Functions. Journal of Global
     Optimization, 13(4), 455-492.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD calibration support."""
+from __future__ import annotations
 
 from .optimizer import LisfloodModelOptimizer
 from .parameter_manager import LisfloodParameterManager

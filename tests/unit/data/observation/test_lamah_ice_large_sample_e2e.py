@@ -12,6 +12,7 @@ extra dict) while ``LAMAHICEConfig`` lived under ``evaluation.lamah_ice``
 and had no ``domain_id`` field, so every large sample config silently
 failed with "LAMAH_ICE acquisition requires a basin identifier".
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

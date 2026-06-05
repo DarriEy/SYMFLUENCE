@@ -7,6 +7,7 @@ Routing Decider
 Unified routing decision logic for all hydrological models.
 Consolidates duplicate needs_routing() implementations from workers.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

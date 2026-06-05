@@ -7,6 +7,7 @@ MESH model runner.
 Handles MESH model execution, state management, and output processing.
 Refactored to use the Unified Model Execution Framework.
 """
+from __future__ import annotations
 
 import logging
 import os

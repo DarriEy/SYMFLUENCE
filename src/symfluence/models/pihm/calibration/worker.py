@@ -7,6 +7,7 @@ PIHM Worker
 Worker implementation for PIHM model optimization.
 Handles parameter application, PIHM execution, and metric calculation.
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -4,6 +4,7 @@ Shared Fixtures for Acquisition Handler Tests.
 This conftest.py imports and exposes fixtures from the fixtures modules,
 making them available to all acquisition tests.
 """
+from __future__ import annotations
 
 import logging
 import os

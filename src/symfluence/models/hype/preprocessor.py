@@ -10,6 +10,7 @@ Uses the generalized pipeline pattern with manager classes for:
 - Configuration file generation (HYPEConfigManager)
 - Geographic data file generation (HYPEGeoDataManager)
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional, cast

@@ -10,6 +10,7 @@ FUSE Parameter Manager - FIXED for NetCDF Index Issues
 This version fixes the "Index exceeds dimension bound" error by ensuring
 proper parameter file structure and indexing.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

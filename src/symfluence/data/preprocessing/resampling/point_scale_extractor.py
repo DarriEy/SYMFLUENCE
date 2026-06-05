@@ -6,6 +6,7 @@ Point Scale Forcing Extractor
 
 Simplified forcing extraction for point-scale or small grid domains.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

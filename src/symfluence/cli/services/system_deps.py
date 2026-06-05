@@ -7,6 +7,7 @@ System dependency registry and checker for SYMFLUENCE.
 Loads the canonical dependency definitions from system_deps.yml and provides
 platform-aware detection, version checking, and install-command generation.
 """
+from __future__ import annotations
 
 import os
 import re

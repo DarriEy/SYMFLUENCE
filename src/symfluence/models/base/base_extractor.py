@@ -11,6 +11,7 @@ unique output formats, variable names, and data structures.
 This separates model-specific extraction logic from generic evaluation
 components, enabling the core evaluation system to remain model-agnostic.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path

@@ -11,6 +11,7 @@ Provides five sub-tabs:
 4. Flow Duration Curve — log-log exceedance plot
 5. Saved Plots — legacy static image browser
 """
+from __future__ import annotations
 
 import logging
 import threading

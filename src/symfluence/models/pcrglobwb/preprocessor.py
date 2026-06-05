@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB Model Preprocessor."""
+from __future__ import annotations
+
 import configparser
 import math
 import shutil

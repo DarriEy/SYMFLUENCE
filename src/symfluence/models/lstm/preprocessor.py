@@ -6,6 +6,7 @@ LSTM Model Preprocessor.
 
 Handles data loading, cleaning, normalization, and tensor conversion for the LSTM model.
 """
+from __future__ import annotations
 
 import glob
 import logging

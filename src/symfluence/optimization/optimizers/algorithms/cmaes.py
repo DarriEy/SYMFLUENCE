@@ -25,6 +25,7 @@ Reference:
     Hansen, N. and Ostermeier, A. (2001). Completely Derandomized Self-Adaptation
     in Evolution Strategies. Evolutionary Computation, 9(2), 159-195.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

@@ -6,6 +6,7 @@ File operations module for agent code reading and modification.
 
 Provides safe file I/O operations with caching, syntax validation, and git integration.
 """
+from __future__ import annotations
 
 import os
 import subprocess

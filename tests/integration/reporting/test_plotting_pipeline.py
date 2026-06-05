@@ -4,6 +4,7 @@ Integration tests for end-to-end plotting pipeline.
 These tests verify that the full plotting pipeline works correctly,
 generating actual plot files to disk using real matplotlib.
 """
+from __future__ import annotations
 
 import logging
 import tempfile

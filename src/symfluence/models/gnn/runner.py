@@ -7,6 +7,7 @@ GNN Model Runner.
 
 Orchestrates the GNN model workflow: data loading, graph construction, training, and simulation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

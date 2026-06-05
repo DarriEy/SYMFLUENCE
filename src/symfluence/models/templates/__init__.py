@@ -7,6 +7,7 @@ Model Templates Module.
 Provides base classes and templates for implementing new hydrological models
 using the unified execution framework.
 """
+from __future__ import annotations
 
 from .model_template import (
     ModelRunResult,

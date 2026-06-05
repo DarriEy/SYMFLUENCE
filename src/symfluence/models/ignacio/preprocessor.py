@@ -11,6 +11,7 @@ Prepares input data for IGNACIO fire spread simulations including:
 - Ignition point configuration
 - IGNACIO YAML configuration file generation
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

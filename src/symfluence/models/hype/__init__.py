@@ -65,6 +65,7 @@ Limitations and Considerations:
     - Daily timestep is standard; sub-daily requires special configuration
     - Spinup period needed to initialize soil moisture and groundwater states
 """
+from __future__ import annotations
 
 from .config_manager import HYPEConfigManager
 from .forcing_processor import HYPEForcingProcessor

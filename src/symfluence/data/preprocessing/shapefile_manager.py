@@ -12,6 +12,7 @@ This module handles:
 
 Extracted from ForcingResampler to improve testability and reduce coupling.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

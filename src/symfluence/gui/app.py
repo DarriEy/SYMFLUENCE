@@ -4,6 +4,7 @@
 """
 Main application: map-centric interface with left sidebar command panel.
 """
+from __future__ import annotations
 
 import logging
 

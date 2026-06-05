@@ -11,6 +11,7 @@ Handles extraction of simulated streamflow from both SUMMA and mizuRoute outputs
 automatic unit conversion (mass flux to volume flux), spatial aggregation for
 distributed models, and observed data matching.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, cast

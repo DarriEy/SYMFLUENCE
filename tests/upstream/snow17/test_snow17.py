@@ -1,4 +1,5 @@
 """Tests for standalone Snow-17 model."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

@@ -43,6 +43,7 @@ References:
     - Jung et al. (2019): https://doi.org/10.1038/s41597-019-0076-8
     - FLUXCOM-X: https://www.icos-cp.eu/data-products/2G60-ZHAK
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

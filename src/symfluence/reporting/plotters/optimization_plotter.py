@@ -6,6 +6,7 @@ Optimization visualization plotter.
 
 Handles plotting of optimization progress, parameter evolution, and convergence.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

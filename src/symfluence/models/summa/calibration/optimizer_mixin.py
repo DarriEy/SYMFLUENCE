@@ -11,6 +11,7 @@ SUMMA-specific behavior while enabling cleaner separation of concerns.
 For new implementations, prefer using SUMMAModelOptimizer which extends
 BaseModelOptimizer with proper abstract method patterns.
 """
+from __future__ import annotations
 
 import re
 import shutil

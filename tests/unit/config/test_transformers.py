@@ -5,6 +5,7 @@ Tests the flat-to-nested and nested-to-flat transformations that enable
 backward compatibility between the old flat config format and the new
 hierarchical format.
 """
+from __future__ import annotations
 
 import pytest
 

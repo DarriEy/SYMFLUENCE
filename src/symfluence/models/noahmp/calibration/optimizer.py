@@ -6,6 +6,7 @@ Noah-MP Model Optimizer.
 
 Noah-MP-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

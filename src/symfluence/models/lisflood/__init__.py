@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Distributed Hydrological Model (JRC/Deltares)."""
+from __future__ import annotations
 
 from .config import LisfloodConfigAdapter
 from .extractor import LisfloodResultExtractor

@@ -17,6 +17,7 @@ in order:
   3. troute-routing (Cython MC/DA extensions + optional Fortran diffusive/reach extensions)
   4. troute-nwm (pure Python CLI entry point)
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

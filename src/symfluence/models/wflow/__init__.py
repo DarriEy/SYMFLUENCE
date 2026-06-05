@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow (wflow_sbm) Distributed Hydrological Model."""
+from __future__ import annotations
+
 from .config import WflowConfigAdapter
 from .extractor import WflowResultExtractor
 from .postprocessor import WflowPostProcessor

@@ -4,6 +4,7 @@
 """
 Workflow Launcher screen — load config, select steps, execute.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

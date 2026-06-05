@@ -11,6 +11,7 @@ Tests cover:
 - Success logging in 'all' mode
 - Summary generation
 """
+from __future__ import annotations
 
 import json
 import tempfile

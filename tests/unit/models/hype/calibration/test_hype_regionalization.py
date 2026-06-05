@@ -1,4 +1,5 @@
 """Unit Tests for HYPE parameter regionalization adapter."""
+from __future__ import annotations
 
 import logging
 

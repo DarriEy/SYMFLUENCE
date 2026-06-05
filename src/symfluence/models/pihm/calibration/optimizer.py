@@ -7,6 +7,7 @@ PIHM Model Optimizer
 Optimizer for PIHM calibration. Sets up parallel directories,
 manages parameter perturbation, and delegates execution to PIHMWorker.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

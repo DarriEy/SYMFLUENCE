@@ -8,6 +8,7 @@ This module contains validation functions for various argument types used
 across the SYMFLUENCE CLI commands. All validators return Result[T] for
 consistent error handling.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Tuple

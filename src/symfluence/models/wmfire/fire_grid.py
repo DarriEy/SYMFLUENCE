@@ -7,6 +7,8 @@ WMFire Fire Grid Module
 Provides georeferenced grid management for WMFire fire spread modeling.
 Handles creation of patch and DEM grids with proper spatial registration.
 """
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path

@@ -6,6 +6,7 @@ MESH Configuration Defaults
 
 Default variable mappings, units, and parameter values for MESH model.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, Union
 

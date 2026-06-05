@@ -14,6 +14,7 @@ Architecture:
     with the PresetRegistry. This module maintains backward compatibility by
     aggregating presets from both the registry and legacy definitions.
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

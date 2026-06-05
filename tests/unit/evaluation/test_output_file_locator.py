@@ -1,6 +1,7 @@
 """
 Tests for OutputFileLocator - file pattern matching for model outputs.
 """
+from __future__ import annotations
 
 import os
 import tempfile

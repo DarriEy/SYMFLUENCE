@@ -6,6 +6,7 @@ LSTM (Flow and Snow Hydrological LSTM) Model Definition.
 
 This module contains the PyTorch model definition for LSTM.
 """
+from __future__ import annotations
 
 import torch
 import torch.nn as nn

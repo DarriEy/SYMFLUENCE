@@ -18,6 +18,8 @@ Sentinel-1 SM features:
 Data access via Copernicus Data Space Ecosystem:
 https://dataspace.copernicus.eu/
 """
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional

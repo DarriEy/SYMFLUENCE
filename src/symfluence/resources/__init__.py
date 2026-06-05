@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Resource loading utilities for SYMFLUENCE package data."""
+from __future__ import annotations
 
 from .manager import (
     copy_base_settings_to_project,

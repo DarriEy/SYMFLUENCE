@@ -3,6 +3,7 @@ Unit tests for SUMMA preprocessor.
 
 Tests SUMMA-specific preprocessing functionality.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 

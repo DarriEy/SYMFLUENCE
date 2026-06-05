@@ -27,6 +27,7 @@ Example:
     ...     params = optimizer.step(params, grads)
     ...     ema.update(params)
 """
+from __future__ import annotations
 
 from .optimizers import AdamW
 from .schedulers import CosineAnnealingWarmRestarts, CosineDecay

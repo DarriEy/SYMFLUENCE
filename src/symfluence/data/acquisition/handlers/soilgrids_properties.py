@@ -33,6 +33,7 @@ References:
     Poggio, L., et al. (2021). SoilGrids 2.0: producing soil information for
     the globe with quantified spatial uncertainty. SOIL, 7, 217-240.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

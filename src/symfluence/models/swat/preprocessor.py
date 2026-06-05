@@ -16,6 +16,8 @@ The heavy lifting is delegated to sub-module generators:
 - SWATSubbasinGenerator: .sub, .hru, .gw, .mgt, .sol files
 - SWATRoutingGenerator: file.cio, fig.fig, .rte, .swq, database stubs
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Dict, Tuple

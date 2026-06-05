@@ -1,4 +1,5 @@
 """Shared fixtures for jFUSE model tests."""
+from __future__ import annotations
 
 import shutil
 import sys

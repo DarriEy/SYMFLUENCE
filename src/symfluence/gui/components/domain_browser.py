@@ -8,6 +8,7 @@ Provides a sliding drawer on the right edge of the map that lets users
 browse the full domain directory tree and visualize files directly on
 the map or in inline previews.
 """
+from __future__ import annotations
 
 import json
 import logging

@@ -7,6 +7,7 @@ NextGen (NGEN) Worker
 Worker implementation for NextGen model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

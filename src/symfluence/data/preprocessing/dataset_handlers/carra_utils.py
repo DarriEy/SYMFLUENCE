@@ -7,6 +7,7 @@ CARRA Dataset Handler for SYMFLUENCE
 This module provides the CARRA-specific implementation for forcing data processing.
 CARRA uses a polar stereographic projection and requires special coordinate handling.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Tuple

@@ -9,6 +9,7 @@ system libraries (NetCDF, HDF5, GEOS, PROJ) across different platforms.
 These are lightweight (no heavy dependencies) and can be safely imported
 by the CLI without loading pandas, xarray, etc.
 """
+from __future__ import annotations
 
 from typing import Dict
 

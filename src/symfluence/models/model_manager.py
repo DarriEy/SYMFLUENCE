@@ -8,6 +8,7 @@ postprocess/visualize steps, and delegates component lookups to
 ``ModelRegistry``. Detailed behaviour now lives in the docs (see
 ``docs/source/architecture`` and ``docs/source/models/*``).
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 

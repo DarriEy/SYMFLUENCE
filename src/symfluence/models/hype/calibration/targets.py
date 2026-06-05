@@ -11,6 +11,7 @@ Provides calibration target classes for HYPE hydrological model.
 Handles HYPE output formats (timeCOUT.txt for direct, NetCDF for routed)
 with automatic outlet subbasin selection.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional

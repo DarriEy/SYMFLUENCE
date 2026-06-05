@@ -1,4 +1,5 @@
 """Tests for DCouplerWorker registration and calibration pipeline integration."""
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

@@ -8,6 +8,7 @@ Provides a unified CF standard-name mapping for all variables used across
 SYMFLUENCE (forcings, observations, attributes) and a builder for the
 global attributes that every model-ready NetCDF file should carry.
 """
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Dict, Optional

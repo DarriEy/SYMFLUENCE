@@ -9,6 +9,7 @@ HYPE Parameter Manager
 
 Handles HYPE parameter bounds, normalization, and par.txt file updates.
 """
+from __future__ import annotations
 
 import logging
 import re

@@ -11,6 +11,7 @@ Provides calibration target classes for GR4J/GR6J hydrological models.
 Handles GR-specific output formats (lumped CSV, distributed NetCDF) and
 unit conversions (mm/day → m³/s).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, cast

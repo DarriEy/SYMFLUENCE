@@ -6,6 +6,8 @@ RHESSys Model Postprocessor
 
 Handles output extraction, processing, and analysis for RHESSys model outputs.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Dict, Optional

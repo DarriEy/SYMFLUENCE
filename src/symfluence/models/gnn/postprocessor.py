@@ -6,6 +6,7 @@ GNN Model Postprocessor.
 
 Handles result saving, formatting, and standardized streamflow plotting for the GNN model.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

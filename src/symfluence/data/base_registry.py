@@ -16,6 +16,7 @@ a fallback for subclasses that have not yet set ``_r_registry_name``.
 Subclasses that *do* set the attribute delegate all state to
 ``R.<_r_registry_name>``.
 """
+from __future__ import annotations
 
 import logging
 import warnings

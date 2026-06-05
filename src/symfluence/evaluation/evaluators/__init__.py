@@ -15,6 +15,7 @@ Model-specific streamflow evaluators (GR, HYPE, RHESSys) have been moved to
 symfluence.optimization.calibration_targets for consistency with the calibration
 target pattern. Use those modules for model-specific calibration.
 """
+from __future__ import annotations
 
 from .base import ModelEvaluator
 from .et import ETEvaluator

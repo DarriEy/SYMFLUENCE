@@ -13,6 +13,7 @@ CTSM uses CIME for building. A single-point case is created with
 I2000Clm50SpRs compset and f09_g17 resolution (build grid only).
 ESMF must be installed (mpiuni serial mode) for the NUOPC driver.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
     get_common_build_environment,

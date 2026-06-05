@@ -7,6 +7,7 @@ API client for OpenAI-compatible LLM providers.
 This module provides a unified interface for calling any OpenAI-compatible API,
 including OpenAI, Anthropic (OpenAI mode), and local LLMs like Ollama.
 """
+from __future__ import annotations
 
 import os
 import sys

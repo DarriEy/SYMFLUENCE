@@ -1,4 +1,5 @@
 """Unit tests for system dependency registry and platform detection."""
+from __future__ import annotations
 
 import os
 import re

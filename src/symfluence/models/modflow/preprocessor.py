@@ -21,6 +21,7 @@ Input files generated:
     gwf.oc      — output control
     gwf.ims     — iterative model solution
 """
+from __future__ import annotations
 
 import logging
 import math

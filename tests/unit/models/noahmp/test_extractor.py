@@ -1,4 +1,5 @@
 """Tests for Noah-MP result extractor."""
+from __future__ import annotations
 
 
 class TestNoahMPResultExtractor:

@@ -10,6 +10,7 @@ Worker Safety for SUMMA Workers
 This module contains error handling, retry logic, and signal handling
 for safe worker execution in parallel processes.
 """
+from __future__ import annotations
 
 import gc
 import os

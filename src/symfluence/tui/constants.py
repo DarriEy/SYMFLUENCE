@@ -6,6 +6,7 @@ Constants for the SYMFLUENCE TUI.
 
 Step lists, key bindings, color tokens, and status values.
 """
+from __future__ import annotations
 
 from symfluence.workflow_steps import WORKFLOW_STEP_ITEMS
 

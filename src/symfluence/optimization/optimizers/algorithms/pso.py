@@ -18,6 +18,7 @@ Reference:
     Shi, Y. and Eberhart, R. (1998). A modified particle swarm optimizer.
     IEEE International Conference on Evolutionary Computation.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

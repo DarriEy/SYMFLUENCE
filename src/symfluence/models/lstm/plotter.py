@@ -6,6 +6,7 @@ LSTM Model Plotter
 
 Model-specific visualization for LSTM outputs including streamflow and SWE comparisons.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

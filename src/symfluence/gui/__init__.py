@@ -12,6 +12,8 @@ Launch: symfluence gui launch
 """
 
 #: Bind addresses that keep the GUI reachable only from the local machine.
+from __future__ import annotations
+
 _LOOPBACK_ADDRESSES = frozenset({"127.0.0.1", "localhost", "::1"})
 
 

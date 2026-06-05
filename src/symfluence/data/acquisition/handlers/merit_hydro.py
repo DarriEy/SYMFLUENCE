@@ -28,6 +28,7 @@ References:
     hydrography map based on latest topography datasets. Water Resources
     Research, 55, 5053-5073.
 """
+from __future__ import annotations
 
 import math
 import tarfile

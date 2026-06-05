@@ -17,6 +17,8 @@ Example stations:
 - Garonne at Tonneins: O5550010
 - Rhône at Beaucaire: V7200015
 """
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple

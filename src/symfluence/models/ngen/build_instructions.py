@@ -13,6 +13,7 @@ NGEN is the NextGen National Water Model Framework developed by NOAA/NWS.
 It supports multiple BMI-compliant model modules including CFE, PET,
 NOAH-OWP-Modular, and SLOTH.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
     get_common_build_environment,

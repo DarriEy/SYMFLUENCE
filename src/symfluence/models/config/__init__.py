@@ -7,6 +7,7 @@ Model Configuration Schema Module.
 Provides type-safe configuration contracts for all hydrological models,
 with validation and sensible defaults.
 """
+from __future__ import annotations
 
 from .model_config_schema import (
     REGISTERED_SCHEMAS,

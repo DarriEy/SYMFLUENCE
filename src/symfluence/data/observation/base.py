@@ -7,6 +7,8 @@ Base Observation Handler for SYMFLUENCE
 Provides the abstract base class and utilities for observation data handlers,
 including standardized error handling, output contracts, and common operations.
 """
+from __future__ import annotations
+
 import json
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass

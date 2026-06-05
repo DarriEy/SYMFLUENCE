@@ -8,6 +8,7 @@ Provides a standardized way to attach provenance information to NetCDF
 variables and datasets, tracking data source, processing history,
 and acquisition details.
 """
+from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Dict, Optional

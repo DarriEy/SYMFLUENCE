@@ -15,6 +15,7 @@ Variable Naming:
 
 New code should use CFIF names; legacy names are maintained for compatibility.
 """
+from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod

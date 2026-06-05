@@ -162,6 +162,7 @@ See Also:
     - DataManager: High-level data workflow coordination
     - AttributeProcessor: Post-processing of extracted attributes
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

@@ -13,6 +13,7 @@ from various sources:
 Each factory handles the complexity of merging defaults, loading from sources,
 and transforming to the hierarchical structure required by Pydantic models.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

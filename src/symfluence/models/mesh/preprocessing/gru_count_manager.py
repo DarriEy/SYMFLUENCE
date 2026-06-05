@@ -8,6 +8,7 @@ Coordinates GRU count alignment between the MESH drainage database (DDB)
 and CLASS parameter file.  Orchestrates DDB trimming, CLASS block removal,
 and GRU fraction renormalization.
 """
+from __future__ import annotations
 
 import logging
 

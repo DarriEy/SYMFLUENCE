@@ -7,6 +7,7 @@ Spatial processor for reporting and configuration.
 Handles spatial operations related to reporting, such as finding reach IDs
 based on pour points.
 """
+from __future__ import annotations
 
 import logging
 import traceback

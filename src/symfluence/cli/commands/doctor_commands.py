@@ -7,6 +7,7 @@ Top-level doctor command handler for SYMFLUENCE CLI.
 Provides comprehensive system diagnostics including environment info,
 path resolution reporting, and binary/library checks.
 """
+from __future__ import annotations
 
 import os
 import shutil

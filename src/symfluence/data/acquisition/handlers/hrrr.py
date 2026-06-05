@@ -7,6 +7,7 @@ High Resolution Rapid Refresh (HRRR) data acquisition from AWS S3.
 Provides automated download and processing of HRRR atmospheric forcing data
 with spatial subsetting, coordinate transformation, and NetCDF export.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

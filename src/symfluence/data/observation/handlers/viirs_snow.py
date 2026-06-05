@@ -8,6 +8,8 @@ Processes VIIRS (Visible Infrared Imaging Radiometer Suite) snow cover
 data for hydrological modeling. VIIRS is the successor to MODIS with
 improved spatial resolution and cloud detection.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 

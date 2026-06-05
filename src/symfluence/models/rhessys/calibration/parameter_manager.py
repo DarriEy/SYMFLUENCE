@@ -9,6 +9,7 @@ RHESSys Parameter Manager
 
 Handles RHESSys parameter bounds, normalization, and definition file updates.
 """
+from __future__ import annotations
 
 import logging
 import re

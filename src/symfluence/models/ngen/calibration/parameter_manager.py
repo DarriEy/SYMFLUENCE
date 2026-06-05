@@ -13,6 +13,7 @@ configuration file updates for model calibration.
 Author: SYMFLUENCE Development Team
 Date: 2025
 """
+from __future__ import annotations
 
 import json
 import logging

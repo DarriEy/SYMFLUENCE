@@ -12,6 +12,8 @@ _resolve_catchment_shapefile``) must find the nested file, fall back to the
 river_basins outline, and honour explicit config — for every observation
 handler, not just GRACE.
 """
+from __future__ import annotations
+
 import logging
 
 import pytest

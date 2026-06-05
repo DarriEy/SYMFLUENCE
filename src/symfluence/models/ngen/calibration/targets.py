@@ -13,6 +13,7 @@ Currently supports streamflow calibration with plans for snow, ET, etc.
 Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

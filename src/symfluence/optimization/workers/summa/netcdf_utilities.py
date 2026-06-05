@@ -10,6 +10,7 @@ NetCDF Utilities for SUMMA Workers
 This module contains functions for handling NetCDF time precision issues
 and converting SUMMA output formats for mizuRoute compatibility.
 """
+from __future__ import annotations
 
 import logging
 import os

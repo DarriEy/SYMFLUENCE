@@ -6,6 +6,7 @@ GUI command handlers for SYMFLUENCE CLI.
 
 This module implements the handler for launching the Panel-based GUI.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 

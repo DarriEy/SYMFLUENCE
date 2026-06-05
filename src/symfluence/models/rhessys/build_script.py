@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """RHESSys build command payload."""
+from __future__ import annotations
 
 RHESSYS_BUILD_COMMAND = r'''
 set -e

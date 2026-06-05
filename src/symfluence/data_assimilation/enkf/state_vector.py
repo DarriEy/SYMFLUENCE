@@ -7,6 +7,7 @@ State vector assembly and disassembly.
 Handles conversion between per-member dictionaries of named arrays
 and the flat (n_members, n_state) matrices used by EnKFAlgorithm.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple

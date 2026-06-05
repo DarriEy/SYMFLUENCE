@@ -29,6 +29,7 @@ References:
     resolution climate surfaces for global climate land areas. Int. J.
     Climatol., 37, 4302-4315.
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

@@ -7,6 +7,7 @@ FEWS adapter exceptions.
 Provides specific exception types for the Delft-FEWS General Adapter integration.
 All exceptions inherit from SYMFLUENCEError for consistent error handling.
 """
+from __future__ import annotations
 
 from symfluence.core.exceptions import SYMFLUENCEError
 

@@ -8,6 +8,7 @@ ResultsLoader reads project output files (CSVs, NetCDF, JSON) into pandas
 objects for display by the interactive results viewer.  All methods return
 None on failure and never raise.
 """
+from __future__ import annotations
 
 import json
 import logging

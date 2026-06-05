@@ -11,6 +11,7 @@ ParFlow-CLM is ParFlow compiled with the tightly-coupled Common Land Model.
 The key difference from standalone ParFlow is the CMake flag:
   -DPARFLOW_HAVE_CLM=ON  (instead of OFF)
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 

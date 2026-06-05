@@ -21,6 +21,7 @@ Input files generated:
     <project>.calib -- Calibration multipliers (all 1.0 = no change)
     <project>.bc    -- Boundary conditions (empty for lumped)
 """
+from __future__ import annotations
 
 import logging
 import math

@@ -8,6 +8,7 @@ This module provides the CASR (Canadian Arctic System Reanalysis) specific imple
 for forcing data processing. It handles CASR variable mappings, unit conversions,
 grid structure, and shapefile creation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional, Tuple

@@ -6,6 +6,7 @@ VIC Model Runner.
 
 Executes the VIC model using prepared input files.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional

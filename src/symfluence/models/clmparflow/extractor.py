@@ -12,6 +12,7 @@ Extracts results from ParFlow-CLM .pfb binary output files:
 
 Reuses the ParFlow _read_pfb function for .pfb file reading.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

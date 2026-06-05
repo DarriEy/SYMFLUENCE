@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB calibration parameter manager."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Set

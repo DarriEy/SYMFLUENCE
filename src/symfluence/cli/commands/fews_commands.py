@@ -7,6 +7,7 @@ FEWS CLI command handlers.
 Provides ``symfluence fews pre|post|run|launch`` subcommands for
 operating the Delft-FEWS General Adapter integration.
 """
+from __future__ import annotations
 
 import logging
 import subprocess

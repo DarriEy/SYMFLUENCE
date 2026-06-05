@@ -6,6 +6,7 @@ MESH Forcing Processor
 
 Handles forcing file preparation and splitting.
 """
+from __future__ import annotations
 
 import glob
 import logging

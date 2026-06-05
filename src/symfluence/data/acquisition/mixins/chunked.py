@@ -7,6 +7,7 @@ Chunked Download Mixin for Data Acquisition Handlers.
 Provides utilities for temporal chunking, parallel downloads,
 and NetCDF file merging.
 """
+from __future__ import annotations
 
 import concurrent.futures
 import logging

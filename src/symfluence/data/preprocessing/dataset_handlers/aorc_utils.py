@@ -7,6 +7,7 @@ AORC (Analysis of Record for Calibration) dataset handler.
 Processes NOAA AORC atmospheric forcing data with spatial subsetting,
 variable standardization, and unit conversion support.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple

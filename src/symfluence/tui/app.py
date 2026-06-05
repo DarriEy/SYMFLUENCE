@@ -6,6 +6,7 @@ Root Textual application for SYMFLUENCE TUI.
 
 Manages screen modes, key bindings, and shared services.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

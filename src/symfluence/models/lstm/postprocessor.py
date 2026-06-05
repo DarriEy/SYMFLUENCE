@@ -7,6 +7,7 @@ LSTM Model Postprocessor.
 Handles result saving, visualization, and metric calculation for the LSTM model.
 Migrated to extend StandardModelPostProcessor for extract_streamflow (Phase 1.4).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, cast

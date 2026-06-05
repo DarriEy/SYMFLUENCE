@@ -12,6 +12,8 @@ This module provides:
 """
 
 # Import execution framework components
+from __future__ import annotations
+
 try:
     from .execution import (
         ExecutionResult,

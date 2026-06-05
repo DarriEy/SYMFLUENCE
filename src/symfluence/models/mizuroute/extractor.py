@@ -8,6 +8,7 @@ Handles extraction of routed streamflow from mizuRoute model outputs.
 Encapsulates mizuRoute-specific logic for reach/segment identification
 and routing variable names.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

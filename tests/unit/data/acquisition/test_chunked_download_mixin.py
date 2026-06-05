@@ -8,6 +8,7 @@ Tests the chunked download functionality:
 - merge_netcdf_chunks(): merge, time slice, cleanup
 - get_netcdf_encoding(): compression settings
 """
+from __future__ import annotations
 
 import concurrent.futures
 from pathlib import Path

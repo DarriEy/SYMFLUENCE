@@ -6,6 +6,7 @@ Workflow command handlers for SYMFLUENCE CLI.
 
 This module implements handlers for the workflow command category.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 

@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow Model Preprocessor."""
+from __future__ import annotations
+
 import math
 from datetime import datetime
 from pathlib import Path

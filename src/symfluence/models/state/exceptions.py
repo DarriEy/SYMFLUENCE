@@ -7,6 +7,7 @@ State management exceptions.
 Provides specific exception types for model state operations.
 Reuses StateExchangeError from fews.exceptions for I/O failures.
 """
+from __future__ import annotations
 
 from symfluence.core.exceptions import SYMFLUENCEError
 

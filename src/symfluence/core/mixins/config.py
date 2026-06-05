@@ -6,6 +6,7 @@ Configuration mixin for SYMFLUENCE modules.
 
 Provides standardized access to typed SymfluenceConfig configuration.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 

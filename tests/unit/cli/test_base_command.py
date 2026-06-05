@@ -1,4 +1,5 @@
 """Unit tests for base command class."""
+from __future__ import annotations
 
 import os
 from argparse import Namespace

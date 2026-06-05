@@ -74,6 +74,7 @@ Limitations and Considerations:
     - Large domains benefit from parallel execution (summa_actors)
     - Some decision combinations may be incompatible or unstable
 """
+from __future__ import annotations
 
 from .attributes_manager import SummaAttributesManager
 from .config_manager import SummaConfigManager

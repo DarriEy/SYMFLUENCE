@@ -7,6 +7,7 @@ NetCDF utility functions for SYMFLUENCE.
 Provides common operations for NetCDF file handling, including
 standardized encoding for compressed output files.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, Optional
 

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Hydrological model configuration classes."""
+from __future__ import annotations
 
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Union

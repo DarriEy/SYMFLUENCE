@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Stream delineation methods module."""
+from __future__ import annotations
 
 from .curvature import CurvatureMethod
 from .drop_analysis import DropAnalysisMethod

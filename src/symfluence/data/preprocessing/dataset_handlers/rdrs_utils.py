@@ -7,6 +7,7 @@ RDRS Dataset Handler for SYMFLUENCE
 This module provides the RDRS-specific implementation for forcing data processing.
 It handles RDRS variable mappings, unit conversions, grid structure, and shapefile creation.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path

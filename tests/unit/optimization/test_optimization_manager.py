@@ -7,6 +7,7 @@ Tests the main optimization workflow orchestration, including:
 - Results management
 - Error handling
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch

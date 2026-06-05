@@ -6,6 +6,7 @@ Final Results Saver
 
 Handles saving and formatting final evaluation results.
 """
+from __future__ import annotations
 
 import json
 import logging
