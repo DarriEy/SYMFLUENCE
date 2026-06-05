@@ -9,6 +9,7 @@ Supports three tiers of mapping:
 2. Auto-detect via VariableStandardizer
 3. Pass-through (names match)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -7,6 +7,7 @@ DataFrame and time series utility functions.
 This module provides common operations for handling time series data,
 including datetime index management, alignment, and resampling.
 """
+from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple, Union
 

@@ -6,6 +6,7 @@ Time series panel for model comparison visualizations.
 
 Renders time series comparison of observations and model outputs.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

@@ -6,6 +6,7 @@ Core reporting utilities.
 
 This module provides shared utilities for the reporting subsystem.
 """
+from __future__ import annotations
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.dataframe_utils import (

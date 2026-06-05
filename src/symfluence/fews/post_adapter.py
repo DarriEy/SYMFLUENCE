@@ -11,6 +11,7 @@ Orchestrates the post-processing phase of a FEWS General Adapter run:
   4. Export state files
   5. Write diagnostics
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -29,6 +29,7 @@ Example:
     >>> analyzer = KoopmanAnalyzer(config, logger)
     >>> results = analyzer.run_koopman_analysis(ensemble_df, obs_streamflow)
 """
+from __future__ import annotations
 
 import logging
 import tempfile

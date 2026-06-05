@@ -7,6 +7,7 @@ Model-specific result plotting.
 This module provides specialized visualization for different hydrological
 model outputs including SUMMA, FUSE, NGEN, LSTM, and HYPE.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

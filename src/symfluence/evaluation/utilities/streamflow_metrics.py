@@ -7,6 +7,7 @@ Streamflow Metrics Utility
 Shared utility for streamflow metric calculation across all optimization workers.
 Consolidates duplicate implementations from GR, FUSE, SUMMA, MESH, HYPE, and NGEN workers.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
