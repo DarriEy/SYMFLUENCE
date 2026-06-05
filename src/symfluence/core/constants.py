@@ -540,6 +540,14 @@ class ConfigKeys:
     POUR_POINT_COORDS = 'POUR_POINT_COORDS'
     """Pour point coordinates [lat, lon]."""
 
+    POUR_POINT_ADDITIONAL_COORDS = 'POUR_POINT_ADDITIONAL_COORDS'
+    """Additional interior outlet coordinates (semidistributed/distributed only).
+
+    One or more 'lat/lon' pairs written into the outlets shapefile alongside
+    POUR_POINT_COORDS so TauDEM breaks the stream network at each, forcing
+    subbasin/GRU boundaries to align with interior gauges.
+    """
+
     # Forcing configuration
     FORCING_DATASET = 'FORCING_DATASET'
     """Name of the forcing dataset (ERA5, RDRS, etc.)."""

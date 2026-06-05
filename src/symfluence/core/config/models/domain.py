@@ -8,7 +8,7 @@ Contains DelineationConfig and DomainConfig for spatial extent, timing, and disc
 """
 
 import warnings
-from typing import Literal, Optional
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -143,6 +143,15 @@ class DomainConfig(BaseModel):
 
     # Optional spatial coordinates
     pour_point_coords: Optional[str] = Field(default=None, alias='POUR_POINT_COORDS')
+    # Additional interior outlet coordinates (semidistributed/distributed only).
+    # Each entry is a 'lat/lon' pair; these are written into the outlets shapefile
+    # alongside POUR_POINT_COORDS so TauDEM breaks the stream network at each one,
+    # forcing subbasin/GRU boundaries to line up with interior gauges. The domain
+    # extent stays defined by POUR_POINT_COORDS (the most-downstream outlet).
+    # Accepts a single comma/semicolon-separated string or a YAML list of pairs.
+    pour_point_additional_coords: Optional[Union[str, List[str]]] = Field(
+        default=None, alias='POUR_POINT_ADDITIONAL_COORDS'
+    )
     bounding_box_coords: Optional[str] = Field(default=None, alias='BOUNDING_BOX_COORDS')
 
     # Delineation settings (nested)
