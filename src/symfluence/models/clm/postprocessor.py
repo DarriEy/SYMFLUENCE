@@ -15,13 +15,13 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.registries import R
-from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
+from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @R.postprocessors.add("CLM")
-class CLMPostProcessor(StandardModelPostprocessor):
+class CLMPostProcessor(StandardModelPostProcessor):
     """
     Postprocesses CLM5 output.
 

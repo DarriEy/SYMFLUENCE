@@ -7,11 +7,11 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('PCRGLOBWB')
-class PCRGLOBWBPostProcessor(StandardModelPostprocessor):
+class PCRGLOBWBPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the PCR-GLOBWB 2.0 model.
 
     PCR-GLOBWB outputs discharge in NetCDF format with naming convention

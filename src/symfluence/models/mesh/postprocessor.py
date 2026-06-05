@@ -5,7 +5,7 @@
 MESH model postprocessor.
 
 Handles extraction and processing of MESH model simulation results.
-Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.3).
+Migrated to use StandardModelPostProcessor for reduced boilerplate (Phase 1.3).
 """
 
 from pathlib import Path
@@ -13,16 +13,16 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('MESH')
-class MESHPostProcessor(StandardModelPostprocessor):
+class MESHPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the MESH model.
 
     Handles extraction and processing of MESH model simulation results.
-    Uses StandardModelPostprocessor with configuration-based extraction.
+    Uses StandardModelPostProcessor with configuration-based extraction.
 
     MESH outputs streamflow to MESH_output_streamflow.csv with columns:
     DAY, YEAR, QOMEAS1, QOSIM1, QOMEAS2, QOSIM2, ...

@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING
 _LAZY_IMPORTS = {
     'GNNRunner': ('.runner', 'GNNRunner'),
     'GNNPreProcessor': ('.preprocessor', 'GNNPreProcessor'),
-    'GNNPostprocessor': ('.postprocessor', 'GNNPostprocessor'),
+    'GNNPostProcessor': ('.postprocessor', 'GNNPostProcessor'),
+    # Deprecated pre-1.0 spelling (RTI item 23) — use GNNPostProcessor.
+    'GNNPostprocessor': ('.postprocessor', 'GNNPostProcessor'),
 }
 
 
@@ -48,9 +50,9 @@ def register() -> None:
 
 
 if TYPE_CHECKING:
-    from .postprocessor import GNNPostprocessor
+    from .postprocessor import GNNPostProcessor
     from .preprocessor import GNNPreProcessor
     from .runner import GNNRunner
 
 
-__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor']
+__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostProcessor']

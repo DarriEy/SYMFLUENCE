@@ -12,11 +12,11 @@ from typing import Optional
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('NOAHMP')
-class NoahMPPostProcessor(StandardModelPostprocessor):
+class NoahMPPostProcessor(StandardModelPostProcessor):
     """Postprocessor for standalone Noah-MP.
 
     Extracts total runoff (SFCRNOFF + UGDRNOFF) from the output NetCDF,

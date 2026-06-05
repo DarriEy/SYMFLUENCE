@@ -5,7 +5,7 @@
 LSTM Model Postprocessor.
 
 Handles result saving, visualization, and metric calculation for the LSTM model.
-Migrated to extend StandardModelPostprocessor for extract_streamflow (Phase 1.4).
+Migrated to extend StandardModelPostProcessor for extract_streamflow (Phase 1.4).
 """
 
 from pathlib import Path
@@ -17,15 +17,15 @@ import xarray as xr
 
 from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
-from symfluence.models.base import StandardModelPostprocessor
+from symfluence.models.base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('LSTM')
-class LSTMPostprocessor(StandardModelPostprocessor):
+class LSTMPostProcessor(StandardModelPostProcessor):
     """
     Handles postprocessing for the LSTM model.
 
-    Extends StandardModelPostprocessor for standard streamflow extraction,
+    Extends StandardModelPostProcessor for standard streamflow extraction,
     while keeping custom save_results() for LSTM's dual-mode output format.
 
     Attributes:

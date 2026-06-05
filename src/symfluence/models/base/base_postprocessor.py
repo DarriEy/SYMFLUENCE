@@ -52,7 +52,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
 
     Example:
         >>> @ModelRegistry.register_postprocessor('MYMODEL')
-        >>> class MyModelPostprocessor(BaseModelPostProcessor):
+        >>> class MyModelPostProcessor(BaseModelPostProcessor):
         ...     def _get_model_name(self) -> str:
         ...         return "MYMODEL"
         ...

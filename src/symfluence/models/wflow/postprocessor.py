@@ -9,11 +9,11 @@ import numpy as np
 
 from symfluence.core.registries import R
 
-from ..base import StandardModelPostprocessor
+from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('WFLOW')
-class WflowPostProcessor(StandardModelPostprocessor):
+class WflowPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the Wflow model.
 
     For lumped models, Wflow CSV output uses soil_surface_water__net_runoff_volume_flux
