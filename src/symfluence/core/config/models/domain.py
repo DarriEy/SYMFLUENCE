@@ -6,6 +6,7 @@ Domain configuration models.
 
 Contains DelineationConfig and DomainConfig for spatial extent, timing, and discretization.
 """
+from __future__ import annotations
 
 import warnings
 from typing import List, Literal, Optional, Union

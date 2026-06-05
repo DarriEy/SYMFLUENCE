@@ -8,6 +8,7 @@ Contains configuration classes for calibration algorithms:
 PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config,
 EmulationConfig, and the parent OptimizationConfig.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 

@@ -13,6 +13,7 @@ This module retains two helper classes used during config construction:
 - ``ModelDefaults``: forwards to ModelRegistry for model-specific defaults
 - ``ForcingDefaults``: dataset-conditional overrides (e.g. ERA5 → cloud)
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict

@@ -7,6 +7,7 @@ Data management configuration models.
 Contains DataConfig for high-level data acquisition and processing settings,
 including geospatial data acquisition configuration.
 """
+from __future__ import annotations
 
 from typing import List, Optional
 

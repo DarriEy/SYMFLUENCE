@@ -8,6 +8,7 @@ Contains SymfluenceConfig - the main configuration class that orchestrates
 all other config models and provides validation, factory methods, and
 backward compatibility.
 """
+from __future__ import annotations
 
 import logging
 import warnings

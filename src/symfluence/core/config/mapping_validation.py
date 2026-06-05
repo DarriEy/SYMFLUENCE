@@ -7,6 +7,7 @@ Compares the manual FLAT_TO_NESTED_MAP against the auto-generated mapping
 derived from Pydantic model aliases.  Useful in CI or during model changes
 to ensure the two stay in sync.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

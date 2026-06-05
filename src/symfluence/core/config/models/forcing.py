@@ -6,6 +6,7 @@ Forcing configuration models.
 
 Contains NexConfig, EMEarthConfig, and ForcingConfig for meteorological forcing data.
 """
+from __future__ import annotations
 
 from typing import List, Literal, Optional
 
