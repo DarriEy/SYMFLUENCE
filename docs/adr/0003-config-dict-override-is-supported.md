@@ -46,11 +46,12 @@ Its contract:
 - The "immutable once validated" property is scoped precisely: it describes the
   validated config tree as loaded, not a prohibition on derived-value injection
   during the pipeline.
-- This decision **gates ADR/Q3 (`extra='forbid'`)**. Because in-tree code and
-  plugins rely on extra/derived keys flowing through the config object, the
-  frozen base config cannot be tightened to reject unrecognized fields without
-  first reconciling this hook and the plugin pass-through path. Q3 remains open
-  for that reason.
+- This decision **shapes the answer to Q3 (`extra='forbid'`)**. Because in-tree
+  code and plugins rely on extra/derived keys flowing through the config object,
+  the frozen base config cannot be tightened to reject unrecognized fields. Q3
+  is therefore resolved *not* by `extra='forbid'` but by validating flat keys at
+  ingestion (warn by default, strict opt-in) — see
+  [ADR-0006](0006-config-unknown-keys-warn-by-default.md).
 
 ## References
 

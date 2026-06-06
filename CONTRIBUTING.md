@@ -234,6 +234,12 @@ pytest tests/integration/   # Integration tests
 pytest tests/e2e/ --run-full-examples  # End-to-end tests (slow)
 ```
 
+CI enforces a coverage floor that only ratchets upward — a change may not lower
+total coverage. See [ADR-0008](docs/adr/0008-coverage-gate-raise-and-ratchet.md)
+for the policy. When testing config handling, set `SYMFLUENCE_STRICT_CONFIG=1`
+(or `STRICT_CONFIG: true` in the config) to turn unrecognized-key warnings into
+hard errors — see [ADR-0006](docs/adr/0006-config-unknown-keys-warn-by-default.md).
+
 See `tests/TESTING.md` for detailed testing documentation.
 
 ### Commit Messages
