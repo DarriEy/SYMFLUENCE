@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from symfluence.core.exceptions import ConfigurationError
 from symfluence.core.registries import R
-from symfluence.optimization.workers.base_worker import BaseWorker
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 from .parameter_manager import (
     CoupledModelParameterManager,
@@ -76,7 +76,11 @@ class CoupledModelWorker(BaseWorker):
     def _settings_for(self, settings_dir: Path, model: str) -> Path:
         root = Path(settings_dir)
         sub = settings_subdir(model)
-        if root.name in (model, sub):
+        # Sub-model settings live at the project settings root (e.g. settings/SUMMA), as SIBLINGS of
+        # the coupled model's own settings dir -- not nested under it. Strip a trailing coupled- or
+        # sub-model settings dir so the path resolves to settings/<sub> in per-process run dirs
+        # (the COUPLED optimizer passes settings_dir = .../settings/COUPLED).
+        if root.name in (model, sub, 'COUPLED', settings_subdir('COUPLED')):
             root = root.parent
         return root / sub
 
@@ -168,3 +172,55 @@ class CoupledModelWorker(BaseWorker):
         if not obj_dir.exists():
             obj_dir = Path(output_dir)
         return self._worker(self.objective_model).calculate_metrics(obj_dir, config, **kwargs)
+
+    @staticmethod
+    def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Static pool entry for parallel (MPI/ProcessPool) coupled evaluation.
+
+        Reconstructs the coupled worker -- which rebuilds the model chain (e.g. SUMMA -> dRoute)
+        from ``config`` -- in the worker process and evaluates one joint parameter vector. Without
+        this, the parallel ``PopulationEvaluator`` has no worker function to dispatch to, so the
+        optimizer runs zero evaluations and produces no results.
+        """
+        return _evaluate_coupled_parameters_worker(task_data)
+
+
+def _evaluate_coupled_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Module-level coupled worker function for MPI/ProcessPool execution.
+
+    Resolved by ``PopulationEvaluator`` via the ``_evaluate_<model>_parameters_worker`` naming
+    convention (here ``_evaluate_coupled_parameters_worker``). Mirrors the SUMMA/dRoute workers.
+    """
+    import os
+    import signal
+    import sys
+    import traceback
+
+    def _sig(signum, frame):
+        sys.exit(1)
+
+    try:
+        signal.signal(signal.SIGTERM, _sig)
+        signal.signal(signal.SIGINT, _sig)
+    except ValueError:
+        pass
+    # One thread per process: parallelism is across the pool (each coupled eval runs its own SUMMA).
+    os.environ.update({'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1'})
+
+    try:
+        worker = CoupledModelWorker(config=task_data.get('config'))
+        task = WorkerTask.from_legacy_dict(task_data)
+        result = worker.evaluate(task)
+        return result.to_legacy_dict()
+    except Exception as e:  # noqa: BLE001 -- calibration resilience
+        from symfluence.core.constants import ModelDefaults
+        return {
+            'individual_id': task_data.get('individual_id', -1),
+            'params': task_data.get('params', {}),
+            'score': ModelDefaults.PENALTY_SCORE,
+            'error': f'coupled worker exception: {e}\n{traceback.format_exc()}',
+            'proc_id': task_data.get('proc_id', -1),
+        }
+
+
+__all__ = ['CoupledModelWorker']
