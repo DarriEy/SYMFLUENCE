@@ -136,15 +136,30 @@ class CoupledModelWorker(BaseWorker):
         return True
 
     def _run_sequential(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs) -> bool:
-        """Run each model in graph order; each downstream worker discovers its upstream output."""
-        run_kwargs = {k: v for k, v in kwargs.items() if k not in ('sim_dir', 'output_dir', 'settings_dir')}
+        """Run each model in graph order, handing THIS iteration's upstream output to the next.
+
+        Mirrors the CoupledGW worker: each model runs into ``output_dir/<model>`` and the downstream
+        worker receives ``coupling_source_dir`` = the upstream model's fresh output dir, so it routes
+        this iteration's runoff (not a stale project-level file). Output dirs are recreated each call
+        to avoid stale NetCDF from a prior killed iteration.
+        """
+        import shutil
+        run_kwargs = {k: v for k, v in kwargs.items()
+                      if k not in ('sim_dir', 'output_dir', 'settings_dir', 'coupling_source_dir')}
+        prev_output: Optional[Path] = None
         for model in self._models:
             mdir = Path(output_dir) / model
+            if mdir.exists():
+                shutil.rmtree(mdir, ignore_errors=True)
             mdir.mkdir(parents=True, exist_ok=True)
-            ok = self._worker(model).run_model(config, self._settings_for(settings_dir, model), mdir, **run_kwargs)
+            kw = dict(run_kwargs, sim_dir=mdir)
+            if prev_output is not None:
+                kw['coupling_source_dir'] = prev_output   # downstream reads THIS iteration's output
+            ok = self._worker(model).run_model(config, self._settings_for(settings_dir, model), mdir, **kw)
             if not ok:
                 self.logger.error(f"Coupled chain failed at model '{model}'")
                 return False
+            prev_output = mdir
         return True
 
     def calculate_metrics(self, output_dir: Path, config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
