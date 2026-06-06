@@ -61,11 +61,28 @@ configs and plugins in the wild that currently rely on silent extras.
   entirely), and even the packaged `config_template_comprehensive.yaml` carries
   103 unrecognized keys, enabling strict today would hard-fail the project's own
   templates. **Implication:** warn-mode is already noisy for users of those
-  features. **Follow-on (separate effort, not a 1.0 blocker):** complete the
-  allowlist — register the ~127 real-but-unmapped keys and the high-frequency
-  legacy spellings, decide per family whether the conceptual-model template keys
-  (HBV/HECHMS/TOPMODEL/XINANJIANG/SACSMA — no backing `*Config`) are registered
-  or stripped — *then* enable strict in CI and shipped examples.
+  features.
+- **Allowlist completion — status.** A scope+fix pass reduced the distinct
+  unrecognized keys from 389 → 261:
+  - **Done (T1):** `RECOGNIZED_FLAT_KEYS` in `legacy_aliases.py` registers the
+    125 keys that core in-tree code actually reads in flat form (multi-gauge,
+    EnKF, ESA-CCI, IGNACIO, HYPE options, CanSWE, STATE, per-model param bounds,
+    GNN/LSTM, …). Recognition only — they keep flowing through `_extra`, so the
+    flat readers are unchanged.
+  - **Done (T2):** the legacy spelling `TARGET_METRIC` (≈736 configs) is
+    normalized to canonical `OPTIMIZATION_METRIC` pre-validation, so it is both
+    recognized and functional.
+  - **Not a core change (the 261 remainder):** every remaining key was verified
+    to have **no in-tree consumer**. ~108 are external-plugin keys — confirmed
+    read by the plugins' own packages (e.g. `HBV_BACKEND`→`jhbv/config.py`,
+    `SACSMA_BACKEND`→`jsacsma/config.py`). Per ADR-0002 and the dRoute
+    precedent, the plugins should declare these (via `model_manifest(config_schema=)`
+    or a recognized-keys export), not core. The rest are aspirational/dead keys
+    in the comprehensive kitchen-sink templates (e.g. `DPE_*`, `GAP_FILLING_*`,
+    profiling) — read nowhere; candidates to strip from shipped templates.
+  - **Enabling strict** therefore remains gated on (a) plugins declaring their
+    keys and (b) trimming dead template keys — *then* CI and shipped examples can
+    run strict.
 
 ## References
 
