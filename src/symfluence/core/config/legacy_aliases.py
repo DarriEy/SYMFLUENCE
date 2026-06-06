@@ -15,6 +15,10 @@ Three categories of aliases are defined here:
    canonical successors but still accepted with a deprecation warning.
 3. **Legacy flat-to-nested aliases** (``LEGACY_FLAT_TO_NESTED_ALIASES``):
    flat keys that map to nested config paths for backward compatibility.
+4. **Recognized flat keys** (``RECOGNIZED_FLAT_KEYS``): real keys read in flat
+   form (kept in the config ``_extra`` passthrough, not a nested field) that the
+   unrecognized-key validator must treat as known. Recognition only, never
+   transformation.
 """
 from __future__ import annotations
 
@@ -32,6 +36,10 @@ NORMALIZATION_ALIASES: Dict[str, str] = {
     "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
     # Legacy domain discretization naming
     "DOMAIN_DISCRETIZATION": "SUB_GRID_DISCRETIZATION",
+    # Legacy optimization-metric spelling -> canonical OPTIMIZATION_METRIC
+    # (maps to optimization.metric). Renaming here makes old configs both
+    # recognized and functional, rather than silently inert.
+    "TARGET_METRIC": "OPTIMIZATION_METRIC",
 }
 
 # Maps deprecated flat keys to their preferred replacements.
@@ -136,6 +144,82 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "SETTINGS_HYPE_INFO": ("model", "hype", "info_file"),
     "SETTINGS_MESH_INPUT": ("model", "mesh", "input_file"),
 }
+
+# Recognized flat keys that are intentionally read in flat form — via
+# ``config.get('KEY')`` or ``_get_config_value(..., dict_key='KEY')`` — and
+# therefore flow through to the config object's ``_extra`` passthrough rather
+# than a nested Pydantic field. They are real, consumed-in-code keys that the
+# unrecognized-key validator (``key_validation``) must treat as KNOWN so it does
+# not false-warn on them. They are deliberately NOT in LEGACY_FLAT_TO_NESTED_ALIASES:
+# giving them a nested path would relocate them out of ``_extra`` and break the
+# flat readers. Adding a key here changes recognition only, never transformation.
+# (Resolves the bulk of RTI review open-question Q3 / Tier 3 item 21 noise; see
+# docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
+# unbacked feature families are handled separately — see that ADR's follow-on.)
+RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
+    # Multi-gauge calibration
+    "MULTI_GAUGE_AGGREGATION", "MULTI_GAUGE_CALIBRATION", "MULTI_GAUGE_EXCLUDE_IDS",
+    "MULTI_GAUGE_KGE_FLOOR", "MULTI_GAUGE_MAX_DISTANCE", "MULTI_GAUGE_MIN_GAUGES",
+    "MULTI_GAUGE_MIN_OBS_CV", "MULTI_GAUGE_MIN_OVERLAP_DAYS", "MULTI_GAUGE_MIN_SPECIFIC_Q",
+    "MULTI_GAUGE_OBS_DIR",
+    # EnKF / data assimilation
+    "ENKF_ASSIMILATION_INTERVAL", "ENKF_ASSIMILATION_VARIABLE", "ENKF_AUGMENT_STATE",
+    "ENKF_ENFORCE_NONNEG", "ENKF_ENSEMBLE_SIZE", "ENKF_ESTIMATE_PARAMS", "ENKF_FILTER_VARIANT",
+    "ENKF_FORCING_PERTURBATION", "ENKF_INFLATION_FACTOR", "ENKF_LOCALIZATION_RADIUS",
+    "ENKF_OBS_ERROR_STD", "ENKF_OBS_ERROR_TYPE", "ENKF_PARAM_PERTURBATION_STD",
+    "ENKF_PRECIP_PERTURBATION_STD", "ENKF_TEMP_PERTURBATION_STD",
+    # ESA CCI soil moisture
+    "ESA_CCI_SM_PATH", "ESA_CCI_SM_RECORD_TYPE", "ESA_CCI_SM_SENSOR",
+    "ESA_CCI_SM_TIME_AGGREGATION", "ESA_CCI_SM_VARIABLE", "ESA_CCI_SM_VERSION",
+    # IGNACIO fire-weather (FWI)
+    "IGNACIO_CURING", "IGNACIO_DEFAULT_BUI", "IGNACIO_DEFAULT_DC", "IGNACIO_DEFAULT_DMC",
+    "IGNACIO_DEFAULT_FFMC", "IGNACIO_DEFAULT_ISI", "IGNACIO_FMC", "IGNACIO_FUEL_SOURCE_TYPE",
+    "IGNACIO_FWI_LATITUDE", "IGNACIO_GENERATE_PLOTS", "IGNACIO_INITIAL_RADIUS",
+    "IGNACIO_MIN_ROS", "IGNACIO_NON_FUEL_CODES", "IGNACIO_N_VERTICES", "IGNACIO_OUTPUT_CRS",
+    "IGNACIO_PERIMETER_FORMAT", "IGNACIO_RANDOM_SEED", "IGNACIO_SAVE_ROS_GRIDS",
+    "IGNACIO_TIME_VARYING_WEATHER", "IGNACIO_WORKING_CRS",
+    # HYPE process options
+    "HYPE_DEEP_GROUND", "HYPE_FROZEN_SOIL_MODEL", "HYPE_INFILTRATION_MODEL",
+    "HYPE_PARAM_BOUNDS", "HYPE_PET_MODEL", "HYPE_SNOW_EVAPORATION", "HYPE_SOIL_INIT_WET",
+    "HYPE_SOIL_LAYER_DEPTHS", "HYPE_SURFACE_RUNOFF",
+    # CanSWE snow obs
+    "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION",
+    # State save/load / ensemble
+    "STATE_DIR", "STATE_ENSEMBLE_MEMBERS", "STATE_FILE_PATTERN", "STATE_INPUT_PATH",
+    "STATE_LOAD", "STATE_MANAGEMENT_ENABLED", "STATE_OUTPUT_PATH", "STATE_SAVE",
+    # Per-model parameter bounds & initial params
+    "CLM_PARAM_BOUNDS", "INITIAL_PARAMETERS", "MESH_PARAM_BOUNDS", "PARAMETER_BOUNDS",
+    "PARFLOW_PARAM_BOUNDS", "RHESSYS_PARAM_BOUNDS", "VIC_PARAM_BOUNDS",
+    # GNN emulator
+    "GNN_OUTPUT_SIZE", "GNN_USE_SNOW",
+    # LSTM emulator
+    "LSTM", "LSTM_PARAMETER_BOUNDS", "LSTM_PARAMS_TO_CALIBRATE",
+    # GLEAM ET
+    "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH",
+    # Groundwater
+    "GW_AUTO_ALIGN", "GW_BASE_DEPTH",
+    # GRACE
+    "GRACE_SUBSET",
+    # Catchment shapefile
+    "CATCHMENT_SHP_PATH", "CATCHMENT_SHP_SLOPE_UNITS",
+    # DDS
+    "DDS_STAGNATION_THRESHOLD",
+    # NGEN module toggles
+    "ENABLE_NOAH", "ENABLE_PET", "ENABLE_SLOTH",
+    # FUSE run options
+    "FUSE_RUN_MODE", "FUSE_TEMPLATE_PATH",
+    # Model-error (DA)
+    "MODEL_ERROR_BASE", "MODEL_ERROR_FRACTION",
+    # Regionalization transfer fn
+    "TRANSFER_FUNCTION_B_BOUNDS", "TRANSFER_FUNCTION_TYPE",
+    # Other recognized flat keys
+    "ADAM_STEPS", "CALIBRATION_NEXUS_ID", "CALIBRATION_WARMUP_DAYS", "CARRA_DOMAIN",
+    "DA_METHOD", "DECISION_OPTIONS", "DOWNLOAD_CANSWE", "EM_EARTH", "ET_UNIT_CONVERSION",
+    "EXPERIMENT_OUTPUT_NGEN", "FORCING_RAW_PATH", "GAUGE_SEGMENT_MAPPING", "GR_MODEL_TYPE",
+    "HYDROSHEDS_LEVEL", "LIKELIHOOD_FUNCTION", "MIZUROUTE_NUM_THREADS", "MODIS_SNOW",
+    "NWS_HYDROFABRIC_VERSION", "OPTIMIZATION_MAX_ITERATIONS", "SETTINGS_NGEN_REALIZATION",
+    "SKIP_WARM_START", "SMAP_LAYER", "SNOTEL_STATE", "TDX_SOURCE", "USGS_GW",
+})
 
 
 def find_missing_canonical_keys(
