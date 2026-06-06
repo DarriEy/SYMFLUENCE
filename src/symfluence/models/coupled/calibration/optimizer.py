@@ -56,3 +56,37 @@ class CoupledModelOptimizer(BaseModelOptimizer):
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         return self.worker.run_model(self.config, self.project_dir / 'settings', output_dir)
+
+    def _update_file_manager_output_path(self, output_dir: Path) -> None:
+        """Point the land model's output into ``output_dir/<land>`` (mirrors COUPLED_GW).
+
+        The coupled worker runs each model into ``output_dir/<model>`` and the routing model reads
+        the land output from there, so SUMMA must write to ``output_dir/SUMMA`` (not ``output_dir/``).
+        Also restores settingsPath to the project land settings (where the trial params were written).
+        """
+        if self.land_model_name != 'SUMMA':
+            return super()._update_file_manager_output_path(output_dir)
+        fm = self._get_final_file_manager_path()
+        if not fm.exists() or not fm.is_file():
+            return
+        try:
+            land_output = str(output_dir / self.land_model_name)
+            if not land_output.endswith('/'):
+                land_output += '/'
+            land_settings = str(self.project_dir / 'settings' / self.land_model_name)
+            if not land_settings.endswith('/'):
+                land_settings += '/'
+            with open(fm, encoding='utf-8') as f:
+                lines = f.readlines()
+            out = []
+            for line in lines:
+                if 'outputPath' in line and not line.strip().startswith('!'):
+                    out.append(f"outputPath '{land_output}' \n")
+                elif 'settingsPath' in line and not line.strip().startswith('!'):
+                    out.append(f"settingsPath '{land_settings}' \n")
+                else:
+                    out.append(line)
+            with open(fm, 'w', encoding='utf-8') as f:
+                f.writelines(out)
+        except (FileNotFoundError, IOError, ValueError) as e:
+            self.logger.error(f"Failed to update file manager output path: {e}")
