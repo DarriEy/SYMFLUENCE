@@ -108,7 +108,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           pytest -v --tb=short -m "unit" -n auto \
-            --cov --cov-report=term-missing --cov-fail-under=15 tests/unit/
+            --cov --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Package import smoke test
         run: |

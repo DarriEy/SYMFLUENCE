@@ -121,7 +121,7 @@ jobs:
             conda activate test-env
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=15 tests/unit/
+          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()
