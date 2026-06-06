@@ -247,3 +247,44 @@ class TestPluginKeysAccepted:
         finally:
             R.config_schemas.remove("FAKEVALPLUGIN")
             transformers._AUTO_GENERATED_MAP = None
+
+
+class TestRecognizedFlatKeysAndLegacySpellings:
+    """RTI Q3 follow-on (T1+T2): real flat-read keys are recognized, and the
+    TARGET_METRIC legacy spelling normalizes to the canonical OPTIMIZATION_METRIC.
+    """
+
+    def test_recognized_flat_keys_are_known_by_the_validator(self):
+        from symfluence.core.config.legacy_aliases import RECOGNIZED_FLAT_KEYS
+        from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+
+        known = set(build_combined_flat_to_nested_map("SUMMA")) | RECOGNIZED_FLAT_KEYS
+        sample = {
+            "MULTI_GAUGE_OBS_DIR": "/obs",
+            "ENKF_ENSEMBLE_SIZE": 20,
+            "ESA_CCI_SM_PATH": "/sm",
+            "IGNACIO_FWI_LATITUDE": 64.0,
+            "HYPE_PET_MODEL": "1",
+            "STATE_SAVE": True,
+        }
+        assert find_unknown_keys(sample, known) == []
+
+    def test_recognized_keys_not_added_to_transform_map(self):
+        # Recognition only: these keys must NOT acquire a nested path, else they
+        # would be relocated out of the _extra passthrough that flat readers use.
+        from symfluence.core.config.legacy_aliases import RECOGNIZED_FLAT_KEYS
+        from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+
+        transform_map = build_combined_flat_to_nested_map("SUMMA")
+        assert not (RECOGNIZED_FLAT_KEYS & set(transform_map))
+
+    def test_target_metric_normalizes_to_optimization_metric(self):
+        from symfluence.core.config.config_loader import _normalize_key
+        from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+
+        assert _normalize_key("TARGET_METRIC") == "OPTIMIZATION_METRIC"
+        # ...and the canonical spelling maps to the real nested field.
+        assert build_combined_flat_to_nested_map("SUMMA")["OPTIMIZATION_METRIC"] == (
+            "optimization",
+            "metric",
+        )
