@@ -91,6 +91,11 @@ Pull requests that add new models or algorithms directly to the core will be
 redirected to the plugin path unless there is a compelling reason for core
 inclusion.
 
+A plugin can supply its own **typed configuration schema** via
+`model_manifest(config_schema=...)`; it participates in the validated config
+tree just like an in-tree model. See
+[ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md).
+
 ---
 
 ## 4. Branching Strategy
@@ -160,6 +165,13 @@ git push origin develop
 - Include **type hints** and informative **docstrings**.
 - Keep functions focused and testable.
 - Prefer explicit over implicit; avoid magic numbers.
+
+### Logging Levels
+A failed operation that the framework recovers from (a model run crashes, a data
+step fails) is logged at `ERROR`, not `CRITICAL`. `CRITICAL` is reserved for the
+single orchestrator-boundary case where the *whole run* is aborting. See
+[ADR-0005](docs/adr/0005-logging-level-policy.md) for the full level policy. Use
+`--debug` to surface `DEBUG`-level detail when diagnosing a run.
 
 ### Type Checking Notes
 
@@ -363,6 +375,12 @@ While SYMFLUENCE is pre-1.0 (currently 0.x.x):
 - MINOR versions may include breaking changes (documented in CHANGELOG)
 - PATCH versions are always backward compatible
 - Deprecation warnings will be issued at least one MINOR version before removal
+- The legacy `*Registry.register` decorator shims are removed before 1.0;
+  register through `model_manifest()` and the unified `R.*` facade. See
+  [ADR-0001](docs/adr/0001-remove-legacy-registry-shims.md).
+
+Significant interface and policy decisions are recorded as Architecture
+Decision Records under [`docs/adr/`](docs/adr/).
 
 ### Deprecation Policy
 
