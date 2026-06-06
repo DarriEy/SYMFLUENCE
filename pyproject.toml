@@ -371,10 +371,11 @@ omit = [
 # Avoid failing release checks when local/stale coverage databases
 # reference files that no longer exist after refactors/moves.
 ignore_errors = true
-# Actual coverage ~17% (unit tests only, with pytest-xdist parallel).
+# Actual coverage ~29% (unit tests only, with pytest-xdist parallel).
 # Many modules require external model binaries, live APIs, or real
-# forcing data that cannot run in CI.
-fail_under = 15
+# forcing data that cannot run in CI. The floor is a one-way ratchet:
+# raise it as coverage improves, never lower it (see docs/adr/0008-*).
+fail_under = 25
 show_missing = true
 skip_empty = true
 exclude_lines = [
