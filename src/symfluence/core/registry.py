@@ -400,6 +400,20 @@ def model_manifest(
     if runner_method:
         runner_meta["runner_method"] = runner_method
 
+    # Bridge an adapter-provided config schema into R.config_schemas when no
+    # explicit schema is given. The ModelConfig validator resolves typed
+    # model configs from R.config_schemas; plugins that register only a
+    # config_adapter (e.g. the JAX models) would otherwise be absent there, so
+    # config.model.<model> is never built and the plugin silently runs on schema
+    # defaults instead of the user's settings.
+    if config_schema is None and config_adapter is not None:
+        # Best-effort: a malformed adapter must not break model registration
+        # (which runs at import time). Narrow to realistic adapter failures.
+        try:
+            config_schema = config_adapter(model_name).get_config_schema()
+        except (TypeError, AttributeError, ValueError, RuntimeError, ImportError):
+            config_schema = None
+
     _pairs: list[tuple[Registry, str, Any, Dict[str, Any]]] = [
         (R.preprocessors,          model_name, preprocessor,          {}),
         (R.runners,                model_name, runner,                runner_meta),
