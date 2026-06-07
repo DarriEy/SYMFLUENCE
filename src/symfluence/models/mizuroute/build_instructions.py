@@ -109,6 +109,16 @@ fi
 
 # Embed RPATH so the binary finds its libraries without LD_LIBRARY_PATH.
 # Collect unique library directories from NetCDF, HDF5, and LD_LIBRARY_PATH.
+# Skip entirely on Windows: PE binaries resolve DLLs via PATH/exe-dir, not
+# rpath, and feeding Windows backslash paths (e.g. a conda
+# C:\Miniconda\...\Library\lib) through the perl substitution below mangles them
+# (\t -> tab, \L -> lowercase), producing bogus -L flags like "est/Library/lib"
+# that break the link.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        echo "Windows: skipping RPATH embedding (DLLs resolved via PATH)"
+        ;;
+    *)
 MIZU_RPATH=""
 _mizu_add_rpath() {
     local d="$1"
@@ -142,6 +152,8 @@ if [ -n "$MIZU_RPATH" ]; then
     perl -i -pe "s|^(LIBNETCDF\s*=.*)$|\$1 $RPATH_FLAGS|" Makefile
     echo "RPATH: $MIZU_RPATH"
 fi
+        ;;
+esac
 
 # Build
 make clean || true

@@ -263,6 +263,10 @@ dependencies:
       version_regex: ""
       pkg_config: openblas
       conda_header: include/openblas_config.h
+      # conda-forge's Windows openblas ships the import lib + DLL but NOT the
+      # openblas_config.h header, so the header probe alone reports it missing.
+      # Linking only needs the library, so also accept it by filename glob.
+      conda_lib: "*openblas*"
     packages:
       apt: libopenblas-dev liblapack-dev
       dnf: openblas-devel lapack-devel

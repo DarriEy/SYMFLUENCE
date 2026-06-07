@@ -224,6 +224,13 @@ class SystemDepsRegistry:
             conda_header = check.get("conda_header", "")
             if conda_header:
                 found, path = self._check_conda_prefix(conda_header)
+            # Some conda-forge Windows packages (e.g. openblas) ship the library
+            # but not its dev header, so a header probe under-reports them. Fall
+            # back to a library-filename glob when a `conda_lib` pattern is given.
+            if not found:
+                conda_lib = check.get("conda_lib", "")
+                if conda_lib:
+                    found, path = self._check_conda_lib(conda_lib)
 
         # Homebrew keg-only fallback: on macOS, packages like openblas and
         # lapack are "keg-only" (not symlinked into the Homebrew prefix), so
@@ -412,6 +419,39 @@ class SystemDepsRegistry:
         for candidate in candidates:
             if os.path.isfile(candidate):
                 return True, f"(conda: {candidate})"
+        return False, None
+
+    @staticmethod
+    def _check_conda_lib(lib_glob: str) -> tuple:
+        """Probe ``$CONDA_PREFIX`` lib/bin dirs for a library matching *lib_glob*.
+
+        Complements :meth:`_check_conda_prefix` for packages whose conda-forge
+        Windows build ships the library but omits the dev header (e.g. openblas).
+        Searches both the Windows (``Library/lib``, ``Library/bin``) and Unix
+        (``lib``, ``bin``) layouts.
+
+        Args:
+            lib_glob: Filename glob, e.g. ``"*openblas*"``.
+
+        Returns:
+            ``(found, path_str)`` — *found* is True if any file matches.
+        """
+        import glob as _glob
+
+        prefix = os.environ.get("CONDA_PREFIX", "")
+        if not prefix:
+            return False, None
+
+        search_dirs = [
+            os.path.join(prefix, "Library", "lib"),
+            os.path.join(prefix, "Library", "bin"),
+            os.path.join(prefix, "lib"),
+            os.path.join(prefix, "bin"),
+        ]
+        for d in search_dirs:
+            matches = _glob.glob(os.path.join(d, lib_glob))
+            if matches:
+                return True, f"(conda: {matches[0]})"
         return False, None
 
     @staticmethod

@@ -106,11 +106,18 @@ if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
     echo "Added conda lib to library paths: $clp/lib"
 fi
 
-# On Windows/MSYS2, ensure CMake uses MSYS Makefiles generator
+# On Windows/MSYS2, drive CMake with Ninja: a native mingw-w64 gcc cannot
+# consume the MSYS-style paths the "MSYS Makefiles" generator emits, and
+# "MinGW Makefiles" aborts when sh.exe is on PATH (it always is here). Honor a
+# generator already chosen by the environment (the tool installer sets Ninja).
 case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
-        export CMAKE_GENERATOR="MSYS Makefiles"
-        echo "Windows detected: using MSYS Makefiles generator"
+        if command -v ninja >/dev/null 2>&1; then
+            export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
+        else
+            export CMAKE_GENERATOR="${CMAKE_GENERATOR:-MSYS Makefiles}"
+        fi
+        echo "Windows detected: using $CMAKE_GENERATOR generator"
         ;;
 esac
 
@@ -285,17 +292,29 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # (expat, dl, m) AFTER the archive on the link line.  We pass these via
   # CMAKE_EXE_LINKER_FLAGS because UDUNITS2_LIBRARY must be a single path
   # (ngen's FindUDUNITS2.cmake uses it in IMPORTED_LOCATION).
-  if echo "$_U2_LIB" | grep -q '\.a$'; then
-    # On Linux, GNU ld is single-pass: transitive deps (-lexpat -ldl -lm) must
-    # appear AFTER the udunits2 archive.  Use --start-group/--end-group to allow
-    # circular resolution regardless of link order.
-    if [ "$(uname -s)" = "Linux" ]; then
-      EXTRA_LIBS="${EXTRA_LIBS:-} -Wl,--start-group -lexpat -ldl -lm -Wl,--end-group"
-    else
-      EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm"
-    fi
-    echo "Static UDUNITS2 detected — adding transitive deps to linker flags"
-  fi
+  case "$_U2_LIB" in
+    *.dll.a|*.dylib|*.so)
+      # Shared/import library (e.g. MSYS2 mingw-w64 libudunits2.dll.a): the DLL
+      # carries its own dependencies, so no transitive -lexpat/-ldl/-lm needed.
+      # Note: .dll.a ends in ".a" but is NOT a static archive — it must not take
+      # the static branch below (and -ldl does not exist on Windows).
+      :
+      ;;
+    *.a)
+      # True static archive — its transitive deps must follow it on the link
+      # line. On Linux GNU ld is single-pass, so wrap in --start-group. Windows
+      # mingw has no libdl/separate libm, so only expat is needed there.
+      case "$(uname -s)" in
+        Linux)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -Wl,--start-group -lexpat -ldl -lm -Wl,--end-group" ;;
+        MINGW*|MSYS*|CYGWIN*)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat" ;;
+        *)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm" ;;
+      esac
+      echo "Static UDUNITS2 detected — adding transitive deps to linker flags"
+      ;;
+  esac
 
   # Also add to compiler flags (use forward-slash path)
   export CXXFLAGS="${CXXFLAGS:-} -I${_U2_INC}"

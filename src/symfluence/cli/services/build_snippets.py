@@ -920,7 +920,13 @@ detect_or_build_udunits2() {
 
     # Try common system locations (including multiarch lib dirs on Debian/Ubuntu)
     if [ "$UDUNITS2_FOUND" = false ]; then
-        for try_path in /usr /usr/local /opt/homebrew /opt/udunits2 $HOME/.local; do
+        # Include the MSYS2 mingw-w64 / ucrt64 prefixes so Windows builds find
+        # the pacman-installed udunits2 (and its .dll.a import lib) instead of
+        # falling back to a from-source build, whose libtool step fails on
+        # Windows. /c/msys64/... is the real MSYS2 tree; bare /mingw64 covers a
+        # native mingw64 shell.
+        for try_path in /usr /usr/local /opt/homebrew /opt/udunits2 $HOME/.local \
+                        /c/msys64/mingw64 /c/msys64/ucrt64 /mingw64 /ucrt64; do
             if [ ! -f "$try_path/include/udunits2.h" ]; then
                 continue
             fi
@@ -928,7 +934,9 @@ detect_or_build_udunits2() {
             _ud_lib=""
             _ud_libdir=""
             for _ldir in "$try_path/lib" "$try_path/lib/$(uname -m)-linux-gnu" "$try_path/lib64"; do
-                if [ -f "$_ldir/libudunits2.so" ]; then
+                if [ -f "$_ldir/libudunits2.dll.a" ]; then
+                    _ud_lib="$_ldir/libudunits2.dll.a"; _ud_libdir="$_ldir"; break
+                elif [ -f "$_ldir/libudunits2.so" ]; then
                     _ud_lib="$_ldir/libudunits2.so"; _ud_libdir="$_ldir"; break
                 elif [ -f "$_ldir/libudunits2.dylib" ]; then
                     _ud_lib="$_ldir/libudunits2.dylib"; _ud_libdir="$_ldir"; break
