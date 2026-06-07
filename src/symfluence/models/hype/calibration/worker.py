@@ -116,6 +116,16 @@ class HYPEWorker(BaseWorker):
         if Path(exe_name).is_absolute() and Path(exe_name).exists():
             return exe_name
 
+        # Honor the explicitly configured install path (as runner.py does).
+        # Without this the worker ignores HYPE_INSTALL_PATH and falls through to
+        # the bare exe name -> FileNotFoundError -> 100% calibration crashes.
+        install_path = cfg.get('HYPE_INSTALL_PATH', '')
+        if install_path and install_path != 'default':
+            ip = Path(install_path)
+            for candidate in (ip / exe_name, ip):
+                if candidate.is_file():
+                    return str(candidate)
+
         # Try SYMFLUENCE_DATA_DIR install location
         data_dir = cfg.get('SYMFLUENCE_DATA_DIR', '')
         if data_dir and data_dir != 'default':
