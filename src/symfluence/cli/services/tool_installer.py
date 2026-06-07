@@ -874,12 +874,32 @@ class ToolInstaller(BaseService):
                     if any(d in probe for d in exclude_dirs) or (_ntfs_illegal & set(path)):
                         to_drop.append(path)
                 if to_drop:
-                    subprocess.run(
-                        ["git", "rm", "--cached", "--quiet", "--ignore-unmatch",
-                         "--pathspec-from-file=-", "--pathspec-file-nul"],
+                    # Remove via update-index --force-remove, which reads LITERAL
+                    # paths from stdin. `git rm`'s --pathspec-from-file treats each
+                    # line as a pathspec, and Windows git mishandles the ':' in
+                    # these names (they stay in the index, so checkout then aborts
+                    # on "invalid path"). --force-remove takes the exact paths.
+                    rm = subprocess.run(
+                        ["git", "update-index", "--force-remove", "-z", "--stdin"],
                         input="\0".join(to_drop), capture_output=True, text=True,
+                        timeout=600, cwd=str(target_dir), env=build_env,
+                    )
+                    self._console.indent(
+                        f"[clone] dropped {len(to_drop)} index path(s); "
+                        f"update-index rc={rm.returncode} err={rm.stderr.strip()[:200]!r}"
+                    )
+                    # Verify nothing host-incompatible remains in the index.
+                    chk = subprocess.run(
+                        ["git", "ls-files", "-z"], capture_output=True, text=True,
                         timeout=600, cwd=str(target_dir), env=build_env, check=True,
                     )
+                    remaining = [p for p in chk.stdout.split("\0")
+                                 if p and (_ntfs_illegal & set(p))]
+                    if remaining:
+                        self._console.indent(
+                            f"[clone] WARNING {len(remaining)} illegal path(s) still "
+                            f"in index, e.g. {remaining[0]!r}"
+                        )
                 # Materialise the (now-trimmed) index directly. `git checkout`
                 # would reset the index from HEAD first and re-add the entries we
                 # just removed; `git checkout-index -a` writes exactly what's in
