@@ -285,17 +285,21 @@ class HYPEGeoDataManager:
 
     def _get_projected_centroids(self, gdf: gpd.GeoDataFrame) -> gpd.GeoSeries:
         """
-        Calculate centroids in a projected CRS and return them in the original CRS.
-        This avoids UserWarning about centroids in geographic CRS.
+        Return centroids as GEOGRAPHIC (lat/lon, EPSG:4326) points.
+
+        Centroids are computed in a projected CRS (to avoid the geographic-
+        centroid warning) and then reprojected to degrees. The previous version
+        returned centroids in the *projected* CRS when the input was projected
+        (e.g. EPSG:3057), so HYPE's latitude/longitude fields were filled with
+        projected metres instead of degrees — corrupting latitude-dependent PET.
         """
-        original_crs = gdf.crs
-        if original_crs and original_crs.is_geographic:
-            # Project to EPSG:3857 (Web Mercator) for centroid calculation
-            gdf_proj = gdf.to_crs(epsg=3857)
-            centroids_proj = gdf_proj.geometry.centroid
-            return centroids_proj.to_crs(original_crs)
+        if gdf.crs is None:
+            gdf = gdf.set_crs(epsg=4326)
+        if gdf.crs.is_geographic:
+            centroids = gdf.to_crs(epsg=3857).geometry.centroid
         else:
-            return gdf.geometry.centroid
+            centroids = gdf.geometry.centroid  # already projected → accurate
+        return centroids.to_crs(epsg=4326)
 
     def _calculate_geometry_area(self, gdf: gpd.GeoDataFrame) -> np.ndarray:
         """
@@ -320,22 +324,29 @@ class HYPEGeoDataManager:
             self.logger.warning("GeoDataFrame has no CRS, assuming EPSG:4326")
             gdf = gdf.set_crs(epsg=4326)
 
-        # Get centroid of all geometries for projection center
-        bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+        # Derive the Albers parallels/centre from GEOGRAPHIC bounds. The input
+        # may be in a projected CRS (e.g. EPSG:3057, bounds in metres); using
+        # those metre values as +lat_1/+lat_2 produces an invalid projection
+        # that silently fell back to EPSG:3857 — which inflates area by
+        # ~1/cos^2(lat) (≈6x at 66°N). Reproject to 4326 first to get degrees.
+        gdf_geo = gdf.to_crs(epsg=4326)
+        bounds = gdf_geo.total_bounds  # [minlon, minlat, maxlon, maxlat] in degrees
         center_lon = (bounds[0] + bounds[2]) / 2
         center_lat = (bounds[1] + bounds[3]) / 2
 
-        # Create Albers Equal Area projection centered on the data
-        # This ensures accurate area calculations regardless of location
-        aea_proj = f"+proj=aea +lat_1={bounds[1]} +lat_2={bounds[3]} +lat_0={center_lat} +lon_0={center_lon} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+        aea_proj = (
+            f"+proj=aea +lat_1={bounds[1]} +lat_2={bounds[3]} "
+            f"+lat_0={center_lat} +lon_0={center_lon} "
+            f"+x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+        )
 
         try:
-            gdf_projected = gdf.to_crs(aea_proj)
-            areas = gdf_projected.geometry.area.values
+            areas = gdf_geo.to_crs(aea_proj).geometry.area.values
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Equal-area projection failed ({e}), falling back to EPSG:3857", exc_info=True)
-            gdf_projected = gdf.to_crs(epsg=3857)
-            areas = gdf_projected.geometry.area.values
+            # Last resort: a global equal-area CRS (still correct, just less
+            # locally optimal) — NOT Web Mercator, which distorts area badly.
+            self.logger.warning(f"Local equal-area projection failed ({e}); using EPSG:6933", exc_info=True)
+            areas = gdf_geo.to_crs(epsg=6933).geometry.area.values
 
         return areas
 
@@ -383,7 +394,22 @@ class HYPEGeoDataManager:
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Calculate SLC combinations and fractions."""
         combinations_set: Set[Tuple[int, int]] = set()
-        lc_cols = [col for col in landcover_data.columns if col.startswith('IGBP_') or col.startswith('frac_')]
+
+        # Land-class columns are ONLY those with an integer class id after the
+        # prefix (e.g. IGBP_10, frac_16). Plain-named fractions such as
+        # 'frac_snow' are catchment attributes, NOT land classes — including
+        # them breaks int() parsing and used to corrupt class ids to [1,2,3]
+        # (which then matched no IGBP_<id> column → all SLC fractions = 0 →
+        # zero discharge).
+        def _lc_class_id(col: str) -> Optional[int]:
+            for prefix in ('IGBP_', 'frac_'):
+                if col.startswith(prefix):
+                    suffix = col[len(prefix):]
+                    if suffix.isdigit():
+                        return int(suffix)
+            return None
+
+        lc_cols = [col for col in landcover_data.columns if _lc_class_id(col) is not None]
 
         for basin_id in landcover_data.index:
             # Robust landcover retrieval
@@ -396,10 +422,8 @@ class HYPEGeoDataManager:
 
             active_lc = [col for col in lc_cols if basin_lc[col].values[0] > threshold]
 
-            try:
-                lc_values = [int(col.split('_')[1]) for col in active_lc]
-            except (ValueError, IndexError):
-                lc_values = list(range(1, len(active_lc) + 1))
+            # Class id is the integer suffix (guaranteed present by _lc_class_id).
+            lc_values = [_lc_class_id(col) for col in active_lc]
 
             # Robust soil retrieval
             if basin_id in soil_data.index:
