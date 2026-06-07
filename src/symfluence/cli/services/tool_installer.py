@@ -853,19 +853,31 @@ class ToolInstaller(BaseService):
                 patterns = ["/*"]
                 for raw in sparse_exclude:
                     patterns.append("!" + raw.strip())
-                for args in (
-                    ["git", "sparse-checkout", "init", "--no-cone"],
-                    ["git", "sparse-checkout", "set", "--no-cone", *patterns],
-                    ["git", "checkout"],
-                ):
-                    subprocess.run(
-                        args,
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                        timeout=600,
-                        cwd=str(target_dir),
-                        env=build_env,
+
+                # --- DIAGNOSTIC (temporary): trace why the Windows runner still
+                #     hits NTFS-illegal paths despite the exclusion. ---
+                def _diag(label, args_):
+                    r = subprocess.run(
+                        args_, capture_output=True, text=True, timeout=600,
+                        cwd=str(target_dir), env=build_env,
+                    )
+                    self._console.indent(
+                        f"[clone-diag] {label}: rc={r.returncode} "
+                        f"out={r.stdout.strip()[:300]!r} err={r.stderr.strip()[:300]!r}"
+                    )
+                    return r
+
+                self._console.indent(f"[clone-diag] defer_checkout=True patterns={patterns}")
+                _diag("git --version", ["git", "--version"])
+                _diag("init --no-cone", ["git", "sparse-checkout", "init", "--no-cone"])
+                _diag("set --no-cone", ["git", "sparse-checkout", "set", "--no-cone", *patterns])
+                _diag("sparse list", ["git", "sparse-checkout", "list"])
+                _diag("config sparseCheckout", ["git", "config", "--get", "core.sparseCheckout"])
+                _diag("config cone", ["git", "config", "--get", "core.sparseCheckoutCone"])
+                co = _diag("checkout", ["git", "checkout"])
+                if co.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        co.returncode, co.args, output=co.stdout, stderr=co.stderr
                     )
                 self._console.indent(
                     f"Sparse-checkout excluded {len(sparse_exclude)} path(s) "

@@ -69,9 +69,24 @@ jobs:
       - name: Bootstrap build container (old-glibc Linux)
         if: matrix.container != ''
         run: |
+          set -e
           apt-get update
           apt-get install -y --no-install-recommends \
-            sudo git ca-certificates curl wget xz-utils file build-essential
+            sudo git ca-certificates curl wget xz-utils file build-essential \
+            software-properties-common gnupg
+          # Install Python 3.11 from deadsnakes, built against the CONTAINER's
+          # old glibc. actions/setup-python downloads a Python compiled against a
+          # newer glibc (GLIBC_2.34+) that segfaults/aborts inside ubuntu:20.04
+          # ("version `GLIBC_2.34' not found"), which is why this job died before
+          # any tool built.
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3.11 python3.11-venv python3.11-dev
+          update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+          python3.11 -m ensurepip --upgrade \
+            || curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
           git config --global --add safe.directory '*'
 
       - name: Checkout
@@ -80,14 +95,16 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      # Only on real runners — inside the old-glibc container we use the
+      # deadsnakes Python installed above (setup-python's binary can't run there).
       - name: Set up Python
+        if: matrix.container == ''
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       # focal ships cmake 3.16; several model builds need >= 3.20. Use the pip
-      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH by the
-      # setup-python environment.
+      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH.
       - name: Upgrade build tools in container (old-glibc Linux)
         if: matrix.container != ''
         run: |
