@@ -212,6 +212,30 @@ class HYPEGeoDataManager:
         # 6. Final merging
         base_df = base_df.join(cat_props, on='subid')
 
+        # Positional fallback for id-label mismatch between the river network
+        # and the catchment shapefile. For lumped/single-subbasin domains the
+        # river reach id (e.g. LINKNO=1) often differs from the catchment id
+        # (e.g. GRU_ID=<domain>), so the id-based join above leaves area/lat/lon
+        # as NaN and the only subbasin gets dropped -> empty GeoData -> HYPE
+        # fails. When the row counts match (1:1, the lumped case), assign the
+        # catchment properties positionally instead of by id.
+        join_cols = ['area', 'latitude', 'longitude']
+        if base_df[join_cols].isna().any(axis=None) and len(base_df) == len(cat_props):
+            self.logger.warning(
+                "Catchment id-join left %d/%d sub-basins without geometry; "
+                "river/catchment ids differ — filling positionally (1:1 lumped).",
+                int(base_df[join_cols].isna().any(axis=1).sum()), len(base_df),
+            )
+            for col in join_cols:
+                base_df[col] = cat_props[col].to_numpy()
+            # For a single lumped basin, also reconcile the subbasin id to the
+            # catchment id. The forcing/observation files (Pobs/Tobs/Qobs) are
+            # keyed by the catchment id, so a river-reach subid (e.g. 1) would
+            # make HYPE fail to match forcing/obs ("halt: loading observations").
+            # maindown is the outlet (0) here, so topology is unaffected.
+            if len(base_df) == 1:
+                base_df['subid'] = [int(cat_props.index[0])]
+
         # Robust elevation mapping
         elev_col = 'mean' if 'mean' in elevation_data.columns else 'elev_mean'
 
