@@ -231,8 +231,15 @@ static inline char *strsep(char **stringp, const char *delim) {
 #endif
 #endif
 COMPAT_EOF
-        # Force-include the compat header in all C compilations
-        export CFLAGS=$(echo "${CFLAGS:-} -include $(pwd)/mingw_posix_compat.h" | sed 's/\\/\//g')
+        # Force-include the compat header in all C compilations. The native
+        # mingw-w64 gcc cannot open an MSYS-style path ($(pwd) is /d/a/...), so
+        # convert it to a Windows path (D:/a/...) with cygpath -m; a bare
+        # backslash->slash sed does NOT fix the /d/ drive-letter form.
+        _COMPAT_HDR="$(pwd)/mingw_posix_compat.h"
+        if command -v cygpath >/dev/null 2>&1; then
+            _COMPAT_HDR="$(cygpath -m "$_COMPAT_HDR")"
+        fi
+        export CFLAGS="${CFLAGS:-} -include $_COMPAT_HDR"
         export CXXFLAGS=$(echo "${CXXFLAGS:-}" | sed 's/\\/\//g')
         ;;
 esac
