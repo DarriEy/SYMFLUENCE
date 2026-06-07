@@ -845,43 +845,53 @@ class ToolInstaller(BaseService):
             )
 
             if defer_checkout:
-                # Non-cone sparse-checkout: include all, then re-exclude the
-                # problematic paths, before materialising the working tree.
-                # Patterns are gitignore-style: a leading "/" anchors to the repo
-                # root, while a bare name like "test/" matches at ANY depth (so a
-                # single "test/" entry covers both top-level and nested fixtures).
-                patterns = ["/*"]
-                for raw in sparse_exclude:
-                    patterns.append("!" + raw.strip())
-
-                # --- DIAGNOSTIC (temporary): trace why the Windows runner still
-                #     hits NTFS-illegal paths despite the exclusion. ---
-                def _diag(label, args_):
-                    r = subprocess.run(
-                        args_, capture_output=True, text=True, timeout=600,
-                        cwd=str(target_dir), env=build_env,
+                # Drop the excluded paths from the INDEX, then check out. We can't
+                # rely on sparse-checkout here: Windows git (2.54) validates every
+                # index entry's path for filesystem-legality during `git checkout`
+                # and aborts on NTFS-illegal names (t-route's ':' timestamp test
+                # fixtures) BEFORE honouring skip-worktree, so the excluded files
+                # never get a chance to be skipped. Removing them from the index
+                # is version- and OS-independent: `git rm --cached` touches only
+                # the index (no working tree), so the illegal names are harmless,
+                # and the subsequent checkout simply never materialises them.
+                # A --no-checkout clone leaves the index EMPTY (only HEAD is
+                # set), so populate it from HEAD before we can trim and emit it.
+                subprocess.run(
+                    ["git", "read-tree", "HEAD"], capture_output=True, text=True,
+                    timeout=600, cwd=str(target_dir), env=build_env, check=True,
+                )
+                ls = subprocess.run(
+                    ["git", "ls-files", "-z"], capture_output=True, text=True,
+                    timeout=600, cwd=str(target_dir), env=build_env, check=True,
+                )
+                exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
+                _ntfs_illegal = set(':*?"<>|')
+                to_drop = []
+                for path in ls.stdout.split("\0"):
+                    if not path:
+                        continue
+                    probe = "/" + path + "/"
+                    if any(d in probe for d in exclude_dirs) or (_ntfs_illegal & set(path)):
+                        to_drop.append(path)
+                if to_drop:
+                    subprocess.run(
+                        ["git", "rm", "--cached", "--quiet", "--ignore-unmatch",
+                         "--pathspec-from-file=-", "--pathspec-file-nul"],
+                        input="\0".join(to_drop), capture_output=True, text=True,
+                        timeout=600, cwd=str(target_dir), env=build_env, check=True,
                     )
-                    self._console.indent(
-                        f"[clone-diag] {label}: rc={r.returncode} "
-                        f"out={r.stdout.strip()[:300]!r} err={r.stderr.strip()[:300]!r}"
-                    )
-                    return r
-
-                self._console.indent(f"[clone-diag] defer_checkout=True patterns={patterns}")
-                _diag("git --version", ["git", "--version"])
-                _diag("init --no-cone", ["git", "sparse-checkout", "init", "--no-cone"])
-                _diag("set --no-cone", ["git", "sparse-checkout", "set", "--no-cone", *patterns])
-                _diag("sparse list", ["git", "sparse-checkout", "list"])
-                _diag("config sparseCheckout", ["git", "config", "--get", "core.sparseCheckout"])
-                _diag("config cone", ["git", "config", "--get", "core.sparseCheckoutCone"])
-                co = _diag("checkout", ["git", "checkout"])
-                if co.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        co.returncode, co.args, output=co.stdout, stderr=co.stderr
-                    )
+                # Materialise the (now-trimmed) index directly. `git checkout`
+                # would reset the index from HEAD first and re-add the entries we
+                # just removed; `git checkout-index -a` writes exactly what's in
+                # the index, so the dropped paths are never created.
+                subprocess.run(
+                    ["git", "checkout-index", "-a", "-f"], capture_output=True,
+                    text=True, timeout=600, cwd=str(target_dir), env=build_env,
+                    check=True,
+                )
                 self._console.indent(
-                    f"Sparse-checkout excluded {len(sparse_exclude)} path(s) "
-                    "with host-incompatible filenames"
+                    f"Excluded {len(to_drop)} index path(s) with "
+                    "host-incompatible filenames before checkout"
                 )
             self._console.success("Clone successful")
 
