@@ -176,17 +176,50 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Core build dependencies (pip required — latest Miniconda no longer bundles it)
-          # Use m2w64-* packages for native Windows compilers (conda-forge's gcc/gfortran
-          # are POSIX cross-compiler stubs that can't produce Windows binaries)
-          conda install -y pip m2w64-gcc m2w64-gcc-fortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
+          # ── Native Windows toolchain via MSYS2 mingw-w64 (UCRT-free mingw64) ──
+          # The old m2w64-gcc-fortran is gfortran 5.3.0 (2016), which cannot read
+          # the netcdf.mod shipped by modern conda-forge netcdf-fortran ("not a
+          # GNU Fortran module file"), breaking every Fortran tool. Use MSYS2's
+          # current mingw-w64 toolchain AND its matching scientific libraries so
+          # the compiler and the .mod files come from the same modern gfortran.
+          set -e
+          export PATH="/c/msys64/usr/bin:$PATH"
+          pacman -S --noconfirm --needed \
+            make \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            mingw-w64-x86_64-cmake \
+            mingw-w64-x86_64-ninja \
+            mingw-w64-x86_64-make \
+            mingw-w64-x86_64-pkgconf \
+            mingw-w64-x86_64-netcdf \
+            mingw-w64-x86_64-netcdf-fortran \
+            mingw-w64-x86_64-hdf5 \
+            mingw-w64-x86_64-openblas \
+            mingw-w64-x86_64-gdal \
+            mingw-w64-x86_64-proj \
+            mingw-w64-x86_64-geos \
+            mingw-w64-x86_64-boost \
+            mingw-w64-x86_64-udunits \
+            mingw-w64-x86_64-expat \
+            mingw-w64-x86_64-msmpi
 
-          # Expose CONDA_PREFIX so symfluence dependency checker finds conda-installed libs
-          echo "CONDA_PREFIX=$CONDA_PREFIX" >> $GITHUB_ENV
+          # pip still needed for the Python-packaged tools (troute, ngen helpers)
+          conda install -y pip numpy
 
-          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
-          echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
-          echo "FC=x86_64-w64-mingw32-gfortran" >> $GITHUB_ENV
+          # Put the mingw64 toolchain first on PATH so its gcc/gfortran/nf-config
+          # win over conda's m2w64 and the MSYS2 msys gcc.
+          MINGW_BIN="C:/msys64/mingw64/bin"
+          echo "$MINGW_BIN" >> $GITHUB_PATH
+
+          # Compiler + library roots come from the SAME mingw64 toolchain.
+          # Do NOT export CONDA_PREFIX for the build: it would steer the library
+          # detection back to conda's mismatched netcdf-fortran.
+          echo "CC=$MINGW_BIN/gcc.exe" >> $GITHUB_ENV
+          echo "CXX=$MINGW_BIN/g++.exe" >> $GITHUB_ENV
+          echo "FC=$MINGW_BIN/gfortran.exe" >> $GITHUB_ENV
+          echo "NETCDF=C:/msys64/mingw64" >> $GITHUB_ENV
+          echo "NETCDF_FORTRAN=C:/msys64/mingw64" >> $GITHUB_ENV
           echo "SYMFLUENCE_NO_VENV=true" >> $GITHUB_ENV
           echo "SYMFLUENCE_PYTHON=python" >> $GITHUB_ENV
 
@@ -195,6 +228,41 @@ jobs:
         uses: mpi4py/setup-mpi@v1
         with:
           mpi: msmpi
+
+      - name: Diagnose Windows gcc (smoke test)
+        if: runner.os == 'Windows'
+        # Non-fatal probe: the mingw-w64 gcc compiles nothing with no diagnostic
+        # under CMake/Ninja. Run gcc by hand, fully verbose, to capture the real
+        # failure reason (DLL load, missing cc1, unwritable temp). DLL resolution
+        # follows PATH, so the default bash is representative. Never blocks.
+        continue-on-error: true
+        run: |
+          set -x
+          export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH"
+          echo "--- which / versions ---"
+          command -v gcc; gcc --version || echo "gcc --version rc=$?"
+          echo "--- cc1 presence ---"
+          ls -l /c/msys64/mingw64/bin/cc1.exe 2>/dev/null || echo "no cc1 in bin"
+          ls -l /c/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/*/cc1.exe 2>/dev/null || echo "no cc1 in lib/gcc"
+          echo "--- gcc.exe missing DLLs (if any) ---"
+          ldd /c/msys64/mingw64/bin/gcc.exe 2>&1 | grep -i "not found" || echo "gcc.exe DLLs OK"
+          echo "--- temp dirs ---"
+          echo "TMP=$TMP TEMP=$TEMP TMPDIR=$TMPDIR"
+          echo "--- trivial compile (verbose) ---"
+          printf 'int main(void){return 0;}\n' > hello.c
+          gcc -v -c hello.c -o hello.o; echo "COMPILE_RC=$?"
+          echo "--- cc1 direct + its missing DLLs ---"
+          CC1=$(ls /c/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/*/cc1.exe 2>/dev/null | head -1)
+          if [ -n "$CC1" ]; then
+            "$CC1" --version 2>&1 | head -3 || echo "cc1 --version rc=$?"
+            ldd "$CC1" 2>&1 | grep -i "not found" || echo "cc1.exe DLLs OK"
+          fi
+          echo "--- compile under MSYS2 bash: MSYSTEM=MSYS (expect FAIL) ---"
+          MSYSTEM=MSYS MSYS2_PATH_TYPE=inherit C:/msys64/usr/bin/bash.exe -c \
+            'gcc -c /tmp/hello.c -o /tmp/h_msys.o; echo "MSYS_RC=$?"' || true
+          echo "--- compile under MSYS2 bash: MSYSTEM=MINGW64 (expect PASS = the fix) ---"
+          MSYSTEM=MINGW64 MSYS2_PATH_TYPE=inherit C:/msys64/usr/bin/bash.exe -c \
+            'export PATH=/mingw64/bin:$PATH; gcc -c /tmp/hello.c -o /tmp/h_mingw.o; echo "MINGW64_RC=$?"' || true
 
       # ========================================================================
       # Build Tools
