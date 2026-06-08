@@ -548,6 +548,7 @@ class CRHMConfig(BaseModel):
     elevation_bands: bool = Field(default=False, alias='CRHM_ELEVATION_BANDS')
     elevation_band_size: float = Field(
         default=200.0, alias='CRHM_ELEVATION_BAND_SIZE', gt=0.0)
+    terrain_radiation: bool = Field(default=False, alias='CRHM_TERRAIN_RADIATION')
 
 
 class WRFHydroConfig(BaseModel):

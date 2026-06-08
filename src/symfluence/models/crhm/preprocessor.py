@@ -85,6 +85,18 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if self.use_elev_bands:
             logger.info(f"CRHM elevation bands ON (band size {self.elev_band_size:.0f} m)")
 
+        # Terrain-driven radiation: derive per-band slope (hru_GSL) and aspect
+        # (hru_ASL) from the DEM instead of treating every band as flat. CRHM's
+        # energy-balance snowmelt uses slope/aspect for the solar incidence
+        # angle, so this sharpens elevation-band melt timing. Requires bands.
+        self.use_terrain_radiation = bool(self._get_config_value(
+            lambda: self.config.model.crhm.terrain_radiation,
+            default=False,
+            dict_key='CRHM_TERRAIN_RADIATION'
+        ))
+        if self.use_terrain_radiation:
+            logger.info("CRHM terrain radiation ON (per-band slope/aspect from DEM)")
+
     def run_preprocessing(self) -> bool:
         """
         Run the complete CRHM preprocessing workflow.
@@ -216,15 +228,36 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return None, None
 
         with rasterio.open(dem_path) as src:
-            arr = src.read(1).astype('float64')
+            arr2d = src.read(1).astype('float64')
             nodata = src.nodata
+            xres, yres = src.res
+            bnds = src.bounds
+            is_geographic = src.crs is not None and src.crs.is_geographic
+
+        valid = np.isfinite(arr2d) & (arr2d > -100.0)
         if nodata is not None:
-            arr = arr[arr != nodata]
-        arr = arr[np.isfinite(arr)]
-        arr = arr[arr > -100.0]
-        if arr.size == 0:
+            valid &= arr2d != nodata
+        if int(valid.sum()) == 0:
             logger.warning("DEM has no valid pixels; falling back to lumped CRHM")
             return None, None
+
+        # Per-pixel slope (deg) and aspect (deg, 0=N) for terrain radiation.
+        slope2d = aspect2d = None
+        if self.use_terrain_radiation:
+            if is_geographic:
+                lat0 = np.radians((bnds.bottom + bnds.top) / 2.0)
+                xres_m = abs(xres) * 111320.0 * max(np.cos(lat0), 0.1)
+                yres_m = abs(yres) * 111320.0
+            else:
+                xres_m, yres_m = abs(xres), abs(yres)
+            z = np.where(valid, arr2d, np.nan)
+            dzdy, dzdx = np.gradient(z, yres_m, xres_m)
+            slope2d = np.degrees(np.arctan(np.hypot(dzdx, dzdy)))
+            aspect2d = (np.degrees(np.arctan2(-dzdy, dzdx)) + 360.0) % 360.0
+
+        arr = arr2d[valid]
+        sl = slope2d[valid] if slope2d is not None else None
+        asp = aspect2d[valid] if aspect2d is not None else None
 
         size = self.elev_band_size
         lo_edge = np.floor(arr.min() / size) * size
@@ -238,10 +271,17 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             n = int(sel.sum())
             if n == 0:
                 continue
-            bands.append({
+            band = {
                 'elev': float(arr[sel].mean()),
                 'area_km2': total_area_km2 * (n / npix),
-            })
+            }
+            if sl is not None and asp is not None:
+                band['slope'] = float(np.nanmean(sl[sel]))
+                a = np.radians(asp[sel])
+                band['aspect'] = float(
+                    (np.degrees(np.arctan2(np.nanmean(np.sin(a)),
+                                           np.nanmean(np.cos(a)))) + 360.0) % 360.0)
+            bands.append(band)
 
         if len(bands) < 2:
             logger.info("DEM relief spans <2 bands; using lumped CRHM (1 HRU)")
@@ -720,6 +760,8 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # forcing reference elevation CRHM lapses from.
         band_elevs = None
         band_areas = None
+        band_slopes = None
+        band_aspects = None
         obs_ref_elev = int(elev)
         if self.use_elev_bands:
             bands, ref_elev = self._get_elevation_bands(area_km2)
@@ -727,6 +769,9 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 band_elevs = [int(round(b['elev'])) for b in bands]
                 band_areas = [round(b['area_km2'], 6) for b in bands]
                 obs_ref_elev = int(round(ref_elev))
+                if self.use_terrain_radiation and all('slope' in b for b in bands):
+                    band_slopes = [round(b['slope'], 2) for b in bands]
+                    band_aspects = [round(b['aspect'], 1) for b in bands]
         nhru = len(band_elevs) if band_elevs else 1  # lumped -> single HRU
 
         lines = []
@@ -821,13 +866,16 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Per-HRU area / elevation: band vectors when discretised, else lumped.
         hru_area_str = _hru_vec(band_areas) if band_areas else _hru_val(area_km2)
         hru_elev_str = _hru_vec(band_elevs) if band_elevs else _hru_val(int(elev))
+        # Per-band slope/aspect from the DEM when terrain radiation is on.
+        hru_asl_str = _hru_vec(band_aspects) if band_aspects else _hru_val(0)
+        hru_gsl_str = _hru_vec(band_slopes) if band_slopes else _hru_val(5)
 
         # ---- Shared parameters (basin-wide, broadcast to all modules) ----
         _write_param('Shared', 'basin_area', area_km2)
         _write_param('Shared', 'hru_area', hru_area_str)
-        _write_param('Shared', 'hru_ASL', _hru_val(0))
+        _write_param('Shared', 'hru_ASL', hru_asl_str)
         _write_param('Shared', 'hru_elev', hru_elev_str)
-        _write_param('Shared', 'hru_GSL', _hru_val(5))
+        _write_param('Shared', 'hru_GSL', hru_gsl_str)
         _write_param('Shared', 'hru_lat', _hru_val(round(lat, 2)))
         _write_param('Shared', 'Ht', _hru_val(0.3))
         _write_param('Shared', 'inhibit_evap', _hru_val(0))
