@@ -27,14 +27,20 @@ import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @R.preprocessors.add("PARFLOW")
-class ParFlowPreProcessor:
+class ParFlowPreProcessor(BaseModelPreProcessor):
     """Generates ParFlow input files for integrated hydrologic simulation."""
 
+    MODEL_NAME = "PARFLOW"
+
+    # Keeps its own defensive __init__ (tolerates dict / MagicMock coupled-test
+    # configs) rather than calling super().__init__, whose strict typed-config
+    # access doesn't fit how the coupled groundwater models are wired.
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger

@@ -59,6 +59,16 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
         """Return model name for directory structure."""
         return "IGNACIO"
 
+    def extract_streamflow(self) -> Optional[Path]:
+        """IGNACIO is a wildfire-perimeter model and produces no streamflow.
+
+        The streamflow-oriented hook is required by ``BaseModelPostProcessor`` but
+        is not applicable here; fire perimeters are handled by
+        :meth:`run_postprocessing`. Returning ``None`` keeps the class concrete and
+        instantiable without implying a streamflow output.
+        """
+        return None
+
     def run_postprocessing(self, **kwargs) -> bool:
         """
         Execute IGNACIO postprocessing.
