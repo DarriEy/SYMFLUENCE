@@ -212,13 +212,18 @@ case "$(uname -s 2>/dev/null)" in
         # Fix FindUDUNITS2: on Windows, SHARED IMPORTED targets need IMPORTED_IMPLIB
         # The .lib file is the import library; set it as IMPLIB and use the DLL as LOCATION
         sed -i.bak 's/IMPORTED_LOCATION "${UDUNITS2_LIBRARY}"/IMPORTED_IMPLIB "${UDUNITS2_LIBRARY}"/' cmake/FindUDUNITS2.cmake && rm -f cmake/FindUDUNITS2.cmake.bak
-        # Create a POSIX compat header for functions missing in MinGW (strsep, etc.)
+        # Create a POSIX compat header for functions missing in MinGW
+        # (strsep, strptime, timegm, 2-arg mkdir) used by ngen's C/C++ sources.
         cat > mingw_posix_compat.h << 'COMPAT_EOF'
 #ifndef MINGW_POSIX_COMPAT_H
 #define MINGW_POSIX_COMPAT_H
 #ifdef __MINGW32__
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
+#include <ctype.h>
+#include <direct.h>
+
 static inline char *strsep(char **stringp, const char *delim) {
     char *start = *stringp;
     char *p;
@@ -228,18 +233,65 @@ static inline char *strsep(char **stringp, const char *delim) {
     else { *stringp = NULL; }
     return start;
 }
+
+/* timegm() is _mkgmtime() on Windows. */
+#define timegm _mkgmtime
+
+/* POSIX mkdir(path, mode) -> Windows _mkdir(path) (mode is ignored). Variadic
+   so MinGW's own 1-arg `int mkdir(const char*)` declaration still expands
+   cleanly to _mkdir. */
+#define mkdir(path, ...) _mkdir(path)
+
+/* Minimal strptime covering the conversion specs ngen's date formats use
+   (%Y %m %d %H %M %S %y %j and literals). Returns ptr past last char consumed,
+   or NULL on mismatch. */
+static inline int _spt_num(const char **s, int width, int *out) {
+    int n = 0, v = 0; const char *p = *s;
+    while (*p == ' ') p++;
+    while (n < width && isdigit((unsigned char)*p)) { v = v * 10 + (*p - '0'); p++; n++; }
+    if (n == 0) return 0;
+    *out = v; *s = p; return 1;
+}
+static inline char *strptime(const char *s, const char *fmt, struct tm *tm) {
+    while (*fmt) {
+        if (*fmt == '%') {
+            fmt++;
+            switch (*fmt) {
+                case 'Y': if (!_spt_num(&s, 4, &tm->tm_year)) return NULL; tm->tm_year -= 1900; break;
+                case 'y': if (!_spt_num(&s, 2, &tm->tm_year)) return NULL; tm->tm_year += (tm->tm_year < 69 ? 100 : 0); break;
+                case 'm': if (!_spt_num(&s, 2, &tm->tm_mon)) return NULL; tm->tm_mon -= 1; break;
+                case 'd': case 'e': if (!_spt_num(&s, 2, &tm->tm_mday)) return NULL; break;
+                case 'H': if (!_spt_num(&s, 2, &tm->tm_hour)) return NULL; break;
+                case 'M': if (!_spt_num(&s, 2, &tm->tm_min)) return NULL; break;
+                case 'S': if (!_spt_num(&s, 2, &tm->tm_sec)) return NULL; break;
+                case 'j': if (!_spt_num(&s, 3, &tm->tm_yday)) return NULL; break;
+                case '%': if (*s++ != '%') return NULL; break;
+                default: return NULL;
+            }
+            fmt++;
+        } else if (isspace((unsigned char)*fmt)) {
+            while (isspace((unsigned char)*s)) s++;
+            fmt++;
+        } else {
+            if (*s++ != *fmt++) return NULL;
+        }
+    }
+    return (char *)s;
+}
 #endif
 #endif
 COMPAT_EOF
-        # Force-include the compat header in all C compilations. The native
-        # mingw-w64 gcc cannot open an MSYS-style path ($(pwd) is /d/a/...), so
-        # convert it to a Windows path (D:/a/...) with cygpath -m; a bare
-        # backslash->slash sed does NOT fix the /d/ drive-letter form.
+        # Force-include the compat header in BOTH C and C++ compilations (ngen's
+        # strptime/timegm/mkdir uses are in .hpp). The native mingw-w64 gcc cannot
+        # open an MSYS-style path ($(pwd) is /d/a/...), so convert it to a Windows
+        # path (D:/a/...) with cygpath -m; a bare backslash->slash sed does NOT
+        # fix the /d/ drive-letter form.
         _COMPAT_HDR="$(pwd)/mingw_posix_compat.h"
         if command -v cygpath >/dev/null 2>&1; then
             _COMPAT_HDR="$(cygpath -m "$_COMPAT_HDR")"
         fi
         export CFLAGS="${CFLAGS:-} -include $_COMPAT_HDR"
+        export CXXFLAGS="${CXXFLAGS:-} -include $_COMPAT_HDR"
         export CXXFLAGS=$(echo "${CXXFLAGS:-}" | sed 's/\\/\//g')
         ;;
 esac
