@@ -471,9 +471,15 @@ jobs:
               echo "::error::$name failed to load shared libraries after relocation"
               return 1
             fi
+            # Empty output is NOT proof of failure: a real DLL/shared-lib load
+            # failure emits one of the patterns above (on Windows the loader
+            # prints "code execution cannot proceed ... 0xC0000135" to stderr,
+            # captured via 2>&1). Some tools legitimately print nothing for
+            # --help/--version (e.g. ngen takes positional args and has no help
+            # flag). Treat empty output as a warning, not a hard failure.
             if [ -z "$out" ]; then
-              echo "::error::$name produced no output after relocation (likely failed to start / missing library)"
-              return 1
+              echo "::warning::$name produced no output after relocation (no loader error — likely just no --help/--version text)"
+              return 0
             fi
             echo "  ✓ $name runs after relocation"
           }
