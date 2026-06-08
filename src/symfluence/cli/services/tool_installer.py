@@ -817,6 +817,7 @@ class ToolInstaller(BaseService):
         """
         if repository_url:
             self._console.indent(f"Cloning from: {repository_url}")
+            self._console.indent(f"[clone] sparse_exclude={sparse_exclude!r}")
             # Use shallow clone unless a specific commit hash is needed
             shallow = git_hash is None
             # Defer checkout when excluding paths so we can configure

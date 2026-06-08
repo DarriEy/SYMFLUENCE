@@ -68,12 +68,17 @@ jobs:
       # steps, file for the bundling step) BEFORE checkout. Runs as root.
       - name: Bootstrap build container (old-glibc Linux)
         if: matrix.container != ''
+        env:
+          # No TTY in the container: tzdata (pulled in by python3.11/deadsnakes)
+          # otherwise launches an interactive timezone prompt and hangs forever.
+          DEBIAN_FRONTEND: noninteractive
+          TZ: Etc/UTC
         run: |
           set -e
           apt-get update
           apt-get install -y --no-install-recommends \
             sudo git ca-certificates curl wget xz-utils file build-essential \
-            software-properties-common gnupg
+            software-properties-common gnupg tzdata
           # Install Python 3.11 from deadsnakes, built against the CONTAINER's
           # old glibc. actions/setup-python downloads a Python compiled against a
           # newer glibc (GLIBC_2.34+) that segfaults/aborts inside ubuntu:20.04
@@ -125,6 +130,9 @@ jobs:
       # ========================================================================
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          TZ: Etc/UTC
         run: |
           sudo apt-get update
           sudo apt-get install -y \
