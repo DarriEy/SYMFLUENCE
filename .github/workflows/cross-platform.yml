@@ -108,8 +108,9 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # Install with test dependencies for pytest
-          pip install -e ".[test]"
+          # Install with test dependencies for pytest; gui+baseflow extras so the
+          # optional-feature unit tests run here instead of skipping.
+          pip install -e ".[test,gui,baseflow]"
 
           # Install pytest-xdist for parallel test execution
           pip install pytest-xdist
@@ -122,6 +123,17 @@ jobs:
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
           pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
+
+      - name: Core coverage gate
+        # Stricter ratchet for the fully-testable core spine, reusing the
+        # .coverage data from the step above. Instrumentation-only modules
+        # (profiling, npm packaging) are excluded. One-way ratchet: only raise.
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          coverage report \
+            --include='src/symfluence/core/*' \
+            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py' \
+            --fail-under=80
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()

@@ -70,11 +70,11 @@ def test_default_when_nothing_resolves():
 # ---- ProjectContextMixin path derivation --------------------------------
 
 
-def test_project_dir_derivation():
+def test_project_dir_derivation(tmp_path):
     obj = _Configurable()
-    obj.data_dir = Path("/tmp/symfluence-data")  # nosec B108 - test path, not written
+    obj.data_dir = tmp_path / "symfluence-data"
     obj.domain_name = "bow"
-    assert obj.project_dir == Path("/tmp/symfluence-data/domain_bow")  # nosec B108
+    assert obj.project_dir == tmp_path / "symfluence-data" / "domain_bow"
     assert obj.project_forcing_dir == obj.project_dir / "data" / "forcing"
 
 

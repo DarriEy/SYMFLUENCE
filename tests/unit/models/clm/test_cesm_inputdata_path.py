@@ -34,25 +34,27 @@ class _StubPreprocessor:
         }.get(dict_key, default)
 
 
-def test_explicit_override_is_used():
-    pp = _StubPreprocessor(configured="/scratch/me/cesm-inputdata")
-    assert _resolve_cesm_inputdata(pp) == Path("/scratch/me/cesm-inputdata")
+def test_explicit_override_is_used(tmp_path):
+    override = tmp_path / "cesm-inputdata"
+    pp = _StubPreprocessor(configured=str(override))
+    assert _resolve_cesm_inputdata(pp) == override
 
 
-def test_default_resolves_next_to_installs_via_code_dir():
-    pp = _StubPreprocessor(configured="default", code_dir="/home/u/SYMFLUENCE")
-    assert _resolve_cesm_inputdata(pp) == Path(
-        "/home/u/SYMFLUENCE_data/installs/cesm-inputdata"
+def test_default_resolves_next_to_installs_via_code_dir(tmp_path):
+    code_dir = tmp_path / "SYMFLUENCE"
+    pp = _StubPreprocessor(configured="default", code_dir=str(code_dir))
+    assert _resolve_cesm_inputdata(pp) == (
+        tmp_path / "SYMFLUENCE_data" / "installs" / "cesm-inputdata"
     )
 
 
-def test_default_resolves_under_data_dir_via_project_dir():
+def test_default_resolves_under_data_dir_via_project_dir(tmp_path):
     pp = _StubPreprocessor(
         configured="default",
-        project_dir=Path("/scratch/me/SYMFLUENCE_data/domain_X"),
+        project_dir=tmp_path / "SYMFLUENCE_data" / "domain_X",
     )
     # Mirrors CLMPreProcessor._get_install_path(): project_dir.parents[1]/installs
-    assert _resolve_cesm_inputdata(pp) == Path("/scratch/me/installs/cesm-inputdata")
+    assert _resolve_cesm_inputdata(pp) == tmp_path / "installs" / "cesm-inputdata"
 
 
 def test_default_falls_back_to_home_when_no_project():

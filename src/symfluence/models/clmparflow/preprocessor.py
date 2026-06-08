@@ -33,14 +33,20 @@ import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @R.preprocessors.add("CLMPARFLOW")
-class CLMParFlowPreProcessor:
+class CLMParFlowPreProcessor(BaseModelPreProcessor):
     """Generates ParFlow-CLM input files for integrated hydrologic simulation."""
 
+    MODEL_NAME = "CLMPARFLOW"
+
+    # This preprocessor keeps its own defensive __init__ (tolerates dict / coupled
+    # contexts) rather than calling super().__init__, whose strict typed-config
+    # access doesn't fit how the coupled groundwater models are wired.
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger

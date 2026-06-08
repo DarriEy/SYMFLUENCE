@@ -11,6 +11,7 @@ Tests the chunked download functionality:
 from __future__ import annotations
 
 import concurrent.futures
+import tempfile
 from pathlib import Path
 from typing import List, Tuple
 from unittest.mock import MagicMock, Mock, patch
@@ -19,6 +20,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+
+_TMP = Path(tempfile.gettempdir())
 
 # NOTE: macOS ARM HDF5/netCDF4 skip was removed as of Jan 2026.
 # The underlying HDF5 attribute issues have been resolved in recent library versions.
@@ -246,7 +249,7 @@ class TestDownloadChunksParallel:
         def mock_download(chunk):
             if chunk == (2020, 2):
                 return None
-            return Path(f"/tmp/{chunk[0]}_{chunk[1]}.nc")
+            return _TMP / f"{chunk[0]}_{chunk[1]}.nc"
 
         result = chunked_mixin.download_chunks_parallel(
             chunks,
@@ -263,7 +266,7 @@ class TestDownloadChunksParallel:
         def mock_download(chunk):
             if chunk == (2020, 2):
                 raise Exception("Download failed")
-            return Path(f"/tmp/{chunk[0]}_{chunk[1]}.nc")
+            return _TMP / f"{chunk[0]}_{chunk[1]}.nc"
 
         with pytest.raises(Exception) as exc_info:
             chunked_mixin.download_chunks_parallel(
@@ -299,7 +302,7 @@ class TestDownloadChunksParallel:
         """Empty chunks list should return empty result."""
         result = chunked_mixin.download_chunks_parallel(
             [],
-            lambda x: Path(f"/tmp/{x}.nc")
+            lambda x: _TMP / f"{x}.nc"
         )
 
         assert result == []
