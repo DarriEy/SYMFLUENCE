@@ -318,6 +318,13 @@ echo "Configuring ngen with BMI C, C++, and Fortran support..."
 CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
 CMAKE_ARGS="$CMAKE_ARGS -DBOOST_ROOT=$BOOST_ROOT"
 CMAKE_ARGS="$CMAKE_ARGS -DBoost_NO_SYSTEM_PATHS=ON"
+
+# On Windows, ngen's BMI adapters use dlopen via <dlfcn.h>, provided by the
+# mingw-w64 dlfcn-win32 package (libdl). CMake leaves CMAKE_DL_LIBS empty on
+# Windows, so point it at dl explicitly or the dlopen/dlsym symbols won't link.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_DL_LIBS=dl" ;;
+esac
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
