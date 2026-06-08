@@ -836,83 +836,54 @@ class ToolInstaller(BaseService):
                 self._console.indent(f"Checking out branch: {branch}")
 
             build_env = self._get_clean_build_env()
-            subprocess.run(
-                clone_cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=600,  # 10-minute timeout to prevent hanging clones
-                env=build_env,
-            )
 
-            if defer_checkout:
-                # Drop the excluded paths from the INDEX, then check out. We can't
-                # rely on sparse-checkout here: Windows git (2.54) validates every
-                # index entry's path for filesystem-legality during `git checkout`
-                # and aborts on NTFS-illegal names (t-route's ':' timestamp test
-                # fixtures) BEFORE honouring skip-worktree, so the excluded files
-                # never get a chance to be skipped. Removing them from the index
-                # is version- and OS-independent: `git rm --cached` touches only
-                # the index (no working tree), so the illegal names are harmless,
-                # and the subsequent checkout simply never materialises them.
-                # A --no-checkout clone leaves the index EMPTY (only HEAD is
-                # set), so populate it from HEAD before we can trim and emit it.
-                subprocess.run(
-                    ["git", "read-tree", "HEAD"], capture_output=True, text=True,
-                    timeout=600, cwd=str(target_dir), env=build_env, check=True,
-                )
-                ls = subprocess.run(
-                    ["git", "ls-files", "-z"], capture_output=True, text=True,
-                    timeout=600, cwd=str(target_dir), env=build_env, check=True,
-                )
-                exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
-                _ntfs_illegal = set(':*?"<>|')
-                to_drop = []
-                for path in ls.stdout.split("\0"):
-                    if not path:
-                        continue
-                    probe = "/" + path + "/"
-                    if any(d in probe for d in exclude_dirs) or (_ntfs_illegal & set(path)):
-                        to_drop.append(path)
-                if to_drop:
-                    # Remove via update-index --force-remove, which reads LITERAL
-                    # paths from stdin. `git rm`'s --pathspec-from-file treats each
-                    # line as a pathspec, and Windows git mishandles the ':' in
-                    # these names (they stay in the index, so checkout then aborts
-                    # on "invalid path"). --force-remove takes the exact paths.
-                    rm = subprocess.run(
-                        ["git", "update-index", "--force-remove", "-z", "--stdin"],
-                        input="\0".join(to_drop), capture_output=True, text=True,
-                        timeout=600, cwd=str(target_dir), env=build_env,
-                    )
-                    self._console.indent(
-                        f"[clone] dropped {len(to_drop)} index path(s); "
-                        f"update-index rc={rm.returncode} err={rm.stderr.strip()[:200]!r}"
-                    )
-                    # Verify nothing host-incompatible remains in the index.
-                    chk = subprocess.run(
-                        ["git", "ls-files", "-z"], capture_output=True, text=True,
-                        timeout=600, cwd=str(target_dir), env=build_env, check=True,
-                    )
-                    remaining = [p for p in chk.stdout.split("\0")
-                                 if p and (_ntfs_illegal & set(p))]
-                    if remaining:
-                        self._console.indent(
-                            f"[clone] WARNING {len(remaining)} illegal path(s) still "
-                            f"in index, e.g. {remaining[0]!r}"
-                        )
-                # Materialise the (now-trimmed) index directly. `git checkout`
-                # would reset the index from HEAD first and re-add the entries we
-                # just removed; `git checkout-index -a` writes exactly what's in
-                # the index, so the dropped paths are never created.
-                subprocess.run(
-                    ["git", "checkout-index", "-a", "-f"], capture_output=True,
-                    text=True, timeout=600, cwd=str(target_dir), env=build_env,
-                    check=True,
+            def _g(label, args_, **kw):
+                r = subprocess.run(
+                    args_, capture_output=True, text=True, timeout=600,
+                    cwd=str(target_dir), env=build_env, **kw,
                 )
                 self._console.indent(
-                    f"Excluded {len(to_drop)} index path(s) with "
-                    "host-incompatible filenames before checkout"
+                    f"[clone-dbg] {label}: rc={r.returncode} "
+                    f"out={r.stdout.strip()[:120]!r} err={r.stderr.strip()[:200]!r}"
+                )
+                return r
+
+            if defer_checkout:
+                # Clone WITHOUT the working tree (clone_cmd already has
+                # --no-checkout when deferring), then trim NTFS-illegal paths
+                # (t-route's ':' test fixtures) from the index and materialise it.
+                # cwd=target doesn't exist until the clone runs, so run the clone
+                # from the parent here.
+                cr = subprocess.run(
+                    clone_cmd, capture_output=True, text=True, timeout=600,
+                    env=build_env,
+                )
+                self._console.indent(
+                    f"[clone-dbg] clone(no-checkout): rc={cr.returncode} "
+                    f"err={cr.stderr.strip()[:200]!r}"
+                )
+                if cr.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        cr.returncode, cr.args, output=cr.stdout, stderr=cr.stderr)
+                _g("read-tree HEAD", ["git", "read-tree", "HEAD"])
+                ls = _g("ls-files", ["git", "ls-files", "-z"])
+                exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
+                _ntfs_illegal = set(':*?"<>|')
+                to_drop = [p for p in ls.stdout.split("\0") if p and (
+                    any(d in ("/" + p + "/") for d in exclude_dirs)
+                    or (_ntfs_illegal & set(p)))]
+                self._console.indent(
+                    f"[clone-dbg] index_entries={len([p for p in ls.stdout.split(chr(0)) if p])} "
+                    f"to_drop={len(to_drop)} sample={to_drop[0] if to_drop else None!r}")
+                if to_drop:
+                    _g("update-index --force-remove",
+                       ["git", "update-index", "--force-remove", "-z", "--stdin"],
+                       input="\0".join(to_drop))
+                _g("checkout-index -a", ["git", "checkout-index", "-a", "-f"])
+            else:
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
+                    timeout=600, env=build_env,
                 )
             self._console.success("Clone successful")
 
