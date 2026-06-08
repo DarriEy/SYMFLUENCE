@@ -55,8 +55,8 @@ class TestNoahMPWorkerAttributes:
   dt                 = 3600
   startdate          = "200001010000"
   enddate            = "200112310000"
-  forcing_filename   = "/tmp/forcing.txt"
-  output_filename    = "/tmp/output.nc"
+  forcing_filename   = "forcing.txt"
+  output_filename    = "output.nc"
 /
 
 &forcing

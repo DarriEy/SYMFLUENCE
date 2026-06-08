@@ -80,7 +80,7 @@ def test_hbv_is_marked_skipped_with_design_reason(caplog):
     assert "no decision structure by design" in log_text
 
 
-def test_summary_log_names_analysed_and_skipped(caplog):
+def test_summary_log_names_analysed_and_skipped(caplog, tmp_path):
     """The per-run summary log must name both the analysed and the
     skipped models so reviewers skimming the log can tell at a
     glance what happened — no need to re-read per-model lines."""
@@ -88,7 +88,7 @@ def test_summary_log_names_analysed_and_skipped(caplog):
 
     summa_analyzer_cls = MagicMock()
     summa_analyzer_cls.return_value.run_full_analysis.return_value = (
-        "/tmp/fake_results.csv",
+        str(tmp_path / "fake_results.csv"),
         {"KGE": {"score": 0.87}},
     )
 
