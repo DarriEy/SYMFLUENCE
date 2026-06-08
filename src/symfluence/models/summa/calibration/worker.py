@@ -222,6 +222,16 @@ class SUMMAWorker(BaseWorker):
             if not success:
                 return False
 
+            # Coupled land-only mode: when SUMMA is the upstream model in a coupled chain whose
+            # routing is owned by a downstream model (e.g. dRoute), emit runoff only and let the
+            # downstream model route. The coupled worker sets ``skip_routing`` for non-objective
+            # models. This path is never taken in standalone SUMMA calibration (the flag is absent),
+            # so the existing SUMMA -> mizuRoute coupling is unchanged.
+            if kwargs.get('skip_routing'):
+                self.logger.info(
+                    "SUMMA coupled land-only mode: skipping mizuRoute (downstream model routes runoff)")
+                return True
+
             # Run routing if needed
             if self.needs_routing(config):
                 # Respect explicit routing output directories from callers

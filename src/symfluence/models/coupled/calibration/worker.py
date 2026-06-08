@@ -159,6 +159,12 @@ class CoupledModelWorker(BaseWorker):
             kw = dict(run_kwargs, sim_dir=mdir)
             if prev_output is not None:
                 kw['coupling_source_dir'] = prev_output   # downstream reads THIS iteration's output
+            # The objective model owns the final routing/streamflow metric (dRoute when present).
+            # Tell every UPSTREAM model not to self-route (e.g. SUMMA must not run its own mizuRoute);
+            # the downstream routing model routes this iteration's runoff. Standalone runs never see
+            # this flag, so each model's native routing behaviour is preserved outside coupling.
+            if model != self.objective_model:
+                kw['skip_routing'] = True
             ok = self._worker(model).run_model(config, self._settings_for(settings_dir, model), mdir, **kw)
             if not ok:
                 self.logger.error(f"Coupled chain failed at model '{model}'")
