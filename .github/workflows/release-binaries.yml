@@ -91,6 +91,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      # In a container job, ${{ github.workspace }} (baked into the job-level env)
+      # is the HOST path /home/runner/work/... which does not exist inside the
+      # container — the workspace is mounted at $GITHUB_WORKSPACE (/__w/...). The
+      # tool build auto-detects the container path and installs there, but the
+      # metadata/staging steps would read the host-path env and miss it. Re-point
+      # the SYMFLUENCE_* paths at $GITHUB_WORKSPACE for the container.
+      - name: Fix workspace paths (container)
+        if: matrix.container != ''
+        run: |
+          echo "SYMFLUENCE_CODE=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "SYMFLUENCE_DATA=$GITHUB_WORKSPACE/symfluence_data" >> "$GITHUB_ENV"
+          echo "SYMFLUENCE_DATA_DIR=$GITHUB_WORKSPACE/symfluence_data" >> "$GITHUB_ENV"
+
       # Only on real runners — the container already provides Python 3.11
       # (setup-python's binary needs a newer glibc than the container has).
       - name: Set up Python
