@@ -28,14 +28,20 @@ import math
 from pathlib import Path
 
 from symfluence.core.registries import R
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @R.preprocessors.add("MODFLOW")
-class MODFLOWPreProcessor:
+class MODFLOWPreProcessor(BaseModelPreProcessor):
     """Generates MODFLOW 6 input files for lumped groundwater simulation."""
 
+    MODEL_NAME = "MODFLOW"
+
+    # Keeps its own defensive __init__ (tolerates dict / MagicMock coupled-test
+    # configs) rather than calling super().__init__, whose strict typed-config
+    # access doesn't fit how the coupled groundwater models are wired.
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger

@@ -1,6 +1,7 @@
 """Sync tests for workflow step metadata across frontends and orchestrator."""
 from __future__ import annotations
 
+import tempfile
 from unittest.mock import MagicMock
 
 import pytest
@@ -35,7 +36,7 @@ def _build_orchestrator() -> WorkflowOrchestrator:
         time_start="2010-01-01 00:00",
         time_end="2010-12-31 23:00",
         EXPERIMENT_ID="run_1",
-        SYMFLUENCE_DATA_DIR="/tmp/data",
+        SYMFLUENCE_DATA_DIR=tempfile.gettempdir(),
     )
     logger = MagicMock()
     return WorkflowOrchestrator(managers, config, logger)

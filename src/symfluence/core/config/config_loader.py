@@ -216,6 +216,7 @@ from typing import Any, Dict
 
 from pydantic import ValidationError
 
+from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
 from symfluence.core.config.legacy_aliases import NORMALIZATION_ALIASES
 from symfluence.core.config.models import SymfluenceConfig
 
@@ -351,8 +352,10 @@ def _format_validation_error(error: ValidationError, config: Dict[str, Any]) -> 
     invalid_values = []
     other_errors = []
 
-    # Get all valid field names from the model
-    valid_fields = set(SymfluenceConfig.model_fields.keys())
+    # Known flat config keys (UPPERCASE), used both to flag unknown keys and to
+    # suggest corrections. The Pydantic *section* names (domain, model, …) are not
+    # the right comparison set — user configs use flat keys like DOMAIN_NAME.
+    valid_fields = {k.upper() for k in FLAT_TO_NESTED_MAP}
 
     for err in error.errors():
         field_name = str(err['loc'][0]) if err['loc'] else 'unknown'
