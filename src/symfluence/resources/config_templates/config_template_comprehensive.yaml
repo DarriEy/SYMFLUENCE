@@ -6918,19 +6918,21 @@ CRHM_PARAMS_TO_CALIBRATE: Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_m
 #   Usage:      3
 CRHM_TIMEOUT: 3600
 
+# Discretise the basin into fixed-width elevation bands (one HRU per band) so
+# snow accumulation/melt become elevation-dependent.
 # CRHM_ELEVATION_BANDS
 #   Type:        bool
 #   Default:     false
 #   Source:      CRHMConfig (model_configs.py)
-#   Usage:      Discretise the basin into fixed-width elevation bands (one HRU
-#               per band) so snow accumulation/melt become elevation-dependent.
+#   Usage:      1
 CRHM_ELEVATION_BANDS: false
 
+# Elevation-band width in metres (used when CRHM_ELEVATION_BANDS is true).
 # CRHM_ELEVATION_BAND_SIZE
 #   Type:        float
 #   Default:     200.0
 #   Source:      CRHMConfig (model_configs.py)
-#   Usage:      Elevation-band width in metres (used when CRHM_ELEVATION_BANDS).
+#   Usage:      1
 CRHM_ELEVATION_BAND_SIZE: 200.0
 
 
