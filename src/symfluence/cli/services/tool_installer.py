@@ -837,11 +837,19 @@ class ToolInstaller(BaseService):
 
             build_env = self._get_clean_build_env()
 
-            def _git(args_, check=True, **kw):
-                return subprocess.run(
+            def _git(args_, check=True, log=True, **kw):
+                r = subprocess.run(
                     ["git", *args_], capture_output=True, text=True, timeout=600,
-                    cwd=str(target_dir), env=build_env, check=check, **kw,
+                    cwd=str(target_dir), env=build_env, check=False, **kw,
                 )
+                if log:
+                    self._console.indent(
+                        f"[clone-dbg] git {args_[0]}: rc={r.returncode} "
+                        f"err={r.stderr.strip()[:160]!r}")
+                if check and r.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        r.returncode, r.args, output=r.stdout, stderr=r.stderr)
+                return r
 
             if defer_checkout:
                 # Clone WITHOUT the working tree (clone_cmd already carries
@@ -852,25 +860,44 @@ class ToolInstaller(BaseService):
                 # index only, so the ':' names are harmless to them, but git
                 # READ-TREE and CHECKOUT both validate path legality on Windows
                 # and abort, so we avoid them on the excluded entries.
-                subprocess.run(
-                    clone_cmd, capture_output=True, text=True, check=True,
+                cr = subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=False,
                     timeout=600, env=build_env,
                 )
+                self._console.indent(
+                    f"[clone-dbg] clone(--no-checkout): rc={cr.returncode} "
+                    f"err={cr.stderr.strip()[:160]!r}")
+                if cr.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        cr.returncode, cr.args, output=cr.stdout, stderr=cr.stderr)
                 # `git clone --no-checkout` populates the index on most platforms
                 # but leaves it empty on some (older/macOS git). Only when empty do
                 # we read-tree — and never on Windows, where the index is already
                 # populated and read-tree would re-validate and choke on ':'.
-                if not _git(["ls-files", "-z"]).stdout:
+                if not _git(["ls-files", "-z"], log=False).stdout:
                     _git(["read-tree", "HEAD"])
-                ls = _git(["ls-files", "-z"])
+                ls = _git(["ls-files", "-z"], log=False)
                 exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
                 _ntfs_illegal = set(':*?"<>|')
                 to_drop = [p for p in ls.stdout.split("\0") if p and (
                     any(d in ("/" + p + "/") for d in exclude_dirs)
                     or (_ntfs_illegal & set(p)))]
+                self._console.indent(
+                    f"[clone-dbg] index_entries={len([p for p in ls.stdout.split(chr(0)) if p])} "
+                    f"to_drop={len(to_drop)} sample={(to_drop[0] if to_drop else None)!r}")
                 if to_drop:
-                    _git(["update-index", "--force-remove", "-z", "--stdin"],
-                         input="\0".join(to_drop))
+                    # NUL-separated paths MUST be bytes; text-mode stdin would
+                    # recode/mangle the separators and the ':' names on Windows.
+                    rm = subprocess.run(
+                        ["git", "update-index", "--force-remove", "-z", "--stdin"],
+                        input=("\0".join(to_drop) + "\0").encode("utf-8"),
+                        capture_output=True, timeout=600,
+                        cwd=str(target_dir), env=build_env,
+                    )
+                    self._console.indent(
+                        f"[clone-dbg] update-index: rc={rm.returncode} "
+                        f"err={rm.stderr.decode('utf-8','replace').strip()[:160]!r} "
+                        f"remaining_illegal={len([p for p in _git(['ls-files','-z'],log=False).stdout.split(chr(0)) if p and (_ntfs_illegal & set(p))])}")
                 _git(["checkout-index", "-a", "-f"])
                 self._console.indent(
                     f"Excluded {len(to_drop)} index path(s) with "
