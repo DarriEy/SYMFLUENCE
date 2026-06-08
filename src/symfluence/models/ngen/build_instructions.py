@@ -237,6 +237,15 @@ static inline char *strsep(char **stringp, const char *delim) {
 /* timegm() is _mkgmtime() on Windows. */
 #define timegm _mkgmtime
 
+/* Reentrant time funcs: MinGW has the MS *_s variants (note the reversed
+   argument order vs POSIX). */
+static inline struct tm *gmtime_r(const time_t *t, struct tm *r) {
+    return gmtime_s(r, t) == 0 ? r : NULL;
+}
+static inline struct tm *localtime_r(const time_t *t, struct tm *r) {
+    return localtime_s(r, t) == 0 ? r : NULL;
+}
+
 /* POSIX mkdir(path, mode) -> Windows _mkdir(path) (mode is ignored). Variadic
    so MinGW's own 1-arg `int mkdir(const char*)` declaration still expands
    cleanly to _mkdir. */
