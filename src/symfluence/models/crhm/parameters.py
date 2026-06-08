@@ -56,7 +56,8 @@ PARAM_BOUNDS = {
     'gwKstorage':       {'min': 0.0,   'max': 200.0},     # gw storage coeff
     'gwLag':            {'min': 0.0,   'max': 1000.0},    # gw routing lag
     # -- obs --
-    'lapse_rate':       {'min': 0.3,   'max': 1.5},       # temp lapse rate
+    'lapse_rate':       {'min': 0.3,   'max': 1.5},       # temp lapse rate [C/100m]
+    'precip_elev_adj':  {'min': 0.0,   'max': 1.0},       # orographic precip gradient
     'tmax_allrain':     {'min': 0.0,   'max': 8.0},       # all-rain threshold [C]
     'tmax_allsnow':     {'min': -5.0,  'max': 2.0},       # all-snow threshold [C]
     # -- pbsm / snow sublimation --
