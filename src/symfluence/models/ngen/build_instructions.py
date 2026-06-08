@@ -370,10 +370,13 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   case "$_U2_LIB" in
     *.dll.a|*.dylib|*.so)
       # Shared/import library (e.g. MSYS2 mingw-w64 libudunits2.dll.a): the DLL
-      # carries its own dependencies, so no transitive -lexpat/-ldl/-lm needed.
-      # Note: .dll.a ends in ".a" but is NOT a static archive — it must not take
-      # the static branch below (and -ldl does not exist on Windows).
-      :
+      # carries its own deps (expat/...), so no transitive -lexpat/-ldl/-lm. But
+      # the final ngen.exe must still link udunits2 itself, or its symbols
+      # (ut_free/cv_free) are undefined. ngen's FindUDUNITS2 IMPORTED target does
+      # not propagate to the executable on Windows, so add -ludunits2 explicitly
+      # (it's in the mingw64 default lib path). .dll.a ends in ".a" but is NOT a
+      # static archive, so it must not take the static branch below.
+      EXTRA_LIBS="${EXTRA_LIBS:-} -ludunits2"
       ;;
     *.a)
       # True static archive — its transitive deps must follow it on the link
