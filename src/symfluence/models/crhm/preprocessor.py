@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
@@ -184,7 +184,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             'elev': 1000.0
         }
 
-    def _find_dem_path(self) -> Path:
+    def _find_dem_path(self) -> Optional[Path]:
         """Locate the catchment DEM raster (domain_<name>_elv.tif)."""
         dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
         cands = sorted(dem_dir.glob('*_elv.tif')) if dem_dir.exists() else []
