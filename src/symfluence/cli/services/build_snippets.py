@@ -1249,12 +1249,20 @@ detect_or_build_flex() {
             LIBFL_FOUND=true
         fi
 
-        # Check common system library paths
+        # Check common system library paths (incl. MSYS2 mingw-w64/usr libdirs,
+        # so on Windows we use the flex package's bundled libfl instead of a
+        # from-source build whose configure needs POSIX sys/wait.h that MinGW
+        # lacks).
         if [ "$LIBFL_FOUND" != "true" ]; then
             _fl_ma="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch 2>/dev/null || echo "")"
-            for libdir in /usr/lib64 /usr/lib ${_fl_ma:+/usr/lib/${_fl_ma}} /lib64 /lib; do
-                if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
+            for libdir in /usr/lib64 /usr/lib ${_fl_ma:+/usr/lib/${_fl_ma}} /lib64 /lib \
+                          /c/msys64/mingw64/lib /c/msys64/usr/lib /mingw64/lib; do
+                if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ] \
+                   || [ -f "$libdir/libfl.dll.a" ]; then
                     echo "System libfl found in: $libdir"
+                    export FLEX_LIB_DIR="$libdir"
+                    export LDFLAGS="${LDFLAGS:-} -L${libdir}"
+                    export LIBRARY_PATH="${libdir}:${LIBRARY_PATH:-}"
                     LIBFL_FOUND=true
                     break
                 fi
