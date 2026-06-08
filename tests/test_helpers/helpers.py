@@ -6,6 +6,7 @@ Configuration management utilities for loading and writing test configs.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -158,7 +159,7 @@ def is_cds_data_available(dataset="reanalysis-carra-single-levels"):
         c.retrieve(
             dataset,
             {"product_type": "reanalysis"},
-            f"/tmp/cds_test_{dataset}.nc"
+            str(Path(tempfile.gettempdir()) / f"cds_test_{dataset}.nc")
         )
         # If we get here without error, access is available
         # (we don't actually want to download, so this will likely fail
