@@ -819,44 +819,37 @@ elif printf '%s' "$OS_BUNDLE" | grep -qiE 'mingw|msys|cygwin'; then
     if [ -x "$_ntldd" ] || command -v ntldd >/dev/null 2>&1; then
         # System DLLs that always come from Windows itself — never bundle.
         WIN_SYS_DLL_RE='^(kernel32|kernelbase|ntdll|msvcrt|user32|advapi32|ws2_32|shell32|ole32|oleaut32|gdi32|crypt32|secur32|bcrypt|rpcrt4|sechost|combase|ucrtbase|dbghelp|version|imm32|setupapi|userenv|iphlpapi|dnsapi|winmm|comdlg32|comctl32|powrprof|psapi|wsock32|mpr|wldap32|msmpi|api-ms-.*|ext-ms-.*)\.dll$'
-        BUNDLE_ROUND=0
-        BUNDLE_CHANGED=1
-        while [ $BUNDLE_CHANGED -eq 1 ]; do
-            BUNDLE_CHANGED=0
-            BUNDLE_ROUND=$((BUNDLE_ROUND + 1))
-            print_info "DLL dependency scan round $BUNDLE_ROUND..."
-
-            for exe in bin/*.exe bin/*.dll lib/*.dll; do
-                [ -f "$exe" ] || continue
-                # ntldd -R prints "  name => path (0x..)"; take resolved paths.
-                while IFS= read -r dep; do
-                    [ -z "$dep" ] && continue
-                    dep_base="$(basename "$dep")"
-                    # Skip Windows system DLLs (case-insensitive).
-                    if printf '%s' "$dep_base" | grep -qiE "$WIN_SYS_DLL_RE"; then
-                        continue
-                    fi
-                    [ -f "bin/$dep_base" ] && continue
-                    # ntldd may print Windows (C:\...) or MSYS (/c/...) paths.
-                    dep_unix="$dep"
-                    case "$dep" in
-                        [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep" 2>/dev/null || echo "$dep")" ;;
-                    esac
-                    [ -f "$dep_unix" ] || continue
-                    # Only bundle DLLs that live under the mingw-w64/msys tree
-                    # (i.e. ones we shipped); leave anything else to the host.
-                    case "$dep_unix" in
-                        */msys64/*|*/mingw64/*|*/ucrt64/*) ;;
-                        *) continue ;;
-                    esac
-                    cp -L "$dep_unix" "bin/$dep_base"
-                    chmod +x "bin/$dep_base"
-                    BUNDLE_CHANGED=1
-                    print_success "Bundled $dep_base (from $dep_unix)"
-                done < <("$_ntldd" -R "$exe" 2>/dev/null | awk '/=>/ {print $3}')
-            done
+        # `ntldd -R` already emits the FULL recursive closure, so a single pass
+        # over the ORIGINAL staged binaries is sufficient. (A re-scanning round
+        # loop is O(n^2) over GDAL's ~100-DLL closure and effectively hangs.)
+        # Collect the union of resolved DLL paths first, then copy uniques once.
+        _orig_bins=$(ls bin/*.exe bin/*.dll lib/*.dll 2>/dev/null || true)
+        _seen_dlls=" "
+        for exe in $_orig_bins; do
+            [ -f "$exe" ] || continue
+            while IFS= read -r dep; do
+                [ -z "$dep" ] && continue
+                dep_base="$(basename "$dep")"
+                case "$_seen_dlls" in *" $dep_base "*) continue ;; esac
+                _seen_dlls="$_seen_dlls$dep_base "
+                printf '%s' "$dep_base" | grep -qiE "$WIN_SYS_DLL_RE" && continue
+                [ -f "bin/$dep_base" ] && continue
+                dep_unix="$dep"
+                case "$dep" in
+                    [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep" 2>/dev/null || echo "$dep")" ;;
+                esac
+                [ -f "$dep_unix" ] || continue
+                # Only bundle DLLs we shipped (under the mingw-w64/msys tree).
+                case "$dep_unix" in
+                    */msys64/*|*/mingw64/*|*/ucrt64/*) ;;
+                    *) continue ;;
+                esac
+                cp -L "$dep_unix" "bin/$dep_base"
+                chmod +x "bin/$dep_base"
+                print_success "Bundled $dep_base"
+            done < <("$_ntldd" -R "$exe" 2>/dev/null | awk '/=>/ {print $3}')
         done
-        print_success "DLL bundling complete ($BUNDLE_ROUND rounds)"
+        print_success "DLL bundling complete"
     else
         print_warning "ntldd not found — Windows DLLs not bundled (binaries may not relocate)"
     fi
