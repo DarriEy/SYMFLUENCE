@@ -541,10 +541,13 @@ class CRHMConfig(BaseModel):
     spatial_mode: SpatialModeType = Field(default='lumped', alias='CRHM_SPATIAL_MODE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_CRHM')
     params_to_calibrate: str = Field(
-        default='basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch',
+        default='Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,inhibit_subl,Qe_subl_from_SWE,N_S,Kstorage,gw_K,tfactor,nfactor,delay_melt,gwKstorage,gwLag',
         alias='CRHM_PARAMS_TO_CALIBRATE'
     )
     timeout: int = Field(default=3600, alias='CRHM_TIMEOUT', ge=60, le=86400)
+    elevation_bands: bool = Field(default=False, alias='CRHM_ELEVATION_BANDS')
+    elevation_band_size: float = Field(
+        default=200.0, alias='CRHM_ELEVATION_BAND_SIZE', gt=0.0)
 
 
 class WRFHydroConfig(BaseModel):
