@@ -270,41 +270,6 @@ jobs:
         with:
           mpi: msmpi
 
-      - name: Diagnose Windows gcc (smoke test)
-        if: runner.os == 'Windows'
-        # Non-fatal probe: the mingw-w64 gcc compiles nothing with no diagnostic
-        # under CMake/Ninja. Run gcc by hand, fully verbose, to capture the real
-        # failure reason (DLL load, missing cc1, unwritable temp). DLL resolution
-        # follows PATH, so the default bash is representative. Never blocks.
-        continue-on-error: true
-        run: |
-          set -x
-          export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH"
-          echo "--- which / versions ---"
-          command -v gcc; gcc --version || echo "gcc --version rc=$?"
-          echo "--- cc1 presence ---"
-          ls -l /c/msys64/mingw64/bin/cc1.exe 2>/dev/null || echo "no cc1 in bin"
-          ls -l /c/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/*/cc1.exe 2>/dev/null || echo "no cc1 in lib/gcc"
-          echo "--- gcc.exe missing DLLs (if any) ---"
-          ldd /c/msys64/mingw64/bin/gcc.exe 2>&1 | grep -i "not found" || echo "gcc.exe DLLs OK"
-          echo "--- temp dirs ---"
-          echo "TMP=$TMP TEMP=$TEMP TMPDIR=$TMPDIR"
-          echo "--- trivial compile (verbose) ---"
-          printf 'int main(void){return 0;}\n' > hello.c
-          gcc -v -c hello.c -o hello.o; echo "COMPILE_RC=$?"
-          echo "--- cc1 direct + its missing DLLs ---"
-          CC1=$(ls /c/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/*/cc1.exe 2>/dev/null | head -1)
-          if [ -n "$CC1" ]; then
-            "$CC1" --version 2>&1 | head -3 || echo "cc1 --version rc=$?"
-            ldd "$CC1" 2>&1 | grep -i "not found" || echo "cc1.exe DLLs OK"
-          fi
-          echo "--- compile under MSYS2 bash: MSYSTEM=MSYS (expect FAIL) ---"
-          MSYSTEM=MSYS MSYS2_PATH_TYPE=inherit C:/msys64/usr/bin/bash.exe -c \
-            'gcc -c /tmp/hello.c -o /tmp/h_msys.o; echo "MSYS_RC=$?"' || true
-          echo "--- compile under MSYS2 bash: MSYSTEM=MINGW64 (expect PASS = the fix) ---"
-          MSYSTEM=MINGW64 MSYS2_PATH_TYPE=inherit C:/msys64/usr/bin/bash.exe -c \
-            'export PATH=/mingw64/bin:$PATH; gcc -c /tmp/hello.c -o /tmp/h_mingw.o; echo "MINGW64_RC=$?"' || true
-
       # ========================================================================
       # Build Tools
       # ========================================================================

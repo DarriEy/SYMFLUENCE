@@ -817,7 +817,6 @@ class ToolInstaller(BaseService):
         """
         if repository_url:
             self._console.indent(f"Cloning from: {repository_url}")
-            self._console.indent(f"[clone] sparse_exclude={sparse_exclude!r}")
             # Use shallow clone unless a specific commit hash is needed
             shallow = git_hash is None
             # Defer checkout when excluding paths so we can configure
@@ -837,19 +836,11 @@ class ToolInstaller(BaseService):
 
             build_env = self._get_clean_build_env()
 
-            def _git(args_, check=True, log=True, **kw):
-                r = subprocess.run(
+            def _git(args_, **kw):
+                return subprocess.run(
                     ["git", *args_], capture_output=True, text=True, timeout=600,
-                    cwd=str(target_dir), env=build_env, check=False, **kw,
+                    cwd=str(target_dir), env=build_env, check=True, **kw,
                 )
-                if log:
-                    self._console.indent(
-                        f"[clone-dbg] git {args_[0]}: rc={r.returncode} "
-                        f"err={r.stderr.strip()[:160]!r}")
-                if check and r.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        r.returncode, r.args, output=r.stdout, stderr=r.stderr)
-                return r
 
             if defer_checkout:
                 # Clone WITHOUT the working tree (clone_cmd already carries
@@ -874,7 +865,7 @@ class ToolInstaller(BaseService):
                 # the illegal paths fine; we filter them out, then feed the
                 # survivors to `update-index --index-info` (same line format) and
                 # materialise with checkout-index — git never sees an illegal path.
-                lst = _git(["ls-tree", "-r", "-z", "HEAD"], log=False)
+                lst = _git(["ls-tree", "-r", "-z", "HEAD"])
                 exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
                 _ntfs_illegal = set(':*?"<>|')
                 entries = [e for e in lst.stdout.split("\0") if e]
@@ -887,17 +878,14 @@ class ToolInstaller(BaseService):
                         dropped += 1
                         continue
                     kept.append(e)
-                self._console.indent(
-                    f"[clone-dbg] tree_entries={len(entries)} kept={len(kept)} dropped={dropped}")
+                # NUL-separated index-info MUST be bytes; text-mode stdin can
+                # recode the separators / the ':' names on Windows.
                 ui = subprocess.run(
                     ["git", "update-index", "-z", "--index-info"],
                     input=("\0".join(kept) + "\0").encode("utf-8"),
                     capture_output=True, timeout=600,
                     cwd=str(target_dir), env=build_env,
                 )
-                self._console.indent(
-                    f"[clone-dbg] update-index: rc={ui.returncode} "
-                    f"err={ui.stderr.decode('utf-8', 'replace').strip()[:160]!r}")
                 if ui.returncode != 0:
                     raise subprocess.CalledProcessError(
                         ui.returncode, ui.args, stderr=ui.stderr)
