@@ -956,12 +956,21 @@ elif [ "$OS_TYPE" = "Linux" ]; then
             print_success "$binary_name: set RPATH to \$ORIGIN/../lib"
         done
 
-        for lib in lib/*.so; do
+        # Match versioned sonames too (libnetcdf.so.18, libnetcdff.so.7, the
+        # bundled curl deps, ...). The old `lib/*.so` glob only caught unversioned
+        # names like libsumma.so, leaving every bundled SYSTEM library with an
+        # empty RPATH — so a transitively-needed lib (e.g. libnetcdff -> libnetcdf)
+        # fell back to system paths and failed on a clean machine. They all live
+        # in the same dir, so $ORIGIN is correct for each.
+        for lib in lib/*.so lib/*.so.*; do
             [ -f "$lib" ] || continue
+            [ -L "$lib" ] && continue
+            file "$lib" | grep -q "ELF" || continue
             lib_name="$(basename "$lib")"
 
-            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
-            print_success "$lib_name: set RPATH to \$ORIGIN"
+            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null \
+                && print_success "$lib_name: set RPATH to \$ORIGIN" \
+                || print_warning "$lib_name: patchelf --set-rpath failed"
         done
     else
         print_warning "patchelf not available — skipping Linux RPATH fix"
