@@ -645,3 +645,44 @@ class TestRegistryIntegration:
 
     def test_platform_is_valid(self):
         assert self.registry.platform in Platform
+
+
+# ── Conda library-glob fallback (Windows openblas etc.) ───────────────────
+
+class TestCondaLibFallback:
+    """`_check_conda_lib` finds libs whose conda-forge build omits dev headers."""
+
+    def test_check_conda_lib_finds_windows_layout(self, tmp_path):
+        libdir = tmp_path / "Library" / "lib"
+        libdir.mkdir(parents=True)
+        (libdir / "libopenblas.lib").write_text("")
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, path = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is True
+        assert "openblas" in path
+
+    def test_check_conda_lib_finds_unix_layout(self, tmp_path):
+        libdir = tmp_path / "lib"
+        libdir.mkdir(parents=True)
+        (libdir / "libopenblas.so").write_text("")
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, _ = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is True
+
+    def test_check_conda_lib_absent(self, tmp_path):
+        (tmp_path / "Library" / "lib").mkdir(parents=True)
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, path = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is False
+        assert path is None
+
+    def test_check_conda_lib_no_conda_prefix(self):
+        with patch.dict(os.environ, {"CONDA_PREFIX": ""}, clear=False):
+            found, _ = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is False
+
+    def test_blas_dep_declares_conda_lib(self):
+        """The blas dependency must carry the conda_lib glob for the fallback."""
+        reg = _fresh_registry()
+        blas = reg._registry["dependencies"]["blas"]
+        assert blas["check"].get("conda_lib") == "*openblas*"

@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -76,6 +77,30 @@ class ToolInstaller(BaseService):
                 return "/bin/bash"
             return shutil.which("bash")
 
+        # Order matters: Git\bin\bash.exe is the MINGW64-environment launcher in
+        # which a native mingw-w64 gcc compiles correctly (CI smoke test rc=0).
+        # Git\usr\bin\bash.exe is the bare MSYS-subsystem bash, where the native
+        # compiler dies with no diagnostic — same failure as MSYS2's own bash.
+        # So the \bin\ launcher MUST be tried before the \usr\bin\ one.
+        git_bash_candidates = [
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ]
+
+        # 0. When the MSYS2 mingw-w64 toolchain is in use, prefer Git Bash.
+        #    A native mingw-w64 gcc compiles cleanly under Git Bash but dies with
+        #    no diagnostic when spawned from MSYS2's own usr/bin/bash (its msys
+        #    subsystem mangles the native compiler's arguments — confirmed by a
+        #    CI smoke test where the same compile gives rc=0 under Git Bash and
+        #    rc=1 under MSYS2 bash regardless of MSYSTEM). Git Bash carries a
+        #    full Unix toolchain, so the build scripts still run.
+        if os.path.isdir(r"C:\msys64\mingw64"):
+            for candidate in git_bash_candidates:
+                if os.path.isfile(candidate):
+                    return candidate
+
         # 1. Conda m2-bash — lives inside the active conda environment and
         #    shares PATH with conda-forge gfortran/cmake/make.
         conda_prefix = os.environ.get("CONDA_PREFIX", "")
@@ -95,11 +120,7 @@ class ToolInstaller(BaseService):
                 return candidate
 
         # 3. Git Bash
-        for candidate in [
-            r"C:\Program Files\Git\usr\bin\bash.exe",
-            r"C:\Program Files\Git\bin\bash.exe",
-            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
-        ]:
+        for candidate in git_bash_candidates:
             if os.path.isfile(candidate):
                 return candidate
 
@@ -336,6 +357,23 @@ class ToolInstaller(BaseService):
                     if os.path.isdir(d) and d not in current_path:
                         env["PATH"] = d + sep + env["PATH"]
 
+            # Prefer the MSYS2 toolchain when present. Two dirs, ordered so the
+            # mingw-w64 bin ends up FIRST (its modern gcc/gfortran and matching
+            # nc-config/nf-config must beat conda's older m2w64), with MSYS2's
+            # /usr/bin right behind it for `make` and the unix utils. This keeps
+            # bare `gcc`/`gfortran`/`make` on ONE consistent toolchain instead of
+            # the runner's stray C:\mingw64 (whose make breaks MSYS-path builds).
+            # Prepend in reverse priority — last prepended ends up first.
+            mingw_root = next(
+                (r for r in (r"C:\msys64\mingw64", r"C:\msys64\ucrt64")
+                 if os.path.isdir(os.path.join(r, "bin"))),
+                None,
+            )
+            if mingw_root:
+                for d in (r"C:\msys64\usr\bin", os.path.join(mingw_root, "bin")):
+                    if os.path.isdir(d) and d not in env.get("PATH", ""):
+                        env["PATH"] = d + sep + env.get("PATH", "")
+
             # Conda's m2-bash only ships bash + make.  Standard Unix utils
             # (awk, mkdir, rm, ls, uname, tar, ...) must come from Git Bash,
             # MSYS2, or additional m2- conda packages.  Append the first
@@ -355,12 +393,21 @@ class ToolInstaller(BaseService):
                     env["PATH"] = env["PATH"] + sep + d
                     break
 
-            # Tell cmake to use MSYS Makefiles generator and the MSYS2 make
-            # that ships with conda's m2-make package.
-            env.setdefault("CMAKE_GENERATOR", "MSYS Makefiles")
-            make_exe = shutil.which("make")
-            if make_exe:
-                env.setdefault("CMAKE_MAKE_PROGRAM", make_exe)
+            # CMake generator choice for the native mingw-w64 toolchain.
+            # The "MSYS Makefiles" generator drives make with MSYS-style paths
+            # (/d/a/...) that a NATIVE mingw-w64 gcc cannot open, so its compiler
+            # test fails. "MinGW Makefiles" would use native paths but aborts when
+            # sh.exe is on PATH (it always is under the MSYS2 build bash). Ninja
+            # sidesteps both: native paths, no sh.exe restriction. Prefer it when
+            # available, falling back to MSYS make + the MSYS generator.
+            if os.path.isfile(r"C:\msys64\mingw64\bin\ninja.exe") or shutil.which("ninja"):
+                env.setdefault("CMAKE_GENERATOR", "Ninja")
+            else:
+                env.setdefault("CMAKE_GENERATOR", "MSYS Makefiles")
+                msys_make = r"C:\msys64\usr\bin\make.exe"
+                make_exe = msys_make if os.path.isfile(msys_make) else shutil.which("make")
+                if make_exe:
+                    env["CMAKE_MAKE_PROGRAM"] = make_exe
 
             # Set compiler names (not MSYS2 paths) so cmake resolves them
             # on PATH with the .exe extension.
@@ -370,10 +417,21 @@ class ToolInstaller(BaseService):
             if shutil.which("gfortran"):
                 env.setdefault("FC", "gfortran")
 
+            # Run the native mingw-w64 toolchain inside the matching MSYS2
+            # subsystem. The build bash is C:\msys64\usr\bin\bash.exe, whose
+            # default subsystem is MSYS (MSYSTEM=MSYS); spawning a NATIVE mingw64
+            # gcc from there makes the msys runtime mangle the child's arguments,
+            # so the compiler dies with no diagnostic output (gcc itself is fine
+            # — it compiles cleanly from a non-MSYS shell). MSYSTEM=MINGW64 picks
+            # the mingw64 subsystem; MSYS2_PATH_TYPE=inherit keeps the PATH we
+            # assembled above instead of resetting it to the mingw64 defaults.
+            if os.path.isdir(r"C:\msys64\mingw64"):
+                env.setdefault("MSYSTEM", "MINGW64")
+                env.setdefault("MSYS2_PATH_TYPE", "inherit")
+
             # Ensure temp directory is set for Fortran compiler backends
             # (cc1.exe/f951.exe). Without TMP/TEMP, gfortran falls back to
             # C:\Windows which is not writable by normal users.
-            import tempfile
             tmp_dir = tempfile.gettempdir()
             for var in ("TMPDIR", "TMP", "TEMP"):
                 env.setdefault(var, tmp_dir)
@@ -414,6 +472,14 @@ class ToolInstaller(BaseService):
                 if "/usr/bin" not in current_path.split(sep):
                     env["PATH"] = current_path + sep + "/usr/bin"
 
+            # Homebrew's `gcc` formula installs only *versioned* Fortran binaries
+            # (e.g. gfortran-14), never a bare `gfortran`. Several model Makefiles
+            # (HYPE, MESH) hardcode `gfortran` instead of honoring $(FC), and the
+            # preflight check probes bare `gfortran` on PATH. When no bare
+            # `gfortran` is reachable but a versioned one is, expose a shim so
+            # both the preflight and the Makefiles resolve it.
+            self._ensure_bare_compiler_shim(env, "gfortran")
+
         # Ensure build scripts install Python packages into the same
         # interpreter that is running symfluence.  Without this, Docker/2i2c
         # images where multiple conda envs exist can end up with troute (or
@@ -425,6 +491,78 @@ class ToolInstaller(BaseService):
             env["SYMFLUENCE_PATCHED"] = "1"
 
         return env
+
+    def _ensure_bare_compiler_shim(self, env: Dict[str, str], tool: str) -> None:
+        """Expose a bare ``tool`` (e.g. ``gfortran``) on the build env PATH.
+
+        Homebrew's ``gcc`` formula installs only versioned binaries
+        (``gfortran-14``), so a bare ``gfortran`` is absent on stock macOS
+        runners. Some model Makefiles call the bare name directly and the
+        preflight probes for it, so we symlink the newest versioned binary (or
+        an absolute ``FC``) into a temp shim dir and prepend it to PATH. No-op
+        when a bare ``tool`` is already resolvable.
+
+        Args:
+            env: Build environment dict to mutate in place.
+            tool: Bare compiler name to ensure (e.g. ``gfortran``).
+        """
+        sep = os.pathsep
+        path = env.get("PATH", "")
+        if shutil.which(tool, path=path):
+            return  # bare name already reachable — nothing to do
+
+        # Prefer an absolute compiler already chosen via FC/CC, else search the
+        # PATH dirs for the highest-versioned `tool-NN` (gfortran-14 > gfortran-9).
+        target: Optional[str] = None
+        for var in ("FC", "CC"):
+            cand = env.get(var, "")
+            if tool == "gfortran" and var != "FC":
+                continue
+            if cand and os.path.isabs(cand) and os.access(cand, os.X_OK):
+                target = cand
+                break
+
+        if target is None:
+            best_ver = -1
+            for d in path.split(sep):
+                if not d or not os.path.isdir(d):
+                    continue
+                try:
+                    entries = os.listdir(d)
+                except OSError:
+                    continue
+                for name in entries:
+                    if not name.startswith(f"{tool}-"):
+                        continue
+                    suffix = name[len(tool) + 1:]
+                    # Match a numeric major version (gfortran-14), ignore e.g.
+                    # gfortran-mp-14 by taking the leading integer if present.
+                    major = suffix.split(".")[0].split("-")[-1]
+                    if not major.isdigit():
+                        continue
+                    full = os.path.join(d, name)
+                    if os.access(full, os.X_OK) and int(major) > best_ver:
+                        best_ver = int(major)
+                        target = full
+
+        if not target:
+            return  # no versioned compiler to point at — leave PATH unchanged
+
+        shim_dir = os.path.join(tempfile.gettempdir(), "symfluence_compiler_shims")
+        shim = os.path.join(shim_dir, tool)
+        try:
+            os.makedirs(shim_dir, exist_ok=True)
+            if os.path.islink(shim) or os.path.exists(shim):
+                if os.path.realpath(shim) != os.path.realpath(target):
+                    os.remove(shim)
+                    os.symlink(target, shim)
+            else:
+                os.symlink(target, shim)
+        except OSError:
+            return  # best-effort; never block the build on shim creation
+
+        if shim_dir not in path.split(sep):
+            env["PATH"] = shim_dir + sep + path
 
     def install(
         self,
@@ -558,7 +696,8 @@ class ToolInstaller(BaseService):
 
                 # Clone repository or create directory
                 if not self._clone_repository(
-                    repository_url, branch, tool_install_dir, git_hash=git_hash
+                    repository_url, branch, tool_install_dir, git_hash=git_hash,
+                    sparse_exclude=tool_info.get("sparse_exclude"),
                 ):
                     installation_results["failed"].append(tool_name)
                     continue
@@ -656,6 +795,7 @@ class ToolInstaller(BaseService):
         branch: Optional[str],
         target_dir: Path,
         git_hash: Optional[str] = None,
+        sparse_exclude: Optional[List[str]] = None,
     ) -> bool:
         """
         Clone a git repository, optionally checking out a specific commit.
@@ -665,6 +805,12 @@ class ToolInstaller(BaseService):
             branch: Branch to checkout. If None, uses default branch.
             target_dir: Target directory for the clone.
             git_hash: If set, checkout this specific commit after cloning.
+            sparse_exclude: Repo-relative paths to exclude from checkout. Used to
+                skip files whose names are illegal on the host filesystem (e.g.
+                t-route's reservoir test fixtures use ``:`` timestamps that NTFS
+                rejects, aborting the whole checkout on Windows). When set, the
+                clone defers checkout, configures a non-cone sparse-checkout that
+                includes everything except these paths, then checks out.
 
         Returns:
             True if successful, False otherwise.
@@ -673,34 +819,86 @@ class ToolInstaller(BaseService):
             self._console.indent(f"Cloning from: {repository_url}")
             # Use shallow clone unless a specific commit hash is needed
             shallow = git_hash is None
+            # Defer checkout when excluding paths so we can configure
+            # sparse-checkout before any working-tree files are written.
+            defer_checkout = bool(sparse_exclude)
+            clone_cmd = [
+                "git",
+                "clone",
+                *(["--depth", "1"] if shallow else []),
+                *(["--no-checkout"] if defer_checkout else []),
+                *(["-b", branch] if branch else []),
+                repository_url,
+                str(target_dir),
+            ]
             if branch:
                 self._console.indent(f"Checking out branch: {branch}")
-                clone_cmd = [
-                    "git",
-                    "clone",
-                    *(["--depth", "1"] if shallow else []),
-                    "-b",
-                    branch,
-                    repository_url,
-                    str(target_dir),
-                ]
-            else:
-                clone_cmd = [
-                    "git",
-                    "clone",
-                    *(["--depth", "1"] if shallow else []),
-                    repository_url,
-                    str(target_dir),
-                ]
 
-            subprocess.run(
-                clone_cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=600,  # 10-minute timeout to prevent hanging clones
-                env=self._get_clean_build_env(),
-            )
+            build_env = self._get_clean_build_env()
+
+            def _git(args_, **kw):
+                return subprocess.run(
+                    ["git", *args_], capture_output=True, text=True, timeout=600,
+                    cwd=str(target_dir), env=build_env, check=True, **kw,
+                )
+
+            if defer_checkout:
+                # Clone WITHOUT the working tree (clone_cmd already carries
+                # --no-checkout when deferring), then drop the excluded /
+                # NTFS-illegal paths (t-route's ':' test fixtures) from the index
+                # and materialise the trimmed index — never letting git try to
+                # create the illegal names. update-index/checkout-index touch the
+                # index only, so the ':' names are harmless to them, but git
+                # READ-TREE and CHECKOUT both validate path legality on Windows
+                # and abort, so we avoid them on the excluded entries.
+                # Clone fetches the objects and sets HEAD but leaves the working
+                # tree (and, on every platform we've seen, the index) empty.
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
+                    timeout=600, env=build_env,
+                )
+                # Build the index directly from HEAD's tree, dropping the excluded
+                # / NTFS-illegal paths BEFORE they ever enter the index. We cannot
+                # use read-tree/checkout: on Windows git they validate path
+                # legality and abort on t-route's ':' fixtures. `git ls-tree`
+                # only reads git objects (no filesystem validation), so it lists
+                # the illegal paths fine; we filter them out, then feed the
+                # survivors to `update-index --index-info` (same line format) and
+                # materialise with checkout-index — git never sees an illegal path.
+                lst = _git(["ls-tree", "-r", "-z", "HEAD"])
+                exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
+                _ntfs_illegal = set(':*?"<>|')
+                entries = [e for e in lst.stdout.split("\0") if e]
+                kept, dropped = [], 0
+                for e in entries:
+                    # "<mode> <type> <sha>\t<path>"
+                    path = e.split("\t", 1)[1] if "\t" in e else ""
+                    if path and (any(d in ("/" + path + "/") for d in exclude_dirs)
+                                 or (_ntfs_illegal & set(path))):
+                        dropped += 1
+                        continue
+                    kept.append(e)
+                # NUL-separated index-info MUST be bytes; text-mode stdin can
+                # recode the separators / the ':' names on Windows.
+                ui = subprocess.run(
+                    ["git", "update-index", "-z", "--index-info"],
+                    input=("\0".join(kept) + "\0").encode("utf-8"),
+                    capture_output=True, timeout=600,
+                    cwd=str(target_dir), env=build_env,
+                )
+                if ui.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        ui.returncode, ui.args, stderr=ui.stderr)
+                _git(["checkout-index", "-a", "-f"])
+                self._console.indent(
+                    f"Excluded {dropped} path(s) with host-incompatible filenames "
+                    "before checkout"
+                )
+            else:
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
+                    timeout=600, env=build_env,
+                )
             self._console.success("Clone successful")
 
             # Checkout specific commit hash if requested
