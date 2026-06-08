@@ -106,11 +106,18 @@ if [ -n "$CONDA_PREFIX" ] && [ -d "$clp/lib" ]; then
     echo "Added conda lib to library paths: $clp/lib"
 fi
 
-# On Windows/MSYS2, ensure CMake uses MSYS Makefiles generator
+# On Windows/MSYS2, drive CMake with Ninja: a native mingw-w64 gcc cannot
+# consume the MSYS-style paths the "MSYS Makefiles" generator emits, and
+# "MinGW Makefiles" aborts when sh.exe is on PATH (it always is here). Honor a
+# generator already chosen by the environment (the tool installer sets Ninja).
 case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
-        export CMAKE_GENERATOR="MSYS Makefiles"
-        echo "Windows detected: using MSYS Makefiles generator"
+        if command -v ninja >/dev/null 2>&1; then
+            export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
+        else
+            export CMAKE_GENERATOR="${CMAKE_GENERATOR:-MSYS Makefiles}"
+        fi
+        echo "Windows detected: using $CMAKE_GENERATOR generator"
         ;;
 esac
 
@@ -205,13 +212,18 @@ case "$(uname -s 2>/dev/null)" in
         # Fix FindUDUNITS2: on Windows, SHARED IMPORTED targets need IMPORTED_IMPLIB
         # The .lib file is the import library; set it as IMPLIB and use the DLL as LOCATION
         sed -i.bak 's/IMPORTED_LOCATION "${UDUNITS2_LIBRARY}"/IMPORTED_IMPLIB "${UDUNITS2_LIBRARY}"/' cmake/FindUDUNITS2.cmake && rm -f cmake/FindUDUNITS2.cmake.bak
-        # Create a POSIX compat header for functions missing in MinGW (strsep, etc.)
+        # Create a POSIX compat header for functions missing in MinGW
+        # (strsep, strptime, timegm, 2-arg mkdir) used by ngen's C/C++ sources.
         cat > mingw_posix_compat.h << 'COMPAT_EOF'
 #ifndef MINGW_POSIX_COMPAT_H
 #define MINGW_POSIX_COMPAT_H
 #ifdef __MINGW32__
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
+#include <ctype.h>
+#include <direct.h>
+
 static inline char *strsep(char **stringp, const char *delim) {
     char *start = *stringp;
     char *p;
@@ -221,11 +233,74 @@ static inline char *strsep(char **stringp, const char *delim) {
     else { *stringp = NULL; }
     return start;
 }
+
+/* timegm() is _mkgmtime() on Windows. */
+#define timegm _mkgmtime
+
+/* Reentrant time funcs: MinGW has the MS *_s variants (note the reversed
+   argument order vs POSIX). */
+static inline struct tm *gmtime_r(const time_t *t, struct tm *r) {
+    return gmtime_s(r, t) == 0 ? r : NULL;
+}
+static inline struct tm *localtime_r(const time_t *t, struct tm *r) {
+    return localtime_s(r, t) == 0 ? r : NULL;
+}
+
+/* POSIX mkdir(path, mode) -> Windows _mkdir(path) (mode is ignored). Variadic
+   so MinGW's own 1-arg `int mkdir(const char*)` declaration still expands
+   cleanly to _mkdir. */
+#define mkdir(path, ...) _mkdir(path)
+
+/* Minimal strptime covering the conversion specs ngen's date formats use
+   (%Y %m %d %H %M %S %y %j and literals). Returns ptr past last char consumed,
+   or NULL on mismatch. */
+static inline int _spt_num(const char **s, int width, int *out) {
+    int n = 0, v = 0; const char *p = *s;
+    while (*p == ' ') p++;
+    while (n < width && isdigit((unsigned char)*p)) { v = v * 10 + (*p - '0'); p++; n++; }
+    if (n == 0) return 0;
+    *out = v; *s = p; return 1;
+}
+static inline char *strptime(const char *s, const char *fmt, struct tm *tm) {
+    while (*fmt) {
+        if (*fmt == '%') {
+            fmt++;
+            switch (*fmt) {
+                case 'Y': if (!_spt_num(&s, 4, &tm->tm_year)) return NULL; tm->tm_year -= 1900; break;
+                case 'y': if (!_spt_num(&s, 2, &tm->tm_year)) return NULL; tm->tm_year += (tm->tm_year < 69 ? 100 : 0); break;
+                case 'm': if (!_spt_num(&s, 2, &tm->tm_mon)) return NULL; tm->tm_mon -= 1; break;
+                case 'd': case 'e': if (!_spt_num(&s, 2, &tm->tm_mday)) return NULL; break;
+                case 'H': if (!_spt_num(&s, 2, &tm->tm_hour)) return NULL; break;
+                case 'M': if (!_spt_num(&s, 2, &tm->tm_min)) return NULL; break;
+                case 'S': if (!_spt_num(&s, 2, &tm->tm_sec)) return NULL; break;
+                case 'j': if (!_spt_num(&s, 3, &tm->tm_yday)) return NULL; break;
+                case '%': if (*s++ != '%') return NULL; break;
+                default: return NULL;
+            }
+            fmt++;
+        } else if (isspace((unsigned char)*fmt)) {
+            while (isspace((unsigned char)*s)) s++;
+            fmt++;
+        } else {
+            if (*s++ != *fmt++) return NULL;
+        }
+    }
+    return (char *)s;
+}
 #endif
 #endif
 COMPAT_EOF
-        # Force-include the compat header in all C compilations
-        export CFLAGS=$(echo "${CFLAGS:-} -include $(pwd)/mingw_posix_compat.h" | sed 's/\\/\//g')
+        # Force-include the compat header in BOTH C and C++ compilations (ngen's
+        # strptime/timegm/mkdir uses are in .hpp). The native mingw-w64 gcc cannot
+        # open an MSYS-style path ($(pwd) is /d/a/...), so convert it to a Windows
+        # path (D:/a/...) with cygpath -m; a bare backslash->slash sed does NOT
+        # fix the /d/ drive-letter form.
+        _COMPAT_HDR="$(pwd)/mingw_posix_compat.h"
+        if command -v cygpath >/dev/null 2>&1; then
+            _COMPAT_HDR="$(cygpath -m "$_COMPAT_HDR")"
+        fi
+        export CFLAGS="${CFLAGS:-} -include $_COMPAT_HDR"
+        export CXXFLAGS="${CXXFLAGS:-} -include $_COMPAT_HDR"
         export CXXFLAGS=$(echo "${CXXFLAGS:-}" | sed 's/\\/\//g')
         ;;
 esac
@@ -243,6 +318,13 @@ echo "Configuring ngen with BMI C, C++, and Fortran support..."
 CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
 CMAKE_ARGS="$CMAKE_ARGS -DBOOST_ROOT=$BOOST_ROOT"
 CMAKE_ARGS="$CMAKE_ARGS -DBoost_NO_SYSTEM_PATHS=ON"
+
+# On Windows, ngen's BMI adapters use dlopen via <dlfcn.h>, provided by the
+# mingw-w64 dlfcn-win32 package (libdl). CMake leaves CMAKE_DL_LIBS empty on
+# Windows, so point it at dl explicitly or the dlopen/dlsym symbols won't link.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_DL_LIBS=dl" ;;
+esac
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
@@ -285,17 +367,32 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # (expat, dl, m) AFTER the archive on the link line.  We pass these via
   # CMAKE_EXE_LINKER_FLAGS because UDUNITS2_LIBRARY must be a single path
   # (ngen's FindUDUNITS2.cmake uses it in IMPORTED_LOCATION).
-  if echo "$_U2_LIB" | grep -q '\.a$'; then
-    # On Linux, GNU ld is single-pass: transitive deps (-lexpat -ldl -lm) must
-    # appear AFTER the udunits2 archive.  Use --start-group/--end-group to allow
-    # circular resolution regardless of link order.
-    if [ "$(uname -s)" = "Linux" ]; then
-      EXTRA_LIBS="${EXTRA_LIBS:-} -Wl,--start-group -lexpat -ldl -lm -Wl,--end-group"
-    else
-      EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm"
-    fi
-    echo "Static UDUNITS2 detected — adding transitive deps to linker flags"
-  fi
+  case "$_U2_LIB" in
+    *.dll.a|*.dylib|*.so)
+      # Shared/import library (e.g. MSYS2 mingw-w64 libudunits2.dll.a): the DLL
+      # carries its own deps (expat/...), so no transitive -lexpat/-ldl/-lm. But
+      # the final ngen.exe must still link udunits2 itself, or its symbols
+      # (ut_free/cv_free) are undefined. ngen's FindUDUNITS2 IMPORTED target does
+      # not propagate to the executable on Windows, so add -ludunits2 explicitly
+      # (it's in the mingw64 default lib path). .dll.a ends in ".a" but is NOT a
+      # static archive, so it must not take the static branch below.
+      EXTRA_LIBS="${EXTRA_LIBS:-} -ludunits2"
+      ;;
+    *.a)
+      # True static archive — its transitive deps must follow it on the link
+      # line. On Linux GNU ld is single-pass, so wrap in --start-group. Windows
+      # mingw has no libdl/separate libm, so only expat is needed there.
+      case "$(uname -s)" in
+        Linux)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -Wl,--start-group -lexpat -ldl -lm -Wl,--end-group" ;;
+        MINGW*|MSYS*|CYGWIN*)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat" ;;
+        *)
+          EXTRA_LIBS="${EXTRA_LIBS:-} -lexpat -ldl -lm" ;;
+      esac
+      echo "Static UDUNITS2 detected — adding transitive deps to linker flags"
+      ;;
+  esac
 
   # Also add to compiler flags (use forward-slash path)
   export CXXFLAGS="${CXXFLAGS:-} -I${_U2_INC}"
@@ -361,6 +458,27 @@ CMAKE_LINKER_ARGS=""
 if [ -n "$ALL_CMAKE_LINK_FLAGS" ]; then
     CMAKE_LINKER_ARGS="-DCMAKE_EXE_LINKER_FLAGS='$ALL_CMAKE_LINK_FLAGS' -DCMAKE_SHARED_LINKER_FLAGS='$ALL_CMAKE_LINK_FLAGS'"
     echo "CMAKE_EXE_LINKER_FLAGS: $ALL_CMAKE_LINK_FLAGS"
+fi
+
+# GNU ld is single-pass and CMAKE_EXE_LINKER_FLAGS are placed BEFORE the object
+# files, so a -ludunits2/-lexpat there is discarded before the objects that
+# reference ut_free/cv_free are seen (undefined-reference at the final link).
+# CMAKE_<LANG>_STANDARD_LIBRARIES is appended AFTER the objects — the correct
+# slot for system libs needed only at final link. Mirror the udunits2/expat
+# libs there (forward-slashed -L paths) so symbol resolution succeeds regardless
+# of order.
+_STDLIBS="$EXTRA_LINK_FLAGS"
+# On Windows, ngen.exe also needs -ldl AFTER the objects for dlopen/dlclose/
+# dlerror/dlsym (provided by dlfcn-win32). -DCMAKE_DL_LIBS=dl only feeds CMake's
+# internal var; the final exe link still drops the symbols unless dl is in the
+# post-object STANDARD_LIBRARIES slot too.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) _STDLIBS="$_STDLIBS -ldl" ;;
+esac
+if [ -n "$_STDLIBS" ]; then
+    _STDLIBS=$(echo "$_STDLIBS" | sed 's/\\/\//g')
+    CMAKE_LINKER_ARGS="$CMAKE_LINKER_ARGS -DCMAKE_C_STANDARD_LIBRARIES='$_STDLIBS' -DCMAKE_CXX_STANDARD_LIBRARIES='$_STDLIBS'"
+    echo "CMAKE_CXX_STANDARD_LIBRARIES (post-object): $_STDLIBS"
 fi
 
 # Add Fortran support if compiler is available
