@@ -206,6 +206,7 @@ jobs:
           # across attempts.
           _pac=( pacman -S --noconfirm --needed
             make m4 bison flex
+            mingw-w64-x86_64-ntldd
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-gcc-fortran
             mingw-w64-x86_64-cmake

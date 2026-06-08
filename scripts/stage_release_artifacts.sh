@@ -807,6 +807,59 @@ elif [ "$OS_BUNDLE" = "Linux" ]; then
         done
         print_success "Dependency bundling complete ($BUNDLE_ROUND rounds)"
     fi
+
+elif printf '%s' "$OS_BUNDLE" | grep -qiE 'mingw|msys|cygwin'; then
+    # Windows: bundle the recursive closure of non-system DLLs NEXT TO the .exe
+    # files (Windows resolves DLLs from the executable's own directory), so the
+    # tarball runs on a machine without MSYS2/mingw-w64 installed. ntldd -R walks
+    # the dependency tree; we skip Windows system DLLs (kernel32, msvcrt, api-ms-*,
+    # ...) and the MS-MPI runtime (provided by the separately-installed MS-MPI),
+    # bundling everything else (libgfortran, libstdc++, libnetcdf, libgcc_s, ...).
+    _ntldd="$(command -v ntldd || echo /c/msys64/mingw64/bin/ntldd.exe)"
+    if [ -x "$_ntldd" ] || command -v ntldd >/dev/null 2>&1; then
+        # System DLLs that always come from Windows itself — never bundle.
+        WIN_SYS_DLL_RE='^(kernel32|kernelbase|ntdll|msvcrt|user32|advapi32|ws2_32|shell32|ole32|oleaut32|gdi32|crypt32|secur32|bcrypt|rpcrt4|sechost|combase|ucrtbase|dbghelp|version|imm32|setupapi|userenv|iphlpapi|dnsapi|winmm|comdlg32|comctl32|powrprof|psapi|wsock32|mpr|wldap32|msmpi|api-ms-.*|ext-ms-.*)\.dll$'
+        BUNDLE_ROUND=0
+        BUNDLE_CHANGED=1
+        while [ $BUNDLE_CHANGED -eq 1 ]; do
+            BUNDLE_CHANGED=0
+            BUNDLE_ROUND=$((BUNDLE_ROUND + 1))
+            print_info "DLL dependency scan round $BUNDLE_ROUND..."
+
+            for exe in bin/*.exe bin/*.dll lib/*.dll; do
+                [ -f "$exe" ] || continue
+                # ntldd -R prints "  name => path (0x..)"; take resolved paths.
+                while IFS= read -r dep; do
+                    [ -z "$dep" ] && continue
+                    dep_base="$(basename "$dep")"
+                    # Skip Windows system DLLs (case-insensitive).
+                    if printf '%s' "$dep_base" | grep -qiE "$WIN_SYS_DLL_RE"; then
+                        continue
+                    fi
+                    [ -f "bin/$dep_base" ] && continue
+                    # ntldd may print Windows (C:\...) or MSYS (/c/...) paths.
+                    dep_unix="$dep"
+                    case "$dep" in
+                        [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep" 2>/dev/null || echo "$dep")" ;;
+                    esac
+                    [ -f "$dep_unix" ] || continue
+                    # Only bundle DLLs that live under the mingw-w64/msys tree
+                    # (i.e. ones we shipped); leave anything else to the host.
+                    case "$dep_unix" in
+                        */msys64/*|*/mingw64/*|*/ucrt64/*) ;;
+                        *) continue ;;
+                    esac
+                    cp -L "$dep_unix" "bin/$dep_base"
+                    chmod +x "bin/$dep_base"
+                    BUNDLE_CHANGED=1
+                    print_success "Bundled $dep_base (from $dep_unix)"
+                done < <("$_ntldd" -R "$exe" 2>/dev/null | awk '/=>/ {print $3}')
+            done
+        done
+        print_success "DLL bundling complete ($BUNDLE_ROUND rounds)"
+    else
+        print_warning "ntldd not found — Windows DLLs not bundled (binaries may not relocate)"
+    fi
 fi
 
 echo ""
