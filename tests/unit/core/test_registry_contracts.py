@@ -257,9 +257,17 @@ INCOMPLETE_MODELS: dict[str, str] = {
 }
 
 
+# Models that are always present regardless of which optional plugins (jfuse,
+# cfuse, …) are installed — the count of registered models varies by install
+# extras, so assert on this stable core instead of a brittle absolute count.
+_CORE_MODELS = {"SUMMA", "FUSE", "GR", "HYPE", "MIZUROUTE", "MESH", "VIC"}
+
+
 def test_registered_models_is_nonempty():
-    models = R.registered_models()
-    assert len(models) >= 40, f"only {len(models)} models registered"
+    models = set(R.registered_models())
+    assert len(models) >= 30, f"only {len(models)} models registered"
+    missing_core = _CORE_MODELS - models
+    assert not missing_core, f"core models missing from registry: {sorted(missing_core)}"
 
 
 @pytest.mark.parametrize("model", sorted(R.registered_models()))
@@ -288,8 +296,14 @@ def test_incomplete_models_match_baseline():
     new legitimately-partial model was added (add it to INCOMPLETE_MODELS with a
     reason).
     """
-    actual = {m for m in R.registered_models() if not R.validate_model(m)["valid"]}
-    expected = set(INCOMPLETE_MODELS)
+    registered = set(R.registered_models())
+    actual = {m for m in registered if not R.validate_model(m)["valid"]}
+    # Only compare against baseline entries that are actually registered here:
+    # optional plugins (jfuse/cfuse and their *_ROUTED variants) are absent in
+    # some CI installs, and a baseline model that isn't installed simply can't
+    # be incomplete. This still catches both real regressions (a registered
+    # model becoming incomplete) and stale baseline entries.
+    expected = {m for m in INCOMPLETE_MODELS if m in registered}
     newly_incomplete = sorted(actual - expected)
     newly_complete = sorted(expected - actual)
     assert actual == expected, (
