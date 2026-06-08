@@ -31,8 +31,13 @@ def test_coupled_chain_marks_upstream_model_no_route(tmp_path):
     """SUMMA (upstream) is told to skip routing; dRoute (objective) routes and reads SUMMA output."""
     cfg = _coupled_config()
     worker = CoupledModelWorker(config=cfg, logger=logging.getLogger('t'))
-    assert worker._models == ['SUMMA', 'DROUTE']
-    assert worker.objective_model == 'DROUTE'
+    # Pin the SUMMA(land) -> DROUTE(objective) chain directly. The constructor derives _models from
+    # models with a *registered parameter manager*, and the optional dRoute plugin is absent on a
+    # clean env (CI), where DROUTE would be dropped and _models collapse to ['SUMMA']. Forcing the
+    # chain keeps this a focused unit test of _run_sequential's skip_routing wiring rather than of
+    # dRoute plugin registration (covered separately).
+    worker._models = ['SUMMA', 'DROUTE']
+    worker.objective_model = 'DROUTE'
 
     seen = {}
 
