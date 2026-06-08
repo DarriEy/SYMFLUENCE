@@ -200,29 +200,36 @@ jobs:
           # the compiler and the .mod files come from the same modern gfortran.
           set -e
           export PATH="/c/msys64/usr/bin:$PATH"
-          pacman -S --noconfirm --needed \
-            make \
-            m4 \
-            bison \
-            flex \
-            mingw-w64-x86_64-gcc \
-            mingw-w64-x86_64-gcc-fortran \
-            mingw-w64-x86_64-cmake \
-            mingw-w64-x86_64-ninja \
-            mingw-w64-x86_64-make \
-            mingw-w64-x86_64-pkgconf \
-            mingw-w64-x86_64-netcdf \
-            mingw-w64-x86_64-netcdf-fortran \
-            mingw-w64-x86_64-hdf5 \
-            mingw-w64-x86_64-openblas \
-            mingw-w64-x86_64-gdal \
-            mingw-w64-x86_64-proj \
-            mingw-w64-x86_64-geos \
-            mingw-w64-x86_64-boost \
-            mingw-w64-x86_64-udunits \
-            mingw-w64-x86_64-expat \
-            mingw-w64-x86_64-msmpi \
-            mingw-w64-x86_64-dlfcn
+          # MSYS2 mirrors are flaky ("Operation too slow. Less than 1 bytes/sec");
+          # retry the whole transaction a few times before giving up. --needed
+          # makes each retry skip already-installed packages, so progress carries
+          # across attempts.
+          _pac=( pacman -S --noconfirm --needed
+            make m4 bison flex
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-netcdf
+            mingw-w64-x86_64-netcdf-fortran
+            mingw-w64-x86_64-hdf5
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-gdal
+            mingw-w64-x86_64-proj
+            mingw-w64-x86_64-geos
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-udunits
+            mingw-w64-x86_64-expat
+            mingw-w64-x86_64-msmpi
+            mingw-w64-x86_64-dlfcn )
+          for _try in 1 2 3 4 5; do
+            echo "pacman install attempt $_try..."
+            if "${_pac[@]}"; then break; fi
+            if [ "$_try" = 5 ]; then echo "pacman failed after 5 attempts" >&2; exit 1; fi
+            echo "retrying after mirror failure..."; sleep 15
+          done
 
           # pip still needed for the Python-packaged tools (troute, ngen helpers)
           conda install -y pip numpy
