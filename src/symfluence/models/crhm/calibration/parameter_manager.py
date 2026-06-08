@@ -51,7 +51,14 @@ class CRHMParameterManager(BaseParameterManager):
             crhm_params_str = self._get_config_value(lambda: self.config.model.crhm.params_to_calibrate, default=None, dict_key='CRHM_PARAMS_TO_CALIBRATE')
 
         if crhm_params_str is None:
-            crhm_params_str = 'Ht,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,gw_K,gw_max,Kstorage,Lag,lapse_rate'
+            # Includes blowing-snow / snow-sublimation controls (inhibit_subl,
+            # Qe_subl_from_SWE, N_S). Without them DDS cannot reduce CRHM's
+            # PBSM blowing-snow sublimation, which in maritime/high-wind regimes
+            # (e.g. Iceland) defaults far too high (~58% of precip) and caps the
+            # achievable runoff at beta~0.4 regardless of the other parameters.
+            crhm_params_str = ('Ht,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,'
+                               'gw_K,gw_max,Kstorage,Lag,lapse_rate,'
+                               'inhibit_subl,Qe_subl_from_SWE,N_S')
             logger.warning(
                 f"CRHM_PARAMS_TO_CALIBRATE missing; using fallback: {crhm_params_str}"
             )
@@ -147,8 +154,15 @@ class CRHMParameterManager(BaseParameterManager):
                         formatted = f"{value:.2f}"
                     else:
                         formatted = f"{value:.6f}"
-                    new_lines.append(formatted)
-                    self.logger.debug(f"Updated {pending_param} = {formatted}")
+                    # Broadcast the (scalar) calibrated value across however many
+                    # per-HRU tokens the original value line held. With elevation
+                    # bands the line carries one value per band; writing a single
+                    # token would silently collapse the parameter to 1 HRU and
+                    # corrupt the .prj dimensions.
+                    n_tokens = max(1, len(line.split()))
+                    new_lines.append(' '.join([formatted] * n_tokens))
+                    self.logger.debug(
+                        f"Updated {pending_param} = {formatted} x{n_tokens}")
                     skip_next = False
                     pending_param = None
                     continue
