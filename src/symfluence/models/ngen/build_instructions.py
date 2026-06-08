@@ -460,6 +460,19 @@ if [ -n "$ALL_CMAKE_LINK_FLAGS" ]; then
     echo "CMAKE_EXE_LINKER_FLAGS: $ALL_CMAKE_LINK_FLAGS"
 fi
 
+# GNU ld is single-pass and CMAKE_EXE_LINKER_FLAGS are placed BEFORE the object
+# files, so a -ludunits2/-lexpat there is discarded before the objects that
+# reference ut_free/cv_free are seen (undefined-reference at the final link).
+# CMAKE_<LANG>_STANDARD_LIBRARIES is appended AFTER the objects — the correct
+# slot for system libs needed only at final link. Mirror the udunits2/expat
+# libs there (forward-slashed -L paths) so symbol resolution succeeds regardless
+# of order.
+if [ -n "$EXTRA_LINK_FLAGS" ]; then
+    _STDLIBS=$(echo "$EXTRA_LINK_FLAGS" | sed 's/\\/\//g')
+    CMAKE_LINKER_ARGS="$CMAKE_LINKER_ARGS -DCMAKE_C_STANDARD_LIBRARIES='$_STDLIBS' -DCMAKE_CXX_STANDARD_LIBRARIES='$_STDLIBS'"
+    echo "CMAKE_CXX_STANDARD_LIBRARIES (post-object): $_STDLIBS"
+fi
+
 # Add Fortran support if compiler is available
 if [ "${NGEN_WITH_BMI_FORTRAN:-ON}" = "ON" ] && [ -n "$FC" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_FORTRAN=ON"
