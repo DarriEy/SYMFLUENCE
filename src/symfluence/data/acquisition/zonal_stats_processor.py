@@ -168,8 +168,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 import geopandas as gpd
-import pandas as pd
 import numpy as np
+import pandas as pd
 import rasterio
 from rasterstats import zonal_stats
 
@@ -500,7 +500,9 @@ class DataPreProcessor(ConfigMixin):
 
         result_df = result_df.drop(columns=['elev_mean_new'])
 
-        tsl_stats = zonal_stats(catchment_gdf, tan_slope_for_stats, affine=affine, stats=['mean'], nodata=slope_nodata)
+        # tsl_stats is only needed for the tsl_mean_ column below, which is
+        # currently disabled — compute it alongside when that line is enabled.
+        # tsl_stats = zonal_stats(catchment_gdf, tan_slope_for_stats, affine=affine, stats=['mean'], nodata=slope_nodata)
         sin_stats = zonal_stats(catchment_gdf, sin_aspect, affine=affine, stats=['mean'], nodata=aspect_nodata)
         cos_stats = zonal_stats(catchment_gdf, cos_aspect, affine=affine, stats=['mean'], nodata=aspect_nodata)
         #catchment_gdf[f'tsl_mean_{domain_type}'] = pd.DataFrame(tsl_stats)['mean']
