@@ -6935,6 +6935,14 @@ CRHM_ELEVATION_BANDS: false
 #   Usage:      1
 CRHM_ELEVATION_BAND_SIZE: 200.0
 
+# Derive per-band slope/aspect from the DEM for energy-balance melt (needs bands).
+# CRHM_TERRAIN_RADIATION
+#   Type:        bool
+#   Default:     false
+#   Source:      CRHMConfig (model_configs.py)
+#   Usage:      1
+CRHM_TERRAIN_RADIATION: false
+
 
 # 9.12. WRF-Hydro Model Configuration
 # ================================================================================
