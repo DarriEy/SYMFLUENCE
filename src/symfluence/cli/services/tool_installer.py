@@ -860,48 +860,51 @@ class ToolInstaller(BaseService):
                 # index only, so the ':' names are harmless to them, but git
                 # READ-TREE and CHECKOUT both validate path legality on Windows
                 # and abort, so we avoid them on the excluded entries.
-                cr = subprocess.run(
-                    clone_cmd, capture_output=True, text=True, check=False,
+                # Clone fetches the objects and sets HEAD but leaves the working
+                # tree (and, on every platform we've seen, the index) empty.
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
                     timeout=600, env=build_env,
                 )
-                self._console.indent(
-                    f"[clone-dbg] clone(--no-checkout): rc={cr.returncode} "
-                    f"err={cr.stderr.strip()[:160]!r}")
-                if cr.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        cr.returncode, cr.args, output=cr.stdout, stderr=cr.stderr)
-                # `git clone --no-checkout` populates the index on most platforms
-                # but leaves it empty on some (older/macOS git). Only when empty do
-                # we read-tree — and never on Windows, where the index is already
-                # populated and read-tree would re-validate and choke on ':'.
-                if not _git(["ls-files", "-z"], log=False).stdout:
-                    _git(["read-tree", "HEAD"])
-                ls = _git(["ls-files", "-z"], log=False)
+                # Build the index directly from HEAD's tree, dropping the excluded
+                # / NTFS-illegal paths BEFORE they ever enter the index. We cannot
+                # use read-tree/checkout: on Windows git they validate path
+                # legality and abort on t-route's ':' fixtures. `git ls-tree`
+                # only reads git objects (no filesystem validation), so it lists
+                # the illegal paths fine; we filter them out, then feed the
+                # survivors to `update-index --index-info` (same line format) and
+                # materialise with checkout-index — git never sees an illegal path.
+                lst = _git(["ls-tree", "-r", "-z", "HEAD"], log=False)
                 exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
                 _ntfs_illegal = set(':*?"<>|')
-                to_drop = [p for p in ls.stdout.split("\0") if p and (
-                    any(d in ("/" + p + "/") for d in exclude_dirs)
-                    or (_ntfs_illegal & set(p)))]
+                entries = [e for e in lst.stdout.split("\0") if e]
+                kept, dropped = [], 0
+                for e in entries:
+                    # "<mode> <type> <sha>\t<path>"
+                    path = e.split("\t", 1)[1] if "\t" in e else ""
+                    if path and (any(d in ("/" + path + "/") for d in exclude_dirs)
+                                 or (_ntfs_illegal & set(path))):
+                        dropped += 1
+                        continue
+                    kept.append(e)
                 self._console.indent(
-                    f"[clone-dbg] index_entries={len([p for p in ls.stdout.split(chr(0)) if p])} "
-                    f"to_drop={len(to_drop)} sample={(to_drop[0] if to_drop else None)!r}")
-                if to_drop:
-                    # NUL-separated paths MUST be bytes; text-mode stdin would
-                    # recode/mangle the separators and the ':' names on Windows.
-                    rm = subprocess.run(
-                        ["git", "update-index", "--force-remove", "-z", "--stdin"],
-                        input=("\0".join(to_drop) + "\0").encode("utf-8"),
-                        capture_output=True, timeout=600,
-                        cwd=str(target_dir), env=build_env,
-                    )
-                    self._console.indent(
-                        f"[clone-dbg] update-index: rc={rm.returncode} "
-                        f"err={rm.stderr.decode('utf-8','replace').strip()[:160]!r} "
-                        f"remaining_illegal={len([p for p in _git(['ls-files','-z'],log=False).stdout.split(chr(0)) if p and (_ntfs_illegal & set(p))])}")
+                    f"[clone-dbg] tree_entries={len(entries)} kept={len(kept)} dropped={dropped}")
+                ui = subprocess.run(
+                    ["git", "update-index", "-z", "--index-info"],
+                    input=("\0".join(kept) + "\0").encode("utf-8"),
+                    capture_output=True, timeout=600,
+                    cwd=str(target_dir), env=build_env,
+                )
+                self._console.indent(
+                    f"[clone-dbg] update-index: rc={ui.returncode} "
+                    f"err={ui.stderr.decode('utf-8', 'replace').strip()[:160]!r}")
+                if ui.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        ui.returncode, ui.args, stderr=ui.stderr)
                 _git(["checkout-index", "-a", "-f"])
                 self._console.indent(
-                    f"Excluded {len(to_drop)} index path(s) with "
-                    "host-incompatible filenames before checkout"
+                    f"Excluded {dropped} path(s) with host-incompatible filenames "
+                    "before checkout"
                 )
             else:
                 subprocess.run(
