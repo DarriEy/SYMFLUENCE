@@ -467,8 +467,16 @@ fi
 # slot for system libs needed only at final link. Mirror the udunits2/expat
 # libs there (forward-slashed -L paths) so symbol resolution succeeds regardless
 # of order.
-if [ -n "$EXTRA_LINK_FLAGS" ]; then
-    _STDLIBS=$(echo "$EXTRA_LINK_FLAGS" | sed 's/\\/\//g')
+_STDLIBS="$EXTRA_LINK_FLAGS"
+# On Windows, ngen.exe also needs -ldl AFTER the objects for dlopen/dlclose/
+# dlerror/dlsym (provided by dlfcn-win32). -DCMAKE_DL_LIBS=dl only feeds CMake's
+# internal var; the final exe link still drops the symbols unless dl is in the
+# post-object STANDARD_LIBRARIES slot too.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) _STDLIBS="$_STDLIBS -ldl" ;;
+esac
+if [ -n "$_STDLIBS" ]; then
+    _STDLIBS=$(echo "$_STDLIBS" | sed 's/\\/\//g')
     CMAKE_LINKER_ARGS="$CMAKE_LINKER_ARGS -DCMAKE_C_STANDARD_LIBRARIES='$_STDLIBS' -DCMAKE_CXX_STANDARD_LIBRARIES='$_STDLIBS'"
     echo "CMAKE_CXX_STANDARD_LIBRARIES (post-object): $_STDLIBS"
 fi
