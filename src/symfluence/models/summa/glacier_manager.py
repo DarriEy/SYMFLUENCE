@@ -12,7 +12,6 @@ Based on Ashley Medin's glacier preprocessing workflow.
 
 import logging
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -96,7 +95,6 @@ class GlacierAttributesManager(ConfigMixin):
             intersect_base = self.project_dir / 'shapefiles' / 'catchment_intersection'
             domain_type_shp = intersect_base / 'with_domain_type' / 'catchment_with_domain_type.shp'
             dem_domain_shp = intersect_base / 'with_dem_domain' / 'catchment_with_dem_domain.shp'
-            debris_thick_shp = intersect_base / 'with_debris_thickness' / 'catchment_with_debris.shp'
 
             if domain_type_shp.exists() and dem_domain_shp.exists():
                 # Check if these have domain type columns
@@ -262,9 +260,9 @@ class GlacierAttributesManager(ConfigMixin):
                     ind += 1
                 else:
                     # Ashley's rules for including empty domains
-                    # always include upland, 
+                    # always include upland,
                     # if has glacier debris, also have clean zone so debris can move and have valid debris zone
-                    if domain_type == 1 or (domain_type == 2 and has_debris and not has_clean) or (domain_type == 4 and has_debris): 
+                    if domain_type == 1 or (domain_type == 2 and has_debris and not has_clean) or (domain_type == 4 and has_debris):
                         DOMelev[0, i, ind] = -9999.0
                         DOMarea[0, i, ind] = 0
                         DOMtan_slope[0, i, ind] = -9999.0
@@ -370,7 +368,7 @@ class GlacierAttributesManager(ConfigMixin):
                     elif shp_debris[column][shp_mask].values[0] < 0: valid = False
                 else:
                     valid = False
-                if valid: 
+                if valid:
                     debris_thick[i] = shp_debris[column][shp_mask].values[0]
                 else:
                     debris_thick[i] = 0.01 # still need to set a value to get layers in case debris advects in
@@ -535,7 +533,6 @@ class GlacierAttributesManager(ConfigMixin):
                 bed_elev = np.zeros((ygrid, xgrid), dtype=np.float64)
 
 
-        num_gru = len(gru_ids)
         num_grid = nGrid
 
         with nc4.Dataset(output_file, 'r+') as ds:
