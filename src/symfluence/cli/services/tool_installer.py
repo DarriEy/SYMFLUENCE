@@ -837,49 +837,45 @@ class ToolInstaller(BaseService):
 
             build_env = self._get_clean_build_env()
 
-            def _g(label, args_, **kw):
-                r = subprocess.run(
-                    args_, capture_output=True, text=True, timeout=600,
-                    cwd=str(target_dir), env=build_env, **kw,
+            def _git(args_, check=True, **kw):
+                return subprocess.run(
+                    ["git", *args_], capture_output=True, text=True, timeout=600,
+                    cwd=str(target_dir), env=build_env, check=check, **kw,
                 )
-                self._console.indent(
-                    f"[clone-dbg] {label}: rc={r.returncode} "
-                    f"out={r.stdout.strip()[:120]!r} err={r.stderr.strip()[:200]!r}"
-                )
-                return r
 
             if defer_checkout:
-                # Clone WITHOUT the working tree (clone_cmd already has
-                # --no-checkout when deferring), then trim NTFS-illegal paths
-                # (t-route's ':' test fixtures) from the index and materialise it.
-                # cwd=target doesn't exist until the clone runs, so run the clone
-                # from the parent here.
-                cr = subprocess.run(
-                    clone_cmd, capture_output=True, text=True, timeout=600,
-                    env=build_env,
+                # Clone WITHOUT the working tree (clone_cmd already carries
+                # --no-checkout when deferring), then drop the excluded /
+                # NTFS-illegal paths (t-route's ':' test fixtures) from the index
+                # and materialise the trimmed index — never letting git try to
+                # create the illegal names. update-index/checkout-index touch the
+                # index only, so the ':' names are harmless to them, but git
+                # READ-TREE and CHECKOUT both validate path legality on Windows
+                # and abort, so we avoid them on the excluded entries.
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
+                    timeout=600, env=build_env,
                 )
-                self._console.indent(
-                    f"[clone-dbg] clone(no-checkout): rc={cr.returncode} "
-                    f"err={cr.stderr.strip()[:200]!r}"
-                )
-                if cr.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        cr.returncode, cr.args, output=cr.stdout, stderr=cr.stderr)
-                _g("read-tree HEAD", ["git", "read-tree", "HEAD"])
-                ls = _g("ls-files", ["git", "ls-files", "-z"])
+                # `git clone --no-checkout` populates the index on most platforms
+                # but leaves it empty on some (older/macOS git). Only when empty do
+                # we read-tree — and never on Windows, where the index is already
+                # populated and read-tree would re-validate and choke on ':'.
+                if not _git(["ls-files", "-z"]).stdout:
+                    _git(["read-tree", "HEAD"])
+                ls = _git(["ls-files", "-z"])
                 exclude_dirs = ["/" + raw.strip().strip("/") + "/" for raw in sparse_exclude]
                 _ntfs_illegal = set(':*?"<>|')
                 to_drop = [p for p in ls.stdout.split("\0") if p and (
                     any(d in ("/" + p + "/") for d in exclude_dirs)
                     or (_ntfs_illegal & set(p)))]
-                self._console.indent(
-                    f"[clone-dbg] index_entries={len([p for p in ls.stdout.split(chr(0)) if p])} "
-                    f"to_drop={len(to_drop)} sample={to_drop[0] if to_drop else None!r}")
                 if to_drop:
-                    _g("update-index --force-remove",
-                       ["git", "update-index", "--force-remove", "-z", "--stdin"],
-                       input="\0".join(to_drop))
-                _g("checkout-index -a", ["git", "checkout-index", "-a", "-f"])
+                    _git(["update-index", "--force-remove", "-z", "--stdin"],
+                         input="\0".join(to_drop))
+                _git(["checkout-index", "-a", "-f"])
+                self._console.indent(
+                    f"Excluded {len(to_drop)} index path(s) with "
+                    "host-incompatible filenames before checkout"
+                )
             else:
                 subprocess.run(
                     clone_cmd, capture_output=True, text=True, check=True,
