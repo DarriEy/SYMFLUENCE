@@ -33,16 +33,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # linux-x86_64 is built INSIDE an old-glibc container (ubuntu:20.04,
-          # glibc 2.31) so the bundled GCC/netCDF/HDF5 runtimes don't carry a
-          # too-new GLIBC_2.3x symbol requirement. This lowers the release floor
-          # from the host's 2.39 to 2.31 — covering RHEL/Rocky 9 (2.34),
-          # Debian 11/12, Ubuntu 20.04+. The host runner only hosts the
-          # container. (#156 G6 release-pipeline glibc floor.)
-          # NOTE: container build not yet exercised in CI — expect minor
-          # iteration (focal toolchain versions) on the first tagged run.
+          # linux-x86_64 is built INSIDE an old-glibc container (Debian 11
+          # "bullseye", glibc 2.31) so the bundled GCC/netCDF/HDF5 runtimes don't
+          # carry a too-new GLIBC_2.3x symbol requirement. This lowers the release
+          # floor from the host's 2.39 to 2.31 — covering RHEL/Rocky 9 (2.34),
+          # Debian 11/12, Ubuntu 20.04+. The host runner only hosts the container.
+          # python:3.11-slim-bullseye ships Python 3.11 against glibc 2.31
+          # directly, avoiding the deadsnakes-PPA / GLIBC_2.34 setup-python
+          # breakage that an Ubuntu base hit. (#156 G6 release-pipeline glibc floor.)
           - os: ubuntu-22.04
-            container: ubuntu:20.04
+            container: python:3.11-slim-bullseye
             platform: linux-x86_64
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -69,29 +69,18 @@ jobs:
       - name: Bootstrap build container (old-glibc Linux)
         if: matrix.container != ''
         env:
-          # No TTY in the container: tzdata (pulled in by python3.11/deadsnakes)
-          # otherwise launches an interactive timezone prompt and hangs forever.
+          # No TTY in the container: tzdata (an apt dependency) would otherwise
+          # launch an interactive timezone prompt and hang the job forever.
           DEBIAN_FRONTEND: noninteractive
           TZ: Etc/UTC
         run: |
           set -e
+          # python:3.11-slim-bullseye already provides Python 3.11 built against
+          # glibc 2.31, so we only need the OS build toolchain + the utilities
+          # later steps rely on (git/sudo/file/...).
           apt-get update
           apt-get install -y --no-install-recommends \
-            sudo git ca-certificates curl wget xz-utils file build-essential \
-            software-properties-common gnupg tzdata
-          # Install Python 3.11 from deadsnakes, built against the CONTAINER's
-          # old glibc. actions/setup-python downloads a Python compiled against a
-          # newer glibc (GLIBC_2.34+) that segfaults/aborts inside ubuntu:20.04
-          # ("version `GLIBC_2.34' not found"), which is why this job died before
-          # any tool built.
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            python3.11 python3.11-venv python3.11-dev
-          update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
-          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-          python3.11 -m ensurepip --upgrade \
-            || curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+            sudo git ca-certificates curl wget xz-utils file build-essential tzdata
           git config --global --add safe.directory '*'
 
       - name: Checkout
@@ -100,15 +89,15 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # Only on real runners — inside the old-glibc container we use the
-      # deadsnakes Python installed above (setup-python's binary can't run there).
+      # Only on real runners — the container already provides Python 3.11
+      # (setup-python's binary needs a newer glibc than the container has).
       - name: Set up Python
         if: matrix.container == ''
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      # focal ships cmake 3.16; several model builds need >= 3.20. Use the pip
+      # bullseye ships cmake 3.18; several model builds need >= 3.20. Use the pip
       # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH.
       - name: Upgrade build tools in container (old-glibc Linux)
         if: matrix.container != ''
