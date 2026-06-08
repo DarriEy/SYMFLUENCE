@@ -78,8 +78,10 @@ jobs:
           # python:3.11-slim-bullseye already provides Python 3.11 built against
           # glibc 2.31, so we only need the OS build toolchain + the utilities
           # later steps rely on (git/sudo/file/...).
-          apt-get update
-          apt-get install -y --no-install-recommends \
+          # Retry transient mirror hiccups ("Connection reset by peer") instead
+          # of failing the whole job on a single dropped .deb.
+          apt-get -o Acquire::Retries=5 update
+          apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
             sudo git ca-certificates curl wget xz-utils file build-essential tzdata
           git config --global --add safe.directory '*'
 
@@ -123,8 +125,8 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
           TZ: Etc/UTC
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y \
             build-essential gfortran cmake \
             openmpi-bin libopenmpi-dev \
             gdal-bin libgdal-dev \
