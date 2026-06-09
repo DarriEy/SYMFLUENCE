@@ -52,15 +52,64 @@ PYTHON="$(command -v python3 || command -v python || command -v py || echo pytho
 echo "Using Python for source patches: $PYTHON"
 
 # === Check for existing native binary ===
-if [ -f "${BIN_DIR}/watflood" ]; then
-    file_output=$(file "${BIN_DIR}/watflood" 2>/dev/null || echo "unknown")
-    if echo "$file_output" | grep -qi "mach-o\|elf\|executable"; then
-        echo "Found existing native binary: ${BIN_DIR}/watflood"
+if [ -f "${BIN_DIR}/watflood" ] || [ -f "${BIN_DIR}/watflood.exe" ]; then
+    _existing="${BIN_DIR}/watflood"; [ -f "${BIN_DIR}/watflood.exe" ] && _existing="${BIN_DIR}/watflood.exe"
+    file_output=$(file "${_existing}" 2>/dev/null || echo "unknown")
+    if echo "$file_output" | grep -qiE "mach-o|elf|executable|PE32"; then
+        echo "Found existing native binary: ${_existing}"
         echo "$file_output"
         echo "=== WATFLOOD Installation Complete (existing) ==="
         exit 0
     fi
 fi
+
+# === Windows: install the official Waterloo CHARM prebuilt (Tier 1) ===
+# WATFLOOD/CHARM is a Windows-native model (Intel Fortran), so its source is
+# riddled with Intel extensions gfortran rejects — cross-compiling it is a
+# losing battle. Instead fetch the official University of Waterloo binary
+# (CHARM64x.exe, GPL-3.0; source at github.com/watflood/model) plus the runtime
+# DLLs Waterloo ships for it. Linux/macOS have no official binary and fall
+# through to the source build below.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo "Windows detected — installing official Waterloo CHARM prebuilt..."
+        _WF_BASE="http://www.civil.uwaterloo.ca/watflood/downloads"
+        _WF_TMP="$(mktemp -d)"
+        _wf_ok=1
+        for _z in charm64x.zip netCDF_dll.zip; do
+            if curl -fsSL --retry 3 -o "${_WF_TMP}/${_z}" "${_WF_BASE}/${_z}"; then
+                ( cd "${_WF_TMP}" && unzip -oq "${_z}" ) || { echo "ERROR: unzip ${_z} failed"; _wf_ok=0; }
+            else
+                echo "ERROR: failed to download ${_z}"; _wf_ok=0
+            fi
+        done
+        _charm="$(find "${_WF_TMP}" -maxdepth 2 -iname 'charm*.exe' -type f | head -1)"
+        if [ "${_wf_ok}" -eq 1 ] && [ -n "${_charm}" ]; then
+            mkdir -p "${BIN_DIR}"
+            cp "${_charm}" "${BIN_DIR}/watflood.exe"
+            # Windows resolves a program's DLLs from its own directory, so drop
+            # the netCDF/HDF5/zlib + Intel/Cygwin runtime DLLs next to the exe.
+            find "${_WF_TMP}" -maxdepth 2 -iname '*.dll' -type f -exec cp {} "${BIN_DIR}/" \; 2>/dev/null || true
+            echo "Installed CHARM prebuilt: ${BIN_DIR}/watflood.exe (+ $(ls "${BIN_DIR}"/*.dll 2>/dev/null | wc -l | tr -d ' ') DLLs)"
+            # GPL-3.0 compliance: ship a notice naming the binary's source so the
+            # staging step bundles it under LICENSES/ alongside the .exe.
+            cat > "${INSTALL_DIR}/LICENSE" <<'WFLIC'
+WATFLOOD / CHARM (Canadian Hydrological And Routing Model)
+Copyright (C) 1986-2025 N. Kouwen, University of Waterloo
+Licensed under the GNU General Public License, version 3 (GPL-3.0).
+
+This release bundles the official pre-compiled Windows binary (CHARM64x.exe)
+distributed at http://www.civil.uwaterloo.ca/watflood/downloads/ .
+Corresponding source code: https://github.com/watflood/model
+WFLIC
+            rm -rf "${_WF_TMP}"
+            echo "=== WATFLOOD Installation Complete (Waterloo prebuilt) ==="
+            exit 0
+        fi
+        echo "WARNING: CHARM prebuilt unavailable; falling back to source build"
+        rm -rf "${_WF_TMP}"
+        ;;
+esac
 
 # === Check for gfortran ===
 if ! command -v gfortran >/dev/null 2>&1; then

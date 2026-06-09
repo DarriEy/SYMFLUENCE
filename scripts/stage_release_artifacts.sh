@@ -470,6 +470,17 @@ WATFLOOD_DIR="$INSTALLS_DIR/watflood"
 if [ -d "$WATFLOOD_DIR" ]; then
     if stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
         :
+    elif stage_binary "$WATFLOOD_DIR/bin/watflood.exe" "watflood.exe" "WATFLOOD"; then
+        # Windows: the official Waterloo CHARM prebuilt (charm64x.exe) ships with
+        # its own netCDF/HDF5/Intel/Cygwin runtime DLLs. ntldd-based bundling only
+        # walks the mingw-w64 tree, so copy CHARM's DLLs next to the exe ourselves
+        # (Windows resolves them from the executable's directory).
+        for _dll in "$WATFLOOD_DIR"/bin/*.dll; do
+            if [ -f "$_dll" ]; then
+                cp "$_dll" "bin/$(basename "$_dll")"
+                print_success "Staged WATFLOOD DLL → bin/$(basename "$_dll")"
+            fi
+        done
     elif stage_binary "$WATFLOOD_DIR/bin/charm" "watflood" "WATFLOOD"; then
         :
     else
