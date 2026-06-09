@@ -84,6 +84,7 @@ src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_streamfl
 src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable:raise ValueError(f"Error extracting {variable_type}: {e}") from e
 src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable:raise ValueError(f"Output file not found: {output_file}")
 src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable:raise ValueError(f"Variable '{variable_type}' not found in {output_file}")
+src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._generate_data_file._pick:raise KeyError(f"None of {names} in forcing; have {list(ds.data_vars)}")
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._generate_data_file:raise FileNotFoundError(
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._generate_data_file:raise FileNotFoundError(
 src/symfluence/models/hype/calibration/hype_regionalization.py:create_hype_regionalization:raise ValueError(f"Unsupported HYPE regionalization method: {method}")
