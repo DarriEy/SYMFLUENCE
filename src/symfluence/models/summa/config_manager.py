@@ -343,18 +343,6 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write("generalTableFile     'TBL_GENPARM.TBL'\n")
                 fm.write("noahmpTableFile      'TBL_MPTABLE.TBL'\n")
 
-                # Add glacier-specific entries if enabled
-                glacier_mode = self._get_config_value(lambda: self.config.model.summa.glacier_mode, default=False, dict_key='SETTINGS_SUMMA_GLACIER_MODE')
-                if not glacier_mode and 'glac' in filemanager_name.lower():
-                    glacier_mode = True  # Auto-detect from filename
-
-                if glacier_mode:
-                    init_grid_file = self._get_config_value(lambda: self.config.model.summa.init_grid_file, default='coldState_glacSurfTopo.nc', dict_key='SETTINGS_SUMMA_INIT_GRID_FILE')
-                    attrib_grid_file = self._get_config_value(lambda: self.config.model.summa.attrib_grid_file, default='attributes_glacBedTopo.nc', dict_key='SETTINGS_SUMMA_ATTRIB_GRID_FILE')
-                    fm.write(f"initGridFile         '{init_grid_file}'\n")
-                    fm.write(f"attribGridFile       '{attrib_grid_file}'\n")
-                    self.logger.info("Glacier mode enabled - added initGridFile and attribGridFile")
-
             self.logger.info(f"SUMMA file manager created at {filemanager_path}")
 
         except ValueError as ve:

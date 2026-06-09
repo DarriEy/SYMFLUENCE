@@ -157,7 +157,6 @@ class SUMMAOptimizerMixin:
         optional_files = [
             'TBL_GENPARM.TBL', 'TBL_MPTABLE.TBL', 'TBL_SOILPARM.TBL', 'TBL_VEGPARM.TBL',
             'trialParams.nc', 'forcingFileList.txt',
-            'attributes_glacBedTopo.nc', 'coldState_glacSurfTopo.nc',
         ]
 
         # Copy required files
