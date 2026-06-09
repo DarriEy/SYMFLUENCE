@@ -288,7 +288,7 @@ class SWATSubbasinGenerator:
         sub_lines.append(
             f"  {1.0:14.4f}    | HRU_FR : Fraction of subbasin in HRU")
         sub_lines.append(
-            f"  {0.05:14.4f}    | HRU_SLP : Average slope steepness [m/m]")
+            f"  {props['slope']:14.4f}    | HRU_SLP : Average slope steepness [m/m]")
         sub_lines.append(
             f"  {50.0:14.4f}    | OV_N : Manning's n for overland flow")
 
@@ -334,14 +334,15 @@ class SWATSubbasinGenerator:
         Line 1 is title, then all remaining are free-format (* reads).
         """
         hru_path = self.pp.txtinout_dir / '000010001.hru'
+        props = self.pp._get_catchment_properties()
         hru_lines = [
             " HRU:1 Subbasin:1 -- SYMFLUENCE generated",
             # Line  2: HRU_FR
             f"  {1.0:14.4f}    | HRU_FR : Fraction of subbasin area",
             # Line  3: SLSUBBSN
             f"  {91.46:14.4f}    | SLSUBBSN : Avg slope length [m]",
-            # Line  4: HRU_SLP
-            f"  {0.05:14.4f}    | HRU_SLP : Avg slope steepness [m/m]",
+            # Line  4: HRU_SLP (mean catchment slope from the DEM)
+            f"  {props['slope']:14.4f}    | HRU_SLP : Avg slope steepness [m/m]",
             # Line  5: OV_N
             f"  {0.14:14.4f}    | OV_N : Manning's n for overland flow",
             # Line  6: LAT_TTIME
@@ -496,6 +497,7 @@ class SWATSubbasinGenerator:
         All data reads use free-format (read *).
         """
         mgt_path = self.pp.txtinout_dir / '000010001.mgt'
+        props = self.pp._get_catchment_properties()
         mgt_lines = [
             # Line  1: title
             " Management parameters -- SYMFLUENCE generated",
@@ -517,8 +519,8 @@ class SWATSubbasinGenerator:
             " General management:",
             # Line 10: BIOMIX
             f"  {0.20:14.4f}    | BIOMIX : Biological mixing efficiency",
-            # Line 11: CN2
-            f"  {78.0:14.4f}    | CN2 : Initial SCS CN for moisture condition II",
+            # Line 11: CN2 (from the dominant land cover / hydrologic group)
+            f"  {props['cn2']:14.4f}    | CN2 : Initial SCS CN for moisture condition II",
             # Line 12: USLE_P
             f"  {1.0:14.4f}    | USLE_P : USLE support practice factor",
             # Line 13: BIO_MIN

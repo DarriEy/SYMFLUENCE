@@ -19,7 +19,6 @@ from typing import Tuple
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
@@ -189,38 +188,23 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.warning(f"No NetCDF files found in {forcing_path}")
             return None
 
-        logger.info(f"Loading ERA5 forcing from {forcing_path} ({len(forcing_files)} files)")
+        logger.info(f"Loading forcing from {forcing_path} ({len(forcing_files)} files)")
 
-        try:
-            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-        except Exception:  # noqa: BLE001 — model execution resilience
-            datasets = [xr.open_dataset(f) for f in forcing_files]
-            ds = xr.concat(datasets, dim='time')
-
-        # Subset to simulation time window
+        # Canonical model-ready forcing: variables under the canonical vocabulary
+        # (pptrate kg m-2 s-1, airtemp K) with the timestep on
+        # ds.attrs['timestep_seconds'] -- no per-model alias lists or hardcoded step.
+        from symfluence.data.model_ready.forcing_reader import (
+            forcing_timestep_seconds,
+            open_canonical_forcing,
+        )
+        ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
-        # Resolve variable names across the conventions present in SYMFLUENCE
-        # forcing: ERA5 (air_temperature/precipitation_flux) and the canonical
-        # CARRA/SUMMA-style names (airtemp/pptrate). Without the CARRA aliases
-        # this raised KeyError on CARRA forcing; even past that, the precip rate
-        # must be integrated over the ACTUAL timestep (CARRA is 3-hourly), not a
-        # hard-coded hour, or daily totals are undercounted ~3x.
-        def _pick(*names):
-            for n in names:
-                if n in ds:
-                    return ds[n].values.squeeze()
-            raise KeyError(
-                f"None of {names} found in forcing; have {list(ds.data_vars)}")
+        airtemp = ds['airtemp'].values.squeeze()   # K
+        pptrate = ds['pptrate'].values.squeeze()   # mm s-1 (== kg m-2 s-1)
 
-        airtemp = _pick('air_temperature', 'airtemp', 'temperature', 't2m')  # K
-        pptrate = _pick('precipitation_flux', 'pptrate', 'precipitation')     # mm s-1 (== kg m-2 s-1)
-
-        # Convert to pandas for daily resampling
         times = pd.DatetimeIndex(ds['time'].values)
-        # Actual forcing timestep in seconds (default 3600 if undeterminable).
-        dt_seconds = (float((times[1] - times[0]) / np.timedelta64(1, 's'))
-                      if len(times) > 1 else 3600.0)
+        dt_seconds = forcing_timestep_seconds(ds)
         sub = pd.DataFrame({
             'airtemp_C': airtemp - 273.15,          # K → °C
             'precip_mm': pptrate * dt_seconds,      # mm s-1 → mm per timestep
@@ -237,14 +221,12 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # (PRMS swrad units). 1 W m-2 sustained over a day = 86400 J m-2 =
         # 86400/41840 = 2.0651 Langleys.
         if self.use_obs_solar:
-            try:
-                swrad_wm2 = _pick('SWRadAtm', 'surface_downwelling_shortwave_flux',
-                                  'shortwave', 'rsds', 'swdown')
-                sw = pd.Series(swrad_wm2, index=times).clip(lower=0.0)
+            if 'SWRadAtm' in ds:
+                sw = pd.Series(ds['SWRadAtm'].values.squeeze(), index=times).clip(lower=0.0)
                 daily['swrad'] = (sw.resample('D').mean() * 2.0651)
-            except KeyError:
-                logger.warning("PRMS_USE_OBS_SOLAR set but no shortwave var in "
-                               "forcing; falling back to ddsolrad estimate")
+            else:
+                logger.warning("PRMS_USE_OBS_SOLAR set but no canonical shortwave "
+                               "(SWRadAtm) in forcing; falling back to ddsolrad estimate")
 
         # Drop any days with all NaN
         daily = daily.dropna(how='all')
